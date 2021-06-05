@@ -1,4 +1,4 @@
-package com.sickworm.intellij.icap
+package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
@@ -13,7 +13,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.util.concurrent.Executors
 
-private val logger = Logger.getInstance("#CIAP-InspectEventManager")
+private val logger = Logger.getInstance("#AIDP-InspectEventManager")
 
 /**
  * 文件变化监听

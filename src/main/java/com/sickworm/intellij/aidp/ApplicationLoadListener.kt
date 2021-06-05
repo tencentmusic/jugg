@@ -1,4 +1,4 @@
-package com.sickworm.intellij.icap
+package com.sickworm.intellij.aidp
 
 
 import com.intellij.ide.ApplicationLoadListener
@@ -8,7 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.ProjectManagerListener
 
-private val logger = Logger.getInstance("#CIAP-ApplicationLoadListener")
+private val logger = Logger.getInstance("#AIDP-ApplicationLoadListener")
 
 class ApplicationLoadListener: ApplicationLoadListener, ProjectManagerListener {
 

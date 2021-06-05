@@ -1,10 +1,10 @@
 <idea-plugin>
-    <id>com.sickworm.intellij.incremental-changes-apply-plugin</id>
-    <name>Incremental Changes Applier</name>
+    <id>com.sickworm.intellij.android-incremental-deploy-plugin</id>
+    <name>Android Incremental Deploy</name>
     <vendor email="ch.operation@gmail.com" url="https://sickworm.com">sickworm</vendor>
 
     <description><![CDATA[
-        增量改动部署插件
+        Android 增量部署插件
     ]]></description>
 
 <!--    <depends>org.jetbrains.android</depends>-->
@@ -12,6 +12,6 @@
 <!--    <depends>com.intellij.modules.androidstudio</depends>-->
 
     <extensions defaultExtensionNs="com.intellij">
-        <ApplicationLoadListener implementation="com.sickworm.intellij.icap.ApplicationLoadListener" />
+        <ApplicationLoadListener implementation="com.sickworm.intellij.aidp.ApplicationLoadListener" />
     </extensions>
 </idea-plugin>
