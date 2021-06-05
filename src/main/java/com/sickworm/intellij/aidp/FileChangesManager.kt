@@ -8,9 +8,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import java.io.File
 import java.util.concurrent.Executors
 
 private val logger = Logger.getInstance("#AIDP-InspectEventManager")
@@ -134,3 +136,5 @@ class FileChangesManager(private val project: Project,
 data class ChangeFileInfo(
     val file: VirtualFile
     )
+
+fun ChangeFileInfo.toCompilerFileInfo() = CompileFileInfo(VfsUtil.virtualToIoFile(file), File(""))

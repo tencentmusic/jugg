@@ -13,3 +13,5 @@ IgnoreLexer.java~
 .DS_Store
 
 /verification
+
+**/build/
