@@ -8,14 +8,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
-import java.io.File
 import java.util.concurrent.Executors
 
-private val logger = Logger.getInstance("#AIDP-InspectEventManager")
+private val logger = Logger.getInstance("#AIDP-FileChangesManager")
 
 /**
  * 文件变化监听
@@ -26,6 +24,7 @@ class FileChangesManager(private val project: Project,
     private val operateThread = Executors.newSingleThreadExecutor()
     private val changedFilesMap = mutableMapOf<String, ChangeFileInfo>()
     private var initThread: Thread? = null
+    private var listener: FileChangesListener? = null
 
     private val sourceRoots: List<String> = mutableListOf<String>().apply {
         ModuleManager.getInstance(project).modules.forEach { module ->
@@ -47,14 +46,16 @@ class FileChangesManager(private val project: Project,
         }
     }
 
-    fun listen() {
-        logger.info("$projectDir listen")
+    fun startListen(listener: FileChangesListener) {
+        logger.info("$projectDir startListen")
+        this.listener = listener
         initThread?.interrupt()
         initThread = Thread {
             listenFileChanged()
         }
         initThread?.start()
         Disposer.register(project, this)
+
     }
 
     override fun dispose() {
@@ -70,40 +71,38 @@ class FileChangesManager(private val project: Project,
                 events.forEach {
                     println("prepareChange ${it.file?.path}")
                 }
-                val filteredEvents = events.filter { isNeedInspect(it.file) }
+                val filteredEvents = events.filter { isNeedDeploy(it.file) }
                 if (filteredEvents.isEmpty()) return null
 
                 return object: AsyncFileListener.ChangeApplier {
                     override fun afterVfsChange() {
                         operateThread.execute {
-                            dispatchFileChanges(filteredEvents)
+                            notifyFileChanges(filteredEvents)
                         }
                     }
                 }
             }
 
-            private fun dispatchFileChanges(events: List<VFileEvent>) {
-                updateUncommittedFiles(events)
-            }
-
-            private fun updateUncommittedFiles(events: List<VFileEvent>) {
+            private fun notifyFileChanges(events: List<VFileEvent>) {
                 val files = events
                     .mapNotNull { it.file }
+                    .map { ChangeFileInfo(it) }
                 synchronized(changedFilesMap) {
                     files.forEach { file ->
-                        changedFilesMap[file.path] = ChangeFileInfo(file)
-                        logger.info("file ${file.path} changes recorded")
+                        changedFilesMap[file.file.path] = file
+                        logger.info("file ${file.file.path} changes recorded")
                     }
                 }
+                listener?.onFileChanges(files)
             }
         }
         VirtualFileManager.getInstance().addAsyncFileListener(vfsListener, project)
     }
 
     /**
-     * 快速过滤非监听文件，不要做耗时操作如 git 查询
+     * 过滤非监听文件
      */
-    private fun isNeedInspect(virtualFile: VirtualFile?): Boolean {
+    private fun isNeedDeploy(virtualFile: VirtualFile?): Boolean {
         // 找不到文件
         if (virtualFile == null || !virtualFile.exists()) {
             logger.debug("file ${virtualFile?.name} not exists, don't need inspect")
@@ -133,8 +132,10 @@ class FileChangesManager(private val project: Project,
     }
 }
 
+interface FileChangesListener {
+    fun onFileChanges(changeFiles: List<ChangeFileInfo>)
+}
+
 data class ChangeFileInfo(
     val file: VirtualFile
     )
-
-fun ChangeFileInfo.toCompilerFileInfo() = CompileFileInfo(VfsUtil.virtualToIoFile(file), File(""))

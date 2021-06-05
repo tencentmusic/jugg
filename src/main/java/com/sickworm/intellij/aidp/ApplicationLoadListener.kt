@@ -24,7 +24,7 @@ class ApplicationLoadListener: ApplicationLoadListener, ProjectManagerListener {
         logger.info("projectOpened $project $projectDir")
         if (projectDir == null) return // Default Project 才会为空
 
-        FileChangesManager(project, projectDir).listen()
+        AidpManager(project, projectDir).start()
     }
 
     override fun projectClosed(project: Project) {
