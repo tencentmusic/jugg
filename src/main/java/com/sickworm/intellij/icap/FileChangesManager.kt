@@ -1,4 +1,4 @@
-package com.sickworm.intellij.ciap
+package com.sickworm.intellij.icap
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger

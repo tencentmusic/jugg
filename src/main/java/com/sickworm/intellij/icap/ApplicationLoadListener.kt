@@ -1,4 +1,5 @@
-package com.sickworm.intellij.ciap
+package com.sickworm.intellij.icap
+
 
 import com.intellij.ide.ApplicationLoadListener
 import com.intellij.openapi.application.Application
