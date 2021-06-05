@@ -1,8 +1,8 @@
 package com.sickworm.intellij.aidp
 
-import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VfsUtil
 import java.io.File
 
 class AidpManager(private val project: Project,
@@ -16,7 +16,7 @@ class AidpManager(private val project: Project,
     fun start() {
         fileChangesManager.startListen(object: FileChangesListener {
             override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
-                val compileFiles = changeFiles.map { CompileFileInfo(it.file.toIoFile()) }
+                val compileFiles = changeFiles.map { CompileFileInfo(VfsUtil.virtualToIoFile(it.file)) }
                 compiler.compile(compileFiles, outputDir)
             }
         })

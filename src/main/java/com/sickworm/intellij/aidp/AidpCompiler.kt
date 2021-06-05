@@ -54,7 +54,10 @@ class AidpCompiler: ICompiler {
 
         val result: List<List<Result<Unit, CompileError>>?> = fileSet.map { (type, files) ->
             when (type) {
-                CompileFileInfo.Type.JAVA -> javaCompiler.compile(files, outputDir)
+                CompileFileInfo.Type.JAVA -> {
+                    logger.info("compile java files ${files.toTypedArray().contentToString()}")
+                    javaCompiler.compile(files, outputDir)
+                }
                 CompileFileInfo.Type.OTHER -> {
                     logger.info("ignore files ${files.toTypedArray().contentToString()}")
                     null
