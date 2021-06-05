@@ -1,22 +1,17 @@
 <idea-plugin>
-    <id>org.example.incremental-code-apply-plugin</id>
-    <name>Plugin display name here</name>
-    <vendor email="support@yourcompany.com" url="http://www.yourcompany.com">YourCompany</vendor>
+    <id>com.sickworm.intellij.incremental-code-apply-plugin</id>
+    <name>WeSing Inspect Code Watcher</name>
+    <vendor email="wormchen@tencent.com" url="http://wesingapp.com">WeSing</vendor>
 
     <description><![CDATA[
-    Enter short description for your plugin here.<br>
-    <em>most HTML tags may be used</em>
+        代码增量部署插件
     ]]></description>
 
-    <!-- please see https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html
-         on how to target different products -->
-    <depends>com.intellij.modules.platform</depends>
+<!--    <depends>org.jetbrains.android</depends>-->
+    <!-- 不加这项的话， Android Studio 中插件全部不启用 -->
+<!--    <depends>com.intellij.modules.androidstudio</depends>-->
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Add your extensions here -->
+        <ApplicationLoadListener implementation="com.sickworm.intellij.ciap.ApplicationLoadListener" />
     </extensions>
-
-    <actions>
-        <!-- Add your actions here -->
-    </actions>
 </idea-plugin>
