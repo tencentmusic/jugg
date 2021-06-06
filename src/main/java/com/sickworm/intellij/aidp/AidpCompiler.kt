@@ -143,9 +143,7 @@ class JavaCompiler: ICompiler {
         // compile options
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        if (dependencies.isNotEmpty()) {
-            options.addAll(listOf("-cp", dependencies.joinToString(classPathSeparate)))
-        }
+        options.addAll(listOf("-cp", dependencies.joinToString(classPathSeparate)))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
