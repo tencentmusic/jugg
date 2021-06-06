@@ -6,61 +6,49 @@ import java.io.File
 
 class JavaCompileTest {
 
-    private val buildDir = File("src/test/build")
-    private val assetsDir = File("src/test/assets")
-    private val assetsJavaDir = File(assetsDir.absolutePath + "/java")
-    private val assetsLibDir = File(assetsDir.absolutePath + "/lib")
+    private val buildDir = "src/test/build"
+    private val assetsDir = "src/test/assets"
+    private val assetsJavaDir = "$assetsDir/java"
+    private val assetsLibDir = "$assetsDir/lib"
+    private val assetsClassDir = "$assetsDir/class"
     private val packagePath = "/com/sickworm/intellij/aidp/test/"
 
+    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/HelloWorldJavaFile.java", buildDir)
     @Test
     fun javaCompile() {
-        val javaFile = File("$assetsJavaDir/HelloWorldJavaFile.java")
-        val fileInfo = CompileFileInfo(javaFile)
-        val compileTask = CompileTask(listOf(fileInfo), buildDir)
-        val results = JavaCompiler().compile(compileTask)
-
+        val results = JavaCompiler().compile(helloWorldTask)
         assert(results.size == 1)
-        val result = results.first()
-        assertCompileResult(result, true)
+        assertCompileResult(results.first(), true)
     }
 
+    private val errorTask = CompileTask.singleFile("$assetsJavaDir/ErrorJavaFile.java", buildDir)
     @Test
     fun javaCompileError() {
-        val javaFile = File("$assetsJavaDir/ErrorJavaFile.java")
-        val fileInfo = CompileFileInfo(javaFile)
-        val compileTask = CompileTask(listOf(fileInfo), buildDir)
-        val results = JavaCompiler().compile(compileTask)
-
+        val results = JavaCompiler().compile(errorTask)
         assert(results.size == 1)
-        val result = results.first()
-        assertCompileResult(result, false, 2)
+        assertCompileResult(results.first(), false, 2)
     }
 
+    private val internalDepTask = CompileTask.singleFile("$assetsJavaDir/JavaFileWithInternalDep.java", buildDir)
     @Test
     fun javaCompileWithInternalDep() {
-        val javaFile = File("$assetsJavaDir/JavaFileWithInternalDep.java")
-        val fileInfo = CompileFileInfo(javaFile)
-        val compileTask = CompileTask(listOf(fileInfo), buildDir)
-        val results = JavaCompiler().compile(compileTask)
-
+        val results = JavaCompiler().compile(internalDepTask)
         assert(results.size == 1)
-        val result = results.first()
-        assertCompileResult(result, true, 0)
+        assertCompileResult(results.first(), true)
     }
 
+    private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/JavaFileWithExternalDep.java",
+        buildDir,
+        dependencies = listOf(
+            "$assetsLibDir/rxjava-3.0.12.jar",
+            "$assetsLibDir/reactive-streams-1.0.3.jar"
+        )
+    )
     @Test
     fun javaCompileWithExternalDep() {
-        val javaFile = File("$assetsJavaDir/JavaFileWithExternalDep.java")
-        val fileInfo = CompileFileInfo(javaFile, dependencyPaths = listOf(
-            assetsLibDir.absolutePath + "/rxjava-3.0.12.jar",
-            assetsLibDir.absolutePath + "/reactive-streams-1.0.3.jar"
-        ))
-        val compileTask = CompileTask(listOf(fileInfo), buildDir)
-        val results = JavaCompiler().compile(compileTask)
-
+        val results = JavaCompiler().compile(externalDepTask)
         assert(results.size == 1)
-        val result = results.first()
-        assertCompileResult(result, true, 0)
+        assertCompileResult(results.first(), true)
     }
 
     @Test
@@ -68,7 +56,7 @@ class JavaCompileTest {
         val javaFile1 = File("$assetsJavaDir/HelloWorldJavaFile.java")
         val javaFile2 = File("$assetsJavaDir/ErrorJavaFile.java")
 
-        val compileTask = CompileTask(listOf(CompileFileInfo(javaFile1), CompileFileInfo(javaFile2)), buildDir)
+        val compileTask = CompileTask(listOf(CompileFileInfo(javaFile1), CompileFileInfo(javaFile2)), File(buildDir))
         val results = JavaCompiler().compile(compileTask)
 
         assert(results.size == 2)
@@ -85,7 +73,7 @@ class JavaCompileTest {
         assert(result.isFailure == !isSuccess)
         assert(result.getFailureOrNull()?.errors?.size?: 0 == errorCount)
         val className = result.file.file.name.replace(".java", ".class")
-        val classFile = File(buildDir.absolutePath + packagePath + className)
+        val classFile = File(buildDir + packagePath + className)
         if (isSuccess) {
             assert(classFile.exists() && classFile.length() > 0)
         } else {

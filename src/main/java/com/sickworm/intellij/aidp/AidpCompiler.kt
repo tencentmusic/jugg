@@ -15,7 +15,12 @@ interface ICompiler {
 data class CompileTask(
     val files: List<CompileFileInfo>,
     val outputDir: File
-)
+) {
+    companion object
+}
+
+fun CompileTask.Companion.singleFile(filePath: String, outputDir: String, dependencies: List<String> = emptyList()) =
+    CompileTask(listOf(CompileFileInfo(File(filePath), dependencyPaths = dependencies)), File(outputDir))
 
 data class CompileFileInfo(
     val file: File,
