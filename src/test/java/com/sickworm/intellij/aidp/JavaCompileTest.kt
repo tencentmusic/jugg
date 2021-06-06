@@ -127,7 +127,7 @@ class JavaCompileTest {
             assert(classFile.exists() && classFile.length() > 0)
         } else {
             // compiler doesn't know the generated class path so compiler won't delete generated files if
-            // compilation failed in the middle of compilation
+            // compilation failed in the middle
         }
     }
 }
