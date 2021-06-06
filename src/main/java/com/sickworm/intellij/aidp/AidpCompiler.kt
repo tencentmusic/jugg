@@ -9,7 +9,7 @@ import javax.tools.JavaCompiler as JavaCompilerX
 private val logger = Logger.getInstance("#AIDP-Compiler")
 
 interface ICompiler {
-    fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<Unit, CompileError>>
+    fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<CompileFileInfo, CompileError>>
 }
 
 data class CompileFileInfo(
@@ -41,7 +41,7 @@ class AidpCompiler: ICompiler {
 
     private val javaCompiler = JavaCompiler()
 
-    override fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<Unit, CompileError>> {
+    override fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<CompileFileInfo, CompileError>> {
         val fileSet = mutableMapOf<CompileFileInfo.Type, MutableList<CompileFileInfo>>()
         files.forEach {
             var set = fileSet[it.type]
@@ -52,7 +52,7 @@ class AidpCompiler: ICompiler {
             set.add(it)
         }
 
-        val result: List<List<Result<Unit, CompileError>>?> = fileSet.map { (type, files) ->
+        val result: List<List<Result<CompileFileInfo, CompileError>>?> = fileSet.map { (type, files) ->
             when (type) {
                 CompileFileInfo.Type.JAVA -> {
                     logger.info("compile java files ${files.toTypedArray().contentToString()}")
@@ -70,7 +70,7 @@ class AidpCompiler: ICompiler {
 }
 
 class JavaCompiler: ICompiler {
-    override fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<Unit, CompileError>> {
+    override fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<CompileFileInfo, CompileError>> {
         val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
         val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
         val options: List<String> = listOf("-d", outputDir.absolutePath)
@@ -87,7 +87,7 @@ class JavaCompiler: ICompiler {
         task.call()
 
         return compileItems.values.map {
-            if (it.isSuccess) Result.success(Unit) else Result.failure(it.toCompileError())
+            if (it.isSuccess) Result.success(it.file) else Result.failure(it.toCompileError())
         }
     }
 
@@ -101,3 +101,6 @@ class JavaCompiler: ICompiler {
         fun toCompileError() = CompileError(file, errors)
     }
 }
+
+val Result<CompileFileInfo, CompileError>.file: CompileFileInfo
+    get() = if (isSuccess) getOrNull()!! else getFailureOrNull()!!.file
