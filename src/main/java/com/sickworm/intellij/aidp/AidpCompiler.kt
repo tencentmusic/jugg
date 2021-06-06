@@ -9,13 +9,18 @@ import javax.tools.JavaCompiler as JavaCompilerX
 private val logger = Logger.getInstance("#AIDP-Compiler")
 
 interface ICompiler {
-    fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>>
+    fun compile(task: CompileTask): CompileResult
 }
 
 data class CompileTask(
     val files: List<CompileFileInfo>,
     val outputDir: File
 ) {
+
+    operator fun plus(task: CompileTask): CompileTask {
+        return CompileTask(files + task.files, outputDir)
+    }
+
     companion object
 }
 
@@ -47,8 +52,22 @@ data class CompileFileInfo(
     }
 }
 
+data class CompileResult(
+    val task: CompileTask,
+    val details: List<Result<CompileFileInfo, CompileError>>
+): List<Result<CompileFileInfo, CompileError>> by details {
+
+    val fileCount get() = details.size
+
+    val successFiles get() = details.filter { it.isSuccess }
+
+    val failedFiles get() = details.filter { it.isFailed }
+}
+
 data class CompileError(
+    /** file to be compiled */
     val file: CompileFileInfo,
+    /** will be empty if [file] looks good but compiler still stopped because there is another error file */
     val errors: List<Pair<Long, String>> // <Line, Message>
 ) {
     val errorMessages get() = errors.joinToString("\n") { it.second }
@@ -58,7 +77,8 @@ class AidpCompiler: ICompiler {
 
     private val javaCompiler = JavaCompiler()
 
-    override fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>> {
+    override fun compile(task: CompileTask): CompileResult {
+        // split compile files by type
         val fileSet = mutableMapOf<CompileFileInfo.Type, MutableList<CompileFileInfo>>()
         task.files.forEach {
             var set = fileSet[it.type]
@@ -69,8 +89,9 @@ class AidpCompiler: ICompiler {
             set.add(it)
         }
 
+        // compile
         val startTime = System.currentTimeMillis()
-        val resultList: List<List<Result<CompileFileInfo, CompileError>>?> = fileSet.map { (type, files) ->
+        val resultList: List<CompileResult?> = fileSet.map { (type, files) ->
             when (type) {
                 CompileFileInfo.Type.JAVA -> {
                     logger.info("compile java files $files")
@@ -82,16 +103,18 @@ class AidpCompiler: ICompiler {
                 }
             }
         }
-
         val costTime = System.currentTimeMillis() - startTime
         logger.info("compile finished, cost ${costTime}ms")
 
-        val result = resultList.filterNotNull().flatten().toList()
+        // check result
+        val details = resultList
+            .mapNotNull { it?.details }
+            .flatten()
+        val result = CompileResult(task, details)
+        logger.info("compile result, success: ${result.successFiles.size}, failure: ${result.failedFiles.size}")
 
-        val successResult = result.filter { it.isSuccess }
-        val failureResult = result.filter { it.isFailure }
-        logger.info("compile result, success: ${successResult.size}, failure: ${failureResult.size}")
-        failureResult.forEach {
+        // log error
+        result.failedFiles.forEach {
             val fileName = it.file.file.name
             val error = it.getFailure()
             logger.warn("$fileName compile failed! errors(total ${error.errors.size}):")
@@ -111,27 +134,39 @@ class JavaCompiler: ICompiler {
     private val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
-    override fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>> {
-        val compileItems = task.files.associate {
+    override fun compile(task: CompileTask): CompileResult {
+        val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
-            fileObject to JavaCompileItem(it, fileObject)
+            JavaCompileItem(it, fileObject)
         }
-        val objects = compileItems.values.map { it.fileObject }
 
+        // compile options
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         if (dependencies.isNotEmpty()) {
             options.addAll(listOf("-cp", dependencies.joinToString(classPathSeparate)))
         }
 
+        // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
-            compileItems[diagnostic.source]!!.errors.add(diagnostic.lineNumber to diagnostic.toString())
+            val item = compileItems.first { it.fileObject == diagnostic.source }
+            item.errors.add(diagnostic.lineNumber to diagnostic.toString())
         }
+
+        // compile files
+        val objects = compileItems.map { it.fileObject }
+
+        // do compile
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
         javaTask.call()
 
-        return compileItems.values.map {
-            if (it.isSuccess) Result.success(it.file) else Result.failure(it.toCompileError())
+        // check result
+        val failedItems = compileItems.filter { it.isFailed }
+        // all failed or all success
+        return if (failedItems.isEmpty()) {
+            CompileResult(task, compileItems.map { Result.success(it.file) })
+        } else {
+            CompileResult(task, compileItems.map { Result.failure(CompileError(it.file, it.errors)) })
         }
     }
 
@@ -140,9 +175,7 @@ class JavaCompiler: ICompiler {
         val fileObject: JavaFileObject,
         val errors: MutableList<Pair<Long, String>> = mutableListOf(),
     ) {
-        val isSuccess get() = errors.isEmpty()
-
-        fun toCompileError() = CompileError(file, errors)
+        val isFailed get() = errors.isNotEmpty()
     }
 }
 

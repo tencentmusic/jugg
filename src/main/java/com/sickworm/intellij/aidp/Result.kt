@@ -1,7 +1,7 @@
 package com.sickworm.intellij.aidp
 
 @Suppress("UNCHECKED_CAST")
-class Result<Success, Failure> private constructor(
+class Result<Success, Failure> constructor(
     val isSuccess: Boolean,
     success: Success?,
     failure: Failure?,
@@ -9,7 +9,7 @@ class Result<Success, Failure> private constructor(
 
     private val value: Any? = if (isSuccess) success else failure
 
-    val isFailure: Boolean get() = !isSuccess
+    val isFailed: Boolean get() = !isSuccess
 
     fun get(): Success = value as Success
 
@@ -17,7 +17,7 @@ class Result<Success, Failure> private constructor(
 
     fun getOrNull(): Success? = if (isSuccess) value as Success else null
 
-    fun getFailureOrNull(): Failure? = if (isFailure) value as Failure else null
+    fun getFailureOrNull(): Failure? = if (isFailed) value as Failure else null
 
     override fun toString(): String {
         val result = if (isSuccess) "success" else "failure"

@@ -1,11 +1,17 @@
 package com.sickworm.intellij.aidp
 
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.lang.IllegalStateException
 
 
 class JavaCompileTest {
+
+    @Before
+    fun init() {
+        File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
+    }
 
     private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", buildDir)
     @Test
@@ -21,14 +27,6 @@ class JavaCompileTest {
         val results = JavaCompiler().compile(errorTask)
         assert(results.size == 1)
         assertCompileResult(results.first(), false, 2)
-    }
-
-    private val internalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithInternalDep.java", buildDir)
-    @Test
-    fun javaCompileWithInternalDep() {
-        val results = JavaCompiler().compile(internalDepTask)
-        assert(results.size == 1)
-        assertCompileResult(results.first(), true)
     }
 
     private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
@@ -76,24 +74,48 @@ class JavaCompileTest {
     }
 
     @Test
-    fun javaCompileMulti() {
-        val compileTask = CompileTask(helloWorldTask.files + errorTask.files, File(buildDir))
+    fun javaCompileMultiFiles() {
+        val compileTask = helloWorldTask + externalDepTask + classDepTask + activityTask
         val results = JavaCompiler().compile(compileTask)
 
-        assert(results.size == 2)
-        assertCompileResult(results[0], true)
-        assertCompileResult(results[1], false, 2)
+        assert(results.size == compileTask.files.size)
+
+        results.forEach {
+            assertCompileResult(it, true)
+        }
     }
 
-    private fun assertCompileResult(result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean, errorCount: Int = 0) {
-        if (!result.isSuccess) {
-            println("assertCompileResult error count: ${result.getFailureOrNull()?.errors?.size}")
-            println("assertCompileResult error messages:\n ${result.getFailureOrNull()?.errorMessages}")
+    @Test
+    fun javaCompileMultiFilesError() {
+        val compileTask = helloWorldTask + errorTask + externalDepTask + classDepTask + activityTask
+        val results = JavaCompiler().compile(compileTask)
+
+        assert(results.size == compileTask.files.size)
+
+        results.forEach {
+            if (errorTask.files[0] == it.file) {
+                assertCompileResult(it, false, 2)
+            } else {
+                assertCompileResult(it, false, 0)
+            }
+        }
+    }
+
+    private fun assertCompileResult(result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean, errorCount: Int? = null) {
+        if (result.isFailed) {
+            println("assertCompileResult error count: ${result.getFailure().errors.size}")
+            println("assertCompileResult error messages:\n ${result.getFailure().errorMessages}")
         }
 
         assert(result.isSuccess == isSuccess)
-        assert(result.isFailure == !isSuccess)
-        assert(result.getFailureOrNull()?.errors?.size?: 0 == errorCount)
+        assert(result.isFailed == !isSuccess)
+        if (isSuccess) {
+            assert(result.getFailureOrNull() == null)
+        } else {
+            if (errorCount != null) {
+                assert(result.getFailure().errors.size == errorCount)
+            }
+        }
         val className = result.file.file.name.replace(".java", ".class")
         val packagePath = result.file.file.absolutePath.let {
             it.substring(assetsJavaDir.length, it.length - className.length + 1)
@@ -102,7 +124,7 @@ class JavaCompileTest {
         if (isSuccess) {
             assert(classFile.exists() && classFile.length() > 0)
         } else {
-            assert(!classFile.exists())
+            // we don't know the generated class path so we won't delete files if failed in the middle of compilation
         }
     }
 }
