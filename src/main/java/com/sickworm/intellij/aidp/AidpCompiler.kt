@@ -9,12 +9,18 @@ import javax.tools.JavaCompiler as JavaCompilerX
 private val logger = Logger.getInstance("#AIDP-Compiler")
 
 interface ICompiler {
-    fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<CompileFileInfo, CompileError>>
+    fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>>
 }
+
+data class CompileTask(
+    val files: List<CompileFileInfo>,
+    val outputDir: File
+)
 
 data class CompileFileInfo(
     val file: File,
-    val type: Type = getTypeByExtension(file.name)
+    val type: Type = getTypeByExtension(file.name),
+    val dependencyPaths: List<String> = emptyList()
 ) {
 
     companion object {
@@ -41,9 +47,9 @@ class AidpCompiler: ICompiler {
 
     private val javaCompiler = JavaCompiler()
 
-    override fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<CompileFileInfo, CompileError>> {
+    override fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>> {
         val fileSet = mutableMapOf<CompileFileInfo.Type, MutableList<CompileFileInfo>>()
-        files.forEach {
+        task.files.forEach {
             var set = fileSet[it.type]
             if (set == null) {
                 set = mutableListOf()
@@ -56,7 +62,7 @@ class AidpCompiler: ICompiler {
             when (type) {
                 CompileFileInfo.Type.JAVA -> {
                     logger.info("compile java files ${files.toTypedArray().contentToString()}")
-                    javaCompiler.compile(files, outputDir)
+                    javaCompiler.compile(task)
                 }
                 CompileFileInfo.Type.OTHER -> {
                     logger.info("ignore files ${files.toTypedArray().contentToString()}")
@@ -70,21 +76,30 @@ class AidpCompiler: ICompiler {
 }
 
 class JavaCompiler: ICompiler {
-    override fun compile(files: List<CompileFileInfo>, outputDir: File): List<Result<CompileFileInfo, CompileError>> {
+
+    private val classPathSeparate = if (System.getProperty("os.name").startsWith("Windows")) ";" else ":"
+
+    override fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>> {
         val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
         val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
-        val options: List<String> = listOf("-d", outputDir.absolutePath)
-        val compileItems = files.associate {
+
+        val compileItems = task.files.associate {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
             fileObject to JavaCompileItem(it, fileObject)
         }
         val objects = compileItems.values.map { it.fileObject}
 
+        val options = mutableListOf("-d", task.outputDir.absolutePath)
+        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
+        if (dependencies.isNotEmpty()) {
+            options.addAll(listOf("-cp", dependencies.joinToString(classPathSeparate)))
+        }
+
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             compileItems[diagnostic.source]!!.errors.add(diagnostic.lineNumber to diagnostic.toString())
         }
-        val task = compiler.getTask(null, fileManager, compileListener, options, null, objects )
-        task.call()
+        val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
+        javaTask.call()
 
         return compileItems.values.map {
             if (it.isSuccess) Result.success(it.file) else Result.failure(it.toCompileError())

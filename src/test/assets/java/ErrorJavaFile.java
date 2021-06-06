@@ -1,4 +1,4 @@
-package com.sickworm.intellij.aidp;
+package com.sickworm.intellij.aidp.test;
 
 public class ErrorJavaFile {
     public static void main(String[] args) {

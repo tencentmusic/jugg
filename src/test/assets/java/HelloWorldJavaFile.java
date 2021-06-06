@@ -1,8 +1,7 @@
-package com.sickworm.intellij.aidp;
+package com.sickworm.intellij.aidp.test;
 
 public class HelloWorldJavaFile {
     public static void main(String[] args) {
-        Text
         System.out.println("Hello AIDP!");
     }
 }

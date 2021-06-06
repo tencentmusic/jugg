@@ -17,7 +17,7 @@ class AidpManager(private val project: Project,
         fileChangesManager.startListen(object: FileChangesListener {
             override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
                 val compileFiles = changeFiles.map { CompileFileInfo(VfsUtil.virtualToIoFile(it.file)) }
-                compiler.compile(compileFiles, outputDir)
+                compiler.compile(CompileTask(compileFiles, outputDir))
             }
         })
     }
