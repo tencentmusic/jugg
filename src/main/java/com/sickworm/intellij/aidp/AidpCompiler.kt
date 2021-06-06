@@ -28,6 +28,10 @@ data class CompileFileInfo(
     val dependencyPaths: List<String> = emptyList()
 ) {
 
+    override fun toString(): String {
+        return "$type:${file.name}"
+    }
+
     companion object {
         fun getTypeByExtension(fileName: String): Type {
             return when {
@@ -65,20 +69,39 @@ class AidpCompiler: ICompiler {
             set.add(it)
         }
 
-        val result: List<List<Result<CompileFileInfo, CompileError>>?> = fileSet.map { (type, files) ->
+        val startTime = System.currentTimeMillis()
+        val resultList: List<List<Result<CompileFileInfo, CompileError>>?> = fileSet.map { (type, files) ->
             when (type) {
                 CompileFileInfo.Type.JAVA -> {
-                    logger.info("compile java files ${files.toTypedArray().contentToString()}")
+                    logger.info("compile java files $files")
                     javaCompiler.compile(task)
                 }
                 CompileFileInfo.Type.OTHER -> {
-                    logger.info("ignore files ${files.toTypedArray().contentToString()}")
+                    logger.info("ignore files $files")
                     null
                 }
             }
         }
 
-        return result.filterNotNull().flatten()
+        val costTime = System.currentTimeMillis() - startTime
+        logger.info("compile finished, cost ${costTime}ms")
+
+        val result = resultList.filterNotNull().flatten().toList()
+
+        val successResult = result.filter { it.isSuccess }
+        val failureResult = result.filter { it.isFailure }
+        logger.info("compile result, success: ${successResult.size}, failure: ${failureResult.size}")
+        failureResult.forEach {
+            val fileName = it.file.file.name
+            val error = it.getFailure()
+            logger.warn("$fileName compile failed! errors(total ${error.errors.size}):")
+            it.getFailureOrNull()?.errorMessages?.split("\n")?.forEach { msg ->
+                logger.warn(msg)
+            }
+            logger.warn("$fileName compile failed! please check out the log")
+        }
+
+        return result
     }
 }
 

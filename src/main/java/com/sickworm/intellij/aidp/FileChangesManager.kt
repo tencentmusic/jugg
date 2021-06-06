@@ -23,7 +23,6 @@ class FileChangesManager(private val project: Project,
     private val inspectFileExtensions = listOf("java", "kt")
     private val operateThread = Executors.newSingleThreadExecutor()
     private val changedFilesMap = mutableMapOf<String, ChangeFileInfo>()
-    private var initThread: Thread? = null
     private var listener: FileChangesListener? = null
 
     private val sourceRoots: List<String> = mutableListOf<String>().apply {
@@ -49,28 +48,19 @@ class FileChangesManager(private val project: Project,
     fun startListen(listener: FileChangesListener) {
         logger.info("$projectDir startListen")
         this.listener = listener
-        initThread?.interrupt()
-        initThread = Thread {
-            listenFileChanged()
-        }
-        initThread?.start()
+        listenFileChanges()
         Disposer.register(project, this)
 
     }
 
     override fun dispose() {
         logger.info("$projectDir dispose")
-        initThread?.interrupt()
         operateThread.shutdown()
     }
 
-    private fun listenFileChanged() {
-        logger.info("$projectDir listenFileChanged")
+    private fun listenFileChanges() {
         val vfsListener = object: AsyncFileListener {
             override fun prepareChange(events: MutableList<out VFileEvent>): AsyncFileListener.ChangeApplier? {
-                events.forEach {
-                    println("prepareChange ${it.file?.path}")
-                }
                 val filteredEvents = events.filter { isNeedDeploy(it.file) }
                 if (filteredEvents.isEmpty()) return null
 
@@ -90,8 +80,8 @@ class FileChangesManager(private val project: Project,
                 synchronized(changedFilesMap) {
                     files.forEach { file ->
                         changedFilesMap[file.file.path] = file
-                        logger.info("file ${file.file.path} changes recorded")
                     }
+                    logger.info("onFileChanges $files")
                 }
                 listener?.onFileChanges(files)
             }
