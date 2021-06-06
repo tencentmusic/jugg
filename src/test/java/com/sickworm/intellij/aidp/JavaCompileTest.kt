@@ -51,6 +51,17 @@ class JavaCompileTest {
         assertCompileResult(results.first(), true)
     }
 
+    private val classDepTask = CompileTask.singleFile("$assetsJavaDir/JavaFileWithClassDep.java",
+        buildDir,
+        dependencies = listOf(assetsClassDir)
+    )
+    @Test
+    fun javaCompileWithClassDep() {
+        val results = JavaCompiler().compile(classDepTask)
+        assert(results.size == 1)
+        assertCompileResult(results.first(), true)
+    }
+
     @Test
     fun javaCompileMulti() {
         val javaFile1 = File("$assetsJavaDir/HelloWorldJavaFile.java")
