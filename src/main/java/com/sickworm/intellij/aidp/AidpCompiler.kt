@@ -108,16 +108,15 @@ class AidpCompiler: ICompiler {
 class JavaCompiler: ICompiler {
 
     private val classPathSeparate = System.getProperty("path.separator")
+    private val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
+    private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
     override fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>> {
-        val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
-        val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
-
         val compileItems = task.files.associate {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
             fileObject to JavaCompileItem(it, fileObject)
         }
-        val objects = compileItems.values.map { it.fileObject}
+        val objects = compileItems.values.map { it.fileObject }
 
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
