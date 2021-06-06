@@ -130,7 +130,6 @@ class AidpCompiler: ICompiler {
 
 class JavaCompiler: ICompiler {
 
-    private val classPathSeparate = System.getProperty("path.separator")
     private val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
@@ -143,7 +142,7 @@ class JavaCompiler: ICompiler {
         // compile options
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        options.addAll(listOf("-cp", dependencies.joinToString(classPathSeparate)))
+        options.addAll(listOf("-cp", dependencies.joinToString(pathSeparator)))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
@@ -176,6 +175,8 @@ class JavaCompiler: ICompiler {
         val isFailed get() = errors.isNotEmpty()
     }
 }
+
+val pathSeparator = System.getProperty("path.separator")
 
 val Result<CompileFileInfo, CompileError>.file: CompileFileInfo
     get() = if (isSuccess) getOrNull()!! else getFailureOrNull()!!.file
