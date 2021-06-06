@@ -2,18 +2,12 @@ package com.sickworm.intellij.aidp
 
 import org.junit.Test
 import java.io.File
+import java.lang.IllegalStateException
 
 
 class JavaCompileTest {
 
-    private val buildDir = "src/test/build"
-    private val assetsDir = "src/test/assets"
-    private val assetsJavaDir = "$assetsDir/java"
-    private val assetsLibDir = "$assetsDir/lib"
-    private val assetsClassDir = "$assetsDir/class"
-    private val packagePath = "/com/sickworm/intellij/aidp/test/"
-
-    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/HelloWorldJavaFile.java", buildDir)
+    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", buildDir)
     @Test
     fun javaCompile() {
         val results = JavaCompiler().compile(helloWorldTask)
@@ -21,7 +15,7 @@ class JavaCompileTest {
         assertCompileResult(results.first(), true)
     }
 
-    private val errorTask = CompileTask.singleFile("$assetsJavaDir/ErrorJavaFile.java", buildDir)
+    private val errorTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", buildDir)
     @Test
     fun javaCompileError() {
         val results = JavaCompiler().compile(errorTask)
@@ -29,7 +23,7 @@ class JavaCompileTest {
         assertCompileResult(results.first(), false, 2)
     }
 
-    private val internalDepTask = CompileTask.singleFile("$assetsJavaDir/JavaFileWithInternalDep.java", buildDir)
+    private val internalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithInternalDep.java", buildDir)
     @Test
     fun javaCompileWithInternalDep() {
         val results = JavaCompiler().compile(internalDepTask)
@@ -37,7 +31,7 @@ class JavaCompileTest {
         assertCompileResult(results.first(), true)
     }
 
-    private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/JavaFileWithExternalDep.java",
+    private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
         buildDir,
         dependencies = listOf(
             "$assetsLibDir/rxjava-3.0.12.jar",
@@ -51,7 +45,7 @@ class JavaCompileTest {
         assertCompileResult(results.first(), true)
     }
 
-    private val classDepTask = CompileTask.singleFile("$assetsJavaDir/JavaFileWithClassDep.java",
+    private val classDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java",
         buildDir,
         dependencies = listOf(assetsClassDir)
     )
@@ -62,12 +56,28 @@ class JavaCompileTest {
         assertCompileResult(results.first(), true)
     }
 
+    private val androidHome = System.getenv("ANDROID_HOME")
+    private val androidJar = "$androidHome/platforms/android-30/android.jar"
+    private val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
+    private val activityTask = CompileTask.singleFile("$assetsJavaDir/com/example/myapplication/MainActivity2.java",
+        buildDir,
+        dependencies = listOf(androidJar)
+                + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
+                + IntellijLibraryConfigParser(intellijLibraryDir).parse()!!
+    )
+    @Test
+    fun javaCompileAndroidActivity() {
+        if (!File(androidJar).exists()) {
+            throw IllegalStateException("android sdk not found, search ANDROID_HOME: $androidHome, Android jar file: $androidJar")
+        }
+        val results = JavaCompiler().compile(activityTask)
+        assert(results.size == 1)
+        assertCompileResult(results.first(), true)
+    }
+
     @Test
     fun javaCompileMulti() {
-        val javaFile1 = File("$assetsJavaDir/HelloWorldJavaFile.java")
-        val javaFile2 = File("$assetsJavaDir/ErrorJavaFile.java")
-
-        val compileTask = CompileTask(listOf(CompileFileInfo(javaFile1), CompileFileInfo(javaFile2)), File(buildDir))
+        val compileTask = CompileTask(helloWorldTask.files + errorTask.files, File(buildDir))
         val results = JavaCompiler().compile(compileTask)
 
         assert(results.size == 2)
@@ -77,13 +87,17 @@ class JavaCompileTest {
 
     private fun assertCompileResult(result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean, errorCount: Int = 0) {
         if (!result.isSuccess) {
-            println("errors ${result.getFailureOrNull()?.errors}")
+            println("assertCompileResult error count: ${result.getFailureOrNull()?.errors?.size}")
+            println("assertCompileResult error messages:\n ${result.getFailureOrNull()?.errorMessages}")
         }
 
         assert(result.isSuccess == isSuccess)
         assert(result.isFailure == !isSuccess)
         assert(result.getFailureOrNull()?.errors?.size?: 0 == errorCount)
         val className = result.file.file.name.replace(".java", ".class")
+        val packagePath = result.file.file.absolutePath.let {
+            it.substring(assetsJavaDir.length, it.length - className.length + 1)
+        }
         val classFile = File(buildDir + packagePath + className)
         if (isSuccess) {
             assert(classFile.exists() && classFile.length() > 0)

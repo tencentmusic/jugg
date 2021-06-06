@@ -46,7 +46,9 @@ data class CompileFileInfo(
 data class CompileError(
     val file: CompileFileInfo,
     val errors: List<Pair<Long, String>> // <Line, Message>
-)
+) {
+    val errorMessages get() = errors.joinToString("\n") { it.second }
+}
 
 class AidpCompiler: ICompiler {
 
@@ -82,7 +84,7 @@ class AidpCompiler: ICompiler {
 
 class JavaCompiler: ICompiler {
 
-    private val classPathSeparate = if (System.getProperty("os.name").startsWith("Windows")) ";" else ":"
+    private val classPathSeparate = System.getProperty("path.separator")
 
     override fun compile(task: CompileTask): List<Result<CompileFileInfo, CompileError>> {
         val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
