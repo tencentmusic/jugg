@@ -151,6 +151,7 @@ class JavaCompiler: ICompiler {
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         options.addAll(listOf("-cp", dependencies.joinToString(pathSeparator)))
+        // ensure class file version for later dex
         options.addAll(listOf("-source", "1.7"))
         options.addAll(listOf("-target", "1.7"))
 
@@ -158,6 +159,8 @@ class JavaCompiler: ICompiler {
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
             if (item == null) {
+                // it maybe a compile warning like:
+                // warning: [options] bootstrap class path not set in conjunction with source -1.7
                 logger.warn("java compile diagnostic: $diagnostic")
                 return@DiagnosticListener
             }
