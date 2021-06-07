@@ -9,10 +9,10 @@ import java.lang.IllegalStateException
 class JavaCompileTest {
 
     val javaCompiler = JavaCompiler()
-    
+
     @Before
     fun init() {
-        File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
+        clearBuild()
     }
 
     private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", buildDir)

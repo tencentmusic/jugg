@@ -10,7 +10,7 @@ class KotlinCompileTest {
 
     @Before
     fun init() {
-        File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
+        clearBuild()
     }
 
     @Test

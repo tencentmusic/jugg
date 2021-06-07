@@ -10,6 +10,8 @@ val assetsLibDir = "$assetsDir/lib"
 val assetsClassDir = "$assetsDir/class"
 val assetsAndroidDir = "$assetsDir/android"
 
+fun clearBuild() = File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
+
 fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean, errorCount: Int? = null) {
     if (result.isFailed) {
         println("assertCompileResult error count: ${result.getFailure().errors.size}")

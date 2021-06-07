@@ -151,10 +151,16 @@ class JavaCompiler: ICompiler {
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         options.addAll(listOf("-cp", dependencies.joinToString(pathSeparator)))
+        options.addAll(listOf("-source", "1.7"))
+        options.addAll(listOf("-target", "1.7"))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
-            val item = compileItems.first { it.fileObject == diagnostic.source }
+            val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
+            if (item == null) {
+                logger.warn("java compile diagnostic: $diagnostic")
+                return@DiagnosticListener
+            }
             item.errors.add(diagnostic.lineNumber to diagnostic.toString())
         }
 
