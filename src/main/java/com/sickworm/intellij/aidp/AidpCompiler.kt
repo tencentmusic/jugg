@@ -40,15 +40,17 @@ data class CompileFileInfo(
     companion object {
         fun getTypeByExtension(fileName: String): Type {
             return when {
-                fileName.endsWith(".java") -> Type.JAVA
-                else -> Type.OTHER
+                fileName.endsWith(".java") -> Type.Java
+                fileName.endsWith(".kt") -> Type.Kotlin
+                else -> Type.Other
             }
         }
     }
 
     enum class Type {
-        JAVA,
-        OTHER
+        Java,
+        Kotlin,
+        Other
     }
 }
 
@@ -77,6 +79,8 @@ class AidpCompiler: ICompiler {
 
     private val javaCompiler = JavaCompiler()
 
+    private val kotlinCompiler = KotlinCompiler()
+
     override fun compile(task: CompileTask): CompileResult {
         // split compile files by type
         val fileSet = mutableMapOf<CompileFileInfo.Type, MutableList<CompileFileInfo>>()
@@ -93,11 +97,15 @@ class AidpCompiler: ICompiler {
         val startTime = System.currentTimeMillis()
         val resultList: List<CompileResult?> = fileSet.map { (type, files) ->
             when (type) {
-                CompileFileInfo.Type.JAVA -> {
+                CompileFileInfo.Type.Java -> {
                     logger.info("compile java files $files")
                     javaCompiler.compile(task)
                 }
-                CompileFileInfo.Type.OTHER -> {
+                CompileFileInfo.Type.Kotlin -> {
+                    logger.info("compile kotlin files $files")
+                    kotlinCompiler.compile(task)
+                }
+                CompileFileInfo.Type.Other -> {
                     logger.info("ignore files $files")
                     null
                 }
