@@ -20,7 +20,7 @@ class JavaCompileTest {
     fun javaCompile() {
         val results = javaCompiler.compile(helloWorldTask)
         assert(results.size == 1)
-        assertCompileResult(results.first(), true)
+        assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
     private val errorTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", buildDir)
@@ -28,7 +28,7 @@ class JavaCompileTest {
     fun javaCompileError() {
         val results = javaCompiler.compile(errorTask)
         assert(results.size == 1)
-        assertCompileResult(results.first(), false, 2)
+        assertCompileResult(assetsJavaDir, results.first(), false, 2)
     }
 
     private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
@@ -42,7 +42,7 @@ class JavaCompileTest {
     fun javaCompileWithExternalDep() {
         val results = javaCompiler.compile(externalDepTask)
         assert(results.size == 1)
-        assertCompileResult(results.first(), true)
+        assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
     private val classDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java",
@@ -53,7 +53,7 @@ class JavaCompileTest {
     fun javaCompileWithClassDep() {
         val results = javaCompiler.compile(classDepTask)
         assert(results.size == 1)
-        assertCompileResult(results.first(), true)
+        assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
     private val androidHome = System.getenv("ANDROID_HOME")
@@ -72,7 +72,7 @@ class JavaCompileTest {
         }
         val results = javaCompiler.compile(activityTask)
         assert(results.size == 1)
-        assertCompileResult(results.first(), true)
+        assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
     @Test
@@ -83,7 +83,7 @@ class JavaCompileTest {
         assert(results.size == compileTask.files.size)
 
         results.forEach {
-            assertCompileResult(it, true)
+            assertCompileResult(assetsJavaDir, it, true)
         }
     }
 
@@ -96,38 +96,10 @@ class JavaCompileTest {
 
         results.forEach {
             if (errorTask.files[0] == it.file) {
-                assertCompileResult(it, false, 2)
+                assertCompileResult(assetsJavaDir, it, false, 2)
             } else {
-                assertCompileResult(it, false, 0)
+                assertCompileResult(assetsJavaDir, it, false, 0)
             }
-        }
-    }
-
-    private fun assertCompileResult(result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean, errorCount: Int? = null) {
-        if (result.isFailed) {
-            println("assertCompileResult error count: ${result.getFailure().errors.size}")
-            println("assertCompileResult error messages:\n ${result.getFailure().errorMessages}")
-        }
-
-        assert(result.isSuccess == isSuccess)
-        assert(result.isFailed == !isSuccess)
-        if (isSuccess) {
-            assert(result.getFailureOrNull() == null)
-        } else {
-            if (errorCount != null) {
-                assert(result.getFailure().errors.size == errorCount)
-            }
-        }
-        val className = result.file.file.name.replace(".java", ".class")
-        val packagePath = result.file.file.absolutePath.let {
-            it.substring(assetsJavaDir.length, it.length - className.length + 1)
-        }
-        val classFile = File(buildDir + packagePath + className)
-        if (isSuccess) {
-            assert(classFile.exists() && classFile.length() > 0)
-        } else {
-            // compiler doesn't know the generated class path so compiler won't delete generated files if
-            // compilation failed in the middle
         }
     }
 }

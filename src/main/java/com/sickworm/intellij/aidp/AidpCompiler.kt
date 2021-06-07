@@ -176,6 +176,19 @@ class JavaCompiler: ICompiler {
     }
 }
 
+class KotlinCompiler: ICompiler {
+    override fun compile(task: CompileTask): CompileResult {
+        val javaCmd = "D:\\Java\\jdk1.8.0_77\\bin\\java.exe"
+        val preloader = "D:\\JETBRA~1\\INTELL~1.2\\plugins\\Kotlin\\kotlinc\\bin\\..\\lib\\kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
+        val compiler = "D:\\JETBRA~1\\INTELL~1.2\\plugins\\Kotlin\\kotlinc\\bin\\..\\lib\\kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
+        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -d ${task.outputDir}"
+        println(command)
+        val pr = Runtime.getRuntime().exec(command)
+        pr.waitFor()
+        return CompileResult(task, listOf(Result.success(task.files[0])))
+    }
+}
+
 val pathSeparator = System.getProperty("path.separator")
 
 val Result<CompileFileInfo, CompileError>.file: CompileFileInfo
