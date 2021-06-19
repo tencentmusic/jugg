@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.deployer.AidpDeployerHelper
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
@@ -48,12 +49,12 @@ class AidpManager(private val project: Project,
 
         fileChangesManager.startListen(object: FileChangesListener {
             override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
-                handleFileChanges(changeFiles)
+                process(changeFiles)
             }
         })
     }
 
-    private fun handleFileChanges(changeFiles: List<ChangeFileInfo>) {
+    private fun process(changeFiles: List<ChangeFileInfo>) {
         val compileFiles = changeFiles.map {
             CompileFileInfo(
                 VfsUtil.virtualToIoFile(it.file),
@@ -61,6 +62,9 @@ class AidpManager(private val project: Project,
             )
         }
         compiler.compile(CompileTask(compileFiles, outputDir))
+
+        // TODO test
+        AidpDeployerHelper.getIDevice(project)
     }
 
     override fun dispose() {

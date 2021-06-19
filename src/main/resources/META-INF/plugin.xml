@@ -7,7 +7,7 @@
         Android 增量部署插件
     ]]></description>
 
-<!--    <depends>org.jetbrains.android</depends>-->
+    <depends>org.jetbrains.android</depends>
     <!-- 不加这项的话， Android Studio 中插件全部不启用 -->
 <!--    <depends>com.intellij.modules.androidstudio</depends>-->
 

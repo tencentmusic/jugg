@@ -10,10 +10,8 @@ version '1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 intellij {
-    // Define IntelliJ Platform against which to build the plugin project.
-    version '201.8743.12'  // Same IntelliJ IDEA version (2020.11.5) as target 4.1 Android Studio
-    type 'IC'              // Use IntelliJ IDEA CE because it's the basis of the IntelliJ Platform
-    // Require the Android plugin, Gradle will match the plugin version to intellij.version
+    version '211.7442.40'
+    type 'IC'
     plugins 'android'
 }
 
