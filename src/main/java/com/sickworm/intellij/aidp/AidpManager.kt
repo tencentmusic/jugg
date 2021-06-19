@@ -1,11 +1,14 @@
 package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployerHelper
+import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.vfs.VfsUtil
+import org.jetbrains.kotlin.idea.util.sourceRoots
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -37,9 +40,9 @@ class AidpManager(private val project: Project,
 
             // TODO OPTIMIZE split by modules
             val projectDep = ModuleManager.getInstance(project).modules.mapNotNull {
-                val baseDir = File(it.moduleFilePath).parentFile?: return@mapNotNull null
+                val baseDir = it.guessModuleDir()?: return@mapNotNull null
                 if (!baseDir.exists()) return@mapNotNull null
-                "${baseDir.absolutePath}/build/intermediates/javac/debug/classes"
+                "${baseDir.path}/build/intermediates/javac/debug/classes"
             }
 
             dependencies = libDep + androidDep + projectDep
@@ -64,7 +67,7 @@ class AidpManager(private val project: Project,
         compiler.compile(CompileTask(compileFiles, outputDir))
 
         // TODO test
-        AidpDeployerHelper.getIDevice(project)
+//        AidpDeployerHelper.runTask(project)
     }
 
     override fun dispose() {
