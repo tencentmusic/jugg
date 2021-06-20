@@ -252,6 +252,7 @@ public class AidpDeployer {
 //        Task<Boolean> restart = runner.create(argRestart);
 //        Task<DexSplitter> splitter =
 //                runner.create(new CachedDexSplitter(dexDb, new D8DexSplitter()));
+        // isolate from Android Apply Changes
         Task<String> deviceSerial = runner.create(adb.getSerial());
 //
 //        // Get the list of files from the local apks
@@ -266,25 +267,16 @@ public class AidpDeployer {
         Task<String> packageName = runner.create("com.example.myapplication");
         Task<List<Integer>> pids = runner.create(Tasks.GET_PIDS, adb::getPids, packageName);
         Task<Deploy.Arch> arch = runner.create(Tasks.GET_ARCH, adb::getArch, pids);
-//
-//        // Get the list of files from the installed app assuming deployment cache is correct.
-//        Task<DeploymentCacheDatabase.Entry> speculativeDump =
-//                runner.create(Tasks.OPTIMISTIC_DUMP, deployCache::get, deviceSerial, packageName);
-//
-//        // On an on-host verification of the dump first.
+
+        // Get the list of files from the installed app assuming deployment cache is correct.
+        Task<DeploymentCacheDatabase.Entry> speculativeDump =
+                runner.create(Tasks.OPTIMISTIC_DUMP, deployCache::get, deviceSerial, packageName);
+
+        // On an on-host verification of the dump first.
         Task<ApplicationDumper> dumper = runner.create(new ApplicationDumper(installer));
-//        Task<DeploymentCacheDatabase.Entry> verifyDump =
-//                runner.create(Tasks.VERIFY_DUMP, AidpDeployer::verifyCache, speculativeDump, dumper);
-        runner.create(
-                Tasks.DEPLOY_CACHE_STORE,
-                deployCache::store,
-                deviceSerial,
-                packageName,
-                newFiles,
-                runner.create(new OverlayId(new ArrayList<>()))
-        );
-        Task<DeploymentCacheDatabase.Entry> verifyDump = runner.create(Tasks.VERIFY_DUMP, deployCache::get, deviceSerial, packageName);
-//
+        Task<DeploymentCacheDatabase.Entry> verifyDump =
+                runner.create(Tasks.VERIFY_DUMP, AidpDeployer::verifyCache, speculativeDump, dumper);
+
 //        // Calculate the difference between them speculating the deployment cache is correct.
 //        Task<List<FileDiff>> diffs =
 //                runner.create(Tasks.DIFF, new ApkDiffer()::specDiff, speculativeDump, newFiles);
@@ -344,13 +336,13 @@ public class AidpDeployer {
         // However if the compare task doesn't get to execute we still update the database.
         // Note we artificially block this task until swap is done.
 //        runner.create(Tasks.CACHE, DexSplitter::cache, splitter, newFiles);
-//        runner.create(
-//                Tasks.DEPLOY_CACHE_STORE,
-//                deployCache::store,
-//                deviceSerial,
-//                packageName,
-//                newFiles,
-//                nextOverlayId);
+        runner.create(
+                Tasks.DEPLOY_CACHE_STORE,
+                deployCache::store,
+                deviceSerial,
+                packageName,
+                newFiles,
+                nextOverlayId);
 
         // Wait only for swap to finish
         runner.runAsync();

@@ -21,7 +21,7 @@ class AidpManager(private val project: Project,
 
     private val fileChangesManager = FileChangesManager(project, projectDir)
     private val compiler = AidpCompiler()
-    private val outputDir = File("$projectDir/build/aidp")
+    private val outputDir = File("$projectDir/build/aidp/class/")
     private var dependencies = listOf<String>()
 
     private val libraryDir = "$projectDir/.idea/libraries"

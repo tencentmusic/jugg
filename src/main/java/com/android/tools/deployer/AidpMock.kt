@@ -7,8 +7,10 @@ import java.io.File
 object AidpMock {
 
     fun getDeployDexClass(): DexComparator.ChangedClasses {
-        val dexer = Dexer()
-        val bytes = File("F:\\StudioProjects\\MyApplicationIntellij\\build\\aidp\\com\\example\\myapplication\\MainActivity2.class").readBytes()
+        val buildPath = File("F:/StudioProjects/MyApplicationIntellij/build/aidp/class")
+        val outputPath = File("F:/StudioProjects/MyApplicationIntellij/build/aidp/dex/out.dex")
+        Dexer().dex(buildPath, outputPath)
+        val bytes = outputPath.readBytes()
         val activity2Dex = DexClass("com.example.myapplication.MainActivity2", 0, bytes, null)
         return DexComparator.ChangedClasses(listOf(), listOf(activity2Dex))
     }
