@@ -18,6 +18,6 @@
     <extensions defaultExtensionNs="com.intellij">
         <ApplicationLoadListener implementation="com.sickworm.intellij.aidp.ApplicationLoadListener" />
         <toolWindow id="AIDP" icon="AllIcons.Toolwindows.ToolWindowRun" anchor="bottom"
-                    factoryClass="org.intellij.sdk.toolWindow.MyToolWindowFactory"/>
+                    factoryClass="com.sickworm.intellij.aidp.toolWindow.AidpToolWindowFactory"/>
     </extensions>
 </idea-plugin>
