@@ -1,14 +1,12 @@
 package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployerHelper
-import com.intellij.ide.impl.ProjectUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.vfs.VfsUtil
-import org.jetbrains.kotlin.idea.util.sourceRoots
 import java.io.File
 import java.lang.IllegalStateException
 import java.util.concurrent.Executors
@@ -28,6 +26,10 @@ class AidpManager(private val project: Project,
 
     private val operaThread = Executors.newSingleThreadExecutor()
 
+    init {
+        register(project, this)
+    }
+
     fun start() {
         logger.info("start")
 
@@ -37,7 +39,7 @@ class AidpManager(private val project: Project,
 
         fileChangesManager.startListen(object: FileChangesListener {
             override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
-                process(changeFiles)
+                processFileChanged(changeFiles)
             }
         })
     }
@@ -66,7 +68,7 @@ class AidpManager(private val project: Project,
         logger.info("dependencies loaded, libDep size: ${libDep.size}, androidDep size: 1, projectDep size: ${projectDep.size}")
     }
 
-    private fun process(changeFiles: List<ChangeFileInfo>) {
+    private fun processFileChanged(changeFiles: List<ChangeFileInfo>) {
         val compileFiles = changeFiles.map {
             CompileFileInfo(
                 VfsUtil.virtualToIoFile(it.file),
@@ -74,11 +76,34 @@ class AidpManager(private val project: Project,
             )
         }
         compiler.compile(CompileTask(compileFiles, outputDir))
+    }
 
+    fun apply() {
         // TODO test
         AidpDeployerHelper.runTask(project)
     }
 
     override fun dispose() {
+        unregister(project)
+    }
+
+    companion object {
+        val map = mutableMapOf<Project, AidpManager>()
+
+        fun register(project: Project, aidpManager: AidpManager) {
+            synchronized(map) {
+                map[project] = aidpManager
+            }
+        }
+
+        fun unregister(project: Project) {
+            synchronized(map) {
+                map.remove(project)
+            }
+        }
+
+        fun getInstance(project: Project): AidpManager? {
+            return map[project]
+        }
     }
 }
