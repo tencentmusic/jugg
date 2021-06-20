@@ -4,10 +4,14 @@ import java.io.File
 
 class Dexer {
 
-    fun dex() {
-        Runtime.getRuntime().exec("""jar cvf src\test\build\out.jar -C src\test\build .""").waitFor()
-        Runtime.getRuntime().exec("""D:\Android\sdk\build-tools\30.0.3\dx.bat --dex --output=src\test\build\out.dex src\test\build\out.jar""").waitFor()
-        File("""src\test\build\out.jar""").delete()
+    fun dex(buildPath: String, outputDir: String) {
+        File(outputDir).mkdirs()
+        val jarFilePath = "$outputDir/out.jar"
+        val dexerCli = "D:/Android/sdk/build-tools/30.0.3/dx.bat"
+        val dexFilePath = "$outputDir/out.dex"
+        Runtime.getRuntime().exec("""jar cvf $jarFilePath -C $buildPath .""").waitFor()
+        Runtime.getRuntime().exec("""$dexerCli --dex --output=$dexFilePath $jarFilePath""").waitFor()
+        File(jarFilePath).delete()
         // dx --min-sdk-version
     }
 }

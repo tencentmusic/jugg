@@ -59,7 +59,7 @@ object AidpDeployerHelper {
         return installPathProvider.compute()
     }
 
-    fun getIDevice(project: Project): IDevice {
+    private fun getIDevice(project: Project): IDevice {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
         val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
 //        val module = JavaRunConfigurationModule(project, false)

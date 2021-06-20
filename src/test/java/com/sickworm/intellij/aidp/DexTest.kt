@@ -14,8 +14,10 @@ class DexTest {
     @Test
     fun dexer() {
         JavaCompileTest().javaCompile()
-        Dexer().dex()
-        val dexFile = File("$buildDir/out.dex")
+        val buildPath = "src/test/build"
+        val outputPath = "src/test/build/dex"
+        Dexer().dex(buildPath, outputPath)
+        val dexFile = File("$outputPath/out.dex")
         assert(dexFile.exists() && dexFile.length() > 0)
     }
 }
