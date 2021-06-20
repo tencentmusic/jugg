@@ -10,6 +10,7 @@ import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.vfs.VfsUtil
 import org.jetbrains.kotlin.idea.util.sourceRoots
 import java.io.File
+import java.lang.IllegalStateException
 import java.util.concurrent.Executors
 
 private val logger = Logger.getInstance("#AIDP-AidpManager")
@@ -31,23 +32,7 @@ class AidpManager(private val project: Project,
         logger.info("start")
 
         operaThread.submit {
-            // TODO auto update when file changes
-            val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
-
-            // TODO read project settings
-            val androidHome = System.getenv("ANDROID_HOME")
-            val androidDep = "$androidHome/platforms/android-30/android.jar"
-
-            // TODO OPTIMIZE split by modules
-            val projectDep = ModuleManager.getInstance(project).modules.mapNotNull {
-                val baseDir = it.guessModuleDir()?: return@mapNotNull null
-                if (!baseDir.exists()) return@mapNotNull null
-                "${baseDir.path}/build/intermediates/javac/debug/classes"
-            }
-
-            dependencies = libDep + androidDep + projectDep
-
-            logger.info("dependencies loaded, size: ${dependencies.size}")
+            initDependency()
         }
 
         fileChangesManager.startListen(object: FileChangesListener {
@@ -55,6 +40,30 @@ class AidpManager(private val project: Project,
                 process(changeFiles)
             }
         })
+    }
+
+    private fun initDependency() {
+        // TODO auto update when file changes
+        val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
+
+        // TODO read project settings
+        val androidHome = System.getenv("ANDROID_HOME")
+        val androidDep = "$androidHome/platforms/android-30/android.jar"
+        if (!File(androidDep).exists()) {
+            logger.warn("androidDep not found, path: $androidDep")
+            throw IllegalStateException("androidDep not found, path: $androidDep")
+        }
+
+        // TODO OPTIMIZE split by modules
+        val projectDep = ModuleManager.getInstance(project).modules.mapNotNull {
+            val baseDir = it.guessModuleDir()?: return@mapNotNull null
+            if (!baseDir.exists()) return@mapNotNull null
+            "${baseDir.path}/build/intermediates/javac/debug/classes"
+        }
+
+        dependencies = libDep + androidDep + projectDep
+
+        logger.info("dependencies loaded, libDep size: ${libDep.size}, androidDep size: 1, projectDep size: ${projectDep.size}")
     }
 
     private fun process(changeFiles: List<ChangeFileInfo>) {
@@ -67,7 +76,7 @@ class AidpManager(private val project: Project,
         compiler.compile(CompileTask(compileFiles, outputDir))
 
         // TODO test
-//        AidpDeployerHelper.runTask(project)
+        AidpDeployerHelper.runTask(project)
     }
 
     override fun dispose() {
