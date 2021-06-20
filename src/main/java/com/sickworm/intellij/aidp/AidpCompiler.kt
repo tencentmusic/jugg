@@ -152,8 +152,8 @@ class JavaCompiler: ICompiler {
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         options.addAll(listOf("-cp", dependencies.joinToString(pathSeparator)))
         // ensure class file version for later dex
-        options.addAll(listOf("-source", "1.7"))
-        options.addAll(listOf("-target", "1.7"))
+        options.addAll(listOf("-source", "1.8"))
+        options.addAll(listOf("-target", "1.8"))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->

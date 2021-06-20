@@ -27,17 +27,22 @@ fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, Compi
             assert(result.getFailure().errors.size == errorCount)
         }
     }
-    val className = result.file.file.let {
-        it.name.replace(it.extension, "class")
-    }
-    val packagePath = result.file.file.let {
-        it.absolutePath.substring(sourceDir.length, it.absolutePath.length - it.name.length)
-    }
-    val classFile = File(buildDir + packagePath + className)
+
+    val classFile = sourceFileToClassFile(sourceDir, result.file.file, buildDir)
     if (isSuccess) {
         assert(classFile.exists() && classFile.length() > 0)
     } else {
         // compiler doesn't know the generated class path so compiler won't delete generated files if
         // compilation failed in the middle
     }
+}
+
+fun sourceFileToClassFile(sourceDir: String, file: File, buildDir: String): File {
+    val className = file.name.replace(file.extension, "class")
+    val packagePath = guessClassFilePath(sourceDir, file)
+    return File(buildDir + packagePath + className)
+}
+
+fun guessClassFilePath(baseDir: String, file: File): String {
+    return file.absolutePath.substring(baseDir.length, file.absolutePath.length - file.name.length)
 }

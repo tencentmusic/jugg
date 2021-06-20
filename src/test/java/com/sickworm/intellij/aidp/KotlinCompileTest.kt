@@ -23,7 +23,7 @@ class KotlinCompileTest {
 
     private val resultTask = CompileTask.singleFile("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt", buildDir)
     @Test
-    fun javaCompile() {
+    fun kotlinCompile() {
         val results = kotlinCompiler.compile(resultTask)
         assert(results.size == 1)
         assertCompileResult(assetsKotlinDir, results.first(), true)

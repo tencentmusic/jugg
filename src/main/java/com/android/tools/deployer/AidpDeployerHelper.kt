@@ -1,22 +1,21 @@
 package com.android.tools.deployer
 
 import com.android.ddmlib.IDevice
+import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.gradle.util.EmbeddedDistributionPaths
+import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
-import com.android.tools.idea.run.tasks.ApplyCodeChangesTask
-import com.android.tools.idea.run.util.ProcessHandlerLaunchStatus
-import com.google.common.util.concurrent.ListenableFuture
+import com.android.tools.idea.run.tasks.AidpAbstractDeployTask
+import com.google.common.base.Stopwatch
 import com.intellij.execution.configurations.JavaRunConfigurationModule
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import org.jetbrains.android.facet.AndroidFacet
-import java.lang.IllegalStateException
+import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import java.util.*
-import java.util.concurrent.TimeUnit
-import java.util.stream.Collectors
-import kotlin.streams.toList
 
 /**
  * Create a deploy task.
@@ -32,16 +31,41 @@ object AidpDeployerHelper {
 
     fun runTask(project: Project) {
         val device = getIDevice(project)
-        val task = ApplyCodeChangesTask(project, emptyMap(), false, installPathProvider)
-//        task.run(null, device)
+        val stopwatch = Stopwatch.createStarted()
+        val logger = LogWrapper(AidpAbstractDeployTask.LOG)
+
+        // Collection that will accumulate metrics for the deployment.
+        val metrics = ArrayList<DeployMetric>()
+        // VM clock timestamp used to snap metric times to wall-clock time.
+        val vmClockStartNs = System.nanoTime()
+        // Wall-clock start time for the deployment.
+        val wallClockStartMs = System.currentTimeMillis()
+
+        val adb = AdbClient(device, logger)
+        val installer: Installer = AdbInstaller(getLocalInstaller(), adb, metrics, logger)
+        val service = DeploymentService.getInstance(project)
+        val ideService = IdeService(project)
+        val deployer = AidpDeployer(
+            adb, service.deploymentCacheDatabase, service.dexDatabase, service.taskRunner,
+            installer, ideService, metrics, logger, StudioFlags.APPLY_CHANGES_OPTIMISTIC_SWAP.get(),
+            StudioFlags.APPLY_CHANGES_OPTIMISTIC_RESOURCE_SWAP.get(),
+            StudioFlags.APPLY_CHANGES_STRUCTURAL_DEFINITION.get(),
+            StudioFlags.APPLY_CHANGES_VARIABLE_REINITIALIZATION.get()
+        )
+        deployer.codeSwap(emptyList(), emptyMap())
+    }
+
+    private fun getLocalInstaller(): String? {
+        return installPathProvider.compute()
     }
 
     fun getIDevice(project: Project): IDevice {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
         val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
-        val module = JavaRunConfigurationModule(project, false)
-        module.setModuleName("app") // TODO read from project
-        val facet = AndroidFacet.getInstance(module.module!!)!!
+//        val module = JavaRunConfigurationModule(project, false)
+//        module.setModuleName("app") // TODO read from project
+        val module = ModuleManager.getInstance(project).modules.first { it.name.contains("app") }
+        val facet = AndroidFacet.getInstance(module!!)!!
 
         val deviceFutures =
             deployTarget.getDevices(deployTargetState, facet, getDeviceCount(isDebugging), isDebugging, hashCode())
