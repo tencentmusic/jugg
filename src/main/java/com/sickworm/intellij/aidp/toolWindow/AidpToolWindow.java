@@ -5,6 +5,7 @@ package com.sickworm.intellij.aidp.toolWindow;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.ui.JBColor;
 import com.sickworm.intellij.aidp.AidpLogger;
 import com.sickworm.intellij.aidp.AidpManager;
 import org.apache.log4j.Level;
@@ -12,28 +13,33 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyleContext;
+import java.awt.*;
 
 public class AidpToolWindow {
 
-  private JButton refreshToolWindowButton;
+  private JButton applyButton;
   private JLabel currentDate;
   private JLabel currentTime;
   private JLabel timeZone;
   private JPanel myToolWindowContent;
-  private JTextArea runningLog;
+  private JTextPane runningLog;
 
   private final Project project;
 
   @SuppressWarnings("unused")
   public AidpToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
-    refreshToolWindowButton.addActionListener(e -> apply());
+    applyButton.addActionListener(e -> apply());
 
     AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
   }
 
   public void apply() {
-    runningLog.append("apply!!\n");
+    append("apply!!", JBColor.RED);
     AidpManager manager = AidpManager.Companion.getInstance(project);
     if (manager != null) {
       manager.apply();
@@ -44,8 +50,15 @@ public class AidpToolWindow {
     return myToolWindowContent;
   }
 
-  private void append(String message) {
-    runningLog.append(message + "\n");
+  private void append(String message, Color c) {
+    EventQueue.invokeLater(() -> {
+      StyleContext sc = StyleContext.getDefaultStyleContext();
+      AttributeSet set = sc.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, c);
+      int len = runningLog.getDocument().getLength();
+      runningLog.setCaretPosition(len);
+      runningLog.setCharacterAttributes(set, false);
+      runningLog.replaceSelection(message + "\n");
+    });
   }
 
   private class LoggerPrinter extends Logger {
@@ -57,39 +70,39 @@ public class AidpToolWindow {
 
     @Override
     public void debug(String message) {
-      append("DEBUG: " + message);
+      append("DEBUG: " + message, JBColor.DARK_GRAY);
     }
 
     @Override
     public void debug(@Nullable Throwable t) {
-      append("DEBUG: " + t);
+      append("DEBUG: " + t, JBColor.DARK_GRAY);
     }
 
     @Override
     public void debug(String message, @Nullable Throwable t) {
-      append("DEBUG: " + message + "\n" + t);
+      append("DEBUG: " + message + "\n" + t, JBColor.DARK_GRAY);
     }
 
     @Override
     public void info(String message) {
-      append("INFO: " + message);
+      append("INFO: " + message, JBColor.DARK_GRAY);
     }
 
     @Override
     public void info(String message, @Nullable Throwable t) {
-      append("INFO: " + message + "\n" + t);
+      append("INFO: " + message + "\n" + t, JBColor.DARK_GRAY);
     }
 
     @Override
     public void warn(String message, @Nullable Throwable t) {
-      append("WARN: " + message + "\n" + t);
+      append("WARN: " + message + "\n" + t, JBColor.RED);
     }
 
     @Override
     public void error(String message, @Nullable Throwable t, String @NotNull ... details) {
-      append("ERROR: " + message + "\n" + t);
+      append("ERROR: " + message + "\n" + t, JBColor.RED);
       for (String detail : details) {
-        append(detail);
+        append(detail, JBColor.DARK_GRAY);
       }
     }
 

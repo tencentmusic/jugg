@@ -35,7 +35,7 @@
           <text value="Time"/>
         </properties>
       </component>
-      <component id="5fceb" class="javax.swing.JButton" binding="refreshToolWindowButton">
+      <component id="5fceb" class="javax.swing.JButton" binding="applyButton">
         <constraints>
           <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
@@ -45,17 +45,18 @@
       </component>
       <scrollpane id="931ca">
         <constraints>
-          <grid row="0" column="3" row-span="2" col-span="1" vsize-policy="7" hsize-policy="7" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+          <grid row="0" column="3" row-span="2" col-span="1" vsize-policy="7" hsize-policy="7" anchor="0" fill="3" indent="2" use-parent-layout="false"/>
         </constraints>
-        <properties/>
+        <properties>
+          <enabled value="false"/>
+          <horizontalScrollBarPolicy value="30"/>
+        </properties>
         <border type="none"/>
         <children>
-          <component id="da82a" class="javax.swing.JTextArea" binding="runningLog">
+          <component id="bb2de" class="javax.swing.JTextPane" binding="runningLog">
             <constraints/>
             <properties>
-              <background color="-13948117"/>
-              <font name="JetBrains Mono" style="0"/>
-              <lineWrap value="false"/>
+              <font name="Consolas" size="14"/>
             </properties>
           </component>
         </children>
