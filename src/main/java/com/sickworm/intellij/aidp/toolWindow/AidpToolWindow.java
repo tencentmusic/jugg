@@ -13,10 +13,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.text.AttributeSet;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyleContext;
+import javax.swing.text.*;
 import java.awt.*;
 
 public class AidpToolWindow {
@@ -35,6 +32,10 @@ public class AidpToolWindow {
     this.project = project;
     applyButton.addActionListener(e -> apply());
 
+    MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
+    StyleConstants.setLineSpacing(set, 0.2f);
+    runningLog.setParagraphAttributes(set, true);
+
     AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
   }
 
@@ -52,8 +53,9 @@ public class AidpToolWindow {
 
   private void append(String message, Color c) {
     EventQueue.invokeLater(() -> {
-      StyleContext sc = StyleContext.getDefaultStyleContext();
-      AttributeSet set = sc.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, c);
+      MutableAttributeSet set = new SimpleAttributeSet();
+      StyleConstants.setForeground(set, c);
+
       int len = runningLog.getDocument().getLength();
       runningLog.setCaretPosition(len);
       runningLog.setCharacterAttributes(set, false);

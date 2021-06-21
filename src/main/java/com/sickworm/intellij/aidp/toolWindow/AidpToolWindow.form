@@ -48,16 +48,23 @@
           <grid row="0" column="3" row-span="2" col-span="1" vsize-policy="7" hsize-policy="7" anchor="0" fill="3" indent="2" use-parent-layout="false"/>
         </constraints>
         <properties>
+          <background color="-13948117"/>
           <enabled value="false"/>
           <horizontalScrollBarPolicy value="30"/>
         </properties>
-        <border type="none"/>
+        <border type="empty">
+          <size top="0" left="8" bottom="0" right="8"/>
+        </border>
         <children>
           <component id="bb2de" class="javax.swing.JTextPane" binding="runningLog">
             <constraints/>
             <properties>
-              <font name="Consolas" size="14"/>
+              <background color="-13948117"/>
+              <font name="JetBrains Mono" size="13"/>
             </properties>
+            <clientProperties>
+              <JEditorPane.w3cLengthUnits class="java.lang.Boolean" value="false"/>
+            </clientProperties>
           </component>
         </children>
       </scrollpane>
