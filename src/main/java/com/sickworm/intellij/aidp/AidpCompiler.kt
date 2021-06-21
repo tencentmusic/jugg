@@ -1,12 +1,10 @@
 package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
 import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler as JavaCompilerX
-
-
-private val logger = Logger.getInstance("#AIDP-Compiler")
 
 interface ICompiler {
     fun compile(task: CompileTask): CompileResult
@@ -75,9 +73,11 @@ data class CompileError(
     val errorMessages get() = errors.joinToString("\n") { it.second }
 }
 
-class AidpCompiler: ICompiler {
+class AidpCompiler(project: Project): ICompiler {
 
-    private val javaCompiler = JavaCompiler()
+    private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
+
+    private val javaCompiler = JavaCompiler(logger)
 
     private val kotlinCompiler = KotlinCompiler()
 
@@ -136,7 +136,7 @@ class AidpCompiler: ICompiler {
     }
 }
 
-class JavaCompiler: ICompiler {
+class JavaCompiler(private val logger: Logger): ICompiler {
 
     private val compiler: JavaCompilerX = ToolProvider.getSystemJavaCompiler()
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)

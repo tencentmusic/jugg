@@ -13,13 +13,14 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.util.concurrent.Executors
 
-private val logger = Logger.getInstance("#AIDP-FileChangesManager")
-
 /**
  * 文件变化监听
  */
 class FileChangesManager(private val project: Project,
                          private val projectDir: String): Disposable {
+
+    private val logger = AidpLogger.getInstance(project, "#AIDP-FileChangesManager")
+
     private val inspectFileExtensions = listOf("java", "kt")
     private val operateThread = Executors.newSingleThreadExecutor()
     private val changedFilesMap = mutableMapOf<String, ChangeFileInfo>()

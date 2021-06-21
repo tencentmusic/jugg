@@ -11,14 +11,15 @@ import java.io.File
 import java.lang.IllegalStateException
 import java.util.concurrent.Executors
 
-private val logger = Logger.getInstance("#AIDP-AidpManager")
 
 class AidpManager(private val project: Project,
-                  private val projectDir: String
+                  projectDir: String
 ): Disposable {
 
+    private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
+
     private val fileChangesManager = FileChangesManager(project, projectDir)
-    private val compiler = AidpCompiler()
+    private val compiler = AidpCompiler(project)
     private val outputDir = File("$projectDir/build/aidp/class/")
     private var dependencies = listOf<String>()
 
@@ -79,7 +80,6 @@ class AidpManager(private val project: Project,
     }
 
     fun apply() {
-        // TODO test
         AidpDeployerHelper.runTask(project)
     }
 
