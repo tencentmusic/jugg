@@ -8,7 +8,7 @@ import java.lang.IllegalStateException
 
 class JavaCompileTest {
 
-    val javaCompiler = JavaCompiler()
+    val javaCompiler = JavaCompiler(logger)
 
     @Before
     fun init() {

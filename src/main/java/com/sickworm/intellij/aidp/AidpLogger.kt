@@ -3,9 +3,9 @@ package com.sickworm.intellij.aidp
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.jetbrains.rd.util.CopyOnWriteArrayList
 import org.apache.log4j.Level
 import java.lang.ref.WeakReference
+import java.util.concurrent.CopyOnWriteArrayList
 
 object AidpLogger {
 

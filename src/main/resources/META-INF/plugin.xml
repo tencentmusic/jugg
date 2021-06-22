@@ -12,7 +12,9 @@
     ]]></description>
 
     <depends>org.jetbrains.android</depends>
-    <!-- 不加这项的话， Android Studio 中插件全部不启用 -->
+<!--    <depends>com.intellij.database</depends>-->
+    <!-- 不加这项的话， Android Studio 中 extension point 不启用 -->
+    <!-- 加这项的话， Intellij Idea 中 extension point 不启用 -->
 <!--    <depends>com.intellij.modules.androidstudio</depends>-->
 
     <extensions defaultExtensionNs="com.intellij">

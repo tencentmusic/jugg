@@ -10,27 +10,56 @@ version '1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 intellij {
-    version '211.7442.40'
+    // '201.8743.12' binds with old version of deployer, so we depends maven and jars instead
+    version '201.8743.12' // Android 4.1.1
+    plugins 'com.intellij.java', 'com.intellij.database'
+    // '211.7442.40' will make plugin incompatible with lower version
+//    version '211.7442.40'
+//    plugins ['android']
     type 'IC'
-    plugins 'android'
 }
 
 patchPluginXml.changeNotes = """
-      Add change notes here.<br>
-      <em>most HTML tags may be used</em>
+      Hello World!
       """
 
+runIde {
+    // default 11_0_11b1341.57 and will get Access Denied
+    jbrVersion '11_0_4b520.11'
+}
+
+buildSearchableOptions {
+    // default 11_0_11b1341.57 and will get Access Denied
+    jbrVersion '11_0_4b520.11'
+}
+
 repositories {
-//    maven {
-//        url "https://plugins.gradle.org/m2/"
-//    }
+    maven {
+        url 'https://dl.bintray.com/jetbrains/intellij-third-party-dependencies/'
+    }
     google()
     mavenCentral()
+
+    flatDir {
+        dirs 'src/main/libs/27.1.1.0'
+    }
 }
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     testImplementation "junit:junit:4.12"
+
+    // we want android plugin 27.1.1.0 with low intellij version, so we depends maven instead
+    // from .gradle/caches/modules-2/files-2.1/com.jetbrains.intellij.idea/ideaIC/211.7442.40/47f24d1ca2495e8de3daf528703b86325ee500b1/ideaIC-211.7442.40/plugins/android/lib
+    compileOnly fileTree(dir: 'src/main/libs/27.1.1.0', include: '*.jar')
+    // from https://dl.bintray.com/jetbrains/intellij-third-party-dependencies/org/jetbrains/intellij/deps/android/tools/base/
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'studio.android.sdktools.deployer', version: '27.1.1.0'
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'studio.android.sdktools.ddmlib', version: '27.1.1.0'
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'studio.android.sdktools.common', version: '27.1.1.0'
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'studio.android.sdktools.flags', version: '27.1.1.0'
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'studio.android.sdktools.tracer', version: '27.1.1.0'
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'deploy_java_proto', version: '27.1.1.0'
+    compileOnly group: 'org.jetbrains.intellij.deps.android.tools.base', name: 'studio-proto', version: '27.1.1.0'
 }
 
 compileKotlin {
@@ -38,4 +67,8 @@ compileKotlin {
 }
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
+}
+
+runPluginVerifier {
+    ideVersions '211.7442.40'
 }

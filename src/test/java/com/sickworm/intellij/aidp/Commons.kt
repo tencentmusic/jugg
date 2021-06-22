@@ -1,6 +1,9 @@
 package com.sickworm.intellij.aidp
 
+import com.intellij.openapi.diagnostic.Logger
 import java.io.File
+
+val logger = Logger.getInstance("AidpTest")
 
 val buildDir: String = File("src/test/build").absolutePath
 val assetsDir: String = File("src/test/assets").absolutePath

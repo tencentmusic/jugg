@@ -9,12 +9,10 @@ import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.tasks.AidpAbstractDeployTask
 import com.google.common.base.Stopwatch
-import com.intellij.execution.configurations.JavaRunConfigurationModule
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import org.jetbrains.android.facet.AndroidFacet
-import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import java.util.*
 
 /**

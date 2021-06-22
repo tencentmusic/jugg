@@ -27,6 +27,8 @@ public class AidpToolWindow {
 
   private final Project project;
 
+  private final Logger logger = new LoggerPrinter();
+
   @SuppressWarnings("unused")
   public AidpToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
@@ -36,14 +38,20 @@ public class AidpToolWindow {
     StyleConstants.setLineSpacing(set, 0.2f);
     runningLog.setParagraphAttributes(set, true);
 
-    AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
+    AidpLogger.INSTANCE.listenProjectLog(project, logger);
   }
 
   public void apply() {
-    append("apply!!", JBColor.RED);
+    append("apply!!6", JBColor.RED);
     AidpManager manager = AidpManager.Companion.getInstance(project);
-    if (manager != null) {
+    if (manager == null) {
+      return;
+    }
+
+    try {
       manager.apply();
+    } catch (Exception e) {
+      logger.error("apply failed", e);
     }
   }
 
