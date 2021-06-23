@@ -12,13 +12,21 @@
     ]]></description>
 
     <depends>org.jetbrains.android</depends>
-    <!-- 不加这项的话， Android Studio 中 extension point 不启用 -->
-    <!-- 加这项的话， Intellij Idea 中 extension point 不启用 -->
     <depends optional="true" config-file="androidstudio-config.xml">com.intellij.modules.androidstudio</depends>
 
+    <applicationListeners>
+        <listener
+                class="com.sickworm.intellij.aidp.PluginLoadListener"
+                topic="com.intellij.ide.plugins.DynamicPluginListener"
+        />
+    </applicationListeners>
+
     <extensions defaultExtensionNs="com.intellij">
-<!--        <ApplicationLoadListener implementation="com.sickworm.intellij.aidp.ApplicationLoadListener" />-->
-        <toolWindow id="AIDP" icon="AllIcons.Toolwindows.ToolWindowRun" anchor="bottom"
-                    factoryClass="com.sickworm.intellij.aidp.toolWindow.AidpToolWindowFactory"/>
+        <toolWindow
+                id="AIDP"
+                icon="AllIcons.Toolwindows.ToolWindowRun"
+                anchor="bottom"
+                factoryClass="com.sickworm.intellij.aidp.toolWindow.AidpToolWindowFactory"
+        />
     </extensions>
 </idea-plugin>

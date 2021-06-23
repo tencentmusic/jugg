@@ -39,10 +39,16 @@ public class AidpToolWindow {
     runningLog.setParagraphAttributes(set, true);
 
     AidpLogger.INSTANCE.listenProjectLog(project, logger);
+
+    String projectDir = project.getBasePath();
+    logger.info("projectOpened " + project + " " + projectDir);
+    if (projectDir != null) {
+      new AidpManager(project, projectDir).start();
+    }
   }
 
   public void apply() {
-    append("apply!!", JBColor.RED);
+    append("apply!!6", JBColor.RED);
     AidpManager manager = AidpManager.Companion.getInstance(project);
     if (manager == null) {
       return;
