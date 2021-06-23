@@ -47,7 +47,7 @@ class AidpManager(private val project: Project,
 
     private fun initDependency() {
         // TODO auto update when file changes
-        val libDep = IntellijLibraryConfigParser(project, libraryDir).parse()?: emptyList()
+        val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
 
         // TODO read project settings
         val androidHome = System.getenv("ANDROID_HOME")

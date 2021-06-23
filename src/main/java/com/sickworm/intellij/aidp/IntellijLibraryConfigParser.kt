@@ -1,16 +1,14 @@
 package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
 import java.io.File
 import javax.xml.parsers.SAXParserFactory
 
+private val logger = Logger.getInstance("#AIDP-IntellijLibraryConfigParser")
 
-class IntellijLibraryConfigParser(project: Project, private val configDirPath: String) {
-
-    private val logger = AidpLogger.getInstance(project, "#AIDP-IntellijLibraryConfigParser")
+class IntellijLibraryConfigParser(private val configDirPath: String) {
 
     private val parser = SAXParserFactory.newInstance().newSAXParser()
 
