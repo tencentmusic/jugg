@@ -12,10 +12,9 @@
     ]]></description>
 
     <depends>org.jetbrains.android</depends>
-<!--    <depends>com.intellij.database</depends>-->
     <!-- 不加这项的话， Android Studio 中 extension point 不启用 -->
     <!-- 加这项的话， Intellij Idea 中 extension point 不启用 -->
-<!--    <depends>com.intellij.modules.androidstudio</depends>-->
+    <depends optional="true" config-file="androidstudio-config.xml">com.intellij.modules.androidstudio</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <ApplicationLoadListener implementation="com.sickworm.intellij.aidp.ApplicationLoadListener" />
