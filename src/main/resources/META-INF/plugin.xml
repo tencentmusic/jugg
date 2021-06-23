@@ -17,7 +17,7 @@
     <depends optional="true" config-file="androidstudio-config.xml">com.intellij.modules.androidstudio</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <ApplicationLoadListener implementation="com.sickworm.intellij.aidp.ApplicationLoadListener" />
+<!--        <ApplicationLoadListener implementation="com.sickworm.intellij.aidp.ApplicationLoadListener" />-->
         <toolWindow id="AIDP" icon="AllIcons.Toolwindows.ToolWindowRun" anchor="bottom"
                     factoryClass="com.sickworm.intellij.aidp.toolWindow.AidpToolWindowFactory"/>
     </extensions>
