@@ -50,7 +50,6 @@ class FileChangesManager(private val project: Project,
         this.listener = listener
         listenFileChanges()
         Disposer.register(project, this)
-
     }
 
     override fun dispose() {
@@ -86,7 +85,7 @@ class FileChangesManager(private val project: Project,
                 listener?.onFileChanges(files)
             }
         }
-        VirtualFileManager.getInstance().addAsyncFileListener(vfsListener, project)
+        VirtualFileManager.getInstance().addAsyncFileListener(vfsListener, this)
     }
 
     /**
