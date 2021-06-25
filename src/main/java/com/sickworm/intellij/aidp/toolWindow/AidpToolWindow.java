@@ -48,7 +48,7 @@ public class AidpToolWindow {
   }
 
   public void apply() {
-    append("apply!!", JBColor.RED);
+    append("apply!!18", JBColor.RED);
     AidpManager manager = AidpManager.Companion.getInstance(project);
     if (manager == null) {
       return;

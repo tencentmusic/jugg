@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import java.io.File
 import java.lang.IllegalStateException
@@ -29,13 +30,18 @@ class AidpManager(private val project: Project,
 
     init {
         register(project, this)
+        Disposer.register(project, this)
     }
 
     fun start() {
         logger.info("start")
 
         operaThread.submit {
-            initDependency()
+            try {
+                initDependency()
+            } catch (e: Exception) {
+                logger.warn("dependencies load failed", e)
+            }
         }
 
         fileChangesManager.startListen(object: FileChangesListener {
