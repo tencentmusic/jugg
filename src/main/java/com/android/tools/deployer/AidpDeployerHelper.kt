@@ -7,13 +7,15 @@ import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
-import com.android.tools.idea.run.tasks.AidpAbstractDeployTask
+import com.android.tools.idea.run.tasks.AidpApplyCodeChangesTask
 import com.google.common.base.Stopwatch
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
+import com.intellij.openapi.wm.ToolWindow
 import com.sickworm.intellij.aidp.AidpLogger
 import org.jetbrains.android.facet.AndroidFacet
+import java.io.File
 import java.util.*
 
 /**
@@ -28,30 +30,14 @@ object AidpDeployerHelper {
         EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()
     }
 
-    fun runTask(project: Project) {
+    fun runTask(project: Project, toolWindow: ToolWindow) {
+        val packages = mapOf<String, List<File>>("" to emptyList())
+        val task = AidpApplyCodeChangesTask(project, packages, true, installPathProvider)
+        val executor = MockExecutor(toolWindow)
         val device = getIDevice(project)
-        val stopwatch = Stopwatch.createStarted()
-        val logger = LogWrapper(AidpLogger.getInstance(project, "#AIDP-AidpDeployer"))
-
-        // Collection that will accumulate metrics for the deployment.
-        val metrics = ArrayList<DeployMetric>()
-        // VM clock timestamp used to snap metric times to wall-clock time.
-        val vmClockStartNs = System.nanoTime()
-        // Wall-clock start time for the deployment.
-        val wallClockStartMs = System.currentTimeMillis()
-
-        val adb = AdbClient(device, logger)
-        val installer: Installer = AdbInstaller(getLocalInstaller(), adb, metrics, logger)
-        val service = DeploymentService.getInstance(project)
-        val ideService = IdeService(project)
-        val deployer = AidpDeployer(
-            adb, service.deploymentCacheDatabase, service.dexDatabase, service.taskRunner,
-            installer, ideService, metrics, logger, StudioFlags.APPLY_CHANGES_OPTIMISTIC_SWAP.get(),
-            StudioFlags.APPLY_CHANGES_OPTIMISTIC_RESOURCE_SWAP.get(),
-            StudioFlags.APPLY_CHANGES_STRUCTURAL_DEFINITION.get(),
-            StudioFlags.APPLY_CHANGES_VARIABLE_REINITIALIZATION.get()
-        )
-        deployer.codeSwap(emptyList(), emptyMap())
+        val launchStatus = MockLaunchStatus()
+        val consolePrinter = MockConsolePrinter(project)
+        task.run(executor, device, launchStatus, consolePrinter)
     }
 
     private fun getLocalInstaller(): String? {
@@ -83,47 +69,6 @@ object AidpDeployerHelper {
         val factory = AndroidRunConfigurationType.getInstance().factory
         return factory.createTemplateConfiguration(project) as AndroidRunConfiguration
     }
-
-//    private fun waitForDevice(
-//        deviceFuture: ListenableFuture<IDevice>,
-//        indicator: ProgressIndicator,
-//        launchStatus: LaunchStatus,
-//        destroyProcess: Boolean
-//    ): IDevice? {
-//        var device: IDevice? = null
-//        while (checkIfLaunchIsAliveAndTerminateIfCancelIsRequested(
-//                indicator, launchStatus, destroyProcess)) {
-//            try {
-//                device = deviceFuture[1, TimeUnit.SECONDS]
-//                break
-//            } catch (ignored: TimeoutException) {
-//                // Let's check the cancellation request then continue to wait for a device again.
-//            } catch (e: InterruptedException) {
-//                launchStatus.terminateLaunch("Interrupted while waiting for device", destroyProcess)
-//                break
-//            } catch (e: ExecutionException) {
-//                launchStatus.terminateLaunch("Error while waiting for device: " + e.cause!!.message, destroyProcess)
-//                break
-//            }
-//        }
-//        return device
-//    }
-//
-//    private fun checkIfLaunchIsAliveAndTerminateIfCancelIsRequested(
-//        indicator: ProgressIndicator, launchStatus: LaunchStatus, destroyProcess: Boolean
-//    ): Boolean {
-//        // Check for cancellation via stop button or unexpected failures in launch tasks.
-//        if (launchStatus.isLaunchTerminated) {
-//            return false
-//        }
-//
-//        // Check for cancellation via progress bar.
-//        if (indicator.isCanceled) {
-//            launchStatus.terminateLaunch("User cancelled launch", destroyProcess)
-//            return false
-//        }
-//        return true
-//    }
 
     private fun getDeviceCount(debug: Boolean): DeviceCount {
         return DeviceCount.fromBoolean(supportMultipleDevices() && !debug)

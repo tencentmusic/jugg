@@ -60,6 +60,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.swing.event.HyperlinkEvent;
+
+import com.sickworm.intellij.aidp.AidpLogger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -94,7 +96,8 @@ public abstract class AidpAbstractDeployTask implements LaunchTask {
     @Override
     public LaunchResult run(@NotNull Executor executor, @NotNull IDevice device, @NotNull LaunchStatus launchStatus, @NotNull ConsolePrinter printer) {
         Stopwatch stopwatch = Stopwatch.createStarted();
-        LogWrapper logger = new LogWrapper(LOG);
+//        LogWrapper logger = new LogWrapper(LOG);
+        LogWrapper logger = new LogWrapper(AidpLogger.INSTANCE.getInstance(myProject, "#AIDP-AidpDeployer"));
 
         // Collection that will accumulate metrics for the deployment.
         ArrayList<DeployMetric> metrics = new ArrayList<>();

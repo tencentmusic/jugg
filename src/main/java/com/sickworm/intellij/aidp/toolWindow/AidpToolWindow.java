@@ -47,7 +47,7 @@ public class AidpToolWindow {
     String projectDir = project.getBasePath();
     logger.info("projectOpened " + project + " " + projectDir);
     if (projectDir != null) {
-      new AidpManager(project, projectDir).start();
+      new AidpManager(project, projectDir, toolWindow).start();
     }
   }
 

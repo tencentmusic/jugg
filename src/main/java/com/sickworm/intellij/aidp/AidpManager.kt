@@ -8,13 +8,15 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.wm.ToolWindow
 import java.io.File
 import java.lang.IllegalStateException
 import java.util.concurrent.Executors
 
 
 class AidpManager(private val project: Project,
-                  projectDir: String
+                  projectDir: String,
+                  private val toolWindow: ToolWindow
 ): Disposable {
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
@@ -88,7 +90,7 @@ class AidpManager(private val project: Project,
     fun apply() {
         try {
             logger.info("apply start")
-            AidpDeployerHelper.runTask(project)
+            AidpDeployerHelper.runTask(project, toolWindow)
             logger.info("apply end")
         } catch (e: Error) {
             logger.error("apply failed", e)
