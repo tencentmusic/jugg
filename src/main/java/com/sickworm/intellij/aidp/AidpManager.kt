@@ -86,7 +86,17 @@ class AidpManager(private val project: Project,
     }
 
     fun apply() {
-        AidpDeployerHelper.runTask(project)
+        try {
+            logger.info("apply start")
+            AidpDeployerHelper.runTask(project)
+            logger.info("apply end")
+        } catch (e: Error) {
+            logger.error("apply failed", e)
+        }
+    }
+
+    fun applyAsync() {
+        operaThread.submit(::apply)
     }
 
     override fun dispose() {

@@ -12,6 +12,7 @@ import com.google.common.base.Stopwatch
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
+import com.sickworm.intellij.aidp.AidpLogger
 import org.jetbrains.android.facet.AndroidFacet
 import java.util.*
 
@@ -30,7 +31,7 @@ object AidpDeployerHelper {
     fun runTask(project: Project) {
         val device = getIDevice(project)
         val stopwatch = Stopwatch.createStarted()
-        val logger = LogWrapper(AidpAbstractDeployTask.LOG)
+        val logger = LogWrapper(AidpLogger.getInstance(project, "#AIDP-AidpDeployer"))
 
         // Collection that will accumulate metrics for the deployment.
         val metrics = ArrayList<DeployMetric>()

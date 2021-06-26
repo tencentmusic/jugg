@@ -15,6 +15,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 public class AidpToolWindow {
 
@@ -27,18 +29,20 @@ public class AidpToolWindow {
 
   private final Project project;
 
-  private final Logger logger = new LoggerPrinter();
+  private final Logger logger;
 
   @SuppressWarnings("unused")
   public AidpToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
+    this.logger = AidpLogger.INSTANCE.getInstance(project, "#AIDP-AidpToolWindow");
+
     applyButton.addActionListener(e -> apply());
 
     MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
     StyleConstants.setLineSpacing(set, 0.2f);
     runningLog.setParagraphAttributes(set, true);
 
-    AidpLogger.INSTANCE.listenProjectLog(project, logger);
+    AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
 
     String projectDir = project.getBasePath();
     logger.info("projectOpened " + project + " " + projectDir);
@@ -48,17 +52,14 @@ public class AidpToolWindow {
   }
 
   public void apply() {
-    append("apply!!18", JBColor.RED);
+    logger.info("onApply");
     AidpManager manager = AidpManager.Companion.getInstance(project);
     if (manager == null) {
+      logger.error("apply failed for AidpManager not found");
       return;
     }
 
-    try {
-      manager.apply();
-    } catch (Exception e) {
-      logger.error("apply failed", e);
-    }
+    manager.applyAsync();
   }
 
   public JPanel getContent() {
@@ -91,12 +92,12 @@ public class AidpToolWindow {
 
     @Override
     public void debug(@Nullable Throwable t) {
-      append("DEBUG: " + t, JBColor.DARK_GRAY);
+      append("DEBUG: " + toStackTrace(t), JBColor.DARK_GRAY);
     }
 
     @Override
     public void debug(String message, @Nullable Throwable t) {
-      append("DEBUG: " + message + "\n" + t, JBColor.DARK_GRAY);
+      append("DEBUG: " + message + toStackTrace(t), JBColor.DARK_GRAY);
     }
 
     @Override
@@ -106,7 +107,7 @@ public class AidpToolWindow {
 
     @Override
     public void info(String message, @Nullable Throwable t) {
-      append("INFO: " + message + "\n" + t, JBColor.DARK_GRAY);
+      append("INFO: " + message + toStackTrace(t), JBColor.DARK_GRAY);
     }
 
     @Override
@@ -116,7 +117,7 @@ public class AidpToolWindow {
 
     @Override
     public void error(String message, @Nullable Throwable t, String @NotNull ... details) {
-      append("ERROR: " + message + "\n" + t, JBColor.RED);
+      append("ERROR: " + message + toStackTrace(t), JBColor.RED);
       for (String detail : details) {
         append(detail, JBColor.DARK_GRAY);
       }
@@ -125,6 +126,16 @@ public class AidpToolWindow {
     @Override
     public void setLevel(@NotNull Level level) {
 
+    }
+
+    private String toStackTrace(Throwable t) {
+      if (t == null) {
+        return "";
+      }
+      StringWriter sw = new StringWriter();
+      PrintWriter pw = new PrintWriter(sw);
+      t.printStackTrace(pw);
+      return "\n" + sw;
     }
   }
 }
