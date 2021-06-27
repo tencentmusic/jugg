@@ -119,7 +119,7 @@ public class AidpToolWindow {
 
     @Override
     public void warn(String message, @Nullable Throwable t) {
-      append("WARN: " + message + "\n" + t, JBColor.RED);
+      append("WARN: " + message + toStackTrace(t), JBColor.RED);
     }
 
     @Override
