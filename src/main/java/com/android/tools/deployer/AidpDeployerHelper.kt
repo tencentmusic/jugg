@@ -7,6 +7,7 @@ import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
+import com.android.tools.idea.run.tasks.AidpApplyChangesTask
 import com.android.tools.idea.run.tasks.AidpApplyCodeChangesTask
 import com.google.common.base.Stopwatch
 import com.intellij.openapi.module.ModuleManager
@@ -32,16 +33,12 @@ object AidpDeployerHelper {
 
     fun runTask(project: Project, toolWindow: ToolWindow) {
         val packages = mapOf<String, List<File>>("" to emptyList())
-        val task = AidpApplyCodeChangesTask(project, packages, true, installPathProvider)
+        val task = AidpApplyChangesTask(project, packages, true, installPathProvider)
         val executor = MockExecutor(toolWindow)
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()
         val consolePrinter = MockConsolePrinter(project)
         task.run(executor, device, launchStatus, consolePrinter)
-    }
-
-    private fun getLocalInstaller(): String? {
-        return installPathProvider.compute()
     }
 
     private fun getIDevice(project: Project): IDevice {

@@ -158,10 +158,10 @@ class JavaCompiler(private val logger: Logger): ICompiler {
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
+            logger.warn("java compile: $diagnostic")
             if (item == null) {
                 // it maybe a compile warning like:
                 // warning: [options] bootstrap class path not set in conjunction with source -1.7
-                logger.warn("java compile diagnostic: $diagnostic")
                 return@DiagnosticListener
             }
             item.errors.add(diagnostic.lineNumber to diagnostic.toString())

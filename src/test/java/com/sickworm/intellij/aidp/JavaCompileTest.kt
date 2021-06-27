@@ -15,7 +15,7 @@ class JavaCompileTest {
         clearBuild()
     }
 
-    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", buildDir)
+    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", classesBuildDir)
     @Test
     fun javaCompile() {
         val results = javaCompiler.compile(helloWorldTask)
@@ -23,7 +23,7 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
-    private val errorTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", buildDir)
+    private val errorTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", classesBuildDir)
     @Test
     fun javaCompileError() {
         val results = javaCompiler.compile(errorTask)
@@ -32,7 +32,7 @@ class JavaCompileTest {
     }
 
     private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
-        buildDir,
+        classesBuildDir,
         dependencies = listOf(
             "$assetsLibDir/rxjava-3.0.12.jar",
             "$assetsLibDir/reactive-streams-1.0.3.jar"
@@ -46,7 +46,7 @@ class JavaCompileTest {
     }
 
     private val classDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java",
-        buildDir,
+        classesBuildDir,
         dependencies = listOf(assetsClassDir)
     )
     @Test
@@ -60,7 +60,7 @@ class JavaCompileTest {
     private val androidJar = "$androidHome/platforms/android-30/android.jar"
     private val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
     private val activityTask = CompileTask.singleFile("$assetsJavaDir/com/example/myapplication/MainActivity2.java",
-        buildDir,
+        classesBuildDir,
         dependencies = listOf(androidJar)
                 + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
                 + IntellijLibraryConfigParser(intellijLibraryDir).parse()!!

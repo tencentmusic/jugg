@@ -159,11 +159,11 @@ public class AidpDeployer {
 
     public Result fullSwap(List<String> apks) throws DeployerException {
         try (Trace ignored = Trace.begin("fullSwap")) {
-            if (supportsNewPipeline() && useOptimisticResourceSwap) {
+//            if (supportsNewPipeline() && useOptimisticResourceSwap) {
                 return optimisticSwap(apks, /* Restart Activity */ true, ImmutableMap.of());
-            } else {
-                return swap(apks, true /* Restart Activity */, ImmutableMap.of());
-            }
+//            } else {
+//                return swap(apks, true /* Restart Activity */, ImmutableMap.of());
+//            }
         }
     }
 
