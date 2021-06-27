@@ -94,26 +94,26 @@ class FileChangesManager(private val project: Project,
     private fun isNeedDeploy(virtualFile: VirtualFile?): Boolean {
         // 找不到文件
         if (virtualFile == null || !virtualFile.exists()) {
-            logger.debug("file ${virtualFile?.name} not exists, don't need inspect")
+            logger.debug("file ${virtualFile?.path} not exists, don't need inspect")
             return false
         }
 
         // 文件夹不用
         if (virtualFile.isDirectory) {
-            logger.debug("file ${virtualFile.name} is directory, don't need inspect")
+            logger.debug("file ${virtualFile.path} is directory, don't need inspect")
             return false
         }
 
         // 非 source 文件夹不用
         val isInSourceRoots = sourceRoots.find { virtualFile.path.startsWith(it) } != null
         if (!isInSourceRoots) {
-            logger.debug("file ${virtualFile.name} not in source root, don't need inspect")
+            logger.debug("file ${virtualFile.path} not in source root, don't need inspect")
             return false
         }
 
         // 只检查 java，kotlin 文件
         if (!inspectFileExtensions.contains(virtualFile.extension)) {
-            logger.debug("file ${virtualFile.name} extension ignore, don't need inspect")
+            logger.debug("file ${virtualFile.path} extension ignore, don't need inspect")
             return false
         }
 

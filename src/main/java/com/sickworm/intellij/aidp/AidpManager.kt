@@ -1,8 +1,8 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.AidpDeployDataManager
 import com.android.tools.deployer.AidpDeployerHelper
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
@@ -10,7 +10,6 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.wm.ToolWindow
 import java.io.File
-import java.lang.IllegalStateException
 import java.util.concurrent.Executors
 
 
@@ -21,12 +20,15 @@ class AidpManager(private val project: Project,
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
 
-    private val fileChangesManager = FileChangesManager(project, projectDir)
-    private val compiler = AidpCompiler(project)
-    private val outputDir = File("$projectDir/build/aidp/class/")
-    private var dependencies = listOf<String>()
+    private val compileDir = File("$projectDir/build/aidp/deploy/compile")
+    private val stagingDir = File("$projectDir/build/aidp/deploy/staging")
+    private val libraryDir = File("$projectDir/.idea/libraries")
 
-    private val libraryDir = "$projectDir/.idea/libraries"
+    private val fileChangesManager = FileChangesManager(project, projectDir)
+    private val deployDataManager = AidpDeployDataManager(stagingDir)
+    private val compiler = AidpCompiler(project)
+
+    private var dependencies = listOf<String>()
 
     private val operaThread = Executors.newSingleThreadExecutor()
 
@@ -84,15 +86,28 @@ class AidpManager(private val project: Project,
                 dependencyPaths = dependencies
             )
         }
-        compiler.compile(CompileTask(compileFiles, outputDir))
+        val result = compiler.compile(CompileTask(compileFiles, compileDir))
+        if (result.isAllSuccess) {
+            compileDir.listFilesRecursively().forEach {
+                val relativePath = it.relativeTo(compileDir).path
+                deployDataManager.addClass(it, relativePath, false)
+            }
+        }
     }
 
     fun apply() {
         try {
             logger.info("apply start")
-            AidpDeployerHelper.runTask(project, toolWindow)
-            logger.info("apply end")
-        } catch (e: Error) {
+            val deployData = deployDataManager.getDeployData()
+            if (deployData.isEmpty) {
+                logger.info("apply finished with no data to apply")
+                return
+            }
+
+            AidpDeployerHelper.runTask(deployData, project, toolWindow)
+
+            logger.info("apply finished")
+        } catch (e: Throwable) {
             logger.error("apply failed", e)
         }
     }

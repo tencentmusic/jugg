@@ -16,6 +16,7 @@
 package com.android.tools.idea.run.tasks;
 
 import com.android.ddmlib.IDevice;
+import com.android.tools.deployer.AidpDeployData;
 import com.android.tools.deployer.AidpDeployer;
 import com.android.tools.deployer.DeployerException;
 import com.intellij.openapi.diagnostic.Logger;
@@ -35,8 +36,10 @@ public class AidpApplyChangesTask extends AidpAbstractDeployTask {
 
     public AidpApplyChangesTask(@NotNull Project project,
                             @NotNull Map<String, List<File>> packages,
-                            boolean fallback, Computable<String> installPathProvider) {
-        super(project, packages, fallback, installPathProvider);
+                            boolean fallback, Computable<String> installPathProvider,
+                            AidpDeployData data
+    ) {
+        super(project, packages, fallback, installPathProvider, data);
     }
 
     @NotNull
@@ -57,9 +60,9 @@ public class AidpApplyChangesTask extends AidpAbstractDeployTask {
 
 
     @Override
-    protected AidpDeployer.Result perform(IDevice device, AidpDeployer deployer, String applicationId, List<File> files) throws DeployerException {
+    protected AidpDeployer.Result perform(IDevice device, AidpDeployer deployer, String applicationId, List<File> files, AidpDeployData data) throws DeployerException {
         LOG.info("Applying changes to application: " + applicationId);
-        return deployer.fullSwap(getPathsToInstall(files));
+        return deployer.fullSwap(getPathsToInstall(files), data);
     }
 
     @NotNull

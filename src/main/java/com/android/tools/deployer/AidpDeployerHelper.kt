@@ -31,9 +31,9 @@ object AidpDeployerHelper {
         EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()
     }
 
-    fun runTask(project: Project, toolWindow: ToolWindow) {
+    fun runTask(data: AidpDeployData, project: Project, toolWindow: ToolWindow) {
         val packages = mapOf<String, List<File>>("" to emptyList())
-        val task = AidpApplyChangesTask(project, packages, true, installPathProvider)
+        val task = AidpApplyChangesTask(project, packages, true, installPathProvider, data)
         val executor = MockExecutor(toolWindow)
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()

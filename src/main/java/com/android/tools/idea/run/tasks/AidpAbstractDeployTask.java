@@ -17,12 +17,7 @@
 package com.android.tools.idea.run.tasks;
 
 import com.android.ddmlib.IDevice;
-import com.android.tools.deployer.AdbClient;
-import com.android.tools.deployer.AdbInstaller;
-import com.android.tools.deployer.DeployMetric;
-import com.android.tools.deployer.AidpDeployer;
-import com.android.tools.deployer.DeployerException;
-import com.android.tools.deployer.Installer;
+import com.android.tools.deployer.*;
 import com.android.tools.idea.flags.StudioFlags;
 import com.android.tools.idea.log.LogWrapper;
 import com.android.tools.idea.run.ConsolePrinter;
@@ -39,7 +34,6 @@ import com.intellij.execution.filters.HyperlinkInfo;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationGroup;
 import com.intellij.notification.NotificationListener;
-import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -58,7 +52,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import javax.swing.event.HyperlinkEvent;
 
 import com.sickworm.intellij.aidp.AidpLogger;
@@ -76,16 +69,18 @@ public abstract class AidpAbstractDeployTask implements LaunchTask {
     @NotNull protected List<LaunchTaskDetail> mySubTaskDetails;
     private final boolean myFallback;
     private final Computable<String> myInstallPathProvider;
+    private final AidpDeployData myAidpDeployData;
 
     public static final Logger LOG = Logger.getInstance(AbstractDeployTask.class);
 
     public AidpAbstractDeployTask(@NotNull Project project, @NotNull Map<String, List<File>> packages, boolean fallback,
-                              Computable<String> installPathProvider) {
+                              Computable<String> installPathProvider, AidpDeployData aidpDeployData) {
         myProject = project;
         myPackages = packages;
         myFallback = fallback;
         myInstallPathProvider = installPathProvider;
         mySubTaskDetails = new ArrayList<>();
+        myAidpDeployData = aidpDeployData;
     }
 
     @Override
@@ -120,7 +115,7 @@ public abstract class AidpAbstractDeployTask implements LaunchTask {
             String applicationId = entry.getKey();
             List<File> apkFiles = entry.getValue();
             try {
-                AidpDeployer.Result result = perform(device, deployer, applicationId, apkFiles);
+                AidpDeployer.Result result = perform(device, deployer, applicationId, apkFiles, myAidpDeployData);
                 addSubTaskDetails(metrics, vmClockStartNs, wallClockStartMs);
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId);
@@ -151,7 +146,7 @@ public abstract class AidpAbstractDeployTask implements LaunchTask {
     abstract protected String getFailureTitle();
 
     abstract protected AidpDeployer.Result perform(
-            IDevice device, AidpDeployer deployer, String applicationId, List<File> files) throws DeployerException;
+            IDevice device, AidpDeployer deployer, String applicationId, List<File> files, AidpDeployData data) throws DeployerException;
 
     private String getLocalInstaller() {
         return myInstallPathProvider.compute();

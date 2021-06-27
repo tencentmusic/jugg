@@ -8,7 +8,7 @@ import javax.xml.parsers.SAXParserFactory
 
 private val logger = Logger.getInstance("#AIDP-IntellijLibraryConfigParser")
 
-class IntellijLibraryConfigParser(private val configDirPath: String) {
+class IntellijLibraryConfigParser(private val configDir: File) {
 
     private val parser = SAXParserFactory.newInstance().newSAXParser()
 
@@ -16,9 +16,8 @@ class IntellijLibraryConfigParser(private val configDirPath: String) {
      * @return library path list
      */
     fun parse(): List<String>? {
-        val configDir = File(configDirPath)
         if (!configDir.exists()) {
-            logger.warn("config dir not exist: $configDirPath")
+            logger.warn("config dir not exist: $configDir")
             return null
         }
 

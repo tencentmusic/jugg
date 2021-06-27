@@ -17,10 +17,7 @@ package com.android.tools.idea.run.tasks;
 
 import com.android.ddmlib.IDevice;
 import com.android.sdklib.AndroidVersion;
-import com.android.tools.deployer.AidpDeployer;
-import com.android.tools.deployer.Deployer;
-import com.android.tools.deployer.DeployerException;
-import com.android.tools.deployer.InstallOptions;
+import com.android.tools.deployer.*;
 import com.android.tools.idea.flags.StudioFlags;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
@@ -49,8 +46,10 @@ public class AidpDeployTask extends AidpAbstractDeployTask {
                       @NotNull Map<String, List<File>> packages,
                       String userInstallOptions,
                       boolean installOnAllUsers,
-                      Computable<String> installPathProvider) {
-        super(project, packages, false, installPathProvider);
+                      Computable<String> installPathProvider,
+                      AidpDeployData data
+    ) {
+        super(project, packages, false, installPathProvider, data);
         if (userInstallOptions != null && !userInstallOptions.isEmpty()) {
             userInstallOptions = userInstallOptions.trim();
             this.userInstallOptions = userInstallOptions.split("\\s");
@@ -67,7 +66,7 @@ public class AidpDeployTask extends AidpAbstractDeployTask {
     }
 
     @Override
-    protected AidpDeployer.Result perform(IDevice device, AidpDeployer deployer, String applicationId, List<File> files) throws DeployerException {
+    protected AidpDeployer.Result perform(IDevice device, AidpDeployer deployer, String applicationId, List<File> files, AidpDeployData data) throws DeployerException {
         // All installations default to allow debuggable APKs
         InstallOptions.Builder options = InstallOptions.builder().setAllowDebuggable();
 

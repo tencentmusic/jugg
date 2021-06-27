@@ -51,17 +51,3 @@ fun sourceFileToClassFile(sourceDir: String, file: File, buildDir: String): File
 fun guessClassFilePath(baseDir: String, file: File): String {
     return file.absolutePath.substring(baseDir.length, file.absolutePath.length - file.name.length)
 }
-
-fun File.findAllFiles(): List<File> {
-    if (!exists()) {
-        return emptyList()
-    }
-
-    if (isFile) {
-        return listOf(this)
-    }
-
-    return listFiles()?.flatMap {
-        it.findAllFiles()
-    }?: emptyList()
-}

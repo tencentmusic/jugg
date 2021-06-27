@@ -17,6 +17,7 @@ package com.android.tools.idea.run.tasks;
 
 import com.android.ddmlib.Client;
 import com.android.ddmlib.IDevice;
+import com.android.tools.deployer.AidpDeployData;
 import com.android.tools.deployer.ClassRedefiner;
 import com.android.tools.deployer.AidpDeployer;
 import com.android.tools.deployer.DeployerException;
@@ -46,8 +47,10 @@ public class AidpApplyCodeChangesTask extends AidpAbstractDeployTask {
     public AidpApplyCodeChangesTask(@NotNull Project project,
                                 @NotNull Map<String, List<File>> packages,
                                 boolean fallback,
-                                Computable<String> installPathProvider) {
-        super(project, packages, fallback, installPathProvider);
+                                Computable<String> installPathProvider,
+                                AidpDeployData data
+    ) {
+        super(project, packages, fallback, installPathProvider, data);
     }
 
     @NotNull
@@ -59,7 +62,6 @@ public class AidpApplyCodeChangesTask extends AidpAbstractDeployTask {
     /**
      * @return redefiners that will be used for specific PIDs
      * @param device The device we are deploying to.
-     * @param apk The apk we want to deploy.
      */
     private ImmutableMap<Integer, ClassRedefiner> makeSpecificRedefiners(Project project, IDevice device) {
         if (!DebuggerRedefiner.hasDebuggersAttached(project)) {
@@ -81,10 +83,10 @@ public class AidpApplyCodeChangesTask extends AidpAbstractDeployTask {
     }
 
     @Override
-    protected AidpDeployer.Result perform(IDevice device, AidpDeployer deployer, String applicationId, List<File> files) throws DeployerException {
+    protected AidpDeployer.Result perform(IDevice device, AidpDeployer deployer, String applicationId, List<File> files, AidpDeployData data) throws DeployerException {
         LOG.info("Applying code changes to application: " + applicationId);
         ImmutableMap<Integer, ClassRedefiner> redefiners = makeSpecificRedefiners(getProject(), device);
-        return deployer.codeSwap(getPathsToInstall(files), redefiners);
+        return deployer.codeSwap(getPathsToInstall(files), redefiners, data);
     }
 
     @NotNull

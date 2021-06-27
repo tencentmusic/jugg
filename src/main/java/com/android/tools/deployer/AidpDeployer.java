@@ -14,7 +14,6 @@ import com.android.utils.ILogger;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.*;
-import java.util.function.Predicate;
 
 import com.android.tools.deployer.Deployer.InstallMode;
 
@@ -146,21 +145,21 @@ public class AidpDeployer {
         }
     }
 
-    public Result codeSwap(List<String> classFiles, Map<Integer, ClassRedefiner> redefiners)
+    public Result codeSwap(List<String> classFiles, Map<Integer, ClassRedefiner> redefiners, AidpDeployData data)
             throws DeployerException {
         try (Trace ignored = Trace.begin("codeSwap")) {
 //            if (supportsNewPipeline()) {
-                return optimisticSwap(classFiles, false /* Restart Activity */, redefiners);
+                return optimisticSwap(classFiles, false /* Restart Activity */, redefiners, data);
 //            } else {
 //                return swap(apks, false /* Restart Activity */, redefiners);
 //            }
         }
     }
 
-    public Result fullSwap(List<String> apks) throws DeployerException {
+    public Result fullSwap(List<String> apks, AidpDeployData data) throws DeployerException {
         try (Trace ignored = Trace.begin("fullSwap")) {
 //            if (supportsNewPipeline() && useOptimisticResourceSwap) {
-                return optimisticSwap(apks, /* Restart Activity */ true, ImmutableMap.of());
+                return optimisticSwap(apks, /* Restart Activity */ true, ImmutableMap.of(), data);
 //            } else {
 //                return swap(apks, true /* Restart Activity */, ImmutableMap.of());
 //            }
@@ -240,7 +239,7 @@ public class AidpDeployer {
     }
 
     private Result optimisticSwap(
-            List<String> argPaths, boolean argRestart, Map<Integer, ClassRedefiner> redefiners)
+            List<String> argPaths, boolean argRestart, Map<Integer, ClassRedefiner> redefiners, AidpDeployData data)
             throws DeployerException {
 
         if (!adb.getVersion().isGreaterOrEqualThan(AndroidVersion.VersionCodes.O)) {
@@ -296,7 +295,7 @@ public class AidpDeployer {
 //        Task<DexComparator.ChangedClasses> changedClasses =
 //                runner.create(Tasks.COMPARE, new DexComparator()::compare, dexDiffs, splitter);
 
-        Task<DexComparator.ChangedClasses> changedClasses = runner.create(AidpMock.INSTANCE.getDeployDexClass());
+        Task<DexComparator.ChangedClasses> changedClasses = runner.create(data.getChangesClasses());
 
         // Perform the swap.
         OptimisticApkSwapper swapper =

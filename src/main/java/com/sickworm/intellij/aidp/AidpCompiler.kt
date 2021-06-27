@@ -3,7 +3,10 @@ package com.sickworm.intellij.aidp
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.io.File
-import javax.tools.*
+import javax.tools.DiagnosticListener
+import javax.tools.JavaFileObject
+import javax.tools.StandardJavaFileManager
+import javax.tools.ToolProvider
 import javax.tools.JavaCompiler as JavaCompilerX
 
 interface ICompiler {
@@ -62,6 +65,8 @@ data class CompileResult(
     val successFiles get() = details.filter { it.isSuccess }
 
     val failedFiles get() = details.filter { it.isFailed }
+
+    val isAllSuccess get() = details.all { it.isSuccess }
 }
 
 data class CompileError(
@@ -77,9 +82,9 @@ class AidpCompiler(project: Project): ICompiler {
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
 
-    private val javaCompiler = JavaCompiler(logger)
+    private val javaCompiler = DexCompiler(JavaCompiler(logger))
 
-    private val kotlinCompiler = KotlinCompiler()
+    private val kotlinCompiler = DexCompiler(KotlinCompiler())
 
     override fun compile(task: CompileTask): CompileResult {
         // split compile files by type
@@ -172,7 +177,9 @@ class JavaCompiler(private val logger: Logger): ICompiler {
 
         // do compile
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
-        javaTask.call()
+        if (!javaTask.call()) {
+            logger.warn("javaTask call failed!")
+        }
 
         // check result
         val failedItems = compileItems.filter { it.isFailed }
@@ -190,6 +197,25 @@ class JavaCompiler(private val logger: Logger): ICompiler {
         val errors: MutableList<Pair<Long, String>> = mutableListOf(),
     ) {
         val isFailed get() = errors.isNotEmpty()
+    }
+}
+
+class DexCompiler(private val classCompiler: ICompiler): ICompiler {
+    private val dexFileMaker = DexFileMaker()
+
+    override fun compile(task: CompileTask): CompileResult {
+        val result = classCompiler.compile(task)
+        if (!result.isAllSuccess) {
+            return result
+        }
+        // TODO handle dirty files in outputDir
+        // TODO handle dex failed
+        task.outputDir.listFilesRecursively().forEach {
+            val outputFile = File(it.absolutePath.replace(".class", ".dex"))
+            dexFileMaker.dex(task.outputDir, outputFile, it)
+            it.delete()
+        }
+        return result
     }
 }
 

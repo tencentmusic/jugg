@@ -23,7 +23,7 @@ class DexTest {
     @Test
     fun dexMultipleFiles() {
         JavaCompileTest().javaCompileMultiFiles()
-        val classesFiles = File(classesBuildDir).findAllFiles()
+        val classesFiles = File(classesBuildDir).listFilesRecursively()
         val buildDir = File(classesBuildDir)
 
         // ART TI requires one .dex file only contains one .class file
