@@ -32,6 +32,8 @@ class AidpManager(private val project: Project,
 
     private val operaThread = Executors.newSingleThreadExecutor()
 
+    var deployOnSave = true
+
     init {
         register(project, this)
         Disposer.register(project, this)
@@ -50,7 +52,9 @@ class AidpManager(private val project: Project,
 
         fileChangesManager.startListen(object: FileChangesListener {
             override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
-                processFileChanged(changeFiles)
+                operaThread.submit {
+                    processFileChanged(changeFiles)
+                }
             }
         })
     }
@@ -87,11 +91,17 @@ class AidpManager(private val project: Project,
             )
         }
         val result = compiler.compile(CompileTask(compileFiles, compileDir))
-        if (result.isAllSuccess) {
-            compileDir.listFilesRecursively().forEach {
-                val relativePath = it.relativeTo(compileDir).path
-                deployDataManager.addClass(it, relativePath, false)
-            }
+        if (!result.isAllSuccess) {
+            return
+        }
+
+        compileDir.listFilesRecursively().forEach {
+            val relativePath = it.relativeTo(compileDir).path
+            deployDataManager.addClass(it, relativePath, false)
+        }
+
+        if (deployOnSave) {
+            apply()
         }
     }
 

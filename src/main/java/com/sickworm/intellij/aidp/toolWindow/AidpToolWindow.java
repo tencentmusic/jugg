@@ -15,40 +15,47 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
+import java.awt.event.ItemEvent;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
 public class AidpToolWindow {
 
   private JButton applyButton;
-  private JLabel currentDate;
-  private JLabel currentTime;
-  private JLabel timeZone;
   private JPanel myToolWindowContent;
   private JTextPane runningLog;
+  private JCheckBox deployWhenFileSavedCheckBox;
 
   private final Project project;
 
   private final Logger logger;
+
+  private AidpManager aidpManager;
 
   @SuppressWarnings("unused")
   public AidpToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
     this.logger = AidpLogger.INSTANCE.getInstance(project, "#AIDP-AidpToolWindow");
 
+    String projectDir = project.getBasePath();
+    logger.info("projectOpened " + project + " " + projectDir);
+    if (projectDir == null) {
+      logger.warn("can not get project directory, exit");
+      return;
+    }
+
+    AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
+    this.aidpManager = new AidpManager(project, projectDir, toolWindow);
+    aidpManager.start();
+
     applyButton.addActionListener(e -> apply());
+
+    deployWhenFileSavedCheckBox.setSelected(aidpManager.getDeployOnSave());
+    deployWhenFileSavedCheckBox.addItemListener(e -> aidpManager.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
 
     MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
     StyleConstants.setLineSpacing(set, 0.2f);
     runningLog.setParagraphAttributes(set, true);
-
-    AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
-
-    String projectDir = project.getBasePath();
-    logger.info("projectOpened " + project + " " + projectDir);
-    if (projectDir != null) {
-      new AidpManager(project, projectDir, toolWindow).start();
-    }
   }
 
   public void apply() {
