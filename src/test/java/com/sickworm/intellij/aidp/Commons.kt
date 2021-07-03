@@ -52,15 +52,22 @@ fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, Compi
         }
     }
 
-    if (isSuccess) {
-        // ensure file exists if build success
-        if (isCheckClassExist) {
-            val classFile = result.file.file.changeBaseDir(File(sourceDir), File(classPathDir), "class")
+    // ensure file exists if build success
+    if (isCheckClassExist) {
+        val classFile = result.file.file.changeBaseDir(File(sourceDir), File(classPathDir), "class")
+        if (isSuccess) {
             assert(classFile.exists() && classFile.length() > 0)
+        } else {
+            // only AidpCompiler will ensure failed file not exists, JavaCompiler will not
+//            assert(!classFile.exists())
         }
-        if (isCheckDexExist) {
-            val dexFile = result.file.file.changeBaseDir(File(sourceDir), File(compileDexDir), "dex")
+    }
+    if (isCheckDexExist) {
+        val dexFile = result.file.file.changeBaseDir(File(sourceDir), File(compileDexDir), "dex")
+        if (isSuccess) {
             assert(dexFile.exists() && dexFile.length() > 0)
+        } else {
+            assert(!dexFile.exists())
         }
     }
 }
