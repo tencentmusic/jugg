@@ -8,7 +8,7 @@ import java.lang.IllegalStateException
 
 class JavaCompileTest {
 
-    val javaCompiler = JavaCompiler(logger)
+    private val javaCompiler = JavaCompiler(logger)
 
     @Before
     fun init() {
@@ -63,7 +63,7 @@ class JavaCompileTest {
         classesBuildDir,
         dependencies = listOf(androidJar)
                 + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
-                + IntellijLibraryConfigParser(intellijLibraryDir).parse()!!
+                + IntellijLibraryConfigParser(File(intellijLibraryDir)).parse()!!
     )
     @Test
     fun javaCompileAndroidActivity() {
@@ -75,9 +75,25 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
+    private val interdependenceTask = CompileTask(
+        listOf(
+            CompileFileInfo(File("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java")),
+            CompileFileInfo(File("$assetsJavaDir/com/sickworm/intellij/aidp/test/NewDep.java"))
+        ),
+        File(classesBuildDir))
+
+    @Test
+    fun javaCompileMultiFilesWithDep() {
+        val results = javaCompiler.compile(interdependenceTask)
+        assert(results.size == 2)
+        results.forEach {
+            assertCompileResult(assetsJavaDir, it, true)
+        }
+    }
+
     @Test
     fun javaCompileMultiFiles() {
-        val compileTask = helloWorldTask + externalDepTask + classDepTask + activityTask
+        val compileTask = helloWorldTask + externalDepTask + classDepTask + activityTask + interdependenceTask
         val results = javaCompiler.compile(compileTask)
 
         assert(results.size == compileTask.files.size)
@@ -89,7 +105,7 @@ class JavaCompileTest {
 
     @Test
     fun javaCompileMultiFilesError() {
-        val compileTask = helloWorldTask + errorTask + externalDepTask + classDepTask + activityTask
+        val compileTask = helloWorldTask + errorTask + externalDepTask + classDepTask + activityTask + interdependenceTask
         val results = javaCompiler.compile(compileTask)
 
         assert(results.size == compileTask.files.size)
