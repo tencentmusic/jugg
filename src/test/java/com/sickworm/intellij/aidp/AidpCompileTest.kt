@@ -30,7 +30,8 @@ class AidpCompileTest {
     private val javaCompileFilesWithError = File(assetsJavaDir).listFilesRecursively()
     private val javaCompileFiles = javaCompileFilesWithError.filter { it.name != "ErrorJavaFile.java" }
     private val dependencies: List<String> = emptyList<String>() +
-            "$assetsLibDir/rxjava-3.0.12.jar" + "$assetsLibDir/reactive-streams-1.0.3.jar" +
+            "$assetsLibDir/rxjava-3.0.12.jar" +
+            "$assetsLibDir/reactive-streams-1.0.3.jar" +
             androidJar +
             "$assetsAndroidDir/build/intermediates/javac/debug/classes" +
             assetsClassDir +
