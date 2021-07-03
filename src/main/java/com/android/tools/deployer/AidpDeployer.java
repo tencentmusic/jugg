@@ -14,6 +14,7 @@ import com.android.utils.ILogger;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.*;
+import java.util.function.Predicate;
 
 import com.android.tools.deployer.Deployer.InstallMode;
 
@@ -247,23 +248,20 @@ public class AidpDeployer {
         }
 
         // Inputs
-//        Task<List<String>> paths = runner.create(argPaths);
-//        Task<Boolean> restart = runner.create(argRestart);
-//        Task<DexSplitter> splitter =
-//                runner.create(new CachedDexSplitter(dexDb, new D8DexSplitter()));
+        Task<List<String>> paths = runner.create(argPaths);
+        Task<Boolean> restart = runner.create(argRestart);
+        Task<DexSplitter> splitter =
+                runner.create(new CachedDexSplitter(dexDb, new D8DexSplitter()));
         // isolate from Android Apply Changes
         Task<String> deviceSerial = runner.create(adb.getSerial());
-//
-//        // Get the list of files from the local apks
-//        Task<List<Apk>> newFiles =
-//                runner.create(Tasks.PARSE_PATHS, new ApkParser()::parsePaths, paths);
-        Task<List<Apk>> newFiles = runner.create(new ArrayList<>());
-//
-//        // Get the App info. Some from the APK, some from DDMLib.
-//        Task<String> packageName =
-//                runner.create(Tasks.PARSE_APP_IDS, ApplicationDumper::getPackageName, newFiles);
-        // TODO get package name
-        Task<String> packageName = runner.create("com.example.myapplication");
+
+        // Get the list of files from the local apks
+        Task<List<Apk>> newFiles =
+                runner.create(Tasks.PARSE_PATHS, new ApkParser()::parsePaths, paths);
+
+        // Get the App info. Some from the APK, some from DDMLib.
+        Task<String> packageName =
+                runner.create(Tasks.PARSE_APP_IDS, ApplicationDumper::getPackageName, newFiles);
         Task<List<Integer>> pids = runner.create(Tasks.GET_PIDS, adb::getPids, packageName);
         Task<Deploy.Arch> arch = runner.create(Tasks.GET_ARCH, adb::getArch, pids);
 
@@ -272,21 +270,21 @@ public class AidpDeployer {
                 runner.create(Tasks.OPTIMISTIC_DUMP, deployCache::get, deviceSerial, packageName);
 
         // On an on-host verification of the dump first.
+        // TODO check cost time
         Task<ApplicationDumper> dumper = runner.create(new ApplicationDumper(installer));
         Task<DeploymentCacheDatabase.Entry> verifyDump =
                 runner.create(Tasks.VERIFY_DUMP, AidpDeployer::verifyCache, speculativeDump, dumper);
 
-//        // Calculate the difference between them speculating the deployment cache is correct.
-//        Task<List<FileDiff>> diffs =
-//                runner.create(Tasks.DIFF, new ApkDiffer()::specDiff, speculativeDump, newFiles);
-//
-//        // Extract files from the APK for overlays. Currently only extract resources.
+        // Calculate the difference between them speculating the deployment cache is correct.
+        Task<OptimisticApkSwapper.OverlayUpdate> overlayUpdate =
+                runner.create(Tasks.DIFF, new AidpDiffer()::diff, verifyDump, runner.create(data));
+
+        // Extract files from the APK for overlays. Currently only extract resources.
 //        Predicate<String> filter = file -> file.startsWith("res") || file.startsWith("assets");
 //        Task<Map<ApkEntry, ByteString>> extractedFiles =
 //                runner.create(
 //                        Tasks.EXTRACT_APK_ENTRIES, new ApkEntryExtractor(filter)::extract, diffs);
-        Task<Map<ApkEntry, ByteString>> extractedFiles = runner.create(new HashMap<>());
-//
+
 //        // Verify the changes are swappable and get only the dexes that we can change
 //        Task<List<FileDiff>> dexDiffs =
 //                runner.create(Tasks.VERIFY, new SwapVerifier()::verify, newFiles, diffs, restart);
@@ -294,8 +292,6 @@ public class AidpDeployer {
         // Compare the local vs remote dex files.
 //        Task<DexComparator.ChangedClasses> changedClasses =
 //                runner.create(Tasks.COMPARE, new DexComparator()::compare, dexDiffs, splitter);
-
-        Task<DexComparator.ChangedClasses> changedClasses = runner.create(data.getChangesClasses());
 
         // Perform the swap.
         OptimisticApkSwapper swapper =
@@ -307,13 +303,13 @@ public class AidpDeployer {
                         useVariableReinitialization,
                         adb,
                         logger);
-        Task<OptimisticApkSwapper.OverlayUpdate> overlayUpdate =
-                runner.create(
-                        Tasks.COLLECT_SWAP_DATA,
-                        OptimisticApkSwapper.OverlayUpdate::new,
-                        verifyDump,
-                        changedClasses,
-                        extractedFiles);
+//        Task<OptimisticApkSwapper.OverlayUpdate> overlayUpdate =
+//                runner.create(
+//                        Tasks.COLLECT_SWAP_DATA,
+//                        OptimisticApkSwapper.OverlayUpdate::new,
+//                        verifyDump,
+//                        changedClasses,
+//                        extractedFiles);
         Task<OverlayId> nextOverlayId =
                 runner.create(
                         Tasks.OPTIMISTIC_SWAP,
@@ -355,6 +351,10 @@ public class AidpDeployer {
     private static DeploymentCacheDatabase.Entry verifyCache(
             DeploymentCacheDatabase.Entry entry, ApplicationDumper dumper)
             throws DeployerException {
+        if (entry == null) {
+            throw DeployerException.remoteApkNotFound();
+        }
+
         if (!entry.getOverlayId().isBaseInstall()) {
             return entry;
         }

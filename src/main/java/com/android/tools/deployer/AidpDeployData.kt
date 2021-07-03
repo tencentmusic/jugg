@@ -1,7 +1,10 @@
 package com.android.tools.deployer
 
+import com.android.tools.deployer.model.DexClass
+
 data class AidpDeployData(
-    val changesClasses: DexComparator.ChangedClasses,
+    // TODO use custom class instead of DexClass
+    val classes: List<DexClass>,
 ) {
-    val isEmpty get() = changesClasses.modifiedClasses.size == 0 && changesClasses.newClasses.size == 0
+    val isEmpty get() = classes.isEmpty()
 }

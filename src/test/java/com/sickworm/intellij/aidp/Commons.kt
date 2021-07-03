@@ -7,8 +7,8 @@ val logger = Logger.getInstance("AidpTest")
 
 val buildDir: String = File("src/test/build").absolutePath
 val compileClassDir: String = File("src/test/build/compiled").absolutePath
-val classPathDir: String = File("src/test/build/classes").absolutePath
 val compileDexDir: String = File("src/test/build/dex").absolutePath
+val classPathDir: String = File("src/test/build/classes").absolutePath
 
 val assetsDir: String = File("src/test/assets").absolutePath
 val assetsJavaDir = "$assetsDir/java"
@@ -19,7 +19,11 @@ val assetsAndroidDir = "$assetsDir/android"
 
 fun clearBuild() = File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
 
-fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean, errorCount: Int? = null) {
+fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean,
+                        errorCount: Int? = null,
+                        isCheckClassExist: Boolean = true,
+                        isCheckDexExist: Boolean = false
+) {
     if (result.isFailed) {
         println("assertCompileResult error count: ${result.getFailure().errors.size}")
         println("assertCompileResult error messages:\n ${result.getFailure().errorMessages}")
@@ -35,21 +39,15 @@ fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, Compi
         }
     }
 
-    val classFile = sourceFileToClassFile(sourceDir, result.file.file, classPathDir)
     if (isSuccess) {
-        assert(classFile.exists() && classFile.length() > 0)
-    } else {
-        // compiler doesn't know the generated class path so compiler won't delete generated files if
-        // compilation failed in the middle
+        // ensure file exists if build success
+        if (isCheckClassExist) {
+            val classFile = result.file.file.changeBaseDir(File(sourceDir), File(classPathDir), "class")
+            assert(classFile.exists() && classFile.length() > 0)
+        }
+        if (isCheckDexExist) {
+            val dexFile = result.file.file.changeBaseDir(File(sourceDir), File(compileDexDir), "dex")
+            assert(dexFile.exists() && dexFile.length() > 0)
+        }
     }
-}
-
-fun sourceFileToClassFile(sourceDir: String, file: File, buildDir: String): File {
-    val className = file.name.replace(file.extension, "class")
-    val packagePath = guessClassFilePath(sourceDir, file)
-    return File(buildDir + packagePath + className)
-}
-
-fun guessClassFilePath(baseDir: String, file: File): String {
-    return file.absolutePath.substring(baseDir.length, file.absolutePath.length - file.name.length)
 }

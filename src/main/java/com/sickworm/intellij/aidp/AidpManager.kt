@@ -1,6 +1,5 @@
 package com.sickworm.intellij.aidp
 
-import com.android.tools.AidpDeployDataManager
 import com.android.tools.deployer.AidpDeployerHelper
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.ModuleManager
@@ -20,19 +19,26 @@ class AidpManager(private val project: Project,
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
 
-    private val compileDir = File("$projectDir/build/aidp/deploy/compile")
-    private val stagingDir = File("$projectDir/build/aidp/deploy/staging")
-    private val libraryDir = File("$projectDir/.idea/libraries")
-
-    private val fileChangesManager = FileChangesManager(project, projectDir)
-    private val deployDataManager = AidpDeployDataManager(stagingDir)
-    private val compiler = AidpCompiler(project)
-
-    private var dependencies = listOf<String>()
-
     private val operaThread = Executors.newSingleThreadExecutor()
 
-    var deployOnSave = true
+    // detect file changes
+    private val fileChangesManager = FileChangesManager(project, projectDir)
+
+    // manage deploy data
+    private val stagingDir = File("$projectDir/build/aidp/deploy/staging")
+    private val deployDataManager = AidpDeployDataManager(stagingDir)
+
+    // compile dependency
+    private val libraryDir = File("$projectDir/.idea/libraries")
+    private val classPathDir = File("$projectDir/build/aidp/deploy/classpath")
+    private var dependencies = listOf<String>()
+
+    // compile
+    private val compileClassDir = File("$projectDir/build/aidp/deploy/compiled/classes")
+    private val compileDexDir = File("$projectDir/build/aidp/deploy/compiled/dex")
+    private val compiler = AidpCompiler(project, compileClassDir, classPathDir)
+
+    var deployOnSave = false
 
     init {
         register(project, this)
@@ -78,34 +84,55 @@ class AidpManager(private val project: Project,
             "${baseDir.path}/build/intermediates/javac/debug/classes"
         }
 
-        dependencies = libDep + androidDep + projectDep
+        if (!classPathDir.exists()) {
+            classPathDir.mkdirs()
+        }
+        val aidpClassPathDep = listOf(classPathDir.absolutePath)
 
-        logger.info("dependencies loaded, libDep size: ${libDep.size}, androidDep size: 1, projectDep size: ${projectDep.size}")
+        dependencies = libDep + androidDep + projectDep + aidpClassPathDep
+
+        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDep.size}, androidDep size: 1, aidpClassPathDep size: 1")
     }
 
     private fun processFileChanged(changeFiles: List<ChangeFileInfo>) {
-        val compileFiles = changeFiles.map {
-            CompileFileInfo(
-                VfsUtil.virtualToIoFile(it.file),
-                dependencyPaths = dependencies
-            )
+        // store source files
+        changeFiles.forEach {
+            deployDataManager.addChangedFile(VfsUtil.virtualToIoFile(it.file))
         }
-        val result = compiler.compile(CompileTask(compileFiles, compileDir))
+
+        // read all uncompiled files
+        val compileFiles = deployDataManager.getUncompiledFiles().map {
+            CompileFileInfo(it, dependencyPaths = dependencies)
+        }
+
+        // do compile
+        compileDexDir.clearDir()
+        val result = compiler.compile(CompileTask(compileFiles, compileDexDir))
         if (!result.isAllSuccess) {
+            // TODO accept successfully compiled files
             return
         }
 
-        compileDir.listFilesRecursively().forEach {
-            val relativePath = it.relativeTo(compileDir).path
-            deployDataManager.addClass(it, relativePath, false)
+        // mark source files compiled
+        compileFiles.forEach {
+            deployDataManager.markAsCompiled(it.file)
+        }
+
+        // stage deploy files
+        compileDexDir.listFilesRecursively().forEach {
+            deployDataManager.addClassFile(it, compileDexDir, false)
         }
 
         if (deployOnSave) {
-            apply()
+            deployAsync()
         }
     }
 
-    fun apply() {
+    fun deployAsync() {
+        operaThread.submit(::deploy)
+    }
+
+    private fun deploy() {
         try {
             logger.info("apply start")
             val deployData = deployDataManager.getDeployData()
@@ -120,10 +147,6 @@ class AidpManager(private val project: Project,
         } catch (e: Throwable) {
             logger.error("apply failed", e)
         }
-    }
-
-    fun applyAsync() {
-        operaThread.submit(::apply)
     }
 
     override fun dispose() {
@@ -145,6 +168,7 @@ class AidpManager(private val project: Project,
             }
         }
 
+        // TODO remove
         fun getInstance(project: Project): AidpManager? {
             return map[project]
         }

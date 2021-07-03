@@ -21,7 +21,7 @@ import java.io.StringWriter;
 
 public class AidpToolWindow {
 
-  private JButton applyButton;
+  private JButton deployButton;
   private JPanel myToolWindowContent;
   private JTextPane runningLog;
   private JCheckBox deployWhenFileSavedCheckBox;
@@ -48,7 +48,7 @@ public class AidpToolWindow {
     this.aidpManager = new AidpManager(project, projectDir, toolWindow);
     aidpManager.start();
 
-    applyButton.addActionListener(e -> apply());
+    deployButton.addActionListener(e -> deploy());
 
     deployWhenFileSavedCheckBox.setSelected(aidpManager.getDeployOnSave());
     deployWhenFileSavedCheckBox.addItemListener(e -> aidpManager.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
@@ -58,15 +58,15 @@ public class AidpToolWindow {
     runningLog.setParagraphAttributes(set, true);
   }
 
-  public void apply() {
-    logger.info("onApply");
+  public void deploy() {
+    logger.info("onDeploy");
     AidpManager manager = AidpManager.Companion.getInstance(project);
     if (manager == null) {
-      logger.error("apply failed for AidpManager not found");
+      logger.error("deploy failed for AidpManager not found");
       return;
     }
 
-    manager.applyAsync();
+    manager.deployAsync();
   }
 
   public JPanel getContent() {
