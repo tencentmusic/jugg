@@ -14,7 +14,7 @@ class DexTest {
     @Test
     fun dexer() {
         JavaCompileTest().javaCompile()
-        val buildDir = File(classesBuildDir)
+        val buildDir = File(classPathDir)
         val dexFile = File("src/test/build/dex/out.dex")
         DexFileMaker().dex(buildDir, dexFile)
         assert(dexFile.exists() && dexFile.length() > 0)
@@ -23,13 +23,13 @@ class DexTest {
     @Test
     fun dexMultipleFiles() {
         JavaCompileTest().javaCompileMultiFiles()
-        val classesFiles = File(classesBuildDir).listFilesRecursively()
-        val buildDir = File(classesBuildDir)
+        val classesFiles = File(classPathDir).listFilesRecursively()
+        val buildDir = File(classPathDir)
 
         // ART TI requires one .dex file only contains one .class file
         classesFiles.forEach { classFile ->
             val outputPath = classFile.absolutePath
-                .replace(classesBuildDir, dexBuildDir)
+                .replace(classPathDir, compileDexDir)
                 .replace(".class", ".dex")
             val dexFile = File(outputPath)
             DexFileMaker().dex(buildDir, dexFile, classFile)

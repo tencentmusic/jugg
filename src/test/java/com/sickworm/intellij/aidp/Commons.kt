@@ -6,8 +6,10 @@ import java.io.File
 val logger = Logger.getInstance("AidpTest")
 
 val buildDir: String = File("src/test/build").absolutePath
-val classesBuildDir: String = File("src/test/build/classes").absolutePath
-val dexBuildDir: String = File("src/test/build/dex").absolutePath
+val compileClassDir: String = File("src/test/build/compiled").absolutePath
+val classPathDir: String = File("src/test/build/classes").absolutePath
+val compileDexDir: String = File("src/test/build/dex").absolutePath
+
 val assetsDir: String = File("src/test/assets").absolutePath
 val assetsJavaDir = "$assetsDir/java"
 val assetsKotlinDir = "$assetsDir/kotlin"
@@ -33,7 +35,7 @@ fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, Compi
         }
     }
 
-    val classFile = sourceFileToClassFile(sourceDir, result.file.file, classesBuildDir)
+    val classFile = sourceFileToClassFile(sourceDir, result.file.file, classPathDir)
     if (isSuccess) {
         assert(classFile.exists() && classFile.length() > 0)
     } else {

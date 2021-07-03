@@ -15,7 +15,7 @@ class JavaCompileTest {
         clearBuild()
     }
 
-    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", classesBuildDir)
+    private val helloWorldTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", classPathDir)
     @Test
     fun javaCompile() {
         val results = javaCompiler.compile(helloWorldTask)
@@ -23,7 +23,7 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
-    private val errorTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", classesBuildDir)
+    private val errorTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", classPathDir)
     @Test
     fun javaCompileError() {
         val results = javaCompiler.compile(errorTask)
@@ -32,7 +32,7 @@ class JavaCompileTest {
     }
 
     private val externalDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
-        classesBuildDir,
+        classPathDir,
         dependencies = listOf(
             "$assetsLibDir/rxjava-3.0.12.jar",
             "$assetsLibDir/reactive-streams-1.0.3.jar"
@@ -46,7 +46,7 @@ class JavaCompileTest {
     }
 
     private val classDepTask = CompileTask.singleFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java",
-        classesBuildDir,
+        classPathDir,
         dependencies = listOf(assetsClassDir)
     )
     @Test
@@ -60,7 +60,7 @@ class JavaCompileTest {
     private val androidJar = "$androidHome/platforms/android-30/android.jar"
     private val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
     private val activityTask = CompileTask.singleFile("$assetsJavaDir/com/example/myapplication/MainActivity2.java",
-        classesBuildDir,
+        classPathDir,
         dependencies = listOf(androidJar)
                 + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
                 + IntellijLibraryConfigParser(File(intellijLibraryDir)).parse()!!
@@ -80,7 +80,7 @@ class JavaCompileTest {
             CompileFileInfo(File("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java")),
             CompileFileInfo(File("$assetsJavaDir/com/sickworm/intellij/aidp/test/NewDep.java"))
         ),
-        File(classesBuildDir))
+        File(classPathDir))
 
     @Test
     fun javaCompileMultiFilesWithDep() {
