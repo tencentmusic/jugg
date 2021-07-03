@@ -56,9 +56,6 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, results.first(), true)
     }
 
-    private val androidHome = System.getenv("ANDROID_HOME")
-    private val androidJar = "$androidHome/platforms/android-30/android.jar"
-    private val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
     private val activityTask = CompileTask.singleFile("$assetsJavaDir/com/example/myapplication/MainActivity2.java",
         classPathDir,
         dependencies = listOf(androidJar)
