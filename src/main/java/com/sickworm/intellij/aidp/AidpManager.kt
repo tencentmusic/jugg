@@ -1,7 +1,9 @@
 package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployerHelper
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
@@ -37,8 +39,6 @@ class AidpManager(private val project: Project,
     private val compileClassDir = File("$projectDir/build/aidp/deploy/compiled/classes")
     private val compileDexDir = File("$projectDir/build/aidp/deploy/compiled/dex")
     private val compiler = AidpCompiler(project, compileClassDir, classPathDir)
-
-    var deployOnSave = false
 
     init {
         register(project, this)
@@ -123,7 +123,7 @@ class AidpManager(private val project: Project,
             deployDataManager.addClassFile(it, compileDexDir, false)
         }
 
-        if (deployOnSave) {
+        if (AidpSettings.deployOnSave) {
             deployAsync()
         }
     }

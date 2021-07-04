@@ -8,6 +8,7 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.ui.JBColor;
 import com.sickworm.intellij.aidp.AidpLogger;
 import com.sickworm.intellij.aidp.AidpManager;
+import com.sickworm.intellij.aidp.AidpSettings;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,7 +25,8 @@ public class AidpToolWindow {
   private JButton deployButton;
   private JPanel myToolWindowContent;
   private JTextPane runningLog;
-  private JCheckBox deployWhenFileSavedCheckBox;
+  private JCheckBox deployOnSaveCheckBox;
+  private JCheckBox enableDebugLogCheckBox;
 
   private final Project project;
 
@@ -50,8 +52,11 @@ public class AidpToolWindow {
 
     deployButton.addActionListener(e -> deploy());
 
-    deployWhenFileSavedCheckBox.setSelected(aidpManager.getDeployOnSave());
-    deployWhenFileSavedCheckBox.addItemListener(e -> aidpManager.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
+    deployOnSaveCheckBox.setSelected(AidpSettings.INSTANCE.getDeployOnSave());
+    deployOnSaveCheckBox.addItemListener(e -> AidpSettings.INSTANCE.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
+
+    enableDebugLogCheckBox.setSelected(AidpSettings.INSTANCE.getLogDebug());
+    enableDebugLogCheckBox.addItemListener(e -> AidpSettings.INSTANCE.setLogDebug(e.getStateChange() == ItemEvent.SELECTED));
 
     MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
     StyleConstants.setLineSpacing(set, 0.2f);

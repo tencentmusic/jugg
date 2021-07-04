@@ -11,8 +11,6 @@ object AidpLogger {
 
     private val map = mutableMapOf<Project, MutableList<Logger>>()
 
-    var logDebug = false
-
     fun getInstance(project: Project, tag: String): Logger {
         ensure(project)
         return ProxyLogger(tag, LoggerDispatcher(WeakReference(project)))
@@ -42,7 +40,7 @@ object AidpLogger {
         private val project: Project? get() = projectRef.get()
 
         override fun isDebugEnabled(): Boolean {
-            return logDebug
+            return true
         }
 
         override fun debug(message: String?) {
@@ -86,7 +84,7 @@ private class ProxyLogger(
     val impl = getInstance(tag)
 
     override fun isDebugEnabled(): Boolean {
-        return AidpLogger.logDebug
+        return AidpSettings.logDebug
     }
 
     override fun debug(message: String?) {
