@@ -167,6 +167,7 @@ class AidpCompiler(project: Project,
         classFiles.forEach {
             val classPathFile = it.changeBaseDir(taskCompileToTempPath.outputDir, classPathDir)
             classPathFile.parentFile?.mkdirs()
+            classPathFile.delete()
             if (!it.renameTo(classPathFile)) {
                 logger.warn("move class file to class path failed! from: ${it.absolutePath}, to: ${classPathFile.absolutePath}")
                 // we don't know .class file is from which source file, so all error

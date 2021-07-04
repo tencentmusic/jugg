@@ -11,9 +11,11 @@ object AidpLogger {
 
     private val map = mutableMapOf<Project, MutableList<Logger>>()
 
+    var logDebug = false
+
     fun getInstance(project: Project, tag: String): Logger {
         ensure(project)
-        return LoggerProxy(tag, ProxyLogger(WeakReference(project)))
+        return ProxyLogger(tag, LoggerDispatcher(WeakReference(project)))
     }
 
     fun listenProjectLog(project: Project, logger: Logger) {
@@ -34,13 +36,13 @@ object AidpLogger {
         }
     }
 
-    private class ProxyLogger(
+    private class LoggerDispatcher(
         private val projectRef: WeakReference<Project>): Logger() {
 
         private val project: Project? get() = projectRef.get()
 
         override fun isDebugEnabled(): Boolean {
-            return false
+            return logDebug
         }
 
         override fun debug(message: String?) {
@@ -76,31 +78,36 @@ object AidpLogger {
     }
 }
 
-private class LoggerProxy(
+private class ProxyLogger(
     tag: String,
     private val proxy: Logger
-):
-    Logger() {
+): Logger() {
 
     val impl = getInstance(tag)
 
     override fun isDebugEnabled(): Boolean {
-        return impl.isDebugEnabled
+        return AidpLogger.logDebug
     }
 
     override fun debug(message: String?) {
-        impl.debug(message)
-        proxy.debug(message)
+        if (isDebugEnabled) {
+            impl.debug(message)
+            proxy.debug(message)
+        }
     }
 
     override fun debug(t: Throwable?) {
-        impl.debug(t)
-        proxy.debug(t)
+        if (isDebugEnabled) {
+            impl.debug(t)
+            proxy.debug(t)
+        }
     }
 
     override fun debug(message: String?, t: Throwable?) {
-        impl.debug(message, t)
-        proxy.debug(message, t)
+        if (isDebugEnabled) {
+            impl.debug(message, t)
+            proxy.debug(message, t)
+        }
     }
 
     override fun info(message: String?) {

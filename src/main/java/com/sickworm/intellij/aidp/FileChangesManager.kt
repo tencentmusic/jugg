@@ -8,6 +8,7 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileEvent
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.util.concurrent.Executors
@@ -46,7 +47,7 @@ class FileChangesManager(private val project: Project,
     }
 
     fun startListen(listener: FileChangesListener) {
-        logger.info("$projectDir startListen")
+        logger.info("startListen file changes for project $projectDir")
         this.listener = listener
         listenFileChanges()
         Disposer.register(project, this)
@@ -60,7 +61,7 @@ class FileChangesManager(private val project: Project,
     private fun listenFileChanges() {
         val vfsListener = object: AsyncFileListener {
             override fun prepareChange(events: MutableList<out VFileEvent>): AsyncFileListener.ChangeApplier? {
-                val filteredEvents = events.filter { isNeedDeploy(it.file) }
+                val filteredEvents = events.filter { isNeedDeploy(it) }
                 if (filteredEvents.isEmpty()) return null
 
                 return object: AsyncFileListener.ChangeApplier {
@@ -91,29 +92,30 @@ class FileChangesManager(private val project: Project,
     /**
      * 过滤非监听文件
      */
-    private fun isNeedDeploy(virtualFile: VirtualFile?): Boolean {
-        // 找不到文件
+    private fun isNeedDeploy(event: VFileEvent?): Boolean {
+        val virtualFile = event?.file
+        // file not exists
         if (virtualFile == null || !virtualFile.exists()) {
-            logger.debug("file ${virtualFile?.path} not exists, don't need inspect")
+            logger.debug("event $event, file not exists, don't need deploy")
             return false
         }
 
-        // 文件夹不用
+        // is directory
         if (virtualFile.isDirectory) {
-            logger.debug("file ${virtualFile.path} is directory, don't need inspect")
+            logger.debug("event $event, is directory, don't need deploy")
             return false
         }
 
-        // 非 source 文件夹不用
+        // not in source directory
         val isInSourceRoots = sourceRoots.find { virtualFile.path.startsWith(it) } != null
         if (!isInSourceRoots) {
-            logger.debug("file ${virtualFile.path} not in source root, don't need inspect")
+            logger.debug("event $event, not in source root, don't need deploy")
             return false
         }
 
-        // 只检查 java，kotlin 文件
+        // extension not match
         if (!inspectFileExtensions.contains(virtualFile.extension)) {
-            logger.debug("file ${virtualFile.path} extension ignore, don't need inspect")
+            logger.debug("event $event, extension ignore, don't need deploy")
             return false
         }
 

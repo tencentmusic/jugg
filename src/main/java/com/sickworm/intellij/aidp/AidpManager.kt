@@ -46,7 +46,7 @@ class AidpManager(private val project: Project,
     }
 
     fun start() {
-        logger.info("start")
+        logger.info("start AIDP")
 
         operaThread.submit {
             try {
@@ -54,15 +54,15 @@ class AidpManager(private val project: Project,
             } catch (e: Exception) {
                 logger.warn("dependencies load failed", e)
             }
-        }
 
-        fileChangesManager.startListen(object: FileChangesListener {
-            override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
-                operaThread.submit {
-                    processFileChanged(changeFiles)
+            fileChangesManager.startListen(object: FileChangesListener {
+                override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
+                    operaThread.submit {
+                        processFileChanged(changeFiles)
+                    }
                 }
-            }
-        })
+            })
+        }
     }
 
     private fun initDependency() {
