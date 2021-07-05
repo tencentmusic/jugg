@@ -96,26 +96,26 @@ class FileChangesManager(private val project: Project,
         val virtualFile = event?.file
         // file not exists
         if (virtualFile == null || !virtualFile.exists()) {
-            logger.debug("event $event, file not exists, don't need deploy")
+            logger.debug("file event $event, file not exists, don't need deploy")
             return false
         }
 
         // is directory
         if (virtualFile.isDirectory) {
-            logger.debug("event $event, is directory, don't need deploy")
+            logger.debug("file event $event, is directory, don't need deploy")
             return false
         }
 
         // not in source directory
         val isInSourceRoots = sourceRoots.find { virtualFile.path.startsWith(it) } != null
         if (!isInSourceRoots) {
-            logger.debug("event $event, not in source root, don't need deploy")
+            logger.debug("file event $event, not in source root, don't need deploy")
             return false
         }
 
         // extension not match
         if (!inspectFileExtensions.contains(virtualFile.extension)) {
-            logger.debug("event $event, extension ignore, don't need deploy")
+            logger.debug("file event $event, extension ignore, don't need deploy")
             return false
         }
 

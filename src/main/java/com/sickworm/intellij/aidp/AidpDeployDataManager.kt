@@ -3,6 +3,7 @@ package com.sickworm.intellij.aidp
 import com.android.tools.deployer.AidpDeployData
 import com.android.tools.deployer.model.DexClass
 import java.io.File
+import java.util.zip.CRC32
 
 /**
  * Works like a git. Operates with add, commit
@@ -13,6 +14,8 @@ class AidpDeployDataManager(private val stagingDir: File) {
      * Staging files for deployment. All operation must be thread-safe
      */
     private var stagingFiles = mutableMapOf<String, Item>()
+
+    private var crc32 = CRC32()
 
     @Synchronized
     fun addChangedFile(file: File) {
@@ -38,7 +41,7 @@ class AidpDeployDataManager(private val stagingDir: File) {
         } else {
             classFile.renameTo(destStageFile)
         }
-        stagingFiles[classFile.absolutePath] = Item(Type.CLASS_FILE, classFile)
+        stagingFiles[destStageFile.absolutePath] = Item(Type.CLASS_FILE, destStageFile)
     }
 
     @Synchronized
@@ -58,7 +61,12 @@ class AidpDeployDataManager(private val stagingDir: File) {
         val changedClassFiles = items.filter { it.type == Type.CLASS_FILE }
         val changesClasses = changedClassFiles.map {
             val bytes = it.file.readBytes()
-            DexClass(it.file.getClassNameByPath(), 0, bytes, null)
+            val crc = crc32.run {
+                reset()
+                update(bytes)
+                value
+            }
+            DexClass(it.file.getClassNameByPath(), crc, bytes, null)
         }
         return AidpDeployData(
             changesClasses
@@ -73,7 +81,7 @@ class AidpDeployDataManager(private val stagingDir: File) {
 
     @Synchronized
     fun commit() {
-
+        stagingFiles.clear()
     }
 
     private class Item(

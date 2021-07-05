@@ -148,6 +148,7 @@ public class AidpDeployer {
 
     public Result codeSwap(List<String> classFiles, Map<Integer, ClassRedefiner> redefiners, AidpDeployData data)
             throws DeployerException {
+        // TODO enable swap
         try (Trace ignored = Trace.begin("codeSwap")) {
 //            if (supportsNewPipeline()) {
                 return optimisticSwap(classFiles, false /* Restart Activity */, redefiners, data);
@@ -158,6 +159,7 @@ public class AidpDeployer {
     }
 
     public Result fullSwap(List<String> apks, AidpDeployData data) throws DeployerException {
+        // TODO enable swap
         try (Trace ignored = Trace.begin("fullSwap")) {
 //            if (supportsNewPipeline() && useOptimisticResourceSwap) {
                 return optimisticSwap(apks, /* Restart Activity */ true, ImmutableMap.of(), data);
@@ -275,9 +277,16 @@ public class AidpDeployer {
         Task<DeploymentCacheDatabase.Entry> verifyDump =
                 runner.create(Tasks.VERIFY_DUMP, AidpDeployer::verifyCache, speculativeDump, dumper);
 
+        AidpDiffer differ = new AidpDiffer(logger);
+
         // Calculate the difference between them speculating the deployment cache is correct.
-        Task<OptimisticApkSwapper.OverlayUpdate> overlayUpdate =
-                runner.create(Tasks.DIFF, new AidpDiffer()::diff, verifyDump, runner.create(data));
+        Task<AidpOverlayUpdate> overlayUpdate =
+                runner.create(Tasks.DIFF,
+                        differ::diff,
+                        verifyDump,
+                        runner.create(data));
+        Task<OptimisticApkSwapper.OverlayUpdate> androidOverlayUpdate =
+                runner.create(Tasks.AIDP_OVERLAY_UPDATE_CONVERT, differ::convert, overlayUpdate);
 
         // Extract files from the APK for overlays. Currently only extract resources.
 //        Predicate<String> filter = file -> file.startsWith("res") || file.startsWith("assets");
@@ -317,7 +326,7 @@ public class AidpDeployer {
                         packageName,
                         pids,
                         arch,
-                        overlayUpdate);
+                        androidOverlayUpdate);
 
         TaskResult result = runner.run();
         result.getMetrics().forEach(metrics::add);
@@ -338,6 +347,8 @@ public class AidpDeployer {
                 packageName,
                 newFiles,
                 nextOverlayId);
+
+        runner.create(Tasks.AIDP_DIFFER_UPDATE, differ::update, overlayUpdate);
 
         // Wait only for swap to finish
         runner.runAsync();
@@ -414,7 +425,9 @@ public class AidpDeployer {
         OPTIMISTIC_SWAP,
         GET_PIDS,
         GET_ARCH,
-        COMPUTE_FRESHINSTALL_OID;
+        COMPUTE_FRESHINSTALL_OID,
+        AIDP_DIFFER_UPDATE,
+        AIDP_OVERLAY_UPDATE_CONVERT;
 
         private Tasks() {
         }

@@ -141,7 +141,10 @@ class AidpManager(private val project: Project,
                 return
             }
 
+            logger.info("apply data:\n$deployData")
+
             AidpDeployerHelper.runTask(deployData, project, toolWindow)
+            deployDataManager.commit()
 
             logger.info("apply finished")
         } catch (e: Throwable) {
