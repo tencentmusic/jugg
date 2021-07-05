@@ -2,6 +2,7 @@
 
 package com.sickworm.intellij.aidp.toolWindow;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
@@ -16,7 +17,9 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
+import java.awt.event.MouseEvent;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -61,6 +64,22 @@ public class AidpToolWindow {
     MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
     StyleConstants.setLineSpacing(set, 0.2f);
     runningLog.setParagraphAttributes(set, true);
+
+    runningLog.addMouseListener(new OnRightClickListener() {
+      @Override
+      public void onRightClick(@NotNull MouseEvent e) {
+        logger.debug("onRightClick log pane");
+        JPopupMenu popup = new JPopupMenu();
+        JMenuItem menuItem = new JMenuItem("Clear All", AllIcons.Actions.GC);
+        menuItem.addActionListener(actionEvent -> {
+          if (actionEvent.getID() == ActionEvent.ACTION_PERFORMED) {
+            runningLog.setText("");
+          }
+        });
+        popup.add(menuItem);
+        popup.show(e.getComponent(), e.getX(), e.getY());
+      }
+    });
   }
 
   public void deploy() {
