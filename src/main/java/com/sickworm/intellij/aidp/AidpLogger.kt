@@ -84,26 +84,26 @@ private class ProxyLogger(
     val impl = getInstance(tag)
 
     override fun isDebugEnabled(): Boolean {
-        return AidpSettings.logDebug
+        return true
     }
 
     override fun debug(message: String?) {
-        if (isDebugEnabled) {
-            impl.debug(message)
+        impl.debug(message)
+        if (AidpSettings.logDebug) {
             proxy.debug(message)
         }
     }
 
     override fun debug(t: Throwable?) {
-        if (isDebugEnabled) {
-            impl.debug(t)
+        impl.debug(t)
+        if (AidpSettings.logDebug) {
             proxy.debug(t)
         }
     }
 
     override fun debug(message: String?, t: Throwable?) {
-        if (isDebugEnabled) {
-            impl.debug(message, t)
+        impl.debug(message, t)
+        if (AidpSettings.logDebug) {
             proxy.debug(message, t)
         }
     }
