@@ -8,9 +8,15 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.vfs.VirtualFileEvent
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
+import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
+import org.jetbrains.jps.model.java.JavaResourceRootType
+import org.jetbrains.jps.model.java.JavaSourceRootType
+import org.jetbrains.kotlin.config.ResourceKotlinRootType
+import org.jetbrains.kotlin.config.SourceKotlinRootType
 import java.util.concurrent.Executors
 
 /**
@@ -21,41 +27,45 @@ class FileChangesManager(private val project: Project,
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-FileChangesManager")
 
-    private val inspectFileExtensions = listOf("java", "kt")
-    private val operateThread = Executors.newSingleThreadExecutor()
-    private val changedFilesMap = mutableMapOf<String, ChangeFileInfo>()
     private var listener: FileChangesListener? = null
 
-    private val sourceRoots: List<String> = mutableListOf<String>().apply {
-        ModuleManager.getInstance(project).modules.forEach { module ->
-            val basePath = ExternalSystemApiUtil.getExternalProjectPath(module)?: run {
-                logger.warn("module externalProjectPath not found $module")
-                return@forEach
-            }
-            // 过滤掉自动生成的 source 目录，一般在 build/generated
-            val filteredSourceRoot = ModuleRootManager.getInstance(module).sourceRoots.filter { sourceRoot ->
-                if (sourceRoot.path.length < basePath.length + 1) {
-                    return@filter true
-                }
-                val relativePath = sourceRoot.path.substring(basePath.length + 1)
-                !relativePath.startsWith("build")
-            }.map {
-                it.path
-            }
-            addAll(filteredSourceRoot)
-        }
-    }
+    private var sourceRoots: List<String> = emptyList()
+    private var resourceRoots: List<String> = emptyList()
+
+    private val sourceExtensions = listOf("java", "kt")
 
     fun startListen(listener: FileChangesListener) {
-        logger.info("startListen file changes for project $projectDir")
+        logger.info("start listen project $projectDir")
         this.listener = listener
+
+        initFileRoots()
+        logger.debug("start listen source roots: $sourceRoots,\nresource roots: $resourceRoots\n")
+
         listenFileChanges()
         Disposer.register(project, this)
     }
 
+    private fun initFileRoots() {
+        val sourceRoots = mutableListOf<String>()
+        val resourceRoots = mutableListOf<String>()
+
+        ModuleManager.getInstance(project).modules.forEach { module ->
+            val moduleManager = ModuleRootManager.getInstance(module)
+            val subSourceRoots = moduleManager.getSourceRoots(
+                setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType))
+            sourceRoots.addAll(subSourceRoots.map { it.path })
+
+            val subResourceRoots = moduleManager.getSourceRoots(
+                setOf(JavaResourceRootType.RESOURCE, ResourceKotlinRootType))
+            resourceRoots.addAll(subResourceRoots.map { it.path })
+        }
+
+        this.sourceRoots = sourceRoots
+        this.resourceRoots = resourceRoots
+    }
+
     override fun dispose() {
         logger.info("$projectDir dispose")
-        operateThread.shutdown()
     }
 
     private fun listenFileChanges() {
@@ -66,9 +76,7 @@ class FileChangesManager(private val project: Project,
 
                 return object: AsyncFileListener.ChangeApplier {
                     override fun afterVfsChange() {
-                        operateThread.execute {
-                            notifyFileChanges(filteredEvents)
-                        }
+                        notifyFileChanges(filteredEvents)
                     }
                 }
             }
@@ -77,12 +85,7 @@ class FileChangesManager(private val project: Project,
                 val files = events
                     .mapNotNull { it.file }
                     .map { ChangeFileInfo(it) }
-                synchronized(changedFilesMap) {
-                    files.forEach { file ->
-                        changedFilesMap[file.file.path] = file
-                    }
-                    logger.info("onFileChanges $files")
-                }
+                logger.info("onFileChanges $files")
                 listener?.onFileChanges(files)
             }
         }
@@ -93,33 +96,43 @@ class FileChangesManager(private val project: Project,
      * 过滤非监听文件
      */
     private fun isNeedDeploy(event: VFileEvent?): Boolean {
-        val virtualFile = event?.file
+        if (event == null) {
+            return false
+        }
+        if (event is VFileDeleteEvent || event is VFilePropertyChangeEvent) {
+            return false
+        }
+
+        logger.debug("file event ${event::class.java.name} $event")
+
+        val virtualFile = event.file
         // file not exists
         if (virtualFile == null || !virtualFile.exists()) {
-            logger.debug("file event $event, file not exists, don't need deploy")
             return false
         }
-
         // is directory
         if (virtualFile.isDirectory) {
-            logger.debug("file event $event, is directory, don't need deploy")
             return false
         }
 
-        // not in source directory
-        val isInSourceRoots = sourceRoots.find { virtualFile.path.startsWith(it) } != null
-        if (!isInSourceRoots) {
-            logger.debug("file event $event, not in source root, don't need deploy")
-            return false
+        val isInSourceRoots = sourceRoots.any { virtualFile.path.startsWith(it) }
+        if (isInSourceRoots) {
+            // extension not match
+            if (!sourceExtensions.contains(virtualFile.extension)) {
+                logger.debug("file event $event, extension ignore, don't need deploy")
+                return false
+            }
+            logger.debug("source file changed, event $event")
+            return true
         }
 
-        // extension not match
-        if (!inspectFileExtensions.contains(virtualFile.extension)) {
-            logger.debug("file event $event, extension ignore, don't need deploy")
-            return false
+        val isInResourceRoots = resourceRoots.any { virtualFile.path.startsWith(it) }
+        if (isInResourceRoots) {
+            logger.debug("resource file changed, event $event")
+            return true
         }
 
-        return true
+        return false
     }
 }
 
@@ -128,5 +141,6 @@ interface FileChangesListener {
 }
 
 data class ChangeFileInfo(
-    val file: VirtualFile
-    )
+    val file: VirtualFile,
+    val type: CompileFileInfo.Type = CompileFileInfo.getTypeByExtension(file.name)
+)

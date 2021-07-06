@@ -69,7 +69,7 @@ class AidpManager(private val project: Project,
         // TODO auto update when file changes
         val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
 
-        // TODO read project settings
+        // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         val androidHome = System.getenv("ANDROID_HOME")
         val androidDep = "$androidHome/platforms/android-30/android.jar"
         if (!File(androidDep).exists()) {

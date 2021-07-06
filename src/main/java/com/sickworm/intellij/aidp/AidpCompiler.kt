@@ -118,7 +118,7 @@ class AidpCompiler(project: Project,
                     kotlinCompiler.compile(taskCompileToTempPath)
                 }
                 CompileFileInfo.Type.Other -> {
-                    logger.info("ignore files $files")
+                    logger.info("ignore files $files, won't compile")
                     null
                 }
             }
