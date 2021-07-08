@@ -15,7 +15,7 @@ class JavaCompileTest {
         clearBuild()
     }
 
-    private val helloWorldTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", classPathDir)
+    private val helloWorldTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java"), classPathDir)
     @Test
     fun javaCompile() {
         val result = javaCompiler.compile(helloWorldTask)
@@ -23,7 +23,7 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
-    private val errorTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", classPathDir)
+    private val errorTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/ErrorJavaFile.java"), classPathDir)
     @Test
     fun javaCompileError() {
         val result = javaCompiler.compile(errorTask)
@@ -31,7 +31,7 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, result.details.first(), false, 2)
     }
 
-    private val externalDepTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
+    private val externalDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java"),
         classPathDir,
         dependencies = listOf(
             "$assetsLibDir/rxjava-3.0.12.jar",
@@ -45,9 +45,9 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
-    private val classDepTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java",
+    private val classDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java"),
         classPathDir,
-        dependencies = listOf(assetsClassDir)
+        dependencies = listOf(assetsClassDir.absolutePath)
     )
     @Test
     fun javaCompileWithClassDep() {
@@ -56,7 +56,7 @@ class JavaCompileTest {
         assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
-    private val activityTask = CompileTask.singleJavaFile("$assetsJavaDir/com/example/myapplication/MainActivity2.java",
+    private val activityTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/example/myapplication/MainActivity2.java"),
         classPathDir,
         dependencies = listOf(androidJar)
                 + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
@@ -74,10 +74,10 @@ class JavaCompileTest {
 
     private val interdependenceTask = CompileTask(
         listOf(
-            CompileFile(File("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java"), CompileFile.Type.Java, File(assetsJavaDir)),
-            CompileFile(File("$assetsJavaDir/com/sickworm/intellij/aidp/test/NewDep.java"), CompileFile.Type.Java, File(assetsJavaDir))
+            CompileFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java"), CompileFile.Type.Java, assetsJavaDir),
+            CompileFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/NewDep.java"), CompileFile.Type.Java, assetsJavaDir)
         ),
-        File(classPathDir))
+        classPathDir)
 
     @Test
     fun javaCompileMultiFilesWithDep() {

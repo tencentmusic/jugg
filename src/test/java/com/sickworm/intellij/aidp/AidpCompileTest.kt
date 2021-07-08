@@ -10,7 +10,7 @@ class AidpCompileTest {
 
     private val disposable = Disposable { }
     private val project = MockProject(null, disposable)
-    private val aidpCompiler = AidpCompiler(project, File(compileClassDir), File(classPathDir))
+    private val aidpCompiler = AidpCompiler(project, compileClassDir, classPathDir)
 
     @Before
     fun init() {
@@ -18,7 +18,7 @@ class AidpCompileTest {
     }
 
     private val helloWorldTask = CompileTask.singleJavaFile(
-        filePath = "$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java",
+        filePath = File(assetsJavaDir, "com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java"),
         outputDir = compileDexDir)
     @Test
     fun compileJavaDex() {
@@ -33,22 +33,22 @@ class AidpCompileTest {
         }
     }
 
-    private val javaCompileFilesWithError = File(assetsJavaDir).listFilesRecursively()
+    private val javaCompileFilesWithError = assetsJavaDir.listFilesRecursively()
     private val javaCompileFiles = javaCompileFilesWithError.filter { it.name != "ErrorJavaFile.java" }
     private val dependencies: List<String> = emptyList<String>() +
-            "$assetsLibDir/rxjava-3.0.12.jar" +
-            "$assetsLibDir/reactive-streams-1.0.3.jar" +
+            File(assetsLibDir, "rxjava-3.0.12.jar").absolutePath +
+            File(assetsLibDir, "reactive-streams-1.0.3.jar").absolutePath +
             androidJar +
-            "$assetsAndroidDir/build/intermediates/javac/debug/classes" +
-            assetsClassDir +
+            File(assetsAndroidDir, "build/intermediates/javac/debug/classes").absolutePath +
+            assetsClassDir.absolutePath +
             IntellijLibraryConfigParser(File(intellijLibraryDir)).parse()!!
 
     private val multiTask = CompileTask(
         javaCompileFiles.map {
-            CompileFile(it, CompileFile.Type.Java, File(assetsJavaDir),
+            CompileFile(it, CompileFile.Type.Java, assetsJavaDir,
                 dependencyPaths = dependencies)
         },
-        outputDir = File(compileDexDir))
+        outputDir = compileDexDir)
     @Test
     fun compileMultiJavaDex() {
         val result = aidpCompiler.compile(multiTask)
@@ -64,10 +64,10 @@ class AidpCompileTest {
 
     private val multiWithErrorTask = CompileTask(
         javaCompileFilesWithError.map {
-            CompileFile(it, CompileFile.Type.Java, File(assetsJavaDir),
+            CompileFile(it, CompileFile.Type.Java, assetsJavaDir,
                 dependencyPaths = dependencies)
         },
-        outputDir = File(compileDexDir))
+        outputDir = compileDexDir)
     @Test
     fun compileMultiJavaWithErrorDex() {
         val result = aidpCompiler.compile(multiWithErrorTask)

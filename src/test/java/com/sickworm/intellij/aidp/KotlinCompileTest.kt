@@ -24,8 +24,8 @@ class KotlinCompileTest {
     private val resultTask = CompileTask(
         listOf(CompileFile(File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
             CompileFile.Type.Kotlin,
-            File(assetsJavaDir))),
-        File(classPathDir))
+            assetsJavaDir)),
+        classPathDir)
     @Test
     fun kotlinCompile() {
         val result = kotlinCompiler.compile(resultTask)
