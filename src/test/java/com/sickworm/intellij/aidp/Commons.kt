@@ -35,9 +35,7 @@ val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
 fun clearBuild() = File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
 
 fun assertCompileResult(sourceDir: String, result: Result<CompileFile, CompileError>, isSuccess: Boolean,
-                        errorCount: Int? = null,
-                        isCheckClassExist: Boolean = true,
-                        isCheckDexExist: Boolean = false
+                        errorCount: Int? = null
 ) {
     result.printCompileError()
 
@@ -52,27 +50,17 @@ fun assertCompileResult(sourceDir: String, result: Result<CompileFile, CompileEr
     }
 
     // ensure file exists if build success
-    if (isCheckClassExist) {
-        val classFile = result.file.file.changeBaseDir(File(sourceDir), File(classPathDir), "class")
-        if (isSuccess) {
-            assert(classFile.exists() && classFile.length() > 0)
-        } else {
-            // only AidpCompiler will ensure failed file not exists, JavaCompiler will not
+    val classFile = result.file.file.changeBaseDir(File(sourceDir), File(classPathDir), "class")
+    if (isSuccess) {
+        assert(classFile.exists() && classFile.length() > 0)
+    } else {
+        // only AidpCompiler will ensure failed file not exists, JavaCompiler will not
 //            assert(!classFile.exists())
-        }
-    }
-    if (isCheckDexExist) {
-        val dexFile = result.file.file.changeBaseDir(File(sourceDir), File(compileDexDir), "dex")
-        if (isSuccess) {
-            assert(dexFile.exists() && dexFile.length() > 0)
-        } else {
-            assert(!dexFile.exists())
-        }
     }
 }
 
-fun List<Result<CompileFile, CompileError>>.printCompileErrors() {
-    forEach {
+fun CompileResult.printCompileErrors() {
+    details.forEach {
         it.printCompileError()
     }
 }

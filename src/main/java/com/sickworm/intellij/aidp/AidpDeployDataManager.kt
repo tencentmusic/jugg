@@ -2,6 +2,7 @@ package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployData
 import com.android.tools.deployer.model.DexClass
+import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 import java.util.zip.CRC32
 
@@ -24,12 +25,12 @@ class AidpDeployDataManager(private val stagingDir: File) {
 
     @Synchronized
     fun addChangedFile(file: ChangedFile) {
-        uncompiledFiles[file.file.path] = file
+        uncompiledFiles[file.file.standardizedPath] = file
     }
 
     @Synchronized
     fun markAsCompiled(file: CompileFile) {
-        uncompiledFiles.remove(file.file.path)
+        uncompiledFiles.remove(file.file.standardizedPath)
     }
 
     @Synchronized
@@ -96,4 +97,7 @@ class AidpDeployDataManager(private val stagingDir: File) {
         CLASS_FILE,
         OVERLAY_FILE
     }
+
+    private val File.standardizedPath get() = absolutePath.replace(File.separatorChar, '/')
+    private val VirtualFile.standardizedPath get() = path.replace(File.separatorChar, '/')
 }

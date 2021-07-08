@@ -26,7 +26,7 @@ class OverlayCompileTest {
         val result = OverlayCompiler(logger).compile(task)
         result.printCompileErrors()
 
-        assert(result.size == 1)
+        assert(result.details.size == 1)
         assert(result.isAllSuccess)
 
         val destFile = File("$compileOverlayDir/logo.png")
@@ -48,7 +48,7 @@ class OverlayCompileTest {
         val result = OverlayCompiler(logger).compile(task)
         result.printCompileErrors()
 
-        assert(result.size == 2)
+        assert(result.details.size == 2)
         assert(result.isAllSuccess)
 
         val destFile1 = File("$compileOverlayDir/logo.png")

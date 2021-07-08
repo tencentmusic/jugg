@@ -18,17 +18,17 @@ class JavaCompileTest {
     private val helloWorldTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java", classPathDir)
     @Test
     fun javaCompile() {
-        val results = javaCompiler.compile(helloWorldTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsJavaDir, results.first(), true)
+        val result = javaCompiler.compile(helloWorldTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
     private val errorTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/ErrorJavaFile.java", classPathDir)
     @Test
     fun javaCompileError() {
-        val results = javaCompiler.compile(errorTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsJavaDir, results.first(), false, 2)
+        val result = javaCompiler.compile(errorTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsJavaDir, result.details.first(), false, 2)
     }
 
     private val externalDepTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java",
@@ -40,9 +40,9 @@ class JavaCompileTest {
     )
     @Test
     fun javaCompileWithExternalDep() {
-        val results = javaCompiler.compile(externalDepTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsJavaDir, results.first(), true)
+        val result = javaCompiler.compile(externalDepTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
     private val classDepTask = CompileTask.singleJavaFile("$assetsJavaDir/com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java",
@@ -51,9 +51,9 @@ class JavaCompileTest {
     )
     @Test
     fun javaCompileWithClassDep() {
-        val results = javaCompiler.compile(classDepTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsJavaDir, results.first(), true)
+        val result = javaCompiler.compile(classDepTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
     private val activityTask = CompileTask.singleJavaFile("$assetsJavaDir/com/example/myapplication/MainActivity2.java",
@@ -67,9 +67,9 @@ class JavaCompileTest {
         if (!File(androidJar).exists()) {
             throw IllegalStateException("android sdk not found, search ANDROID_HOME: $androidHome, Android jar file: $androidJar")
         }
-        val results = javaCompiler.compile(activityTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsJavaDir, results.first(), true)
+        val result = javaCompiler.compile(activityTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsJavaDir, result.details.first(), true)
     }
 
     private val interdependenceTask = CompileTask(
@@ -81,9 +81,9 @@ class JavaCompileTest {
 
     @Test
     fun javaCompileMultiFilesWithDep() {
-        val results = javaCompiler.compile(interdependenceTask)
-        assert(results.size == 2)
-        results.forEach {
+        val result = javaCompiler.compile(interdependenceTask)
+        assert(result.details.size == 2)
+        result.details.forEach {
             assertCompileResult(assetsJavaDir, it, true)
         }
     }
@@ -91,11 +91,10 @@ class JavaCompileTest {
     @Test
     fun javaCompileMultiFiles() {
         val compileTask = helloWorldTask + externalDepTask + classDepTask + activityTask + interdependenceTask
-        val results = javaCompiler.compile(compileTask)
+        val result = javaCompiler.compile(compileTask)
 
-        assert(results.size == compileTask.files.size)
-
-        results.forEach {
+        assert(result.details.size == compileTask.files.size)
+        result.details.forEach {
             assertCompileResult(assetsJavaDir, it, true)
         }
     }
@@ -103,11 +102,10 @@ class JavaCompileTest {
     @Test
     fun javaCompileMultiFilesError() {
         val compileTask = helloWorldTask + errorTask + externalDepTask + classDepTask + activityTask + interdependenceTask
-        val results = javaCompiler.compile(compileTask)
+        val result = javaCompiler.compile(compileTask)
 
-        assert(results.size == compileTask.files.size)
-
-        results.forEach {
+        assert(result.details.size == compileTask.files.size)
+        result.details.forEach {
             if (errorTask.files[0] == it.file) {
                 assertCompileResult(assetsJavaDir, it, false, 2)
             } else {

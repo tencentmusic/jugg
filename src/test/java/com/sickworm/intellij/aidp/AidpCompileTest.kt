@@ -22,9 +22,15 @@ class AidpCompileTest {
         outputDir = compileDexDir)
     @Test
     fun compileJavaDex() {
-        val results = aidpCompiler.compile(helloWorldTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsJavaDir, results.first(), true, isCheckDexExist = true)
+        val result = aidpCompiler.compile(helloWorldTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsJavaDir, result.details.first(), true)
+        assert(result.outputs.size == 1)
+
+        result.outputs.forEach {
+            assert(it.type == CompileOutput.Type.Dex)
+            assert(it.file.exists() && it.file.length() > 0)
+        }
     }
 
     private val javaCompileFilesWithError = File(assetsJavaDir).listFilesRecursively()
@@ -45,10 +51,14 @@ class AidpCompileTest {
         outputDir = File(compileDexDir))
     @Test
     fun compileMultiJavaDex() {
-        val results = aidpCompiler.compile(multiTask)
-        assert(results.size == multiTask.files.size)
-        results.forEach {
-            assertCompileResult(assetsJavaDir, it, true, isCheckDexExist = true)
+        val result = aidpCompiler.compile(multiTask)
+        assert(result.details.size == multiTask.files.size)
+        result.details.forEach {
+            assertCompileResult(assetsJavaDir, it, true)
+        }
+        result.outputs.forEach {
+            assert(it.type == CompileOutput.Type.Dex)
+            assert(it.file.exists() && it.file.length() > 0)
         }
     }
 
@@ -60,14 +70,15 @@ class AidpCompileTest {
         outputDir = File(compileDexDir))
     @Test
     fun compileMultiJavaWithErrorDex() {
-        val results = aidpCompiler.compile(multiWithErrorTask)
-        assert(results.size == multiWithErrorTask.files.size)
-        results.forEach {
+        val result = aidpCompiler.compile(multiWithErrorTask)
+        assert(result.details.size == multiWithErrorTask.files.size)
+        result.details.forEach {
             if (it.file.file.name == "ErrorJavaFile.java") {
                 assertCompileResult(assetsJavaDir, it, false, 2)
             } else {
                 assertCompileResult(assetsJavaDir, it, false, 0)
             }
         }
+        assert(result.outputs.isEmpty())
     }
 }

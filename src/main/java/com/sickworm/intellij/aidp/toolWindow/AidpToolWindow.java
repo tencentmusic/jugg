@@ -68,7 +68,6 @@ public class AidpToolWindow {
     runningLog.addMouseListener(new OnRightClickListener() {
       @Override
       public void onRightClick(@NotNull MouseEvent e) {
-        logger.debug("onRightClick log pane");
         JPopupMenu popup = new JPopupMenu();
         JMenuItem menuItem = new JMenuItem("Clear All", AllIcons.Actions.GC);
         menuItem.addActionListener(actionEvent -> {

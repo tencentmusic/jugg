@@ -21,11 +21,15 @@ class KotlinCompileTest {
         Runtime.getRuntime().exec(command)
     }
 
-    private val resultTask = CompileTask.singleJavaFile("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt", classPathDir)
+    private val resultTask = CompileTask(
+        listOf(CompileFile(File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
+            CompileFile.Type.Kotlin,
+            File(assetsJavaDir))),
+        File(classPathDir))
     @Test
     fun kotlinCompile() {
-        val results = kotlinCompiler.compile(resultTask)
-        assert(results.size == 1)
-        assertCompileResult(assetsKotlinDir, results.first(), true)
+        val result = kotlinCompiler.compile(resultTask)
+        assert(result.details.size == 1)
+        assertCompileResult(assetsKotlinDir, result.details.first(), true)
     }
 }
