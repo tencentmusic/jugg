@@ -10,6 +10,7 @@ val logger = Logger.getInstance("AidpTest")
 val buildDir: String = File("src/test/build").absolutePath
 val compileClassDir: String = File("src/test/build/compiled").absolutePath
 val compileDexDir: String = File("src/test/build/dex").absolutePath
+val compileOverlayDir: String = File("src/test/build/overlay").absolutePath
 val classPathDir: String = File("src/test/build/classes").absolutePath
 
 // source file
@@ -19,6 +20,7 @@ val assetsKotlinDir = "$assetsDir/kotlin"
 val assetsLibDir = "$assetsDir/lib"
 val assetsClassDir = "$assetsDir/class"
 val assetsAndroidDir = "$assetsDir/android"
+val assetsAssetsDir = "$assetsDir/assets"
 
 // dependency
 val androidHome = System.getenv("ANDROID_HOME")
@@ -32,15 +34,12 @@ val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
 
 fun clearBuild() = File(buildDir).listFiles()?.forEach { it.deleteRecursively() }
 
-fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, CompileError>, isSuccess: Boolean,
+fun assertCompileResult(sourceDir: String, result: Result<CompileFile, CompileError>, isSuccess: Boolean,
                         errorCount: Int? = null,
                         isCheckClassExist: Boolean = true,
                         isCheckDexExist: Boolean = false
 ) {
-    if (result.isFailed) {
-        println("assertCompileResult error count: ${result.getFailure().errors.size}")
-        println("assertCompileResult error messages:\n ${result.getFailure().errorMessages}")
-    }
+    result.printCompileError()
 
     assert(result.isSuccess == isSuccess)
     assert(result.isFailed == !isSuccess)
@@ -71,3 +70,19 @@ fun assertCompileResult(sourceDir: String, result: Result<CompileFileInfo, Compi
         }
     }
 }
+
+fun List<Result<CompileFile, CompileError>>.printCompileErrors() {
+    forEach {
+        it.printCompileError()
+    }
+}
+
+fun Result<CompileFile, CompileError>.printCompileError() {
+    if (isFailed) {
+        println("assertCompileResult error count: ${getFailure().errors.size}")
+        println("assertCompileResult error messages:\n ${getFailure().errorMessages}")
+    }
+}
+
+fun CompileTask.Companion.singleJavaFile(filePath: String, outputDir: String, dependencies: List<String> = emptyList()) =
+    CompileTask(listOf(CompileFile(File(filePath), CompileFile.Type.Java, File(assetsJavaDir), dependencyPaths = dependencies)), File(outputDir))

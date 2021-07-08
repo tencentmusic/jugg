@@ -21,7 +21,7 @@ class KotlinCompileTest {
         Runtime.getRuntime().exec(command)
     }
 
-    private val resultTask = CompileTask.singleFile("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt", classPathDir)
+    private val resultTask = CompileTask.singleJavaFile("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt", classPathDir)
     @Test
     fun kotlinCompile() {
         val results = kotlinCompiler.compile(resultTask)

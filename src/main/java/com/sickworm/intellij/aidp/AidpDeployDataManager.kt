@@ -11,20 +11,30 @@ import java.util.zip.CRC32
 class AidpDeployDataManager(private val stagingDir: File) {
 
     /**
+     * uncompiled files. All operation must be thread-safe
+     */
+    private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
+
+    /**
      * Staging files for deployment. All operation must be thread-safe
      */
-    private var stagingFiles = mutableMapOf<String, Item>()
+    private var stagingFiles = mutableMapOf<String, DeployItem>()
 
     private var crc32 = CRC32()
 
     @Synchronized
-    fun addChangedFile(file: File) {
-        stagingFiles[file.absolutePath] = Item(Type.SOURCE_FILE, file)
+    fun addChangedFile(file: ChangedFile) {
+        uncompiledFiles[file.file.path] = file
     }
 
     @Synchronized
-    fun markAsCompiled(file: File) {
-        stagingFiles.remove(file.absolutePath)
+    fun markAsCompiled(file: CompileFile) {
+        uncompiledFiles.remove(file.file.path)
+    }
+
+    @Synchronized
+    fun getUncompiledFiles(): List<ChangedFile> {
+        return uncompiledFiles.values.toList()
     }
 
     @Synchronized
@@ -41,24 +51,17 @@ class AidpDeployDataManager(private val stagingDir: File) {
         } else {
             classFile.renameTo(destStageFile)
         }
-        stagingFiles[destStageFile.absolutePath] = Item(Type.CLASS_FILE, destStageFile)
-    }
-
-    @Synchronized
-    fun getUncompiledFiles(): List<File> {
-        return stagingFiles.values.filter { it.type == Type.SOURCE_FILE }.map { it.file }
+        stagingFiles[destStageFile.absolutePath] = DeployItem(DeployType.CLASS_FILE, destStageFile)
     }
 
     @Synchronized
     fun getDeployData(): AidpDeployData {
-        val items = stagingFiles.values
-
-        val notCompiledFiles = items.filter { it.type == Type.SOURCE_FILE }
-        if (notCompiledFiles.isNotEmpty()) {
-            throw AidpException.notAllCompiled(notCompiledFiles.map { it.file })
+        if (uncompiledFiles.isNotEmpty()) {
+            throw AidpException.notAllCompiled(uncompiledFiles.values)
         }
 
-        val changedClassFiles = items.filter { it.type == Type.CLASS_FILE }
+        val items = stagingFiles.values
+        val changedClassFiles = items.filter { it.type == DeployType.CLASS_FILE }
         val changesClasses = changedClassFiles.map {
             val bytes = it.file.readBytes()
             val crc = crc32.run {
@@ -84,13 +87,12 @@ class AidpDeployDataManager(private val stagingDir: File) {
         stagingFiles.clear()
     }
 
-    private class Item(
-        val type: Type,
+    private class DeployItem(
+        val type: DeployType,
         val file: File,
     )
 
-    private enum class Type {
-        SOURCE_FILE,
+    private enum class DeployType {
         CLASS_FILE,
         OVERLAY_FILE
     }

@@ -1,9 +1,7 @@
 package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployerHelper
-import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
@@ -56,9 +54,9 @@ class AidpManager(private val project: Project,
             }
 
             fileChangesManager.startListen(object: FileChangesListener {
-                override fun onFileChanges(changeFiles: List<ChangeFileInfo>) {
+                override fun onFileChanges(changedFiles: List<ChangedFile>) {
                     operaThread.submit {
-                        processFileChanged(changeFiles)
+                        processFileChanged(changedFiles)
                     }
                 }
             })
@@ -67,6 +65,7 @@ class AidpManager(private val project: Project,
 
     private fun initDependency() {
         // TODO auto update when file changes
+        // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
         val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
@@ -94,15 +93,15 @@ class AidpManager(private val project: Project,
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDep.size}, androidDep size: 1, aidpClassPathDep size: 1")
     }
 
-    private fun processFileChanged(changeFiles: List<ChangeFileInfo>) {
+    private fun processFileChanged(changedFiles: List<ChangedFile>) {
         // store source files
-        changeFiles.forEach {
-            deployDataManager.addChangedFile(VfsUtil.virtualToIoFile(it.file))
+        changedFiles.forEach {
+            deployDataManager.addChangedFile(it)
         }
 
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
-            CompileFileInfo(it, dependencyPaths = dependencies)
+            CompileFile(VfsUtil.virtualToIoFile(it.file), it.type, it.baseDir, dependencyPaths = dependencies)
         }
 
         // do compile
@@ -115,7 +114,7 @@ class AidpManager(private val project: Project,
 
         // mark source files compiled
         compileFiles.forEach {
-            deployDataManager.markAsCompiled(it.file)
+            deployDataManager.markAsCompiled(it)
         }
 
         // stage deploy files

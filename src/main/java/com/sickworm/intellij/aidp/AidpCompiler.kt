@@ -14,7 +14,7 @@ interface ICompiler {
 }
 
 data class CompileTask(
-    val files: List<CompileFileInfo>,
+    val files: List<CompileFile>,
     val outputDir: File
 ) {
 
@@ -25,12 +25,10 @@ data class CompileTask(
     companion object
 }
 
-fun CompileTask.Companion.singleFile(filePath: String, outputDir: String, dependencies: List<String> = emptyList()) =
-    CompileTask(listOf(CompileFileInfo(File(filePath), dependencyPaths = dependencies)), File(outputDir))
-
-data class CompileFileInfo(
+data class CompileFile(
     val file: File,
-    val type: Type = getTypeByExtension(file.name),
+    val type: Type,
+    val baseDir: File,
     val dependencyPaths: List<String> = emptyList()
 ) {
 
@@ -43,7 +41,7 @@ data class CompileFileInfo(
             return when {
                 fileName.endsWith(".java") -> Type.Java
                 fileName.endsWith(".kt") -> Type.Kotlin
-                else -> Type.Other
+                else -> Type.Overlay
             }
         }
     }
@@ -51,14 +49,14 @@ data class CompileFileInfo(
     enum class Type {
         Java,
         Kotlin,
-        Other;
+        Overlay;
     }
 }
 
 data class CompileResult(
     val task: CompileTask,
-    val details: List<Result<CompileFileInfo, CompileError>>,
-): List<Result<CompileFileInfo, CompileError>> by details {
+    val details: List<Result<CompileFile, CompileError>>,
+): List<Result<CompileFile, CompileError>> by details {
 
     val fileCount get() = details.size
 
@@ -71,7 +69,7 @@ data class CompileResult(
 
 data class CompileError(
     /** file to be compiled */
-    val file: CompileFileInfo,
+    val file: CompileFile,
     /** will be empty if [file] looks good but compiler still stopped because there is another error file */
     val errors: List<Pair<Long, String>> // <Line, Message>
 ) {
@@ -86,14 +84,18 @@ class AidpCompiler(project: Project,
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
 
     private val javaCompiler = JavaCompiler(logger)
+    private val sourceCompileDir: File = File(compileDir, "source")
 
     private val kotlinCompiler = KotlinCompiler()
+
+    private val overlayCompiler = OverlayCompiler(logger)
+    private val overlayCompileDir: File = File(compileDir, "overlay")
 
     private val dexFileMaker = DexFileMaker()
 
     override fun compile(task: CompileTask): CompileResult {
         // split compile files by type
-        val fileSet = mutableMapOf<CompileFileInfo.Type, MutableList<CompileFileInfo>>()
+        val fileSet = mutableMapOf<CompileFile.Type, MutableList<CompileFile>>()
         task.files.forEach {
             var set = fileSet[it.type]
             if (set == null) {
@@ -105,21 +107,23 @@ class AidpCompiler(project: Project,
 
         // compile, use compileDir for output directory, because we need to dex output .class later
         compileDir.clearDir()
-        val taskCompileToTempPath = task.copy(outputDir = compileDir)
         val startTime = System.currentTimeMillis()
         val resultList: List<CompileResult?> = fileSet.map { (type, files) ->
             when (type) {
-                CompileFileInfo.Type.Java -> {
+                CompileFile.Type.Java -> {
                     logger.info("compile java files $files")
+                    val taskCompileToTempPath = task.copy(outputDir = sourceCompileDir)
                     javaCompiler.compile(taskCompileToTempPath)
                 }
-                CompileFileInfo.Type.Kotlin -> {
+                CompileFile.Type.Kotlin -> {
                     logger.info("compile kotlin files $files")
+                    val taskCompileToTempPath = task.copy(outputDir = sourceCompileDir)
                     kotlinCompiler.compile(taskCompileToTempPath)
                 }
-                CompileFileInfo.Type.Other -> {
-                    logger.info("ignore files $files, won't compile")
-                    null
+                CompileFile.Type.Overlay -> {
+                    logger.info("compile overlay files $files")
+                    val taskCompileToTempPath = task.copy(outputDir = overlayCompileDir)
+                    overlayCompiler.compile(taskCompileToTempPath)
                 }
             }
         }
@@ -149,10 +153,10 @@ class AidpCompiler(project: Project,
         }
 
         // dex .class
-        val classFiles = taskCompileToTempPath.outputDir.listFilesRecursively()
+        val classFiles = sourceCompileDir.listFilesRecursively()
         classFiles.forEach {
-            val outputFile = it.changeBaseDir(taskCompileToTempPath.outputDir, task.outputDir, "dex")
-            dexFileMaker.dex(taskCompileToTempPath.outputDir, outputFile, it)
+            val outputFile = it.changeBaseDir(sourceCompileDir, task.outputDir, "dex")
+            dexFileMaker.dex(sourceCompileDir, outputFile, it)
 
             if (!outputFile.exists() || outputFile.length() <= 0) {
                 logger.warn("dex failed! file: ${it.absolutePath}")
@@ -165,7 +169,7 @@ class AidpCompiler(project: Project,
 
         // move compiled files to class path for compile dependencies
         classFiles.forEach {
-            val classPathFile = it.changeBaseDir(taskCompileToTempPath.outputDir, classPathDir)
+            val classPathFile = it.changeBaseDir(sourceCompileDir, classPathDir)
             classPathFile.parentFile?.mkdirs()
             classPathFile.delete()
             if (!it.renameTo(classPathFile)) {
@@ -232,7 +236,7 @@ class JavaCompiler(private val logger: Logger): ICompiler {
     }
 
     private class JavaCompileItem(
-        val file: CompileFileInfo,
+        val file: CompileFile,
         val fileObject: JavaFileObject,
         val errors: MutableList<Pair<Long, String>> = mutableListOf(),
     ) {
@@ -253,7 +257,32 @@ class KotlinCompiler: ICompiler {
     }
 }
 
+class OverlayCompiler(private val logger: Logger): ICompiler {
+    override fun compile(task: CompileTask): CompileResult {
+        // just copy
+        val details: List<Result<CompileFile, CompileError>> = task.files.map {
+            if (!it.file.exists()) {
+                val errorMessage = "${it.file.absolutePath} not exists"
+                return@map Result.failure(CompileError(it, listOf(0L to errorMessage)))
+            }
+
+            val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
+            try {
+                it.file.copyTo(destFile, overwrite = true)
+                return@map Result.success(it)
+            } catch (e: Exception) {
+                val errorMessage = "move file ${it.file.absolutePath} to ${destFile.absolutePath} failed, e: $e"
+                logger.warn(errorMessage)
+                return@map Result.failure(CompileError(it, listOf(0L to errorMessage)))
+            }
+
+            return@map Result.success(it)
+        }
+        return CompileResult(task, details)
+    }
+}
+
 val pathSeparator = System.getProperty("path.separator")
 
-val Result<CompileFileInfo, CompileError>.file: CompileFileInfo
+val Result<CompileFile, CompileError>.file: CompileFile
     get() = if (isSuccess) getOrNull()!! else getFailureOrNull()!!.file

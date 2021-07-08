@@ -17,7 +17,7 @@ class AidpCompileTest {
         clearBuild()
     }
 
-    private val helloWorldTask = CompileTask.singleFile(
+    private val helloWorldTask = CompileTask.singleJavaFile(
         filePath = "$assetsJavaDir/com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java",
         outputDir = compileDexDir)
     @Test
@@ -39,7 +39,7 @@ class AidpCompileTest {
 
     private val multiTask = CompileTask(
         javaCompileFiles.map {
-            CompileFileInfo(it,
+            CompileFile(it, CompileFile.Type.Java, File(assetsJavaDir),
                 dependencyPaths = dependencies)
         },
         outputDir = File(compileDexDir))
@@ -54,7 +54,7 @@ class AidpCompileTest {
 
     private val multiWithErrorTask = CompileTask(
         javaCompileFilesWithError.map {
-            CompileFileInfo(it,
+            CompileFile(it, CompileFile.Type.Java, File(assetsJavaDir),
                 dependencyPaths = dependencies)
         },
         outputDir = File(compileDexDir))
