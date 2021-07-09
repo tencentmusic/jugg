@@ -132,12 +132,12 @@ public class AidpToolWindow {
 
     @Override
     public void info(String message) {
-      append("INFO: " + message, JBColor.DARK_GRAY);
+      append(message, JBColor.DARK_GRAY);
     }
 
     @Override
     public void info(String message, @Nullable Throwable t) {
-      append("INFO: " + message + toStackTrace(t), JBColor.DARK_GRAY);
+      append(message + toStackTrace(t), JBColor.DARK_GRAY);
     }
 
     @Override

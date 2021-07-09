@@ -89,14 +89,13 @@ class FileChangesManager(private val project: Project,
      * filter events
      */
     private fun filterDeployFile(event: VFileEvent?): ChangedFile? {
+//        logger.debug("file event ${event::class.java.name} $event")
         if (event == null) {
             return null
         }
         if (event is VFileDeleteEvent || event is VFilePropertyChangeEvent) {
             return null
         }
-
-        logger.debug("file event ${event::class.java.name} $event")
 
         val virtualFile = if (event is VFileCopyEvent) {
             VirtualFileManager.getInstance().findFileByNioPath(Path.of(event.path))
