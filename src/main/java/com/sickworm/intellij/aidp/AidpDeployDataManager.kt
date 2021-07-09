@@ -1,7 +1,7 @@
 package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployData
-import com.android.tools.deployer.model.DexClass
+import com.android.tools.deployer.AidpDeployItem
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 import java.util.zip.CRC32
@@ -9,7 +9,7 @@ import java.util.zip.CRC32
 /**
  * Works like a git. Operates with add, commit
  */
-class AidpDeployDataManager(private val stagingDir: File) {
+class AidpDeployDataManager {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -19,7 +19,12 @@ class AidpDeployDataManager(private val stagingDir: File) {
     /**
      * Staging files for deployment. All operation must be thread-safe
      */
-    private var stagingFiles = mutableMapOf<String, DeployItem>()
+    private var stagingFiles = mutableMapOf<String, CompileOutput>()
+
+    /**
+     * Deployed files
+     */
+    private var deployedFiles = mutableMapOf<String, CompileOutput>()
 
     private var crc32 = CRC32()
 
@@ -30,7 +35,7 @@ class AidpDeployDataManager(private val stagingDir: File) {
 
     @Synchronized
     fun markAsCompiled(file: CompileFile) {
-        uncompiledFiles.remove(file.file.standardizedPath)
+        uncompiledFiles.remove(file.file.stdAbsPath)
     }
 
     @Synchronized
@@ -39,20 +44,8 @@ class AidpDeployDataManager(private val stagingDir: File) {
     }
 
     @Synchronized
-    fun addClassFile(classFile: File, baseDir: File, isKeepOriginFile: Boolean) {
-        val destStageFile = classFile.changeBaseDir(baseDir, stagingDir)
-        destStageFile.parentFile?.let {
-            if (!it.exists()) it.mkdirs()
-        }
-        destStageFile.let {
-            if (it.exists()) it.delete()
-        }
-        if (isKeepOriginFile) {
-            classFile.copyTo(destStageFile)
-        } else {
-            classFile.renameTo(destStageFile)
-        }
-        stagingFiles[destStageFile.absolutePath] = DeployItem(DeployType.CLASS_FILE, destStageFile)
+    fun addDeployFile(classFile: CompileOutput) {
+        stagingFiles[classFile.file.stdAbsPath] = classFile
     }
 
     @Synchronized
@@ -62,42 +55,42 @@ class AidpDeployDataManager(private val stagingDir: File) {
         }
 
         val items = stagingFiles.values
-        val changedClassFiles = items.filter { it.type == DeployType.CLASS_FILE }
-        val changesClasses = changedClassFiles.map {
-            val bytes = it.file.readBytes()
-            val crc = crc32.run {
-                reset()
-                update(bytes)
-                value
-            }
-            DexClass(it.file.getClassNameByPath(), crc, bytes, null)
-        }
+        val changedClassFiles = items.filter { it.type == CompileOutput.Type.Dex }
+        val changedClasses = changedClassFiles.map { it.toDeployItem() }
+
+        val changedOverlayFile = items.filter { it.type == CompileOutput.Type.Overlay }
+        val changedOverlays = changedOverlayFile.map { it.toDeployItem() }
+
         return AidpDeployData(
-            changesClasses
+            changedClasses,
+            changedOverlays
         )
     }
 
-    private fun File.getClassNameByPath(): String {
-        return relativeTo(stagingDir).path
-            .replace(File.separatorChar, '.')
-            .replace(name, nameWithoutExtension)
+    private fun CompileOutput.toDeployItem(): AidpDeployItem {
+        val bytes = file.readBytes()
+        val crc = crc32.run {
+            reset()
+            update(bytes)
+            value
+        }
+        val name = if (type == CompileOutput.Type.Dex) {
+            file.relativeTo(baseDir).stdPath
+                .replace(File.separatorChar, '.')
+                .replace(file.name, file.nameWithoutExtension)
+        } else {
+            file.relativeTo(baseDir).stdPath
+        }
+        return AidpDeployItem(name, crc, bytes)
     }
 
     @Synchronized
     fun commit() {
+        deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
     }
 
-    private class DeployItem(
-        val type: DeployType,
-        val file: File,
-    )
-
-    private enum class DeployType {
-        CLASS_FILE,
-        OVERLAY_FILE
-    }
-
-    private val File.standardizedPath get() = absolutePath.replace(File.separatorChar, '/')
+    private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
+    private val File.stdPath get() = path.replace(File.separatorChar, '/')
     private val VirtualFile.standardizedPath get() = path.replace(File.separatorChar, '/')
 }

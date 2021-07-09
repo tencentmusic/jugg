@@ -181,6 +181,7 @@ class AidpCompiler(project: Project,
         }
         val compileResult = resultList.reduce { acc, i -> acc + i }
         if (!checkResult(compileResult)) {
+            // TODO handle successfully compiled files
             return compileResult.copy(outputs = emptyList())
         }
 
@@ -194,6 +195,7 @@ class AidpCompiler(project: Project,
         val dexTask = CompileTask(compileClassFiles, dexOutputDir)
         val dexResult = dexCompiler.compile(dexTask)
         if (!checkResult(dexResult)) {
+            // TODO handle successfully compiled files
             return compileResult.copy(outputs = emptyList())
         }
 
@@ -212,14 +214,18 @@ class AidpCompiler(project: Project,
             }, emptyList())
         }
 
-        return compileResult.copy(
+        val finalResult = compileResult.copy(
             outputs = compileResult.outputs - classFiles + dexResult.outputs
         )
+        val costTime = System.currentTimeMillis() - startTime
+        logger.info("compile finished, cost ${costTime}ms")
+        logger.info("compile result, success: ${finalResult.successFiles.size}, failure: ${finalResult.failedFiles.size}")
+
+        return finalResult
     }
 
     private fun checkResult(result: CompileResult): Boolean {
         if (!result.isAllSuccess) {
-            // TODO handle successfully compiled files
             logger.info("compile result, success: ${result.successFiles.size}, failure: ${result.failedFiles.size}")
             val errorMessage = "compile failed! please check out the log"
             logger.warn(errorMessage)
@@ -339,7 +345,8 @@ class OverlayCompiler(private val logger: Logger): ICompiler {
                 return@forEach
             }
 
-            val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
+            // deploy should contains resource root, so we use baseDir.parentFile
+            val destFile = it.file.changeBaseDir(it.baseDir.parentFile!!, task.outputDir)
             try {
                 it.file.copyTo(destFile, overwrite = true)
                 outputs.add(CompileOutput(destFile, task.outputDir, CompileOutput.Type.Overlay))

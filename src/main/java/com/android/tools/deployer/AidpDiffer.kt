@@ -7,6 +7,7 @@ import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
 import com.android.utils.ILogger
+import com.sickworm.intellij.aidp.AidpException
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import java.util.*
 
@@ -34,20 +35,24 @@ class AidpDiffer(private val logger: ILogger) {
         // find out classes in AidpDeployData is modified or new
         val newClasses = mutableListOf<DexClass>()
         val modifiedClasses = mutableListOf<DexClass>()
-        data.classes.forEach { dexClass ->
+        data.classes.forEach { clazz ->
             val matchedFile: AidpFileInfo? = apkFiles.firstNotNullResult {
-                it.classFiles[dexClass.name]
+                it.classFiles[clazz.name]
             }
             if (matchedFile == null) {
-                newClasses.add(dexClass)
-            } else if (matchedFile.checksum != dexClass.checksum) {
-                modifiedClasses.add(dexClass)
+                newClasses.add(clazz.toIncompleteDexClass())
+            } else if (matchedFile.checksum != clazz.checksum) {
+                modifiedClasses.add(clazz.toIncompleteDexClass())
             }
         }
         val dexOverlays = ChangedClasses(newClasses, modifiedClasses)
 
-        // TODO find out overlay files
-        val overlayFiles = emptyMap<ApkEntry, ByteString>()
+        if (cacheEntry.apks.size > 1 && data.overlays.isNotEmpty()) {
+            throw AidpException.notSupportMultiApkOverlays()
+        }
+        val overlayFiles = data.overlays.associate {
+            it.toIncompleteOverlay(cacheEntry.apks.first())
+        }
 
         logDiffResult(newClasses, modifiedClasses, overlayFiles)
 

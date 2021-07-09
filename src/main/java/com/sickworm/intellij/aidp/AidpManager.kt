@@ -26,7 +26,7 @@ class AidpManager(private val project: Project,
 
     // manage deploy data
     private val stagingDir = File("$projectDir/build/aidp/deploy/staging")
-    private val deployDataManager = AidpDeployDataManager(stagingDir)
+    private val deployDataManager = AidpDeployDataManager()
 
     // compile dependency
     private val libraryDir = File("$projectDir/.idea/libraries")
@@ -34,8 +34,7 @@ class AidpManager(private val project: Project,
     private var dependencies = listOf<String>()
 
     // compile
-    private val compileClassDir = File("$projectDir/build/aidp/deploy/compiled/classes")
-    private val compileDexDir = File("$projectDir/build/aidp/deploy/compiled/dex")
+    private val compileClassDir = File("$projectDir/build/aidp/deploy/compiled")
     private val compiler = AidpCompiler(project, compileClassDir, classPathDir)
 
     init {
@@ -105,8 +104,7 @@ class AidpManager(private val project: Project,
         }
 
         // do compile
-        compileDexDir.clearDir()
-        val result = compiler.compile(CompileTask(compileFiles, compileDexDir))
+        val result = compiler.compile(CompileTask(compileFiles, stagingDir))
         if (!result.isAllSuccess) {
             // TODO accept successfully compiled files
             return
@@ -118,8 +116,8 @@ class AidpManager(private val project: Project,
         }
 
         // stage deploy files
-        compileDexDir.listFilesRecursively().forEach {
-            deployDataManager.addClassFile(it, compileDexDir, false)
+        result.outputs.forEach {
+            deployDataManager.addDeployFile(it)
         }
 
         if (AidpSettings.deployOnSave) {

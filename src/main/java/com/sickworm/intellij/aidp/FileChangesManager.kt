@@ -8,6 +8,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.events.VFileCopyEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
@@ -16,6 +17,7 @@ import org.jetbrains.jps.model.java.JavaSourceRootType
 import org.jetbrains.kotlin.config.ResourceKotlinRootType
 import org.jetbrains.kotlin.config.SourceKotlinRootType
 import java.io.File
+import java.nio.file.Path
 
 /**
  * 文件变化监听
@@ -70,11 +72,10 @@ class FileChangesManager(private val project: Project,
     private fun listenFileChanges() {
         val vfsListener = object: AsyncFileListener {
             override fun prepareChange(events: MutableList<out VFileEvent>): AsyncFileListener.ChangeApplier? {
-                val changeFiles = events.mapNotNull(::filterDeployFile)
-                if (changeFiles.isEmpty()) return null
-
                 return object: AsyncFileListener.ChangeApplier {
                     override fun afterVfsChange() {
+                        val changeFiles = events.mapNotNull(::filterDeployFile)
+                        if (changeFiles.isEmpty()) return
                         logger.info("onFileChanges $changeFiles")
                         listener?.onFileChanges(changeFiles)
                     }
@@ -97,7 +98,12 @@ class FileChangesManager(private val project: Project,
 
         logger.debug("file event ${event::class.java.name} $event")
 
-        val virtualFile = event.file
+        val virtualFile = if (event is VFileCopyEvent) {
+            VirtualFileManager.getInstance().findFileByNioPath(Path.of(event.path))
+        } else {
+            event.file
+        }
+
         // file not exists
         if (virtualFile == null || !virtualFile.exists()) {
             return null
