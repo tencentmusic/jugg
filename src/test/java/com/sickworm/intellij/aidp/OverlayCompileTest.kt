@@ -24,7 +24,7 @@ class OverlayCompileTest {
                     CompileFile.Type.Overlay,
                     assetsAssetsDir)
             ),
-            compileOverlayDir
+            stagingDir
         )
         val result = OverlayCompiler(logger).compile(task)
         result.printCompileErrors()
@@ -46,7 +46,7 @@ class OverlayCompileTest {
                 CompileFile(originFile1, CompileFile.Type.Overlay, assetsAssetsDir),
                 CompileFile(originFile2, CompileFile.Type.Overlay, assetsAssetsDir),
             ),
-            compileOverlayDir
+            stagingDir
         )
         val result = OverlayCompiler(logger).compile(task)
         result.printCompileErrors()

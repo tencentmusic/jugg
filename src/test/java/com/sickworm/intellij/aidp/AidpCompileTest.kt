@@ -11,7 +11,7 @@ class AidpCompileTest {
 
     private val disposable = Disposable { }
     private val project = MockProject(null, disposable)
-    private val aidpCompiler = AidpCompiler(project, compileClassDir, classPathDir)
+    private val aidpCompiler = AidpCompiler(project, tempCompileDir, classPathDir)
 
     @Before
     fun init() {
@@ -20,7 +20,8 @@ class AidpCompileTest {
 
     private val helloWorldTask = CompileTask.singleJavaFile(
         filePath = File(assetsJavaDir, "com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java"),
-        outputDir = compileDexDir)
+        outputDir = stagingDir
+    )
     @Test
     fun compileJavaDex() {
         val result = aidpCompiler.compile(helloWorldTask)
@@ -49,7 +50,8 @@ class AidpCompileTest {
             CompileFile(it, CompileFile.Type.Java, assetsJavaDir,
                 dependencyPaths = dependencies)
         },
-        outputDir = compileDexDir)
+        outputDir = stagingDir
+    )
     @Test
     fun compileMultiJavaDex() {
         val result = aidpCompiler.compile(multiTask)
@@ -68,7 +70,8 @@ class AidpCompileTest {
             CompileFile(it, CompileFile.Type.Java, assetsJavaDir,
                 dependencyPaths = dependencies)
         },
-        outputDir = compileDexDir)
+        outputDir = stagingDir
+    )
     @Test
     fun compileMultiJavaWithErrorDex() {
         val result = aidpCompiler.compile(multiWithErrorTask)
@@ -81,5 +84,10 @@ class AidpCompileTest {
             }
         }
         assert(result.outputs.isEmpty())
+    }
+
+    @Test
+    fun compileOverlay() {
+
     }
 }

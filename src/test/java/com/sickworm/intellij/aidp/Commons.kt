@@ -11,10 +11,9 @@ val logger = Logger.getInstance("AidpTest")
 
 // build directory
 val buildDir = File("src/test/build").absoluteFile
-val compileClassDir = File("src/test/build/compiled").absoluteFile
-val compileDexDir = File("src/test/build/dex").absoluteFile
-val compileOverlayDir = File("src/test/build/overlay").absoluteFile
-val classPathDir = File("src/test/build/classes").absoluteFile
+val tempCompileDir = File(buildDir, "compiled")
+val classPathDir = File(buildDir, "classpath")
+val stagingDir = File(buildDir, "staging")
 
 // source file
 val assetsDir = File("src/test/assets").absoluteFile

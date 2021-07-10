@@ -32,7 +32,7 @@ class ResCompileTest {
     private fun compileRes(files: List<File>, baseDir: File) {
         val task = CompileTask(
             files.map { CompileFile(it, CompileFile.Type.Res, baseDir) },
-            compileOverlayDir
+            stagingDir
         )
         val result = resCompiler.compile(task)
         assert(result.details.size == files.size)
@@ -50,7 +50,7 @@ class ResCompileTest {
         val resDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
         val task = CompileTask(
             listOf(CompileFile(resDir, CompileFile.Type.FlatDir, resDir)),
-            compileOverlayDir
+            stagingDir
         )
         val result = arscCompiler.compile(task)
         assert(result.details.size == 1)

@@ -6,9 +6,9 @@ import java.io.File
 
 class AidpCompiler(project: Project,
                    /** compile temporary directory */
-                   private val sourceCompileDir: File,
+                   tempCompileDir: File,
                    /** class path directory */
-                   private val classPathDir: File
+                   classPathDir: File
                    ): ICompiler {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
@@ -19,7 +19,7 @@ class AidpCompiler(project: Project,
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
 
-    private val sourceCompiler = SourceCompiler(sourceCompileDir, classPathDir, logger)
+    private val sourceCompiler = SourceCompiler(tempCompileDir, classPathDir, logger)
 
     private val overlayCompiler = OverlayCompiler(logger)
 

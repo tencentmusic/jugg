@@ -27,18 +27,19 @@ class AidpManager(private val project: Project,
 
     // detect file changes
     private val fileChangesManager = FileChangesManager(project, projectDir)
+    private val buildDir = File("$projectDir/build/aidp/build/")
 
     // manage deploy data
-    private val stagingDir = File("$projectDir/build/aidp/deploy/staging")
+    private val stagingDir = File(buildDir, "staging")
     private val deployDataManager = AidpDeployDataManager()
 
     // compile dependency
     private val libraryDir = File("$projectDir/.idea/libraries")
-    private val classPathDir = File("$projectDir/build/aidp/deploy/classpath")
+    private val classPathDir = File(buildDir, "classpath")
     private var dependencies = listOf<String>()
 
     // compile
-    private val compileClassDir = File("$projectDir/build/aidp/deploy/compiled")
+    private val compileClassDir = File(buildDir, "compiled")
     private val compiler = AidpCompiler(project, compileClassDir, classPathDir)
 
     init {
