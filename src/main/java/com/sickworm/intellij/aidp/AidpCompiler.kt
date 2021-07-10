@@ -68,6 +68,7 @@ data class CompileOutput(
     enum class Type {
         Class,
         Dex,
+        Flat,
         Overlay;
     }
 }
@@ -107,6 +108,13 @@ interface ICompiler {
     fun compile(task: CompileTask): CompileResult
 
     fun checkCanCompile(task: CompileTask) {
+        val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
+        if (invalidFiles.isNotEmpty()) {
+            throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
+        }
+    }
+
+    fun checkOutputDirIsEmpty(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
         if (invalidFiles.isNotEmpty()) {
             throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
@@ -249,10 +257,7 @@ class JavaCompiler(private val logger: Logger): ICompiler {
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
-
-        if (!task.outputDir.listFiles().isNullOrEmpty()) {
-            throw AidpInternalException.compileOutputDirNotEmpty()
-        }
+        checkOutputDirIsEmpty(task)
 
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
@@ -398,7 +403,43 @@ class ResCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Res)
 
     override fun compile(task: CompileTask): CompileResult {
-        TODO()
+        checkCanCompile(task)
+
+        if (!task.outputDir.exists()) {
+            task.outputDir.mkdirs()
+        }
+
+        val outputDir = task.outputDir.absolutePath
+        val filesString = task.files.map {
+            it.file.absolutePath
+        }.joinToString(" ")
+
+        val aapt2Cmd = "D:\\Android\\sdk\\build-tools\\30.0.3\\aapt2.exe"
+        val command = "$aapt2Cmd compile -o $outputDir $filesString"
+        println(command)
+        val process = Runtime.getRuntime().exec(command)
+        process.readOutput(logger)
+        process.waitFor()
+
+        val detailsAndOutputs = task.files.map {
+            val relativePath = it.file.relativeTo(it.baseDir).path
+            val outputFile = File(task.outputDir, relativePath.replace(File.separator, "_") + ".flat")
+            val output = CompileOutput(outputFile, outputFile.parentFile!!, CompileOutput.Type.Flat)
+            val detail: Result<CompileFile, CompileError> =
+                if (outputFile.exists() && outputFile.length() > 0) {
+                    Result.success(it)
+                } else {
+                    Result.failure(CompileError(it, listOf(0L to "compile flat failed")))
+                }
+
+            return@map detail to output
+        }
+
+        return CompileResult(
+            task,
+            detailsAndOutputs.map { it.first} ,
+            detailsAndOutputs.filter { it.first.isSuccess }.map { it.second }
+        )
     }
 }
 
@@ -441,13 +482,14 @@ class ArscCompiler(private val logger: Logger): ICompiler {
 
     private fun makeResApk(resJar: File, outputDir: File): File {
         val outputApk = "${outputDir.absolutePath}\\res.apk"
+        // TODO task
         val manifest = File("src\\test\\assets\\android\\build\\intermediates\\merged_manifests\\debug\\AndroidManifest.xml").absolutePath
         val androidJar = "D:\\Android\\sdk\\platforms\\android-30\\android.jar"
         val aapt2Cmd = "D:\\Android\\sdk\\build-tools\\30.0.3\\aapt2.exe"
         val command = "$aapt2Cmd link -o $outputApk -I $androidJar --manifest $manifest ${resJar.absolutePath}"
         println(command)
         val process = Runtime.getRuntime().exec(command)
-        process.readOutput()
+        process.readOutput(logger)
         process.waitFor()
 
         return File(outputApk)
@@ -474,15 +516,15 @@ class ArscCompiler(private val logger: Logger): ICompiler {
             return null
         }
     }
+}
 
-    private fun Process.readOutput() {
-        val ins = BufferedReader(InputStreamReader(inputStream))
-        while (true) {
-            val line = ins.readLine() ?: break
-            logger.debug(line)
-        }
-        ins.close()
+private fun Process.readOutput(logger: Logger) {
+    val ins = BufferedReader(InputStreamReader(errorStream))
+    while (true) {
+        val line = ins.readLine() ?: break
+        logger.warn(line)
     }
+    ins.close()
 }
 
 val Result<CompileFile, CompileError>.file: CompileFile
