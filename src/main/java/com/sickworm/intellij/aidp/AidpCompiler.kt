@@ -422,8 +422,11 @@ class ResCompiler(private val logger: Logger): ICompiler {
         process.waitFor()
 
         val detailsAndOutputs = task.files.map {
-            val relativePath = it.file.relativeTo(it.baseDir).path
-            val outputFile = File(task.outputDir, relativePath.replace(File.separator, "_") + ".flat")
+            val folderName = it.file.parentFile!!.name
+            val extension = if (folderName.startsWith("values")) "arsc"
+                else it.file.extension
+            val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
+            val outputFile = File(task.outputDir, fileName)
             val output = CompileOutput(outputFile, outputFile.parentFile!!, CompileOutput.Type.Flat)
             val detail: Result<CompileFile, CompileError> =
                 if (outputFile.exists() && outputFile.length() > 0) {
