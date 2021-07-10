@@ -1,0 +1,117 @@
+package com.sickworm.intellij.aidp.compiler
+
+import com.sickworm.intellij.aidp.AidpInternalException
+import com.sickworm.intellij.aidp.Result
+import java.io.File
+
+data class CompileTask(
+    val files: List<CompileFile>,
+    val outputDir: File
+) {
+
+    operator fun plus(task: CompileTask): CompileTask {
+        if (outputDir != task.outputDir) {
+            throw AidpInternalException.outputDirNotEmpty()
+        }
+        return CompileTask(files + task.files, outputDir)
+    }
+
+    companion object
+}
+
+data class CompileFile(
+    val file: File,
+    val type: Type,
+    val baseDir: File,
+    val dependencyPaths: List<String> = emptyList()
+) {
+
+    override fun toString(): String {
+        return "$type:${file.name}"
+    }
+
+    companion object {
+        fun getTypeByExtension(fileName: String): Type {
+            return when {
+                fileName.endsWith(".java") -> Type.Java
+                fileName.endsWith(".kt") -> Type.Kotlin
+                else -> Type.Overlay
+            }
+        }
+    }
+
+    enum class Type {
+        Java,
+        Kotlin,
+        Class,
+        Overlay,
+        Res,
+        FlatDir;
+    }
+}
+
+data class CompileOutput(
+    val file: File,
+    val baseDir: File,
+    val type: Type,
+) {
+
+    enum class Type {
+        Class,
+        Dex,
+        Flat,
+        Overlay;
+    }
+}
+
+data class CompileResult(
+    val task: CompileTask,
+    val details: List<Result<CompileFile, CompileError>>,
+    val outputs: List<CompileOutput>
+) {
+    val successFiles get() = details.filter { it.isSuccess }
+
+    val failedFiles get() = details.filter { it.isFailed }
+
+    val isAllSuccess get() = details.all { it.isSuccess }
+
+    operator fun plus(result: CompileResult): CompileResult {
+        return CompileResult(
+            task + result.task,
+            details + result.details,
+            outputs + result.outputs
+        )
+    }
+}
+
+val Result<CompileFile, CompileError>.file: CompileFile
+    get() = if (isSuccess) getOrNull()!! else getFailureOrNull()!!.file
+
+data class CompileError(
+    /** file to be compiled */
+    val file: CompileFile,
+    /** will be empty if [file] looks good but compiler still stopped because there is another error file */
+    val errors: List<Pair<Long, String>> // <Line, Message>
+) {
+    val errorMessages get() = errors.joinToString("\n") { it.second }
+}
+
+interface ICompiler {
+    val supportedTypes: List<CompileFile.Type>
+
+    fun compile(task: CompileTask): CompileResult
+
+    fun checkCanCompile(task: CompileTask) {
+        val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
+        if (invalidFiles.isNotEmpty()) {
+            throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
+        }
+    }
+
+    fun checkOutputDirIsEmpty(task: CompileTask) {
+        val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
+        if (invalidFiles.isNotEmpty()) {
+            throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
+        }
+    }
+}

@@ -8,6 +8,9 @@ import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.wm.ToolWindow
+import com.sickworm.intellij.aidp.compiler.AidpCompiler
+import com.sickworm.intellij.aidp.compiler.CompileFile
+import com.sickworm.intellij.aidp.compiler.CompileTask
 import java.io.File
 import java.util.concurrent.Executors
 

@@ -3,6 +3,8 @@ package com.sickworm.intellij.aidp
 import com.android.tools.deployer.AidpDeployData
 import com.android.tools.deployer.AidpDeployItem
 import com.intellij.openapi.vfs.VirtualFile
+import com.sickworm.intellij.aidp.compiler.CompileFile
+import com.sickworm.intellij.aidp.compiler.CompileOutput
 import java.io.File
 import java.util.zip.CRC32
 

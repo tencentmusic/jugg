@@ -1,5 +1,8 @@
 package com.sickworm.intellij.aidp
 
+import com.sickworm.intellij.aidp.compiler.CompileFile
+import com.sickworm.intellij.aidp.compiler.CompileTask
+import com.sickworm.intellij.aidp.compiler.KotlinCompiler
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -22,9 +25,11 @@ class KotlinCompileTest {
     }
 
     private val resultTask = CompileTask(
-        listOf(CompileFile(File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
+        listOf(
+            CompileFile(File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
             CompileFile.Type.Kotlin,
-            assetsJavaDir)),
+            assetsJavaDir)
+        ),
         classPathDir)
     @Test
     fun kotlinCompile() {

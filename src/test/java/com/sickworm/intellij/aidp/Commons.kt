@@ -3,6 +3,7 @@
 package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
 import java.lang.IllegalStateException
 

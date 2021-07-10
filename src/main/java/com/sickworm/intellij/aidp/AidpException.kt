@@ -1,5 +1,8 @@
 package com.sickworm.intellij.aidp
 
+import com.sickworm.intellij.aidp.compiler.CompileFile
+import com.sickworm.intellij.aidp.compiler.ICompiler
+
 /** Exception for notifying user */
 class AidpException(msg: String): Exception(msg) {
 

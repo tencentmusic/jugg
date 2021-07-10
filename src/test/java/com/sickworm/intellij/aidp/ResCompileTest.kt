@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp
 
+import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
