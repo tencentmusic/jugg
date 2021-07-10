@@ -18,13 +18,10 @@ class AidpCompileTest {
         clearBuild()
     }
 
-    private val helloWorldTask = CompileTask.singleJavaFile(
-        filePath = File(assetsJavaDir, "com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java"),
-        outputDir = stagingDir
-    )
+    private val compileSingleJavaDexTask = JavaCompileTest().helloWorldTask.copy(outputDir = stagingDir)
     @Test
-    fun compileJavaDex() {
-        val result = aidpCompiler.compile(helloWorldTask)
+    fun compileSingleJavaDex() {
+        val result = aidpCompiler.compile(compileSingleJavaDexTask)
         assert(result.details.size == 1)
         assertCompileResult(assetsJavaDir, result.details.first(), true)
         assert(result.outputs.size == 1)
@@ -35,27 +32,11 @@ class AidpCompileTest {
         }
     }
 
-    private val javaCompileFilesWithError = assetsJavaDir.listFilesRecursively()
-    private val javaCompileFiles = javaCompileFilesWithError.filter { it.name != "ErrorJavaFile.java" }
-    private val dependencies: List<String> = emptyList<String>() +
-            File(assetsLibDir, "rxjava-3.0.12.jar").absolutePath +
-            File(assetsLibDir, "reactive-streams-1.0.3.jar").absolutePath +
-            androidJar +
-            File(assetsAndroidDir, "build/intermediates/javac/debug/classes").absolutePath +
-            assetsClassDir.absolutePath +
-            IntellijLibraryConfigParser(File(intellijLibraryDir)).parse()!!
-
-    private val multiTask = CompileTask(
-        javaCompileFiles.map {
-            CompileFile(it, CompileFile.Type.Java, assetsJavaDir,
-                dependencyPaths = dependencies)
-        },
-        outputDir = stagingDir
-    )
+    private val multiFilesTask = JavaCompileTest().multiFilesTask.copy(outputDir = stagingDir)
     @Test
     fun compileMultiJavaDex() {
-        val result = aidpCompiler.compile(multiTask)
-        assert(result.details.size == multiTask.files.size)
+        val result = aidpCompiler.compile(multiFilesTask)
+        assert(result.details.size == multiFilesTask.files.size)
         result.details.forEach {
             assertCompileResult(assetsJavaDir, it, true)
         }
@@ -65,17 +46,11 @@ class AidpCompileTest {
         }
     }
 
-    private val multiWithErrorTask = CompileTask(
-        javaCompileFilesWithError.map {
-            CompileFile(it, CompileFile.Type.Java, assetsJavaDir,
-                dependencyPaths = dependencies)
-        },
-        outputDir = stagingDir
-    )
+    private val multiFilesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask.copy(outputDir = stagingDir)
     @Test
     fun compileMultiJavaWithErrorDex() {
-        val result = aidpCompiler.compile(multiWithErrorTask)
-        assert(result.details.size == multiWithErrorTask.files.size)
+        val result = aidpCompiler.compile(multiFilesWithErrorTask)
+        assert(result.details.size == multiFilesWithErrorTask.files.size)
         result.details.forEach {
             if (it.file.file.name == "ErrorJavaFile.java") {
                 assertCompileResult(assetsJavaDir, it, false, 2)
@@ -88,6 +63,26 @@ class AidpCompileTest {
 
     @Test
     fun compileOverlay() {
+        val originFile1 = File(assetsAssetsDir, "logo.png")
+        val originFile2 = File(assetsAssetsDir, "git/index")
+        val task = CompileTask(
+            listOf(
+                CompileFile(originFile1, CompileFile.Type.Overlay, assetsAssetsDir),
+                CompileFile(originFile2, CompileFile.Type.Overlay, assetsAssetsDir),
+            ),
+            stagingDir
+        )
+        val result = OverlayCompiler(logger).compile(task)
+        result.printCompileErrors()
 
+        assert(result.details.size == 2)
+        assert(result.isAllSuccess)
+
+        val destFile1 = originFile1.changeBaseDir(assetsDir, task.outputDir)
+        val destFile2 = originFile2.changeBaseDir(assetsDir, task.outputDir)
+        assert(destFile1.exists() && destFile1.length() > 0)
+        assert(destFile2.exists() && destFile2.length() > 0)
+        assert(originFile1.exists() && originFile1.length() > 0)
+        assert(originFile2.exists() && originFile2.length() > 0)
     }
 }
