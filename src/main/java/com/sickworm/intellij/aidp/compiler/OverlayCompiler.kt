@@ -22,8 +22,7 @@ class OverlayCompiler(private val logger: Logger): ICompiler {
                 return@forEach
             }
 
-            // deploy should contains resource root, so we use baseDir.parentFile
-            val destFile = it.file.changeBaseDir(it.baseDir.parentFile!!, task.outputDir)
+            val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
             try {
                 it.file.copyTo(destFile, overwrite = true)
                 outputs.add(CompileOutput(destFile, task.outputDir, CompileOutput.Type.Overlay))
@@ -67,7 +66,7 @@ class ResCompiler(private val logger: Logger): ICompiler {
             else it.file.extension
             val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
             val outputFile = File(task.outputDir, fileName)
-            val output = CompileOutput(outputFile, outputFile.parentFile!!, CompileOutput.Type.Flat)
+            val output = CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Flat)
             val detail: Result<CompileFile, CompileError> =
                 if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(it)

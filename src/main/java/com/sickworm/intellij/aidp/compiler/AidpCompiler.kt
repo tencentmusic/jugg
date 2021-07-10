@@ -23,8 +23,6 @@ class AidpCompiler(project: Project,
 
     private val overlayCompiler = OverlayCompiler(logger)
 
-    private val dexCompiler = DexCompiler(logger)
-
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
 
@@ -46,10 +44,10 @@ class AidpCompiler(project: Project,
         }
 
         // compile overlay
-        val overlayOutputDir = File(task.outputDir, "overlays")
+        val overlayOutputDir = File(task.outputDir, "overlays/assets")
         val overlayCompileTask = task.copy(
             files = task.files.filter {
-                it.type == CompileFile.Type.Overlay || it.type == CompileFile.Type.Res
+                it.type == CompileFile.Type.Overlay
             },
             outputDir = overlayOutputDir
         )

@@ -10,7 +10,7 @@ import java.io.File
 
 class OverlayCompileTest {
 
-    val overlayCompiler = OverlayCompiler(logger)
+    private val overlayCompiler = OverlayCompiler(logger)
 
     @Before
     fun init() {
@@ -51,7 +51,7 @@ class OverlayCompileTest {
 
         task.files.forEach {
             assert(it.file.exists() && it.file.length() > 0)
-            val destFile = it.file.changeBaseDir(assetsDir, task.outputDir)
+            val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
             assert(destFile.exists() && destFile.length() > 0)
         }
     }
