@@ -10,14 +10,18 @@ import java.util.jar.Manifest
 class JarFileMaker {
 
     @Throws(IOException::class)
-    fun jar(classDir: File, classFile: File, outputFile: File) {
+    fun jar(classDir: File, outputFile: File, classFile: File = classDir, isNeedManifest: Boolean = false) {
         if (outputFile.exists()) {
             outputFile.delete()
         }
 
-        val manifest = Manifest()
-        manifest.mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
-        val target = JarOutputStream(FileOutputStream(outputFile), manifest)
+        val target = if (isNeedManifest) {
+            val manifest = Manifest()
+            manifest.mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
+            JarOutputStream(FileOutputStream(outputFile), manifest)
+        } else {
+            JarOutputStream(FileOutputStream(outputFile))
+        }
         add(classDir, classFile, target)
         target.close()
     }

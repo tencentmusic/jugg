@@ -56,6 +56,7 @@ class AidpDeployDataManager {
 
         val items = stagingFiles.values
         val changedClassFiles = items.filter { it.type == CompileOutput.Type.Dex }
+        // TODO do it in addDeployFile
         val changedClasses = changedClassFiles.map { it.toDeployItem() }
 
         val changedOverlayFile = items.filter { it.type == CompileOutput.Type.Overlay }

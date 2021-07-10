@@ -2,12 +2,16 @@ package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import java.util.zip.ZipFile
 import javax.tools.DiagnosticListener
 import javax.tools.JavaFileObject
 import javax.tools.StandardJavaFileManager
 import javax.tools.ToolProvider
 import javax.tools.JavaCompiler as JavaCompilerX
+
 
 data class CompileTask(
     val files: List<CompileFile>,
@@ -49,7 +53,9 @@ data class CompileFile(
         Java,
         Kotlin,
         Class,
-        Overlay;
+        Overlay,
+        Res,
+        FlatDir;
     }
 }
 
@@ -174,7 +180,8 @@ class AidpCompiler(project: Project,
                     val taskCompileToTempPath = task.copy(outputDir = overlayOutputDir)
                     overlayCompiler.compile(taskCompileToTempPath)
                 }
-                CompileFile.Type.Class -> {
+                else -> {
+                    // already handled in checkCanCompile()
                     throw AidpInternalException("aidp compiler don't support class compile")
                 }
             }
@@ -328,6 +335,31 @@ class KotlinCompiler: ICompiler {
     }
 }
 
+class DexCompiler(private val logger: Logger): ICompiler {
+    override val supportedTypes = listOf(CompileFile.Type.Class)
+
+    private val dexFileMaker = DexFileMaker()
+
+    override fun compile(task: CompileTask): CompileResult {
+        val outputs = mutableListOf<CompileOutput>()
+        val details = mutableListOf<Result<CompileFile, CompileError>>()
+        task.files.forEach {
+            val dexOutputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "dex")
+            dexFileMaker.dex(it.baseDir, dexOutputFile, it.file)
+
+            if (!dexOutputFile.exists() || dexOutputFile.length() <= 0) {
+                val errorMessage = "dex failed! file: ${it.file.absolutePath}"
+                logger.warn(errorMessage)
+                details.add(Result.failure(CompileError(it, listOf(0L to errorMessage))))
+            } else {
+                details.add(Result.success(it))
+                outputs.add(CompileOutput(dexOutputFile, task.outputDir, CompileOutput.Type.Dex))
+            }
+        }
+        return CompileResult(task, details, outputs)
+    }
+}
+
 class OverlayCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Overlay)
 
@@ -362,28 +394,94 @@ class OverlayCompiler(private val logger: Logger): ICompiler {
     }
 }
 
-class DexCompiler(private val logger: Logger): ICompiler {
-    override val supportedTypes = listOf(CompileFile.Type.Class)
-
-    private val dexFileMaker = DexFileMaker()
+class ResCompiler(private val logger: Logger): ICompiler {
+    override val supportedTypes = listOf(CompileFile.Type.Res)
 
     override fun compile(task: CompileTask): CompileResult {
-        val outputs = mutableListOf<CompileOutput>()
-        val details = mutableListOf<Result<CompileFile, CompileError>>()
-        task.files.forEach {
-            val dexOutputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "dex")
-            dexFileMaker.dex(it.baseDir, dexOutputFile, it.file)
+        TODO()
+    }
+}
 
-            if (!dexOutputFile.exists() || dexOutputFile.length() <= 0) {
-                val errorMessage = "dex failed! file: ${it.file.absolutePath}"
-                logger.warn(errorMessage)
-                details.add(Result.failure(CompileError(it, listOf(0L to errorMessage))))
-            } else {
-                details.add(Result.success(it))
-                outputs.add(CompileOutput(dexOutputFile, task.outputDir, CompileOutput.Type.Dex))
-            }
+class ArscCompiler(private val logger: Logger): ICompiler {
+    override val supportedTypes = listOf(CompileFile.Type.FlatDir)
+
+    override fun compile(task: CompileTask): CompileResult {
+        checkCanCompile(task)
+
+        if (task.files.size != 1 || !task.files.first().file.isDirectory) {
+            throw AidpInternalException.arscCompileFileNotDirectory()
         }
-        return CompileResult(task, details, outputs)
+        val inputDir = task.files.first().file
+
+        if (!task.outputDir.exists()) {
+            task.outputDir.mkdirs()
+        }
+        val resJar = File(task.outputDir, "res.jar")
+        JarFileMaker().jar(inputDir, resJar)
+
+        val apkFile = makeResApk(resJar, task.outputDir)
+        resJar.delete()
+
+        val arscFile = getArsc(apkFile, task.outputDir)
+        apkFile.delete()
+
+        if (arscFile == null) {
+            return CompileResult(task, task.files.map {
+                val error = CompileError(it, listOf(0L to "getArsc failed"))
+                Result.failure(error)
+            }, emptyList())
+        }
+
+        return CompileResult(
+            task,
+            task.files.map { Result.success(it) },
+            listOf(CompileOutput(arscFile, task.outputDir, CompileOutput.Type.Overlay))
+        )
+    }
+
+    private fun makeResApk(resJar: File, outputDir: File): File {
+        val outputApk = "${outputDir.absolutePath}\\res.apk"
+        val manifest = File("src\\test\\assets\\android\\build\\intermediates\\merged_manifests\\debug\\AndroidManifest.xml").absolutePath
+        val androidJar = "D:\\Android\\sdk\\platforms\\android-30\\android.jar"
+        val aapt2Cmd = "D:\\Android\\sdk\\build-tools\\30.0.3\\aapt2.exe"
+        val command = "$aapt2Cmd link -o $outputApk -I $androidJar --manifest $manifest ${resJar.absolutePath}"
+        println(command)
+        val process = Runtime.getRuntime().exec(command)
+        process.readOutput()
+        process.waitFor()
+
+        return File(outputApk)
+    }
+
+    private fun getArsc(apkFile: File, outputDir: File): File? {
+        try {
+            ZipFile(apkFile).use { zipFile ->
+                val entry = zipFile.getEntry("resources.arsc")
+                if (entry == null) {
+                    logger.warn("can not found resources.arsc in apk file")
+                    return null
+                }
+                val arscFile = File(outputDir, entry.name)
+                zipFile.getInputStream(entry).use { ins ->
+                    arscFile.outputStream().use { ous ->
+                        ins.copyTo(ous)
+                    }
+                }
+                return arscFile
+            }
+        } catch (e: Exception) {
+            logger.warn("getArsc failed", e)
+            return null
+        }
+    }
+
+    private fun Process.readOutput() {
+        val ins = BufferedReader(InputStreamReader(inputStream))
+        while (true) {
+            val line = ins.readLine() ?: break
+            logger.debug(line)
+        }
+        ins.close()
     }
 }
 

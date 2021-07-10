@@ -16,7 +16,6 @@ class AidpException(msg: String): Exception(msg) {
 class AidpInternalException(msg: String): Exception(msg) {
 
     companion object {
-
         fun outputDirNotEmpty() =
             AidpInternalException("output dir not matched when combining CompileTask")
 
@@ -25,5 +24,9 @@ class AidpInternalException(msg: String): Exception(msg) {
 
         fun compileOutputDirNotEmpty() =
             AidpInternalException("CompileTask.outputDir is not empty directory, abort. We need empty outputDir to determine output files.")
+
+        fun arscCompileFileNotDirectory() =
+            AidpInternalException("Arsc compile only supports one single directory that contains .flat")
+
     }
 }
