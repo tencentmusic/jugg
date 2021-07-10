@@ -19,9 +19,7 @@ class AidpCompiler(project: Project,
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
 
-    private val javaCompiler = JavaCompiler(logger)
-
-    private val kotlinCompiler = KotlinCompiler()
+    private val sourceCompiler = SourceCompiler(sourceCompileDir, classPathDir, logger)
 
     private val overlayCompiler = OverlayCompiler(logger)
 
@@ -30,95 +28,40 @@ class AidpCompiler(project: Project,
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
 
-        // split compile files by type
-        val fileSet = mutableMapOf<CompileFile.Type, MutableList<CompileFile>>()
-        task.files.forEach {
-            var set = fileSet[it.type]
-            if (set == null) {
-                set = mutableListOf()
-                fileSet[it.type] = set
-            }
-            set.add(it)
-        }
-        if (fileSet.isEmpty()) {
-            logger.info("nothing to compile, exit")
-            return CompileResult(task, emptyList(), emptyList())
-        }
-
-        val overlayOutputDir = File(task.outputDir, "overlays")
-        val dexOutputDir = File(task.outputDir, "classes")
+        val startTime = System.currentTimeMillis()
 
         // compile
-        sourceCompileDir.clearDir()
-        val startTime = System.currentTimeMillis()
-        val resultList: List<CompileResult> = fileSet.map { (type, files) ->
-            return@map when (type) {
-                CompileFile.Type.Java -> {
-                    logger.info("compile java files $files")
-                    val classOutputDir = File(sourceCompileDir, "java")
-                    val taskCompileToTempPath = task.copy(outputDir = classOutputDir)
-                    javaCompiler.compile(taskCompileToTempPath)
-                }
-                CompileFile.Type.Kotlin -> {
-                    logger.info("compile kotlin files $files")
-                    val classOutputDir = File(sourceCompileDir, "kotlin")
-                    val taskCompileToTempPath = task.copy(outputDir = classOutputDir)
-                    kotlinCompiler.compile(taskCompileToTempPath)
-                }
-                CompileFile.Type.Overlay -> {
-                    logger.info("compile overlay files $files")
-                    val taskCompileToTempPath = task.copy(outputDir = overlayOutputDir)
-                    overlayCompiler.compile(taskCompileToTempPath)
-                }
-                else -> {
-                    // already handled in checkCanCompile()
-                    throw AidpInternalException("aidp compiler don't support class compile")
-                }
-            }
-        }
-        val compileResult = resultList.reduce { acc, i -> acc + i }
-        if (!checkResult(compileResult)) {
-            // TODO handle successfully compiled files
-            return compileResult.copy(outputs = emptyList())
-        }
+        var compileResult = CompileResult(task, emptyList(), emptyList())
 
-        // dex .class
-        val classFiles = compileResult.outputs.filter {
-            it.type == CompileOutput.Type.Class
-        }
-        val compileClassFiles = classFiles.map {
-            CompileFile(it.file, CompileFile.Type.Class, it.baseDir, emptyList())
-        }
-        val dexTask = CompileTask(compileClassFiles, dexOutputDir)
-        val dexResult = dexCompiler.compile(dexTask)
-        if (!checkResult(dexResult)) {
-            // TODO handle successfully compiled files
-            return compileResult.copy(outputs = emptyList())
-        }
-
-        // move compiled files to class path for future compile dependencies
-        val isMoveToClassPathSuccess = classFiles.map {
-            val classPathFile = it.file.changeBaseDir(it.baseDir, classPathDir)
-            classPathFile.parentFile?.mkdirs()
-            classPathFile.delete()
-            return@map it.file.renameTo(classPathFile)
-        }.all { true }
-        if (!isMoveToClassPathSuccess) {
-            logger.warn("move class file to class path failed!")
-            // we don't know .class file is from which source file, so all error
-            return CompileResult(task, compileResult.details.map { result ->
-                Result.failure(CompileError(result.file, emptyList()))
-            }, emptyList())
-        }
-
-        val finalResult = compileResult.copy(
-            outputs = compileResult.outputs - classFiles + dexResult.outputs
+        // compile source
+        val classesOutputDir = File(task.outputDir, "classes")
+        val sourceCompileTask = CompileTask(
+            files = task.files.filter {
+                it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
+            },
+            outputDir = classesOutputDir
         )
+        if (sourceCompileTask.isNeedCompile) {
+            compileResult += sourceCompiler.compile(sourceCompileTask)
+        }
+
+        // compile overlay
+        val overlayOutputDir = File(task.outputDir, "overlays")
+        val overlayCompileTask = task.copy(
+            files = task.files.filter {
+                it.type == CompileFile.Type.Overlay || it.type == CompileFile.Type.Res
+            },
+            outputDir = overlayOutputDir
+        )
+        if (overlayCompileTask.isNeedCompile) {
+            compileResult += overlayCompiler.compile(overlayCompileTask)
+        }
+
         val costTime = System.currentTimeMillis() - startTime
         logger.info("compile finished, cost ${costTime}ms")
-        logger.info("compile result, success: ${finalResult.successFiles.size}, failure: ${finalResult.failedFiles.size}")
+        logger.info("compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
 
-        return finalResult
+        return compileResult
     }
 
     private fun checkResult(result: CompileResult): Boolean {

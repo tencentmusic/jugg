@@ -9,12 +9,16 @@ data class CompileTask(
     val outputDir: File
 ) {
 
+    val isNeedCompile get() = files.isNotEmpty()
+
     operator fun plus(task: CompileTask): CompileTask {
-        if (outputDir != task.outputDir) {
-            throw AidpInternalException.outputDirNotEmpty()
+        if (!outputDir.isParentOf(task.outputDir)) {
+            throw AidpInternalException.combineTaskFailed()
         }
         return CompileTask(files + task.files, outputDir)
     }
+
+    private fun File.isParentOf(file: File) = file.path.startsWith(path)
 
     companion object
 }

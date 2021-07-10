@@ -11,6 +11,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.sickworm.intellij.aidp.compiler.AidpCompiler
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileTask
+import com.sickworm.intellij.aidp.compiler.file
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -108,14 +109,12 @@ class AidpManager(private val project: Project,
 
         // do compile
         val result = compiler.compile(CompileTask(compileFiles, stagingDir))
-        if (!result.isAllSuccess) {
-            // TODO accept successfully compiled files
-            return
-        }
 
         // mark source files compiled
-        compileFiles.forEach {
-            deployDataManager.markAsCompiled(it)
+        result.details.forEach {
+            if (it.isSuccess) {
+                deployDataManager.markAsCompiled(it.file)
+            }
         }
 
         // stage deploy files

@@ -19,7 +19,7 @@ class AidpException(msg: String): Exception(msg) {
 class AidpInternalException(msg: String): Exception(msg) {
 
     companion object {
-        fun outputDirNotEmpty() =
+        fun combineTaskFailed() =
             AidpInternalException("output dir not matched when combining CompileTask")
 
         fun compilerNotSupported(compiler: ICompiler, supportedTypes: List<CompileFile.Type>, invalidFiles: List<CompileFile>) =
