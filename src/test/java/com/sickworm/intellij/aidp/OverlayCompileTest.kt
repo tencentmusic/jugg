@@ -29,7 +29,7 @@ class OverlayCompileTest {
         assert(result.details.size == 1)
         assert(result.isAllSuccess)
 
-        val destFile = File(compileOverlayDir, "logo.png")
+        val destFile = originFile.changeBaseDir(assetsDir, task.outputDir)
         assert(destFile.exists() && destFile.length() > 0)
         assert(originFile.exists() && originFile.length() > 0)
     }
@@ -51,8 +51,8 @@ class OverlayCompileTest {
         assert(result.details.size == 2)
         assert(result.isAllSuccess)
 
-        val destFile1 = File(compileOverlayDir, "logo.png")
-        val destFile2 = File(compileOverlayDir, "git/index")
+        val destFile1 = originFile1.changeBaseDir(assetsDir, task.outputDir)
+        val destFile2 = originFile2.changeBaseDir(assetsDir, task.outputDir)
         assert(destFile1.exists() && destFile1.length() > 0)
         assert(destFile2.exists() && destFile2.length() > 0)
         assert(originFile1.exists() && originFile1.length() > 0)
