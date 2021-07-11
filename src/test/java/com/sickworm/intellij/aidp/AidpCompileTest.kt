@@ -44,6 +44,7 @@ class AidpCompileTest {
     fun compileMultiAsset() {
         val task = AssetCompileTest().multiFilesTask
         val result = aidpCompiler.compile(task)
+        assertCompileResultAidp(task, result)
     }
 
     private fun assertCompileResultAidp(task: CompileTask, result: CompileResult) {
