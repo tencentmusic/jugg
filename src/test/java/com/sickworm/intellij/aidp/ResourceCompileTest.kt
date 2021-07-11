@@ -9,6 +9,9 @@ class ResourceCompileTest {
 
     private val flatDir = tempCompileDir
 
+    private val stableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
+    private val manifest = File("src/test/assets/android/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
+
     @Before
     fun init() {
         clearBuild()
@@ -49,7 +52,7 @@ class ResourceCompileTest {
 
     @Test
     fun compileArsc() {
-        val arscCompiler = ArscCompiler(logger)
+        val arscCompiler = ArscCompiler(stableIds, manifest, androidJar, logger)
         val task = CompileTask(
             listOf(CompileFile(flatDir, CompileFile.Type.FlatDir, flatDir)),
             stagingDir
@@ -63,6 +66,9 @@ class ResourceCompileTest {
         val arscCompiler = CachedArscCompiler(
             flatDir,
             classPathDir,
+            stableIds,
+            manifest,
+            androidJar,
             logger
         )
 

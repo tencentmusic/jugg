@@ -58,7 +58,7 @@ class JavaCompileTest {
 
     val activityTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/example/myapplication/MainActivity2.java"),
         stagingDir,
-        dependencies = listOf(androidJar)
+        dependencies = listOf(androidJar.absolutePath)
                 + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
                 + IntellijLibraryConfigParser(File(intellijLibraryDir)).parse()!!
     )

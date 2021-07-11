@@ -41,14 +41,17 @@ class AssetCompiler(private val logger: Logger): ICompiler {
 class CachedArscCompiler(
     private val flatDir: File,
     private val classPathDir: File,
-    private val logger: Logger,
+    stableIdsFile: File,
+    manifest: File,
+    androidJar: File,
+    logger: Logger,
 ): ICompiler {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     private val resourceCompiler = ResourceCompiler(logger)
 
-    private val arscCompiler = ArscCompiler(logger)
+    private val arscCompiler = ArscCompiler(stableIdsFile, manifest, androidJar, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -105,7 +108,7 @@ class ResourceCompiler(private val logger: Logger): ICompiler {
             it.file.absolutePath
         }.joinToString(" ")
 
-        val aapt2Cmd = "D:\\Android\\sdk\\build-tools\\30.0.3\\aapt2.exe"
+        val aapt2Cmd = "D:/Android/sdk/build-tools/30.0.3/aapt2.exe"
         val command = "$aapt2Cmd compile -o $outputDir $filesString"
         println(command)
         val process = Runtime.getRuntime().exec(command)
@@ -137,7 +140,12 @@ class ResourceCompiler(private val logger: Logger): ICompiler {
     }
 }
 
-class ArscCompiler(private val logger: Logger): ICompiler {
+class ArscCompiler(
+    private val stableIds: File,
+    private val manifest: File,
+    private val androidJar: File,
+    private val logger: Logger,
+): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.FlatDir)
 
     override fun compile(task: CompileTask): CompileResult {
@@ -175,16 +183,25 @@ class ArscCompiler(private val logger: Logger): ICompiler {
     }
 
     private fun makeResApk(resJar: File, outputDir: File): File {
-        val outputApk = "${outputDir.absolutePath}\\res.apk"
-        // TODO task
-        val manifest = File("src\\test\\assets\\android\\build\\intermediates\\merged_manifests\\debug\\AndroidManifest.xml").absolutePath
-        val androidJar = "D:\\Android\\sdk\\platforms\\android-30\\android.jar"
-        val aapt2Cmd = "D:\\Android\\sdk\\build-tools\\30.0.3\\aapt2.exe"
-        val command = "$aapt2Cmd link -o $outputApk -I $androidJar --manifest $manifest ${resJar.absolutePath}"
+        val outputApk = "${outputDir.absolutePath}/res.apk"
+        val aapt2Cmd = "D:/Android/sdk/build-tools/30.0.3/aapt2.exe"
+        val stableIdFileArg = if (stableIds.exists()) {
+            "--stable-ids $stableIds"
+        } else {
+            ""
+        }
+        val newStableIdFile = File("${stableIds.absolutePath}.out")
+        val emitIdArg = "--emit-ids ${newStableIdFile.absolutePath}"
+        val command = "$aapt2Cmd link -o $outputApk -I $androidJar $stableIdFileArg $emitIdArg --manifest ${manifest.absolutePath} ${resJar.absolutePath}"
         println(command)
         val process = Runtime.getRuntime().exec(command)
         process.readOutput(logger)
         process.waitFor()
+
+        if (newStableIdFile.exists()) {
+            stableIds.delete()
+            newStableIdFile.renameTo(stableIds)
+        }
 
         return File(outputApk)
     }

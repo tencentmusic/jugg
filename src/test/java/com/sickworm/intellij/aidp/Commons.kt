@@ -27,8 +27,8 @@ val assetsAssetsDir = File(assetsDir, "assets")
 // dependency
 val androidHome = System.getenv("ANDROID_HOME")
     ?: throw IllegalStateException("please specific ANDROID_HOME in env")
-val androidJar = "$androidHome/platforms/android-30/android.jar".also {
-    if (!File(it).exists()) {
+val androidJar = File("$androidHome/platforms/android-30/android.jar").also {
+    if (!it.exists()) {
         throw IllegalStateException("android.jar not found in: $it")
     }
 }
