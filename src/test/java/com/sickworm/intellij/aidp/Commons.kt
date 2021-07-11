@@ -36,7 +36,7 @@ val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
 
 fun assertCompileResult(task: CompileTask,
                         result: CompileResult,
-                        outputType: CompileOutput.Type? = null,
+                        outputType: CompileOutput.Type,
                         outputSize: Int = task.files.size
 ) {
     result.printCompileErrors()

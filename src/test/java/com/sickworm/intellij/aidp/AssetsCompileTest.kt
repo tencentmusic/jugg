@@ -1,9 +1,6 @@
 package com.sickworm.intellij.aidp
 
-import com.sickworm.intellij.aidp.compiler.CompileFile
-import com.sickworm.intellij.aidp.compiler.CompileResult
-import com.sickworm.intellij.aidp.compiler.CompileTask
-import com.sickworm.intellij.aidp.compiler.AssetsCompiler
+import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -43,16 +40,10 @@ class AssetsCompileTest {
     }
 
     fun checkError(task: CompileTask, result: CompileResult, outputDir: File = task.outputDir) {
-        result.printCompileErrors()
-
-        assert(result.details.size == task.files.size)
-        assert(result.outputs.size == task.files.size)
-        assert(result.isAllSuccess)
-
-        task.files.forEach {
-            assert(it.file.exists() && it.file.length() > 0)
-            val destFile = it.file.changeBaseDir(it.baseDir, outputDir)
-            assert(destFile.exists() && destFile.length() > 0)
+        assertCompileResult(task, result, CompileOutput.Type.Overlay)
+        task.files.forEach { file ->
+            val destFile = file.file.changeBaseDir(file.baseDir, outputDir)
+            assert(result.outputs.any { it.file.absolutePath == destFile.absolutePath })
         }
     }
 }
