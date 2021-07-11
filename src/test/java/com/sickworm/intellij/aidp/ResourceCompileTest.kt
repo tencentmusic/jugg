@@ -18,8 +18,8 @@ class ResourceCompileTest {
         val sourceFlatDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
         sourceFlatDir.copyRecursively(flatDir)
 
-        val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
-        sourceStableIds.copyTo(stableIds)
+//        val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
+//        sourceStableIds.copyTo(stableIds)
     }
 
     @Test
@@ -74,8 +74,8 @@ class ResourceCompileTest {
             logger
         )
 
-        val file1 = File(assetsAndroidDir, "src/main/res/layout/activity_main.xml")
-        val file2 = File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml")
+        val file1 = File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml")
+        val file2 = File(assetsAndroidDir, "src/main/res/layout/activity_main3.xml")
         val file3 = File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml")
         val file4 = File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml")
         val baseDir = File(assetsAndroidDir, "src/main/res/")

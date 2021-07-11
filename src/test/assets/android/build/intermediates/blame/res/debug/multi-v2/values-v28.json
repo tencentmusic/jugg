@@ -1,20 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "F:\\StudioProjects\\MyApplication\\app\\build\\intermediates\\incremental\\mergeDebugResources\\merged.dir\\values-v28\\values-v28.xml",
+            "outputFile": "F:\\StudioProjects\\MyApplicationIntellij\\app\\build\\intermediates\\incremental\\mergeDebugResources\\merged.dir\\values-v28\\values-v28.xml",
             "map": [
                 {
-                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\b84e2831c1183f7809d9113d7edd1143\\material-1.1.0\\res\\values-v28\\values-v28.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,143,231,319,407,494,581,668",
-                        "endColumns": "87,87,87,87,86,86,86,86",
-                        "endOffsets": "138,226,314,402,489,576,663,750"
-                    }
-                },
-                {
-                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\87b80cb8d232b459ee1ac59540b034f0\\appcompat-1.1.0\\res\\values-v28\\values-v28.xml",
+                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\5d405cc8cc4bc883e962924495390959\\appcompat-1.0.2\\res\\values-v28\\values-v28.xml",
                     "from": {
                         "startLines": "2,3,4,8",
                         "startColumns": "4,4,4,4",
@@ -22,14 +12,6 @@
                         "endLines": "2,3,7,11",
                         "endColumns": "74,86,12,12",
                         "endOffsets": "125,212,442,684"
-                    },
-                    "to": {
-                        "startLines": "10,11,12,16",
-                        "startColumns": "4,4,4,4",
-                        "startOffsets": "755,830,917,1147",
-                        "endLines": "10,11,15,19",
-                        "endColumns": "74,86,12,12",
-                        "endOffsets": "825,912,1142,1384"
                     }
                 }
             ]
