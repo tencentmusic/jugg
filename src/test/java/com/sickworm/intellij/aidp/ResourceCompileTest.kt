@@ -7,7 +7,7 @@ import java.io.File
 
 class ResourceCompileTest {
 
-    private val resCompiler = ResCompiler(logger)
+    private val resCompiler = ResourceCompiler(logger)
     private val arscCompiler = ArscCompiler(logger)
 
     @Before
@@ -31,7 +31,7 @@ class ResourceCompileTest {
 
     private fun compileRes(files: List<File>, baseDir: File) {
         val task = CompileTask(
-            files.map { CompileFile(it, CompileFile.Type.Res, baseDir) },
+            files.map { CompileFile(it, CompileFile.Type.Resource, baseDir) },
             stagingDir
         )
         val result = resCompiler.compile(task)

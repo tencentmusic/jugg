@@ -14,7 +14,7 @@ class AidpCompiler(project: Project,
     override val supportedTypes: List<CompileFile.Type> = listOf(
         CompileFile.Type.Java,
         CompileFile.Type.Kotlin,
-        CompileFile.Type.Overlay
+        CompileFile.Type.Asset
     )
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
@@ -48,7 +48,7 @@ class AidpCompiler(project: Project,
         val overlayOutputDir = File(task.outputDir, "overlays/assets")
         val overlayCompileTask = task.copy(
             files = task.files.filter {
-                it.type == CompileFile.Type.Overlay
+                it.type == CompileFile.Type.Asset
             },
             outputDir = overlayOutputDir
         )

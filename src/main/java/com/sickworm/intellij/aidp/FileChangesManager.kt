@@ -147,13 +147,13 @@ class FileChangesManager(private val project: Project,
         val baseResourceDir = resourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseResourceDir != null) {
             logger.debug("resource file changed, event $event")
-            return ChangedFile(virtualFile, baseResourceDir.toIoFile(), CompileFile.Type.Res)
+            return ChangedFile(virtualFile, baseResourceDir.toIoFile(), CompileFile.Type.Resource)
         }
 
         val baseAssetDir = assetRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseAssetDir != null) {
             logger.debug("asset file changed, event $event")
-            return ChangedFile(virtualFile, baseAssetDir.toIoFile(), CompileFile.Type.Overlay)
+            return ChangedFile(virtualFile, baseAssetDir.toIoFile(), CompileFile.Type.Asset)
         }
 
         return null

@@ -38,8 +38,8 @@ data class CompileFile(
         Java,
         Kotlin,
         Class,
-        Overlay,
-        Res,
+        Asset,
+        Resource,
         FlatDir;
     }
 }

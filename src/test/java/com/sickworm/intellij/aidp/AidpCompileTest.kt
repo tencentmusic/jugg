@@ -87,11 +87,11 @@ class AidpCompileTest {
                 val outputBaseDir = File(task.outputDir, "classes")
                 val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir, "dex")
                 listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Dex))
-            } else if (it.type == CompileFile.Type.Overlay) {
+            } else if (it.type == CompileFile.Type.Asset) {
                 val outputBaseDir = File(task.outputDir, "overlays/assets")
                 val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir)
                 listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Overlay))
-            } else if (it.type == CompileFile.Type.Res) {
+            } else if (it.type == CompileFile.Type.Resource) {
                TODO()
             } else {
                 throw IllegalStateException("not supported")

@@ -6,7 +6,7 @@ import java.io.File
 import java.util.zip.ZipFile
 
 class AssetCompiler(private val logger: Logger): ICompiler {
-    override val supportedTypes = listOf(CompileFile.Type.Overlay)
+    override val supportedTypes = listOf(CompileFile.Type.Asset)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -38,8 +38,8 @@ class AssetCompiler(private val logger: Logger): ICompiler {
     }
 }
 
-class ResCompiler(private val logger: Logger): ICompiler {
-    override val supportedTypes = listOf(CompileFile.Type.Res)
+class ResourceCompiler(private val logger: Logger): ICompiler {
+    override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
