@@ -54,7 +54,8 @@ data class CompileOutput(
         Class,
         Dex,
         Flat,
-        Overlay;
+        Overlay,
+        Java;
     }
 }
 

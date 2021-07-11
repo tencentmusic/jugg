@@ -40,7 +40,6 @@ class AssetCompiler(private val logger: Logger): ICompiler {
 
 class CachedArscCompiler(
     private val flatDir: File,
-    private val classPathDir: File,
     stableIdsFile: File,
     manifest: File,
     androidJar: File,
@@ -162,7 +161,7 @@ class ArscCompiler(
         val resJar = File(task.outputDir, "res.jar")
         JarFileMaker().jar(inputDir, resJar)
 
-        val apkFile = makeResApk(resJar, task.outputDir)
+        val (apkFile, rJavaFile) = makeResApk(resJar, task.outputDir)
         resJar.delete()
 
         val arscFile = getArsc(apkFile, task.outputDir)
@@ -178,11 +177,14 @@ class ArscCompiler(
         return CompileResult(
             task,
             task.files.map { Result.success(it) },
-            listOf(CompileOutput(arscFile, task.outputDir, CompileOutput.Type.Overlay))
+            listOf(
+                CompileOutput(arscFile, task.outputDir, CompileOutput.Type.Overlay),
+                CompileOutput(rJavaFile, task.outputDir, CompileOutput.Type.Java),
+            )
         )
     }
 
-    private fun makeResApk(resJar: File, outputDir: File): File {
+    private fun makeResApk(resJar: File, outputDir: File): Pair<File, File> {
         val outputApk = "${outputDir.absolutePath}/res.apk"
         val aapt2Cmd = "D:/Android/sdk/build-tools/30.0.3/aapt2.exe"
         val stableIdFileArg = if (stableIds.exists()) {
@@ -192,7 +194,10 @@ class ArscCompiler(
         }
         val newStableIdFile = File("${stableIds.absolutePath}.out")
         val emitIdArg = "--emit-ids ${newStableIdFile.absolutePath}"
-        val command = "$aapt2Cmd link -o $outputApk -I $androidJar $stableIdFileArg $emitIdArg --manifest ${manifest.absolutePath} ${resJar.absolutePath}"
+        val rFileDir = File(outputDir, "rjava")
+        val rFileArg = "--java $rFileDir"
+        val manifestArg = "--manifest ${manifest.absolutePath}"
+        val command = "$aapt2Cmd link -o $outputApk -I $androidJar $stableIdFileArg $emitIdArg $rFileArg $manifestArg ${resJar.absolutePath}"
         println(command)
         val process = Runtime.getRuntime().exec(command)
         process.readOutput(logger)
@@ -203,7 +208,9 @@ class ArscCompiler(
             newStableIdFile.renameTo(stableIds)
         }
 
-        return File(outputApk)
+        val rFiles = rFileDir.listFilesRecursively()
+
+        return File(outputApk) to rFiles[0]
     }
 
     private fun getArsc(apkFile: File, outputDir: File): File? {

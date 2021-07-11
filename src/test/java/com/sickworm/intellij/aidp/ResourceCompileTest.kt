@@ -68,7 +68,6 @@ class ResourceCompileTest {
     fun compileCachedArsc() {
         val arscCompiler = CachedArscCompiler(
             flatDir,
-            classPathDir,
             stableIds,
             manifest,
             androidJar,
@@ -96,11 +95,12 @@ class ResourceCompileTest {
     private fun checkArscResult(task: CompileTask, result: CompileResult) {
         assert(result.details.size == task.files.size)
         assert(result.isAllSuccess)
-        assert(result.outputs.size == 1)
-        assert(result.outputs.first().type == CompileOutput.Type.Overlay)
-        result.outputs.first().file.let {
-            assert(it.exists())
-            assert(it.length() > 0)
+        assert(result.outputs.size == 2)
+        assert(result.outputs[0].type == CompileOutput.Type.Overlay)
+        assert(result.outputs[1].type == CompileOutput.Type.Java)
+        result.outputs.forEach {
+            assert(it.file.exists())
+            assert(it.file.length() > 0)
         }
     }
 }

@@ -33,6 +33,5 @@ class AidpInternalException(msg: String): Exception(msg) {
 
         fun resValuesNotSupported() =
             AidpInternalException("Currently AIDP don't support deploy values/*.xml")
-
     }
 }
