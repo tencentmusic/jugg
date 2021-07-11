@@ -20,28 +20,28 @@ class AidpCompileTest {
     }
 
     @Test
-    fun compileSingleJavaDex() {
+    fun compileSingleJava() {
         val task = JavaCompileTest().helloWorldTask
         val result = aidpCompiler.compile(task)
         assertCompileResultAidp(task, result)
     }
 
     @Test
-    fun compileMultiJavaDex() {
+    fun compileMultiJava() {
         val task = JavaCompileTest().multiFilesTask
         val result = aidpCompiler.compile(task)
         assertCompileResultAidp(task, result)
     }
 
     @Test
-    fun compileMultiJavaWithErrorDex() {
+    fun compileMultiJavaWithError() {
         val task = JavaCompileTest().multiFilesWithErrorTask
         val result = aidpCompiler.compile(task)
         assertCompileResultFailed(task, result, mapOf(JavaCompileTest().errorTask.files[0] to 2))
     }
 
     @Test
-    fun compileMultiAsset() {
+    fun compileMultiAssets() {
         val task = AssetCompileTest().multiFilesTask
         val result = aidpCompiler.compile(task)
         assertCompileResultAidp(task, result)
