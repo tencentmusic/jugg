@@ -100,13 +100,16 @@ class AidpManager(private val project: Project,
         addChanges(changedFiles)
 
         compileThread.submit {
-            compileChanges()
+            try {
+                compileChanges()
+            } catch (e: Exception) {
+                logger.warn("compile changes failed", e)
+            }
 
             if (AidpSettings.deployOnSave) {
                 deployAsync()
             }
         }
-
     }
 
     private fun addChanges(changedFiles: List<ChangedFile>) {

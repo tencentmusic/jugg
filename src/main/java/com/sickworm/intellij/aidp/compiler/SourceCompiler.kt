@@ -156,10 +156,7 @@ class KotlinCompiler: ICompiler {
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
-
-        if (!task.outputDir.listFiles().isNullOrEmpty()) {
-            throw AidpInternalException.compileOutputDirNotEmpty()
-        }
+        checkOutputDirIsEmpty(task)
 
         val javaCmd = "D:\\Java\\jdk1.8.0_77\\bin\\java.exe"
         val preloader = "D:\\JETBRA~1\\INTELL~1.2\\plugins\\Kotlin\\kotlinc\\bin\\..\\lib\\kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"

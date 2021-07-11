@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -30,11 +31,9 @@ class FileChangesManager(private val project: Project,
 
     private var listener: FileChangesListener? = null
 
-    private var sourceRoots: List<File> = emptyList()
-    private var resourceRoots: List<File> = emptyList()
-    private var assetRoots: List<File> = emptyList()
-
-    private val sourceExtensions = listOf("java", "kt")
+    private var sourceRoots: List<VirtualFile> = emptyList()
+    private var resourceRoots: List<VirtualFile> = emptyList()
+    private var assetRoots: List<VirtualFile> = emptyList()
 
     fun startListen(listener: FileChangesListener) {
         logger.info("start listen project $projectDir")
@@ -44,11 +43,11 @@ class FileChangesManager(private val project: Project,
         logger.debug("""
             |start listen.
             |    source roots:
-            |        ${sourceRoots.map { it.relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |        ${sourceRoots.map { File(it.path).relativeTo(File(projectDir)) }.joinToString("\n        ")}
             |    resource roots:
-            |        ${resourceRoots.map { it.relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |        ${resourceRoots.map { File(it.path).relativeTo(File(projectDir)) }.joinToString("\n        ")}
             |    asset roots:
-            |        ${assetRoots.map { it.relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |        ${assetRoots.map { File(it.path).relativeTo(File(projectDir)) }.joinToString("\n        ")}
             |""".trimMargin())
 
         listenFileChanges()
@@ -56,24 +55,24 @@ class FileChangesManager(private val project: Project,
     }
 
     private fun initFileRoots() {
-        val sourceRoots = mutableListOf<File>()
-        val resourceRoots = mutableListOf<File>()
-        val assetRoots = mutableListOf<File>()
+        val sourceRoots = mutableListOf<VirtualFile>()
+        val resourceRoots = mutableListOf<VirtualFile>()
+        val assetRoots = mutableListOf<VirtualFile>()
 
         // TODO GradleBuildModel.get(ModuleManager.getInstance(project).modules[1]).android().sourceSets()
         ModuleManager.getInstance(project).modules.forEach { module ->
             val moduleManager = ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
                 setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType))
-            sourceRoots.addAll(subSourceRoots.map { File(it.path) })
+            sourceRoots.addAll(subSourceRoots)
 
             val subResourceRoots = moduleManager.getSourceRoots(
                 setOf(JavaResourceRootType.RESOURCE, ResourceKotlinRootType))
             subResourceRoots.forEach {
                 if (it.name == "res") {
-                    resourceRoots.add(File(it.path))
+                    resourceRoots.add(it)
                 } else if (it.name == "assets") {
-                    assetRoots.add(File(it.path))
+                    assetRoots.add(it)
                 }
             }
         }
@@ -107,10 +106,11 @@ class FileChangesManager(private val project: Project,
      * filter events
      */
     private fun filterDeployFile(event: VFileEvent?): ChangedFile? {
-//        logger.debug("file event ${event::class.java.name} $event")
         if (event == null) {
             return null
         }
+
+        logger.debug("file event ${event::class.java.name} $event")
         if (event is VFileDeleteEvent || event is VFilePropertyChangeEvent) {
             return null
         }
@@ -132,19 +132,28 @@ class FileChangesManager(private val project: Project,
 
         val baseSourceDir = sourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseSourceDir != null) {
-            // extension not match
-            if (!sourceExtensions.contains(virtualFile.extension)) {
-                logger.debug("file event $event, extension ignore, don't need deploy")
-                return null
-            }
             logger.debug("source file changed, event $event")
-            return ChangedFile(virtualFile, baseSourceDir)
+            val type = when (virtualFile.extension) {
+                "java" -> CompileFile.Type.Java
+                "kt" -> CompileFile.Type.Kotlin
+                else -> {
+                    logger.debug("file event $event, extension ignore, don't need deploy")
+                    return null
+                }
+            }
+            return ChangedFile(virtualFile, baseSourceDir.toIoFile(), type)
         }
 
         val baseResourceDir = resourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseResourceDir != null) {
             logger.debug("resource file changed, event $event")
-            return ChangedFile(virtualFile, baseResourceDir)
+            return ChangedFile(virtualFile, baseResourceDir.toIoFile(), CompileFile.Type.Res)
+        }
+
+        val baseAssetDir = assetRoots.find { virtualFile.path.startsWith(it.path) }
+        if (baseAssetDir != null) {
+            logger.debug("asset file changed, event $event")
+            return ChangedFile(virtualFile, baseAssetDir.toIoFile(), CompileFile.Type.Overlay)
         }
 
         return null
@@ -158,5 +167,5 @@ interface FileChangesListener {
 data class ChangedFile(
     val file: VirtualFile,
     val baseDir: File,
-    val type: CompileFile.Type = CompileFile.getTypeByExtension(file.name)
+    val type: CompileFile.Type
 )

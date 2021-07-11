@@ -34,16 +34,6 @@ data class CompileFile(
         return "$type:${file.name}"
     }
 
-    companion object {
-        fun getTypeByExtension(fileName: String): Type {
-            return when {
-                fileName.endsWith(".java") -> Type.Java
-                fileName.endsWith(".kt") -> Type.Kotlin
-                else -> Type.Overlay
-            }
-        }
-    }
-
     enum class Type {
         Java,
         Kotlin,
@@ -113,9 +103,8 @@ interface ICompiler {
     }
 
     fun checkOutputDirIsEmpty(task: CompileTask) {
-        val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
-        if (invalidFiles.isNotEmpty()) {
-            throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
+        if (!task.outputDir.listFiles().isNullOrEmpty()) {
+            throw AidpInternalException.compileOutputDirNotEmpty()
         }
     }
 }

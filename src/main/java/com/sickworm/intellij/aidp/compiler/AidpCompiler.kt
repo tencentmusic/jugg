@@ -26,6 +26,7 @@ class AidpCompiler(project: Project,
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
 
+        logger.info("compile start")
         val startTime = System.currentTimeMillis()
 
         // compile
