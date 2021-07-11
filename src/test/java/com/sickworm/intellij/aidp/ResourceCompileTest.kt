@@ -9,7 +9,7 @@ class ResourceCompileTest {
 
     private val flatDir = tempCompileDir
 
-    private val stableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
+    private val stableIds = File("src/test/build/stableIds.txt").absoluteFile
     private val manifest = File("src/test/assets/android/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
 
     @Before
@@ -17,6 +17,9 @@ class ResourceCompileTest {
         clearBuild()
         val sourceFlatDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
         sourceFlatDir.copyRecursively(flatDir)
+
+        val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
+        sourceStableIds.copyTo(stableIds)
     }
 
     @Test
