@@ -169,7 +169,8 @@ class KotlinCompiler: ICompiler {
         val pr = Runtime.getRuntime().exec(command)
         pr.waitFor()
 
-        val outputs = task.outputDir.listFilesRecursively().map {
+        val outputs = task.outputDir.listFilesRecursively().mapNotNull {
+            if (it.extension == "kotlin_module") return@mapNotNull null
             CompileOutput(it, task.outputDir, CompileOutput.Type.Class)
         }
         return CompileResult(task, listOf(Result.success(task.files[0])), outputs)

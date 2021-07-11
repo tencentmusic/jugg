@@ -25,9 +25,11 @@ fun File.clearDir() {
     }
 }
 
-fun File.changeBaseDir(curBaseDir: File, newBaseDir: File, newExtension: String? = null): File {
+fun File.changeBaseDir(curBaseDir: File, newBaseDir: File, newExtension: String? = null, newName: String? = null): File {
     var relativePath = relativeTo(curBaseDir).path
-    if (newExtension != null) {
+    if (newName != null) {
+        relativePath = relativePath.substring(0, relativePath.length - name.length) + newName
+    } else if (newExtension != null) {
        relativePath = relativePath.substring(0, relativePath.length - extension.length) + newExtension
     }
     return File(newBaseDir, relativePath)

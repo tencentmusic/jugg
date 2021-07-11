@@ -25,17 +25,18 @@ class KotlinCompileTest {
     fun kotlinCompile() {
         val task = resultTask
         val result = kotlinCompiler.compile(task)
-        assertCompileResultKotlin(task, result, outputSize = 3)
+        assertCompileResultKotlin(task, result)
     }
 
-    private fun assertCompileResultKotlin(task: CompileTask,
-                                        result: CompileResult,
-                                        outputSize: Int = task.files.size) {
-        val outputType = CompileOutput.Type.Class
+    private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
-            listOf(outputFile)
+            val companionFile = it.file.changeBaseDir(it.baseDir, task.outputDir, newName = "${it.file.nameWithoutExtension}\$Companion.class")
+            listOf(
+                CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Class),
+                CompileOutput(companionFile, task.outputDir, CompileOutput.Type.Class)
+            )
         }
-        assertCompileResult(task, result, outputType, mapper, outputSize)
+        assertCompileResult(task, result, mapper)
     }
 }

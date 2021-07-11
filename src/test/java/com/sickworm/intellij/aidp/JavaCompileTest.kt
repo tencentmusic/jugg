@@ -99,14 +99,11 @@ class JavaCompileTest {
         assertCompileResultFailed(task, result, mapOf(errorTask.files[0] to 2))
     }
 
-    private fun assertCompileResultJava(task: CompileTask,
-                                result: CompileResult,
-                                outputSize: Int = task.files.size) {
-        val outputType = CompileOutput.Type.Class
+    private fun assertCompileResultJava(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
-            listOf(outputFile)
+            listOf(CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Class))
         }
-        assertCompileResult(task, result, outputType, mapper, outputSize)
+        assertCompileResult(task, result, mapper)
     }
 }

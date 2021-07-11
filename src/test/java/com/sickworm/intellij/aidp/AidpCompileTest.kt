@@ -6,6 +6,7 @@ import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.lang.IllegalStateException
 
 class AidpCompileTest {
 
@@ -47,14 +48,22 @@ class AidpCompileTest {
         // TODO
     }
 
-    private fun assertCompileResultAidp(task: CompileTask,
-                                          result: CompileResult,
-                                          outputSize: Int = task.files.size) {
-        val outputType = CompileOutput.Type.Dex
+    private fun assertCompileResultAidp(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
-            val outputFile = it.file.changeBaseDir(it.baseDir, File(task.outputDir, "classes"), "dex")
-            listOf(outputFile)
+            if (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin) {
+                val outputBaseDir = File(task.outputDir, "classes")
+                val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir, "dex")
+                listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Dex))
+            } else if (it.type == CompileFile.Type.Overlay) {
+                val outputBaseDir = File(task.outputDir, "overlays/assets")
+                val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir)
+                listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Overlay))
+            } else if (it.type == CompileFile.Type.Res) {
+               TODO()
+            } else {
+                throw IllegalStateException("not supported")
+            }
         }
-        assertCompileResult(task, result, outputType, mapper, outputSize)
+        assertCompileResult(task, result, mapper)
     }
 }
