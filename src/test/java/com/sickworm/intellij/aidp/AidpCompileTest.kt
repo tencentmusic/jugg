@@ -19,33 +19,31 @@ class AidpCompileTest {
         clearBuild()
     }
 
-    private val singleJavaSourceTask = JavaCompileTest().helloWorldTask
     @Test
     fun compileSingleJavaDex() {
-        val result = aidpCompiler.compile(singleJavaSourceTask)
-        assertCompileResultAidp(singleJavaSourceTask, result)
+        val task = JavaCompileTest().helloWorldTask
+        val result = aidpCompiler.compile(task)
+        assertCompileResultAidp(task, result)
     }
 
-    private val multiJavaSourcesTask = JavaCompileTest().multiFilesTask
     @Test
     fun compileMultiJavaDex() {
-        val result = aidpCompiler.compile(multiJavaSourcesTask)
-        assert(result.details.size == multiJavaSourcesTask.files.size)
-        assertCompileResultAidp(multiJavaSourcesTask, result)
+        val task = JavaCompileTest().multiFilesTask
+        val result = aidpCompiler.compile(task)
+        assertCompileResultAidp(task, result)
     }
 
-    private val multiJavaSourcesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask
     @Test
     fun compileMultiJavaWithErrorDex() {
-        val result = aidpCompiler.compile(multiJavaSourcesWithErrorTask)
-        assertCompileResultFailed(multiJavaSourcesWithErrorTask, result, mapOf(JavaCompileTest().errorTask.files[0] to 2))
+        val task = JavaCompileTest().multiFilesWithErrorTask
+        val result = aidpCompiler.compile(task)
+        assertCompileResultFailed(task, result, mapOf(JavaCompileTest().errorTask.files[0] to 2))
     }
 
-    private val multiAssetsTask = AssetCompileTest().multiFilesTask
     @Test
     fun compileMultiAsset() {
-        val result = aidpCompiler.compile(multiAssetsTask)
-        // TODO
+        val task = AssetCompileTest().multiFilesTask
+        val result = aidpCompiler.compile(task)
     }
 
     private fun assertCompileResultAidp(task: CompileTask, result: CompileResult) {
