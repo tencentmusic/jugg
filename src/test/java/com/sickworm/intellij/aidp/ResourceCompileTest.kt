@@ -7,12 +7,13 @@ import java.io.File
 
 class ResourceCompileTest {
 
-    private val resCompiler = ResourceCompiler(logger)
-    private val arscCompiler = ArscCompiler(logger)
+    private val flatDir = tempCompileDir
 
     @Before
     fun init() {
         clearBuild()
+        val sourceFlatDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
+        sourceFlatDir.copyRecursively(flatDir)
     }
 
     @Test
@@ -30,6 +31,7 @@ class ResourceCompileTest {
     }
 
     private fun compileRes(files: List<File>, baseDir: File) {
+        val resCompiler = ResourceCompiler(logger)
         val task = CompileTask(
             files.map { CompileFile(it, CompileFile.Type.Resource, baseDir) },
             stagingDir
@@ -47,13 +49,43 @@ class ResourceCompileTest {
 
     @Test
     fun compileArsc() {
-        val resDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
+        val arscCompiler = ArscCompiler(logger)
         val task = CompileTask(
-            listOf(CompileFile(resDir, CompileFile.Type.FlatDir, resDir)),
+            listOf(CompileFile(flatDir, CompileFile.Type.FlatDir, flatDir)),
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        assert(result.details.size == 1)
+        checkArscResult(task, result)
+    }
+
+    @Test
+    fun compileCachedArsc() {
+        val arscCompiler = CachedArscCompiler(
+            flatDir,
+            classPathDir,
+            logger
+        )
+
+        val file1 = File(assetsAndroidDir, "src/main/res/layout/activity_main.xml")
+        val file2 = File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml")
+        val file3 = File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml")
+        val file4 = File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml")
+        val baseDir = File(assetsAndroidDir, "src/main/res/")
+        val task = CompileTask(
+            listOf(
+                CompileFile(file1, CompileFile.Type.Resource, baseDir),
+                CompileFile(file2, CompileFile.Type.Resource, baseDir),
+                CompileFile(file3, CompileFile.Type.Resource, baseDir),
+                CompileFile(file4, CompileFile.Type.Resource, baseDir),
+            ),
+            stagingDir
+        )
+        val result = arscCompiler.compile(task)
+        checkArscResult(task, result)
+    }
+
+    private fun checkArscResult(task: CompileTask, result: CompileResult) {
+        assert(result.details.size == task.files.size)
         assert(result.isAllSuccess)
         assert(result.outputs.size == 1)
         assert(result.outputs.first().type == CompileOutput.Type.Overlay)

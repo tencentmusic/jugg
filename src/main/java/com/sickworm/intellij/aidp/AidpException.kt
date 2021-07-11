@@ -31,5 +31,8 @@ class AidpInternalException(msg: String): Exception(msg) {
         fun arscCompileFileNotDirectory() =
             AidpInternalException("Arsc compile only supports one single directory that contains .flat")
 
+        fun resValuesNotSupported() =
+            AidpInternalException("Currently AIDP don't support deploy values/*.xml")
+
     }
 }

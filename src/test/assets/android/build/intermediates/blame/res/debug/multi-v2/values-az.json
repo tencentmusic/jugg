@@ -1,10 +1,27 @@
 {
     "logs": [
         {
-            "outputFile": "F:\\StudioProjects\\MyApplicationIntellij\\app\\build\\intermediates\\incremental\\mergeDebugResources\\merged.dir\\values-az\\values-az.xml",
+            "outputFile": "F:\\StudioProjects\\MyApplication\\app\\build\\intermediates\\incremental\\mergeDebugResources\\merged.dir\\values-az\\values-az.xml",
             "map": [
                 {
-                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\9cf151e77241b8ad92df03ccc19a67c7\\core-1.0.2\\res\\values-az\\values-az.xml",
+                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\7590172001d885e24b2f09c42544bdfc\\navigation-ui-2.2.2\\res\\values-az\\values-az.xml",
+                    "from": {
+                        "startLines": "2,3",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,162",
+                        "endColumns": "106,118",
+                        "endOffsets": "157,276"
+                    },
+                    "to": {
+                        "startLines": "29,30",
+                        "startColumns": "4,4",
+                        "startOffsets": "2813,2920",
+                        "endColumns": "106,118",
+                        "endOffsets": "2915,3034"
+                    }
+                },
+                {
+                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\4038a5677dc2b9e6fa628db0ce37e1a5\\core-1.2.0\\res\\values-az\\values-az.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",
@@ -13,21 +30,28 @@
                         "endOffsets": "151"
                     },
                     "to": {
-                        "startLines": "30",
+                        "startLines": "32",
                         "startColumns": "4",
-                        "startOffsets": "2903",
+                        "startOffsets": "3122",
                         "endColumns": "100",
-                        "endOffsets": "2999"
+                        "endOffsets": "3218"
                     }
                 },
                 {
-                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\5d405cc8cc4bc883e962924495390959\\appcompat-1.0.2\\res\\values-az\\values-az.xml",
+                    "source": "D:\\Android\\.gradle\\caches\\transforms-2\\files-2.1\\87b80cb8d232b459ee1ac59540b034f0\\appcompat-1.1.0\\res\\values-az\\values-az.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "105,213,312,424,512,619,733,814,893,984,1077,1172,1271,1372,1465,1560,1655,1746,1838,1923,2030,2137,2237,2346,2450,2560,2718,2820",
-                        "endColumns": "107,98,111,87,106,113,80,78,90,92,94,98,100,92,94,94,90,91,84,106,106,99,108,103,109,157,101,82",
-                        "endOffsets": "208,307,419,507,614,728,809,888,979,1072,1167,1266,1367,1460,1555,1650,1741,1833,1918,2025,2132,2232,2341,2445,2555,2713,2815,2898"
+                        "startOffsets": "105,215,316,426,514,621,735,817,896,987,1079,1173,1272,1373,1466,1561,1655,1746,1838,1922,2027,2133,2233,2342,2447,2549,2707,2813",
+                        "endColumns": "109,100,109,87,106,113,81,78,90,91,93,98,100,92,94,93,90,91,83,104,105,99,108,104,101,157,105,82",
+                        "endOffsets": "210,311,421,509,616,730,812,891,982,1074,1168,1267,1368,1461,1556,1650,1741,1833,1917,2022,2128,2228,2337,2442,2544,2702,2808,2891"
+                    },
+                    "to": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,31",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "105,215,316,426,514,621,735,817,896,987,1079,1173,1272,1373,1466,1561,1655,1746,1838,1922,2027,2133,2233,2342,2447,2549,2707,3039",
+                        "endColumns": "109,100,109,87,106,113,81,78,90,91,93,98,100,92,94,93,90,91,83,104,105,99,108,104,101,157,105,82",
+                        "endOffsets": "210,311,421,509,616,730,812,891,982,1074,1168,1267,1368,1461,1556,1650,1741,1833,1917,2022,2128,2228,2337,2442,2544,2702,2808,3117"
                     }
                 }
             ]

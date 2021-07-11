@@ -38,6 +38,58 @@ class AssetCompiler(private val logger: Logger): ICompiler {
     }
 }
 
+class CachedArscCompiler(
+    private val flatDir: File,
+    private val classPathDir: File,
+    private val logger: Logger,
+): ICompiler {
+
+    override val supportedTypes = listOf(CompileFile.Type.Resource)
+
+    private val resourceCompiler = ResourceCompiler(logger)
+
+    private val arscCompiler = ArscCompiler(logger)
+
+    override fun compile(task: CompileTask): CompileResult {
+        checkCanCompile(task)
+
+        if (task.files.any { it.file.parent.endsWith("values") }) {
+            throw AidpInternalException.resValuesNotSupported()
+        }
+
+        // compile to .flat
+        val resourceTask = CompileTask(
+            task.files,
+            flatDir
+        )
+        val resourceResult = resourceCompiler.compile(resourceTask)
+        if (!resourceResult.isAllSuccess) {
+            return CompileResult(task, resourceResult.details, emptyList())
+        }
+
+        // build .arsc
+        val arscTask = CompileTask(
+            listOf(CompileFile(flatDir, CompileFile.Type.FlatDir, flatDir)),
+            task.outputDir
+        )
+        val arscResult = arscCompiler.compile(arscTask)
+        if (!resourceResult.isAllSuccess) {
+            return CompileResult(
+                task,
+                task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "aapt2 linked failed")))
+                },
+                emptyList())
+        }
+
+        return CompileResult(
+            task,
+            resourceResult.details,
+            arscResult.outputs
+        )
+    }
+}
+
 class ResourceCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
