@@ -23,7 +23,8 @@ class AidpManager(private val project: Project,
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
 
-    private val operaThread = Executors.newSingleThreadExecutor()
+    private val compileThread = Executors.newSingleThreadExecutor()
+    private val deployThread = Executors.newSingleThreadExecutor()
 
     // detect file changes
     private val fileChangesManager = FileChangesManager(project, projectDir)
@@ -50,7 +51,7 @@ class AidpManager(private val project: Project,
     fun start() {
         logger.info("start AIDP")
 
-        operaThread.submit {
+        compileThread.submit {
             try {
                 initDependency()
             } catch (e: Exception) {
@@ -59,9 +60,7 @@ class AidpManager(private val project: Project,
 
             fileChangesManager.startListen(object: FileChangesListener {
                 override fun onFileChanges(changedFiles: List<ChangedFile>) {
-                    operaThread.submit {
-                        processFileChanged(changedFiles)
-                    }
+                    processFileChanged(changedFiles)
                 }
             })
         }
@@ -98,11 +97,25 @@ class AidpManager(private val project: Project,
     }
 
     private fun processFileChanged(changedFiles: List<ChangedFile>) {
-        // store source files
+        addChanges(changedFiles)
+
+        compileThread.submit {
+            compileChanges()
+
+            if (AidpSettings.deployOnSave) {
+                deployAsync()
+            }
+        }
+
+    }
+
+    private fun addChanges(changedFiles: List<ChangedFile>) {
         changedFiles.forEach {
             deployDataManager.addChangedFile(it)
         }
+    }
 
+    private fun compileChanges() {
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
             CompileFile(VfsUtil.virtualToIoFile(it.file), it.type, it.baseDir, dependencyPaths = dependencies)
@@ -122,14 +135,10 @@ class AidpManager(private val project: Project,
         result.outputs.forEach {
             deployDataManager.addDeployFile(it)
         }
-
-        if (AidpSettings.deployOnSave) {
-            deployAsync()
-        }
     }
 
     fun deployAsync() {
-        operaThread.submit(::deploy)
+        deployThread.submit(::deploy)
     }
 
     private fun deploy() {
