@@ -47,6 +47,35 @@ class AidpCompileTest {
         assertCompileResultAidp(task, result)
     }
 
+    @Test
+    fun compileMultiJavaAndAsset() {
+        val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask
+        val result = aidpCompiler.compile(task)
+        assertCompileResultAidp(task, result)
+    }
+
+    @Test
+    fun compileMultiJavaErrorAndAsset() {
+        val sourceTask = JavaCompileTest().multiFilesWithErrorTask
+        val assetTask = AssetCompileTest().multiFilesTask
+        val task = sourceTask + assetTask
+        val result = aidpCompiler.compile(task)
+
+        val sourceResult = CompileResult(
+            sourceTask,
+            result.details.filter { sourceTask.files.contains(it.file) },
+            emptyList()
+        )
+        assertCompileResultFailed(sourceTask, sourceResult, mapOf(JavaCompileTest().errorTask.files[0] to 2))
+
+        val assetResult = CompileResult(
+            assetTask,
+            result.details.filter { assetTask.files.contains(it.file) },
+            result.outputs
+        )
+        assertCompileResultAidp(assetTask, assetResult)
+    }
+
     private fun assertCompileResultAidp(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             if (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin) {
