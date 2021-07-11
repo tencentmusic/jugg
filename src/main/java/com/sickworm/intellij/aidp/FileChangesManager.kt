@@ -30,8 +30,9 @@ class FileChangesManager(private val project: Project,
 
     private var listener: FileChangesListener? = null
 
-    private var sourceRoots: List<String> = emptyList()
-    private var resourceRoots: List<String> = emptyList()
+    private var sourceRoots: List<File> = emptyList()
+    private var resourceRoots: List<File> = emptyList()
+    private var assetRoots: List<File> = emptyList()
 
     private val sourceExtensions = listOf("java", "kt")
 
@@ -40,30 +41,46 @@ class FileChangesManager(private val project: Project,
         this.listener = listener
 
         initFileRoots()
-        logger.debug("start listen source roots: $sourceRoots,\nresource roots: $resourceRoots\n")
+        logger.debug("""
+            |start listen.
+            |    source roots:
+            |        ${sourceRoots.map { it.relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |    resource roots:
+            |        ${resourceRoots.map { it.relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |    asset roots:
+            |        ${assetRoots.map { it.relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |""".trimMargin())
 
         listenFileChanges()
         Disposer.register(project, this)
     }
 
     private fun initFileRoots() {
-        val sourceRoots = mutableListOf<String>()
-        val resourceRoots = mutableListOf<String>()
+        val sourceRoots = mutableListOf<File>()
+        val resourceRoots = mutableListOf<File>()
+        val assetRoots = mutableListOf<File>()
 
         // TODO GradleBuildModel.get(ModuleManager.getInstance(project).modules[1]).android().sourceSets()
         ModuleManager.getInstance(project).modules.forEach { module ->
             val moduleManager = ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
                 setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType))
-            sourceRoots.addAll(subSourceRoots.map { it.path })
+            sourceRoots.addAll(subSourceRoots.map { File(it.path) })
 
             val subResourceRoots = moduleManager.getSourceRoots(
                 setOf(JavaResourceRootType.RESOURCE, ResourceKotlinRootType))
-            resourceRoots.addAll(subResourceRoots.map { it.path })
+            subResourceRoots.forEach {
+                if (it.name == "res") {
+                    resourceRoots.add(File(it.path))
+                } else if (it.name == "assets") {
+                    assetRoots.add(File(it.path))
+                }
+            }
         }
 
         this.sourceRoots = sourceRoots
         this.resourceRoots = resourceRoots
+        this.assetRoots = assetRoots
     }
 
     override fun dispose() {
@@ -113,7 +130,7 @@ class FileChangesManager(private val project: Project,
             return null
         }
 
-        val baseSourceDir = sourceRoots.find { virtualFile.path.startsWith(it) }
+        val baseSourceDir = sourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseSourceDir != null) {
             // extension not match
             if (!sourceExtensions.contains(virtualFile.extension)) {
@@ -121,13 +138,13 @@ class FileChangesManager(private val project: Project,
                 return null
             }
             logger.debug("source file changed, event $event")
-            return ChangedFile(virtualFile, File(baseSourceDir))
+            return ChangedFile(virtualFile, baseSourceDir)
         }
 
-        val baseResourceDir = resourceRoots.find { virtualFile.path.startsWith(it) }
+        val baseResourceDir = resourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseResourceDir != null) {
             logger.debug("resource file changed, event $event")
-            return ChangedFile(virtualFile, File(baseResourceDir))
+            return ChangedFile(virtualFile, baseResourceDir)
         }
 
         return null

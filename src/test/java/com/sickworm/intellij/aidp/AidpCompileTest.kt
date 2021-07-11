@@ -48,6 +48,11 @@ class AidpCompileTest {
     }
 
     @Test
+    fun compileRes() {
+
+    }
+
+    @Test
     fun compileMultiJavaAndAsset() {
         val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask
         val result = aidpCompiler.compile(task)
