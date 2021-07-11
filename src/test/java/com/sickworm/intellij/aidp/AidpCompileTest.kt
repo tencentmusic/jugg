@@ -5,7 +5,6 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
 class AidpCompileTest {
 
@@ -18,10 +17,10 @@ class AidpCompileTest {
         clearBuild()
     }
 
-    private val compileSingleJavaDexTask = JavaCompileTest().helloWorldTask.copy(outputDir = stagingDir)
+    private val singleJavaSourceTask = JavaCompileTest().helloWorldTask.copy(outputDir = stagingDir)
     @Test
     fun compileSingleJavaDex() {
-        val result = aidpCompiler.compile(compileSingleJavaDexTask)
+        val result = aidpCompiler.compile(singleJavaSourceTask)
         assert(result.details.size == 1)
         assertCompileResult(assetsJavaDir, result.details.first(), true)
         assert(result.outputs.size == 1)
@@ -32,11 +31,11 @@ class AidpCompileTest {
         }
     }
 
-    private val multiFilesTask = JavaCompileTest().multiFilesTask.copy(outputDir = stagingDir)
+    private val multiJavaSourcesTask = JavaCompileTest().multiFilesTask.copy(outputDir = stagingDir)
     @Test
     fun compileMultiJavaDex() {
-        val result = aidpCompiler.compile(multiFilesTask)
-        assert(result.details.size == multiFilesTask.files.size)
+        val result = aidpCompiler.compile(multiJavaSourcesTask)
+        assert(result.details.size == multiJavaSourcesTask.files.size)
         result.details.forEach {
             assertCompileResult(assetsJavaDir, it, true)
         }
@@ -46,11 +45,11 @@ class AidpCompileTest {
         }
     }
 
-    private val multiFilesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask.copy(outputDir = stagingDir)
+    private val multiJavaSourcesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask.copy(outputDir = stagingDir)
     @Test
     fun compileMultiJavaWithErrorDex() {
-        val result = aidpCompiler.compile(multiFilesWithErrorTask)
-        assert(result.details.size == multiFilesWithErrorTask.files.size)
+        val result = aidpCompiler.compile(multiJavaSourcesWithErrorTask)
+        assert(result.details.size == multiJavaSourcesWithErrorTask.files.size)
         result.details.forEach {
             if (it.file.file.name == "ErrorJavaFile.java") {
                 assertCompileResult(assetsJavaDir, it, false, 2)
@@ -62,6 +61,6 @@ class AidpCompileTest {
     }
 
     @Test
-    fun compileOverlay() {
+    fun compileMultiAsset() {
     }
 }
