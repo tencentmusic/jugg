@@ -6,6 +6,8 @@ import java.io.File
 
 class DexTest {
 
+    private val javaCompileTest = JavaCompileTest()
+
     @Before
     fun init() {
         clearBuild()
@@ -13,23 +15,23 @@ class DexTest {
 
     @Test
     fun dexer() {
-        JavaCompileTest().javaCompile()
-        val buildDir = classPathDir
-        val dexFile = File("src/test/build/dex/out.dex")
-        DexFileMaker().dex(buildDir, dexFile)
-        assert(dexFile.exists() && dexFile.length() > 0)
+        javaCompileTest.javaCompile()
+        dexAndCheck()
     }
 
     @Test
     fun dexMultipleFiles() {
         JavaCompileTest().javaCompileMultiFiles()
-        val classesFiles = classPathDir.listFilesRecursively()
-        val buildDir = classPathDir
+        dexAndCheck()
+    }
+
+    private fun dexAndCheck() {
+        val classesFiles = stagingDir.listFilesRecursively()
 
         // ART TI requires one .dex file only contains one .class file
         classesFiles.forEach { classFile ->
-            val dexFile = classFile.changeBaseDir(classPathDir, stagingDir, "dex")
-            DexFileMaker().dex(buildDir, dexFile, classFile)
+            val dexFile = classFile.changeBaseDir(stagingDir, stagingDir, "dex")
+            DexFileMaker().dex(stagingDir, dexFile, classFile)
             assert(dexFile.exists() && dexFile.length() > 0)
         }
     }

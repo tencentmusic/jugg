@@ -5,6 +5,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 
 class AidpCompileTest {
 
@@ -17,50 +18,32 @@ class AidpCompileTest {
         clearBuild()
     }
 
-    private val singleJavaSourceTask = JavaCompileTest().helloWorldTask.copy(outputDir = stagingDir)
+    private val singleJavaSourceTask = JavaCompileTest().helloWorldTask
     @Test
     fun compileSingleJavaDex() {
         val result = aidpCompiler.compile(singleJavaSourceTask)
-        assert(result.details.size == 1)
-        assertCompileResult(assetsJavaDir, result.details.first(), true)
-        assert(result.outputs.size == 1)
-
-        result.outputs.forEach {
-            assert(it.type == CompileOutput.Type.Dex)
-            assert(it.file.exists() && it.file.length() > 0)
-        }
+        assertCompileResult(singleJavaSourceTask, result, CompileOutput.Type.Dex)
     }
 
-    private val multiJavaSourcesTask = JavaCompileTest().multiFilesTask.copy(outputDir = stagingDir)
+    private val multiJavaSourcesTask = JavaCompileTest().multiFilesTask
     @Test
     fun compileMultiJavaDex() {
         val result = aidpCompiler.compile(multiJavaSourcesTask)
         assert(result.details.size == multiJavaSourcesTask.files.size)
-        result.details.forEach {
-            assertCompileResult(assetsJavaDir, it, true)
-        }
-        result.outputs.forEach {
-            assert(it.type == CompileOutput.Type.Dex)
-            assert(it.file.exists() && it.file.length() > 0)
-        }
+        assertCompileResult(multiJavaSourcesTask, result, CompileOutput.Type.Dex)
     }
 
-    private val multiJavaSourcesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask.copy(outputDir = stagingDir)
+    private val multiJavaSourcesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask
     @Test
     fun compileMultiJavaWithErrorDex() {
         val result = aidpCompiler.compile(multiJavaSourcesWithErrorTask)
-        assert(result.details.size == multiJavaSourcesWithErrorTask.files.size)
-        result.details.forEach {
-            if (it.file.file.name == "ErrorJavaFile.java") {
-                assertCompileResult(assetsJavaDir, it, false, 2)
-            } else {
-                assertCompileResult(assetsJavaDir, it, false, 0)
-            }
-        }
-        assert(result.outputs.isEmpty())
+        assertCompileResultFailed(multiJavaSourcesWithErrorTask, result, mapOf(JavaCompileTest().errorTask.files[0] to 2))
     }
 
+    private val multiAssetsTask = AssetsCompileTest().multiFilesTask
     @Test
     fun compileMultiAsset() {
+        val result = aidpCompiler.compile(multiAssetsTask)
+        AssetsCompileTest().checkError(multiAssetsTask, result, outputDir = File(stagingDir, "overlays/assets"))
     }
 }

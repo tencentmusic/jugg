@@ -53,14 +53,13 @@ class SourceCompiler(
         }
 
         // dex .class
-        val dexOutputDir = File(task.outputDir, "classes")
         val classFiles = compileResult.outputs.filter {
             it.type == CompileOutput.Type.Class
         }
         val compileClassFiles = classFiles.map {
             CompileFile(it.file, CompileFile.Type.Class, it.baseDir, emptyList())
         }
-        val dexTask = CompileTask(compileClassFiles, dexOutputDir)
+        val dexTask = CompileTask(compileClassFiles, task.outputDir)
         val dexResult = dexCompiler.compile(dexTask)
         if (!dexResult.isAllSuccess) {
             // TODO handle successfully compiled files
@@ -171,7 +170,7 @@ class KotlinCompiler: ICompiler {
         pr.waitFor()
 
         val outputs = task.outputDir.listFilesRecursively().map {
-            CompileOutput(it, task.outputDir, CompileOutput.Type.Dex)
+            CompileOutput(it, task.outputDir, CompileOutput.Type.Class)
         }
         return CompileResult(task, listOf(Result.success(task.files[0])), outputs)
     }

@@ -1,14 +1,9 @@
 package com.sickworm.intellij.aidp
 
-import com.sickworm.intellij.aidp.compiler.CompileFile
-import com.sickworm.intellij.aidp.compiler.CompileTask
-import com.sickworm.intellij.aidp.compiler.JavaCompiler
-import com.sickworm.intellij.aidp.compiler.file
+import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
-import java.lang.IllegalStateException
-
 
 class JavaCompileTest {
 
@@ -19,24 +14,25 @@ class JavaCompileTest {
         clearBuild()
     }
 
-    val helloWorldTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java"), classPathDir)
+    val helloWorldTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/HelloWorldJavaFile.java"), stagingDir)
     @Test
     fun javaCompile() {
-        val result = javaCompiler.compile(helloWorldTask)
+        val task = helloWorldTask
+        val result = javaCompiler.compile(task)
         assert(result.details.size == 1)
-        assertCompileResult(assetsJavaDir, result.details.first(), true)
+        assertCompileResult(task, result, CompileOutput.Type.Class)
     }
 
-    val errorTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/ErrorJavaFile.java"), classPathDir)
+    val errorTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/ErrorJavaFile.java"), stagingDir)
     @Test
     fun javaCompileError() {
-        val result = javaCompiler.compile(errorTask)
-        assert(result.details.size == 1)
-        assertCompileResult(assetsJavaDir, result.details.first(), false, 2)
+        val task = errorTask
+        val result = javaCompiler.compile(task)
+        assertCompileResultFailed(task, result, mapOf(errorTask.files[0] to 2))
     }
 
     val externalDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithExternalDep.java"),
-        classPathDir,
+        stagingDir,
         dependencies = listOf(
             "$assetsLibDir/rxjava-3.0.12.jar",
             "$assetsLibDir/reactive-streams-1.0.3.jar"
@@ -44,36 +40,33 @@ class JavaCompileTest {
     )
     @Test
     fun javaCompileWithExternalDep() {
-        val result = javaCompiler.compile(externalDepTask)
-        assert(result.details.size == 1)
-        assertCompileResult(assetsJavaDir, result.details.first(), true)
+        val task = externalDepTask
+        val result = javaCompiler.compile(task)
+        assertCompileResult(task, result, CompileOutput.Type.Class)
     }
 
     val classDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java"),
-        classPathDir,
+        stagingDir,
         dependencies = listOf(assetsClassDir.absolutePath)
     )
     @Test
     fun javaCompileWithClassDep() {
-        val result = javaCompiler.compile(classDepTask)
-        assert(result.details.size == 1)
-        assertCompileResult(assetsJavaDir, result.details.first(), true)
+        val task = classDepTask
+        val result = javaCompiler.compile(task)
+        assertCompileResult(task, result, CompileOutput.Type.Class)
     }
 
     val activityTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/example/myapplication/MainActivity2.java"),
-        classPathDir,
+        stagingDir,
         dependencies = listOf(androidJar)
                 + "$assetsAndroidDir/build/intermediates/javac/debug/classes"
                 + IntellijLibraryConfigParser(File(intellijLibraryDir)).parse()!!
     )
     @Test
     fun javaCompileAndroidActivity() {
-        if (!File(androidJar).exists()) {
-            throw IllegalStateException("android sdk not found, search ANDROID_HOME: $androidHome, Android jar file: $androidJar")
-        }
-        val result = javaCompiler.compile(activityTask)
-        assert(result.details.size == 1)
-        assertCompileResult(assetsJavaDir, result.details.first(), true)
+        val task = activityTask
+        val result = javaCompiler.compile(task)
+        assertCompileResult(task, result, CompileOutput.Type.Class)
     }
 
     val interdependenceTask = CompileTask(
@@ -81,40 +74,28 @@ class JavaCompileTest {
             CompileFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java"), CompileFile.Type.Java, assetsJavaDir),
             CompileFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/NewDep.java"), CompileFile.Type.Java, assetsJavaDir)
         ),
-        classPathDir)
+        stagingDir)
 
     @Test
     fun javaCompileMultiFilesWithDep() {
-        val result = javaCompiler.compile(interdependenceTask)
-        assert(result.details.size == 2)
-        result.details.forEach {
-            assertCompileResult(assetsJavaDir, it, true)
-        }
+        val task = interdependenceTask
+        val result = javaCompiler.compile(task)
+        assertCompileResult(task, result, CompileOutput.Type.Class)
     }
 
     val multiFilesTask = helloWorldTask + externalDepTask + classDepTask + activityTask + interdependenceTask
     @Test
     fun javaCompileMultiFiles() {
-        val result = javaCompiler.compile(multiFilesTask)
-
-        assert(result.details.size == multiFilesTask.files.size)
-        result.details.forEach {
-            assertCompileResult(assetsJavaDir, it, true)
-        }
+        val task = multiFilesTask
+        val result = javaCompiler.compile(task)
+        assertCompileResult(task, result, CompileOutput.Type.Class)
     }
 
     val multiFilesWithErrorTask = helloWorldTask + errorTask + externalDepTask + classDepTask + activityTask + interdependenceTask
     @Test
     fun javaCompileMultiFilesError() {
-        val result = javaCompiler.compile(multiFilesWithErrorTask)
-
-        assert(result.details.size == multiFilesWithErrorTask.files.size)
-        result.details.forEach {
-            if (errorTask.files[0] == it.file) {
-                assertCompileResult(assetsJavaDir, it, false, 2)
-            } else {
-                assertCompileResult(assetsJavaDir, it, false, 0)
-            }
-        }
+        val task = multiFilesWithErrorTask
+        val result = javaCompiler.compile(task)
+        assertCompileResultFailed(task, result, mapOf(errorTask.files[0] to 2))
     }
 }

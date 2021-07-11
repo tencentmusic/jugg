@@ -34,30 +34,43 @@ val androidJar = "$androidHome/platforms/android-30/android.jar".also {
 }
 val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
 
-fun clearBuild() = buildDir.listFiles()?.forEach { it.deleteRecursively() }
-
-fun assertCompileResult(sourceDir: File, result: Result<CompileFile, CompileError>, isSuccess: Boolean,
-                        errorCount: Int? = null
+fun assertCompileResult(task: CompileTask,
+                        result: CompileResult,
+                        outputType: CompileOutput.Type? = null,
+                        outputSize: Int = task.files.size
 ) {
-    result.printCompileError()
+    result.printCompileErrors()
 
-    assert(result.isSuccess == isSuccess)
-    assert(result.isFailed == !isSuccess)
-    if (isSuccess) {
-        assert(result.getFailureOrNull() == null)
-    } else {
-        if (errorCount != null) {
-            assert(result.getFailure().errors.size == errorCount)
+    assert(result.isAllSuccess)
+    assert(result.details.size == task.files.size)
+    assert(result.outputs.size == outputSize)
+
+    result.details.forEach {
+        assert(it.isSuccess)
+        assert(it.file.file.exists() && it.file.file.length() > 0)
+    }
+    result.outputs.forEach {
+        assert(it.file.exists() && it.file.length() > 0)
+        if (outputType != null) {
+            assert(it.type == outputType)
         }
     }
+}
 
-    // ensure file exists if build success
-    val classFile = result.file.file.changeBaseDir(sourceDir, classPathDir, "class")
-    if (isSuccess) {
-        assert(classFile.exists() && classFile.length() > 0)
-    } else {
-        // only AidpCompiler will ensure failed file not exists, JavaCompiler will not
-//            assert(!classFile.exists())
+fun clearBuild() = buildDir.clearDir()
+
+fun assertCompileResultFailed(task: CompileTask, result: CompileResult, errorList: Map<CompileFile, Int>) {
+    result.printCompileErrors()
+
+    assert(!result.isAllSuccess)
+    assert(result.details.size == task.files.size)
+    assert(result.outputs.size == 0)
+
+    result.details.forEach {
+        assert(it.isFailed)
+        assert(it.file.file.exists() && it.file.file.length() > 0)
+        val errorCount = errorList[it.file]?: 0
+        assert(it.getFailure().errors.size == errorCount)
     }
 }
 

@@ -42,7 +42,7 @@ class AssetsCompileTest {
         checkError(multiFilesTask, result)
     }
 
-    fun checkError(task: CompileTask, result: CompileResult) {
+    fun checkError(task: CompileTask, result: CompileResult, outputDir: File = task.outputDir) {
         result.printCompileErrors()
 
         assert(result.details.size == task.files.size)
@@ -51,7 +51,7 @@ class AssetsCompileTest {
 
         task.files.forEach {
             assert(it.file.exists() && it.file.length() > 0)
-            val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
+            val destFile = it.file.changeBaseDir(it.baseDir, outputDir)
             assert(destFile.exists() && destFile.length() > 0)
         }
     }
