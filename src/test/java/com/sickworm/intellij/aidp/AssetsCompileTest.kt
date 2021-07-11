@@ -3,14 +3,14 @@ package com.sickworm.intellij.aidp
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileResult
 import com.sickworm.intellij.aidp.compiler.CompileTask
-import com.sickworm.intellij.aidp.compiler.OverlayCompiler
+import com.sickworm.intellij.aidp.compiler.AssetsCompiler
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 
-class OverlayCompileTest {
+class AssetsCompileTest {
 
-    private val overlayCompiler = OverlayCompiler(logger)
+    private val overlayCompiler = AssetsCompiler(logger)
 
     @Before
     fun init() {
@@ -24,7 +24,7 @@ class OverlayCompileTest {
         stagingDir
     )
     @Test
-    fun singleOverlayFileCompile() {
+    fun singleFileCompile() {
         val result = overlayCompiler.compile(singleFileTask)
         checkError(singleFileTask, result)
     }
@@ -38,7 +38,7 @@ class OverlayCompileTest {
     )
     @Test
     fun multiFileCompile() {
-        val result = OverlayCompiler(logger).compile(multiFilesTask)
+        val result = AssetsCompiler(logger).compile(multiFilesTask)
         checkError(multiFilesTask, result)
     }
 

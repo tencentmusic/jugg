@@ -21,7 +21,7 @@ class AidpCompiler(project: Project,
 
     private val sourceCompiler = SourceCompiler(tempCompileDir, classPathDir, logger)
 
-    private val overlayCompiler = OverlayCompiler(logger)
+    private val overlayCompiler = AssetsCompiler(logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
