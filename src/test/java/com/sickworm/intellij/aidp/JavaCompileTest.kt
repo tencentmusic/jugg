@@ -20,7 +20,7 @@ class JavaCompileTest {
         val task = helloWorldTask
         val result = javaCompiler.compile(task)
         assert(result.details.size == 1)
-        assertCompileResult(task, result, CompileOutput.Type.Class)
+        assertCompileResultJava(task, result)
     }
 
     val errorTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/ErrorJavaFile.java"), stagingDir)
@@ -42,7 +42,7 @@ class JavaCompileTest {
     fun javaCompileWithExternalDep() {
         val task = externalDepTask
         val result = javaCompiler.compile(task)
-        assertCompileResult(task, result, CompileOutput.Type.Class)
+        assertCompileResultJava(task, result)
     }
 
     val classDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithClassDep.java"),
@@ -53,7 +53,7 @@ class JavaCompileTest {
     fun javaCompileWithClassDep() {
         val task = classDepTask
         val result = javaCompiler.compile(task)
-        assertCompileResult(task, result, CompileOutput.Type.Class)
+        assertCompileResultJava(task, result)
     }
 
     val activityTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/example/myapplication/MainActivity2.java"),
@@ -66,7 +66,7 @@ class JavaCompileTest {
     fun javaCompileAndroidActivity() {
         val task = activityTask
         val result = javaCompiler.compile(task)
-        assertCompileResult(task, result, CompileOutput.Type.Class)
+        assertCompileResultJava(task, result)
     }
 
     val interdependenceTask = CompileTask(
@@ -80,7 +80,7 @@ class JavaCompileTest {
     fun javaCompileMultiFilesWithDep() {
         val task = interdependenceTask
         val result = javaCompiler.compile(task)
-        assertCompileResult(task, result, CompileOutput.Type.Class)
+        assertCompileResultJava(task, result)
     }
 
     val multiFilesTask = helloWorldTask + externalDepTask + classDepTask + activityTask + interdependenceTask
@@ -88,7 +88,7 @@ class JavaCompileTest {
     fun javaCompileMultiFiles() {
         val task = multiFilesTask
         val result = javaCompiler.compile(task)
-        assertCompileResult(task, result, CompileOutput.Type.Class)
+        assertCompileResultJava(task, result)
     }
 
     val multiFilesWithErrorTask = helloWorldTask + errorTask + externalDepTask + classDepTask + activityTask + interdependenceTask
@@ -97,5 +97,16 @@ class JavaCompileTest {
         val task = multiFilesWithErrorTask
         val result = javaCompiler.compile(task)
         assertCompileResultFailed(task, result, mapOf(errorTask.files[0] to 2))
+    }
+
+    private fun assertCompileResultJava(task: CompileTask,
+                                result: CompileResult,
+                                outputSize: Int = task.files.size) {
+        val outputType = CompileOutput.Type.Class
+        val mapper: OutputFileMapper = {
+            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
+            listOf(outputFile)
+        }
+        assertCompileResult(task, result, outputType, mapper, outputSize)
     }
 }

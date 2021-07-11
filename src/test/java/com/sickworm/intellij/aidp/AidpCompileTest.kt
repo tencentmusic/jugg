@@ -22,7 +22,7 @@ class AidpCompileTest {
     @Test
     fun compileSingleJavaDex() {
         val result = aidpCompiler.compile(singleJavaSourceTask)
-        assertCompileResult(singleJavaSourceTask, result, CompileOutput.Type.Dex)
+        assertCompileResultAidp(singleJavaSourceTask, result)
     }
 
     private val multiJavaSourcesTask = JavaCompileTest().multiFilesTask
@@ -30,7 +30,7 @@ class AidpCompileTest {
     fun compileMultiJavaDex() {
         val result = aidpCompiler.compile(multiJavaSourcesTask)
         assert(result.details.size == multiJavaSourcesTask.files.size)
-        assertCompileResult(multiJavaSourcesTask, result, CompileOutput.Type.Dex)
+        assertCompileResultAidp(multiJavaSourcesTask, result)
     }
 
     private val multiJavaSourcesWithErrorTask = JavaCompileTest().multiFilesWithErrorTask
@@ -40,10 +40,21 @@ class AidpCompileTest {
         assertCompileResultFailed(multiJavaSourcesWithErrorTask, result, mapOf(JavaCompileTest().errorTask.files[0] to 2))
     }
 
-    private val multiAssetsTask = AssetsCompileTest().multiFilesTask
+    private val multiAssetsTask = AssetCompileTest().multiFilesTask
     @Test
     fun compileMultiAsset() {
         val result = aidpCompiler.compile(multiAssetsTask)
-        AssetsCompileTest().checkError(multiAssetsTask, result, outputDir = File(stagingDir, "overlays/assets"))
+        // TODO
+    }
+
+    private fun assertCompileResultAidp(task: CompileTask,
+                                          result: CompileResult,
+                                          outputSize: Int = task.files.size) {
+        val outputType = CompileOutput.Type.Dex
+        val mapper: OutputFileMapper = {
+            val outputFile = it.file.changeBaseDir(it.baseDir, File(task.outputDir, "classes"), "dex")
+            listOf(outputFile)
+        }
+        assertCompileResult(task, result, outputType, mapper, outputSize)
     }
 }

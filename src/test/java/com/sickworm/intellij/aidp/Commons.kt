@@ -34,10 +34,13 @@ val androidJar = "$androidHome/platforms/android-30/android.jar".also {
 }
 val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
 
+typealias OutputFileMapper = (CompileFile) -> List<File>
+
 fun assertCompileResult(task: CompileTask,
                         result: CompileResult,
                         outputType: CompileOutput.Type,
-                        outputSize: Int = task.files.size
+                        outputFileMapper: OutputFileMapper,
+                        outputSize: Int = task.files.size,
 ) {
     result.printCompileErrors()
 
@@ -45,15 +48,17 @@ fun assertCompileResult(task: CompileTask,
     assert(result.details.size == task.files.size)
     assert(result.outputs.size == outputSize)
 
-    result.details.forEach {
-        assert(it.isSuccess)
-        assert(it.file.file.exists() && it.file.file.length() > 0)
+    result.details.forEach { detail ->
+        assert(detail.isSuccess)
+        assert(detail.file.file.exists() && detail.file.file.length() > 0)
+        val expectOutput = outputFileMapper(detail.file)
+        expectOutput.forEach { output ->
+            assert(result.outputs.any { it.file.absolutePath == output.absolutePath })
+        }
     }
     result.outputs.forEach {
         assert(it.file.exists() && it.file.length() > 0)
-        if (outputType != null) {
-            assert(it.type == outputType)
-        }
+        assert(it.type == outputType)
     }
 }
 
@@ -64,7 +69,7 @@ fun assertCompileResultFailed(task: CompileTask, result: CompileResult, errorLis
 
     assert(!result.isAllSuccess)
     assert(result.details.size == task.files.size)
-    assert(result.outputs.size == 0)
+    assert(result.outputs.isEmpty())
 
     result.details.forEach {
         assert(it.isFailed)

@@ -1,9 +1,6 @@
 package com.sickworm.intellij.aidp
 
-import com.sickworm.intellij.aidp.compiler.CompileFile
-import com.sickworm.intellij.aidp.compiler.CompileOutput
-import com.sickworm.intellij.aidp.compiler.CompileTask
-import com.sickworm.intellij.aidp.compiler.KotlinCompiler
+import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -21,13 +18,24 @@ class KotlinCompileTest {
         listOf(
             CompileFile(File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
             CompileFile.Type.Kotlin,
-            assetsJavaDir)
+            assetsKotlinDir)
         ),
         stagingDir)
     @Test
     fun kotlinCompile() {
         val task = resultTask
         val result = kotlinCompiler.compile(task)
-        assertCompileResult(task, result, CompileOutput.Type.Class, outputSize = 3)
+        assertCompileResultKotlin(task, result, outputSize = 3)
+    }
+
+    private fun assertCompileResultKotlin(task: CompileTask,
+                                        result: CompileResult,
+                                        outputSize: Int = task.files.size) {
+        val outputType = CompileOutput.Type.Class
+        val mapper: OutputFileMapper = {
+            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
+            listOf(outputFile)
+        }
+        assertCompileResult(task, result, outputType, mapper, outputSize)
     }
 }
