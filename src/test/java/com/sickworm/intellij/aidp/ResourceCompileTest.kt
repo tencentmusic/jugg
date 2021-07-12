@@ -7,10 +7,9 @@ import java.io.File
 
 class ResourceCompileTest {
 
-    private val flatDir = tempCompileDir
-
-    private val stableIds = File("src/test/build/stableIds.txt").absoluteFile
-    private val manifest = File("src/test/assets/android/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
+    val flatDir = File(buildDir, "flat")
+    val stableIds: File = File("src/test/build/stableIds.txt").absoluteFile
+    val manifest: File = File("src/test/assets/android/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
 
     @Before
     fun init() {
@@ -64,8 +63,19 @@ class ResourceCompileTest {
         checkArscResult(task, result)
     }
 
+    private val baseDir = File(assetsAndroidDir, "src/main/res/")
+    val cachedArscTask = CompileTask(
+        listOf(
+            CompileFile(File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml"), CompileFile.Type.Resource, baseDir),
+            CompileFile(File(assetsAndroidDir, "src/main/res/layout/activity_main3.xml"), CompileFile.Type.Resource, baseDir),
+            CompileFile(File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml"), CompileFile.Type.Resource, baseDir),
+            CompileFile(File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml"), CompileFile.Type.Resource, baseDir),
+        ),
+        stagingDir
+    )
     @Test
     fun compileCachedArsc() {
+        val task = cachedArscTask
         val arscCompiler = CachedArscCompiler(
             flatDir,
             stableIds,
@@ -74,20 +84,6 @@ class ResourceCompileTest {
             logger
         )
 
-        val file1 = File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml")
-        val file2 = File(assetsAndroidDir, "src/main/res/layout/activity_main3.xml")
-        val file3 = File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml")
-        val file4 = File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml")
-        val baseDir = File(assetsAndroidDir, "src/main/res/")
-        val task = CompileTask(
-            listOf(
-                CompileFile(file1, CompileFile.Type.Resource, baseDir),
-                CompileFile(file2, CompileFile.Type.Resource, baseDir),
-                CompileFile(file3, CompileFile.Type.Resource, baseDir),
-                CompileFile(file4, CompileFile.Type.Resource, baseDir),
-            ),
-            stagingDir
-        )
         val result = arscCompiler.compile(task)
         checkArscResult(task, result)
     }

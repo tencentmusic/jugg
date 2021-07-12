@@ -45,7 +45,7 @@ fun assertCompileResult(task: CompileTask,
     assert(result.isAllSuccess)
     assert(result.details.size == task.files.size)
 
-    var outputCount = 0
+    val outputs = mutableSetOf<CompileOutput>()
     result.details.forEach { detail ->
         assert(detail.isSuccess)
         assert(detail.file.file.exists() && detail.file.file.length() > 0)
@@ -57,10 +57,10 @@ fun assertCompileResult(task: CompileTask,
             assert(output.file.length() > 0)
             assert(output == relativeOutput)
         }
-        outputCount += expectOutput.count()
+        outputs.addAll(expectOutput)
     }
 
-    assert(result.outputs.size == outputCount)
+    assert(result.outputs.size == outputs.size)
 }
 
 fun clearBuild() = buildDir.clearDir()

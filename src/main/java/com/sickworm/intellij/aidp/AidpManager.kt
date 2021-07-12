@@ -41,7 +41,7 @@ class AidpManager(private val project: Project,
 
     // compile
     private val compileClassDir = File(buildDir, "compiled")
-    private val compiler = AidpCompiler(project, compileClassDir, classPathDir)
+    private lateinit var compiler: AidpCompiler
 
     init {
         register(project, this)
@@ -94,6 +94,19 @@ class AidpManager(private val project: Project,
         dependencies = libDep + androidDep + projectDep + aidpClassPathDep
 
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDep.size}, androidDep size: 1, aidpClassPathDep size: 1")
+
+        // TODO use apk analyze
+        val appBuildDir = File("")
+        val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
+        val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/AndroidManifest.xml")
+        compiler = AidpCompiler(project,
+            tempCompileDir = compileClassDir,
+            classPathDir = classPathDir,
+            androidJar = File(androidDep),
+            flatDir = flatDir,
+            manifest = manifest,
+            stableIds = File(buildDir, "stableIds.txt")
+            )
     }
 
     private fun processFileChanged(changedFiles: List<ChangedFile>) {

@@ -12,11 +12,20 @@ class AidpCompileTest {
 
     private val disposable = Disposable { }
     private val project = MockProject(null, disposable)
-    private val aidpCompiler = AidpCompiler(project, tempCompileDir, classPathDir)
+    private val aidpCompiler = AidpCompiler(
+        project,
+        tempCompileDir = tempCompileDir,
+        classPathDir = classPathDir,
+        androidJar = androidJar,
+        flatDir = ResourceCompileTest().flatDir,
+        manifest = ResourceCompileTest().manifest,
+        stableIds = ResourceCompileTest().stableIds
+    )
 
     @Before
     fun init() {
         clearBuild()
+        ResourceCompileTest().init()
     }
 
     @Test
@@ -48,8 +57,10 @@ class AidpCompileTest {
     }
 
     @Test
-    fun compileRes() {
-
+    fun compileResource() {
+        val task = ResourceCompileTest().cachedArscTask
+        val result = aidpCompiler.compile(task)
+        assertCompileResultAidp(task, result)
     }
 
     @Test
@@ -92,7 +103,17 @@ class AidpCompileTest {
                 val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir)
                 listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Overlay))
             } else if (it.type == CompileFile.Type.Resource) {
-               TODO()
+                val sourceBaseDir = File(task.outputDir, "classes")
+                val rOutDir = File(sourceBaseDir, "com/example/myapplication")
+                val rDexList = "R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, R\$string.dex, R\$style.dex, R\$styleable.dex, R.dex".split(", ")
+                val dexOutputs = rDexList.map { name ->
+                    CompileOutput(File(rOutDir, name), sourceBaseDir, CompileOutput.Type.Dex)
+                }
+
+                val overlayBaseDir = File(task.outputDir, "overlays")
+                val arscFile = File(overlayBaseDir, "resources.arsc")
+
+                dexOutputs + CompileOutput(arscFile, overlayBaseDir, CompileOutput.Type.Overlay)
             } else {
                 throw IllegalStateException("not supported")
             }
