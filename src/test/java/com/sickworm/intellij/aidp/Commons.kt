@@ -42,6 +42,7 @@ fun assertCompileResult(task: CompileTask,
 ) {
     result.printCompileErrors()
 
+    assert(result.task == task)
     assert(result.isAllSuccess)
     assert(result.details.size == task.files.size)
 

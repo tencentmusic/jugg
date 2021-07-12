@@ -15,7 +15,7 @@ data class CompileTask(
         if (!outputDir.isParentOf(task.outputDir)) {
             throw AidpInternalException.combineTaskFailed()
         }
-        return CompileTask(files + task.files, outputDir)
+        return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir)
     }
 
     private fun File.isParentOf(file: File) = file.path.startsWith(path)
