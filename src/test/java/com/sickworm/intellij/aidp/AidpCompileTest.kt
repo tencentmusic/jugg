@@ -71,6 +71,13 @@ class AidpCompileTest {
     }
 
     @Test
+    fun compileMultiJavaAndAssetAndRes() {
+        val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTest().cachedArscTask
+        val result = aidpCompiler.compile(task)
+        assertCompileResultAidp(task, result)
+    }
+
+    @Test
     fun compileMultiJavaErrorAndAsset() {
         val sourceTask = JavaCompileTest().multiFilesWithErrorTask
         val assetTask = AssetCompileTest().multiFilesTask
@@ -90,6 +97,30 @@ class AidpCompileTest {
             result.outputs
         )
         assertCompileResultAidp(assetTask, assetResult)
+    }
+
+    @Test
+    fun compileMultiJavaErrorAndAssetAndRes() {
+        val sourceTask = JavaCompileTest().multiFilesWithErrorTask
+        val assetTask = AssetCompileTest().multiFilesTask
+        val resourceTask = ResourceCompileTest().cachedArscTask
+        val task = sourceTask + assetTask + resourceTask
+        val result = aidpCompiler.compile(task)
+
+        val sourceResult = CompileResult(
+            sourceTask,
+            result.details.filter { sourceTask.files.contains(it.file) },
+            emptyList()
+        )
+        assertCompileResultFailed(sourceTask, sourceResult, mapOf(JavaCompileTest().errorTask.files[0] to 2))
+
+        val remainTask = assetTask + resourceTask
+        val remainResult = CompileResult(
+            remainTask,
+            result.details.filter { !sourceTask.files.contains(it.file) },
+            result.outputs
+        )
+        assertCompileResultAidp(remainTask, remainResult)
     }
 
     private fun assertCompileResultAidp(task: CompileTask, result: CompileResult) {
