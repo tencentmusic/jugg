@@ -24,8 +24,8 @@ data class CompileTask(
 }
 
 data class CompileFile(
-    val file: File,
     val type: Type,
+    val file: File,
     val baseDir: File,
     val dependencyPaths: List<String> = emptyList()
 ) {
@@ -45,9 +45,9 @@ data class CompileFile(
 }
 
 data class CompileOutput(
+    val type: Type,
     val file: File,
     val baseDir: File,
-    val type: Type,
 ) {
 
     enum class Type {

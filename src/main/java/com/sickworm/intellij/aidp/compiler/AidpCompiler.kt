@@ -80,13 +80,13 @@ class AidpCompiler(
                 val destArscFile = arscFile.changeBaseDir(tempOutputDir, overlayOutputDir)
                 overlayOutputDir.mkdirs()
                 arscFile.renameTo(destArscFile)
-                val arscCompileOutput = CompileOutput(destArscFile, overlayOutputDir, CompileOutput.Type.Overlay)
+                val arscCompileOutput = CompileOutput(CompileOutput.Type.Overlay, destArscFile, overlayOutputDir)
 
                 // compile R.java
                 val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!.file
                 val rJavaOutputDir = File(tempCompileDir, "r")
                 val rJavaTask = CompileTask(
-                    files = listOf(CompileFile(rJavaFile, CompileFile.Type.Java, rJavaOutputDir)),
+                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile, rJavaOutputDir)),
                     outputDir = classesOutputDir,
                 )
                 val rJavaResult = sourceCompiler.compile(rJavaTask)

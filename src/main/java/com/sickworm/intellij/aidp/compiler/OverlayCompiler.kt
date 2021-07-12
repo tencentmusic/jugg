@@ -25,7 +25,7 @@ class AssetCompiler(private val logger: Logger): ICompiler {
             val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
             try {
                 it.file.copyTo(destFile, overwrite = true)
-                outputs.add(CompileOutput(destFile, task.outputDir, CompileOutput.Type.Overlay))
+                outputs.add(CompileOutput(CompileOutput.Type.Overlay, destFile, task.outputDir))
                 details.add(Result.success(it))
             } catch (e: Exception) {
                 val errorMessage = "move file ${it.file.absolutePath} to ${destFile.absolutePath} failed, e: $e"
@@ -71,7 +71,7 @@ class CachedArscCompiler(
 
         // build .arsc
         val arscTask = CompileTask(
-            listOf(CompileFile(flatDir, CompileFile.Type.FlatDir, flatDir)),
+            listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
             task.outputDir
         )
         val arscResult = arscCompiler.compile(arscTask)
@@ -120,7 +120,7 @@ class ResourceCompiler(private val logger: Logger): ICompiler {
             else it.file.extension
             val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
             val outputFile = File(task.outputDir, fileName)
-            val output = CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Flat)
+            val output = CompileOutput(CompileOutput.Type.Flat, outputFile, task.outputDir)
             val detail: Result<CompileFile, CompileError> =
                 if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(it)
@@ -178,8 +178,8 @@ class ArscCompiler(
             task,
             task.files.map { Result.success(it) },
             listOf(
-                CompileOutput(arscFile, task.outputDir, CompileOutput.Type.Overlay),
-                CompileOutput(rJavaFile, task.outputDir, CompileOutput.Type.Java),
+                CompileOutput(CompileOutput.Type.Overlay, arscFile, task.outputDir),
+                CompileOutput(CompileOutput.Type.Java, rJavaFile, task.outputDir),
             )
         )
     }

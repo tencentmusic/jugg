@@ -141,19 +141,19 @@ class FileChangesManager(private val project: Project,
                     return null
                 }
             }
-            return ChangedFile(virtualFile, baseSourceDir.toIoFile(), type)
+            return ChangedFile(type, virtualFile, baseSourceDir.toIoFile())
         }
 
         val baseResourceDir = resourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseResourceDir != null) {
             logger.debug("resource file changed, event $event")
-            return ChangedFile(virtualFile, baseResourceDir.toIoFile(), CompileFile.Type.Resource)
+            return ChangedFile(CompileFile.Type.Resource, virtualFile, baseResourceDir.toIoFile())
         }
 
         val baseAssetDir = assetRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseAssetDir != null) {
             logger.debug("asset file changed, event $event")
-            return ChangedFile(virtualFile, baseAssetDir.toIoFile(), CompileFile.Type.Asset)
+            return ChangedFile(CompileFile.Type.Asset, virtualFile, baseAssetDir.toIoFile())
         }
 
         return null
@@ -165,7 +165,7 @@ interface FileChangesListener {
 }
 
 data class ChangedFile(
+    val type: CompileFile.Type,
     val file: VirtualFile,
     val baseDir: File,
-    val type: CompileFile.Type
 )

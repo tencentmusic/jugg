@@ -71,8 +71,8 @@ class JavaCompileTest {
 
     val interdependenceTask = CompileTask(
         listOf(
-            CompileFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java"), CompileFile.Type.Java, assetsJavaDir),
-            CompileFile(File(assetsJavaDir, "com/sickworm/intellij/aidp/test/NewDep.java"), CompileFile.Type.Java, assetsJavaDir)
+            CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/aidp/test/JavaFileWithInterdependence.java"), assetsJavaDir),
+            CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/aidp/test/NewDep.java"), assetsJavaDir)
         ),
         stagingDir)
 
@@ -102,7 +102,7 @@ class JavaCompileTest {
     private fun assertCompileResultJava(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
-            listOf(CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Class))
+            listOf(CompileOutput(CompileOutput.Type.Class, outputFile, task.outputDir))
         }
         assertCompileResult(task, result, mapper)
     }

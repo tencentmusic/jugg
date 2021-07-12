@@ -128,23 +128,23 @@ class AidpCompileTest {
             if (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin) {
                 val outputBaseDir = File(task.outputDir, "classes")
                 val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir, "dex")
-                listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Dex))
+                listOf(CompileOutput(CompileOutput.Type.Dex, outputFile, outputBaseDir))
             } else if (it.type == CompileFile.Type.Asset) {
                 val outputBaseDir = File(task.outputDir, "overlays/assets")
                 val outputFile = it.file.changeBaseDir(it.baseDir, outputBaseDir)
-                listOf(CompileOutput(outputFile, outputBaseDir, CompileOutput.Type.Overlay))
+                listOf(CompileOutput(CompileOutput.Type.Overlay, outputFile, outputBaseDir))
             } else if (it.type == CompileFile.Type.Resource) {
                 val sourceBaseDir = File(task.outputDir, "classes")
                 val rOutDir = File(sourceBaseDir, "com/example/myapplication")
                 val rDexList = "R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, R\$string.dex, R\$style.dex, R\$styleable.dex, R.dex".split(", ")
                 val dexOutputs = rDexList.map { name ->
-                    CompileOutput(File(rOutDir, name), sourceBaseDir, CompileOutput.Type.Dex)
+                    CompileOutput(CompileOutput.Type.Dex, File(rOutDir, name), sourceBaseDir)
                 }
 
                 val overlayBaseDir = File(task.outputDir, "overlays")
                 val arscFile = File(overlayBaseDir, "resources.arsc")
 
-                dexOutputs + CompileOutput(arscFile, overlayBaseDir, CompileOutput.Type.Overlay)
+                dexOutputs + CompileOutput(CompileOutput.Type.Overlay, arscFile, overlayBaseDir)
             } else {
                 throw IllegalStateException("not supported")
             }

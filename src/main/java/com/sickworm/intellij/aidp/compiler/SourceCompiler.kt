@@ -57,7 +57,7 @@ class SourceCompiler(
             it.type == CompileOutput.Type.Class
         }
         val compileClassFiles = classFiles.map {
-            CompileFile(it.file, CompileFile.Type.Class, it.baseDir, emptyList())
+            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, emptyList())
         }
         val dexTask = CompileTask(compileClassFiles, task.outputDir)
         val dexResult = dexCompiler.compile(dexTask)
@@ -134,7 +134,7 @@ class JavaCompiler(private val logger: Logger): ICompiler {
         // all failed or all success
         return if (failedItems.isEmpty()) {
             val outputs = task.outputDir.listFilesRecursively().map {
-                CompileOutput(it, task.outputDir, CompileOutput.Type.Class)
+                CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
             }
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
         } else {
@@ -168,7 +168,7 @@ class KotlinCompiler: ICompiler {
 
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
-            CompileOutput(it, task.outputDir, CompileOutput.Type.Class)
+            CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
         }
         return CompileResult(task, listOf(Result.success(task.files[0])), outputs)
     }
@@ -192,7 +192,7 @@ class DexCompiler(private val logger: Logger): ICompiler {
                 details.add(Result.failure(CompileError(it, listOf(0L to errorMessage))))
             } else {
                 details.add(Result.success(it))
-                outputs.add(CompileOutput(dexOutputFile, task.outputDir, CompileOutput.Type.Dex))
+                outputs.add(CompileOutput(CompileOutput.Type.Dex, dexOutputFile, task.outputDir))
             }
         }
         return CompileResult(task, details, outputs)

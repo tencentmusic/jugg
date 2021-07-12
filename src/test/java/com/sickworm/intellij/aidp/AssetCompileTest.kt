@@ -16,7 +16,7 @@ class AssetCompileTest {
 
     val singleFileTask = CompileTask(
         listOf(
-            CompileFile(File(assetsAssetsDir, "logo.png"), CompileFile.Type.Asset, assetsAssetsDir),
+            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "logo.png"), assetsAssetsDir),
         ),
         stagingDir
     )
@@ -29,8 +29,8 @@ class AssetCompileTest {
 
     val multiFilesTask = CompileTask(
         listOf(
-            CompileFile(File(assetsAssetsDir, "logo.png"), CompileFile.Type.Asset, assetsAssetsDir),
-            CompileFile(File(assetsAssetsDir, "git/index"), CompileFile.Type.Asset, assetsAssetsDir),
+            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "logo.png"), assetsAssetsDir),
+            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "git/index"), assetsAssetsDir),
         ),
         stagingDir
     )
@@ -44,7 +44,7 @@ class AssetCompileTest {
     private fun assertCompileResultAssets(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
-            listOf(CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Overlay))
+            listOf(CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir))
         }
         assertCompileResult(task, result, mapper)
     }

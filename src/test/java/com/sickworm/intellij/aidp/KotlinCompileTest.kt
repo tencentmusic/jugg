@@ -16,9 +16,10 @@ class KotlinCompileTest {
 
     private val resultTask = CompileTask(
         listOf(
-            CompileFile(File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
-            CompileFile.Type.Kotlin,
-            assetsKotlinDir)
+            CompileFile(
+                CompileFile.Type.Kotlin,
+                File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
+                assetsKotlinDir)
         ),
         stagingDir)
     @Test
@@ -33,8 +34,8 @@ class KotlinCompileTest {
             val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
             val companionFile = it.file.changeBaseDir(it.baseDir, task.outputDir, newName = "${it.file.nameWithoutExtension}\$Companion.class")
             listOf(
-                CompileOutput(outputFile, task.outputDir, CompileOutput.Type.Class),
-                CompileOutput(companionFile, task.outputDir, CompileOutput.Type.Class)
+                CompileOutput(CompileOutput.Type.Class, outputFile, task.outputDir),
+                CompileOutput(CompileOutput.Type.Class, companionFile, task.outputDir)
             )
         }
         assertCompileResult(task, result, mapper)

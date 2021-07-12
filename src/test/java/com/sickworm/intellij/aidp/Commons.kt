@@ -95,4 +95,4 @@ fun Result<CompileFile, CompileError>.printCompileError() {
 }
 
 fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, dependencies: List<String> = emptyList()) =
-    CompileTask(listOf(CompileFile(filePath, CompileFile.Type.Java, assetsJavaDir, dependencyPaths = dependencies)), outputDir)
+    CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, dependencyPaths = dependencies)), outputDir)

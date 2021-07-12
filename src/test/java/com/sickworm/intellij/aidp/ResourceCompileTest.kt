@@ -38,7 +38,7 @@ class ResourceCompileTest {
     private fun compileRes(files: List<File>, baseDir: File) {
         val resCompiler = ResourceCompiler(logger)
         val task = CompileTask(
-            files.map { CompileFile(it, CompileFile.Type.Resource, baseDir) },
+            files.map { CompileFile(CompileFile.Type.Resource, it, baseDir) },
             stagingDir
         )
         val result = resCompiler.compile(task)
@@ -56,7 +56,7 @@ class ResourceCompileTest {
     fun compileArsc() {
         val arscCompiler = ArscCompiler(stableIds, manifest, androidJar, logger)
         val task = CompileTask(
-            listOf(CompileFile(flatDir, CompileFile.Type.FlatDir, flatDir)),
+            listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
             stagingDir
         )
         val result = arscCompiler.compile(task)
@@ -66,10 +66,10 @@ class ResourceCompileTest {
     private val baseDir = File(assetsAndroidDir, "src/main/res/")
     val cachedArscTask = CompileTask(
         listOf(
-            CompileFile(File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml"), CompileFile.Type.Resource, baseDir),
-            CompileFile(File(assetsAndroidDir, "src/main/res/layout/activity_main3.xml"), CompileFile.Type.Resource, baseDir),
-            CompileFile(File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml"), CompileFile.Type.Resource, baseDir),
-            CompileFile(File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml"), CompileFile.Type.Resource, baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/layout/activity_main3.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml"), baseDir),
         ),
         stagingDir
     )
