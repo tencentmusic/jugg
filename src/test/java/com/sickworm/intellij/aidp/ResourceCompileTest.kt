@@ -18,8 +18,8 @@ class ResourceCompileTest {
         val sourceFlatDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
         sourceFlatDir.copyRecursively(flatDir)
 
-//        val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
-//        sourceStableIds.copyTo(stableIds)
+        val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
+        sourceStableIds.copyTo(stableIds)
     }
 
     @Test
