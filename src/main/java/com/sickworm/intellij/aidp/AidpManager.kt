@@ -155,27 +155,25 @@ class AidpManager(private val project: Project,
     }
 
     fun deployAsync() {
-        deployThread.submit {
-            DeployTargetManager(project, toolWindow).runNormalBuild()
-        }
-//        deployThread.submit(::deploy)
+        deployThread.submit(::deploy)
     }
 
     private fun deploy() {
         try {
-            logger.info("apply start")
-            val deployData = deployDataManager.getDeployData()
-            if (deployData.isEmpty) {
-                logger.info("apply finished with no data to apply")
-                return
-            }
-
-            logger.info("apply data:\n$deployData")
-
-            AidpDeployerHelper.runTask(deployData, project, toolWindow)
-            deployDataManager.commit()
-
-            logger.info("apply finished")
+            DeployTargetManager(project, toolWindow).runNormalBuild()
+//            logger.info("apply start")
+//            val deployData = deployDataManager.getDeployData()
+//            if (deployData.isEmpty) {
+//                logger.info("apply finished with no data to apply")
+//                return
+//            }
+//
+//            logger.info("apply data:\n$deployData")
+//
+//            AidpDeployerHelper.runTask(deployData, project, toolWindow)
+//            deployDataManager.commit()
+//
+//            logger.info("apply finished")
         } catch (e: Throwable) {
             logger.error("apply failed", e)
         }

@@ -42,7 +42,7 @@ object AidpDeployerHelper {
         task.run(executor, device, launchStatus, consolePrinter)
     }
 
-    private fun getIDevice(project: Project): IDevice {
+    fun getIDevice(project: Project): IDevice {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
         val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
 //        val module = JavaRunConfigurationModule(project, false)
