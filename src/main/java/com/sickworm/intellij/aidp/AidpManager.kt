@@ -12,6 +12,7 @@ import com.sickworm.intellij.aidp.compiler.AidpCompiler
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileTask
 import com.sickworm.intellij.aidp.compiler.file
+import com.sickworm.intellij.aidp.deploy.DeployTargetManager
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -154,7 +155,10 @@ class AidpManager(private val project: Project,
     }
 
     fun deployAsync() {
-        deployThread.submit(::deploy)
+        deployThread.submit {
+            DeployTargetManager(project, toolWindow).runNormalBuild()
+        }
+//        deployThread.submit(::deploy)
     }
 
     private fun deploy() {
