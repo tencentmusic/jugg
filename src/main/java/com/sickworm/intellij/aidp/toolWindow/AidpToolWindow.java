@@ -5,6 +5,7 @@ package com.sickworm.intellij.aidp.toolWindow;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
@@ -88,7 +89,9 @@ public class AidpToolWindow {
 
     statusLabel.setText("state: unknown");
 
-    DefaultActionGroup actionGroup = new DefaultActionGroup(new DeployAction());
+    AnAction action = new DeployAction();
+    ActionManager.getInstance().registerAction("AIDP Deploy", action);
+    DefaultActionGroup actionGroup = new DefaultActionGroup(action);
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("AidpToolWindow", actionGroup, false);
     toolbar.setTargetComponent(actionPanel);
     actionPanel.add(toolbar.getComponent());
