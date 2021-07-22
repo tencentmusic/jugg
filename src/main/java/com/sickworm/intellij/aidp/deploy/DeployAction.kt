@@ -1,15 +1,31 @@
 package com.sickworm.intellij.aidp.deploy
 
+import com.android.tools.idea.run.DeploymentService
+import com.android.tools.idea.run.deployable.Deployable
+import com.android.tools.idea.run.tasks.AbstractDeployTask
 import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.util.CommonAndroidUtil
+import com.intellij.execution.ExecutionManager
+import com.intellij.execution.Executor
+import com.intellij.execution.RunManager
+import com.intellij.execution.configurations.RunConfiguration
+import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.execution.runners.ProgramRunner
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.sickworm.intellij.aidp.AidpLogger
 import com.sickworm.intellij.aidp.AidpManager
-import icons.StudioIcons
+import java.util.concurrent.ExecutionException
+
+private const val NAME = "AIDP Deploy"
+
+private const val DESC = "Attempt to apply resource and code changes by AIDP."
 
 class DeployAction: AnAction(
-    StudioIcons.Shell.Toolbar.APPLY_ALL_CHANGES
+    NAME, DESC, AllIcons.Actions.Execute
 ) {
 
     override fun actionPerformed(event: AnActionEvent) {
@@ -28,10 +44,144 @@ class DeployAction: AnAction(
             return
         }
 
-        val disableMessage = BaseAction.getDisableMessage(project)
-        currentText = disableMessage?.description ?: "ready to run"
+        val disableMessage = getDisableMessage(project)
+        currentText = disableMessage?.tooltip ?: "ready to run"
 
         val aidpManager = AidpManager.getInstance(project)
         aidpManager?.updateStatus(currentText)
     }
+
+    fun getDisableMessage(project: Project): DisableMessage? {
+        val logger = AidpLogger.getInstance(project, "#AIDP-DeployAction")
+        val configSettings = RunManager.getInstance(project).selectedConfiguration
+            ?: return DisableMessage(
+                DisableMessage.DisableMode.DISABLED,
+                "no configuration selected",
+                "there is no configuration selected"
+            )
+        val selectedRunConfig = configSettings.configuration
+        if (!isApplyChangesRelevant(selectedRunConfig)) {
+            return DisableMessage(
+                DisableMessage.DisableMode.INVISIBLE, "unsupported configuration",
+                "the selected configuration is not supported"
+            )
+        }
+        if (isExecutorStarting(project, selectedRunConfig)) {
+            return DisableMessage(
+                DisableMessage.DisableMode.DISABLED, "building and/or launching",
+                "the selected configuration is currently building and/or launching"
+            )
+        }
+        val deployableProvider = DeploymentService.getInstance(project).deployableProvider
+            ?: return DisableMessage(
+                DisableMessage.DisableMode.DISABLED, "no deployment provider",
+                "there is no deployment provider specified"
+            )
+        if (!deployableProvider.isDependentOnUserInput) {
+            val deployable: Deployable?
+            try {
+                deployable = deployableProvider.deployable
+                if (deployable == null) {
+                    return DisableMessage(
+                        DisableMessage.DisableMode.DISABLED,
+                        "selected device is invalid",
+                        "the selected device is not valid"
+                    )
+                }
+                if (!deployable.isOnline) {
+                    return if (deployable.isUnauthorized) {
+                        DisableMessage(
+                            DisableMessage.DisableMode.DISABLED, "device not authorized",
+                            "the selected device is not authorized"
+                        )
+                    } else {
+                        DisableMessage(
+                            DisableMessage.DisableMode.DISABLED,
+                            "device not connected",
+                            "the selected device is not connected"
+                        )
+                    }
+                }
+                val versionFuture = deployable.version
+                if (!versionFuture.isDone) {
+                    // Don't stall the EDT - if the Future isn't ready, just return false.
+                    return DisableMessage(
+                        DisableMessage.DisableMode.DISABLED,
+                        "unknown device API level",
+                        "its API level is currently unknown"
+                    )
+                }
+                if (versionFuture.get().apiLevel < AbstractDeployTask.MIN_API_VERSION) {
+                    return DisableMessage(
+                        DisableMessage.DisableMode.DISABLED, "incompatible device API level",
+                        "its API level is lower than 26"
+                    )
+                }
+                if (deployable.searchClientsForPackage().isEmpty()) {
+                    return DisableMessage(
+                        DisableMessage.DisableMode.DISABLED, "app not detected",
+                        "the app is not yet running or not debuggable"
+                    )
+                }
+            } catch (ex: InterruptedException) {
+                logger.warn(ex)
+                return DisableMessage(
+                    DisableMessage.DisableMode.DISABLED,
+                    "update interrupted",
+                    "its status update was interrupted"
+                )
+            } catch (ex: ExecutionException) {
+                logger.warn(ex)
+                return DisableMessage(
+                    DisableMessage.DisableMode.DISABLED, "unknown device API level",
+                    "its API level could not be determined"
+                )
+            } catch (ex: Exception) {
+                logger.warn(ex)
+                return DisableMessage(
+                    DisableMessage.DisableMode.DISABLED,
+                    "unexpected exception",
+                    "an unexpected exception was thrown: $ex"
+                )
+            }
+        }
+        return null
+    }
+
+    private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {
+        if (runConfiguration is RunConfigurationBase<*>) {
+            return runConfiguration.putUserDataIfAbsent(
+                BaseAction.SHOW_APPLY_CHANGES_UI,
+                false
+            ) // This is needed to prevent a NPE if the boolean isn't set.
+        }
+        return false
+    }
+
+    /**
+     * Check if there are any executors of the current [RunConfiguration] that is starting up. We should not swap when this is true.
+     */
+    private fun isExecutorStarting(project: Project, runConfiguration: RunConfiguration): Boolean {
+        // Check if any executors are starting up (e.g. if the user JUST clicked on an executor, and deployment hasn't finished).
+        for (executor in Executor.EXECUTOR_EXTENSION_NAME.extensionList) {
+            val programRunner =
+                ProgramRunner.getRunner(executor.id, runConfiguration) ?: continue
+            if (ExecutionManager.getInstance(project).isStarting(executor.id, programRunner.runnerId)) {
+                return true
+            }
+        }
+        return false
+    }
+
+}
+
+class DisableMessage(
+    val disableMode: DisableMode,
+    val tooltip: String,
+    val description: String
+) {
+    enum class DisableMode {
+        INVISIBLE, DISABLED
+    }
+
 }

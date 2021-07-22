@@ -13,7 +13,7 @@ import com.intellij.ui.JBColor;
 import com.sickworm.intellij.aidp.AidpLogger;
 import com.sickworm.intellij.aidp.AidpManager;
 import com.sickworm.intellij.aidp.AidpSettings;
-import com.sickworm.intellij.aidp.deploy.DeployActionGroup;
+import com.sickworm.intellij.aidp.deploy.DeployAction;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,6 +35,7 @@ public class AidpToolWindow {
   private JCheckBox deployOnSaveCheckBox;
   private JCheckBox enableDebugLogCheckBox;
   private JLabel statusLabel;
+  private JPanel actionPanel;
 
   private final Project project;
 
@@ -87,8 +88,10 @@ public class AidpToolWindow {
 
     statusLabel.setText("state: unknown");
 
-    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("AidpToolWindow", new DeployActionGroup(), true);
-    toolbar.setTargetComponent(myToolWindowContent);
+    DefaultActionGroup actionGroup = new DefaultActionGroup(new DeployAction());
+    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("AidpToolWindow", actionGroup, false);
+    toolbar.setTargetComponent(actionPanel);
+    actionPanel.add(toolbar.getComponent());
   }
 
   public void updateStatus(String msg) {
