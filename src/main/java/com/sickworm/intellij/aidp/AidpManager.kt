@@ -44,6 +44,9 @@ class AidpManager(private val project: Project,
     private val compileClassDir = File(buildDir, "compiled")
     private lateinit var compiler: AidpCompiler
 
+    // deploy target apk
+    private val deployTargetManager = DeployTargetManager(project, toolWindow)
+
     init {
         register(project, this)
         Disposer.register(project, this)
@@ -73,6 +76,7 @@ class AidpManager(private val project: Project,
         val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
+        // TODO AndroidSdkEventListener on sdk path changed
         val androidHome = System.getenv("ANDROID_HOME")
         val androidDep = "$androidHome/platforms/android-30/android.jar"
         if (!File(androidDep).exists()) {
@@ -159,23 +163,28 @@ class AidpManager(private val project: Project,
     }
 
     private fun deploy() {
+        if (!deployTargetManager.canDeploy()) {
+            logger.info("no apk found. run normal build")
+            deployTargetManager.runNormalBuild()
+            return
+        }
+
         try {
-            DeployTargetManager(project, toolWindow).runNormalBuild()
-//            logger.info("apply start")
-//            val deployData = deployDataManager.getDeployData()
-//            if (deployData.isEmpty) {
-//                logger.info("apply finished with no data to apply")
-//                return
-//            }
-//
-//            logger.info("apply data:\n$deployData")
-//
-//            AidpDeployerHelper.runTask(deployData, project, toolWindow)
-//            deployDataManager.commit()
-//
-//            logger.info("apply finished")
+            logger.info("deploy start")
+            val deployData = deployDataManager.getDeployData()
+            if (deployData.isEmpty) {
+                logger.info("apply finished with no data to apply")
+                return
+            }
+
+            logger.info("deploy data:\n$deployData")
+
+            AidpDeployerHelper.runTask(deployData, project, toolWindow)
+            deployDataManager.commit()
+
+            logger.info("deploy finished")
         } catch (e: Throwable) {
-            logger.error("apply failed", e)
+            logger.error("deploy failed", e)
         }
     }
 

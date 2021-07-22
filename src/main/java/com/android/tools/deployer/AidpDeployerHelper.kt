@@ -35,10 +35,12 @@ object AidpDeployerHelper {
         // TODO read apk
         val packages = mapOf("com.example.myapplication" to listOf(File("F:\\StudioProjects\\MyApplicationIntellij\\app\\build\\outputs\\apk\\debug\\app-debug.apk")))
         val task = AidpApplyChangesTask(project, packages, true, installPathProvider, data)
+        // TODO DefaultRunExecutor.getRunExecutorInstance()
         val executor = MockExecutor(toolWindow)
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()
         val consolePrinter = MockConsolePrinter(project)
+        // TODO try ExecutionManager
         task.run(executor, device, launchStatus, consolePrinter)
     }
 
