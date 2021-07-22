@@ -10,6 +10,7 @@ import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.tasks.AidpApplyChangesTask
 import com.android.tools.idea.run.tasks.AidpApplyCodeChangesTask
 import com.google.common.base.Stopwatch
+import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
@@ -31,12 +32,11 @@ object AidpDeployerHelper {
         EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()
     }
 
-    fun runTask(data: AidpDeployData, project: Project, toolWindow: ToolWindow) {
+    fun runTask(data: AidpDeployData, project: Project) {
         // TODO read apk
         val packages = mapOf("com.example.myapplication" to listOf(File("F:\\StudioProjects\\MyApplicationIntellij\\app\\build\\outputs\\apk\\debug\\app-debug.apk")))
         val task = AidpApplyChangesTask(project, packages, true, installPathProvider, data)
-        // TODO DefaultRunExecutor.getRunExecutorInstance()
-        val executor = MockExecutor(toolWindow)
+        val executor = DefaultRunExecutor.getRunExecutorInstance()
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()
         val consolePrinter = MockConsolePrinter(project)

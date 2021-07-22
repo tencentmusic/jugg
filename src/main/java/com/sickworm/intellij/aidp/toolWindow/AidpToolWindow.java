@@ -30,6 +30,7 @@ public class AidpToolWindow {
   private JTextPane runningLog;
   private JCheckBox deployOnSaveCheckBox;
   private JCheckBox enableDebugLogCheckBox;
+  private JTextField statusTextField;
 
   private final Project project;
 
@@ -50,7 +51,7 @@ public class AidpToolWindow {
     }
 
     AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
-    this.aidpManager = new AidpManager(project, projectDir, toolWindow);
+    this.aidpManager = new AidpManager(project, projectDir, this);
     aidpManager.start();
 
     deployButton.addActionListener(e -> deploy());
@@ -79,6 +80,12 @@ public class AidpToolWindow {
         popup.show(e.getComponent(), e.getX(), e.getY());
       }
     });
+
+    statusTextField.setText("state: unknown");
+  }
+
+  public void updateStatus(String msg) {
+    statusTextField.setText("state: " + msg);
   }
 
   public void deploy() {

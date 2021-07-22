@@ -5,6 +5,7 @@ import com.android.tools.idea.util.CommonAndroidUtil
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.Messages
+import com.sickworm.intellij.aidp.AidpManager
 
 class DeployAction: AnAction() {
 
@@ -26,5 +27,8 @@ class DeployAction: AnAction() {
 
         val disableMessage = BaseAction.getDisableMessage(project)
         currentText = disableMessage?.description ?: "ready to run"
+
+        val aidpManager = AidpManager.getInstance(project)
+        aidpManager?.updateStatus(currentText)
     }
 }

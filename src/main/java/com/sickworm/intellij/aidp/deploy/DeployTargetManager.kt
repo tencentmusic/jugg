@@ -17,8 +17,7 @@ import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
 
 class DeployTargetManager(
-    private val project: Project,
-    private val toolWindow: ToolWindow,
+    private val project: Project
 ) {
     private val logger = AidpLogger.getInstance(project, "#AIDP-DeployTargetManager")
 

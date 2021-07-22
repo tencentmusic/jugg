@@ -13,13 +13,14 @@ import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileTask
 import com.sickworm.intellij.aidp.compiler.file
 import com.sickworm.intellij.aidp.deploy.DeployTargetManager
+import com.sickworm.intellij.aidp.toolWindow.AidpToolWindow
 import java.io.File
 import java.util.concurrent.Executors
 
 
 class AidpManager(private val project: Project,
                   projectDir: String,
-                  private val toolWindow: ToolWindow
+                  private val toolWindow: AidpToolWindow
 ): Disposable {
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
@@ -45,7 +46,7 @@ class AidpManager(private val project: Project,
     private lateinit var compiler: AidpCompiler
 
     // deploy target apk
-    private val deployTargetManager = DeployTargetManager(project, toolWindow)
+    private val deployTargetManager = DeployTargetManager(project)
 
     init {
         register(project, this)
@@ -179,13 +180,17 @@ class AidpManager(private val project: Project,
 
             logger.info("deploy data:\n$deployData")
 
-            AidpDeployerHelper.runTask(deployData, project, toolWindow)
+            AidpDeployerHelper.runTask(deployData, project)
             deployDataManager.commit()
 
             logger.info("deploy finished")
         } catch (e: Throwable) {
             logger.error("deploy failed", e)
         }
+    }
+
+    fun updateStatus(msg: String) {
+        toolWindow.updateStatus(msg)
     }
 
     override fun dispose() {
