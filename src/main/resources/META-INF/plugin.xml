@@ -29,6 +29,7 @@
                 factoryClass="com.sickworm.intellij.aidp.toolWindow.AidpToolWindowFactory"
         />
     </extensions>
+
     <actions>
         <action id="com.sickworm.intellij.aidp.deploy.DeployAction"
                 class="com.sickworm.intellij.aidp.deploy.DeployAction" text="AIDP Deploy" description="AIDP Deploy">

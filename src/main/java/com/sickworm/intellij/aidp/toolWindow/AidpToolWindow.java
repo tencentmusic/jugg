@@ -3,6 +3,9 @@
 package com.sickworm.intellij.aidp.toolWindow;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.actionSystem.ActionManager;
+import com.intellij.openapi.actionSystem.ActionToolbar;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
@@ -10,6 +13,7 @@ import com.intellij.ui.JBColor;
 import com.sickworm.intellij.aidp.AidpLogger;
 import com.sickworm.intellij.aidp.AidpManager;
 import com.sickworm.intellij.aidp.AidpSettings;
+import com.sickworm.intellij.aidp.deploy.DeployActionGroup;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +34,7 @@ public class AidpToolWindow {
   private JTextPane runningLog;
   private JCheckBox deployOnSaveCheckBox;
   private JCheckBox enableDebugLogCheckBox;
-  private JTextField statusTextField;
+  private JLabel statusLabel;
 
   private final Project project;
 
@@ -81,11 +85,14 @@ public class AidpToolWindow {
       }
     });
 
-    statusTextField.setText("state: unknown");
+    statusLabel.setText("state: unknown");
+
+    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("AidpToolWindow", new DeployActionGroup(), true);
+    toolbar.setTargetComponent(myToolWindowContent);
   }
 
   public void updateStatus(String msg) {
-    statusTextField.setText("state: " + msg);
+    statusLabel.setText("state: " + msg);
   }
 
   public void deploy() {
