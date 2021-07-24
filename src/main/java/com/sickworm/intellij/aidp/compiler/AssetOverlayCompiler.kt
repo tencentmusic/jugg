@@ -5,7 +5,7 @@ import com.sickworm.intellij.aidp.*
 import java.io.File
 import java.util.zip.ZipFile
 
-class OverlayCompiler(private val logger: Logger): ICompiler {
+class AssetOverlayCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)
 
     override fun compile(task: CompileTask): CompileResult {

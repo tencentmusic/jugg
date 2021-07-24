@@ -26,9 +26,9 @@ class AidpCompiler(
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
 
-    private val overlayCompiler = OverlayCompiler(logger)
+    private val assetOverlayCompiler = AssetOverlayCompiler(logger)
 
-    private val resourceCompiler = ResourceOverlayCompiler(
+    private val resourceOverlayCompiler = ResourceOverlayCompiler(
         flatDir = flatDir,
         stableIdsFile = stableIds,
         manifest = manifest,
@@ -59,7 +59,7 @@ class AidpCompiler(
         )
         if (assetCompileTask.isNeedCompile) {
             // overlay assets
-            compileResult += overlayCompiler.compile(assetCompileTask).let { result ->
+            compileResult += assetOverlayCompiler.compile(assetCompileTask).let { result ->
                 // correct base dir as assets/xxx/xxx
                 result.copy(outputs = result.outputs.map { output ->
                     output.copy(baseDir = output.baseDir.parentFile)
@@ -80,7 +80,7 @@ class AidpCompiler(
                 // compile to .flat
                 val tempOutputDir = File(tempCompileDir, "resource")
                 val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
-                val resourceResult = resourceCompiler.compile(tempResourceCompileTask)
+                val resourceResult = resourceOverlayCompiler.compile(tempResourceCompileTask)
                 if (!resourceResult.isAllSuccess) {
                     return@run resourceResult
                 }
