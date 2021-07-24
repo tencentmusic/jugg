@@ -85,12 +85,15 @@ class AidpCompiler(
                     return@run resourceResult
                 }
 
-                // move arsc to dest output directory
-                val arscFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Overlay }!!.file
-                val destArscFile = arscFile.changeBaseDir(tempOutputDir, overlayOutputDir)
-                overlayOutputDir.mkdirs()
-                arscFile.renameTo(destArscFile)
-                val arscCompileOutput = CompileOutput(CompileOutput.Type.Overlay, destArscFile, overlayOutputDir)
+                // move overlays to output directory
+                val overlays = resourceResult.outputs
+                    .filter { it.type == CompileOutput.Type.Overlay }
+                    .map {
+                        val outputFile = it.file.changeBaseDir(tempOutputDir, overlayOutputDir)
+                        outputFile.parentFile.mkdirs()
+                        it.file.renameTo(outputFile)
+                        CompileOutput(CompileOutput.Type.Overlay, outputFile, overlayOutputDir)
+                    }
 
                 // compile R.java
                 val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!.file
@@ -114,7 +117,7 @@ class AidpCompiler(
                 return@run CompileResult(
                     resourceCompileTask,
                     details = resourceResult.details,
-                    outputs = rJavaResult.outputs + arscCompileOutput
+                    outputs = rJavaResult.outputs + overlays
                 )
             }
             compileResult += finalResult

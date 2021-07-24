@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 val logger = Logger.getInstance("AidpTest")
@@ -61,10 +62,9 @@ fun assertCompileResult(task: CompileTask,
         val expectOutput = outputFileMapper(detail.file)
         expectOutput.forEach { relativeOutput ->
             val output = result.outputs.find { it.file.absolutePath == relativeOutput.file.absolutePath }
-            assertTrue(output != null)
-            assertTrue(output.file.exists())
+            assertEquals(relativeOutput, output)
+            assertTrue(output!!.file.exists())
             assertTrue(output.file.length() > 0)
-            assertEquals(output, relativeOutput)
         }
         outputs.addAll(expectOutput)
     }
