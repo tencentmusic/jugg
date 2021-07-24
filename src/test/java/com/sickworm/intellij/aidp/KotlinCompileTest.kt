@@ -7,7 +7,7 @@ import java.io.File
 
 class KotlinCompileTest {
 
-    private val kotlinCompiler = KotlinCompiler()
+    private val kotlinCompiler = KotlinCompiler(logger)
 
     @Before
     fun init() {

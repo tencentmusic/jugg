@@ -4,7 +4,7 @@ package com.sickworm.intellij.aidp.test
 class Result<Success, Failure> constructor(
     val isSuccess: Boolean,
     success: Success?,
-    failure: Failure?,
+    failure: Failure?
     ) {
 
     private val value: Any? = if (isSuccess) success else failure

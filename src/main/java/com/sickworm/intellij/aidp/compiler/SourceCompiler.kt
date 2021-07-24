@@ -14,7 +14,7 @@ class SourceCompiler(
     private val sourceCompileDir: File,
     /** class path directory */
     private val classPathDir: File,
-    private val androidBuildTools: File,
+    androidBuildTools: File,
     private val logger: Logger
     ): ICompiler {
 
@@ -22,7 +22,7 @@ class SourceCompiler(
 
     private val javaCompiler = JavaCompiler(logger)
 
-    private val kotlinCompiler = KotlinCompiler()
+    private val kotlinCompiler = KotlinCompiler(logger)
 
     private val dexCompiler = DexCompiler(androidBuildTools, logger)
 
@@ -152,19 +152,23 @@ class JavaCompiler(private val logger: Logger): ICompiler {
     }
 }
 
-class KotlinCompiler: ICompiler {
+class KotlinCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
         checkOutputDirIsEmpty(task)
 
-        val javaCmd = "D:\\Java\\jdk1.8.0_77\\bin\\java.exe"
-        val preloader = "D:\\JETBRA~1\\INTELL~1.2\\plugins\\Kotlin\\kotlinc\\bin\\..\\lib\\kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
-        val compiler = "D:\\JETBRA~1\\INTELL~1.2\\plugins\\Kotlin\\kotlinc\\bin\\..\\lib\\kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
+        // TODO read from environment
+        val javaCmd = if (isWindows) "D:/Java/jdk1.8.0_77/bin/java.exe" else "java"
+        val kotlincLibDir = if (isWindows) "D:/JETBRA~1/INTELL~1.2/plugins/Kotlin/kotlinc/lib"
+            else "/Users/wormchen/IdeaProjects/studio-master-dev/prebuilts/tools/common/kotlin-plugin/Kotlin/kotlinc/lib"
+        val preloader = "$kotlincLibDir/kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
+        val compiler = "$kotlincLibDir/kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
         val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -d ${task.outputDir}"
         println(command)
         val pr = Runtime.getRuntime().exec(command)
+        pr.readOutput(logger)
         pr.waitFor()
 
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
