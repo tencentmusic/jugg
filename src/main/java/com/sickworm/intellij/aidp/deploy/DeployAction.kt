@@ -1,3 +1,5 @@
+@file:Suppress("UnstableApiUsage")
+
 package com.sickworm.intellij.aidp.deploy
 
 import com.android.tools.idea.run.DeploymentService
@@ -36,6 +38,7 @@ class DeployAction: AnAction(
     }
 
     private var currentText: String = "unknown state"
+    @Suppress("UnstableApiUsage")
     override fun update(e: AnActionEvent) {
         super.update(e)
 
@@ -44,108 +47,109 @@ class DeployAction: AnAction(
             return
         }
 
-        val disableMessage = getDisableMessage(project)
-        currentText = disableMessage?.tooltip ?: "ready to run"
+        val deployState = getDisableMessage(project)
+        currentText = deployState.msg
 
         val aidpManager = AidpManager.getInstance(project)
-        aidpManager?.updateStatus(currentText)
+        @Suppress("UnstableApiUsage")
+        aidpManager?.updateStatus(deployState)
     }
 
-    fun getDisableMessage(project: Project): DisableMessage? {
+    fun getDisableMessage(project: Project): DeployState {
         val logger = AidpLogger.getInstance(project, "#AIDP-DeployAction")
         val configSettings = RunManager.getInstance(project).selectedConfiguration
-            ?: return DisableMessage(
+            ?: return DeployState(DisableMessage(
                 DisableMessage.DisableMode.DISABLED,
                 "no configuration selected",
                 "there is no configuration selected"
-            )
+            ))
         val selectedRunConfig = configSettings.configuration
         if (!isApplyChangesRelevant(selectedRunConfig)) {
-            return DisableMessage(
+            return DeployState(DisableMessage(
                 DisableMessage.DisableMode.INVISIBLE, "unsupported configuration",
                 "the selected configuration is not supported"
-            )
+            ))
         }
         if (isExecutorStarting(project, selectedRunConfig)) {
-            return DisableMessage(
+            return DeployState(DisableMessage(
                 DisableMessage.DisableMode.DISABLED, "building and/or launching",
                 "the selected configuration is currently building and/or launching"
-            )
+            ))
         }
         val deployableProvider = DeploymentService.getInstance(project).deployableProvider
-            ?: return DisableMessage(
+            ?: return DeployState(DisableMessage(
                 DisableMessage.DisableMode.DISABLED, "no deployment provider",
                 "there is no deployment provider specified"
-            )
+            ))
         if (!deployableProvider.isDependentOnUserInput) {
             val deployable: Deployable?
             try {
                 deployable = deployableProvider.deployable
                 if (deployable == null) {
-                    return DisableMessage(
+                    return DeployState(DisableMessage(
                         DisableMessage.DisableMode.DISABLED,
                         "selected device is invalid",
                         "the selected device is not valid"
-                    )
+                    ))
                 }
                 if (!deployable.isOnline) {
                     return if (deployable.isUnauthorized) {
-                        DisableMessage(
+                        DeployState(DisableMessage(
                             DisableMessage.DisableMode.DISABLED, "device not authorized",
                             "the selected device is not authorized"
-                        )
+                        ))
                     } else {
-                        DisableMessage(
+                        DeployState(DisableMessage(
                             DisableMessage.DisableMode.DISABLED,
                             "device not connected",
                             "the selected device is not connected"
-                        )
+                        ))
                     }
                 }
                 val versionFuture = deployable.version
                 if (!versionFuture.isDone) {
                     // Don't stall the EDT - if the Future isn't ready, just return false.
-                    return DisableMessage(
+                    return DeployState(DisableMessage(
                         DisableMessage.DisableMode.DISABLED,
                         "unknown device API level",
                         "its API level is currently unknown"
-                    )
+                    ), true)
                 }
                 if (versionFuture.get().apiLevel < AbstractDeployTask.MIN_API_VERSION) {
-                    return DisableMessage(
+                    return DeployState(DisableMessage(
                         DisableMessage.DisableMode.DISABLED, "incompatible device API level",
                         "its API level is lower than 26"
-                    )
+                    ))
                 }
                 if (deployable.searchClientsForPackage().isEmpty()) {
-                    return DisableMessage(
+                    return DeployState(DisableMessage(
                         DisableMessage.DisableMode.DISABLED, "app not detected",
                         "the app is not yet running or not debuggable"
-                    )
+                    ), true)
                 }
             } catch (ex: InterruptedException) {
                 logger.warn(ex)
-                return DisableMessage(
+                return DeployState(DisableMessage(
                     DisableMessage.DisableMode.DISABLED,
                     "update interrupted",
                     "its status update was interrupted"
-                )
+                ))
             } catch (ex: ExecutionException) {
                 logger.warn(ex)
-                return DisableMessage(
+                return DeployState(DisableMessage(
                     DisableMessage.DisableMode.DISABLED, "unknown device API level",
                     "its API level could not be determined"
-                )
+                ), true)
             } catch (ex: Exception) {
                 logger.warn(ex)
-                return DisableMessage(
+                return DeployState(DisableMessage(
                     DisableMessage.DisableMode.DISABLED,
                     "unexpected exception",
                     "an unexpected exception was thrown: $ex"
-                )
+                ))
             }
         }
-        return null
+        return DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {

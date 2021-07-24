@@ -15,6 +15,7 @@ import com.sickworm.intellij.aidp.AidpLogger;
 import com.sickworm.intellij.aidp.AidpManager;
 import com.sickworm.intellij.aidp.AidpSettings;
 import com.sickworm.intellij.aidp.deploy.DeployAction;
+import com.sickworm.intellij.aidp.deploy.DeployState;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,6 +28,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Objects;
 
 public class AidpToolWindow {
 
@@ -35,6 +37,7 @@ public class AidpToolWindow {
   private JTextPane runningLog;
   private JCheckBox deployOnSaveCheckBox;
   private JCheckBox enableDebugLogCheckBox;
+  private JLabel statusIconLabel;
   private JLabel statusLabel;
   private JPanel actionPanel;
 
@@ -87,18 +90,32 @@ public class AidpToolWindow {
       }
     });
 
-    statusLabel.setText("state: unknown");
-
     AnAction action = new DeployAction();
     ActionManager.getInstance().registerAction("AIDP Deploy", action);
     DefaultActionGroup actionGroup = new DefaultActionGroup(action);
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("AidpToolWindow", actionGroup, false);
     toolbar.setTargetComponent(actionPanel);
     actionPanel.add(toolbar.getComponent());
+
+    statusIconLabel.setOpaque(true);
   }
 
-  public void updateStatus(String msg) {
-    statusLabel.setText("state: " + msg);
+  public void updateStatus(DeployState state) {
+    String iconRes;
+    if (state.isReadyApply()) {
+      iconRes = "/res/icon_green.png";
+    } else if (state.isReadyInstall()) {
+      iconRes = "/res/icon_yellow.png";
+    } else {
+      iconRes = "/res/icon_red.png";
+    }
+    ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource(iconRes)));
+    Image image = icon.getImage(); // transform it
+    Image newImg = image.getScaledInstance(8, 8,  java.awt.Image.SCALE_SMOOTH);
+    ImageIcon newImgIcon = new ImageIcon(newImg);
+    statusIconLabel.setIcon(newImgIcon);
+
+    statusLabel.setText(state.getMsg());
   }
 
   public void deploy() {

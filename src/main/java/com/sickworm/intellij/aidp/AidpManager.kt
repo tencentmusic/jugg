@@ -12,7 +12,9 @@ import com.sickworm.intellij.aidp.compiler.AidpCompiler
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileTask
 import com.sickworm.intellij.aidp.compiler.file
+import com.sickworm.intellij.aidp.deploy.DeployState
 import com.sickworm.intellij.aidp.deploy.DeployTargetManager
+import com.sickworm.intellij.aidp.deploy.DisableMessage
 import com.sickworm.intellij.aidp.toolWindow.AidpToolWindow
 import java.io.File
 import java.util.concurrent.Executors
@@ -47,6 +49,9 @@ class AidpManager(private val project: Project,
 
     // deploy target apk
     private val deployTargetManager = DeployTargetManager(project)
+    private var deployState = DeployState(isReadyInstall = false, isReadyApply = false, DisableMessage(
+        DisableMessage.DisableMode.DISABLED, "not initialized", "aidp not initialized"
+    ))
 
     init {
         register(project, this)
@@ -168,24 +173,27 @@ class AidpManager(private val project: Project,
     }
 
     private fun deploy() {
-        if (!deployTargetManager.canDeploy()) {
-            logger.info("no apk found. run normal build")
-            deployTargetManager.runNormalBuild()
-            return
-        }
-
         try {
             logger.info("deploy start")
-            val deployData = deployDataManager.getDeployData()
-            if (deployData.isEmpty) {
-                logger.info("apply finished with no data to apply")
+
+            if (deployState.isReadyApply) {
+                val deployData = deployDataManager.getDeployData()
+                if (deployData.isEmpty) {
+                    logger.info("apply finished with no data to apply")
+                    return
+                }
+
+                logger.info("deploy data:\n$deployData")
+
+                AidpDeployerHelper.runTask(deployData, project)
+                deployDataManager.commit()
+            } else if (deployState.isReadyInstall) {
+                logger.info("can not apply, install and run apk")
+                deployTargetManager.runNormalBuild()
                 return
+            } else {
+                logger.warn("not ready to deploy")
             }
-
-            logger.info("deploy data:\n$deployData")
-
-            AidpDeployerHelper.runTask(deployData, project)
-            deployDataManager.commit()
 
             logger.info("deploy finished")
         } catch (e: Throwable) {
@@ -193,8 +201,11 @@ class AidpManager(private val project: Project,
         }
     }
 
-    fun updateStatus(msg: String) {
-        toolWindow.updateStatus(msg)
+    fun updateStatus(state: DeployState) {
+        if (deployState != state) {
+            toolWindow.updateStatus(state)
+        }
+        deployState = state
     }
 
     override fun dispose() {
