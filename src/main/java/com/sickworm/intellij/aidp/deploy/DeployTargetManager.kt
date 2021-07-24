@@ -23,14 +23,15 @@ class DeployTargetManager(
 
     private var apkFiles: List<ApkInfo> = emptyList()
 
-    fun canDeploy(): Boolean {
+    fun getApks(): List<ApkInfo> {
+        // TODO refresh cache when config changed
         if (apkFiles.isNotEmpty()) {
-            return true
+            return apkFiles
         }
 
         val (_, runConfig) = getRunConfig()
         apkFiles = getApks(runConfig)
-        return apkFiles.isNotEmpty()
+        return apkFiles
     }
 
     fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
@@ -44,7 +45,7 @@ class DeployTargetManager(
         ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
     }
 
-    fun getApks(runConfig: AndroidRunConfiguration): List<ApkInfo> {
+    private fun getApks(runConfig: AndroidRunConfiguration): List<ApkInfo> {
         // get apk
         val module: Module = runConfig.configurationModule.module!!
         val facet: AndroidFacet = AndroidFacet.getInstance(module)!!

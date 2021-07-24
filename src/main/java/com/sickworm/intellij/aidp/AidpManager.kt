@@ -200,7 +200,12 @@ class AidpManager(private val project: Project,
             logger.info("deploy start")
 
             if (deployState.isReadyApply) {
-                val deployData = deployDataManager.getDeployData()
+                val apks = deployTargetManager.getApks()
+                if (apks.isEmpty()) {
+                    logger.warn("apply failed, can not find apks")
+                    return
+                }
+                val deployData = deployDataManager.getDeployData(apks)
                 if (deployData.isEmpty) {
                     logger.info("apply finished with no data to apply")
                     return

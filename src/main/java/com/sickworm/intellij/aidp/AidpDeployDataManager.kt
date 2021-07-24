@@ -2,6 +2,7 @@ package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployData
 import com.android.tools.deployer.AidpDeployItem
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileOutput
@@ -51,7 +52,7 @@ class AidpDeployDataManager {
     }
 
     @Synchronized
-    fun getDeployData(): AidpDeployData {
+    fun getDeployData(apks: List<ApkInfo>): AidpDeployData {
         if (uncompiledFiles.isNotEmpty()) {
             throw AidpException.notAllCompiled(uncompiledFiles.values)
         }
@@ -65,6 +66,7 @@ class AidpDeployDataManager {
         val changedOverlays = changedOverlayFiles.map { it.toDeployItem() }
 
         return AidpDeployData(
+            apks,
             changedClasses,
             changedOverlays
         )

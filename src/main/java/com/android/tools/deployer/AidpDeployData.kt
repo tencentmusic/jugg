@@ -4,8 +4,10 @@ import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
+import com.android.tools.idea.run.ApkInfo
 
 data class AidpDeployData(
+    val apks: List<ApkInfo>,
     val classes: List<AidpDeployItem>,
     val overlays: List<AidpDeployItem>,
 ) {

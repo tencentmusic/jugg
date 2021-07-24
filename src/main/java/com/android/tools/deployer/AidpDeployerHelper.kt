@@ -1,25 +1,21 @@
 package com.android.tools.deployer
 
 import com.android.ddmlib.IDevice
-import com.android.tools.idea.flags.StudioFlags
+import com.android.tools.idea.gradle.util.DynamicAppUtils
 import com.android.tools.idea.gradle.util.EmbeddedDistributionPaths
-import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.tasks.AidpApplyChangesTask
-import com.android.tools.idea.run.tasks.AidpApplyCodeChangesTask
-import com.google.common.base.Stopwatch
+import com.google.common.collect.ImmutableList
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.intellij.openapi.wm.ToolWindow
 import com.sickworm.intellij.aidp.AidpException
-import com.sickworm.intellij.aidp.AidpLogger
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
-import java.util.*
+import java.util.stream.Collectors
 
 /**
  * Create a deploy task.
@@ -34,8 +30,14 @@ object AidpDeployerHelper {
     }
 
     fun runTask(data: AidpDeployData, project: Project) {
-        // TODO read apk
-        val packages = mapOf("com.example.myapplication" to listOf(File("F:\\StudioProjects\\MyApplicationIntellij\\app\\build\\outputs\\apk\\debug\\app-debug.apk")))
+        val packages = // com.android.tools.idea.run.LaunchTaskRunner.run
+            // Add packages to the deployment, filtering out any dynamic features that are disabled.
+            data.apks.associate {
+                // com.android.tools.idea.run.LaunchTaskRunner.run
+                // Add packages to the deployment, filtering out any dynamic features that are disabled.
+                val disabledFeatures = emptyList<String>()
+                it.applicationId to getFilteredFeatures(it, disabledFeatures)
+            }
         val task = AidpApplyChangesTask(project, packages, true, installPathProvider, data)
         val executor = DefaultRunExecutor.getRunExecutorInstance()
         val device = getIDevice(project)
@@ -76,6 +78,22 @@ object AidpDeployerHelper {
 
     private fun getDeviceCount(debug: Boolean): DeviceCount {
         return DeviceCount.fromBoolean(supportMultipleDevices() && !debug)
+    }
+
+    private fun getFilteredFeatures(apkInfo: ApkInfo, disabledFeatures: List<String>): List<File> {
+        return if (apkInfo.files.size > 1) {
+            apkInfo.files.stream()
+                .filter { feature: ApkFileUnit? ->
+                    DynamicAppUtils.isFeatureEnabled(
+                        disabledFeatures,
+                        feature!!
+                    )
+                }
+                .map { file: ApkFileUnit -> file.apkFile }
+                .collect(Collectors.toList())
+        } else {
+            ImmutableList.of(apkInfo.file)
+        }
     }
 
     private val isDebugging = true // ??
