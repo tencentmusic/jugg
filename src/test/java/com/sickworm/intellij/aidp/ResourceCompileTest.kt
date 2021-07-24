@@ -129,8 +129,7 @@ class ResourceCompileTest {
         )
 
         task.files.forEach { compileFile ->
-            val source = compileFile.file
-            val outputFile = File(task.outputDir, "res/${source.parentFile.name}_${source.name}")
+            val outputFile = compileFile.file.changeBaseDir(compileFile.baseDir, File(task.outputDir, "res"))
             val compileOutput = CompileOutput(
                 CompileOutput.Type.Overlay,
                 outputFile,

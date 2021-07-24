@@ -72,10 +72,13 @@ class ResourceOverlayCompiler(
 
         // copy to outputDir
         val overlayOutputs = resourceResult.outputs.map {
-            val outputFileName = it.file.name.substring(0, it.file.name.length - 5) // remove .flat
-            val outputDir = File(task.outputDir, "res")
+            val index1 = it.file.name.indexOf('_')
+            val index2 = it.file.name.length - 5
+            val folder = it.file.name.substring(0, index1)
+            val outputFileName = it.file.name.substring(index1 + 1, index2) // remove .flat
+            val outputDir = File(task.outputDir, "res/$folder")
             val outputFile = it.file.changeBaseDir(flatDir, outputDir, newName = outputFileName)
-            it.file.copyTo(outputFile)
+            it.file.copyTo(outputFile, true)
             it.copy(file = outputFile, baseDir = task.outputDir)
         }
 

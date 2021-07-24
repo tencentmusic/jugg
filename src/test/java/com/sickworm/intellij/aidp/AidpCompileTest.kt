@@ -135,9 +135,8 @@ class AidpCompileTest {
                 val outputFile = it.file.changeBaseDir(it.baseDir, File(outputBaseDir, "assets"))
                 listOf(CompileOutput(CompileOutput.Type.Overlay, outputFile, outputBaseDir))
             } else if (it.type == CompileFile.Type.Resource) {
-                val source = it.file
                 val outputBaseDir = File(task.outputDir, "overlays")
-                val outputFile = File(outputBaseDir, "res/${source.parentFile.name}_${source.name}")
+                val outputFile = it.file.changeBaseDir(it.baseDir, File(outputBaseDir, "res"))
                 val flatOutput = CompileOutput(
                     CompileOutput.Type.Overlay,
                     outputFile,
