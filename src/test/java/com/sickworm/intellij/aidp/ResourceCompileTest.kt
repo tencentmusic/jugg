@@ -4,6 +4,7 @@ import com.sickworm.intellij.aidp.compiler.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertEquals
 
 class ResourceCompileTest {
 
@@ -46,7 +47,7 @@ class ResourceCompileTest {
         assert(result.isAllSuccess)
         assert(result.outputs.size == files.size)
         result.outputs.forEach {
-            assert(it.type == CompileOutput.Type.Flat)
+            assert(it.type == CompileOutput.Type.Overlay)
             assert(it.file.exists())
             assert(it.file.length() > 0)
         }
@@ -63,6 +64,18 @@ class ResourceCompileTest {
         checkArscResult(task, result)
     }
 
+    private fun checkArscResult(task: CompileTask, result: CompileResult) {
+        assert(result.details.size == task.files.size)
+        assert(result.isAllSuccess)
+        assert(result.outputs.size == 2)
+        assert(result.outputs[0].type == CompileOutput.Type.Overlay)
+        assert(result.outputs[1].type == CompileOutput.Type.Java)
+        result.outputs.forEach {
+            assert(it.file.exists())
+            assert(it.file.length() > 0)
+        }
+    }
+
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
     val cachedArscTask = CompileTask(
         listOf(
@@ -76,7 +89,7 @@ class ResourceCompileTest {
     @Test
     fun compileCachedArsc() {
         val task = cachedArscTask
-        val arscCompiler = CachedArscCompiler(
+        val arscCompiler = ResourceOverlayCompiler(
             flatDir,
             stableIds,
             manifest,
@@ -86,18 +99,44 @@ class ResourceCompileTest {
         )
 
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result)
+        checkResourceOverlayResult(task, result)
     }
 
-    private fun checkArscResult(task: CompileTask, result: CompileResult) {
+    private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult) {
         assert(result.details.size == task.files.size)
         assert(result.isAllSuccess)
-        assert(result.outputs.size == 2)
-        assert(result.outputs[0].type == CompileOutput.Type.Overlay)
-        assert(result.outputs[1].type == CompileOutput.Type.Java)
-        result.outputs.forEach {
-            assert(it.file.exists())
-            assert(it.file.length() > 0)
+        assert(result.outputs.size == 2 + task.files.size)
+
+        val arscFile = result.outputs.find { it.file.name == "resources.arsc" }
+        assertEquals(
+            CompileOutput(
+                CompileOutput.Type.Overlay,
+                File(task.outputDir, "resources.arsc"),
+                task.outputDir
+            ),
+            arscFile
+        )
+
+        val rFile = result.outputs.find { it.file.name == "R.java" }
+        assertEquals(
+            CompileOutput(
+                CompileOutput.Type.Java,
+                File(task.outputDir, "rjava/com/example/myapplication/R.java"),
+                task.outputDir
+            ),
+            rFile
+        )
+
+        task.files.forEach { compileFile ->
+            val source = compileFile.file
+            val outputFile = File(task.outputDir, "res/${source.parentFile.name}_${source.name}")
+            val compileOutput = CompileOutput(
+                CompileOutput.Type.Overlay,
+                outputFile,
+                task.outputDir
+            )
+            val relativeOutput = result.outputs.find { it.file.name == outputFile.name }
+            assertEquals(compileOutput, relativeOutput)
         }
     }
 }

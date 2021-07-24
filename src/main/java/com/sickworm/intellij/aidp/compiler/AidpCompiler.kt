@@ -26,9 +26,9 @@ class AidpCompiler(
 
     private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
 
-    private val overlayCompiler = AssetCompiler(logger)
+    private val overlayCompiler = OverlayCompiler(logger)
 
-    private val resourceCompiler = CachedArscCompiler(
+    private val resourceCompiler = ResourceOverlayCompiler(
         flatDir = flatDir,
         stableIdsFile = stableIds,
         manifest = manifest,
@@ -58,6 +58,7 @@ class AidpCompiler(
             outputDir = assetsOutputDir
         )
         if (assetCompileTask.isNeedCompile) {
+            // overlay assets
             compileResult += overlayCompiler.compile(assetCompileTask).let { result ->
                 // correct base dir as assets/xxx/xxx
                 result.copy(outputs = result.outputs.map { output ->
@@ -74,7 +75,9 @@ class AidpCompiler(
             outputDir = task.outputDir
         )
         if (resourceCompileTask.isNeedCompile) {
+            // compile .arsc and R file
             val finalResult = run {
+                // compile to .flat
                 val tempOutputDir = File(tempCompileDir, "resource")
                 val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
                 val resourceResult = resourceCompiler.compile(tempResourceCompileTask)

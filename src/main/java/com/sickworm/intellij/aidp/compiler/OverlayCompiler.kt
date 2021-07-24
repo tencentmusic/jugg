@@ -5,8 +5,8 @@ import com.sickworm.intellij.aidp.*
 import java.io.File
 import java.util.zip.ZipFile
 
-class AssetCompiler(private val logger: Logger): ICompiler {
-    override val supportedTypes = listOf(CompileFile.Type.Asset)
+class OverlayCompiler(private val logger: Logger): ICompiler {
+    override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -22,13 +22,13 @@ class AssetCompiler(private val logger: Logger): ICompiler {
                 return@forEach
             }
 
-            val destFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
+            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
             try {
-                it.file.copyTo(destFile, overwrite = true)
-                outputs.add(CompileOutput(CompileOutput.Type.Overlay, destFile, task.outputDir))
+                it.file.copyTo(outputFile, overwrite = true)
+                outputs.add(CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir))
                 details.add(Result.success(it))
             } catch (e: Exception) {
-                val errorMessage = "move file ${it.file.absolutePath} to ${destFile.absolutePath} failed, e: $e"
+                val errorMessage = "move file ${it.file.absolutePath} to ${outputFile.absolutePath} failed, e: $e"
                 logger.warn(errorMessage)
                 val result = CompileError(it, listOf(0L to errorMessage))
                 details.add(Result.failure(result))
@@ -38,7 +38,7 @@ class AssetCompiler(private val logger: Logger): ICompiler {
     }
 }
 
-class CachedArscCompiler(
+class ResourceOverlayCompiler(
     private val flatDir: File,
     stableIdsFile: File,
     manifest: File,
@@ -70,6 +70,15 @@ class CachedArscCompiler(
             return CompileResult(task, resourceResult.details, emptyList())
         }
 
+        // copy to outputDir
+        val overlayOutputs = resourceResult.outputs.map {
+            val outputFileName = it.file.name.substring(0, it.file.name.length - 5) // remove .flat
+            val outputDir = File(task.outputDir, "res")
+            val outputFile = it.file.changeBaseDir(flatDir, outputDir, newName = outputFileName)
+            it.file.copyTo(outputFile)
+            it.copy(file = outputFile, baseDir = task.outputDir)
+        }
+
         // build .arsc
         val arscTask = CompileTask(
             listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
@@ -88,7 +97,7 @@ class CachedArscCompiler(
         return CompileResult(
             task,
             resourceResult.details,
-            arscResult.outputs
+            overlayOutputs + arscResult.outputs
         )
     }
 }
@@ -126,7 +135,7 @@ class ResourceCompiler(
             else it.file.extension
             val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
             val outputFile = File(task.outputDir, fileName)
-            val output = CompileOutput(CompileOutput.Type.Flat, outputFile, task.outputDir)
+            val output = CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir)
             val detail: Result<CompileFile, CompileError> =
                 if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(it)

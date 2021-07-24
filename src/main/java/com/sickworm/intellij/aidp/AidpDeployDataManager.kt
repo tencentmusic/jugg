@@ -61,8 +61,8 @@ class AidpDeployDataManager {
         // TODO do it in addDeployFile
         val changedClasses = changedClassFiles.map { it.toDeployItem() }
 
-        val changedOverlayFile = items.filter { it.type == CompileOutput.Type.Overlay }
-        val changedOverlays = changedOverlayFile.map { it.toDeployItem() }
+        val changedOverlayFiles = items.filter { it.type == CompileOutput.Type.Overlay }
+        val changedOverlays = changedOverlayFiles.map { it.toDeployItem() }
 
         return AidpDeployData(
             changedClasses,

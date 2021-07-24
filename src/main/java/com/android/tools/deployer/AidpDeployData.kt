@@ -9,11 +9,12 @@ data class AidpDeployData(
     val classes: List<AidpDeployItem>,
     val overlays: List<AidpDeployItem>,
 ) {
-    val isEmpty get() = classes.isEmpty()
+    val isEmpty get() = classes.isEmpty() && overlays.isEmpty()
 
     override fun toString(): String {
         val classString = classes.toLogString()
-        return "AidpDeployData: \n$classString"
+        val overlayString = overlays.toLogString()
+        return "AidpDeployData:\n$classString\n$overlayString"
     }
 }
 

@@ -53,7 +53,6 @@ data class CompileOutput(
     enum class Type {
         Class,
         Dex,
-        Flat,
         Overlay,
         Java;
     }
