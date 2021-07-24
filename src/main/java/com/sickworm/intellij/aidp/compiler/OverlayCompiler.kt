@@ -88,23 +88,11 @@ class ResourceOverlayCompiler(
         val resApkFileOutput = arscResult.outputs.find { it.type == CompileOutput.Type.Overlay }!!
 
         // copy overlays to outputDir
-        val overlayZipPaths = task.files.map {
-            val relativePath = it.file.relativeTo(it.baseDir).path.replace("\\", "/")
-            "res/$relativePath"
-        } + ARSC_FILE_NAME
-        val overlays = getOverlays(resApkFileOutput.file, overlayZipPaths, task.outputDir)
-        resApkFileOutput.file.delete()
-        if (overlays.size != overlayZipPaths.size) {
-            return CompileResult(
-                task,
-                task.files.map {
-                    Result.failure(CompileError(it, listOf(0L to "read overlay from res apk failed")))
-                },
-                emptyList())
-        }
+        val overlays = getOverlays(resApkFileOutput.file, task.outputDir)
         val overlayOutputs = overlays.map {
             CompileOutput(CompileOutput.Type.Overlay, it, task.outputDir)
         }
+        resApkFileOutput.file.delete()
 
         return CompileResult(
             task,
@@ -115,16 +103,10 @@ class ResourceOverlayCompiler(
 
     private fun getOverlays(
         apkFile: File,
-        exceptPaths: List<String>,
         outputDir: File): List<File> {
         try {
             ZipFile(apkFile).use { zipFile ->
-                return exceptPaths.mapNotNull {
-                    val entry = zipFile.getEntry(it)
-                    if (entry == null) {
-                        logger.warn("can not found $it in apk file")
-                        return@mapNotNull null
-                    }
+                return zipFile.entries().toList().map { entry ->
                     val outputFile = File(outputDir, entry.name)
                     outputFile.parentFile!!.mkdirs()
                     zipFile.getInputStream(entry).use { ins ->

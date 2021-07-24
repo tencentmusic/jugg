@@ -100,13 +100,13 @@ class ResourceCompileTest {
         )
 
         val result = arscCompiler.compile(task)
-        checkResourceOverlayResult(task, result)
+        checkResourceOverlayResult(task, result, flatDir)
     }
 
-    private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult) {
-        assertEquals(result.details.size, task.files.size)
+    private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult, flatDir: File) {
+        assertEquals(task.files.size, result.details.size)
         assertTrue(result.isAllSuccess)
-        assertEquals(result.outputs.size, 2 + task.files.size)
+        assertEquals(440, result.outputs.size)
 
         val arscFile = result.outputs.find { it.file.name == ARSC_FILE_NAME }
         assertEquals(
@@ -127,16 +127,5 @@ class ResourceCompileTest {
             ),
             rFile
         )
-
-        task.files.forEach { compileFile ->
-            val outputFile = compileFile.file.changeBaseDir(compileFile.baseDir, File(task.outputDir, "res"))
-            val compileOutput = CompileOutput(
-                CompileOutput.Type.Overlay,
-                outputFile,
-                task.outputDir
-            )
-            val relativeOutput = result.outputs.find { it.file.name == outputFile.name }
-            assertEquals(compileOutput, relativeOutput)
-        }
     }
 }
