@@ -60,7 +60,7 @@ class JavaCompileTest {
         stagingDir,
         dependencies = listOf(androidJar.absolutePath)
                 + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
-                + IntellijLibraryConfigParser(intellijLibraryDir).parse()!!
+                + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
     )
     @Test
     fun javaCompileAndroidActivity() {

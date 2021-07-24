@@ -74,7 +74,7 @@ class AidpManager(private val project: Project,
     private fun initDependency() {
         // TODO auto update when file changes
         // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
-        val libDep = IntellijLibraryConfigParser(libraryDir).parse()?: emptyList()
+        val libDep = IntellijLibraryConfigParser(libraryDir).parse()!!
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed

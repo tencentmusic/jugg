@@ -7,15 +7,21 @@ class IntellijLibraryConfigParserTest {
 
     @Test
     fun loadLibraryConfig() {
-        val result = IntellijLibraryConfigParser(intellijLibraryDir).parse()
+        val result = loadLibraryConfigInTest()
         assert(result != null)
         result!!
         assert(result.size == 50)
         result.forEach {
+            println("file: $it")
+            assert(File(it).exists())
+        }
+    }
+
+    fun loadLibraryConfigInTest(): List<String>? {
+        val result = IntellijLibraryConfigParser(intellijLibraryDir).parse()
+        return result?.map {
             // TODO test compatible
-            val path = if (isWindows) it else it.replace("D:/Android", "/Users/wormchen")
-            println("file: $path")
-            assert(File(path).exists())
+            if (isWindows) it else it.replace("D:/Android", "/Users/wormchen")
         }
     }
 }
