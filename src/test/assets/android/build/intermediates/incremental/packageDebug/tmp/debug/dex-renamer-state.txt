@@ -1,4 +1,0 @@
-#Mon Jul 12 01:31:04 CST 2021
-base.0=F\:\\StudioProjects\\MyApplicationIntellij\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\out\\classes.dex
-renamed.0=classes.dex
-path.0=classes.dex

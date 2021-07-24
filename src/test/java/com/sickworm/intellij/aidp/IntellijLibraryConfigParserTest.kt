@@ -7,7 +7,7 @@ class IntellijLibraryConfigParserTest {
 
     @Test
     fun loadLibraryConfig() {
-        val result = IntellijLibraryConfigParser(File(assetsAndroidDir, "/.idea/libraries")).parse()
+        val result = IntellijLibraryConfigParser(intellijLibraryDir).parse()
         assert(result != null)
         result!!
         assert(result.size == 50)

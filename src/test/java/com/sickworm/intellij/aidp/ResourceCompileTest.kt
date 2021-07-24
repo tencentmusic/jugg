@@ -9,12 +9,12 @@ class ResourceCompileTest {
 
     val flatDir = File(buildDir, "flat")
     val stableIds: File = File("src/test/build/stableIds.txt").absoluteFile
-    val manifest: File = File("src/test/assets/android/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
+    val manifest: File = File("$assetsAndroidDir/app/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
 
     @Before
     fun init() {
         clearBuild()
-        val sourceFlatDir = File(assetsAndroidDir, "build/intermediates/res/merged/debug")
+        val sourceFlatDir = File(assetsAndroidDir, "app/build/intermediates/res/merged/debug")
         sourceFlatDir.copyRecursively(flatDir)
 
         val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
@@ -23,14 +23,14 @@ class ResourceCompileTest {
 
     @Test
     fun compileResLayout() {
-        val file = File(assetsAndroidDir, "src/main/res/layout/activity_main.xml")
-        val baseDir = File(assetsAndroidDir, "src/main/res/")
+        val file = File(assetsAndroidDir, "app/src/main/res/layout/activity_main.xml")
+        val baseDir = File(assetsAndroidDir, "app/src/main/res/")
         compileRes(listOf(file), baseDir)
     }
 
     @Test
     fun compileResAll() {
-        val baseDir = File(assetsAndroidDir, "src/main/res/")
+        val baseDir = File(assetsAndroidDir, "app/src/main/res/")
         val files = baseDir.listFilesRecursively()
         compileRes(files, baseDir)
     }
@@ -63,13 +63,13 @@ class ResourceCompileTest {
         checkArscResult(task, result)
     }
 
-    private val baseDir = File(assetsAndroidDir, "src/main/res/")
+    private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
     val cachedArscTask = CompileTask(
         listOf(
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/layout/activity_main2.xml"), baseDir),
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/layout/activity_main3.xml"), baseDir),
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background.xml"), baseDir),
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "src/main/res/drawable/ic_launcher_background2.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main2.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main3.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/drawable/ic_launcher_background.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/drawable/ic_launcher_background2.xml"), baseDir),
         ),
         stagingDir
     )

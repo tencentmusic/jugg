@@ -21,7 +21,7 @@ val assetsJavaDir = File(assetsDir, "java")
 val assetsKotlinDir = File(assetsDir, "kotlin")
 val assetsLibDir = File(assetsDir, "lib")
 val assetsClassDir = File(assetsDir, "class")
-val assetsAndroidDir = File(assetsDir, "android")
+val assetsAndroidDir = File(assetsDir, "android/MyApplicationIntellij")
 val assetsAssetsDir = File(assetsDir, "assets")
 
 // dependency
@@ -32,7 +32,7 @@ val androidJar = File("$androidHome/platforms/android-30/android.jar").also {
         throw IllegalStateException("android.jar not found in: $it")
     }
 }
-val intellijLibraryDir = "$assetsAndroidDir/.idea/libraries"
+val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
 
