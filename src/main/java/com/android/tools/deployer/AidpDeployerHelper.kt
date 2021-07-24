@@ -15,6 +15,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.wm.ToolWindow
+import com.sickworm.intellij.aidp.AidpException
 import com.sickworm.intellij.aidp.AidpLogger
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
@@ -41,7 +42,10 @@ object AidpDeployerHelper {
         val launchStatus = MockLaunchStatus()
         val consolePrinter = MockConsolePrinter(project)
         // TODO try ExecutionManager
-        task.run(executor, device, launchStatus, consolePrinter)
+        val launchResult = task.run(executor, device, launchStatus, consolePrinter)
+        if (!launchResult.success) {
+            throw AidpException.applyChangesFailed(launchResult)
+        }
     }
 
     fun getIDevice(project: Project): IDevice {

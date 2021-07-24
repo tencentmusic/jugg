@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.ICompiler
 
@@ -12,6 +13,9 @@ class AidpException(msg: String): Exception(msg) {
 
         fun notSupportMultiApkOverlays()
             = AidpException("Detected multiple apks in project. Currently Aidp don't support multi-apk overlay")
+
+        fun applyChangesFailed(launchResult: LaunchResult)
+                = AidpException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
     }
 }
 
