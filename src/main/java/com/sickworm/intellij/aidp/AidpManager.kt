@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
 
 
 class AidpManager(private val project: Project,
-                  projectDir: String,
+                  private val projectDir: String,
                   private val toolWindow: AidpToolWindow
 ): Disposable {
 
@@ -110,7 +110,7 @@ class AidpManager(private val project: Project,
 
         // TODO use apk analyze
         // FIXME
-        val appBuildDir = File("")
+        val appBuildDir = File(projectDir, "app/build")
         val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
         val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/AndroidManifest.xml")
         compiler = AidpCompiler(project,

@@ -58,7 +58,12 @@ class AidpCompiler(
             outputDir = assetsOutputDir
         )
         if (assetCompileTask.isNeedCompile) {
-            compileResult += overlayCompiler.compile(assetCompileTask)
+            compileResult += overlayCompiler.compile(assetCompileTask).let { result ->
+                // correct base dir as assets/xxx/xxx
+                result.copy(outputs = result.outputs.map { output ->
+                    output.copy(baseDir = output.baseDir.parentFile)
+                })
+            }
         }
 
         // compile resource
