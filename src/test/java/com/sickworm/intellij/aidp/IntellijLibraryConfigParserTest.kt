@@ -2,18 +2,18 @@ package com.sickworm.intellij.aidp
 
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertTrue
 
 class IntellijLibraryConfigParserTest {
 
     @Test
     fun loadLibraryConfig() {
         val result = loadLibraryConfigInTest()
-        assert(result != null)
-        result!!
-        assert(result.size == 50)
+        assertTrue(result != null)
+        assertTrue(result.size == 50)
         result.forEach {
             println("file: $it")
-            assert(File(it).exists())
+            assertTrue(File(it).exists())
         }
     }
 

@@ -3,6 +3,7 @@ package com.sickworm.intellij.aidp
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertTrue
 
 class DexTest {
 
@@ -32,7 +33,7 @@ class DexTest {
         classesFiles.forEach { classFile ->
             val dexFile = classFile.changeBaseDir(stagingDir, stagingDir, "dex")
             DexFileMaker(androidBuildTools).dex(stagingDir, dexFile, classFile)
-            assert(dexFile.exists() && dexFile.length() > 0)
+            assertTrue(dexFile.exists() && dexFile.length() > 0)
         }
     }
 }

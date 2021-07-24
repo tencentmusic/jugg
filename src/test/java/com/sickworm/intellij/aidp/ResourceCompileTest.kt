@@ -5,6 +5,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ResourceCompileTest {
 
@@ -43,13 +44,13 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = resCompiler.compile(task)
-        assert(result.details.size == files.size)
-        assert(result.isAllSuccess)
-        assert(result.outputs.size == files.size)
+        assertEquals(result.details.size, files.size)
+        assertTrue(result.isAllSuccess)
+        assertEquals(result.outputs.size, files.size)
         result.outputs.forEach {
-            assert(it.type == CompileOutput.Type.Overlay)
-            assert(it.file.exists())
-            assert(it.file.length() > 0)
+            assertEquals(it.type, CompileOutput.Type.Overlay)
+            assertTrue(it.file.exists())
+            assertTrue(it.file.length() > 0)
         }
     }
 
@@ -65,14 +66,14 @@ class ResourceCompileTest {
     }
 
     private fun checkArscResult(task: CompileTask, result: CompileResult) {
-        assert(result.details.size == task.files.size)
-        assert(result.isAllSuccess)
-        assert(result.outputs.size == 2)
-        assert(result.outputs[0].type == CompileOutput.Type.Overlay)
-        assert(result.outputs[1].type == CompileOutput.Type.Java)
+        assertEquals(result.details.size, task.files.size)
+        assertTrue(result.isAllSuccess)
+        assertTrue(result.outputs.size == 2)
+        assertEquals(result.outputs[0].type, CompileOutput.Type.Overlay)
+        assertEquals(result.outputs[1].type, CompileOutput.Type.Java)
         result.outputs.forEach {
-            assert(it.file.exists())
-            assert(it.file.length() > 0)
+            assertTrue(it.file.exists())
+            assertTrue(it.file.length() > 0)
         }
     }
 
@@ -103,9 +104,9 @@ class ResourceCompileTest {
     }
 
     private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult) {
-        assert(result.details.size == task.files.size)
-        assert(result.isAllSuccess)
-        assert(result.outputs.size == 2 + task.files.size)
+        assertEquals(result.details.size, task.files.size)
+        assertTrue(result.isAllSuccess)
+        assertEquals(result.outputs.size, 2 + task.files.size)
 
         val arscFile = result.outputs.find { it.file.name == "resources.arsc" }
         assertEquals(

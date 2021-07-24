@@ -19,7 +19,6 @@ class JavaCompileTest {
     fun javaCompile() {
         val task = helloWorldTask
         val result = javaCompiler.compile(task)
-        assert(result.details.size == 1)
         assertCompileResultJava(task, result)
     }
 
