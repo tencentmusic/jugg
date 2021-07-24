@@ -12,8 +12,10 @@ class IntellijLibraryConfigParserTest {
         result!!
         assert(result.size == 50)
         result.forEach {
-            println("file: $it")
-            assert(File(it).exists())
+            // TODO test compatible
+            val path = if (isWindows) it else it.replace("D:/Android", "/Users/wormchen")
+            println("file: $path")
+            assert(File(path).exists())
         }
     }
 }

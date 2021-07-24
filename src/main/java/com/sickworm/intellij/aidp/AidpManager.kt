@@ -79,7 +79,9 @@ class AidpManager(private val project: Project,
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
         val androidHome = System.getenv("ANDROID_HOME")
+        // TODO select sdk and build tools by gradle
         val androidDep = "$androidHome/platforms/android-30/android.jar"
+        val androidBuildTools = "$androidHome/build-tools/30.0.3"
         if (!File(androidDep).exists()) {
             logger.warn("androidDep not found, path: $androidDep")
             throw IllegalStateException("androidDep not found, path: $androidDep")
@@ -102,6 +104,7 @@ class AidpManager(private val project: Project,
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDep.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
         // TODO use apk analyze
+        // FIXME
         val appBuildDir = File("")
         val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
         val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/AndroidManifest.xml")
@@ -109,6 +112,7 @@ class AidpManager(private val project: Project,
             tempCompileDir = compileClassDir,
             classPathDir = classPathDir,
             androidJar = File(androidDep),
+            androidBuildTools = File(androidBuildTools),
             flatDir = flatDir,
             manifest = manifest,
             stableIds = File(buildDir, "stableIds.txt")

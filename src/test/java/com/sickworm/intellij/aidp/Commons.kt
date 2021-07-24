@@ -32,6 +32,13 @@ val androidJar = File("$androidHome/platforms/android-30/android.jar").also {
         throw IllegalStateException("android.jar not found in: $it")
     }
 }
+
+val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
+    if (!it.exists()) {
+        throw IllegalStateException("android.jar not found in: $it")
+    }
+}
+
 val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>

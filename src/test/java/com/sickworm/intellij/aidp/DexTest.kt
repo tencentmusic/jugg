@@ -31,7 +31,7 @@ class DexTest {
         // ART TI requires one .dex file only contains one .class file
         classesFiles.forEach { classFile ->
             val dexFile = classFile.changeBaseDir(stagingDir, stagingDir, "dex")
-            DexFileMaker().dex(stagingDir, dexFile, classFile)
+            DexFileMaker(androidBuildTools).dex(stagingDir, dexFile, classFile)
             assert(dexFile.exists() && dexFile.length() > 0)
         }
     }

@@ -17,6 +17,7 @@ class AidpCompileTest {
         tempCompileDir = tempCompileDir,
         classPathDir = classPathDir,
         androidJar = androidJar,
+        androidBuildTools = androidBuildTools,
         flatDir = ResourceCompileTest().flatDir,
         manifest = ResourceCompileTest().manifest,
         stableIds = ResourceCompileTest().stableIds

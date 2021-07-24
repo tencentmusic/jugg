@@ -11,6 +11,7 @@ class AidpCompiler(
     /** class path directory */
     classPathDir: File,
     androidJar: File,
+    androidBuildTools: File,
     flatDir: File,
     manifest: File,
     stableIds: File,
@@ -32,10 +33,11 @@ class AidpCompiler(
         stableIdsFile = stableIds,
         manifest = manifest,
         androidJar = androidJar,
+        androidBuildTools = androidBuildTools,
         logger
     )
 
-    private val sourceCompiler = SourceCompiler(File(tempCompileDir, "classes"), classPathDir, logger)
+    private val sourceCompiler = SourceCompiler(File(tempCompileDir, "classes"), classPathDir, androidBuildTools, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)

@@ -14,6 +14,7 @@ class SourceCompiler(
     private val sourceCompileDir: File,
     /** class path directory */
     private val classPathDir: File,
+    private val androidBuildTools: File,
     private val logger: Logger
     ): ICompiler {
 
@@ -23,7 +24,7 @@ class SourceCompiler(
 
     private val kotlinCompiler = KotlinCompiler()
 
-    private val dexCompiler = DexCompiler(logger)
+    private val dexCompiler = DexCompiler(androidBuildTools, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -174,10 +175,14 @@ class KotlinCompiler: ICompiler {
     }
 }
 
-class DexCompiler(private val logger: Logger): ICompiler {
+class DexCompiler(
+    androidBuildTools: File,
+    private val logger: Logger,
+    ): ICompiler {
+
     override val supportedTypes = listOf(CompileFile.Type.Class)
 
-    private val dexFileMaker = DexFileMaker()
+    private val dexFileMaker = DexFileMaker(androidBuildTools)
 
     override fun compile(task: CompileTask): CompileResult {
         val outputs = mutableListOf<CompileOutput>()

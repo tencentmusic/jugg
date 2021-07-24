@@ -43,14 +43,15 @@ class CachedArscCompiler(
     stableIdsFile: File,
     manifest: File,
     androidJar: File,
+    androidBuildTools: File,
     logger: Logger,
 ): ICompiler {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
-    private val resourceCompiler = ResourceCompiler(logger)
+    private val resourceCompiler = ResourceCompiler(androidBuildTools, logger)
 
-    private val arscCompiler = ArscCompiler(stableIdsFile, manifest, androidJar, logger)
+    private val arscCompiler = ArscCompiler(stableIdsFile, manifest, androidJar, androidBuildTools, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -92,7 +93,11 @@ class CachedArscCompiler(
     }
 }
 
-class ResourceCompiler(private val logger: Logger): ICompiler {
+class ResourceCompiler(
+    private val androidBuildTools: File,
+    private val logger: Logger
+    ): ICompiler {
+
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     override fun compile(task: CompileTask): CompileResult {
@@ -107,7 +112,8 @@ class ResourceCompiler(private val logger: Logger): ICompiler {
             it.file.absolutePath
         }.joinToString(" ")
 
-        val aapt2Cmd = "D:/Android/sdk/build-tools/30.0.3/aapt2.exe"
+        val aapt2Name = if (isWindows) "aapt2.exe" else "aapt2"
+        val aapt2Cmd = "$androidBuildTools/$aapt2Name"
         val command = "$aapt2Cmd compile -o $outputDir $filesString"
         println(command)
         val process = Runtime.getRuntime().exec(command)
@@ -143,6 +149,7 @@ class ArscCompiler(
     private val stableIds: File,
     private val manifest: File,
     private val androidJar: File,
+    private val androidBuildTools: File,
     private val logger: Logger,
 ): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.FlatDir)
@@ -186,7 +193,8 @@ class ArscCompiler(
 
     private fun makeResApk(resJar: File, outputDir: File): Pair<File, File> {
         val outputApk = "${outputDir.absolutePath}/res.apk"
-        val aapt2Cmd = "D:/Android/sdk/build-tools/30.0.3/aapt2.exe"
+        val aapt2Name = if (isWindows) "aapt2.exe" else "aapt2"
+        val aapt2Cmd = "$androidBuildTools/$aapt2Name"
         val stableIdFileArg = if (stableIds.exists()) {
             "--stable-ids $stableIds"
         } else {

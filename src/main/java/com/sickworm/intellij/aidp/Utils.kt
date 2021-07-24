@@ -43,3 +43,5 @@ fun Process.readOutput(logger: Logger) {
     }
     ins.close()
 }
+
+val isWindows = System.getProperty("os.name").toLowerCase().startsWith("win")
