@@ -44,7 +44,7 @@ class ResourceOverlayCompiler(
     manifest: File,
     androidJar: File,
     androidBuildTools: File,
-    logger: Logger,
+    private val logger: Logger,
 ): ICompiler {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
@@ -70,18 +70,6 @@ class ResourceOverlayCompiler(
             return CompileResult(task, resourceResult.details, emptyList())
         }
 
-        // copy to outputDir
-        val overlayOutputs = resourceResult.outputs.map {
-            val index1 = it.file.name.indexOf('_')
-            val index2 = it.file.name.length - 5
-            val folder = it.file.name.substring(0, index1)
-            val outputFileName = it.file.name.substring(index1 + 1, index2) // remove .flat
-            val outputDir = File(task.outputDir, "res/$folder")
-            val outputFile = it.file.changeBaseDir(flatDir, outputDir, newName = outputFileName)
-            it.file.copyTo(outputFile, true)
-            it.copy(file = outputFile, baseDir = task.outputDir)
-        }
-
         // build .arsc
         val arscTask = CompileTask(
             listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
@@ -96,12 +84,61 @@ class ResourceOverlayCompiler(
                 },
                 emptyList())
         }
+        val rFileOutput = arscResult.outputs.find { it.type == CompileOutput.Type.Java }!!
+        val resApkFileOutput = arscResult.outputs.find { it.type == CompileOutput.Type.Overlay }!!
+
+        // copy overlays to outputDir
+        val overlayZipPaths = task.files.map {
+            val relativePath = it.file.relativeTo(it.baseDir).path.replace("\\", "/")
+            "res/$relativePath"
+        } + ARSC_FILE_NAME
+        val overlays = getOverlays(resApkFileOutput.file, overlayZipPaths, task.outputDir)
+        resApkFileOutput.file.delete()
+        if (overlays.size != overlayZipPaths.size) {
+            return CompileResult(
+                task,
+                task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "read overlay from res apk failed")))
+                },
+                emptyList())
+        }
+        val overlayOutputs = overlays.map {
+            CompileOutput(CompileOutput.Type.Overlay, it, task.outputDir)
+        }
 
         return CompileResult(
             task,
             resourceResult.details,
-            overlayOutputs + arscResult.outputs
+            overlayOutputs + rFileOutput
         )
+    }
+
+    private fun getOverlays(
+        apkFile: File,
+        exceptPaths: List<String>,
+        outputDir: File): List<File> {
+        try {
+            ZipFile(apkFile).use { zipFile ->
+                return exceptPaths.mapNotNull {
+                    val entry = zipFile.getEntry(it)
+                    if (entry == null) {
+                        logger.warn("can not found $it in apk file")
+                        return@mapNotNull null
+                    }
+                    val outputFile = File(outputDir, entry.name)
+                    outputFile.parentFile!!.mkdirs()
+                    zipFile.getInputStream(entry).use { ins ->
+                        outputFile.outputStream().use { ous ->
+                            ins.copyTo(ous)
+                        }
+                    }
+                    outputFile
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("getOverlays failed", e)
+            return emptyList()
+        }
     }
 }
 
@@ -183,12 +220,9 @@ class ArscCompiler(
         val (apkFile, rJavaFile) = makeResApk(resJar, task.outputDir)
         resJar.delete()
 
-        val arscFile = getArsc(apkFile, task.outputDir)
-        apkFile.delete()
-
-        if (arscFile == null) {
+        if (!apkFile.exists() || !rJavaFile.exists()) {
             return CompileResult(task, task.files.map {
-                val error = CompileError(it, listOf(0L to "getArsc failed"))
+                val error = CompileError(it, listOf(0L to "makeResApk failed"))
                 Result.failure(error)
             }, emptyList())
         }
@@ -197,7 +231,7 @@ class ArscCompiler(
             task,
             task.files.map { Result.success(it) },
             listOf(
-                CompileOutput(CompileOutput.Type.Overlay, arscFile, task.outputDir),
+                CompileOutput(CompileOutput.Type.Overlay, apkFile, task.outputDir),
                 CompileOutput(CompileOutput.Type.Java, rJavaFile, task.outputDir),
             )
         )
@@ -232,26 +266,6 @@ class ArscCompiler(
 
         return File(outputApk) to rFiles[0]
     }
-
-    private fun getArsc(apkFile: File, outputDir: File): File? {
-        try {
-            ZipFile(apkFile).use { zipFile ->
-                val entry = zipFile.getEntry("resources.arsc")
-                if (entry == null) {
-                    logger.warn("can not found resources.arsc in apk file")
-                    return null
-                }
-                val arscFile = File(outputDir, entry.name)
-                zipFile.getInputStream(entry).use { ins ->
-                    arscFile.outputStream().use { ous ->
-                        ins.copyTo(ous)
-                    }
-                }
-                return arscFile
-            }
-        } catch (e: Exception) {
-            logger.warn("getArsc failed", e)
-            return null
-        }
-    }
 }
+
+val ARSC_FILE_NAME = "resources.arsc"

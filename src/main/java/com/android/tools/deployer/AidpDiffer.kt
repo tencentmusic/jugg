@@ -36,6 +36,7 @@ class AidpDiffer(private val logger: ILogger) {
         val newClasses = mutableListOf<DexClass>()
         val modifiedClasses = mutableListOf<DexClass>()
         data.classes.forEach { clazz ->
+            // TODO speedup when R file updates
             val matchedFile: AidpFileInfo? = apkFiles.firstNotNullResult {
                 it.classFiles[clazz.name]
             }

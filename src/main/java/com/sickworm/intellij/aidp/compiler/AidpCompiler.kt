@@ -91,6 +91,9 @@ class AidpCompiler(
                     .map {
                         val outputFile = it.file.changeBaseDir(tempOutputDir, overlayOutputDir)
                         outputFile.parentFile.mkdirs()
+                        if (outputFile.exists()) {
+                            outputFile.delete()
+                        }
                         it.file.renameTo(outputFile)
                         CompileOutput(CompileOutput.Type.Overlay, outputFile, overlayOutputDir)
                     }
@@ -118,6 +121,7 @@ class AidpCompiler(
                     resourceCompileTask,
                     details = resourceResult.details,
                     outputs = rJavaResult.outputs + overlays
+//                    outputs = overlays.filter { it.file.name != ARSC_FILE_NAME }
                 )
             }
             compileResult += finalResult

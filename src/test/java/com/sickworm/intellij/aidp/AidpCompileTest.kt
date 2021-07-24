@@ -59,7 +59,7 @@ class AidpCompileTest {
 
     @Test
     fun compileResource() {
-        val task = ResourceCompileTest().cachedArscTask
+        val task = ResourceCompileTest().resourceOverlayTask
         val result = aidpCompiler.compile(task)
         assertCompileResultAidp(task, result)
     }
@@ -73,7 +73,7 @@ class AidpCompileTest {
 
     @Test
     fun compileMultiJavaAndAssetAndRes() {
-        val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTest().cachedArscTask
+        val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTest().resourceOverlayTask
         val result = aidpCompiler.compile(task)
         assertCompileResultAidp(task, result)
     }
@@ -104,7 +104,7 @@ class AidpCompileTest {
     fun compileMultiJavaErrorAndAssetAndRes() {
         val sourceTask = JavaCompileTest().multiFilesWithErrorTask
         val assetTask = AssetCompileTest().multiFilesTask
-        val resourceTask = ResourceCompileTest().cachedArscTask
+        val resourceTask = ResourceCompileTest().resourceOverlayTask
         val task = sourceTask + assetTask + resourceTask
         val result = aidpCompiler.compile(task)
 
@@ -153,7 +153,7 @@ class AidpCompileTest {
 
                 // resources.arsc
                 val overlayBaseDir = File(task.outputDir, "overlays")
-                val arscFile = File(overlayBaseDir, "resources.arsc")
+                val arscFile = File(overlayBaseDir, ARSC_FILE_NAME)
                 val arscOutput = CompileOutput(CompileOutput.Type.Overlay, arscFile, overlayBaseDir)
 
                 listOf<CompileOutput>() + flatOutput + arscOutput + dexOutputs

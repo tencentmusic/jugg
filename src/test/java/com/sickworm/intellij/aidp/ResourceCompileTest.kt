@@ -78,7 +78,7 @@ class ResourceCompileTest {
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
-    val cachedArscTask = CompileTask(
+    val resourceOverlayTask = CompileTask(
         listOf(
             CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main2.xml"), baseDir),
             CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main3.xml"), baseDir),
@@ -88,8 +88,8 @@ class ResourceCompileTest {
         stagingDir
     )
     @Test
-    fun compileCachedArsc() {
-        val task = cachedArscTask
+    fun compileResourceOverlay() {
+        val task = resourceOverlayTask
         val arscCompiler = ResourceOverlayCompiler(
             flatDir,
             stableIds,
@@ -108,11 +108,11 @@ class ResourceCompileTest {
         assertTrue(result.isAllSuccess)
         assertEquals(result.outputs.size, 2 + task.files.size)
 
-        val arscFile = result.outputs.find { it.file.name == "resources.arsc" }
+        val arscFile = result.outputs.find { it.file.name == ARSC_FILE_NAME }
         assertEquals(
             CompileOutput(
                 CompileOutput.Type.Overlay,
-                File(task.outputDir, "resources.arsc"),
+                File(task.outputDir, ARSC_FILE_NAME),
                 task.outputDir
             ),
             arscFile
