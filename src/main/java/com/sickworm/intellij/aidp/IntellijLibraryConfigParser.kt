@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.idea.memorysettings.GradlePropertiesUtil
 import com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.plugins.gradle.util.USER_HOME
 import org.xml.sax.Attributes

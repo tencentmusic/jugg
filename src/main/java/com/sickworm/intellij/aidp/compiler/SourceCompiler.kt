@@ -167,7 +167,9 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
             else "/Users/wormchen/IdeaProjects/studio-master-dev/prebuilts/tools/common/kotlin-plugin/Kotlin/kotlinc/lib"
         val preloader = "$kotlincLibDir/kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
         val compiler = "$kotlincLibDir/kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
-        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -d ${task.outputDir}"
+        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
+        val dependenciesArg = dependencies.joinToString(File.pathSeparator)
+        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -cp $dependenciesArg -d ${task.outputDir}"
         println(command)
         val pr = Runtime.getRuntime().exec(command)
         pr.readOutput(logger)

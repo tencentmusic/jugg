@@ -97,17 +97,27 @@ class AidpManager(private val project: Project,
         }
 
         // TODO OPTIMIZE split by modules
-        val projectDep = ModuleManager.getInstance(project).modules.mapNotNull {
-            val baseDir = it.guessModuleDir()?: return@mapNotNull null
-            if (!baseDir.exists()) return@mapNotNull null
-            baseDir.path
-        }.flatMap {
-            listOf(
-                "${it}/build/intermediates/javac/debug/classes",
-                "${it}/build/tmp/kotlin-classes/debug"
-            )
+        val projectDeps: List<String> = ModuleManager.getInstance(project).modules.flatMap {
+            val baseDir = it.guessModuleDir()?: return@flatMap emptyList()
+            if (!baseDir.exists()) return@flatMap emptyList()
+
+            val deps = mutableListOf<String>()
+            val buildClassPath = "${baseDir.path}/build/intermediates/javac/debug/classes"
+            if (File(buildClassPath).exists()) {
+                deps.add(buildClassPath)
+            }
+
+            // on my macos, R.class not storage in buildClassPath
+            val rJarPath = "${baseDir.path}/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
+            if (File(rJarPath).exists()) {
+                deps.add(rJarPath)
+            }
+
+            deps.add("${baseDir.path}/build/tmp/kotlin-classes/debug")
+
+            deps
         }
-        for (dep in projectDep) {
+        for (dep in projectDeps) {
             if (!File(dep).exists()) {
                 logger.debug("projectDep file not exists: $dep")
             }
@@ -118,12 +128,11 @@ class AidpManager(private val project: Project,
         }
         val aidpClassPathDep = listOf(classPathDir.absolutePath)
 
-        dependencies = libDep + androidDep + projectDep + aidpClassPathDep
+        dependencies = libDep + androidDep + projectDeps + aidpClassPathDep
 
-        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDep.size}, androidDep size: 1, aidpClassPathDep size: 1")
+        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
         // TODO use apk analyze
-        // FIXME
         val appBuildDir = File(projectDir, "app/build")
         val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
         val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/arm64-v8a/AndroidManifest.xml")
