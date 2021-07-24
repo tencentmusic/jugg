@@ -51,9 +51,15 @@ class AidpDiffer(private val logger: ILogger) {
         if (cacheEntry.apks.size > 1 && data.overlays.isNotEmpty()) {
             throw AidpException.notSupportMultiApkOverlays()
         }
-        val overlayFiles = data.overlays.associate {
-            it.toIncompleteOverlay(cacheEntry.apks.first())
-        }
+        val overlayFiles = data.overlays
+            .filter {
+                // only use deployed overlay files to filter because
+                // first time deployment res must deploy all the files
+                val overlayFile = overlayCache.overlayFiles[it.name]
+                overlayFile == null || it.checksum != overlayFile.checksum
+            }.associate {
+                it.toIncompleteOverlay(cacheEntry.apks.first())
+            }
 
         logDiffResult(newClasses, modifiedClasses, overlayFiles)
 
