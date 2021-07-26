@@ -1,9 +1,13 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
+import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel
+import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
@@ -31,9 +35,9 @@ class FileChangesManager(private val project: Project,
 
     private var listener: FileChangesListener? = null
 
-    private var sourceRoots: List<VirtualFile> = emptyList()
-    private var resourceRoots: List<VirtualFile> = emptyList()
-    private var assetRoots: List<VirtualFile> = emptyList()
+    private var sourceRoots: List<File> = emptyList()
+    private var resourceRoots: List<File> = emptyList()
+    private var assetRoots: List<File> = emptyList()
 
     fun startListen(listener: FileChangesListener) {
         logger.info("start listen project $projectDir")
@@ -55,31 +59,55 @@ class FileChangesManager(private val project: Project,
     }
 
     private fun initFileRoots() {
-        val sourceRoots = mutableListOf<VirtualFile>()
-        val resourceRoots = mutableListOf<VirtualFile>()
-        val assetRoots = mutableListOf<VirtualFile>()
+        val sourceRoots = mutableListOf<File>()
+        val resourceRoots = mutableListOf<File>()
+        val assetRoots = mutableListOf<File>()
 
         // TODO GradleBuildModel.get(ModuleManager.getInstance(project).modules[1]).android().sourceSets()
         ModuleManager.getInstance(project).modules.forEach { module ->
             val moduleManager = ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
-                setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType))
+                setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType)
+            ).map { it.toIoFile() }
             sourceRoots.addAll(subSourceRoots)
 
             val subResourceRoots = moduleManager.getSourceRoots(
                 setOf(JavaResourceRootType.RESOURCE, ResourceKotlinRootType))
             subResourceRoots.forEach {
                 if (it.name == "res") {
-                    resourceRoots.add(it)
+                    resourceRoots.add(it.toIoFile())
                 } else if (it.name == "assets") {
-                    assetRoots.add(it)
+                    assetRoots.add(it.toIoFile())
                 }
             }
+            val sourceSets = ProjectBuildModel.get(project).getModuleBuildModel(module)?.android()?.sourceSets()
+            if (sourceSets == null) {
+                logger.warn("gradle module $module sourceSets not found")
+                return@forEach
+            }
+            val baseDir = module.guessModuleDir()?.path
+            if (baseDir == null) {
+                logger.warn("gradle module $module dir not found")
+                return@forEach
+            }
+            val javaSets: List<File> = sourceSets.map { it.java() }.flatMap { it.getFileList(baseDir) }
+            sourceRoots.addAll(javaSets)
+            val resSets: List<File> = sourceSets.map { it.res() }.flatMap { it.getFileList(baseDir) }
+            resourceRoots.addAll(resSets)
+            val assetsSets: List<File> = sourceSets.map { it.assets() }.flatMap { it.getFileList(baseDir) }
+            assetRoots.addAll(assetsSets)
         }
 
         this.sourceRoots = sourceRoots
         this.resourceRoots = resourceRoots
         this.assetRoots = assetRoots
+    }
+
+    private fun SourceDirectoryModel.getFileList(baseDir: String): List<File> {
+        val dirs = srcDirs().getValue(GradlePropertyModel.LIST_TYPE)?: emptyList()
+        return dirs
+            .mapNotNull { it.getValue(GradlePropertyModel.STRING_TYPE) }
+            .map { File(baseDir, it) }
     }
 
     override fun dispose() {
@@ -88,7 +116,7 @@ class FileChangesManager(private val project: Project,
 
     private fun listenFileChanges() {
         val vfsListener = object: AsyncFileListener {
-            override fun prepareChange(events: MutableList<out VFileEvent>): AsyncFileListener.ChangeApplier? {
+            override fun prepareChange(events: MutableList<out VFileEvent>): AsyncFileListener.ChangeApplier {
                 return object: AsyncFileListener.ChangeApplier {
                     override fun afterVfsChange() {
                         val changeFiles = events.mapNotNull(::filterDeployFile)
@@ -141,19 +169,19 @@ class FileChangesManager(private val project: Project,
                     return null
                 }
             }
-            return ChangedFile(type, virtualFile, baseSourceDir.toIoFile())
+            return ChangedFile(type, virtualFile, baseSourceDir)
         }
 
         val baseResourceDir = resourceRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseResourceDir != null) {
             logger.debug("resource file changed, event $event")
-            return ChangedFile(CompileFile.Type.Resource, virtualFile, baseResourceDir.toIoFile())
+            return ChangedFile(CompileFile.Type.Resource, virtualFile, baseResourceDir)
         }
 
         val baseAssetDir = assetRoots.find { virtualFile.path.startsWith(it.path) }
         if (baseAssetDir != null) {
             logger.debug("asset file changed, event $event")
-            return ChangedFile(CompileFile.Type.Asset, virtualFile, baseAssetDir.toIoFile())
+            return ChangedFile(CompileFile.Type.Asset, virtualFile, baseAssetDir)
         }
 
         return null
