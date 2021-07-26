@@ -95,6 +95,7 @@ class JavaCompiler(private val logger: Logger): ICompiler {
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
         checkOutputDirIsEmpty(task)
+        task.outputDir.mkdirs()
 
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()

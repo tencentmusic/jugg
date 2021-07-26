@@ -18,7 +18,7 @@ class IntellijLibraryConfigParserTest {
     }
 
     fun loadLibraryConfigInTest(): List<String>? {
-        val result = IntellijLibraryConfigParser(intellijLibraryDir).parse()
+        val result = IntellijLibraryConfigParser(intellijLibraryDir, assetsAndroidDir.absolutePath).parse()
         return result?.map {
             // TODO test compatible
             if (isWindows) it else it.replace("D:/Android", "/Users/wormchen")

@@ -79,11 +79,16 @@ class AidpManager(private val project: Project,
     private fun initDependency() {
         // TODO auto update when file changes
         // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
-        val libDep = IntellijLibraryConfigParser(libraryDir).parse()!!
+        val libDep = IntellijLibraryConfigParser(libraryDir, projectDir).parse()!!
+        for (dep in libDep) {
+            if (!File(dep).exists()) {
+                logger.warn("libDep file not exists: $dep")
+            }
+        }
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
-        val androidHome = System.getenv("ANDROID_HOME")
+        val androidHome = "/Users/wormchen/Library/Android/sdk"
         // TODO select sdk and build tools by gradle
         val androidDep = "$androidHome/platforms/android-30/android.jar"
         val androidBuildTools = "$androidHome/build-tools/30.0.3"

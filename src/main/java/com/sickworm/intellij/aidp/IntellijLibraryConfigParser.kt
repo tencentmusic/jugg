@@ -1,6 +1,7 @@
 package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.diagnostic.Logger
+import org.jetbrains.plugins.gradle.util.USER_HOME
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
 import java.io.File
@@ -8,9 +9,11 @@ import javax.xml.parsers.SAXParserFactory
 
 private val logger = Logger.getInstance("#AIDP-IntellijLibraryConfigParser")
 
-class IntellijLibraryConfigParser(private val configDir: File) {
+class IntellijLibraryConfigParser(private val configDir: File, private val projectDir: String) {
 
     private val parser = SAXParserFactory.newInstance().newSAXParser()
+
+    private val userHome = System.getProperty(USER_HOME)
 
     /**
      * @return library path list
@@ -29,16 +32,19 @@ class IntellijLibraryConfigParser(private val configDir: File) {
     }
 
     private fun parse(path: String): String? {
-        val handler = Handler(path)
+        val handler = Handler()
         parser.parse(path, handler)
         val jarFilePath = handler.jarFile
         if (jarFilePath == null) {
             logger.warn("can not read library info from: $path")
+            return null
         }
         return jarFilePath
+            .replace("\$USER_HOME\$", userHome)
+            .replace("\$PROJECT_DIR\$", projectDir)
     }
 
-    private class Handler(private val path: String): DefaultHandler() {
+    private class Handler: DefaultHandler() {
         var jarFile: String? = null
         var isClasses: Boolean = false
 
