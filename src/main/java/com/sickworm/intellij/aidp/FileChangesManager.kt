@@ -90,6 +90,7 @@ class FileChangesManager(private val project: Project,
                 logger.warn("gradle module $module dir not found")
                 return@forEach
             }
+            // TODO filter sourceSets by name
             val javaSets: List<File> = sourceSets.map { it.java() }.flatMap { it.getFileList(baseDir) }
             sourceRoots.addAll(javaSets)
             val resSets: List<File> = sourceSets.map { it.res() }.flatMap { it.getFileList(baseDir) }
