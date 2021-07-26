@@ -63,7 +63,6 @@ class FileChangesManager(private val project: Project,
         val resourceRoots = mutableListOf<File>()
         val assetRoots = mutableListOf<File>()
 
-        // TODO GradleBuildModel.get(ModuleManager.getInstance(project).modules[1]).android().sourceSets()
         ModuleManager.getInstance(project).modules.forEach { module ->
             val moduleManager = ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
