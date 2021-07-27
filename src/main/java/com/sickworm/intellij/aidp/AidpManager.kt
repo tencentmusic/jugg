@@ -7,7 +7,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
-import com.intellij.openapi.wm.ToolWindow
 import com.sickworm.intellij.aidp.compiler.AidpCompiler
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileTask
@@ -82,7 +81,7 @@ class AidpManager(private val project: Project,
         val libDep = IntellijLibraryConfigParser(libraryDir, projectDir).parse()!!
         for (dep in libDep) {
             if (!File(dep).exists()) {
-                logger.warn("libDep file not exists: $dep")
+                logger.debug("libDep file not exists: $dep")
             }
         }
 
@@ -101,7 +100,17 @@ class AidpManager(private val project: Project,
         val projectDep = ModuleManager.getInstance(project).modules.mapNotNull {
             val baseDir = it.guessModuleDir()?: return@mapNotNull null
             if (!baseDir.exists()) return@mapNotNull null
-            "${baseDir.path}/build/intermediates/javac/debug/classes"
+            baseDir.path
+        }.flatMap {
+            listOf(
+                "${it}/build/intermediates/javac/debug/classes",
+                "${it}/build/tmp/kotlin-classes/debug"
+            )
+        }
+        for (dep in projectDep) {
+            if (!File(dep).exists()) {
+                logger.debug("projectDep file not exists: $dep")
+            }
         }
 
         if (!classPathDir.exists()) {
