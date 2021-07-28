@@ -105,6 +105,7 @@ class JavaCompiler(private val logger: Logger): ICompiler {
         // compile options
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
+        logger.warn("??? ${dependencies.joinToString(File.pathSeparator)}")
         options.addAll(listOf("-cp", dependencies.joinToString(File.pathSeparator)))
         // ensure class file version for later dex
         options.addAll(listOf("-source", "1.8"))

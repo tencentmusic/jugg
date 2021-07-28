@@ -126,7 +126,7 @@ class AidpManager(private val project: Project,
         // FIXME
         val appBuildDir = File(projectDir, "app/build")
         val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
-        val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/AndroidManifest.xml")
+        val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/arm64-v8a/AndroidManifest.xml")
         compiler = AidpCompiler(project,
             tempCompileDir = compileClassDir,
             classPathDir = classPathDir,
