@@ -16,6 +16,9 @@ class AidpException(msg: String): Exception(msg) {
 
         fun applyChangesFailed(launchResult: LaunchResult)
                 = AidpException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
+
+        fun compileResApkFailed()
+                = AidpException("compile resource failed due to compile arsc failed")
     }
 }
 

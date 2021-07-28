@@ -107,7 +107,7 @@ class AidpManager(private val project: Project,
                 deps.add(buildClassPath)
             }
 
-            // on my macos, R.class not storage in buildClassPath
+            // on gradle 4.1.1, R.class not storage in buildClassPath
             val rJarPath = "${baseDir.path}/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
             if (File(rJarPath).exists()) {
                 deps.add(rJarPath)
@@ -134,6 +134,7 @@ class AidpManager(private val project: Project,
 
         // TODO use apk analyze
         val appBuildDir = File(projectDir, "app/build")
+        // FIXME not compatible with com.android.tools.build:gradle:4.1.1, leak flat files in res/merged/debug
         val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
         val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/arm64-v8a/AndroidManifest.xml")
         compiler = AidpCompiler(project,
@@ -143,7 +144,8 @@ class AidpManager(private val project: Project,
             androidBuildTools = File(androidBuildTools),
             flatDir = flatDir,
             manifest = manifest,
-            stableIds = File(buildDir, "stableIds.txt")
+            // TODO avoid project inject aaptOptions --emit-ids
+            stableIds = File(projectDir, "build/aidp/stable-ids.txt")
             )
     }
 

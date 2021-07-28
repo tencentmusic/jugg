@@ -245,6 +245,9 @@ class ArscCompiler(
         }
 
         val rFiles = rFileDir.listFilesRecursively()
+        if (rFiles.isEmpty()) {
+            throw AidpException.compileResApkFailed()
+        }
 
         return File(outputApk) to rFiles[0]
     }
