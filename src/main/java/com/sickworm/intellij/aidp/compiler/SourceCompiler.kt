@@ -160,16 +160,19 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
         checkOutputDirIsEmpty(task)
+        task.outputDir.mkdirs()
 
         // TODO read from environment
         val javaCmd = if (isWindows) "D:/Java/jdk1.8.0_77/bin/java.exe" else "java"
         val kotlincLibDir = if (isWindows) "D:/JETBRA~1/INTELL~1.2/plugins/Kotlin/kotlinc/lib"
-            else "/Users/wormchen/IdeaProjects/studio-master-dev/prebuilts/tools/common/kotlin-plugin/Kotlin/kotlinc/lib"
+        else "/Users/wormchen/IdeaProjects/studio-master-dev/prebuilts/tools/common/kotlin-plugin/Kotlin/kotlinc/lib"
         val preloader = "$kotlincLibDir/kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
         val compiler = "$kotlincLibDir/kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        val dependenciesArg = dependencies.joinToString(File.pathSeparator)
-        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -cp $dependenciesArg -d ${task.outputDir} -jvm-target 1.8"
+        val dependenciesArg = if (dependencies.isEmpty()) "" else "-cp " + dependencies.joinToString(File.pathSeparator)
+        val jvmVersionArg = "-jvm-target 1.8"
+        val outputArg = "-d ${task.outputDir}"
+        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} $jvmVersionArg $dependenciesArg $outputArg"
         println(command)
         val pr = Runtime.getRuntime().exec(command)
         pr.readOutput(logger)
