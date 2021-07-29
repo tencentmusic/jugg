@@ -169,16 +169,18 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
         val compiler = "$kotlincLibDir/kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         val dependenciesArg = dependencies.joinToString(File.pathSeparator)
-        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -cp $dependenciesArg -d ${task.outputDir}"
+        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} -cp $dependenciesArg -d ${task.outputDir} -jvm-target 1.8"
         println(command)
         val pr = Runtime.getRuntime().exec(command)
         pr.readOutput(logger)
         pr.waitFor()
 
+        // TODO check error
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
             CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
         }
+
         return CompileResult(task, listOf(Result.success(task.files[0])), outputs)
     }
 }
