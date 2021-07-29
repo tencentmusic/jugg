@@ -9,11 +9,13 @@ import com.intellij.execution.ProgramRunnerUtil
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.executors.DefaultRunExecutor
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.sickworm.intellij.aidp.AidpLogger
 import org.jetbrains.android.facet.AndroidFacet
+import org.jetbrains.kotlin.idea.util.application.executeWriteCommand
 import java.io.File
 
 class DeployTargetManager(
@@ -42,7 +44,9 @@ class DeployTargetManager(
 
     fun runNormalBuild() {
         val (runConfigAndSettings, _) = getRunConfig()
-        ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
+        ApplicationManager.getApplication().invokeAndWait {
+            ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
+        }
     }
 
     private fun getApks(runConfig: AndroidRunConfiguration): List<ApkInfo> {
