@@ -1,15 +1,11 @@
 package com.sickworm.intellij.aidp.compiler
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.aidp.*
+import com.sickworm.intellij.aidp.Result
+import com.sickworm.intellij.aidp.changeBaseDir
+import com.sickworm.intellij.aidp.clearDir
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
-import org.jetbrains.kotlin.idea.compiler.configuration.Kotlin2JvmCompilerArgumentsHolder
-import java.io.*
-import javax.tools.DiagnosticListener
-import javax.tools.JavaCompiler
-import javax.tools.JavaFileObject
-import javax.tools.StandardJavaFileManager
-import javax.tools.ToolProvider
+import java.io.File
 
 class SourceCompiler(
     /** compile temporary directory */
@@ -24,7 +20,17 @@ class SourceCompiler(
 
     private val javaCompiler = JavaCompiler(logger)
 
-    private val kotlinCompiler = KotlinCompiler(logger)
+    private val isSupportKotlin = run {
+        return@run try {
+            K2JVMCompiler()
+            true
+        } catch (e: Throwable) {
+            logger.warn("kotlin compile not support")
+            false
+        }
+    }
+
+    private val kotlinCompiler = if (isSupportKotlin) KotlinCompiler(logger) else EmptyCompiler()
 
     private val dexCompiler = DexCompiler(androidBuildTools, logger)
 
@@ -85,154 +91,5 @@ class SourceCompiler(
         }
 
         return CompileResult(task, compileResult.details, dexResult.outputs)
-    }
-}
-
-class JavaCompiler(private val logger: Logger): ICompiler {
-    override val supportedTypes = listOf(CompileFile.Type.Java)
-
-    private val compiler: JavaCompiler = ToolProvider.getSystemJavaCompiler()
-    private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
-
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-        checkOutputDirIsEmpty(task)
-        task.outputDir.mkdirs()
-
-        val compileItems = task.files.map {
-            val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
-            JavaCompileItem(it, fileObject)
-        }
-
-        // compile options
-        val options = mutableListOf("-d", task.outputDir.absolutePath)
-        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        options.addAll(listOf("-cp", dependencies.joinToString(File.pathSeparator)))
-        // ensure class file version for later dex
-        options.addAll(listOf("-source", "1.8"))
-        options.addAll(listOf("-target", "1.8"))
-
-        // compile error listener
-        val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
-            val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
-            logger.warn("java compile: $diagnostic")
-            if (item == null) {
-                // it maybe a compile warning like:
-                // warning: [options] bootstrap class path not set in conjunction with source -1.7
-                return@DiagnosticListener
-            }
-            item.errors.add(diagnostic.lineNumber to diagnostic.toString())
-        }
-
-        // compile files
-        val objects = compileItems.map { it.fileObject }
-
-        // do compile
-        val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
-        if (!javaTask.call()) {
-            logger.warn("javaTask call failed!")
-        }
-
-        // check result
-        val failedItems = compileItems.filter { it.isFailed }
-        // all failed or all success
-        return if (failedItems.isEmpty()) {
-            val outputs = task.outputDir.listFilesRecursively().map {
-                CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
-            }
-            CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
-        } else {
-            CompileResult(task, compileItems.map { Result.failure(CompileError(it.file, it.errors)) }, emptyList())
-        }
-    }
-
-    private class JavaCompileItem(
-        val file: CompileFile,
-        val fileObject: JavaFileObject,
-        val errors: MutableList<Pair<Long, String>> = mutableListOf(),
-    ) {
-        val isFailed get() = errors.isNotEmpty()
-    }
-}
-
-class KotlinCompiler(private val logger: Logger): ICompiler {
-    override val supportedTypes = listOf(CompileFile.Type.Kotlin)
-
-    val kotlinCompiler = K2JVMCompiler()
-
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-        checkOutputDirIsEmpty(task)
-        task.outputDir.mkdirs()
-
-        val outputStream = ByteArrayOutputStream()
-        val printStream = PrintStream(outputStream)
-
-        // TODO read from environment
-        val javaCmd = if (isWindows) "D:/Java/jdk1.8.0_77/bin/java.exe" else "java"
-        val kotlincLibDir = if (isWindows) "D:/JETBRA~1/INTELL~1.2/plugins/Kotlin/kotlinc/lib"
-        else "/Users/wormchen/IdeaProjects/studio-master-dev/prebuilts/tools/common/kotlin-plugin/Kotlin/kotlinc/lib"
-        val preloader = "$kotlincLibDir/kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
-        val compiler = "$kotlincLibDir/kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
-        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        val dependenciesArg = if (dependencies.isEmpty()) "" else "-cp " + dependencies.joinToString(File.pathSeparator)
-        val jvmVersionArg = "-jvm-target 1.8"
-        val outputArg = "-d ${task.outputDir}"
-//        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} $jvmVersionArg $dependenciesArg $outputArg"
-        val command = mutableListOf<String>(
-            "-jvm-target", "1.8",
-            "-no-stdlib",
-            "-no-reflect",
-            "-d", task.outputDir.absolutePath
-        )
-        if (dependencies.isNotEmpty()) {
-            command.add("-cp")
-            command.add(dependencies.joinToString(File.pathSeparator))
-        }
-        command.add(task.files.joinToString(separator = " ") { it.file.absolutePath })
-        println(command)
-        kotlinCompiler.exec(printStream, *command.toTypedArray())
-        logger.warn("compile: ${String(outputStream.toByteArray())}")
-//        println(command)
-//        val pr = Runtime.getRuntime().exec(command)
-//        pr.readOutput(logger)
-//        pr.waitFor()
-
-        // TODO check error
-        val outputs = task.outputDir.listFilesRecursively().mapNotNull {
-            if (it.extension == "kotlin_module") return@mapNotNull null
-            CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
-        }
-
-        return CompileResult(task, listOf(Result.success(task.files[0])), outputs)
-    }
-}
-
-class DexCompiler(
-    androidBuildTools: File,
-    private val logger: Logger,
-    ): ICompiler {
-
-    override val supportedTypes = listOf(CompileFile.Type.Class)
-
-    private val dexFileMaker = DexFileMaker(androidBuildTools)
-
-    override fun compile(task: CompileTask): CompileResult {
-        val outputs = mutableListOf<CompileOutput>()
-        val details = mutableListOf<Result<CompileFile, CompileError>>()
-        task.files.forEach {
-            val dexOutputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "dex")
-            dexFileMaker.dex(it.baseDir, dexOutputFile, it.file)
-
-            if (!dexOutputFile.exists() || dexOutputFile.length() <= 0) {
-                val errorMessage = "dex failed! file: ${it.file.absolutePath}"
-                logger.warn(errorMessage)
-                details.add(Result.failure(CompileError(it, listOf(0L to errorMessage))))
-            } else {
-                details.add(Result.success(it))
-                outputs.add(CompileOutput(CompileOutput.Type.Dex, dexOutputFile, task.outputDir))
-            }
-        }
-        return CompileResult(task, details, outputs)
     }
 }

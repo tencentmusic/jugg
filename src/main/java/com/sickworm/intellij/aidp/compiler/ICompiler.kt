@@ -108,3 +108,13 @@ interface ICompiler {
         }
     }
 }
+
+class EmptyCompiler: ICompiler {
+
+    override val supportedTypes: List<CompileFile.Type> = emptyList()
+
+    override fun compile(task: CompileTask): CompileResult {
+        checkCanCompile(task)
+        return CompileResult(task, emptyList(), emptyList())
+    }
+}

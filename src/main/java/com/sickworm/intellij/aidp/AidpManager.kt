@@ -62,7 +62,7 @@ class AidpManager(private val project: Project,
         compileThread.submit {
             try {
                 initDependency()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.warn("dependencies load failed", e)
             }
 
@@ -145,7 +145,7 @@ class AidpManager(private val project: Project,
 
         dependencies = libDep + androidDep + projectDeps + aidpClassPathDep
 
-        logger.debug("dependencies loaded, libDep: ${libDep.relativePath(projectDir)}, projectDep: ${projectDeps.relativePath(projectDir)}")
+        logger.debug("dependencies loaded, libDep: ${libDep}, projectDep: ${projectDeps.relativePath(projectDir)}")
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
         // TODO use apk analyze
