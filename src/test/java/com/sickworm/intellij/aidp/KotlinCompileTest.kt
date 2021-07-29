@@ -19,7 +19,9 @@ class KotlinCompileTest {
             CompileFile(
                 CompileFile.Type.Kotlin,
                 File("$assetsKotlinDir/com/sickworm/intellij/aidp/test/Result.kt"),
-                assetsKotlinDir)
+                assetsKotlinDir,
+                listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+            )
         ),
         stagingDir)
     @Test

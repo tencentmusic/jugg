@@ -2,7 +2,9 @@ package com.sickworm.intellij.aidp.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.*
-import java.io.File
+import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
+import org.jetbrains.kotlin.idea.compiler.configuration.Kotlin2JvmCompilerArgumentsHolder
+import java.io.*
 import javax.tools.DiagnosticListener
 import javax.tools.JavaCompiler
 import javax.tools.JavaFileObject
@@ -156,10 +158,15 @@ class JavaCompiler(private val logger: Logger): ICompiler {
 class KotlinCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
 
+    val kotlinCompiler = K2JVMCompiler()
+
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
         checkOutputDirIsEmpty(task)
         task.outputDir.mkdirs()
+
+        val outputStream = ByteArrayOutputStream()
+        val printStream = PrintStream(outputStream)
 
         // TODO read from environment
         val javaCmd = if (isWindows) "D:/Java/jdk1.8.0_77/bin/java.exe" else "java"
@@ -171,11 +178,25 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
         val dependenciesArg = if (dependencies.isEmpty()) "" else "-cp " + dependencies.joinToString(File.pathSeparator)
         val jvmVersionArg = "-jvm-target 1.8"
         val outputArg = "-d ${task.outputDir}"
-        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} $jvmVersionArg $dependenciesArg $outputArg"
+//        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} $jvmVersionArg $dependenciesArg $outputArg"
+        val command = mutableListOf<String>(
+            "-jvm-target", "1.8",
+            "-no-stdlib",
+            "-no-reflect",
+            "-d", task.outputDir.absolutePath
+        )
+        if (dependencies.isNotEmpty()) {
+            command.add("-cp")
+            command.add(dependencies.joinToString(File.pathSeparator))
+        }
+        command.add(task.files.joinToString(separator = " ") { it.file.absolutePath })
         println(command)
-        val pr = Runtime.getRuntime().exec(command)
-        pr.readOutput(logger)
-        pr.waitFor()
+        kotlinCompiler.exec(printStream, *command.toTypedArray())
+        logger.warn("compile: ${String(outputStream.toByteArray())}")
+//        println(command)
+//        val pr = Runtime.getRuntime().exec(command)
+//        pr.readOutput(logger)
+//        pr.waitFor()
 
         // TODO check error
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
