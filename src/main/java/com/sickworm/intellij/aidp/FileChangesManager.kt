@@ -7,7 +7,6 @@ import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
@@ -47,11 +46,11 @@ class FileChangesManager(private val project: Project,
         logger.debug("""
             |start listen.
             |    source roots:
-            |        ${sourceRoots.map { File(it.path).relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |        ${sourceRoots.map { it.path }.relativePath(projectDir) }}
             |    resource roots:
-            |        ${resourceRoots.map { File(it.path).relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |        ${resourceRoots.map { it.path }.relativePath(projectDir) }}
             |    asset roots:
-            |        ${assetRoots.map { File(it.path).relativeTo(File(projectDir)) }.joinToString("\n        ")}
+            |        ${assetRoots.map { it.path }.relativePath(projectDir) }}
             |""".trimMargin())
 
         listenFileChanges()
@@ -84,7 +83,7 @@ class FileChangesManager(private val project: Project,
                 logger.warn("gradle module $module sourceSets not found")
                 return@forEach
             }
-            val baseDir = module.guessModuleDir()?.path
+            val baseDir = module.guessModuleDirAdv()?.path
             if (baseDir == null) {
                 logger.warn("gradle module $module dir not found")
                 return@forEach

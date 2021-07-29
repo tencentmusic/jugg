@@ -4,7 +4,6 @@ import com.android.tools.deployer.AidpDeployerHelper
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.guessModuleDir
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.aidp.compiler.AidpCompiler
@@ -96,24 +95,40 @@ class AidpManager(private val project: Project,
             throw IllegalStateException("androidDep not found, path: $androidDep")
         }
 
-        // TODO OPTIMIZE split by modules
-        val projectDeps: List<String> = ModuleManager.getInstance(project).modules.flatMap {
-            val baseDir = it.guessModuleDir()?: return@flatMap emptyList()
-            if (!baseDir.exists()) return@flatMap emptyList()
+        val moduleDirs = ModuleManager.getInstance(project).modules.mapNotNull {
+            val baseDir = it.guessModuleDirAdv()
+            if (baseDir == null) {
+                logger.warn("module $it dir not found")
+                return@mapNotNull null
+            }
+            if (!baseDir.exists()) {
+                logger.warn("module $it dir not exist")
+                return@mapNotNull null
+            }
+            baseDir.path
+        }
+        logger.debug("modules dir: ${moduleDirs.relativePath(projectDir)}")
 
+        // TODO OPTIMIZE split by modules
+        val projectDeps: List<String> = moduleDirs.flatMap { baseDir ->
+            // java class path
             val deps = mutableListOf<String>()
-            val buildClassPath = "${baseDir.path}/build/intermediates/javac/debug/classes"
+            val buildClassPath = "${baseDir}/build/intermediates/javac/debug/classes"
             if (File(buildClassPath).exists()) {
                 deps.add(buildClassPath)
             }
 
             // on gradle 4.1.1, R.class not storage in buildClassPath
-            val rJarPath = "${baseDir.path}/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
+            val rJarPath = "${baseDir}/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
             if (File(rJarPath).exists()) {
                 deps.add(rJarPath)
             }
 
-            deps.add("${baseDir.path}/build/tmp/kotlin-classes/debug")
+            // kotlin class path
+            val kotlinClassPath = "${baseDir}/build/tmp/kotlin-classes/debug"
+            if (File(kotlinClassPath).exists()) {
+                deps.add(kotlinClassPath)
+            }
 
             deps
         }
@@ -130,6 +145,7 @@ class AidpManager(private val project: Project,
 
         dependencies = libDep + androidDep + projectDeps + aidpClassPathDep
 
+        logger.debug("dependencies loaded, libDep: ${libDep.relativePath(projectDir)}, projectDep: ${projectDeps.relativePath(projectDir)}")
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
         // TODO use apk analyze

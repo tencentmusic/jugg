@@ -1,6 +1,9 @@
 package com.sickworm.intellij.aidp
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.rootManager
+import com.intellij.openapi.vfs.VirtualFile
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -43,5 +46,12 @@ fun Process.readOutput(logger: Logger) {
     }
     ins.close()
 }
+
+fun Module.guessModuleDirAdv(): VirtualFile? {
+    val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
+    return contentRoots.find { name.endsWith(it.name) } ?: contentRoots.firstOrNull() ?: moduleFile?.parent
+}
+
+fun List<String>.relativePath(baseDirPath: String) = map { File(it).relativeTo(File(baseDirPath)) }
 
 val isWindows = System.getProperty("os.name").toLowerCase().startsWith("win")
