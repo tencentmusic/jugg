@@ -78,11 +78,12 @@ class FileChangesManager(private val project: Project,
                     assetRoots.add(it.toIoFile())
                 }
             }
-            val sourceSets = ProjectBuildModel.get(project).getModuleBuildModel(module)?.android()?.sourceSets()
-            if (sourceSets == null) {
-                logger.warn("gradle module $module sourceSets not found")
+            val buildModel = ProjectBuildModel.get(project).getModuleBuildModel(module)
+            if (buildModel == null) {
+                logger.warn("gradle module $module not found")
                 return@forEach
             }
+            val sourceSets = buildModel.android().sourceSets()
             val baseDir = module.guessModuleDirAdv()?.path
             if (baseDir == null) {
                 logger.warn("gradle module $module dir not found")
