@@ -6,7 +6,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 val logger = Logger.getInstance("AidpTest")
@@ -55,7 +54,7 @@ fun assertCompileResult(task: CompileTask,
     assertTrue(result.isAllSuccess)
     assertEquals(result.details.size, task.files.size)
 
-    val outputs = mutableSetOf<CompileOutput>()
+    val exceptsOutput = mutableSetOf<CompileOutput>()
     result.details.forEach { detail ->
         assertTrue(detail.isSuccess)
         assertTrue(detail.file.file.exists() && detail.file.file.length() > 0)
@@ -66,10 +65,13 @@ fun assertCompileResult(task: CompileTask,
             assertTrue(output!!.file.exists())
             assertTrue(output.file.length() > 0)
         }
-        outputs.addAll(expectOutput)
+        exceptsOutput.addAll(expectOutput)
     }
 
-    assertEquals(result.outputs.size, outputs.size)
+    // TODO check compiled xml outputs size
+    val exceptedOutputWithoutXml = result.outputs.filter { !it.file.relativeTo(it.baseDir).startsWith("res") }
+    val outputWithoutXml = result.outputs.filter { !it.file.relativeTo(it.baseDir).startsWith("res") }
+    assertEquals(exceptedOutputWithoutXml.size, outputWithoutXml.size)
 }
 
 fun clearBuild() = buildDir.clearDir()

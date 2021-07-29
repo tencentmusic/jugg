@@ -156,11 +156,13 @@ class AidpCompileTest {
                 val arscFile = File(overlayBaseDir, ARSC_FILE_NAME)
                 val arscOutput = CompileOutput(CompileOutput.Type.Overlay, arscFile, overlayBaseDir)
 
+
                 listOf<CompileOutput>() + flatOutput + arscOutput + dexOutputs
             } else {
                 throw IllegalStateException("not supported")
             }
         }
+
         assertCompileResult(task, result, mapper)
     }
 }
