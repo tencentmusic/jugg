@@ -22,11 +22,10 @@ import org.jetbrains.jps.model.java.JavaSourceRootType
 import org.jetbrains.kotlin.config.ResourceKotlinRootType
 import org.jetbrains.kotlin.config.SourceKotlinRootType
 import java.io.File
-import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
- * 文件变化监听
+ * Manage file changes in project
  */
 class FileChangesManager(private val project: Project,
                          private val projectDir: String): Disposable {
