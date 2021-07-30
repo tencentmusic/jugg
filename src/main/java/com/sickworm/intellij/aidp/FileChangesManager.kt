@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.config.ResourceKotlinRootType
 import org.jetbrains.kotlin.config.SourceKotlinRootType
 import java.io.File
 import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * 文件变化监听
@@ -144,7 +145,7 @@ class FileChangesManager(private val project: Project,
         }
 
         val virtualFile = if (event is VFileCopyEvent) {
-            VirtualFileManager.getInstance().findFileByNioPath(Path.of(event.path))
+            VirtualFileManager.getInstance().findFileByNioPath(Paths.get(event.path))
         } else {
             event.file
         }
