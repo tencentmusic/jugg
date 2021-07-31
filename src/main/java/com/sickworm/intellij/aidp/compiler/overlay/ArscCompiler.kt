@@ -69,10 +69,6 @@ class ArscCompiler(
         // TODO check result
         aapt2Invoker.invoke(command)
 
-        val process = Runtime.getRuntime().exec(command)
-        process.readOutput(logger)
-        process.waitFor()
-
         if (newStableIdFile.exists()) {
             stableIds.delete()
             newStableIdFile.renameTo(stableIds)
