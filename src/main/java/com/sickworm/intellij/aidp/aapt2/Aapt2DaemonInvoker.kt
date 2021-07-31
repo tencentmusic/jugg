@@ -86,7 +86,7 @@ class Aapt2DaemonInvoker(
                 logger.debug("output: $line")
                 readLine++
             }
-//            logger.debug("output lines: $readLine")
+            logger.debug("output lines: $readLine")
         }
 
         private fun readError(stream: InputStream): String {
@@ -101,7 +101,7 @@ class Aapt2DaemonInvoker(
                 readLine++
                 logger.warn("error: $line")
             }
-//            logger.debug("error out: $readLine")
+            logger.debug("error out: $readLine")
             return stringBuilder.toString()
         }
     }
