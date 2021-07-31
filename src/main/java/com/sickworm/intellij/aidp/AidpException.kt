@@ -40,5 +40,8 @@ class AidpInternalException(msg: String): Exception(msg) {
 
         fun resValuesNotSupported() =
             AidpInternalException("Currently AIDP don't support deploy values/*.xml")
+
+        fun startAapt2DaemonFailed() =
+            AidpInternalException("Start aapt2 damon failed")
     }
 }

@@ -10,7 +10,7 @@ class ApkReader(
     private val logger: Logger
 ) {
 
-    private val aapt2Invoker = Aapt2Invoker(androidBuildTools)
+    private val aapt2Invoker = Aapt2DaemonInvoker(androidBuildTools)
 
     private var apkResInfo: ApkResInfo? = null
 
