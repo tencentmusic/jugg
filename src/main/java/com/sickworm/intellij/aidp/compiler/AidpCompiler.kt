@@ -2,6 +2,9 @@ package com.sickworm.intellij.aidp.compiler
 
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.aidp.*
+import com.sickworm.intellij.aidp.compiler.overlay.AssetOverlayCompiler
+import com.sickworm.intellij.aidp.compiler.overlay.ResourceOverlayCompiler
+import com.sickworm.intellij.aidp.compiler.source.SourceCompiler
 import java.io.File
 
 class AidpCompiler(

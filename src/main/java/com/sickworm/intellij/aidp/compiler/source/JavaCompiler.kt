@@ -1,7 +1,8 @@
-package com.sickworm.intellij.aidp.compiler
+package com.sickworm.intellij.aidp.compiler.source
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.Result
+import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.listFilesRecursively
 import java.io.File
 import javax.tools.DiagnosticListener

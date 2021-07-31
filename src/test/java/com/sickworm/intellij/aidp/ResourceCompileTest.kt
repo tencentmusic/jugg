@@ -1,6 +1,10 @@
 package com.sickworm.intellij.aidp
 
 import com.sickworm.intellij.aidp.compiler.*
+import com.sickworm.intellij.aidp.compiler.overlay.ARSC_FILE_NAME
+import com.sickworm.intellij.aidp.compiler.overlay.ArscCompiler
+import com.sickworm.intellij.aidp.compiler.overlay.ResourceCompiler
+import com.sickworm.intellij.aidp.compiler.overlay.ResourceOverlayCompiler
 import org.junit.Before
 import org.junit.Test
 import java.io.File

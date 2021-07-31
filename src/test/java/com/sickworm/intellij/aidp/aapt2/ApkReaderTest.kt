@@ -35,6 +35,25 @@ class ApkReaderTest {
     }
 
     @Test
+    fun testAaptDaemonInvokerMultiInvoke() {
+        val reader = Aapt2DaemonInvoker(androidBuildTools)
+        var result = reader.invoke("dump resources ${apkFile.absolutePath}")
+        assertEquals("", result.errorOutput)
+        assertTrue(result.output.isNotEmpty())
+        assertTrue(result.isSuccess)
+
+        result = reader.invoke("dump packagename ${apkFile.absolutePath}")
+        assertEquals("", result.errorOutput)
+        assertTrue(result.output.isNotEmpty())
+        assertTrue(result.isSuccess)
+
+        result = reader.invoke("dump resources ${apkFile.absolutePath}")
+        assertEquals("", result.errorOutput)
+        assertTrue(result.output.isNotEmpty())
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
     fun testGenerateR() {
         val reader = ApkReader(androidBuildTools, apkFile, logger)
         reader.getRFile(tempCompileDir)

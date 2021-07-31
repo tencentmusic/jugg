@@ -3,6 +3,7 @@ package com.sickworm.intellij.aidp
 import com.intellij.mock.MockProject
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.aidp.compiler.*
+import com.sickworm.intellij.aidp.compiler.overlay.ARSC_FILE_NAME
 import org.junit.Before
 import org.junit.Test
 import java.io.File
