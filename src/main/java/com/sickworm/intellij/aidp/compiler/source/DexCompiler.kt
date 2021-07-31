@@ -1,8 +1,7 @@
 package com.sickworm.intellij.aidp.compiler.source
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.aidp.DexFileMaker
-import com.sickworm.intellij.aidp.Result
+import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.changeBaseDir
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File

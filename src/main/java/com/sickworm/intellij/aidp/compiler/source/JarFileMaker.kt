@@ -1,4 +1,4 @@
-package com.sickworm.intellij.aidp
+package com.sickworm.intellij.aidp.compiler.source
 
 import java.io.*
 import java.util.jar.Attributes

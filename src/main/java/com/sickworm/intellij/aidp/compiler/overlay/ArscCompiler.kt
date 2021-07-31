@@ -3,6 +3,7 @@ package com.sickworm.intellij.aidp.compiler.overlay
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.*
 import com.sickworm.intellij.aidp.compiler.*
+import com.sickworm.intellij.aidp.compiler.source.JarFileMaker
 import java.io.File
 
 class ArscCompiler(

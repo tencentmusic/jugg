@@ -1,7 +1,7 @@
 package com.sickworm.intellij.aidp.compiler.source
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.aidp.Result
+import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.isWindows
 import com.sickworm.intellij.aidp.listFilesRecursively

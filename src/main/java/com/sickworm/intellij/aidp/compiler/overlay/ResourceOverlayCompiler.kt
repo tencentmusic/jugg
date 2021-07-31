@@ -2,7 +2,7 @@ package com.sickworm.intellij.aidp.compiler.overlay
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
-import com.sickworm.intellij.aidp.Result
+import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
 import java.util.zip.ZipFile

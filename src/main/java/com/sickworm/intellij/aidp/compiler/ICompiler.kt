@@ -1,7 +1,6 @@
 package com.sickworm.intellij.aidp.compiler
 
 import com.sickworm.intellij.aidp.AidpInternalException
-import com.sickworm.intellij.aidp.Result
 import java.io.File
 
 data class CompileTask(

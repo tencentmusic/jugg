@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp
 
+import com.sickworm.intellij.aidp.project.IntellijLibraryConfigParser
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertTrue

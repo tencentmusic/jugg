@@ -10,9 +10,11 @@ import com.sickworm.intellij.aidp.compiler.AidpCompiler
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileTask
 import com.sickworm.intellij.aidp.compiler.file
+import com.sickworm.intellij.aidp.deploy.AidpDeployDataManager
 import com.sickworm.intellij.aidp.deploy.DeployState
 import com.sickworm.intellij.aidp.deploy.DeployTargetManager
 import com.sickworm.intellij.aidp.deploy.DisableMessage
+import com.sickworm.intellij.aidp.project.IntellijLibraryConfigParser
 import com.sickworm.intellij.aidp.toolWindow.AidpToolWindow
 import java.io.File
 import java.util.concurrent.Executors
