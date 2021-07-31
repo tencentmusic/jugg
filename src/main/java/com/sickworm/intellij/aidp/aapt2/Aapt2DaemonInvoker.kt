@@ -69,7 +69,7 @@ class Aapt2DaemonInvoker(
 
         fun read(): Aapt2Result {
             // TODO FIXME can not get get fucking output without delay
-            Thread.sleep(500)
+//            Thread.sleep(500)
             val error = readError(errorStream)
             val output = outputBuilder.toString()
             outputBuilder.clear()
