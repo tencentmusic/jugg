@@ -100,10 +100,10 @@ class ResourceCompileTest {
         )
 
         val result = arscCompiler.compile(task)
-        checkResourceOverlayResult(task, result, flatDir)
+        checkResourceOverlayResult(task, result)
     }
 
-    private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult, flatDir: File) {
+    private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult) {
         assertEquals(task.files.size, result.details.size)
         assertTrue(result.isAllSuccess)
         assertEquals(447, result.outputs.size)
