@@ -2,13 +2,10 @@ package com.android.tools.deployer
 
 import com.android.tools.idea.run.ConsolePrinter
 import com.android.tools.idea.run.util.LaunchStatus
-import com.intellij.execution.Executor
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindow
-import com.sickworm.intellij.aidp.AidpLogger
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import java.util.function.BooleanSupplier
-import javax.swing.Icon
 
 class MockLaunchStatus: LaunchStatus {
     override fun isLaunchTerminated(): Boolean {

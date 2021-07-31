@@ -2,6 +2,7 @@ package com.sickworm.intellij.aidp.compiler.overlay
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.*
+import com.sickworm.intellij.aidp.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.compiler.source.JarFileMaker
 import java.io.File
@@ -10,10 +11,12 @@ class ArscCompiler(
     private val stableIds: File,
     private val manifest: File,
     private val androidJar: File,
-    private val androidBuildTools: File,
+    androidBuildTools: File,
     private val logger: Logger,
 ): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.FlatDir)
+
+    private val aapt2Invoker = Aapt2DaemonInvoker(androidBuildTools, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -51,8 +54,6 @@ class ArscCompiler(
 
     private fun makeResApk(resJar: File, outputDir: File): Pair<File, File> {
         val outputApk = "${outputDir.absolutePath}/res.apk"
-        val aapt2Name = if (isWindows) "aapt2.exe" else "aapt2"
-        val aapt2Cmd = "$androidBuildTools/$aapt2Name"
         val stableIdFileArg = if (stableIds.exists()) {
             "--stable-ids $stableIds"
         } else {
@@ -63,8 +64,11 @@ class ArscCompiler(
         val rFileDir = File(outputDir, "rjava")
         val rFileArg = "--java $rFileDir"
         val manifestArg = "--manifest ${manifest.absolutePath}"
-        val command = "$aapt2Cmd link -o $outputApk -I $androidJar $stableIdFileArg $emitIdArg $rFileArg $manifestArg ${resJar.absolutePath}"
+        val command = "link -o $outputApk -I $androidJar $stableIdFileArg $emitIdArg $rFileArg $manifestArg ${resJar.absolutePath}"
         println(command)
+        // TODO check result
+        aapt2Invoker.invoke(command)
+
         val process = Runtime.getRuntime().exec(command)
         process.readOutput(logger)
         process.waitFor()

@@ -54,7 +54,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.swing.event.HyperlinkEvent;
 
-import com.sickworm.intellij.aidp.AidpLogger;
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

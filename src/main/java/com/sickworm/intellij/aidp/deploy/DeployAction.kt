@@ -18,7 +18,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.sickworm.intellij.aidp.AidpLogger
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import com.sickworm.intellij.aidp.AidpManager
 import java.util.concurrent.ExecutionException
 

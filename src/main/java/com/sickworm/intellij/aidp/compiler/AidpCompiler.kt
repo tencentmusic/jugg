@@ -5,6 +5,7 @@ import com.sickworm.intellij.aidp.*
 import com.sickworm.intellij.aidp.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.aidp.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.aidp.compiler.source.SourceCompiler
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import java.io.File
 
 class AidpCompiler(

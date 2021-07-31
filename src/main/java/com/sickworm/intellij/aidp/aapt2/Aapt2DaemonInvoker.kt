@@ -1,12 +1,15 @@
 package com.sickworm.intellij.aidp.aapt2
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
 import com.sickworm.intellij.aidp.isWindows
 import java.io.*
 import java.util.*
 
-
-class Aapt2DaemonInvoker(val androidBuildTools: File) {
+class Aapt2DaemonInvoker(
+    private val androidBuildTools: File,
+    private val logger: Logger
+    ) {
 
     private var process: Process? = null
     private var outputReader: OutputReader? = null
@@ -21,14 +24,14 @@ class Aapt2DaemonInvoker(val androidBuildTools: File) {
             throw AidpInternalException.startAapt2DaemonFailed()
         }
         this.process = process
-        outputReader = OutputReader(process.inputStream, process.errorStream)
+        outputReader = OutputReader(process.inputStream, process.errorStream, logger)
     }
 
     fun invoke(params: String): Aapt2Result {
         if (process == null) {
             init()
         }
-        println("params: $params")
+//        logger.debug("params: $params")
         val process = process!!
         process.outputStream.write("${params.replace(" ", "\n")}\n\n".toByteArray()) // double \n for commands end
         process.outputStream.flush()
@@ -36,6 +39,7 @@ class Aapt2DaemonInvoker(val androidBuildTools: File) {
         return outputReader!!.read()
     }
 
+    // TODO remove
     private fun readOutput(stream: InputStream, limitLine: Int = Int.MAX_VALUE): String {
         val stringBuilder = StringBuilder()
         val sc = Scanner(stream)
@@ -48,7 +52,11 @@ class Aapt2DaemonInvoker(val androidBuildTools: File) {
         return stringBuilder.toString()
     }
 
-    private class OutputReader(private val inputStream: InputStream, private val errorStream: InputStream) {
+    private class OutputReader(
+        private val inputStream: InputStream,
+        private val errorStream: InputStream,
+        private val logger: Logger
+        ) {
 
         @Volatile
         private var outputBuilder = StringBuilder()
@@ -60,7 +68,7 @@ class Aapt2DaemonInvoker(val androidBuildTools: File) {
         }
 
         fun read(): Aapt2Result {
-            // FIXME can not get get fucking output without delay
+            // TODO FIXME can not get get fucking output without delay
             Thread.sleep(500)
             val error = readError(errorStream)
             val output = outputBuilder.toString()
@@ -75,10 +83,10 @@ class Aapt2DaemonInvoker(val androidBuildTools: File) {
             while (sc.hasNextLine()) {
                 val line = sc.nextLine()
                 outputBuilder.appendLine(line)
-                println("output: $line")
+                logger.debug("output: $line")
                 readLine++
             }
-            println("output lines: $readLine")
+//            logger.debug("output lines: $readLine")
         }
 
         private fun readError(stream: InputStream): String {
@@ -91,9 +99,9 @@ class Aapt2DaemonInvoker(val androidBuildTools: File) {
                 if (line == "Done") break
                 stringBuilder.appendLine(line)
                 readLine++
-                println("error: $line")
+                logger.warn("error: $line")
             }
-            println("error out: $readLine")
+//            logger.debug("error out: $readLine")
             return stringBuilder.toString()
         }
     }

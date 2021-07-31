@@ -12,11 +12,8 @@ import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindow
-import com.sickworm.intellij.aidp.AidpLogger
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import org.jetbrains.android.facet.AndroidFacet
-import org.jetbrains.kotlin.idea.util.application.executeWriteCommand
-import java.io.File
 
 class DeployTargetManager(
     private val project: Project

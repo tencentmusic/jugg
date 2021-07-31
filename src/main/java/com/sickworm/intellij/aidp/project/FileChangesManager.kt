@@ -17,6 +17,7 @@ import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import com.sickworm.intellij.aidp.compiler.CompileFile
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import org.jetbrains.kotlin.config.ResourceKotlinRootType

@@ -15,6 +15,7 @@ import com.sickworm.intellij.aidp.deploy.DeployState
 import com.sickworm.intellij.aidp.deploy.DeployTargetManager
 import com.sickworm.intellij.aidp.deploy.DisableMessage
 import com.sickworm.intellij.aidp.project.IntellijLibraryConfigParser
+import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import com.sickworm.intellij.aidp.toolWindow.AidpToolWindow
 import java.io.File
 import java.util.concurrent.Executors

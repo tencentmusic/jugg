@@ -11,7 +11,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.ui.JBColor;
-import com.sickworm.intellij.aidp.AidpLogger;
 import com.sickworm.intellij.aidp.AidpManager;
 import com.sickworm.intellij.aidp.AidpSettings;
 import com.sickworm.intellij.aidp.deploy.DeployAction;
