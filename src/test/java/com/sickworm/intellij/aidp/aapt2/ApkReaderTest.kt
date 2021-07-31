@@ -9,14 +9,24 @@ import kotlin.test.assertTrue
 
 class ApkReaderTest {
 
+    private val apkFile = File(assetsAndroidDir, "app/build/outputs/apk/debug/app-debug.apk")
+
     @Before
     fun init() {
         clearBuild()
     }
 
     @Test
+    fun testAaptInvoker() {
+        val reader = Aapt2Invoker(androidBuildTools)
+        val result = reader.invoke("dump resources ${apkFile.absolutePath}")
+        assertEquals("", result.errorOutput)
+        assertTrue(result.output.isNotEmpty())
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
     fun testGenerateR() {
-        val apkFile = File(assetsAndroidDir, "app/build/outputs/apk/debug/app-debug.apk")
         val reader = ApkReader(androidBuildTools, apkFile, logger)
         reader.getRFile(tempCompileDir)
         val files = tempCompileDir.listFilesRecursively()
