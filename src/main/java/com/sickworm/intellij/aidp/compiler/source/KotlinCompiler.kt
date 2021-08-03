@@ -1,19 +1,19 @@
 package com.sickworm.intellij.aidp.compiler.source
 
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
-import com.sickworm.intellij.aidp.isWindows
 import com.sickworm.intellij.aidp.listFilesRecursively
-import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.PrintStream
+import io.github.classgraph.ClassGraph
+import java.io.*
+import java.net.URL
+import java.net.URLClassLoader
 
 class KotlinCompiler(private val logger: Logger): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
 
-    val kotlinCompiler = K2JVMCompiler()
+    private val kotlinCompile = KotlinCompileIsolate()
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
@@ -24,16 +24,7 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
         val printStream = PrintStream(outputStream)
 
         // TODO read from environment
-        val javaCmd = if (isWindows) "D:/Java/jdk1.8.0_77/bin/java.exe" else "java"
-        val kotlincLibDir = if (isWindows) "D:/JETBRA~1/INTELL~1.2/plugins/Kotlin/kotlinc/lib"
-        else "/Users/wormchen/IdeaProjects/studio-master-dev/prebuilts/tools/common/kotlin-plugin/Kotlin/kotlinc/lib"
-        val preloader = "$kotlincLibDir/kotlin-preloader.jar org.jetbrains.kotlin.preloading.Preloader"
-        val compiler = "$kotlincLibDir/kotlin-compiler.jar org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        val dependenciesArg = if (dependencies.isEmpty()) "" else "-cp " + dependencies.joinToString(File.pathSeparator)
-        val jvmVersionArg = "-jvm-target 1.8"
-        val outputArg = "-d ${task.outputDir}"
-//        val command = "$javaCmd -Xmx256M -Xms32M -noverify -cp $preloader -cp $compiler ${task.files[0].file.absolutePath} $jvmVersionArg $dependenciesArg $outputArg"
         val command = mutableListOf<String>(
             "-jvm-target", "1.8",
             "-no-stdlib",
@@ -46,12 +37,8 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
         }
         command.add(task.files.joinToString(separator = " ") { it.file.absolutePath })
         println(command)
-        kotlinCompiler.exec(printStream, *command.toTypedArray())
+        kotlinCompile.exec(printStream, command.toTypedArray())
         logger.warn("compile: ${String(outputStream.toByteArray())}")
-//        println(command)
-//        val pr = Runtime.getRuntime().exec(command)
-//        pr.readOutput(logger)
-//        pr.waitFor()
 
         // TODO check error
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
@@ -60,5 +47,64 @@ class KotlinCompiler(private val logger: Logger): ICompiler {
         }
 
         return CompileResult(task, listOf(Result.success(task.files[0])), outputs)
+    }
+}
+
+/**
+ * invoke K2JVMCompiler in isolate class loader
+ */
+class KotlinCompileIsolate {
+
+    private val classLoader: ClassLoader = getIsolateClassLoader()
+
+    fun exec(printStream: PrintStream, args: Array<String>) {
+        try {
+            val compileClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+            val compileInstance = compileClass.declaredConstructors[0].newInstance()
+            val method = compileClass.getMethod("exec", PrintStream::class.java, Array<String>::class.java)
+            method.invoke(compileInstance, printStream, args)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
+
+    companion object {
+
+        private val requiredLibraries = listOf(
+            "annotations-13.0.jar", // plugin
+            "annotations-19.0.0.jar", // test
+            "kotlin-reflect-1.4.32.jar",
+            "kotlin-stdlib-1.4.32.jar",
+            "kotlin-stdlib-common-1.4.32.jar",
+            "kotlin-stdlib-jdk7-1.4.32.jar",
+            "kotlin-stdlib-jdk8-1.4.32.jar"
+        )
+
+        private val embeddedLibraries = listOf(
+            "kotlin_compile/kotlin-compiler-1.4.32.jar",
+            "kotlin_compile/trove4j-1.0.20181211.jar",
+        )
+
+        private fun getIsolateClassLoader(): ClassLoader {
+            val libraryClasspath: List<URL> = ClassGraph().classpathURLs.filter {
+                requiredLibraries.contains(File(it.file).name)
+            }
+            val saveDir = File(PathManager.getSystemPath(), "aidp")
+            val compilerClasspath = embeddedLibraries.map {
+                val outputJar = File(saveDir, it)
+                if (!outputJar.exists()) {
+                    outputJar.parentFile.mkdirs()
+                    this::class.java.classLoader.getResource(it)!!.openStream().use { ins ->
+                        FileOutputStream(outputJar).use { ous ->
+                            ins.copyTo(ous)
+                        }
+                    }
+                }
+
+                outputJar.toURI().toURL()
+            }
+
+            return URLClassLoader((libraryClasspath + compilerClasspath).toTypedArray(), null)
+        }
     }
 }
