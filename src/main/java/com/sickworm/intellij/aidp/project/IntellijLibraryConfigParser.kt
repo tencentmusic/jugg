@@ -1,6 +1,5 @@
 package com.sickworm.intellij.aidp.project
 
-import com.android.tools.idea.memorysettings.GradlePropertiesUtil
 import com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.plugins.gradle.util.USER_HOME
 import org.xml.sax.Attributes
@@ -28,25 +27,30 @@ class IntellijLibraryConfigParser(private val configDir: File, private val proje
         return configDir
             .walkTopDown()
             .filter { it.name.endsWith(".xml") }
-            .mapNotNull { parse(it.absolutePath) }
+            .flatMap { parse(it.absolutePath) }
             .toList()
     }
 
-    private fun parse(path: String): String? {
+    private fun parse(path: String): List<String> {
         val handler = Handler()
         parser.parse(path, handler)
         val jarFilePath = handler.jarFile
-        if (jarFilePath == null) {
+        if (jarFilePath.isEmpty()) {
             logger.warn("can not read library info from: $path")
-            return null
+            return emptyList()
         }
         return jarFilePath
-            .replace("\$USER_HOME\$", userHome)
-            .replace("\$PROJECT_DIR\$", projectDir)
+            .map {
+                it.replace("\$USER_HOME\$", userHome)
+                    .replace("\$PROJECT_DIR\$", projectDir)
+            }
+            .filter {
+                File(it).exists()
+            }
     }
 
     private class Handler: DefaultHandler() {
-        var jarFile: String? = null
+        var jarFile: MutableList<String> = mutableListOf()
         var isClasses: Boolean = false
 
         override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
@@ -62,7 +66,7 @@ class IntellijLibraryConfigParser(private val configDir: File, private val proje
                     if (!jarFileUri.startsWith("jar://") || !jarFileUri.endsWith("!/")) {
                         return
                     }
-                    jarFile = jarFileUri.substring(6, jarFileUri.length - 2)
+                    jarFile.add(jarFileUri.substring(6, jarFileUri.length - 2))
                 }
             }
         }
