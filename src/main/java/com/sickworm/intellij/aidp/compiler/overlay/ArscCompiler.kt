@@ -30,6 +30,7 @@ class ArscCompiler(
             task.outputDir.mkdirs()
         }
         val resJar = File(task.outputDir, "res.jar")
+        resJar.delete()
         JarFileMaker().jar(inputDir, resJar)
 
         val (apkFile, rJavaFile) = makeResApk(resJar, task.outputDir)
