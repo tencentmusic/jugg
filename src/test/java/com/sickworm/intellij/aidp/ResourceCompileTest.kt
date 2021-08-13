@@ -42,7 +42,7 @@ class ResourceCompileTest {
     }
 
     private fun compileRes(files: List<File>, baseDir: File) {
-        val resCompiler = ResourceCompiler(androidBuildTools, logger)
+        val resCompiler = ResourceCompiler(logger)
         val task = CompileTask(
             files.map { CompileFile(CompileFile.Type.Resource, it, baseDir) },
             stagingDir
@@ -60,7 +60,7 @@ class ResourceCompileTest {
 
     @Test
     fun compileArsc() {
-        val arscCompiler = ArscCompiler(stableIds, manifest, androidJar, androidBuildTools, logger)
+        val arscCompiler = ArscCompiler(stableIds, manifest, androidJar, logger)
         val task = CompileTask(
             listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
             stagingDir
@@ -99,7 +99,6 @@ class ResourceCompileTest {
             stableIds,
             manifest,
             androidJar,
-            androidBuildTools,
             logger
         )
 

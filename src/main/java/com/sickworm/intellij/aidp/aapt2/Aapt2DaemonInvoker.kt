@@ -4,11 +4,15 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
 import com.sickworm.intellij.aidp.isWindows
 import java.io.*
+import java.lang.IllegalStateException
 import java.util.*
 
+/**
+ * invoke aapt2 with custom build
+ */
 class Aapt2DaemonInvoker(
-    private val androidBuildTools: File,
-    private val logger: Logger
+    private val logger: Logger,
+    private val aapt2: File = getEmbeddedAapt2(),
     ) {
 
     private var process: Process? = null
@@ -16,9 +20,7 @@ class Aapt2DaemonInvoker(
 
     @Synchronized
     private fun init() {
-        val aapt2Name = if (isWindows) "aapt2.exe" else "aapt2"
-        val aapt2Cmd = "${androidBuildTools.absolutePath}/$aapt2Name"
-        val process = Runtime.getRuntime().exec("$aapt2Cmd daemon")
+        val process = Runtime.getRuntime().exec("$aapt2 daemon")
         val output = readOutput(process!!.inputStream, 1)
         if (output != "Ready\n") {
             throw AidpInternalException.startAapt2DaemonFailed()
@@ -101,6 +103,16 @@ class Aapt2DaemonInvoker(
             }
             logger.debug("error out: $readLine")
             return stringBuilder.toString()
+        }
+    }
+
+    companion object {
+        fun getEmbeddedAapt2(): File {
+            // TODO change to getResources
+            if (isWindows) {
+                throw IllegalStateException("embedded aapt2 not support windows yet")
+            }
+            return File("src/main/resources/libs/aapt2")
         }
     }
 }

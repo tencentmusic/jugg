@@ -12,15 +12,14 @@ class ResourceOverlayCompiler(
     stableIdsFile: File,
     manifest: File,
     androidJar: File,
-    androidBuildTools: File,
     private val logger: Logger,
 ): ICompiler {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
-    private val resourceCompiler = ResourceCompiler(androidBuildTools, logger)
+    private val resourceCompiler = ResourceCompiler(logger)
 
-    private val arscCompiler = ArscCompiler(stableIdsFile, manifest, androidJar, androidBuildTools, logger)
+    private val arscCompiler = ArscCompiler(stableIdsFile, manifest, androidJar, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)

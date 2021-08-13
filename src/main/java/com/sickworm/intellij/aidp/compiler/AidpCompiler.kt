@@ -37,7 +37,6 @@ class AidpCompiler(
         stableIdsFile = stableIds,
         manifest = manifest,
         androidJar = androidJar,
-        androidBuildTools = androidBuildTools,
         logger
     )
 

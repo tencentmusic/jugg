@@ -5,12 +5,11 @@ import java.io.File
 import java.lang.IllegalStateException
 
 class ApkReader(
-    private val androidBuildTools: File,
     private val apkFile: File,
     private val logger: Logger
 ) {
 
-    private val aapt2Invoker = Aapt2DaemonInvoker(androidBuildTools, logger)
+    private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     private var apkResInfo: ApkResInfo? = null
 

@@ -4,18 +4,15 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
-import com.sickworm.intellij.aidp.isWindows
-import com.sickworm.intellij.aidp.readOutput
 import java.io.File
 
 class ResourceCompiler(
-    androidBuildTools: File,
     logger: Logger
     ): ICompiler {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
-    private val aapt2Invoker = Aapt2DaemonInvoker(androidBuildTools, logger)
+    private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)

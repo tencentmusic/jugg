@@ -11,12 +11,11 @@ class ArscCompiler(
     private val stableIds: File,
     private val manifest: File,
     private val androidJar: File,
-    androidBuildTools: File,
     private val logger: Logger,
 ): ICompiler {
     override val supportedTypes = listOf(CompileFile.Type.FlatDir)
 
-    private val aapt2Invoker = Aapt2DaemonInvoker(androidBuildTools, logger)
+    private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
