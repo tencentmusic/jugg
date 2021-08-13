@@ -33,7 +33,7 @@ class Aapt2DaemonInvoker(
         if (process == null) {
             init()
         }
-//        logger.debug("params: $params")
+        logger.debug("aapt2 command: aapt2 $params")
         val process = process!!
         process.outputStream.write("${params.replace(" ", "\n")}\n\n".toByteArray()) // double \n for commands end
         process.outputStream.flush()

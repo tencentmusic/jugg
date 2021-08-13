@@ -151,20 +151,13 @@ class AidpManager(private val project: Project,
         logger.debug("dependencies loaded, libDep: ${libDep}, projectDep: ${projectDeps.relativePath(projectDir)}")
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
-        // TODO use apk analyze
-        val appBuildDir = File(projectDir, "app/build")
-        // FIXME not compatible with com.android.tools.build:gradle:4.1.1, leak flat files in res/merged/debug
-        val flatDir = File(appBuildDir, "intermediates/res/merged/debug")
-        val manifest = File(appBuildDir, "intermediates/merged_manifests/debug/arm64-v8a/AndroidManifest.xml")
         compiler = AidpCompiler(project,
             tempCompileDir = compileClassDir,
             classPathDir = classPathDir,
             androidJar = File(androidDep),
             androidBuildTools = File(androidBuildTools),
-            flatDir = flatDir,
-            manifest = manifest,
-            // TODO avoid project inject aaptOptions --emit-ids
-            stableIds = File(projectDir, "build/aidp/stable-ids.txt")
+            // TODO read from environment
+            apkFile = File("src/test/assets/android/app-debug.apk")
             )
     }
 

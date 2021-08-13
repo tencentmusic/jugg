@@ -39,7 +39,7 @@ data class CompileFile(
         Class,
         Asset,
         Resource,
-        FlatDir;
+        Flat;
     }
 }
 

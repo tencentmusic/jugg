@@ -8,22 +8,22 @@ import java.io.File
 import java.util.zip.ZipFile
 
 class ResourceOverlayCompiler(
-    private val flatDir: File,
-    stableIdsFile: File,
-    manifest: File,
+    apkFile: File,
     androidJar: File,
-    private val logger: Logger,
+    private val tempCompileDir: File,
+    logger: Logger,
 ): ICompiler {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     private val resourceCompiler = ResourceCompiler(logger)
 
-    private val arscCompiler = ArscCompiler(stableIdsFile, manifest, androidJar, logger)
+    private val arscCompiler = ArscCompiler(apkFile, androidJar, logger)
 
     override fun compile(task: CompileTask): CompileResult {
         checkCanCompile(task)
 
+        // TODO resolve, maybe inc link is already supported
         if (task.files.any { it.file.parent.endsWith("values") }) {
             throw AidpInternalException.resValuesNotSupported()
         }
@@ -31,65 +31,41 @@ class ResourceOverlayCompiler(
         // compile to .flat
         val resourceTask = CompileTask(
             task.files,
-            flatDir
+            tempCompileDir
         )
         val resourceResult = resourceCompiler.compile(resourceTask)
-        if (!resourceResult.isAllSuccess) {
-            return CompileResult(task, resourceResult.details, emptyList())
-        }
-
-        // build .arsc
-        val arscTask = CompileTask(
-            listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
-            task.outputDir
-        )
-        val arscResult = arscCompiler.compile(arscTask)
         if (!resourceResult.isAllSuccess) {
             return CompileResult(
                 task,
                 task.files.map {
-                    Result.failure(CompileError(it, listOf(0L to "aapt2 linked failed")))
+                    Result.failure(CompileError(it, listOf(0L to "aapt2 compile failed")))
                 },
                 emptyList()
             )
         }
-        val rFileOutput = arscResult.outputs.find { it.type == CompileOutput.Type.Java }!!
-        val resApkFileOutput = arscResult.outputs.find { it.type == CompileOutput.Type.Overlay }!!
 
-        // copy overlays to outputDir
-        val overlays = getOverlays(resApkFileOutput.file, task.outputDir)
-        val overlayOutputs = overlays.map {
-            CompileOutput(CompileOutput.Type.Overlay, it, task.outputDir)
+        // build .arsc
+        val arscTask = CompileTask(
+            resourceResult.outputs.map {
+                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir)
+            },
+            task.outputDir
+        )
+        val arscResult = arscCompiler.compile(arscTask)
+        if (!arscResult.isAllSuccess) {
+            return CompileResult(
+                task,
+                task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "aapt2 link failed")))
+                },
+                emptyList()
+            )
         }
-        resApkFileOutput.file.delete()
 
         return CompileResult(
             task,
             resourceResult.details,
-            overlayOutputs + rFileOutput
+            arscResult.outputs
         )
-    }
-
-    private fun getOverlays(
-        apkFile: File,
-        outputDir: File
-    ): List<File> {
-        try {
-            ZipFile(apkFile).use { zipFile ->
-                return zipFile.entries().toList().map { entry ->
-                    val outputFile = File(outputDir, entry.name)
-                    outputFile.parentFile!!.mkdirs()
-                    zipFile.getInputStream(entry).use { ins ->
-                        outputFile.outputStream().use { ous ->
-                            ins.copyTo(ous)
-                        }
-                    }
-                    outputFile
-                }
-            }
-        } catch (e: Exception) {
-            logger.warn("getOverlays failed", e)
-            return emptyList()
-        }
     }
 }

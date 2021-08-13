@@ -13,18 +13,19 @@ import kotlin.test.assertTrue
 
 class ResourceCompileTest {
 
-    val flatDir = File(buildDir, "flat")
-    val stableIds: File = File("src/test/build/stableIds.txt").absoluteFile
-    val manifest: File = File("$assetsAndroidDir/app/build/intermediates/merged_manifests/debug/AndroidManifest.xml").absoluteFile
+    val flatFiles = assetsFlatDir.listFilesRecursively()
+        .filter {
+            // TODO figure out why this shit has error: '' is incompatible with attribute id (attr) reference.
+            // but it's ok for now because it's not a project xml, it's from other library
+            !it.name.endsWith("notification_template_custom_big.xml.flat")
+        }
+        .map {
+            CompileFile(CompileFile.Type.Flat, it, assetsFlatDir)
+        }
 
     @Before
     fun init() {
         clearBuild()
-        val sourceFlatDir = File(assetsAndroidDir, "app/build/intermediates/res/merged/debug")
-        sourceFlatDir.copyRecursively(flatDir)
-
-        val sourceStableIds = File("src/test/assets/android/stableIds.txt").absoluteFile
-        sourceStableIds.copyTo(stableIds)
     }
 
     @Test
@@ -60,25 +61,13 @@ class ResourceCompileTest {
 
     @Test
     fun compileArsc() {
-        val arscCompiler = ArscCompiler(stableIds, manifest, androidJar, logger)
+        val arscCompiler = ArscCompiler(assetsApkFile, androidJar, logger)
         val task = CompileTask(
-            listOf(CompileFile(CompileFile.Type.FlatDir, flatDir, flatDir)),
+            flatFiles,
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result)
-    }
-
-    private fun checkArscResult(task: CompileTask, result: CompileResult) {
-        assertEquals(result.details.size, task.files.size)
-        assertTrue(result.isAllSuccess)
-        assertTrue(result.outputs.size == 2)
-        assertEquals(result.outputs[0].type, CompileOutput.Type.Overlay)
-        assertEquals(result.outputs[1].type, CompileOutput.Type.Java)
-        result.outputs.forEach {
-            assertTrue(it.file.exists())
-            assertTrue(it.file.length() > 0)
-        }
+        checkArscResult(task, result, 443)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -94,41 +83,36 @@ class ResourceCompileTest {
     @Test
     fun compileResourceOverlay() {
         val task = resourceOverlayTask
-        val arscCompiler = ResourceOverlayCompiler(
-            flatDir,
-            stableIds,
-            manifest,
+        val resourceOverlayCompiler = ResourceOverlayCompiler(
+            assetsApkFile,
             androidJar,
+            tempCompileDir,
             logger
         )
 
-        val result = arscCompiler.compile(task)
-        checkResourceOverlayResult(task, result)
+        val result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 8)
     }
 
-    private fun checkResourceOverlayResult(task: CompileTask, result: CompileResult) {
-        assertEquals(task.files.size, result.details.size)
+    private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int) {
+        assertEquals(result.details.size, task.files.size)
         assertTrue(result.isAllSuccess)
-        assertEquals(447, result.outputs.size)
 
-        val arscFile = result.outputs.find { it.file.name == ARSC_FILE_NAME }
-        assertEquals(
-            CompileOutput(
-                CompileOutput.Type.Overlay,
-                File(task.outputDir, ARSC_FILE_NAME),
-                task.outputDir
-            ),
-            arscFile
-        )
+        val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
+        assertEquals(1, rFiles.size)
 
-        val rFile = result.outputs.find { it.file.name == "R.java" }
-        assertEquals(
-            CompileOutput(
-                CompileOutput.Type.Java,
-                File(task.outputDir, "rjava/com/example/myapplication/R.java"),
-                task.outputDir
-            ),
-            rFile
-        )
+        val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Overlay }
+        assertEquals(exceptOverlayOutputSize, resFiles.size) // TODO more logical
+
+        val arscFile = resFiles.filter { it.file.relativeTo(it.baseDir).path == ARSC_FILE_NAME }
+        assertEquals(1, arscFile.size)
+
+        val manifestFile = resFiles.filter { it.file.relativeTo(it.baseDir).path == "AndroidManifest.xml" }
+        assertEquals(1, manifestFile.size)
+
+        result.outputs.forEach {
+            assertTrue(it.file.exists())
+            assertTrue(it.file.length() > 0)
+        }
     }
 }

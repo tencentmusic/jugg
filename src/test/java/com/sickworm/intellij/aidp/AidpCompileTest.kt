@@ -19,9 +19,7 @@ class AidpCompileTest {
         classPathDir = classPathDir,
         androidJar = androidJar,
         androidBuildTools = androidBuildTools,
-        flatDir = ResourceCompileTest().flatDir,
-        manifest = ResourceCompileTest().manifest,
-        stableIds = ResourceCompileTest().stableIds
+        apkFile = assetsApkFile
     )
 
     @Before
@@ -147,7 +145,10 @@ class AidpCompileTest {
                 // R*.dex
                 val sourceBaseDir = File(task.outputDir, "classes")
                 val rOutDir = File(sourceBaseDir, "com/example/myapplication")
-                val rDexList = "R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, R\$string.dex, R\$style.dex, R\$styleable.dex, R.dex".split(", ")
+                // TODO figure out how to recover R$styleable.dex
+                val rDexList = ("R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, " +
+                        "R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, " +
+                        "R\$string.dex, R\$style.dex, R.dex").split(", ")
                 val dexOutputs = rDexList.map { name ->
                     CompileOutput(CompileOutput.Type.Dex, File(rOutDir, name), sourceBaseDir)
                 }

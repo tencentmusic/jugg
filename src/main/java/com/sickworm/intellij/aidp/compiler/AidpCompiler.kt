@@ -16,9 +16,7 @@ class AidpCompiler(
     classPathDir: File,
     androidJar: File,
     androidBuildTools: File,
-    flatDir: File,
-    manifest: File,
-    stableIds: File,
+    apkFile: File,
 ): ICompiler {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
@@ -33,10 +31,9 @@ class AidpCompiler(
     private val assetOverlayCompiler = AssetOverlayCompiler(logger)
 
     private val resourceOverlayCompiler = ResourceOverlayCompiler(
-        flatDir = flatDir,
-        stableIdsFile = stableIds,
-        manifest = manifest,
+        apkFile = apkFile,
         androidJar = androidJar,
+        tempCompileDir = File(tempCompileDir, "overlays"),
         logger
     )
 
@@ -81,7 +78,7 @@ class AidpCompiler(
             // compile .arsc and R file
             val finalResult = run {
                 // compile to .flat
-                val tempOutputDir = File(tempCompileDir, "resource")
+                val tempOutputDir = File(tempCompileDir, "tmp_resource")
                 val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
                 val resourceResult = resourceOverlayCompiler.compile(tempResourceCompileTask)
                 if (!resourceResult.isAllSuccess) {
@@ -92,7 +89,7 @@ class AidpCompiler(
                 val overlays = resourceResult.outputs
                     .filter { it.type == CompileOutput.Type.Overlay }
                     .map {
-                        val outputFile = it.file.changeBaseDir(tempOutputDir, overlayOutputDir)
+                        val outputFile = it.file.changeBaseDir(it.baseDir, overlayOutputDir)
                         outputFile.parentFile.mkdirs()
                         if (outputFile.exists()) {
                             outputFile.delete()
@@ -102,10 +99,9 @@ class AidpCompiler(
                     }
 
                 // compile R.java
-                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!.file
-                val rJavaOutputDir = File(tempCompileDir, "r")
+                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
                 val rJavaTask = CompileTask(
-                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile, rJavaOutputDir)),
+                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir)),
                     outputDir = classesOutputDir,
                 )
                 val rJavaResult = sourceCompiler.compile(rJavaTask)
@@ -124,7 +120,6 @@ class AidpCompiler(
                     resourceCompileTask,
                     details = resourceResult.details,
                     outputs = rJavaResult.outputs + overlays
-//                    outputs = overlays.filter { it.file.name != ARSC_FILE_NAME }
                 )
             }
             compileResult += finalResult

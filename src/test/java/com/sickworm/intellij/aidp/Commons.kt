@@ -23,6 +23,8 @@ val assetsKotlinDir = File(assetsDir, "kotlin")
 val assetsLibDir = File(assetsDir, "libs")
 val assetsClassDir = File(assetsDir, "class")
 val assetsAndroidDir = File(assetsDir, "android/MyApplicationIntellij")
+val assetsApkFile = File(assetsDir, "android/app-debug.apk")
+val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
 // dependency

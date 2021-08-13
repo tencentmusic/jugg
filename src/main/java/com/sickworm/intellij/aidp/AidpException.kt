@@ -16,9 +16,6 @@ class AidpException(msg: String): Exception(msg) {
 
         fun applyChangesFailed(launchResult: LaunchResult)
                 = AidpException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
-
-        fun compileResApkFailed()
-                = AidpException("compile resource failed due to compile arsc failed")
     }
 }
 
@@ -34,9 +31,6 @@ class AidpInternalException(msg: String): Exception(msg) {
 
         fun compileOutputDirNotEmpty() =
             AidpInternalException("CompileTask.outputDir is not empty directory, abort. We need empty outputDir to determine output files.")
-
-        fun arscCompileFileNotDirectory() =
-            AidpInternalException("Arsc compile only supports one single directory that contains .flat")
 
         fun resValuesNotSupported() =
             AidpInternalException("Currently AIDP don't support deploy values/*.xml")
