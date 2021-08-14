@@ -37,11 +37,15 @@ repositories {
 }
 
 dependencies {
+    // for Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation "org.jetbrains.kotlin:kotlin-reflect"
+
+    // for K2JVMCompiler
     implementation "org.jetbrains.kotlin:kotlin-android-extensions"
     implementation "org.jetbrains.kotlin:kotlin-compiler-embeddable"
     implementation "io.github.classgraph:classgraph:4.8.110"
+
     testImplementation "junit:junit:4.12"
 }
 
