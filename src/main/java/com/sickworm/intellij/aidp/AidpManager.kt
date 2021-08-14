@@ -6,10 +6,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
-import com.sickworm.intellij.aidp.compiler.AidpCompiler
-import com.sickworm.intellij.aidp.compiler.CompileFile
-import com.sickworm.intellij.aidp.compiler.CompileTask
-import com.sickworm.intellij.aidp.compiler.file
+import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.deploy.AidpDeployDataManager
 import com.sickworm.intellij.aidp.deploy.DeployState
 import com.sickworm.intellij.aidp.deploy.DeployTargetManager
@@ -45,7 +42,7 @@ class AidpManager(private val project: Project,
     private var dependencies = listOf<String>()
 
     // compile
-    private val compileClassDir = File(buildDir, "compiled")
+    private val tempCompileDir = File(buildDir, "compiled")
     private lateinit var compiler: AidpCompiler
 
     // deploy target apk
@@ -151,14 +148,16 @@ class AidpManager(private val project: Project,
         logger.debug("dependencies loaded, libDep: ${libDep}, projectDep: ${projectDeps.relativePath(projectDir)}")
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
-        compiler = AidpCompiler(project,
-            tempCompileDir = compileClassDir,
-            classPathDir = classPathDir,
-            androidJar = File(androidDep),
+        val context = BaseCompileContext(
+            logger = AidpLogger.getInstance(project, "#AIDP-Compiler"),
+            tempCompileDir = tempCompileDir,
             androidBuildTools = File(androidBuildTools),
+            androidJar = File(androidDep),
+            classPathDir = classPathDir,
             // TODO read from environment
-            apkFile = File("src/test/assets/android/app-debug.apk")
-            )
+            apkFile = File("src/test/assets/android/app-debug.apk"),
+        )
+        compiler = AidpCompiler(context)
     }
 
     private fun processFileChanged(changedFiles: List<ChangedFile>) {

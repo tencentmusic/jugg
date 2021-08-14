@@ -1,26 +1,19 @@
 package com.sickworm.intellij.aidp.compiler.source
 
-import com.intellij.openapi.application.PathManager
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.listFilesRecursively
-import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import java.io.*
-import java.net.URL
-import java.net.URLClassLoader
 
-class KotlinCompiler(private val logger: Logger): ICompiler {
+class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
+
+    override val isNeedOutputDirEmpty = true
 
     private val kotlinCompile = K2JVMCompiler()
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-        checkOutputDirIsEmpty(task)
-        task.outputDir.mkdirs()
-
+    override fun doCompile(task: CompileTask): CompileResult {
         val outputStream = ByteArrayOutputStream()
         val printStream = PrintStream(outputStream)
 

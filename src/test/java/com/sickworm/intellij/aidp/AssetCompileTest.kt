@@ -8,7 +8,7 @@ import java.io.File
 
 class AssetCompileTest {
 
-    private val assetCompiler = AssetOverlayCompiler(logger)
+    private val assetCompiler = AssetOverlayCompiler(context)
 
     @Before
     fun init() {

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp.compiler
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
 import java.io.File
 
@@ -93,27 +94,112 @@ interface ICompiler {
     val supportedTypes: List<CompileFile.Type>
 
     fun compile(task: CompileTask): CompileResult
+}
 
-    fun checkCanCompile(task: CompileTask) {
+interface ICompileContext {
+    val logger: Logger
+    /** compile temporary directory */
+    val tempCompileDir: File
+    val androidBuildTools: File
+    val androidJar: File
+    /** source class path directory */
+    val classPathDir: File
+    val apkFile: File?
+
+    fun listenUpdate(listener: OnContextUpdate)
+}
+
+fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
+    val origin = this
+    return object : ICompileContext by origin {
+        override val tempCompileDir: File
+            get() = File(origin.tempCompileDir, subTempCompileDirName)
+    }
+}
+
+abstract class BaseCompiler(val context: ICompileContext): ICompiler {
+
+    open val isNeedOutputDirEmpty: Boolean = false
+
+    val logger get() = context.logger
+
+    init {
+        context.listenUpdate(::onContextUpdate)
+    }
+
+    override fun compile(task: CompileTask): CompileResult {
+        checkTypesCanCompile(task)
+        checkContextCanCompile(task)
+        if (isNeedOutputDirEmpty) {
+            checkOutputDirIsEmpty(task)
+        }
+        if (!task.outputDir.exists()) {
+            task.outputDir.mkdirs()
+        }
+        return doCompile(task)
+    }
+
+    open fun onContextUpdate() = Unit
+
+    abstract fun doCompile(task: CompileTask): CompileResult
+
+    private fun checkTypesCanCompile(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
         if (invalidFiles.isNotEmpty()) {
             throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
         }
     }
 
-    fun checkOutputDirIsEmpty(task: CompileTask) {
+    open fun checkContextCanCompile(task: CompileTask) {
+    }
+
+    private fun checkOutputDirIsEmpty(task: CompileTask) {
         if (!task.outputDir.listFiles().isNullOrEmpty()) {
             throw AidpInternalException.compileOutputDirNotEmpty()
         }
     }
 }
 
-class EmptyCompiler: ICompiler {
+class EmptyCompiler(compileContext: ICompileContext): BaseCompiler(compileContext) {
 
     override val supportedTypes: List<CompileFile.Type> = emptyList()
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
+    override fun doCompile(task: CompileTask): CompileResult {
         return CompileResult(task, emptyList(), emptyList())
+    }
+}
+
+typealias OnContextUpdate = () -> Unit
+
+data class BaseCompileContext(
+    override val logger: Logger,
+    override var tempCompileDir: File,
+    override val androidBuildTools: File,
+    override val androidJar: File,
+    override val classPathDir: File,
+    override var apkFile: File? = null,
+): ICompileContext {
+
+    private val listeners = mutableListOf<OnContextUpdate>()
+
+    override fun listenUpdate(listener: OnContextUpdate) {
+        synchronized(listeners) {
+            if (!listeners.contains(listener)) {
+                listeners.add(listener)
+            }
+        }
+    }
+
+    fun update(apkFile: File?) {
+        this.apkFile = apkFile
+        dispatch()
+    }
+
+    private fun dispatch() {
+        synchronized(listeners) {
+            listeners.forEach {
+                it.invoke()
+            }
+        }
     }
 }

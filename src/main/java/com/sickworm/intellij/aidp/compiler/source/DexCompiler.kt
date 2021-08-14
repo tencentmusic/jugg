@@ -1,22 +1,19 @@
 package com.sickworm.intellij.aidp.compiler.source
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.changeBaseDir
 import com.sickworm.intellij.aidp.compiler.*
-import java.io.File
-
 
 class DexCompiler(
-    androidBuildTools: File,
-    private val logger: Logger,
-): ICompiler {
+    context: ICompileContext
+): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Class)
 
-    private val dexFileMaker = DexFileMaker(androidBuildTools)
+    // TODO jar invoke
+    private val dexFileMaker = DexFileMaker(context.androidBuildTools)
 
-    override fun compile(task: CompileTask): CompileResult {
+    override fun doCompile(task: CompileTask): CompileResult {
         val outputs = mutableListOf<CompileOutput>()
         val details = mutableListOf<Result<CompileFile, CompileError>>()
         task.files.forEach {

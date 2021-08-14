@@ -8,7 +8,7 @@ import java.io.File
 
 class JavaCompileTest {
 
-    private val javaCompiler = JavaCompiler(logger)
+    private val javaCompiler = JavaCompiler(context)
 
     @Before
     fun init() {

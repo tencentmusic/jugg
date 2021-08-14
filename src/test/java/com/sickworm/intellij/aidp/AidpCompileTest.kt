@@ -1,7 +1,5 @@
 package com.sickworm.intellij.aidp
 
-import com.intellij.mock.MockProject
-import com.intellij.openapi.Disposable
 import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.compiler.overlay.ARSC_FILE_NAME
 import org.junit.Before
@@ -11,16 +9,7 @@ import java.lang.IllegalStateException
 
 class AidpCompileTest {
 
-    private val disposable = Disposable { }
-    private val project = MockProject(null, disposable)
-    private val aidpCompiler = AidpCompiler(
-        project,
-        tempCompileDir = tempCompileDir,
-        classPathDir = classPathDir,
-        androidJar = androidJar,
-        androidBuildTools = androidBuildTools,
-        apkFile = assetsApkFile
-    )
+    private val aidpCompiler = AidpCompiler(context)
 
     @Before
     fun init() {

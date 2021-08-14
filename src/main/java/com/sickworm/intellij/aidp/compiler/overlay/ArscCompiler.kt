@@ -1,61 +1,67 @@
 package com.sickworm.intellij.aidp.compiler.overlay
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.*
 import com.sickworm.intellij.aidp.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
 
 class ArscCompiler(
-    apkFile: File,
-    androidJar: File,
-    private val logger: Logger,
-): ICompiler {
+    context: ICompileContext
+): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Flat)
 
+    override val isNeedOutputDirEmpty = true
+
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
-    init {
-        load(apkFile, androidJar)
+    private var hasLoaded = false
+
+    private val canCompile: Boolean get() = context.apkFile?.exists() == true && context.androidJar.exists()
+
+    override fun checkContextCanCompile(task: CompileTask) {
+        if (!canCompile) {
+            throw AidpInternalException.contextInvalidToCompileArsc()
+        }
+        if (!hasLoaded) {
+            loadTable()
+        }
     }
 
-    /**
-     * load res from apk and android.jar before inc link
-     *
-     * @return R.java
-     */
-    // TODO using CompileContext to load
-    fun load(apkFile: File, androidJar: File): CompileOutput? {
-        logger.debug("loadRes start")
+    override fun onContextUpdate() {
+        // TODO handle reload
+        if (hasLoaded) {
+            return
+        }
+        loadTable()
+    }
 
+    private fun loadTable(): Boolean {
+        if (!canCompile) {
+            return false
+        }
+
+        logger.debug("onContextUpdate load res start")
         val command = """
             |inclink
             |--load
             |-o no_need_output_path_on_load
-            |-I $androidJar
+            |-I ${context.androidJar}
             |--manifest no_need_manifest_on_load
-            |$apkFile
+            |${context.apkFile}
         """.trimMargin().replace("\n", " ")
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
             logger.warn("aapt2 load failed, error msg: ${result.errorOutput}")
-            return null
+            return false
         }
-        logger.debug("loadRes end")
-        // TODO output R.java
-        return null
+        logger.debug("onContextUpdate load res end")
+        hasLoaded = true
+        return true
     }
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-        checkOutputDirIsEmpty(task)
-
-        if (!task.outputDir.exists()) {
-            task.outputDir.mkdirs()
-        }
-
+    override fun doCompile(task: CompileTask): CompileResult {
         val flatFiles = task.files.map { it.file }
         val result = incLinkCompile(flatFiles, task.outputDir)
 

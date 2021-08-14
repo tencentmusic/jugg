@@ -37,5 +37,8 @@ class AidpInternalException(msg: String): Exception(msg) {
 
         fun startAapt2DaemonFailed() =
             AidpInternalException("Start aapt2 damon failed")
+
+        fun contextInvalidToCompileArsc()
+                = AidpException("Can not compile resource yet due to apk file or android jar not found")
     }
 }

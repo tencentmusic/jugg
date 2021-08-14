@@ -1,6 +1,5 @@
 package com.sickworm.intellij.aidp.compiler.source
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.listFilesRecursively
@@ -11,17 +10,15 @@ import javax.tools.JavaFileObject
 import javax.tools.StandardJavaFileManager
 import javax.tools.ToolProvider
 
-class JavaCompiler(private val logger: Logger): ICompiler {
+class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Java)
+
+    override val isNeedOutputDirEmpty = true
 
     private val compiler: JavaCompiler = ToolProvider.getSystemJavaCompiler()
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-        checkOutputDirIsEmpty(task)
-        task.outputDir.mkdirs()
-
+    override fun doCompile(task: CompileTask): CompileResult {
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
             JavaCompileItem(it, fileObject)

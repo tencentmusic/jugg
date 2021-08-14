@@ -44,6 +44,15 @@ val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
 
 val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
 
+val context = BaseCompileContext(
+    logger = logger,
+    tempCompileDir = tempCompileDir,
+    androidBuildTools = androidBuildTools,
+    androidJar = androidJar,
+    classPathDir = classPathDir,
+    apkFile = assetsApkFile
+)
+
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
 
 fun assertCompileResult(task: CompileTask,

@@ -1,23 +1,14 @@
 package com.sickworm.intellij.aidp.compiler
 
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.aidp.*
 import com.sickworm.intellij.aidp.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.aidp.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.aidp.compiler.source.SourceCompiler
-import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import java.io.File
 
 class AidpCompiler(
-    project: Project,
-    /** compile temporary directory */
-    private val tempCompileDir: File,
-    /** class path directory */
-    classPathDir: File,
-    androidJar: File,
-    androidBuildTools: File,
-    apkFile: File,
-): ICompiler {
+    context: ICompileContext
+): BaseCompiler(context) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
         CompileFile.Type.Java,
@@ -26,22 +17,16 @@ class AidpCompiler(
         CompileFile.Type.Resource
     )
 
-    private val logger = AidpLogger.getInstance(project, "#AIDP-Compiler")
-
-    private val assetOverlayCompiler = AssetOverlayCompiler(logger)
+    private val assetOverlayCompiler = AssetOverlayCompiler(context)
 
     private val resourceOverlayCompiler = ResourceOverlayCompiler(
-        apkFile = apkFile,
-        androidJar = androidJar,
-        tempCompileDir = File(tempCompileDir, "overlays"),
-        logger
+        context.subContext("overlays")
     )
 
-    private val sourceCompiler = SourceCompiler(File(tempCompileDir, "classes"), classPathDir, androidBuildTools, logger)
+    private val sourceCompiler = SourceCompiler(
+        context.subContext("classes"))
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-
+    override fun doCompile(task: CompileTask): CompileResult {
         logger.info("compile start")
         val startTime = System.currentTimeMillis()
 
@@ -78,7 +63,7 @@ class AidpCompiler(
             // compile .arsc and R file
             val finalResult = run {
                 // compile to .flat
-                val tempOutputDir = File(tempCompileDir, "tmp_resource")
+                val tempOutputDir = File(context.tempCompileDir, "tmp_resource")
                 val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
                 val resourceResult = resourceOverlayCompiler.compile(tempResourceCompileTask)
                 if (!resourceResult.isAllSuccess) {

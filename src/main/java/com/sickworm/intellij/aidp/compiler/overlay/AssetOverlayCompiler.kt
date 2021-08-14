@@ -1,16 +1,14 @@
 package com.sickworm.intellij.aidp.compiler.overlay
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.changeBaseDir
 import com.sickworm.intellij.aidp.compiler.*
 
-class AssetOverlayCompiler(private val logger: Logger): ICompiler {
+class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
+
     override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-
+    override fun doCompile(task: CompileTask): CompileResult {
         // just copy
         val outputs = mutableListOf<CompileOutput>()
         val details = mutableListOf<Result<CompileFile, CompileError>>()

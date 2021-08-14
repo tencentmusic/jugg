@@ -1,28 +1,20 @@
 package com.sickworm.intellij.aidp.compiler.overlay
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
-import java.io.File
-import java.util.zip.ZipFile
 
 class ResourceOverlayCompiler(
-    apkFile: File,
-    androidJar: File,
-    private val tempCompileDir: File,
-    logger: Logger,
-): ICompiler {
+    context: ICompileContext
+): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
-    private val resourceCompiler = ResourceCompiler(logger)
+    private val resourceCompiler = ResourceCompiler(context)
 
-    private val arscCompiler = ArscCompiler(apkFile, androidJar, logger)
+    private val arscCompiler = ArscCompiler(context)
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-
+    override fun doCompile(task: CompileTask): CompileResult {
         // TODO resolve, maybe inc link is already supported
         if (task.files.any { it.file.parent.endsWith("values") }) {
             throw AidpInternalException.resValuesNotSupported()
@@ -31,7 +23,7 @@ class ResourceOverlayCompiler(
         // compile to .flat
         val resourceTask = CompileTask(
             task.files,
-            tempCompileDir
+            context.tempCompileDir
         )
         val resourceResult = resourceCompiler.compile(resourceTask)
         if (!resourceResult.isAllSuccess) {

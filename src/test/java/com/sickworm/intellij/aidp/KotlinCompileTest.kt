@@ -8,7 +8,7 @@ import java.io.File
 
 class KotlinCompileTest {
 
-    private val kotlinCompiler = KotlinCompiler(logger)
+    private val kotlinCompiler = KotlinCompiler(context)
 
     @Before
     fun init() {

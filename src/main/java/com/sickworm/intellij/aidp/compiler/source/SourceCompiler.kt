@@ -1,49 +1,28 @@
 package com.sickworm.intellij.aidp.compiler.source
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.changeBaseDir
 import com.sickworm.intellij.aidp.clearDir
 import com.sickworm.intellij.aidp.compiler.*
-import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import java.io.File
 
-class SourceCompiler(
-    /** compile temporary directory */
-    private val sourceCompileDir: File,
-    /** class path directory */
-    private val classPathDir: File,
-    androidBuildTools: File,
-    private val logger: Logger
-    ): ICompiler {
+class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Java, CompileFile.Type.Kotlin)
 
-    private val javaCompiler = JavaCompiler(logger)
+    private val javaCompiler = JavaCompiler(context)
 
-    private val isSupportKotlin = run {
-        return@run try {
-            K2JVMCompiler()
-            true
-        } catch (e: Throwable) {
-            logger.warn("kotlin compile not support")
-            false
-        }
-    }
+    private val kotlinCompiler = KotlinCompiler(context)
 
-    private val kotlinCompiler = if (isSupportKotlin) KotlinCompiler(logger) else EmptyCompiler()
+    private val dexCompiler = DexCompiler(context)
 
-    private val dexCompiler = DexCompiler(androidBuildTools, logger)
-
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-
-        sourceCompileDir.clearDir()
-        var compileResult = CompileResult(task.copy(outputDir = sourceCompileDir), emptyList(), emptyList())
+    override fun doCompile(task: CompileTask): CompileResult {
+        context.tempCompileDir.clearDir()
+        var compileResult = CompileResult(task.copy(outputDir = context.tempCompileDir), emptyList(), emptyList())
 
         val javaCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Java },
-            outputDir = File(sourceCompileDir, "java")
+            outputDir = File(context.tempCompileDir, "java")
         )
         if (javaCompileTask.isNeedCompile) {
             compileResult += javaCompiler.compile(javaCompileTask)
@@ -51,7 +30,7 @@ class SourceCompiler(
 
         val kotlinCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Kotlin },
-            outputDir = File(sourceCompileDir, "kotlin")
+            outputDir = File(context.tempCompileDir, "kotlin")
         )
         if (kotlinCompileTask.isNeedCompile) {
             compileResult += kotlinCompiler.compile(kotlinCompileTask)
@@ -78,7 +57,7 @@ class SourceCompiler(
 
         // move compiled files to class path for future compile dependencies
         val isMoveToClassPathSuccess = classFiles.map {
-            val classPathFile = it.file.changeBaseDir(it.baseDir, classPathDir)
+            val classPathFile = it.file.changeBaseDir(it.baseDir, context.classPathDir)
             classPathFile.parentFile?.mkdirs()
             classPathFile.delete()
             return@map it.file.renameTo(classPathFile)

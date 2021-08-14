@@ -1,26 +1,19 @@
 package com.sickworm.intellij.aidp.compiler.overlay
 
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.aidp.compiler.Result
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
 
 class ResourceCompiler(
-    logger: Logger
-    ): ICompiler {
+    context: ICompileContext
+): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
-    override fun compile(task: CompileTask): CompileResult {
-        checkCanCompile(task)
-
-        if (!task.outputDir.exists()) {
-            task.outputDir.mkdirs()
-        }
-
+    override fun doCompile(task: CompileTask): CompileResult {
         val outputDir = task.outputDir.absolutePath
         val filesString = task.files.map {
             it.file.absolutePath
