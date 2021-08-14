@@ -72,6 +72,9 @@ fun getAndroidSdkRootDir(logger: Logger): File? {
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")
     val storePath = File(storeRootDir, resourcePath)
+    if (storePath.exists()) {
+        return storePath
+    }
     storePath.parentFile.mkdirs()
     AidpManager::class.java.classLoader.getResource(resourcePath)!!.openStream().use { ins ->
         storePath.outputStream().use { ous ->
