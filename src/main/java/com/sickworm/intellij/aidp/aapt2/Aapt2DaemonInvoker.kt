@@ -4,7 +4,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
 import com.sickworm.intellij.aidp.copyResource
 import com.sickworm.intellij.aidp.isMac
-import com.sickworm.intellij.aidp.isWindows
 import java.io.*
 import java.lang.IllegalStateException
 import java.util.*

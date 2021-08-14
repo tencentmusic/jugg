@@ -92,7 +92,7 @@ class FileChangesManager(private val project: Project,
                 return@forEach
             }
             val sourceSets = buildModel.android().sourceSets()
-            // TODO filter sourceSets by name
+
             val javaSets: List<File> = sourceSets
                 .map { it.java() }
                 .flatMap { it.getFileList(baseDir) }
