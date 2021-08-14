@@ -60,12 +60,15 @@ class AidpManager(private val project: Project,
         logger.info("start AIDP")
 
         compileThread.submit {
+            logger.info("initDependency")
             try {
                 initDependency()
             } catch (e: Throwable) {
                 logger.warn("dependencies load failed", e)
+                return@submit
             }
 
+            logger.info("initDependency finished, start listen file changes")
             fileChangesManager.startListen(object: FileChangesListener {
                 override fun onFileChanges(changedFiles: List<ChangedFile>) {
                     processFileChanged(changedFiles)
@@ -86,7 +89,12 @@ class AidpManager(private val project: Project,
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
-        val androidHome = "/Users/wormchen/Library/Android/sdk"
+        val androidHome = getAndroidSdkRootDir(logger)
+        logger.debug("android sdk home: $androidHome")
+        if (androidHome == null) {
+            throw IllegalStateException("can not found android sdk home, exit init.")
+        }
+
         // TODO select sdk and build tools by gradle
         val androidDep = "$androidHome/platforms/android-30/android.jar"
         val androidBuildTools = "$androidHome/build-tools/30.0.3"

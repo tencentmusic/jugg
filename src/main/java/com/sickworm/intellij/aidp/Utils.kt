@@ -1,8 +1,12 @@
 package com.sickworm.intellij.aidp
 
+import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.rootManager
+import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.BufferedReader
 import java.io.File
@@ -48,10 +52,22 @@ fun Process.readOutput(logger: Logger) {
 }
 
 fun Module.guessModuleDirAdv(): VirtualFile? {
+    // maybe ProjectBuildModel.get(project).getModuleBuildModel(it).moduleRootDirectory is another choice
     val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
     return contentRoots.find { name.endsWith(it.name) } ?: contentRoots.firstOrNull() ?: moduleFile?.parent
 }
 
 fun List<String>.relativePath(baseDirPath: String) = map { File(it).relativeTo(File(baseDirPath)) }
+
+fun getAndroidSdkRootDir(logger: Logger): File? {
+    val allJdks = ProjectJdkTable.getInstance().allJdks
+    logger.debug("all available jdks: $allJdks")
+    val androidJdks = ProjectJdkTable.getInstance().allJdks.filter {
+        it.name.contains("Android") && it.homeDirectory?.exists() == true
+    }
+    logger.debug("all available android jdks: $androidJdks")
+
+    return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
+}
 
 val isWindows = System.getProperty("os.name").toLowerCase().startsWith("win")
