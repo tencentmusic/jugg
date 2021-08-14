@@ -113,7 +113,7 @@ class Aapt2DaemonInvoker(
             if (!isMac) {
                 throw IllegalStateException("embedded aapt2 not support windows nor linux yet")
             }
-            return copyResource("tools/darwin/aapt2")
+            return copyResource("/tools/darwin/aapt2")
         }
     }
 }

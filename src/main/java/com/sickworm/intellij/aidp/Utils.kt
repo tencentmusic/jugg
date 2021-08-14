@@ -76,7 +76,7 @@ fun copyResource(resourcePath: String): File {
         return storePath
     }
     storePath.parentFile.mkdirs()
-    AidpManager::class.java.classLoader.getResource(resourcePath)!!.openStream().use { ins ->
+    AidpManager::class.java.getResource(resourcePath)!!.openStream().use { ins ->
         storePath.outputStream().use { ous ->
             ins.copyTo(ous)
         }
