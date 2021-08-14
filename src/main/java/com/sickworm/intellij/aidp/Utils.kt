@@ -1,12 +1,11 @@
 package com.sickworm.intellij.aidp
 
 import com.android.tools.idea.util.toIoFile
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.rootManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.BufferedReader
 import java.io.File
@@ -70,4 +69,20 @@ fun getAndroidSdkRootDir(logger: Logger): File? {
     return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
 }
 
-val isWindows = System.getProperty("os.name").toLowerCase().startsWith("win")
+fun copyResource(resourcePath: String): File {
+    val storeRootDir = File(PathManager.getSystemPath(), "jugg")
+    val storePath = File(storeRootDir, resourcePath)
+    storePath.parentFile.mkdirs()
+    AidpManager::class.java.classLoader.getResource(resourcePath)!!.openStream().use { ins ->
+        storePath.outputStream().use { ous ->
+            ins.copyTo(ous)
+        }
+    }
+    storePath.setExecutable(true)
+    return storePath
+}
+
+private val osName = System.getProperty("os.name").toLowerCase()
+val isWindows = osName.contains("win")
+val isLinux = listOf("nix", "nux", "aix").any { osName.contains(it) }
+val isMac = osName.contains("mac")

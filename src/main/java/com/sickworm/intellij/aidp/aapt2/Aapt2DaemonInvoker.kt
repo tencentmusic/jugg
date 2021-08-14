@@ -2,6 +2,8 @@ package com.sickworm.intellij.aidp.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
+import com.sickworm.intellij.aidp.copyResource
+import com.sickworm.intellij.aidp.isMac
 import com.sickworm.intellij.aidp.isWindows
 import java.io.*
 import java.lang.IllegalStateException
@@ -109,10 +111,10 @@ class Aapt2DaemonInvoker(
     companion object {
         fun getEmbeddedAapt2(): File {
             // TODO change to getResources
-            if (isWindows) {
-                throw IllegalStateException("embedded aapt2 not support windows yet")
+            if (!isMac) {
+                throw IllegalStateException("embedded aapt2 not support windows nor linux yet")
             }
-            return File("src/main/resources/libs/aapt2")
+            return copyResource("tools/darwin/aapt2")
         }
     }
 }
