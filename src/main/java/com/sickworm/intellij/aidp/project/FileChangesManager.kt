@@ -47,11 +47,11 @@ class FileChangesManager(private val project: Project,
         logger.debug("""
             |start listen.
             |    source roots:
-            |        ${sourceRoots.map { it.path }.relativePath(projectDir) }}
+            |        ${sourceRoots.map { it.path }.relativePath(projectDir) }
             |    resource roots:
-            |        ${resourceRoots.map { it.path }.relativePath(projectDir) }}
+            |        ${resourceRoots.map { it.path }.relativePath(projectDir) }
             |    asset roots:
-            |        ${assetRoots.map { it.path }.relativePath(projectDir) }}
+            |        ${assetRoots.map { it.path }.relativePath(projectDir) }
             |""".trimMargin())
 
         listenFileChanges()
