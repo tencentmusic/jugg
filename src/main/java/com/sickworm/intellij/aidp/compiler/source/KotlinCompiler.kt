@@ -1,10 +1,13 @@
 package com.sickworm.intellij.aidp.compiler.source
 
-import com.sickworm.intellij.aidp.compiler.Result
+import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.aidp.compiler.*
 import com.sickworm.intellij.aidp.listFilesRecursively
+import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
-import java.io.*
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.PrintStream
 
 class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
@@ -13,19 +16,31 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
     private val kotlinCompile = K2JVMCompiler()
 
+    private var kotlinAndroidExtensionsPath: String? = null
+
     override fun doCompile(task: CompileTask): CompileResult {
         val outputStream = ByteArrayOutputStream()
         val printStream = PrintStream(outputStream)
 
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
 
+        if (kotlinAndroidExtensionsPath == null) {
+            val classLoader = this::class.java.classLoader
+            kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
+                // running in IDE
+                classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
+            } else {
+                // running in test. notion: this may cost 500+ms which will effect compile cost
+                ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
+            }
+        }
+
         // TODO read from project
         val packageName = "com.tencent.wesing.camerasource.example"
         val flavor = "main"
         val resourcePath = "/Users/wormchen/IdeaProjects/TMEVideoRecord/app/src/main/res"
         val command = mutableListOf<String>(
-            // TODO read from classpath
-            "-Xplugin=/Users/wormchen/IdeaProjects/android-incremental-deploy-plugin/src/main/resources/kotlin_compile/kotlin-android-extensions-1.4.32.jar",
+            "-Xplugin=$kotlinAndroidExtensionsPath",
             "-P", "plugin:org.jetbrains.kotlin.android:package=${packageName}",
             "-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}",
             "-jvm-target", "1.8",
