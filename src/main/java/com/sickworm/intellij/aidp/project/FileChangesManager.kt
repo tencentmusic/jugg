@@ -64,10 +64,17 @@ class FileChangesManager(private val project: Project,
         val assetRoots = mutableListOf<File>()
 
         ModuleManager.getInstance(project).modules.forEach { module ->
+            val baseDir = module.guessModuleDirAdv()?.path
+            if (baseDir == null) {
+                logger.warn("gradle module $module dir not found")
+                return@forEach
+            }
+
             val moduleManager = ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
-                setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType)
-            ).map { it.toIoFile() }
+                setOf(JavaSourceRootType.SOURCE, SourceKotlinRootType))
+                .map { it.toIoFile() }
+                .filter { !it.relativeTo(File(baseDir)).path.startsWith("build") } // ignore build source
             sourceRoots.addAll(subSourceRoots)
 
             val subResourceRoots = moduleManager.getSourceRoots(
@@ -85,17 +92,18 @@ class FileChangesManager(private val project: Project,
                 return@forEach
             }
             val sourceSets = buildModel.android().sourceSets()
-            val baseDir = module.guessModuleDirAdv()?.path
-            if (baseDir == null) {
-                logger.warn("gradle module $module dir not found")
-                return@forEach
-            }
             // TODO filter sourceSets by name
-            val javaSets: List<File> = sourceSets.map { it.java() }.flatMap { it.getFileList(baseDir) }
+            val javaSets: List<File> = sourceSets
+                .map { it.java() }
+                .flatMap { it.getFileList(baseDir) }
             sourceRoots.addAll(javaSets)
-            val resSets: List<File> = sourceSets.map { it.res() }.flatMap { it.getFileList(baseDir) }
+            val resSets: List<File> = sourceSets
+                .map { it.res() }
+                .flatMap { it.getFileList(baseDir) }
             resourceRoots.addAll(resSets)
-            val assetsSets: List<File> = sourceSets.map { it.assets() }.flatMap { it.getFileList(baseDir) }
+            val assetsSets: List<File> = sourceSets
+                .map { it.assets() }
+                .flatMap { it.getFileList(baseDir) }
             assetRoots.addAll(assetsSets)
         }
 
