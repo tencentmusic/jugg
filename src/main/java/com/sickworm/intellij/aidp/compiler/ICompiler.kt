@@ -2,6 +2,7 @@ package com.sickworm.intellij.aidp.compiler
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
 import com.sickworm.intellij.aidp.AidpInternalException
 import java.io.File
 
@@ -98,18 +99,35 @@ interface ICompiler {
 }
 
 interface ICompileContext {
+    /** logg printer */
     val logger: Logger
     /** compile temporary directory */
     val tempCompileDir: File
+    /** build-tools directory */
     val androidBuildTools: File
+    /** android.jar */
     val androidJar: File
     /** source class path directory */
     val classPathDir: File
+    /** deployed base apks */
     val apks: List<ApkInfo>
+    /** modules in project */
+    val modules: Map<String, ModuleInfo>
+
+    val packageName get() = apks.firstOrNull()?.applicationId
 
     val apkFile get() = apks.firstOrNull()?.file
 
     fun listenUpdate(listener: OnContextUpdate)
+}
+
+data class ModuleInfo(
+    val module: Module,
+    val sourceDirs: List<File>,
+    val resourceDirs: List<File>,
+    val assetsDirs: List<File>,
+) {
+    val name get() = module.name
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
@@ -181,6 +199,7 @@ data class BaseCompileContext(
     override var androidJar: File,
     override var classPathDir: File,
     override var apks: List<ApkInfo> = emptyList(),
+    override var modules: Map<String, ModuleInfo> = emptyMap(),
 ): ICompileContext {
 
     private val listeners = mutableListOf<OnContextUpdate>()
@@ -193,8 +212,13 @@ data class BaseCompileContext(
         }
     }
 
-    fun update(apkFiles: List<ApkInfo>) {
-        this.apks = ArrayList(apkFiles)
+    fun update(apks: List<ApkInfo>? = null, modules: Map<String, ModuleInfo>? = null) {
+        apks?.let {
+            this.apks = ArrayList(it)
+        }
+        modules?.let {
+            this.modules = HashMap(it)
+        }
         dispatch()
     }
 

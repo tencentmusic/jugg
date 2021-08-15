@@ -5,7 +5,7 @@ import com.android.tools.deployer.AidpDeployItem
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.sickworm.intellij.aidp.AidpException
-import com.sickworm.intellij.aidp.ChangedFile
+import com.sickworm.intellij.aidp.project.ChangedFile
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.CompileOutput
 import java.io.File

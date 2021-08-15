@@ -33,7 +33,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         }
 
         // TODO read from project
-        val packageName = "com.tencent.wesing.camerasource.example"
+        val packageName = context.packageName
         val flavor = "main"
         val resourcePath = "/Users/wormchen/IdeaProjects/TMEVideoRecord/app/src/main/res"
         val command = mutableListOf<String>(

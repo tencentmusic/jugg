@@ -2,7 +2,6 @@ package com.sickworm.intellij.aidp
 
 import com.android.tools.deployer.AidpDeployerHelper
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
@@ -11,7 +10,7 @@ import com.sickworm.intellij.aidp.deploy.AidpDeployDataManager
 import com.sickworm.intellij.aidp.deploy.DeployState
 import com.sickworm.intellij.aidp.deploy.DeployTargetManager
 import com.sickworm.intellij.aidp.deploy.DisableMessage
-import com.sickworm.intellij.aidp.project.IntellijLibraryConfigParser
+import com.sickworm.intellij.aidp.project.*
 import com.sickworm.intellij.aidp.toolWindow.AidpLogger
 import com.sickworm.intellij.aidp.toolWindow.AidpToolWindow
 import java.io.File
@@ -28,22 +27,19 @@ class AidpManager(private val project: Project,
     private val compileThread = Executors.newSingleThreadExecutor()
     private val deployThread = Executors.newSingleThreadExecutor()
 
+    // hold compile context
+    private val compileContextManager = CompileContextManager(project, projectDir)
+
     // detect file changes
     private val fileChangesManager = FileChangesManager(project, projectDir)
-    private val buildDir = File("$projectDir/build/aidp/build/")
 
     // manage deploy data
-    private val stagingDir = File(buildDir, "staging")
     private val deployDataManager = AidpDeployDataManager()
 
     // compile dependency
     private val libraryDir = File("$projectDir/.idea/libraries")
-    private val classPathDir = File(buildDir, "classpath")
-    private var dependencies = listOf<String>()
 
     // compile
-    private val tempCompileDir = File(buildDir, "compiled")
-    private var compileContext: ICompileContext? = null
     private lateinit var compiler: AidpCompiler
 
     // deploy target apk
@@ -56,115 +52,46 @@ class AidpManager(private val project: Project,
         logger.info("start AIDP")
         register(project, this)
         Disposer.register(project, this)
+
+        compileThread.submit {
+            logger.debug("init compile context start")
+            try {
+                compileContextManager.init()
+            } catch (e: Throwable) {
+                logger.warn("init compile context failed, please contact ch.operation@gmail.com", e)
+                return@submit
+            }
+            logger.info("init compile context finished")
+        }
+    }
+
+    fun updateStatus(state: DeployState) {
+        if (deployState == state) {
+            return
+        }
+
+        if (state.isReadyApply) {
+            // TODO check apk md5
+            logger.info("detected deployable apk, start init compile")
+            compileThread.submit {
+                compileContextManager.compileContext.update(apks = deployTargetManager.getApks())
+                initCompile()
+            }
+        }
+
+        toolWindow.updateStatus(state)
+        deployState = state
     }
 
     private fun initCompile() {
-        compileThread.submit {
-            logger.info("initDependency")
-            try {
-                initDependency()
-            } catch (e: Throwable) {
-                logger.warn("dependencies load failed", e)
-                return@submit
+        compiler = AidpCompiler(compileContextManager.compileContext)
+
+        fileChangesManager.startListen(compileContextManager.compileContext, object: FileChangesListener {
+            override fun onFileChanges(changedFiles: List<ChangedFile>) {
+                processFileChanged(changedFiles)
             }
-
-            logger.info("initDependency finished, start listen file changes")
-            fileChangesManager.startListen(object: FileChangesListener {
-                override fun onFileChanges(changedFiles: List<ChangedFile>) {
-                    processFileChanged(changedFiles)
-                }
-            })
-        }
-    }
-
-    private fun initDependency() {
-        // TODO auto update when file changes
-        // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
-        val libDep = IntellijLibraryConfigParser(libraryDir, projectDir).parse()!!
-        for (dep in libDep) {
-            if (!File(dep).exists()) {
-                logger.debug("libDep file not exists: $dep")
-            }
-        }
-
-        // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
-        // TODO AndroidSdkEventListener on sdk path changed
-        val androidHome = getAndroidSdkRootDir(logger)
-        logger.info("use android sdk home: $androidHome")
-        if (androidHome == null) {
-            throw IllegalStateException("can not found android sdk home, exit init.")
-        }
-
-        // TODO select sdk and build tools by gradle
-        val androidDep = "$androidHome/platforms/android-30/android.jar"
-        val androidBuildTools = "$androidHome/build-tools/30.0.3"
-        if (!File(androidDep).exists()) {
-            throw IllegalStateException("androidDep not found, path: $androidDep")
-        }
-
-        val moduleDirs = ModuleManager.getInstance(project).modules.mapNotNull {
-            val baseDir = it.guessModuleDirAdv()
-            if (baseDir == null) {
-                logger.warn("module $it dir not found")
-                return@mapNotNull null
-            }
-            if (!baseDir.exists()) {
-                logger.warn("module $it dir not exist")
-                return@mapNotNull null
-            }
-            baseDir.path
-        }
-        logger.debug("modules dir: ${moduleDirs.relativePath(projectDir)}")
-
-        // TODO OPTIMIZE split by modules
-        val projectDeps: List<String> = moduleDirs.flatMap { baseDir ->
-            // java class path
-            val deps = mutableListOf<String>()
-            val buildClassPath = "${baseDir}/build/intermediates/javac/debug/classes"
-            if (File(buildClassPath).exists()) {
-                deps.add(buildClassPath)
-            }
-
-            // on gradle 4.1.1, R.class not storage in buildClassPath
-            val rJarPath = "${baseDir}/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-            if (File(rJarPath).exists()) {
-                deps.add(rJarPath)
-            }
-
-            // kotlin class path
-            val kotlinClassPath = "${baseDir}/build/tmp/kotlin-classes/debug"
-            if (File(kotlinClassPath).exists()) {
-                deps.add(kotlinClassPath)
-            }
-
-            deps
-        }
-        for (dep in projectDeps) {
-            if (!File(dep).exists()) {
-                logger.debug("projectDep file not exists: $dep")
-            }
-        }
-
-        if (!classPathDir.exists()) {
-            classPathDir.mkdirs()
-        }
-        val aidpClassPathDep = listOf(classPathDir.absolutePath)
-
-        dependencies = libDep + androidDep + projectDeps + aidpClassPathDep
-
-        logger.debug("dependencies loaded:\nlibDep: ${libDep.map { File(it).parentFile?.parentFile?.name }}\nprojectDep: ${projectDeps.relativePath(projectDir)}")
-        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
-
-        val context = BaseCompileContext(
-            logger = AidpLogger.getInstance(project, "#AIDP-Compiler"),
-            tempCompileDir = tempCompileDir,
-            androidBuildTools = File(androidBuildTools),
-            androidJar = File(androidDep),
-            classPathDir = classPathDir,
-            apks = deployTargetManager.getApks(),
-        )
-        compileContext = context
-        compiler = AidpCompiler(context)
+        })
+        logger.info("AIDP ready to deploy!")
     }
 
     private fun processFileChanged(changedFiles: List<ChangedFile>) {
@@ -192,11 +119,11 @@ class AidpManager(private val project: Project,
     private fun compileChanges() {
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
-            CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, dependencyPaths = dependencies)
+            CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, dependencyPaths = compileContextManager.dependencies)
         }
 
         // do compile
-        val result = compiler.compile(CompileTask(compileFiles, stagingDir))
+        val result = compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
 
         // mark source files compiled
         result.details.forEach {
@@ -247,21 +174,6 @@ class AidpManager(private val project: Project,
         } catch (e: Throwable) {
             logger.error("deploy failed", e)
         }
-    }
-
-    fun updateStatus(state: DeployState) {
-        if (deployState == state) {
-            return
-        }
-
-        if (state.isReadyApply) {
-            // TODO check apk md5
-            logger.info("detected deployable apk, start init compile")
-            initCompile()
-        }
-
-        toolWindow.updateStatus(state)
-        deployState = state
     }
 
     override fun dispose() {
