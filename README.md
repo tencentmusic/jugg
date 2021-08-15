@@ -1,11 +1,11 @@
-# android-incremental-deploy-plugin
+# Jugg
 
-Android Incremental Deploy Plugin(AIDP)，A Intellij Idea Plugin for **super-fast** deploying your changed code and assets, without restart App in most situations.
+Jugg is an Android incremental deploy plugin running on Andorid Studio and Intellij Idea. Jugg has **super-fast** speed on deploying your changed code and assets, without restart App in most situations.
 
-Android 增量部署插件（AIDP）是一个 Intellij Idea 插件，它可以以极快的速度将你的代码和资源更新到正在运行的 App 中，且不需要重启你的 App。
+Jugg 是一个 Android 增量部署插件，支持 Android Studio 和 Intellij Idea。它可以以极快的速度将你的代码和资源更新到正在运行的 App 中，且不需要重启你的 App。
 
-AIDP 跳过了 gradle 构建，这意味着 gradle 相关的能力，如注解，插桩，添加 Build 文件变量，都不会生效。但 AIDP 也因此获得了极快的部署速度（1-3s），且部署速度与你的工程体量不再挂钩。（对比 apply changes）
+Jugg 跳过了 gradle 构建，这意味着 gradle 相关的能力，如注解，插桩，添加 Build 文件变量，都不会生效。但 AIDP 也因此获得了极快的部署速度（1-3s），且部署速度与你的工程体量不再挂钩。
 
-AIDP 不需要侵入你的工程代码，就像点一下 run 一样轻松；
+Jugg 不需要侵入你的工程代码，就像点一下 run 一样轻松；
 
-AIDP 也不会带来消极的体验。在增量部署策略失败的时候，会有健全的流程保证此次部署最终可以完成，且不影响后续的部署。你可以随时使用和停用 AIDP 的增量部署功能。（对比 instance run）
+Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会有健全的流程保证此次部署最终可以完成，且不影响后续的部署。你可以随时使用和停用 AIDP 的增量部署功能。
