@@ -3,6 +3,7 @@ package com.sickworm.intellij.aidp
 import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.aidp.compiler.CompileFile
 import com.sickworm.intellij.aidp.compiler.ICompiler
+import com.sickworm.intellij.aidp.project.ChangedFile
 
 /** Exception for notifying user */
 class AidpException(msg: String): Exception(msg) {
