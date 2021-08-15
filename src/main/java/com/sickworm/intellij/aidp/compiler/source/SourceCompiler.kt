@@ -46,7 +46,7 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             it.type == CompileOutput.Type.Class
         }
         val compileClassFiles = classFiles.map {
-            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, emptyList())
+            CompileFile(CompileFile.Type.Class, it.file, it.baseDir)
         }
         val dexTask = CompileTask(compileClassFiles, task.outputDir)
         val dexResult = dexCompiler.compile(dexTask)

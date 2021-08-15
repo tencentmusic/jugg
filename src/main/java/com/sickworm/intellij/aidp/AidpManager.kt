@@ -119,7 +119,7 @@ class AidpManager(private val project: Project,
     private fun compileChanges() {
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
-            CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, dependencyPaths = compileContextManager.dependencies)
+            CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
         }
 
         // do compile

@@ -183,7 +183,7 @@ class CompileContextManager(
                 .flatMap { it.getFileList(baseDir) }
             assetDirs.addAll(assetsSets)
 
-            modules[module.name] = ModuleInfo(module, sourceDirs, resourceDirs, assetDirs)
+            modules[module.name] = ModuleInfo(module.name, sourceDirs, resourceDirs, assetDirs)
         }
         compileContext.update(modules = modules)
     }

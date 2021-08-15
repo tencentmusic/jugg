@@ -29,6 +29,8 @@ data class CompileFile(
     val type: Type,
     val file: File,
     val baseDir: File,
+    val module: ModuleInfo = ModuleInfo.NO_MODULE,
+    // TODO saved to module
     val dependencyPaths: List<String> = emptyList()
 ) {
 
@@ -122,12 +124,15 @@ interface ICompileContext {
 }
 
 data class ModuleInfo(
-    val module: Module,
+    val name: String,
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
 ) {
-    val name get() = module.name
+
+    companion object {
+        val NO_MODULE = ModuleInfo("no_module", emptyList(), emptyList(), emptyList())
+    }
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
