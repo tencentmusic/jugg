@@ -90,7 +90,7 @@ class AidpManager(private val project: Project,
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
         val androidHome = getAndroidSdkRootDir(logger)
-        logger.debug("android sdk home: $androidHome")
+        logger.info("use android sdk home: $androidHome")
         if (androidHome == null) {
             throw IllegalStateException("can not found android sdk home, exit init.")
         }
@@ -99,7 +99,6 @@ class AidpManager(private val project: Project,
         val androidDep = "$androidHome/platforms/android-30/android.jar"
         val androidBuildTools = "$androidHome/build-tools/30.0.3"
         if (!File(androidDep).exists()) {
-            logger.warn("androidDep not found, path: $androidDep")
             throw IllegalStateException("androidDep not found, path: $androidDep")
         }
 
@@ -153,7 +152,7 @@ class AidpManager(private val project: Project,
 
         dependencies = libDep + androidDep + projectDeps + aidpClassPathDep
 
-        logger.debug("dependencies loaded, libDep: ${libDep}, projectDep: ${projectDeps.relativePath(projectDir)}")
+        logger.debug("dependencies loaded:\nlibDep: ${libDep.map { File(it).parentFile?.parentFile?.name }}\nprojectDep: ${projectDeps.relativePath(projectDir)}")
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
 
         val context = BaseCompileContext(

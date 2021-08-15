@@ -10,6 +10,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
 import com.sickworm.intellij.aidp.AidpManager;
 import com.sickworm.intellij.aidp.AidpSettings;
@@ -153,17 +154,17 @@ public class AidpToolWindow {
 
     @Override
     public void debug(String message) {
-      append("DEBUG: " + message, JBColor.DARK_GRAY);
+      append(message, JBColor.gray);
     }
 
     @Override
     public void debug(@Nullable Throwable t) {
-      append("DEBUG: " + toStackTrace(t), JBColor.DARK_GRAY);
+      append(toStackTrace(t), JBColor.gray);
     }
 
     @Override
     public void debug(String message, @Nullable Throwable t) {
-      append("DEBUG: " + message + toStackTrace(t), JBColor.DARK_GRAY);
+      append(message + toStackTrace(t), JBColor.gray);
     }
 
     @Override
