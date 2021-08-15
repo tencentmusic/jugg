@@ -133,7 +133,7 @@ class AidpCompileTest {
 
                 // R*.dex
                 val sourceBaseDir = File(task.outputDir, "classes")
-                val rOutDir = File(sourceBaseDir, "com/example/myapplication")
+                val rOutDir = File(sourceBaseDir, androidApkPackage.replace(".", "/"))
                 // TODO figure out how to recover R$styleable.dex
                 val rDexList = ("R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, " +
                         "R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, " +

@@ -61,7 +61,7 @@ public class AidpToolWindow {
 
     AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
     this.aidpManager = new AidpManager(project, projectDir, this);
-    aidpManager.start();
+    aidpManager.init();
 
     deployButton.addActionListener(e -> deploy());
 

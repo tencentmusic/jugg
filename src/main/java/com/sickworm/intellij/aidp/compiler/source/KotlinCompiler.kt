@@ -19,9 +19,6 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     private var kotlinAndroidExtensionsPath: String? = null
 
     override fun doCompile(task: CompileTask): CompileResult {
-        val outputStream = ByteArrayOutputStream()
-        val printStream = PrintStream(outputStream)
-
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
 
         if (kotlinAndroidExtensionsPath == null) {
@@ -53,8 +50,14 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             command.add(dependencies.joinToString(File.pathSeparator))
         }
         command.add(task.files.joinToString(separator = " ") { it.file.absolutePath })
+
+        val outputStream = ByteArrayOutputStream()
+        val printStream = PrintStream(outputStream)
         kotlinCompile.exec(printStream, *command.toTypedArray())
-        logger.debug("compile: ${String(outputStream.toByteArray())}")
+        val outputString = String(outputStream.toByteArray())
+        if (outputString.isNotEmpty()) {
+            logger.warn("kotlin compile: $outputString")
+        }
 
         // TODO check error
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {

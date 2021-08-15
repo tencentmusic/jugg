@@ -16,6 +16,7 @@ import com.intellij.execution.runners.ProgramRunner
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.sickworm.intellij.aidp.toolWindow.AidpLogger
@@ -47,6 +48,10 @@ class DeployAction: AnAction(
             return
         }
 
+        if (logger == null) {
+            logger = AidpLogger.getInstance(project, "#AIDP-DeployAction")
+        }
+
         val deployState = getDisableMessage(project)
         currentText = deployState.msg
 
@@ -55,8 +60,9 @@ class DeployAction: AnAction(
         aidpManager?.updateStatus(deployState)
     }
 
-    fun getDisableMessage(project: Project): DeployState {
-        val logger = AidpLogger.getInstance(project, "#AIDP-DeployAction")
+    private var logger: Logger? = null
+
+    private fun getDisableMessage(project: Project): DeployState {
         val configSettings = RunManager.getInstance(project).selectedConfiguration
             ?: return DeployState(DisableMessage(
                 DisableMessage.DisableMode.DISABLED,
@@ -128,20 +134,20 @@ class DeployAction: AnAction(
                     ), true)
                 }
             } catch (ex: InterruptedException) {
-                logger.warn(ex)
+                logger?.warn(ex)
                 return DeployState(DisableMessage(
                     DisableMessage.DisableMode.DISABLED,
                     "update interrupted",
                     "its status update was interrupted"
                 ))
             } catch (ex: ExecutionException) {
-                logger.warn(ex)
+                logger?.warn(ex)
                 return DeployState(DisableMessage(
                     DisableMessage.DisableMode.DISABLED, "unknown device API level",
                     "its API level could not be determined"
                 ), true)
             } catch (ex: Exception) {
-                logger.warn(ex)
+                logger?.warn(ex)
                 return DeployState(DisableMessage(
                     DisableMessage.DisableMode.DISABLED,
                     "unexpected exception",

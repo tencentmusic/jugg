@@ -43,6 +43,7 @@ class AidpManager(private val project: Project,
 
     // compile
     private val tempCompileDir = File(buildDir, "compiled")
+    private var compileContext: ICompileContext? = null
     private lateinit var compiler: AidpCompiler
 
     // deploy target apk
@@ -51,14 +52,13 @@ class AidpManager(private val project: Project,
         DisableMessage.DisableMode.DISABLED, "not initialized", "aidp not initialized"
     ))
 
-    init {
+    fun init() {
+        logger.info("start AIDP")
         register(project, this)
         Disposer.register(project, this)
     }
 
-    fun start() {
-        logger.info("start AIDP")
-
+    private fun initCompile() {
         compileThread.submit {
             logger.info("initDependency")
             try {
@@ -161,9 +161,9 @@ class AidpManager(private val project: Project,
             androidBuildTools = File(androidBuildTools),
             androidJar = File(androidDep),
             classPathDir = classPathDir,
-            // TODO read from environment
-            apkFile = File("src/test/assets/android/app-debug.apk"),
+            apks = deployTargetManager.getApks(),
         )
+        compileContext = context
         compiler = AidpCompiler(context)
     }
 
@@ -222,12 +222,12 @@ class AidpManager(private val project: Project,
             if (deployState.isReadyApply) {
                 val apks = deployTargetManager.getApks()
                 if (apks.isEmpty()) {
-                    logger.warn("apply failed, can not find apks")
+                    logger.warn("deploy failed, can not find apks")
                     return
                 }
                 val deployData = deployDataManager.getDeployData(apks)
                 if (deployData.isEmpty) {
-                    logger.info("apply finished with no data to apply")
+                    logger.info("deploy finished with no data to deploy")
                     return
                 }
 
@@ -236,7 +236,7 @@ class AidpManager(private val project: Project,
                 AidpDeployerHelper.runTask(deployData, project)
                 deployDataManager.commit()
             } else if (deployState.isReadyInstall) {
-                logger.info("can not apply, install and run apk")
+                logger.info("can not deploy, install and run apk")
                 deployTargetManager.runNormalBuild()
                 return
             } else {
@@ -250,9 +250,17 @@ class AidpManager(private val project: Project,
     }
 
     fun updateStatus(state: DeployState) {
-        if (deployState != state) {
-            toolWindow.updateStatus(state)
+        if (deployState == state) {
+            return
         }
+
+        if (state.isReadyApply) {
+            // TODO check apk md5
+            logger.info("detected deployable apk, start init compile")
+            initCompile()
+        }
+
+        toolWindow.updateStatus(state)
         deployState = state
     }
 

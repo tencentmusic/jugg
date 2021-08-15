@@ -2,6 +2,7 @@
 
 package com.sickworm.intellij.aidp
 
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.compiler.*
 import java.io.File
@@ -35,6 +36,7 @@ val androidJar = File("$androidHome/platforms/android-30/android.jar").also {
         throw IllegalStateException("android.jar not found in: $it")
     }
 }
+val androidApkPackage = "com.example.myapplication"
 
 val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
     if (!it.exists()) {
@@ -50,7 +52,7 @@ val context = BaseCompileContext(
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
     classPathDir = classPathDir,
-    apkFile = assetsApkFile
+    apks = listOf(ApkInfo(assetsApkFile, androidApkPackage))
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>

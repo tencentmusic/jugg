@@ -20,25 +20,6 @@ class DeployTargetManager(
 ) {
     private val logger = AidpLogger.getInstance(project, "#AIDP-DeployTargetManager")
 
-    private var apkFiles: List<ApkInfo> = emptyList()
-
-    fun getApks(): List<ApkInfo> {
-        // TODO refresh cache when config changed
-        if (apkFiles.isNotEmpty()) {
-            return apkFiles
-        }
-
-        val (_, runConfig) = getRunConfig()
-        apkFiles = getApks(runConfig)
-        return apkFiles
-    }
-
-    fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
-        val runConfigs = RunManager.getInstance(project).getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
-        val runConfig = runConfigs[0]
-        return runConfig to runConfigs[0].configuration as AndroidRunConfiguration
-    }
-
     fun runNormalBuild() {
         val (runConfigAndSettings, _) = getRunConfig()
         ApplicationManager.getApplication().invokeAndWait {
@@ -46,14 +27,24 @@ class DeployTargetManager(
         }
     }
 
+    fun getApks(): List<ApkInfo> {
+        val (_, runConfig) = getRunConfig()
+        return getApks(runConfig)
+    }
+
+    private fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
+        val runConfigs = RunManager.getInstance(project).getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
+        val runConfig = runConfigs[0]
+        return runConfig to runConfigs[0].configuration as AndroidRunConfiguration
+    }
+
     private fun getApks(runConfig: AndroidRunConfiguration): List<ApkInfo> {
-        // get apk
-        val module: Module = runConfig.configurationModule.module!!
-        val facet: AndroidFacet = AndroidFacet.getInstance(module)!!
-        val targetDeviceSpec = null
-        val apkProvider = facet.getModuleSystem().getApkProvider(runConfig, targetDeviceSpec)!!
-        val device = AidpDeployerHelper.getIDevice(project)
         return try {
+            val module: Module = runConfig.configurationModule.module!!
+            val facet: AndroidFacet = AndroidFacet.getInstance(module)!!
+            val targetDeviceSpec = null
+            val apkProvider = facet.getModuleSystem().getApkProvider(runConfig, targetDeviceSpec)!!
+            val device = AidpDeployerHelper.getIDevice(project)
             apkProvider.getApks(device).toList()
         } catch (e: Exception) {
             logger.debug("getApks failed", e)

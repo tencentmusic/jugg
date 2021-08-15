@@ -64,6 +64,7 @@ class AidpCompiler(
             val finalResult = run {
                 // compile to .flat
                 val tempOutputDir = File(context.tempCompileDir, "tmp_resource")
+                tempOutputDir.clearDir()
                 val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
                 val resourceResult = resourceOverlayCompiler.compile(tempResourceCompileTask)
                 if (!resourceResult.isAllSuccess) {

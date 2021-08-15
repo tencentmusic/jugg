@@ -1,5 +1,6 @@
 package com.sickworm.intellij.aidp.compiler
 
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.aidp.AidpInternalException
 import java.io.File
@@ -104,7 +105,9 @@ interface ICompileContext {
     val androidJar: File
     /** source class path directory */
     val classPathDir: File
-    val apkFile: File?
+    val apks: List<ApkInfo>
+
+    val apkFile get() = apks.firstOrNull()?.file
 
     fun listenUpdate(listener: OnContextUpdate)
 }
@@ -174,10 +177,10 @@ typealias OnContextUpdate = () -> Unit
 data class BaseCompileContext(
     override val logger: Logger,
     override var tempCompileDir: File,
-    override val androidBuildTools: File,
-    override val androidJar: File,
-    override val classPathDir: File,
-    override var apkFile: File? = null,
+    override var androidBuildTools: File,
+    override var androidJar: File,
+    override var classPathDir: File,
+    override var apks: List<ApkInfo> = emptyList(),
 ): ICompileContext {
 
     private val listeners = mutableListOf<OnContextUpdate>()
@@ -190,8 +193,8 @@ data class BaseCompileContext(
         }
     }
 
-    fun update(apkFile: File?) {
-        this.apkFile = apkFile
+    fun update(apkFiles: List<ApkInfo>) {
+        this.apks = ArrayList(apkFiles)
         dispatch()
     }
 

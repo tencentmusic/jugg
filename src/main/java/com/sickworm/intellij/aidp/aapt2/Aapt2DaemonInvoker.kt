@@ -102,7 +102,7 @@ class Aapt2DaemonInvoker(
                 readLine++
                 logger.warn("error: $line")
             }
-            logger.debug("error out: $readLine")
+            logger.debug("aapt2 invoke finished")
             return stringBuilder.toString()
         }
     }
