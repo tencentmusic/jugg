@@ -32,24 +32,40 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             }
         }
 
-        // TODO read from project
         val packageName = context.packageName
+        // TODO read flavor from sourceSets
         val flavor = "main"
-        val resourcePath = "/Users/wormchen/IdeaProjects/TMEVideoRecord/app/src/main/res"
-        val command = mutableListOf<String>(
+        val resourcePaths: List<String> = task.files.flatMap {
+            it.module.resourceDirs.map { file ->
+                file.absolutePath
+            }
+        }
+        val variantArgs: List<String> = resourcePaths.flatMap { resourcePath ->
+            listOf("-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}")
+        }
+        val extensionArgs = listOf(
             "-Xplugin=$kotlinAndroidExtensionsPath",
             "-P", "plugin:org.jetbrains.kotlin.android:package=${packageName}",
-            "-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}",
+        ) + variantArgs
+
+        val compileArgs = listOf(
             "-jvm-target", "1.8",
             "-no-stdlib",
             "-no-reflect",
             "-d", task.outputDir.absolutePath,
         )
+
+        var classPathArgs = listOf<String>()
         if (dependencies.isNotEmpty()) {
-            command.add("-cp")
-            command.add(dependencies.joinToString(File.pathSeparator))
+            classPathArgs = listOf(
+                "-cp", dependencies.joinToString(File.pathSeparator)
+            )
         }
-        command.add(task.files.joinToString(separator = " ") { it.file.absolutePath })
+
+        val fileArgs = task.files.map { it.file.absolutePath }
+
+        val command = extensionArgs + compileArgs + classPathArgs + fileArgs
+        logger.debug("kotlin compile: kotlinc ${command.joinToString(" ")}")
 
         val outputStream = ByteArrayOutputStream()
         val printStream = PrintStream(outputStream)
