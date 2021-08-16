@@ -119,7 +119,7 @@ interface ICompileContext {
 
     val packageName get() = apks.firstOrNull()?.applicationId
 
-    val apkFile get() = apks.firstOrNull()?.file
+    val apkFile: File? get() = apks.firstOrNull()?.file
 
     fun listenUpdate(listener: OnContextUpdate)
 }
