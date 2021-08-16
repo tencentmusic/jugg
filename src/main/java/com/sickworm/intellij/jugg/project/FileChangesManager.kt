@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.relativePath
-import com.sickworm.intellij.jugg.toolWindow.AidpLogger
+import com.sickworm.intellij.jugg.toolWindow.JuggLogger
 import java.io.File
 import java.nio.file.Paths
 
@@ -26,7 +26,7 @@ class FileChangesManager(
     private val projectDir: String,
 ): Disposable {
 
-    private val logger = AidpLogger.getInstance(project, "#AIDP-FileChangesManager")
+    private val logger = JuggLogger.getInstance(project, "#JUGG-FileChangesManager")
 
     private lateinit var listener: FileChangesListener
 

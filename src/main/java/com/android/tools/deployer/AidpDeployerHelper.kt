@@ -6,13 +6,13 @@ import com.android.tools.idea.gradle.util.EmbeddedDistributionPaths
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
-import com.android.tools.idea.run.tasks.AidpApplyChangesTask
+import com.android.tools.idea.run.tasks.JuggApplyChangesTask
 import com.google.common.collect.ImmutableList
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.AidpException
+import com.sickworm.intellij.jugg.JuggException
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
 import java.util.stream.Collectors
@@ -23,13 +23,13 @@ import java.util.stream.Collectors
  * @see [com.android.tools.idea.run.AndroidRunConfigurationBase.getState]
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]
  */
-object AidpDeployerHelper {
+object JuggDeployerHelper {
 
     var installPathProvider: Computable<String> = Computable<String> {
         EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()
     }
 
-    fun runTask(data: AidpDeployData, project: Project) {
+    fun runTask(data: JuggDeployData, project: Project) {
         val packages = // com.android.tools.idea.run.LaunchTaskRunner.run
             // Add packages to the deployment, filtering out any dynamic features that are disabled.
             data.apks.associate {
@@ -38,7 +38,7 @@ object AidpDeployerHelper {
                 val disabledFeatures = emptyList<String>()
                 it.applicationId to getFilteredFeatures(it, disabledFeatures)
             }
-        val task = AidpApplyChangesTask(project, packages, true, installPathProvider, data)
+        val task = JuggApplyChangesTask(project, packages, true, installPathProvider, data)
         val executor = DefaultRunExecutor.getRunExecutorInstance()
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()
@@ -46,7 +46,7 @@ object AidpDeployerHelper {
         // TODO try ExecutionManager
         val launchResult = task.run(executor, device, launchStatus, consolePrinter)
         if (!launchResult.success) {
-            throw AidpException.applyChangesFailed(launchResult)
+            throw JuggException.applyChangesFailed(launchResult)
         }
     }
 

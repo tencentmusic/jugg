@@ -6,21 +6,21 @@ import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.run.ApkInfo
 
-data class AidpDeployData(
+data class JuggDeployData(
     val apks: List<ApkInfo>,
-    val classes: List<AidpDeployItem>,
-    val overlays: List<AidpDeployItem>,
+    val classes: List<JuggDeployItem>,
+    val overlays: List<JuggDeployItem>,
 ) {
     val isEmpty get() = classes.isEmpty() && overlays.isEmpty()
 
     override fun toString(): String {
         val classString = classes.toLogString()
         val overlayString = overlays.toLogString()
-        return "AidpDeployData:\n$classString\n$overlayString"
+        return "JuggDeployData:\n$classString\n$overlayString"
     }
 }
 
-class AidpDeployItem(
+class JuggDeployItem(
     val name: String,
     val checksum: Long, // crc
     val content: ByteArray,
@@ -37,7 +37,7 @@ class AidpDeployItem(
     }
 }
 
-fun Collection<AidpDeployItem>.toLogString(): String {
+fun Collection<JuggDeployItem>.toLogString(): String {
     return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
 }
 

@@ -1,17 +1,17 @@
 package com.sickworm.intellij.jugg
 
-import com.android.tools.deployer.AidpDeployerHelper
+import com.android.tools.deployer.JuggDeployerHelper
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
-import com.sickworm.intellij.jugg.deploy.AidpDeployDataManager
+import com.sickworm.intellij.jugg.deploy.JuggDeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
-import com.sickworm.intellij.jugg.compiler.AidpCompiler
-import com.sickworm.intellij.jugg.toolWindow.AidpLogger
-import com.sickworm.intellij.jugg.toolWindow.AidpToolWindow
+import com.sickworm.intellij.jugg.compiler.JuggCompiler
+import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.toolWindow.JuggToolWindow
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.file
@@ -23,12 +23,12 @@ import java.io.File
 import java.util.concurrent.Executors
 
 
-class AidpManager(private val project: Project,
+class JuggManager(private val project: Project,
                   private val projectDir: String,
-                  private val toolWindow: AidpToolWindow
+                  private val toolWindow: JuggToolWindow
 ): Disposable {
 
-    private val logger = AidpLogger.getInstance(project, "#AIDP-AidpManager")
+    private val logger = JuggLogger.getInstance(project, "#JUGG-JuggManager")
 
     private val compileThread = Executors.newSingleThreadExecutor()
     private val deployThread = Executors.newSingleThreadExecutor()
@@ -40,13 +40,13 @@ class AidpManager(private val project: Project,
     private val fileChangesManager = FileChangesManager(project, projectDir)
 
     // manage deploy data
-    private val deployDataManager = AidpDeployDataManager()
+    private val deployDataManager = JuggDeployDataManager()
 
     // compile dependency
     private val libraryDir = File("$projectDir/.idea/libraries")
 
     // compile
-    private lateinit var compiler: AidpCompiler
+    private lateinit var compiler: JuggCompiler
 
     // deploy target apk
     private val deployTargetManager = DeployTargetManager(project)
@@ -55,7 +55,7 @@ class AidpManager(private val project: Project,
     ))
 
     fun init() {
-        logger.info("start AIDP")
+        logger.info("start JUGG")
         register(project, this)
         Disposer.register(project, this)
 
@@ -90,14 +90,14 @@ class AidpManager(private val project: Project,
     }
 
     private fun initCompile() {
-        compiler = AidpCompiler(compileContextManager.compileContext)
+        compiler = JuggCompiler(compileContextManager.compileContext)
 
         fileChangesManager.startListen(compileContextManager.compileContext, object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<ChangedFile>) {
                 processFileChanged(changedFiles)
             }
         })
-        logger.info("AIDP ready to deploy!")
+        logger.info("JUGG ready to deploy!")
     }
 
     private fun processFileChanged(changedFiles: List<ChangedFile>) {
@@ -110,7 +110,7 @@ class AidpManager(private val project: Project,
                 logger.warn("compile changes failed", e)
             }
 
-            if (AidpSettings.deployOnSave) {
+            if (JuggSettings.deployOnSave) {
                 deployAsync()
             }
         }
@@ -166,7 +166,7 @@ class AidpManager(private val project: Project,
 
                 logger.info("deploy data:\n$deployData")
 
-                AidpDeployerHelper.runTask(deployData, project)
+                JuggDeployerHelper.runTask(deployData, project)
                 deployDataManager.commit()
             } else if (deployState.isReadyInstall) {
                 logger.info("can not deploy, install and run apk")
@@ -187,11 +187,11 @@ class AidpManager(private val project: Project,
     }
 
     companion object {
-        val map = mutableMapOf<Project, AidpManager>()
+        val map = mutableMapOf<Project, JuggManager>()
 
-        fun register(project: Project, aidpManager: AidpManager) {
+        fun register(project: Project, juggManager: JuggManager) {
             synchronized(map) {
-                map[project] = aidpManager
+                map[project] = juggManager
             }
         }
 
@@ -202,7 +202,7 @@ class AidpManager(private val project: Project,
         }
 
         // TODO remove
-        fun getInstance(project: Project): AidpManager? {
+        fun getInstance(project: Project): JuggManager? {
             return map[project]
         }
     }

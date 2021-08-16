@@ -7,14 +7,14 @@ import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
 import com.android.utils.ILogger
-import com.sickworm.intellij.jugg.AidpException
+import com.sickworm.intellij.jugg.JuggException
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import java.util.*
 
-class AidpDiffer(private val logger: ILogger) {
+class JuggDiffer(private val logger: ILogger) {
 
     @Throws(DeployerException::class)
-    fun diff(cacheEntry: DeploymentCacheDatabase.Entry?, data: AidpDeployData): AidpOverlayUpdate {
+    fun diff(cacheEntry: DeploymentCacheDatabase.Entry?, data: JuggDeployData): JuggOverlayUpdate {
         // from ApkDiffer
         if (cacheEntry == null) {
             // TODO: We could just fall back to non-optimistic swap.
@@ -32,12 +32,12 @@ class AidpDiffer(private val logger: ILogger) {
             apkFiles.add(info)
         }
 
-        // find out classes in AidpDeployData is modified or new
+        // find out classes in JuggDeployData is modified or new
         val newClasses = mutableListOf<DexClass>()
         val modifiedClasses = mutableListOf<DexClass>()
         data.classes.forEach { clazz ->
             // TODO speedup when R file updates
-            val matchedFile: AidpFileInfo? = apkFiles.firstNotNullResult {
+            val matchedFile: JuggFileInfo? = apkFiles.firstNotNullResult {
                 it.classFiles[clazz.name]
             }
             if (matchedFile == null) {
@@ -49,7 +49,7 @@ class AidpDiffer(private val logger: ILogger) {
         val dexOverlays = ChangedClasses(newClasses, modifiedClasses)
 
         if (cacheEntry.apks.size > 1 && data.overlays.isNotEmpty()) {
-            throw AidpException.notSupportMultiApkOverlays()
+            throw JuggException.notSupportMultiApkOverlays()
         }
         val overlayFiles = data.overlays
             .filter {
@@ -63,22 +63,22 @@ class AidpDiffer(private val logger: ILogger) {
 
         logDiffResult(newClasses, modifiedClasses, overlayFiles)
 
-        return AidpOverlayUpdate(cacheEntry, dexOverlays, overlayFiles)
+        return JuggOverlayUpdate(cacheEntry, dexOverlays, overlayFiles)
     }
 
     @Throws(DeployerException::class)
     private fun parseApk(apk: Apk): ApkFileStructure {
-        val classFiles = mutableMapOf<String, AidpFileInfo>()
-        val overlayFiles = mutableMapOf<String, AidpFileInfo>()
+        val classFiles = mutableMapOf<String, JuggFileInfo>()
+        val overlayFiles = mutableMapOf<String, JuggFileInfo>()
         val splitter: DexSplitter = D8DexSplitter()
         for (entry in apk.apkEntries.values) {
             if (entry.name.endsWith(".dex")) {
                 val dexClasses = splitter.split(entry) { true }
                 for (dexClass in dexClasses) {
-                    classFiles[dexClass.name] = AidpFileInfo(dexClass.name, dexClass.checksum)
+                    classFiles[dexClass.name] = JuggFileInfo(dexClass.name, dexClass.checksum)
                 }
             } else {
-                overlayFiles[entry.name] = AidpFileInfo(entry.name, entry.checksum)
+                overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             }
         }
 
@@ -110,15 +110,15 @@ class AidpDiffer(private val logger: ILogger) {
         }
     }
 
-    fun convert(overlayUpdate: AidpOverlayUpdate): OverlayUpdate {
+    fun convert(overlayUpdate: JuggOverlayUpdate): OverlayUpdate {
         return overlayUpdate.overlayUpdate
     }
 
     @Synchronized
-    fun update(overlayUpdate: AidpOverlayUpdate): Boolean {
-        val classFiles = overlayUpdate.dexOverlays.newClasses.map { it.name to AidpFileInfo(it.name, it.checksum) } +
-                overlayUpdate.dexOverlays.modifiedClasses.map { it.name to AidpFileInfo(it.name, it.checksum) }
-        val overlayFiles = overlayUpdate.fileOverlays.keys.map { it.name to AidpFileInfo(it.name, it.checksum) }
+    fun update(overlayUpdate: JuggOverlayUpdate): Boolean {
+        val classFiles = overlayUpdate.dexOverlays.newClasses.map { it.name to JuggFileInfo(it.name, it.checksum) } +
+                overlayUpdate.dexOverlays.modifiedClasses.map { it.name to JuggFileInfo(it.name, it.checksum) }
+        val overlayFiles = overlayUpdate.fileOverlays.keys.map { it.name to JuggFileInfo(it.name, it.checksum) }
         overlayCache = ApkFileStructure(
             classFiles = overlayCache.classFiles + classFiles.toMap(),
             overlayFiles = overlayCache.overlayFiles + overlayFiles.toMap()
@@ -135,7 +135,7 @@ class AidpDiffer(private val logger: ILogger) {
 /**
  * [OverlayUpdate] fields are all private, so we need this.
  */
-data class AidpOverlayUpdate(
+data class JuggOverlayUpdate(
     val cachedDump: DeploymentCacheDatabase.Entry?,
     val dexOverlays: ChangedClasses,
     val fileOverlays: Map<ApkEntry, ByteString>

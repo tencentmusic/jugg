@@ -8,9 +8,9 @@ import org.junit.Test
 import java.io.File
 import java.lang.IllegalStateException
 
-class AidpCompileTest {
+class JuggCompileTest {
 
-    private val aidpCompiler = AidpCompiler(context)
+    private val juggCompiler = JuggCompiler(context)
 
     @Before
     fun init() {
@@ -21,50 +21,50 @@ class AidpCompileTest {
     @Test
     fun compileSingleJava() {
         val task = JavaCompileTest().helloWorldTask
-        val result = aidpCompiler.compile(task)
-        assertCompileResultAidp(task, result)
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileMultiJava() {
         val task = JavaCompileTest().multiFilesTask
-        val result = aidpCompiler.compile(task)
-        assertCompileResultAidp(task, result)
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileMultiJavaWithError() {
         val task = JavaCompileTest().multiFilesWithErrorTask
-        val result = aidpCompiler.compile(task)
+        val result = juggCompiler.compile(task)
         assertCompileResultFailed(task, result, mapOf(JavaCompileTest().errorTask.files[0] to 2))
     }
 
     @Test
     fun compileMultiAssets() {
         val task = AssetCompileTest().multiFilesTask
-        val result = aidpCompiler.compile(task)
-        assertCompileResultAidp(task, result)
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileResource() {
         val task = ResourceCompileTest().resourceOverlayTask
-        val result = aidpCompiler.compile(task)
-        assertCompileResultAidp(task, result)
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileMultiJavaAndAsset() {
         val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask
-        val result = aidpCompiler.compile(task)
-        assertCompileResultAidp(task, result)
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileMultiJavaAndAssetAndRes() {
         val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTest().resourceOverlayTask
-        val result = aidpCompiler.compile(task)
-        assertCompileResultAidp(task, result)
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
     }
 
     @Test
@@ -72,7 +72,7 @@ class AidpCompileTest {
         val sourceTask = JavaCompileTest().multiFilesWithErrorTask
         val assetTask = AssetCompileTest().multiFilesTask
         val task = sourceTask + assetTask
-        val result = aidpCompiler.compile(task)
+        val result = juggCompiler.compile(task)
 
         val sourceResult = CompileResult(
             sourceTask,
@@ -86,7 +86,7 @@ class AidpCompileTest {
             result.details.filter { assetTask.files.contains(it.file) },
             result.outputs
         )
-        assertCompileResultAidp(assetTask, assetResult)
+        assertCompileResultJugg(assetTask, assetResult)
     }
 
     @Test
@@ -95,7 +95,7 @@ class AidpCompileTest {
         val assetTask = AssetCompileTest().multiFilesTask
         val resourceTask = ResourceCompileTest().resourceOverlayTask
         val task = sourceTask + assetTask + resourceTask
-        val result = aidpCompiler.compile(task)
+        val result = juggCompiler.compile(task)
 
         val sourceResult = CompileResult(
             sourceTask,
@@ -110,10 +110,10 @@ class AidpCompileTest {
             result.details.filter { !sourceTask.files.contains(it.file) },
             result.outputs
         )
-        assertCompileResultAidp(remainTask, remainResult)
+        assertCompileResultJugg(remainTask, remainResult)
     }
 
-    private fun assertCompileResultAidp(task: CompileTask, result: CompileResult) {
+    private fun assertCompileResultJugg(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             if (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin) {
                 val outputBaseDir = File(task.outputDir, "classes")

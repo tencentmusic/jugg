@@ -9,14 +9,14 @@ import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.getAndroidSdkRootDir
 import com.sickworm.intellij.jugg.guessModuleDirAdv
 import com.sickworm.intellij.jugg.relativePath
-import com.sickworm.intellij.jugg.toolWindow.AidpLogger
+import com.sickworm.intellij.jugg.toolWindow.JuggLogger
 import java.io.File
 
 class CompileContextManager(
     val project: Project,
     val projectDir: String,
 ) {
-    private val logger = AidpLogger.getInstance(project, "#AIDP-CompileContextManager")
+    private val logger = JuggLogger.getInstance(project, "#JUGG-CompileContextManager")
 
     val buildDir = File("$projectDir/build/jugg/build/")
 
@@ -108,15 +108,15 @@ class CompileContextManager(
         if (!classPathDir.exists()) {
             classPathDir.mkdirs()
         }
-        val aidpClassPathDep = listOf(classPathDir.absolutePath)
+        val juggClassPathDep = listOf(classPathDir.absolutePath)
 
-        dependencies = libDep + androidDep + projectDeps + aidpClassPathDep
+        dependencies = libDep + androidDep + projectDeps + juggClassPathDep
 
         logger.debug("dependencies loaded:\nlibDep: ${libDep.map { File(it).parentFile?.parentFile?.name }}\nprojectDep: ${projectDeps.relativePath(projectDir)}")
-        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, aidpClassPathDep size: 1")
+        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
 
         val context = BaseCompileContext(
-            logger = AidpLogger.getInstance(project, "#AIDP-Compiler"),
+            logger = JuggLogger.getInstance(project, "#JUGG-Compiler"),
             tempCompileDir = tempCompileDir,
             androidBuildTools = File(androidBuildTools),
             androidJar = File(androidDep),

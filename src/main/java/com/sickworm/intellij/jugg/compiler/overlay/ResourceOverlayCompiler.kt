@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.sickworm.intellij.jugg.AidpInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.*
@@ -18,7 +18,7 @@ class ResourceOverlayCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         // TODO resolve, maybe inc link is already supported
         if (task.files.any { it.file.parent.endsWith("values") }) {
-            throw AidpInternalException.resValuesNotSupported()
+            throw JuggInternalException.resValuesNotSupported()
         }
 
         // compile to .flat

@@ -10,7 +10,7 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-val logger = Logger.getInstance("AidpTest")
+val logger = Logger.getInstance("JuggTest")
 
 // build directory
 val buildDir = File("src/test/build").absoluteFile

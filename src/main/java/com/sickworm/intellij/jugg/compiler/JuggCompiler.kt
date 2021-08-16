@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.changeBaseDir
 import com.sickworm.intellij.jugg.clearDir
 import java.io.File
 
-class AidpCompiler(
+class JuggCompiler(
     context: ICompileContext
 ): BaseCompiler(context) {
 

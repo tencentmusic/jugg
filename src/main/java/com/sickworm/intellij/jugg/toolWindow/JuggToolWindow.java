@@ -11,8 +11,8 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.ui.JBColor;
-import com.sickworm.intellij.jugg.AidpManager;
-import com.sickworm.intellij.jugg.AidpSettings;
+import com.sickworm.intellij.jugg.JuggManager;
+import com.sickworm.intellij.jugg.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
 import com.sickworm.intellij.jugg.deploy.DeployState;
 import org.apache.log4j.Level;
@@ -29,7 +29,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Objects;
 
-public class AidpToolWindow {
+public class JuggToolWindow {
 
   private JButton deployButton;
   private JPanel myToolWindowContent;
@@ -44,12 +44,12 @@ public class AidpToolWindow {
 
   private final Logger logger;
 
-  private AidpManager aidpManager;
+  private JuggManager juggManager;
 
   @SuppressWarnings("unused")
-  public AidpToolWindow(Project project, ToolWindow toolWindow) {
+  public JuggToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
-    this.logger = AidpLogger.INSTANCE.getInstance(project, "#AIDP-AidpToolWindow");
+    this.logger = JuggLogger.INSTANCE.getInstance(project, "#JUGG-JuggToolWindow");
 
     String projectDir = project.getBasePath();
     logger.info("projectOpened " + project + " " + projectDir);
@@ -58,17 +58,17 @@ public class AidpToolWindow {
       return;
     }
 
-    AidpLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
-    this.aidpManager = new AidpManager(project, projectDir, this);
-    aidpManager.init();
+    JuggLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
+    this.juggManager = new JuggManager(project, projectDir, this);
+    juggManager.init();
 
     deployButton.addActionListener(e -> deploy());
 
-    deployOnSaveCheckBox.setSelected(AidpSettings.INSTANCE.getDeployOnSave());
-    deployOnSaveCheckBox.addItemListener(e -> AidpSettings.INSTANCE.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
+    deployOnSaveCheckBox.setSelected(JuggSettings.INSTANCE.getDeployOnSave());
+    deployOnSaveCheckBox.addItemListener(e -> JuggSettings.INSTANCE.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
 
-    enableDebugLogCheckBox.setSelected(AidpSettings.INSTANCE.getLogDebug());
-    enableDebugLogCheckBox.addItemListener(e -> AidpSettings.INSTANCE.setLogDebug(e.getStateChange() == ItemEvent.SELECTED));
+    enableDebugLogCheckBox.setSelected(JuggSettings.INSTANCE.getLogDebug());
+    enableDebugLogCheckBox.addItemListener(e -> JuggSettings.INSTANCE.setLogDebug(e.getStateChange() == ItemEvent.SELECTED));
 
     MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
     StyleConstants.setLineSpacing(set, 0.2f);
@@ -90,9 +90,9 @@ public class AidpToolWindow {
     });
 
     AnAction action = new DeployAction();
-    ActionManager.getInstance().registerAction("AIDP Deploy", action);
+    ActionManager.getInstance().registerAction("JUGG Deploy", action);
     DefaultActionGroup actionGroup = new DefaultActionGroup(action);
-    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("AidpToolWindow", actionGroup, false);
+    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("JuggToolWindow", actionGroup, false);
     toolbar.setTargetComponent(actionPanel);
     actionPanel.add(toolbar.getComponent());
 
@@ -119,9 +119,9 @@ public class AidpToolWindow {
 
   public void deploy() {
     logger.info("onDeploy");
-    AidpManager manager = AidpManager.Companion.getInstance(project);
+    JuggManager manager = JuggManager.Companion.getInstance(project);
     if (manager == null) {
-      logger.error("deploy failed for AidpManager not found");
+      logger.error("deploy failed for JuggManager not found");
       return;
     }
 

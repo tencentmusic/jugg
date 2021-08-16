@@ -4,7 +4,7 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ApplicationManager
 import kotlin.reflect.KProperty
 
-object AidpSettings {
+object JuggSettings {
 
     private val isTestEnv get() = ApplicationManager.getApplication() == null
 

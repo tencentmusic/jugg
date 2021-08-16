@@ -19,13 +19,13 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.sickworm.intellij.jugg.toolWindow.AidpLogger
-import com.sickworm.intellij.jugg.AidpManager
+import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.JuggManager
 import java.util.concurrent.ExecutionException
 
-private const val NAME = "AIDP Deploy"
+private const val NAME = "JUGG Deploy"
 
-private const val DESC = "Attempt to apply resource and code changes by AIDP."
+private const val DESC = "Attempt to apply resource and code changes by JUGG."
 
 class DeployAction: AnAction(
     NAME, DESC, AllIcons.Actions.Execute
@@ -35,7 +35,7 @@ class DeployAction: AnAction(
         // Using the event, create and show a dialog
         val currentProject = event.project?: return
         // If an element is selected in the editor, add info about it.
-        Messages.showMessageDialog(currentProject, currentText, "AIDP", Messages.getInformationIcon())
+        Messages.showMessageDialog(currentProject, currentText, "JUGG", Messages.getInformationIcon())
     }
 
     private var currentText: String = "unknown state"
@@ -49,15 +49,15 @@ class DeployAction: AnAction(
         }
 
         if (logger == null) {
-            logger = AidpLogger.getInstance(project, "#AIDP-DeployAction")
+            logger = JuggLogger.getInstance(project, "#JUGG-DeployAction")
         }
 
         val deployState = getDisableMessage(project)
         currentText = deployState.msg
 
-        val aidpManager = AidpManager.getInstance(project)
+        val juggManager = JuggManager.getInstance(project)
         @Suppress("UnstableApiUsage")
-        aidpManager?.updateStatus(deployState)
+        juggManager?.updateStatus(deployState)
     }
 
     private var logger: Logger? = null

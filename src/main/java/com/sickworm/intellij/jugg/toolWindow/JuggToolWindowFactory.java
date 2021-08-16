@@ -9,12 +9,12 @@ import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
 import org.jetbrains.annotations.NotNull;
 
-public class AidpToolWindowFactory implements ToolWindowFactory {
+public class JuggToolWindowFactory implements ToolWindowFactory {
 
   public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-    AidpToolWindow aidpToolWindow = new AidpToolWindow(project, toolWindow);
+    JuggToolWindow juggToolWindow = new JuggToolWindow(project, toolWindow);
     ContentFactory contentFactory = ContentFactory.SERVICE.getInstance();
-    Content content = contentFactory.createContent(aidpToolWindow.getContent(), "", false);
+    Content content = contentFactory.createContent(juggToolWindow.getContent(), "", false);
     toolWindow.getContentManager().addContent(content);
   }
 

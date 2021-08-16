@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.AidpInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import java.io.File
 
 data class CompileTask(
@@ -14,7 +14,7 @@ data class CompileTask(
 
     operator fun plus(task: CompileTask): CompileTask {
         if (!outputDir.isParentOf(task.outputDir)) {
-            throw AidpInternalException.combineTaskFailed()
+            throw JuggInternalException.combineTaskFailed()
         }
         return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir)
     }
@@ -171,7 +171,7 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
     private fun checkTypesCanCompile(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
         if (invalidFiles.isNotEmpty()) {
-            throw AidpInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
+            throw JuggInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
         }
     }
 
@@ -180,7 +180,7 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
 
     private fun checkOutputDirIsEmpty(task: CompileTask) {
         if (!task.outputDir.listFiles().isNullOrEmpty()) {
-            throw AidpInternalException.compileOutputDirNotEmpty()
+            throw JuggInternalException.compileOutputDirNotEmpty()
         }
     }
 }

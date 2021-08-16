@@ -1,11 +1,11 @@
 package com.android.tools.deployer
 
 data class ApkFileStructure(
-    val classFiles: Map<String, AidpFileInfo>,
-    val overlayFiles: Map<String, AidpFileInfo>
+    val classFiles: Map<String, JuggFileInfo>,
+    val overlayFiles: Map<String, JuggFileInfo>
 )
 
-data class AidpFileInfo(
+data class JuggFileInfo(
     val name: String,
     val checksum: Long
 )

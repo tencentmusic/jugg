@@ -26,7 +26,7 @@ class ArscCompiler(
 
     override fun checkContextCanCompile(task: CompileTask) {
         if (!canCompile) {
-            throw AidpInternalException.contextInvalidToCompileArsc()
+            throw JuggInternalException.contextInvalidToCompileArsc()
         }
         if (!hasLoaded) {
             loadTable()

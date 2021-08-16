@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.AidpInternalException
+import com.sickworm.intellij.jugg.JuggInternalException
 import com.sickworm.intellij.jugg.copyResource
 import com.sickworm.intellij.jugg.isMac
 import java.io.*
@@ -24,7 +24,7 @@ class Aapt2DaemonInvoker(
         val process = Runtime.getRuntime().exec("$aapt2 daemon")
         val output = readOutput(process!!.inputStream, 1)
         if (output != "Ready\n") {
-            throw AidpInternalException.startAapt2DaemonFailed()
+            throw JuggInternalException.startAapt2DaemonFailed()
         }
         this.process = process
         outputReader = OutputReader(process.inputStream, process.errorStream, logger)

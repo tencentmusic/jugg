@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.deployer.AidpDeployData
-import com.android.tools.deployer.AidpDeployItem
+import com.android.tools.deployer.JuggDeployData
+import com.android.tools.deployer.JuggDeployItem
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.vfs.VirtualFile
-import com.sickworm.intellij.jugg.AidpException
+import com.sickworm.intellij.jugg.JuggException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -14,7 +14,7 @@ import java.util.zip.CRC32
 /**
  * Works like a git. Operates with add, commit
  */
-class AidpDeployDataManager {
+class JuggDeployDataManager {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -54,9 +54,9 @@ class AidpDeployDataManager {
     }
 
     @Synchronized
-    fun getDeployData(apks: List<ApkInfo>): AidpDeployData {
+    fun getDeployData(apks: List<ApkInfo>): JuggDeployData {
         if (uncompiledFiles.isNotEmpty()) {
-            throw AidpException.notAllCompiled(uncompiledFiles.values)
+            throw JuggException.notAllCompiled(uncompiledFiles.values)
         }
 
         val items = stagingFiles.values
@@ -67,14 +67,14 @@ class AidpDeployDataManager {
         val changedOverlayFiles = items.filter { it.type == CompileOutput.Type.Overlay }
         val changedOverlays = changedOverlayFiles.map { it.toDeployItem() }
 
-        return AidpDeployData(
+        return JuggDeployData(
             apks,
             changedClasses,
             changedOverlays
         )
     }
 
-    private fun CompileOutput.toDeployItem(): AidpDeployItem {
+    private fun CompileOutput.toDeployItem(): JuggDeployItem {
         val bytes = file.readBytes()
         val crc = crc32.run {
             reset()
@@ -88,7 +88,7 @@ class AidpDeployDataManager {
         } else {
             file.relativeTo(baseDir).stdPath
         }
-        return AidpDeployItem(name, crc, bytes)
+        return JuggDeployItem(name, crc, bytes)
     }
 
     @Synchronized

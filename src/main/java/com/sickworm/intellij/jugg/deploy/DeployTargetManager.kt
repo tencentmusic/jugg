@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.deployer.AidpDeployerHelper
+import com.android.tools.deployer.JuggDeployerHelper
 import com.android.tools.idea.projectsystem.getModuleSystem
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.AndroidRunConfigurationType
@@ -12,13 +12,13 @@ import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.toolWindow.AidpLogger
+import com.sickworm.intellij.jugg.toolWindow.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 
 class DeployTargetManager(
     private val project: Project
 ) {
-    private val logger = AidpLogger.getInstance(project, "#AIDP-DeployTargetManager")
+    private val logger = JuggLogger.getInstance(project, "#JUGG-DeployTargetManager")
 
     fun runNormalBuild() {
         val (runConfigAndSettings, _) = getRunConfig()
@@ -44,7 +44,7 @@ class DeployTargetManager(
             val facet: AndroidFacet = AndroidFacet.getInstance(module)!!
             val targetDeviceSpec = null
             val apkProvider = facet.getModuleSystem().getApkProvider(runConfig, targetDeviceSpec)!!
-            val device = AidpDeployerHelper.getIDevice(project)
+            val device = JuggDeployerHelper.getIDevice(project)
             apkProvider.getApks(device).toList()
         } catch (e: Exception) {
             logger.debug("getApks failed", e)
