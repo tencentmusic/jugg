@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
 import com.sickworm.intellij.jugg.compiler.*
 import org.junit.Before
