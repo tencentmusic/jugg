@@ -16,7 +16,7 @@
 
     <applicationListeners>
         <listener
-                class="com.sickworm.intellij.aidp.PluginLoadListener"
+                class="com.sickworm.intellij.jugg.PluginLoadListener"
                 topic="com.intellij.ide.plugins.DynamicPluginListener"
         />
     </applicationListeners>
@@ -26,7 +26,7 @@
                 id="AIDP"
                 icon="AllIcons.Toolwindows.ToolWindowRun"
                 anchor="bottom"
-                factoryClass="com.sickworm.intellij.aidp.toolWindow.AidpToolWindowFactory"
+                factoryClass="com.sickworm.intellij.jugg.toolWindow.AidpToolWindowFactory"
         />
     </extensions>
 </idea-plugin>

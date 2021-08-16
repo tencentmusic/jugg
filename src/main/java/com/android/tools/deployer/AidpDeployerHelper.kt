@@ -12,7 +12,7 @@ import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.aidp.AidpException
+import com.sickworm.intellij.jugg.AidpException
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
 import java.util.stream.Collectors

@@ -7,7 +7,7 @@ import com.android.tools.deployer.model.ApkEntry
 import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
 import com.android.utils.ILogger
-import com.sickworm.intellij.aidp.AidpException
+import com.sickworm.intellij.jugg.AidpException
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import java.util.*
 
