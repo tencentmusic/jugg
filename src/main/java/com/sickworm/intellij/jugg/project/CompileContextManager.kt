@@ -16,7 +16,7 @@ class CompileContextManager(
     val project: Project,
     val projectDir: String,
 ) {
-    private val logger = JuggLogger.getInstance(project, "#JUGG-CompileContextManager")
+    private val logger = JuggLogger.getInstance(project, "#Jugg-CompileContextManager")
 
     val buildDir = File("$projectDir/build/jugg/build/")
 
@@ -116,7 +116,7 @@ class CompileContextManager(
         logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
 
         val context = BaseCompileContext(
-            logger = JuggLogger.getInstance(project, "#JUGG-Compiler"),
+            logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
             tempCompileDir = tempCompileDir,
             androidBuildTools = File(androidBuildTools),
             androidJar = File(androidDep),

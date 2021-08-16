@@ -49,7 +49,7 @@ public class JuggToolWindow {
   @SuppressWarnings("unused")
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
-    this.logger = JuggLogger.INSTANCE.getInstance(project, "#JUGG-JuggToolWindow");
+    this.logger = JuggLogger.INSTANCE.getInstance(project, "#Jugg-JuggToolWindow");
 
     String projectDir = project.getBasePath();
     logger.info("projectOpened " + project + " " + projectDir);
@@ -90,7 +90,7 @@ public class JuggToolWindow {
     });
 
     AnAction action = new DeployAction();
-    ActionManager.getInstance().registerAction("JUGG Deploy", action);
+    ActionManager.getInstance().registerAction("Jugg Deploy", action);
     DefaultActionGroup actionGroup = new DefaultActionGroup(action);
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("JuggToolWindow", actionGroup, false);
     toolbar.setTargetComponent(actionPanel);

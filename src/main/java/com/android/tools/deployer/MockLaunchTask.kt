@@ -26,7 +26,7 @@ class MockLaunchStatus: LaunchStatus {
 
 class MockConsolePrinter(val project: Project): ConsolePrinter {
 
-    val logger = JuggLogger.getInstance(project, "#JUGG-ConsolePrinter")
+    val logger = JuggLogger.getInstance(project, "#Jugg-ConsolePrinter")
 
     override fun stdout(message: String) {
         logger.info("stdout $message")

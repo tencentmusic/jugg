@@ -18,7 +18,7 @@ import org.jetbrains.android.facet.AndroidFacet
 class DeployTargetManager(
     private val project: Project
 ) {
-    private val logger = JuggLogger.getInstance(project, "#JUGG-DeployTargetManager")
+    private val logger = JuggLogger.getInstance(project, "#Jugg-DeployTargetManager")
 
     fun runNormalBuild() {
         val (runConfigAndSettings, _) = getRunConfig()

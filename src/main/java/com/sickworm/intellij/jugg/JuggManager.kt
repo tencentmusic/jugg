@@ -28,7 +28,7 @@ class JuggManager(private val project: Project,
                   private val toolWindow: JuggToolWindow
 ): Disposable {
 
-    private val logger = JuggLogger.getInstance(project, "#JUGG-JuggManager")
+    private val logger = JuggLogger.getInstance(project, "#Jugg-JuggManager")
 
     private val compileThread = Executors.newSingleThreadExecutor()
     private val deployThread = Executors.newSingleThreadExecutor()
@@ -55,7 +55,7 @@ class JuggManager(private val project: Project,
     ))
 
     fun init() {
-        logger.info("start JUGG")
+        logger.info("start Jugg")
         register(project, this)
         Disposer.register(project, this)
 
@@ -97,7 +97,7 @@ class JuggManager(private val project: Project,
                 processFileChanged(changedFiles)
             }
         })
-        logger.info("JUGG ready to deploy!")
+        logger.info("Jugg ready to deploy!")
     }
 
     private fun processFileChanged(changedFiles: List<ChangedFile>) {

@@ -7,7 +7,7 @@ import org.xml.sax.helpers.DefaultHandler
 import java.io.File
 import javax.xml.parsers.SAXParserFactory
 
-private val logger = Logger.getInstance("#JUGG-IntellijLibraryConfigParser")
+private val logger = Logger.getInstance("#Jugg-IntellijLibraryConfigParser")
 
 class IntellijLibraryConfigParser(private val configDir: File, private val projectDir: String) {
 

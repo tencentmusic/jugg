@@ -26,7 +26,7 @@ class FileChangesManager(
     private val projectDir: String,
 ): Disposable {
 
-    private val logger = JuggLogger.getInstance(project, "#JUGG-FileChangesManager")
+    private val logger = JuggLogger.getInstance(project, "#Jugg-FileChangesManager")
 
     private lateinit var listener: FileChangesListener
 
