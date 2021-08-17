@@ -58,17 +58,6 @@ fun Module.guessModuleDirAdv(): VirtualFile? {
 
 fun List<String>.relativePath(baseDirPath: String) = map { File(it).relativeTo(File(baseDirPath)) }
 
-fun getAndroidSdkRootDir(logger: Logger): File? {
-    val allJdks = ProjectJdkTable.getInstance().allJdks
-    logger.debug("all available jdks: $allJdks")
-    val androidJdks = ProjectJdkTable.getInstance().allJdks.filter {
-        it.name.contains("Android") && it.homeDirectory?.exists() == true
-    }
-    logger.debug("all available android jdks: $androidJdks")
-
-    return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
-}
-
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")
     val storePath = File(storeRootDir, resourcePath)

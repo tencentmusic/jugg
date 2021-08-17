@@ -4,19 +4,26 @@ import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
 import com.sickworm.intellij.jugg.project.ChangedFile
+import java.io.File
 
 /** Exception for notifying user */
 class JuggException(msg: String): Exception(msg) {
 
     companion object {
-        fun notAllCompiled(remainFiles: Collection<ChangedFile>)
-            = JuggException("Can not deploy changes because not all files been successfully compiled.\nremaining files:\n$remainFiles")
+        fun notAllCompiled(remainFiles: Collection<ChangedFile>) =
+            JuggException("Can not deploy changes because not all files been successfully compiled.\nremaining files:\n$remainFiles")
 
-        fun notSupportMultiApkOverlays()
-            = JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk overlay")
+        fun notSupportMultiApkOverlays() =
+            JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk overlay")
 
-        fun applyChangesFailed(launchResult: LaunchResult)
-                = JuggException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
+        fun applyChangesFailed(launchResult: LaunchResult) =
+            JuggException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
+
+        fun buildToolsNotFound(details: String) =
+            JuggException("Can not found build tools, can not compile. details: $details")
+
+        fun androidJarNotFound(details: String) =
+            JuggException("Can not found android.jar, can not compile. details: $details")
     }
 }
 
@@ -39,7 +46,7 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun startAapt2DaemonFailed() =
             JuggInternalException("Start aapt2 damon failed")
 
-        fun contextInvalidToCompileArsc()
-                = JuggException("Can not compile resource yet due to apk file or android jar not found")
+        fun contextInvalidToCompileArsc() =
+            JuggInternalException("Can not compile resource yet due to apk file or android jar not found")
     }
 }

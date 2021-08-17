@@ -4,8 +4,8 @@ package com.sickworm.intellij.jugg
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.clearDir
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.BaseCompileContext
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -30,14 +30,13 @@ val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
 // dependency
-val androidHome = System.getenv("ANDROID_HOME")
-    ?: throw IllegalStateException("please specific ANDROID_HOME in env")
+val androidHome = File(System.getenv("ANDROID_HOME")?: throw IllegalStateException("please specific ANDROID_HOME in env"))
 val androidJar = File("$androidHome/platforms/android-30/android.jar").also {
     if (!it.exists()) {
         throw IllegalStateException("android.jar not found in: $it")
     }
 }
-val androidApkPackage = "com.example.myapplication"
+const val androidApkPackage = "com.example.myapplication"
 
 val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
     if (!it.exists()) {
@@ -47,12 +46,14 @@ val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
 
 val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
 
-val context = BaseCompileContext(
+val context = SimpleCompileContext(
     logger = logger,
     tempCompileDir = tempCompileDir,
+    androidHome = androidHome,
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
     classPathDir = classPathDir,
+    modules = emptyMap(),
     apks = listOf(ApkInfo(assetsApkFile, androidApkPackage))
 )
 

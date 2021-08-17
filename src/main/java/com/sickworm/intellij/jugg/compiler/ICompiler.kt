@@ -104,16 +104,18 @@ interface ICompileContext {
     val logger: Logger
     /** compile temporary directory */
     val tempCompileDir: File
+    /** Android sdk dir */
+    val androidHome: File
     /** build-tools directory */
     val androidBuildTools: File
     /** android.jar */
     val androidJar: File
-    /** source class path directory */
+    /** source class path directory compiled by Jugg */
     val classPathDir: File
-    /** deployed base apks */
-    val apks: List<ApkInfo>
     /** modules in project */
     val modules: Map<String, ModuleInfo>
+    /** deployed base apks */
+    val apks: List<ApkInfo>
 
     val packageName get() = apks.firstOrNull()?.applicationId
 
@@ -127,10 +129,12 @@ data class ModuleInfo(
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
+    val compileVersion: String?,
+    val buildToolsVersion: String?
 ) {
 
     companion object {
-        val NO_MODULE = ModuleInfo("no_module", emptyList(), emptyList(), emptyList())
+        val NO_MODULE = ModuleInfo("no_module", emptyList(), emptyList(), emptyList(), null, null)
     }
 }
 
@@ -185,52 +189,5 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
     }
 }
 
-class EmptyCompiler(compileContext: ICompileContext): BaseCompiler(compileContext) {
-
-    override val supportedTypes: List<CompileFile.Type> = emptyList()
-
-    override fun doCompile(task: CompileTask): CompileResult {
-        return CompileResult(task, emptyList(), emptyList())
-    }
-}
-
 typealias OnContextUpdate = () -> Unit
 
-data class BaseCompileContext(
-    override val logger: Logger,
-    override var tempCompileDir: File,
-    override var androidBuildTools: File,
-    override var androidJar: File,
-    override var classPathDir: File,
-    override var apks: List<ApkInfo> = emptyList(),
-    override var modules: Map<String, ModuleInfo> = emptyMap(),
-): ICompileContext {
-
-    private val listeners = mutableListOf<OnContextUpdate>()
-
-    override fun listenUpdate(listener: OnContextUpdate) {
-        synchronized(listeners) {
-            if (!listeners.contains(listener)) {
-                listeners.add(listener)
-            }
-        }
-    }
-
-    fun update(apks: List<ApkInfo>? = null, modules: Map<String, ModuleInfo>? = null) {
-        apks?.let {
-            this.apks = ArrayList(it)
-        }
-        modules?.let {
-            this.modules = HashMap(it)
-        }
-        dispatch()
-    }
-
-    private fun dispatch() {
-        synchronized(listeners) {
-            listeners.forEach {
-                it.invoke()
-            }
-        }
-    }
-}

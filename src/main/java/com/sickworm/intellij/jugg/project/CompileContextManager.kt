@@ -1,12 +1,13 @@
 package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
+import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel
+import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.compiler.BaseCompileContext
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
-import com.sickworm.intellij.jugg.getAndroidSdkRootDir
 import com.sickworm.intellij.jugg.guessModuleDirAdv
 import com.sickworm.intellij.jugg.relativePath
 import com.sickworm.intellij.jugg.toolWindow.JuggLogger
@@ -18,7 +19,8 @@ class CompileContextManager(
 ) {
     private val logger = JuggLogger.getInstance(project, "#Jugg-CompileContextManager")
 
-    val buildDir = File("$projectDir/build/jugg/build/")
+    val rootDir = File("$projectDir/build/jugg")
+    val buildDir = File(rootDir, "build")
 
     val tempCompileDir = File(buildDir, "compiled")
     val stagingDir = File(buildDir, "staging")
@@ -31,11 +33,11 @@ class CompileContextManager(
     lateinit var compileContext: BaseCompileContext
 
     fun init() {
-        initDependency()
-        initModuleRoots()
+        val modules = initModuleRoots()
+        initDependency(modules)
     }
 
-    private fun initDependency() {
+    private fun initDependency(modules: Map<String, ModuleInfo>) {
         logger.debug("initDependency")
 
         // TODO auto update when file changes
@@ -49,17 +51,10 @@ class CompileContextManager(
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
-        val androidHome = getAndroidSdkRootDir(logger)
+        val androidHome = getAndroidSdkRootDir()
         logger.info("use android sdk home: $androidHome")
         if (androidHome == null) {
             throw IllegalStateException("can not found android sdk home, exit init.")
-        }
-
-        // TODO select sdk and build tools by gradle
-        val androidDep = "$androidHome/platforms/android-30/android.jar"
-        val androidBuildTools = "$androidHome/build-tools/30.0.3"
-        if (!File(androidDep).exists()) {
-            throw IllegalStateException("androidDep not found, path: $androidDep")
         }
 
         val moduleDirs = ModuleManager.getInstance(project).modules.mapNotNull {
@@ -110,22 +105,28 @@ class CompileContextManager(
         }
         val juggClassPathDep = listOf(classPathDir.absolutePath)
 
-        dependencies = libDep + androidDep + projectDeps + juggClassPathDep
-
-        logger.debug("dependencies loaded:\nlibDep: ${libDep.map { File(it).parentFile?.parentFile?.name }}\nprojectDep: ${projectDeps.relativePath(projectDir)}")
-        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
-
         val context = BaseCompileContext(
             logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
+            androidHome = androidHome,
             tempCompileDir = tempCompileDir,
-            androidBuildTools = File(androidBuildTools),
-            androidJar = File(androidDep),
-            classPathDir = classPathDir
+            classPathDir = classPathDir,
+            modules = modules,
         )
+        logger.debug("""
+            dependencies loaded:
+            libDep:${libDep.map { File(it).parentFile?.parentFile?.name }}
+            projectDep:${projectDeps.relativePath(projectDir)}
+            build-tools:${context.androidBuildTools}
+            android.jar:${context.androidJar}
+        """.trimIndent())
+        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
+
+        val androidDep = context.androidJar.path
+        dependencies = juggClassPathDep + projectDeps + androidDep + libDep
         compileContext = context
     }
 
-    private fun initModuleRoots() {
+    private fun initModuleRoots(): Map<String, ModuleInfo> {
         logger.debug("initModuleRoots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
@@ -182,16 +183,30 @@ class CompileContextManager(
                 .flatMap { it.getFileList(baseDir) }
             assetDirs.addAll(assetsSets)
 
-            modules[module.name] = ModuleInfo(module.name, sourceDirs, resourceDirs, assetDirs)
+            val buildToolsVersion: String? = buildModel.android().buildToolsVersion().valueAsString()
+            val compileVersion: String? = buildModel.android().compileSdkVersion().valueAsString()
+
+            modules[module.name] = ModuleInfo(module.name, sourceDirs, resourceDirs, assetDirs, compileVersion, buildToolsVersion)
         }
-        compileContext.update(modules = modules)
+
+        return modules
     }
 
-    private fun com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel.getFileList(baseDir: String): List<File> {
-        val dirs = srcDirs().getValue(com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel.LIST_TYPE)?: emptyList()
+    private fun getAndroidSdkRootDir(): File? {
+        val allJdks = ProjectJdkTable.getInstance().allJdks
+        logger.debug("all available jdks: $allJdks")
+        val androidJdks = ProjectJdkTable.getInstance().allJdks.filter {
+            it.name.contains("Android") && it.homeDirectory?.exists() == true
+        }
+        logger.debug("all available android jdks: $androidJdks")
+
+        return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
+    }
+
+    private fun SourceDirectoryModel.getFileList(baseDir: String): List<File> {
+        val dirs = srcDirs().getValue(GradlePropertyModel.LIST_TYPE)?: emptyList()
         return dirs
-            .mapNotNull { it.getValue(com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel.STRING_TYPE) }
+            .mapNotNull { it.getValue(GradlePropertyModel.STRING_TYPE) }
             .map { File(baseDir, it) }
     }
-
 }
