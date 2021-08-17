@@ -11,7 +11,7 @@ class DexCompiler(
     override val supportedTypes = listOf(CompileFile.Type.Class)
 
     // TODO jar invoke
-    private val dexFileMaker = DexFileMaker(context.androidBuildTools)
+    private val dexFileMaker = DexFileMaker()
 
     override fun doCompile(task: CompileTask): CompileResult {
         val outputs = mutableListOf<CompileOutput>()
