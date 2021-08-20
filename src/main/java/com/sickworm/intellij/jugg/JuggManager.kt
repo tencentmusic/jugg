@@ -71,12 +71,15 @@ class JuggManager(private val project: Project,
         }
     }
 
+    private var hasInit = false
+
     fun updateStatus(state: DeployState) {
         if (deployState == state) {
             return
         }
 
-        if (state.isReadyApply) {
+        if (state.isReadyApply && !hasInit) {
+            hasInit = true
             // TODO check apk md5
             logger.info("Detected deployable apk, start init compile")
             compileThread.submit {
