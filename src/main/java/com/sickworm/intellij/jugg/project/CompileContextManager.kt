@@ -38,14 +38,14 @@ class CompileContextManager(
     }
 
     private fun initDependency(modules: Map<String, ModuleInfo>) {
-        logger.debug("initDependency")
+        logger.debug("Start init dependency")
 
         // TODO auto update when file changes
         // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
         val libDep = IntellijLibraryConfigParser(libraryDir, projectDir).parse()!!
         for (dep in libDep) {
             if (!File(dep).exists()) {
-                logger.debug("libDep file not exists: $dep")
+                logger.debug("Library dependency file not exists: $dep")
             }
         }
 
@@ -60,11 +60,11 @@ class CompileContextManager(
         val moduleDirs = ModuleManager.getInstance(project).modules.mapNotNull {
             val baseDir = it.guessModuleDirAdv()
             if (baseDir == null) {
-                logger.warn("module $it dir not found")
+                logger.warn("Module $it dir not found")
                 return@mapNotNull null
             }
             if (!baseDir.exists()) {
-                logger.warn("module $it dir not exist")
+                logger.warn("Module $it dir not exist")
                 return@mapNotNull null
             }
             baseDir.path
@@ -96,7 +96,7 @@ class CompileContextManager(
         }
         for (dep in projectDeps) {
             if (!File(dep).exists()) {
-                logger.debug("projectDep file not exists: $dep")
+                logger.debug("ProjectDep file not exists: $dep")
             }
         }
 
@@ -119,7 +119,7 @@ class CompileContextManager(
             build-tools:${context.androidBuildTools}
             android.jar:${context.androidJar}
         """.trimIndent())
-        logger.info("dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
+        logger.info("Dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
 
         val androidDep = context.androidJar.path
         dependencies = juggClassPathDep + projectDeps + androidDep + libDep
@@ -127,7 +127,7 @@ class CompileContextManager(
     }
 
     private fun initModuleRoots(): Map<String, ModuleInfo> {
-        logger.debug("initModuleRoots")
+        logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
         ModuleManager.getInstance(project).modules.forEach { module ->
@@ -137,7 +137,7 @@ class CompileContextManager(
 
             val baseDir = module.guessModuleDirAdv()?.path
             if (baseDir == null) {
-                logger.warn("gradle module $module dir not found")
+                logger.warn("Gradle module $module dir not found")
                 return@forEach
             }
 
@@ -165,7 +165,7 @@ class CompileContextManager(
             }
             val buildModel = ProjectBuildModel.get(project).getModuleBuildModel(module)
             if (buildModel == null) {
-                logger.warn("gradle module $module not found")
+                logger.warn("Gradle module $module not found")
                 return@forEach
             }
             val sourceSets = buildModel.android().sourceSets()
@@ -194,11 +194,11 @@ class CompileContextManager(
 
     private fun getAndroidSdkRootDir(): File? {
         val allJdks = ProjectJdkTable.getInstance().allJdks
-        logger.debug("all available jdks: $allJdks")
+        logger.debug("All available jdks: $allJdks")
         val androidJdks = ProjectJdkTable.getInstance().allJdks.filter {
             it.name.contains("Android") && it.homeDirectory?.exists() == true
         }
-        logger.debug("all available android jdks: $androidJdks")
+        logger.debug("All available android jdks: $androidJdks")
 
         return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
     }

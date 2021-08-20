@@ -55,19 +55,19 @@ class JuggManager(private val project: Project,
     ))
 
     fun init() {
-        logger.info("start Jugg")
+        logger.info("Start Jugg")
         register(project, this)
         Disposer.register(project, this)
 
         compileThread.submit {
-            logger.debug("init compile context start")
+            logger.debug("Init compile context start")
             try {
                 compileContextManager.init()
             } catch (e: Throwable) {
-                logger.warn("init compile context failed, please contact ch.operation@gmail.com", e)
+                logger.warn("Init compile context failed, please contact ch.operation@gmail.com", e)
                 return@submit
             }
-            logger.info("init compile context finished")
+            logger.info("Init compile context finished")
         }
     }
 
@@ -78,7 +78,7 @@ class JuggManager(private val project: Project,
 
         if (state.isReadyApply) {
             // TODO check apk md5
-            logger.info("detected deployable apk, start init compile")
+            logger.info("Detected deployable apk, start init compile")
             compileThread.submit {
                 compileContextManager.compileContext.update(apks = deployTargetManager.getApks())
                 initCompile()
@@ -107,7 +107,7 @@ class JuggManager(private val project: Project,
             try {
                 compileChanges()
             } catch (e: Exception) {
-                logger.warn("compile changes failed", e)
+                logger.warn("Compile changes failed", e)
             }
 
             if (JuggSettings.deployOnSave) {
@@ -150,35 +150,35 @@ class JuggManager(private val project: Project,
 
     private fun deploy() {
         try {
-            logger.info("deploy start")
+            logger.info("Deploy start")
 
             if (deployState.isReadyApply) {
                 val apks = deployTargetManager.getApks()
                 if (apks.isEmpty()) {
-                    logger.warn("deploy failed, can not find apks")
+                    logger.warn("Deploy failed, can not find apks")
                     return
                 }
                 val deployData = deployDataManager.getDeployData(apks)
                 if (deployData.isEmpty) {
-                    logger.info("deploy finished with no data to deploy")
+                    logger.info("Deploy finished with no data to deploy")
                     return
                 }
 
-                logger.info("deploy data:\n$deployData")
+                logger.info("Deploy data:\n$deployData")
 
                 JuggDeployerHelper.runTask(deployData, project)
                 deployDataManager.commit()
             } else if (deployState.isReadyInstall) {
-                logger.info("can not deploy, install and run apk")
+                logger.info("Can not deploy, install and run apk")
                 deployTargetManager.runNormalBuild()
                 return
             } else {
-                logger.warn("not ready to deploy")
+                logger.warn("Not ready to deploy")
             }
 
-            logger.info("deploy finished")
+            logger.info("Deploy finished")
         } catch (e: Throwable) {
-            logger.error("deploy failed", e)
+            logger.error("Deploy failed", e)
         }
     }
 
