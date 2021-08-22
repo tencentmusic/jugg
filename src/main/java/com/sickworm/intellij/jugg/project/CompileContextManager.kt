@@ -194,7 +194,10 @@ class CompileContextManager(
 
     private fun getAndroidSdkRootDir(): File? {
         val allJdks = ProjectJdkTable.getInstance().allJdks
-        logger.debug("All available jdks: $allJdks")
+        val allJdkString = allJdks.map {
+            it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
+        }
+        logger.debug("All available jdks: $allJdkString")
         val androidJdks = ProjectJdkTable.getInstance().allJdks.filter {
             it.name.contains("Android") && it.homeDirectory?.exists() == true
         }

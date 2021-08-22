@@ -49,22 +49,49 @@ data class BaseCompileContext(
     }
 
     private fun getSuggestedPlatform(modules: Map<String, ModuleInfo>): File {
-        val versions = modules.values.map { it.compileVersion }
-        val version = getSuggestedVersion(versions)?: throw JuggException.androidJarNotFound("versions $versions")
+        val versionsInGradle = modules.values.map { it.compileVersion }
+        var version = getLatestVersion(versionsInGradle)
+        if (version == null) {
+            val rootDir = File(androidHome, "platforms")
+            val versionsInSdk = rootDir.listFiles()?.mapNotNull {
+                if (!it.name.startsWith("android-")) return@mapNotNull null
+                it.name.substring("android-".length)
+            }
+            version = getLatestVersion(versionsInSdk)
+
+            if (version == null) {
+                throw JuggException.androidJarNotFound(
+                    "versions in gradle: $versionsInGradle, versions in sdk: $versionsInSdk")
+            }
+        }
+
         val path = File(androidHome, "platforms/android-$version/android.jar")
         if (!path.exists()) throw JuggException.androidJarNotFound("path $path")
         return path
     }
 
     private fun getSuggestedBuildTools(modules: Map<String, ModuleInfo>): File {
-        val versions = modules.values.map { it.buildToolsVersion }
-        val version = getSuggestedVersion(versions)?: throw JuggException.buildToolsNotFound("versions $versions")
-        val path = File(androidHome, "build-tools/$version")
-        if (!path.exists()) throw JuggException.androidJarNotFound("path $path")
-        return path
+        val versionsInGradle = modules.values.map { it.buildToolsVersion }
+        var version = getLatestVersion(versionsInGradle)
+        if (version == null) {
+            val rootDir = File(androidHome, "build-tools")
+            val versionsInSdk = rootDir.listFiles()?.mapNotNull {
+                it.name
+            }
+            version = getLatestVersion(versionsInSdk)
+
+            if (version == null) {
+                throw JuggException.androidJarNotFound(
+                    "versions in gradle: $versionsInGradle, versions in sdk: $versionsInSdk")
+            }
+        }
+        val targetDir = File(androidHome, "build-tools/$version")
+        if (!targetDir.exists()) throw JuggException.androidJarNotFound("path $targetDir")
+        return targetDir
     }
 
-    private fun getSuggestedVersion(versions: List<String?>): String? {
+    private fun getLatestVersion(versions: List<String?>?): String? {
+        versions?: return null
         var suggestedVersion: String? = versions.firstOrNull()
         versions.forEach {
             if (it == null) return@forEach
@@ -76,14 +103,14 @@ data class BaseCompileContext(
     }
 
     private fun String.isLargerThan(version: String?): Boolean {
-        if (version == null) return false
+        if (version == null) return true
         val myVersions = this.split(".")
         val otherVersions = version.split(".")
         val size = kotlin.math.min(myVersions.size, otherVersions.size)
         for (i in 0 until size) {
             val compareResult = myVersions[i].compareTo(otherVersions[i])
-            if (compareResult == 1) return false
-            if (compareResult == -1) return true
+            if (compareResult == 1) return true
+            if (compareResult == -1) return false
         }
         return myVersions.size < otherVersions.size
     }
