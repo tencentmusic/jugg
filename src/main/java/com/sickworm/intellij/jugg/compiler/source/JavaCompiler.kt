@@ -4,11 +4,8 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
-import javax.tools.DiagnosticListener
+import javax.tools.*
 import javax.tools.JavaCompiler
-import javax.tools.JavaFileObject
-import javax.tools.StandardJavaFileManager
-import javax.tools.ToolProvider
 
 class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Java)
@@ -35,10 +32,8 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
-            logger.warn("java compile: $diagnostic")
-            if (item == null) {
-                // it maybe a compile warning like:
-                // warning: [options] bootstrap class path not set in conjunction with source -1.7
+            logger.warn(diagnostic.toString())
+            if (diagnostic.kind != Diagnostic.Kind.ERROR || item == null) {
                 return@DiagnosticListener
             }
             item.errors.add(diagnostic.lineNumber to diagnostic.toString())
