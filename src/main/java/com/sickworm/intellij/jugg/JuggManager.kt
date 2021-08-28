@@ -78,6 +78,9 @@ class JuggManager(private val project: Project,
             return
         }
 
+        toolWindow.updateStatus(state)
+        deployState = state
+
         if (state.isReadyApply && !hasInit) {
             val apks = deployTargetManager.getApks()
             if (apks.isEmpty()) {
@@ -92,9 +95,6 @@ class JuggManager(private val project: Project,
                 initCompile()
             }
         }
-
-        toolWindow.updateStatus(state)
-        deployState = state
     }
 
     private fun initCompile() {

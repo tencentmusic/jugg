@@ -47,7 +47,7 @@ class DeployTargetManager(
             val device = JuggDeployerHelper.getIDevice(project)
             apkProvider.getApks(device).toList()
         } catch (e: Exception) {
-            logger.warn("getApks failed", e)
+            logger.debug("getApks failed", e)
             emptyList()
         }
     }
