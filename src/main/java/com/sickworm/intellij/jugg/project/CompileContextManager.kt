@@ -1,8 +1,11 @@
 package com.sickworm.intellij.jugg.project
 
+import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel
 import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
+import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
+import com.android.tools.idea.gradle.structure.model.helpers.androidGradlePluginVersionValues
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -11,6 +14,8 @@ import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.guessModuleDirAdv
 import com.sickworm.intellij.jugg.relativePath
 import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import org.jetbrains.jps.model.java.JavaResourceRootType
+import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
 
 class CompileContextManager(
@@ -144,7 +149,7 @@ class CompileContextManager(
             val moduleManager = com.intellij.openapi.roots.ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
                 setOf(
-                    org.jetbrains.jps.model.java.JavaSourceRootType.SOURCE,
+                    JavaSourceRootType.SOURCE,
                     org.jetbrains.kotlin.config.SourceKotlinRootType
                 ))
                 .map { it.toIoFile() }
@@ -153,7 +158,7 @@ class CompileContextManager(
 
             val subResourceRoots = moduleManager.getSourceRoots(
                 setOf(
-                    org.jetbrains.jps.model.java.JavaResourceRootType.RESOURCE,
+                    JavaResourceRootType.RESOURCE,
                     org.jetbrains.kotlin.config.ResourceKotlinRootType
                 ))
             subResourceRoots.forEach {
@@ -183,8 +188,8 @@ class CompileContextManager(
                 .flatMap { it.getFileList(baseDir) }
             assetDirs.addAll(assetsSets)
 
-            val buildToolsVersion: String? = buildModel.android().buildToolsVersion().valueAsString()
-            val compileVersion: String? = buildModel.android().compileSdkVersion().valueAsString()
+            val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
+            val compileVersion: String? = buildModel.android().compileSdkVersion().readString(buildModel)
 
             modules[module.name] = ModuleInfo(module.name, sourceDirs, resourceDirs, assetDirs, compileVersion, buildToolsVersion)
         }
@@ -211,5 +216,19 @@ class CompileContextManager(
         return dirs
             .mapNotNull { it.getValue(GradlePropertyModel.STRING_TYPE) }
             .map { File(baseDir, it) }
+    }
+
+    private fun ResolvedPropertyModel.readString(model: GradleBuildModel): String? {
+        var value = valueAsString()?.trim()?: return null
+        // TODO better way to eval property
+        if (value.contains(" as ")) {
+            val index = value.indexOf(" as ")
+            value = value.substring(0, index)
+        }
+        val property = model.inScopeProperties[value]
+        if (property != null) {
+            return property.valueAsString()
+        }
+        return value
     }
 }
