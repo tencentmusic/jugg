@@ -5,16 +5,13 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.JuggDeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
-import com.sickworm.intellij.jugg.compiler.JuggCompiler
 import com.sickworm.intellij.jugg.toolWindow.JuggLogger
 import com.sickworm.intellij.jugg.toolWindow.JuggToolWindow
-import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.CompileTask
-import com.sickworm.intellij.jugg.compiler.file
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesListener
@@ -113,7 +110,12 @@ class JuggManager(private val project: Project,
 
         compileThread.submit {
             try {
-                compileChanges()
+                logger.info("Compile start")
+                val startTime = System.currentTimeMillis()
+                val compileResult = compileChanges()
+                val costTime = System.currentTimeMillis() - startTime
+                logger.info("Compile finished, cost ${costTime}ms")
+                logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
             } catch (e: Exception) {
                 logger.warn("Compile changes failed", e)
             }
@@ -130,7 +132,7 @@ class JuggManager(private val project: Project,
         }
     }
 
-    private fun compileChanges() {
+    private fun compileChanges(): CompileResult {
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
             CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
@@ -150,6 +152,8 @@ class JuggManager(private val project: Project,
         result.outputs.forEach {
             deployDataManager.addDeployFile(it)
         }
+
+        return result
     }
 
     fun deployAsync() {

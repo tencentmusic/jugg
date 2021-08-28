@@ -28,8 +28,6 @@ class JuggCompiler(
         context.subContext("classes"))
 
     override fun doCompile(task: CompileTask): CompileResult {
-        logger.info("compile start")
-        val startTime = System.currentTimeMillis()
 
         var compileResult = CompileResult(task, emptyList(), emptyList())
         val overlayOutputDir = File(task.outputDir, "overlays")
@@ -122,10 +120,6 @@ class JuggCompiler(
         if (sourceCompileTask.isNeedCompile) {
             compileResult += sourceCompiler.compile(sourceCompileTask)
         }
-
-        val costTime = System.currentTimeMillis() - startTime
-        logger.info("compile finished, cost ${costTime}ms")
-        logger.info("compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
 
         return compileResult
     }

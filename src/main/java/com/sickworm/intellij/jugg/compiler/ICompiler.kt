@@ -157,6 +157,8 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
     }
 
     override fun compile(task: CompileTask): CompileResult {
+        val startTime = System.currentTimeMillis()
+        logger.debug("${this::class.java.simpleName} start")
         checkTypesCanCompile(task)
         checkContextCanCompile(task)
         if (isNeedOutputDirEmpty) {
@@ -165,7 +167,12 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
         if (!task.outputDir.exists()) {
             task.outputDir.mkdirs()
         }
-        return doCompile(task)
+
+        val result = doCompile(task)
+
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms")
+        return result
     }
 
     open fun onContextUpdate() = Unit
