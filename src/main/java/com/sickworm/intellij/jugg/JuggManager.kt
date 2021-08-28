@@ -79,11 +79,16 @@ class JuggManager(private val project: Project,
         }
 
         if (state.isReadyApply && !hasInit) {
+            val apks = deployTargetManager.getApks()
+            if (apks.isEmpty()) {
+                return
+            }
+
             hasInit = true
             // TODO check apk md5
             logger.info("Detected deployable apk, start init compile")
             compileThread.submit {
-                compileContextManager.compileContext.update(apks = deployTargetManager.getApks())
+                compileContextManager.compileContext.update(apks = apks)
                 initCompile()
             }
         }
@@ -155,28 +160,32 @@ class JuggManager(private val project: Project,
         try {
             logger.info("Deploy start")
 
-            if (deployState.isReadyApply) {
-                val apks = deployTargetManager.getApks()
-                if (apks.isEmpty()) {
-                    logger.warn("Deploy failed, can not find apks")
+            when {
+                deployState.isReadyApply -> {
+                    val apks = compileContextManager.compileContext.apks
+                    if (apks.isEmpty()) {
+                        logger.warn("Deploy failed, can not find apks")
+                        return
+                    }
+                    val deployData = deployDataManager.getDeployData(apks)
+                    if (deployData.isEmpty) {
+                        logger.info("Deploy finished with no data to deploy")
+                        return
+                    }
+
+                    logger.info("Deploy data:\n$deployData")
+
+                    JuggDeployerHelper.runTask(deployData, project)
+                    deployDataManager.commit()
+                }
+                deployState.isReadyInstall -> {
+                    logger.info("Can not deploy, install and run apk")
+                    deployTargetManager.runNormalBuild()
                     return
                 }
-                val deployData = deployDataManager.getDeployData(apks)
-                if (deployData.isEmpty) {
-                    logger.info("Deploy finished with no data to deploy")
-                    return
+                else -> {
+                    logger.warn("Not ready to deploy")
                 }
-
-                logger.info("Deploy data:\n$deployData")
-
-                JuggDeployerHelper.runTask(deployData, project)
-                deployDataManager.commit()
-            } else if (deployState.isReadyInstall) {
-                logger.info("Can not deploy, install and run apk")
-                deployTargetManager.runNormalBuild()
-                return
-            } else {
-                logger.warn("Not ready to deploy")
             }
 
             logger.info("Deploy finished")
