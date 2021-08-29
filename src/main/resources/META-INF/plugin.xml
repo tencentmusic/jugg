@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>com.sickworm.intellij.android-incremental-deploy-plugin</id>
+    <id>com.sickworm.intellij.jugg</id>
     <name>Jugg</name>
     <vendor email="ch.operation@gmail.com" url="https://sickworm.com">sickworm</vendor>
 
