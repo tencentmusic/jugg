@@ -4,12 +4,10 @@ import java.io.File
 
 class DexFileMaker {
 
-    fun dex(classDir: File, outputFile: File, classFile: File = classDir) {
-        outputFile.parentFile?.mkdirs()
-        val jarFilePath = "$outputFile.jar" // copy from build-tools/30.0.3/lib
-        JarFileMaker().jar(classDir, File(jarFilePath), classFile)
-        val args = "--dex --min-sdk-version=26 --output=$outputFile $jarFilePath".split(" ").toTypedArray()
-        com.android.dx.command.Main.main(args)
-        File(jarFilePath).delete()
+    fun dex(outputDir: File, classFileOrDir: File) {
+        // TODO supports error check
+        outputDir.mkdirs()
+        val args = "--file-per-class --output $outputDir $classFileOrDir".split(" ").toTypedArray()
+        com.android.tools.r8.D8.main(args)
     }
 }

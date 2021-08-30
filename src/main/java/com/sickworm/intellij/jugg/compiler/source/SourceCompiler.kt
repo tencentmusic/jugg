@@ -48,12 +48,25 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
         val compileClassFiles = classFiles.map {
             CompileFile(CompileFile.Type.Class, it.file, it.baseDir)
         }
-        val dexTask = CompileTask(compileClassFiles, task.outputDir)
+        val dexOutputDir = File(context.tempCompileDir, "dex")
+        val dexTask = CompileTask(compileClassFiles, dexOutputDir)
         val dexResult = dexCompiler.compile(dexTask)
         if (!dexResult.isAllSuccess) {
             // TODO handle successfully compiled files
-            return compileResult.copy(outputs = emptyList())
+            return compileResult.copy(task = task, outputs = emptyList())
         }
+
+        // move dex files to output dir
+        val finalOutputs = dexResult.outputs.map {
+            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
+            outputFile.parentFile.mkdirs()
+            if (outputFile.exists()) {
+                outputFile.delete()
+            }
+            it.file.renameTo(outputFile)
+            CompileOutput(CompileOutput.Type.Dex, outputFile, task.outputDir)
+        }
+
 
         // move compiled files to class path for future compile dependencies
         val isMoveToClassPathSuccess = classFiles.map {
@@ -70,6 +83,6 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             }, emptyList())
         }
 
-        return CompileResult(task, compileResult.details, dexResult.outputs)
+        return CompileResult(task, compileResult.details, finalOutputs)
     }
 }

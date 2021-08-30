@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.listFilesRecursively
 
 class DexCompiler(
     context: ICompileContext
@@ -10,25 +11,43 @@ class DexCompiler(
 
     override val supportedTypes = listOf(CompileFile.Type.Class)
 
+    override val isNeedOutputDirEmpty: Boolean = true
+
     // TODO jar invoke
     private val dexFileMaker = DexFileMaker()
 
     override fun doCompile(task: CompileTask): CompileResult {
-        val outputs = mutableListOf<CompileOutput>()
-        val details = mutableListOf<Result<CompileFile, CompileError>>()
+        // TODO dexFileMaker supports multi files now, no need forEach
         task.files.forEach {
-            val dexOutputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "dex")
-            dexFileMaker.dex(it.baseDir, dexOutputFile, it.file)
+            dexFileMaker.dex(task.outputDir, it.file)
+        }
 
-            if (!dexOutputFile.exists() || dexOutputFile.length() <= 0) {
-                val errorMessage = "dex failed! file: ${it.file.absolutePath}"
-                logger.warn(errorMessage)
-                details.add(Result.failure(CompileError(it, listOf(0L to errorMessage))))
-            } else {
-                details.add(Result.success(it))
-                outputs.add(CompileOutput(CompileOutput.Type.Dex, dexOutputFile, task.outputDir))
+        val dexFiles = task.outputDir.listFilesRecursively()
+        var errorMessage = ""
+        if (dexFiles.isEmpty()) {
+            // just simple check because I can't determine how many files will create
+            // for it may has desuger operation
+            errorMessage = "dex failed! expect files size: ${task.files.size}, actual: ${dexFiles.size}"
+            logger.warn(errorMessage)
+        }
+
+        // all success or all failed
+        val details: List<Result<CompileFile, CompileError>>
+        val outputs: List<CompileOutput>
+        if (errorMessage.isNotEmpty()) {
+            details = task.files.map {
+                Result.failure(CompileError(it, listOf(-1L to errorMessage)))
+            }
+            outputs = emptyList()
+        } else {
+            details = task.files.map {
+                 Result.success(it)
+            }
+            outputs = dexFiles.map {
+                CompileOutput(CompileOutput.Type.Dex, it, task.outputDir)
             }
         }
+
         return CompileResult(task, details, outputs)
     }
 }
