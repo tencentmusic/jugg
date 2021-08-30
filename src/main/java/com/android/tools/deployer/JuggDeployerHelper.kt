@@ -9,10 +9,12 @@ import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.tasks.JuggApplyChangesTask
 import com.google.common.collect.ImmutableList
 import com.intellij.execution.executors.DefaultRunExecutor
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.JuggException
+import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
 import java.util.stream.Collectors
@@ -26,7 +28,7 @@ import java.util.stream.Collectors
 object JuggDeployerHelper {
 
     var installPathProvider: Computable<String> = Computable<String> {
-        EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()
+        findEmbeddedInstaller()
     }
 
     fun runTask(data: JuggDeployData, project: Project) {
@@ -99,4 +101,23 @@ object JuggDeployerHelper {
     private val isDebugging = true // ??
     private val deployTargetContext = DeployTargetContext()
     private fun supportMultipleDevices() = false
+
+    // private in Android Studio 4.1.2，so I copied it out
+    private fun findEmbeddedInstaller(): String? {
+        val path = "plugins/android/resources/installer"
+        val file = File(PathManager.getHomePath(), path)
+        if (file.exists()) {
+            return file.absolutePath
+        }
+        AndroidProfilerDownloader.getInstance().makeSureComponentIsInPlace()
+        val dir = AndroidProfilerDownloader.getInstance().getHostDir(path)
+        return if (dir.exists()) {
+            dir.absolutePath
+        } else File(
+            PathManager.getHomePath(),
+            "../../bazel-genfiles/tools/base/deploy/installer/android-installer"
+        ).absolutePath
+        // Development mode
+    }
+
 }
