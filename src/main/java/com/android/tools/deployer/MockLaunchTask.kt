@@ -29,10 +29,10 @@ class MockConsolePrinter(val project: Project): ConsolePrinter {
     val logger = JuggLogger.getInstance(project, "#Jugg-ConsolePrinter")
 
     override fun stdout(message: String) {
-        logger.info("stdout $message")
+        logger.info(message)
     }
 
     override fun stderr(message: String) {
-        logger.error("stderr $message")
+        logger.error(message)
     }
 }

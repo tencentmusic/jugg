@@ -153,17 +153,17 @@ public class JuggToolWindow {
 
     @Override
     public void debug(String message) {
-      append(message, JBColor.gray);
+      append(message, JBColor.GRAY);
     }
 
     @Override
     public void debug(@Nullable Throwable t) {
-      append(toStackTrace(t), JBColor.gray);
+      append(toStackTrace(t), JBColor.GRAY);
     }
 
     @Override
     public void debug(String message, @Nullable Throwable t) {
-      append(message + toStackTrace(t), JBColor.gray);
+      append(message + toStackTrace(t), JBColor.GRAY);
     }
 
     @Override
@@ -178,7 +178,7 @@ public class JuggToolWindow {
 
     @Override
     public void warn(String message, @Nullable Throwable t) {
-      append("WARN: " + message + toStackTrace(t), JBColor.YELLOW);
+      append("WARN: " + message + toStackTrace(t), JBColor.ORANGE);
     }
 
     @Override

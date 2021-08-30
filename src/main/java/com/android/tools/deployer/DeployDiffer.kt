@@ -82,7 +82,7 @@ class JuggDiffer(private val logger: ILogger) {
             }
         }
 
-        logger.info("parseApk ${apk.name} with ${classFiles.size} classes and ${overlayFiles.size} overlays")
+        logger.verbose("parseApk ${apk.name} with ${classFiles.size} classes and ${overlayFiles.size} overlays")
         return ApkFileStructure(classFiles, overlayFiles)
     }
 
@@ -106,7 +106,7 @@ class JuggDiffer(private val logger: ILogger) {
         if (resultLog.isEmpty()) {
             logger.warning("nothing to deploy")
         } else {
-            logger.info("deploy files: $resultLog")
+            logger.verbose("deploy files: $resultLog")
         }
     }
 

@@ -44,6 +44,8 @@ object JuggDeployerHelper {
         val executor = DefaultRunExecutor.getRunExecutorInstance()
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()
+
+        // TODO ConsolePrinter
         val consolePrinter = MockConsolePrinter(project)
         // TODO try ExecutionManager
         val launchResult = task.run(executor, device, launchStatus, consolePrinter)
