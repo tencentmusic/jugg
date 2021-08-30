@@ -119,7 +119,7 @@ class CompileContextManager(
         )
         logger.debug("""
             dependencies loaded:
-            libDep:${libDep.map { File(it).parentFile?.parentFile?.name }}
+            libDep:$libDep
             projectDep:${projectDeps.relativePath(projectDir)}
             build-tools:${context.androidBuildTools}
             android.jar:${context.androidJar}

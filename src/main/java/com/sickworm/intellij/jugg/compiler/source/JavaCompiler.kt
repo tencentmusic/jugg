@@ -43,6 +43,8 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         val objects = compileItems.map { it.fileObject }
 
         // do compile
+        logger.debug("Compile files: $objects")
+        logger.debug("Compile options: $options")
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
         if (!javaTask.call()) {
             logger.warn("javaTask call failed!")
