@@ -54,7 +54,7 @@ public class JuggToolWindow {
     String projectDir = project.getBasePath();
     logger.info("projectOpened " + project + " " + projectDir);
     if (projectDir == null) {
-      logger.warn("can not get project directory, exit");
+      logger.error("can not get project directory, exit");
       return;
     }
 
@@ -178,7 +178,7 @@ public class JuggToolWindow {
 
     @Override
     public void warn(String message, @Nullable Throwable t) {
-      append("WARN: " + message + toStackTrace(t), JBColor.RED);
+      append("WARN: " + message + toStackTrace(t), JBColor.YELLOW);
     }
 
     @Override

@@ -61,7 +61,7 @@ class JuggManager(private val project: Project,
             try {
                 compileContextManager.init()
             } catch (e: Throwable) {
-                logger.warn("Init compile context failed, please contact ch.operation@gmail.com", e)
+                logger.error("Init compile context failed, please contact ch.operation@gmail.com", e)
                 return@submit
             }
             logger.info("Init compile context finished")
@@ -117,7 +117,7 @@ class JuggManager(private val project: Project,
                 logger.info("Compile finished, cost ${costTime}ms")
                 logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
             } catch (e: Exception) {
-                logger.warn("Compile changes failed", e)
+                logger.error("Compile changes failed", e)
             }
 
             if (JuggSettings.deployOnSave) {
@@ -168,7 +168,7 @@ class JuggManager(private val project: Project,
                 deployState.isReadyApply -> {
                     val apks = compileContextManager.compileContext.apks
                     if (apks.isEmpty()) {
-                        logger.warn("Deploy failed, can not find apks")
+                        logger.error("Deploy failed, can not find apks")
                         return
                     }
                     val deployData = deployDataManager.getDeployData(apks)

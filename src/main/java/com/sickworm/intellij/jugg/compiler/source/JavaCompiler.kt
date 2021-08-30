@@ -32,10 +32,11 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
-            logger.warn(diagnostic.toString())
             if (diagnostic.kind != Diagnostic.Kind.ERROR || item == null) {
+                logger.warn(diagnostic.toString())
                 return@DiagnosticListener
             }
+            logger.error(diagnostic.toString())
             item.errors.add(diagnostic.lineNumber to diagnostic.toString())
         }
 
@@ -47,7 +48,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         logger.debug("Compile options: $options")
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
         if (!javaTask.call()) {
-            logger.warn("javaTask call failed!")
+            logger.error("javaTask call failed!")
         }
 
         // check result

@@ -72,7 +72,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         kotlinCompile.exec(printStream, *command.toTypedArray())
         val outputString = String(outputStream.toByteArray())
         if (outputString.isNotEmpty()) {
-            logger.warn("kotlin compile: $outputString")
+            logger.error("kotlin compile: $outputString")
         }
 
         // TODO check error

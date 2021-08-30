@@ -76,7 +76,7 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             return@map it.file.renameTo(classPathFile)
         }.all { true }
         if (!isMoveToClassPathSuccess) {
-            logger.warn("move class file to class path failed!")
+            logger.error("move class file to class path failed!")
             // we don't know .class file is from which source file, so all error
             return CompileResult(task, compileResult.details.map { result ->
                 Result.failure(CompileError(result.file, emptyList()))

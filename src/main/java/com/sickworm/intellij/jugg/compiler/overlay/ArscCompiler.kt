@@ -58,7 +58,7 @@ class ArscCompiler(
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
-            logger.warn("aapt2 load failed, error msg: ${result.errorOutput}")
+            logger.error("aapt2 load failed, error msg: ${result.errorOutput}")
             return false
         }
         logger.debug("onContextUpdate load res end")
@@ -102,7 +102,7 @@ class ArscCompiler(
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
-            logger.warn("aapt2 invoke failed, error msg: ${result.errorOutput}")
+            logger.error("aapt2 invoke failed, error msg: ${result.errorOutput}")
             return emptyList()
         }
 

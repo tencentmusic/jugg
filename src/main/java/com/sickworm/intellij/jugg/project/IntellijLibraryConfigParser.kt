@@ -20,7 +20,7 @@ class IntellijLibraryConfigParser(private val configDir: File, private val proje
      */
     fun parse(): List<String>? {
         if (!configDir.exists()) {
-            logger.warn("config dir not exist: $configDir")
+            logger.error("config dir not exist: $configDir")
             return null
         }
 
@@ -36,7 +36,7 @@ class IntellijLibraryConfigParser(private val configDir: File, private val proje
         parser.parse(path, handler)
         val jarFilePath = handler.jarFile
         if (jarFilePath.isEmpty()) {
-            logger.warn("can not read library info from: $path")
+            logger.error("can not read library info from: $path")
             return emptyList()
         }
         return jarFilePath

@@ -27,7 +27,7 @@ class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
                 details.add(Result.success(it))
             } catch (e: Exception) {
                 val errorMessage = "move file ${it.file.absolutePath} to ${outputFile.absolutePath} failed, e: $e"
-                logger.warn(errorMessage)
+                logger.error(errorMessage)
                 val result = CompileError(it, listOf(0L to errorMessage))
                 details.add(Result.failure(result))
             }
