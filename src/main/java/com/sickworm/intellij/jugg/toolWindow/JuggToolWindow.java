@@ -36,6 +36,7 @@ public class JuggToolWindow {
   private JTextPane runningLog;
   private JCheckBox deployOnSaveCheckBox;
   private JCheckBox enableDebugLogCheckBox;
+  private JCheckBox restartActivityCheckBox;
   private JLabel statusIconLabel;
   private JLabel statusLabel;
   private JPanel actionPanel;
@@ -69,6 +70,9 @@ public class JuggToolWindow {
 
     enableDebugLogCheckBox.setSelected(JuggSettings.INSTANCE.getLogDebug());
     enableDebugLogCheckBox.addItemListener(e -> JuggSettings.INSTANCE.setLogDebug(e.getStateChange() == ItemEvent.SELECTED));
+
+    restartActivityCheckBox.setSelected(JuggSettings.INSTANCE.getRestartActivity());
+    restartActivityCheckBox.addItemListener(e -> JuggSettings.INSTANCE.setRestartActivity(e.getStateChange() == ItemEvent.SELECTED));
 
     MutableAttributeSet set = new SimpleAttributeSet(runningLog.getParagraphAttributes());
     StyleConstants.setLineSpacing(set, 0.2f);

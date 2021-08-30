@@ -7,6 +7,7 @@ import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.tasks.JuggApplyChangesTask
+import com.android.tools.idea.run.tasks.JuggApplyCodeChangesTask
 import com.google.common.collect.ImmutableList
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.PathManager
@@ -14,6 +15,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.JuggSettings
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
@@ -32,15 +34,17 @@ object JuggDeployerHelper {
     }
 
     fun runTask(data: JuggDeployData, project: Project) {
-        val packages = // com.android.tools.idea.run.LaunchTaskRunner.run
-            // Add packages to the deployment, filtering out any dynamic features that are disabled.
-            data.apks.associate {
+        val packages = data.apks.associate {
                 // com.android.tools.idea.run.LaunchTaskRunner.run
                 // Add packages to the deployment, filtering out any dynamic features that are disabled.
                 val disabledFeatures = emptyList<String>()
                 it.applicationId to getFilteredFeatures(it, disabledFeatures)
             }
-        val task = JuggApplyChangesTask(project, packages, true, installPathProvider, data)
+        val task = if (JuggSettings.restartActivity) {
+            JuggApplyChangesTask(project, packages, true, installPathProvider, data)
+        } else {
+            JuggApplyCodeChangesTask(project, packages, true, installPathProvider, data)
+        }
         val executor = DefaultRunExecutor.getRunExecutorInstance()
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()

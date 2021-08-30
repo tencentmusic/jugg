@@ -13,6 +13,8 @@ object JuggSettings {
     var logDebug: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     var deployOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
+
+    var restartActivity: Boolean by propertiesComponent.delegate(defaultValue = true)
 }
 
 /**
