@@ -71,16 +71,53 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         val printStream = PrintStream(outputStream)
         kotlinCompile.exec(printStream, *command.toTypedArray())
         val outputString = String(outputStream.toByteArray())
-        if (outputString.isNotEmpty()) {
-            logger.error("kotlin compile: $outputString")
+
+        // TODO more elegant to check error?
+        var hasError = false
+        var isError = true
+        val message = StringBuilder()
+        var isNewMessage = false
+        outputString.split("\n").forEach {
+            if (it.contains("warning:")) {
+                isNewMessage = true
+            } else if (it.contains("error:")) {
+                isNewMessage = true
+                hasError = true
+            }
+
+            if (isNewMessage && message.isNotEmpty()) {
+                isNewMessage = false
+                if (isError) {
+                    logger.error(message.toString())
+                } else {
+                    logger.warn(message.toString())
+                }
+                message.clear()
+            }
+
+            if (message.isNotEmpty()) {
+                message.appendLine()
+            }
+            message.append(it)
+            if (it.contains("warning:")) {
+                isError = false
+            } else if (it.contains("error:")) {
+                isError = true
+            }
         }
 
-        // TODO check error
+        if (hasError) {
+            return CompileResult(task, task.files.map {
+                // TODO split error
+                Result.failure(CompileError(it, listOf(0L to outputString)))
+            }, emptyList())
+        }
+
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
             CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
         }
 
-        return CompileResult(task, listOf(com.sickworm.intellij.jugg.compiler.Result.success(task.files[0])), outputs)
+        return CompileResult(task, task.files.map { Result.success(it) }, outputs)
     }
 }

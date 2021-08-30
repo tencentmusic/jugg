@@ -148,22 +148,28 @@ public class JuggToolWindow {
 
     @Override
     public boolean isDebugEnabled() {
-      return false;
+      return JuggSettings.INSTANCE.getLogDebug();
     }
 
     @Override
     public void debug(String message) {
-      append(message, JBColor.GRAY);
+      if (isDebugEnabled()) {
+        append(message, JBColor.GRAY);
+      }
     }
 
     @Override
     public void debug(@Nullable Throwable t) {
-      append(toStackTrace(t), JBColor.GRAY);
+      if (isDebugEnabled()) {
+        append(toStackTrace(t), JBColor.GRAY);
+      }
     }
 
     @Override
     public void debug(String message, @Nullable Throwable t) {
-      append(message + toStackTrace(t), JBColor.GRAY);
+      if (isDebugEnabled()) {
+        append(message + toStackTrace(t), JBColor.GRAY);
+      }
     }
 
     @Override
@@ -183,9 +189,12 @@ public class JuggToolWindow {
 
     @Override
     public void error(String message, @Nullable Throwable t, String @NotNull ... details) {
-      append("ERROR: " + message + toStackTrace(t), JBColor.RED);
+      append("ERROR: " + message, JBColor.RED);
       for (String detail : details) {
-        append(detail, JBColor.DARK_GRAY);
+        append(detail, JBColor.RED);
+      }
+      if (isDebugEnabled()) {
+        append(toStackTrace(t).substring(1), JBColor.DARK_GRAY);
       }
     }
 

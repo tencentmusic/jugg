@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.toolWindow
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.JuggSettings
 import org.apache.log4j.Level
 import java.lang.ref.WeakReference
 import java.util.concurrent.CopyOnWriteArrayList
@@ -90,23 +89,17 @@ private class ProxyLogger(
 
     override fun debug(message: String?) {
         impl.debug(message)
-        if (JuggSettings.logDebug) {
-            proxy.debug(message)
-        }
+        proxy.debug(message)
     }
 
     override fun debug(t: Throwable?) {
         impl.debug(t)
-        if (JuggSettings.logDebug) {
-            proxy.debug(t)
-        }
+        proxy.debug(t)
     }
 
     override fun debug(message: String?, t: Throwable?) {
         impl.debug(message, t)
-        if (JuggSettings.logDebug) {
-            proxy.debug(message, t)
-        }
+        proxy.debug(message, t)
     }
 
     override fun info(message: String?) {
