@@ -198,7 +198,7 @@ public class JuggToolWindow {
         append(detail, JBColor.RED);
       }
       if (isDebugEnabled()) {
-        append(toStackTrace(t).substring(1), JBColor.DARK_GRAY);
+        append(toStackTrace(t).substring(1), JBColor.GRAY);
       }
     }
 
