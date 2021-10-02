@@ -6,11 +6,12 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.BaseCompileContext
+import com.sickworm.intellij.jugg.toolWindow.ErrorSafeDefaultLogger
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-val logger = Logger.getInstance("JuggTest")
+val logger = ErrorSafeDefaultLogger("JuggTest")
 
 // build directory
 val buildDir = File("src/test/build").absoluteFile

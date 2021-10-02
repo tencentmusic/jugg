@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.toolWindow
 
+import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -81,7 +82,7 @@ private class ProxyLogger(
     private val proxy: Logger
 ): Logger() {
 
-    val impl = getInstance(tag)
+    val impl = ErrorSafeDefaultLogger(tag)
 
     override fun isDebugEnabled(): Boolean {
         return true
@@ -125,5 +126,14 @@ private class ProxyLogger(
     override fun setLevel(level: Level) {
         impl.setLevel(level)
         proxy.setLevel(level)
+    }
+}
+
+class ErrorSafeDefaultLogger(category: String): DefaultLogger(category) {
+
+    override fun error(message: String?, t: Throwable?, vararg details: String?) {
+        val finalT = checkException(t)
+        val finalMessage = message + attachmentsToString(t)
+        dumpExceptionsToStderr(finalMessage, finalT, *details)
     }
 }
