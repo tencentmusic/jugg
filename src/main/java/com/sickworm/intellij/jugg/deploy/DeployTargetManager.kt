@@ -15,7 +15,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.toolWindow.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 
-class DeployTargetManager(
+open class DeployTargetManager(
     private val project: Project
 ) {
     private val logger = JuggLogger.getInstance(project, "#Jugg-DeployTargetManager")
@@ -27,7 +27,7 @@ class DeployTargetManager(
         }
     }
 
-    fun getApks(): List<ApkInfo> {
+    open fun getApks(): List<ApkInfo> {
         val (_, runConfig) = getRunConfig()
         return getApks(runConfig)
     }

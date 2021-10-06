@@ -21,7 +21,7 @@ import java.nio.file.Paths
 /**
  * Manage file changes in project
  */
-class FileChangesManager(
+open class FileChangesManager(
     private val project: Project,
     private val projectDir: String,
 ): Disposable {
@@ -32,7 +32,7 @@ class FileChangesManager(
 
     private lateinit var compileContext: ICompileContext
 
-    fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
+    open fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
         logger.info("start listen project $projectDir")
         this.compileContext = compileContext
         this.listener = listener

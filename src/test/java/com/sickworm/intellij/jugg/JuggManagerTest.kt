@@ -1,0 +1,217 @@
+package com.sickworm.intellij.jugg
+
+import com.android.tools.idea.run.ApkInfo
+import com.intellij.execution.RunManager
+import com.intellij.mock.MockProject
+import com.intellij.mock.MockRunManager
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.deploy.DeployState
+import com.sickworm.intellij.jugg.deploy.DeployTargetManager
+import com.sickworm.intellij.jugg.project.BaseCompileContext
+import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.FileChangesListener
+import com.sickworm.intellij.jugg.project.FileChangesManager
+import com.sickworm.intellij.jugg.toolWindow.DeviceStatusListener
+import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import org.junit.Before
+import org.junit.Test
+import java.util.concurrent.*
+import kotlin.test.assertTrue
+
+class JuggManagerTest {
+
+    private lateinit var project: Project
+    private lateinit var projectDir: String
+    private lateinit var juggManager: JuggManager
+    private lateinit var fileChangesManager: FileChangesManager
+    private lateinit var deviceStatusListener: DeviceStatusListener
+    private lateinit var deployTargetManager: DeployTargetManager
+    private lateinit var compileThread: ExecutorService
+    private lateinit var deployThread: ExecutorService
+    private lateinit var compileContextManager: CompileContextManager
+
+    @Before
+    fun init() {
+        clearBuild()
+        renewComponents()
+        renewManager()
+    }
+
+    private fun renewComponents() {
+        project = JuggMockProject()
+        projectDir = "src/test/assets/android/MyApplicationIntellij"
+        deviceStatusListener = object: DeviceStatusListener {
+            override fun updateStatus(state: DeployState) {
+            }
+        }
+        fileChangesManager = MockFileChangesManager(project, projectDir)
+        deployTargetManager = MockDeployTargetManager(project)
+        compileThread = SyncExecutorService()
+        deployThread = SyncExecutorService()
+        compileContextManager = MockCompileContextManager(project, projectDir)
+    }
+
+    private fun renewManager() {
+        juggManager = JuggManager(
+            project, projectDir, deviceStatusListener,
+            fileChangesManager = fileChangesManager,
+            deployTargetManager = deployTargetManager,
+            compileThread = compileThread,
+            deployThread = deployThread,
+            compileContextManager = compileContextManager
+        )
+        juggManager.init()
+    }
+
+    @Test
+    fun testDeviceStatusUpdate() {
+        var isReadyApply = false
+        deviceStatusListener = object: DeviceStatusListener {
+            override fun updateStatus(state: DeployState) {
+                println("updateStatus $state")
+                if (state.isReadyApply) {
+                    isReadyApply = true
+                }
+            }
+        }
+        renewManager()
+
+        val state = DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
+        juggManager.updateStatus(state)
+
+        assertTrue(isReadyApply)
+    }
+}
+
+class JuggMockProject : MockProject(null, {}) {
+
+    private val runManager = MockRunManager()
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : Any?> getService(serviceClass: Class<T>): T? {
+        if (serviceClass == RunManager::class.java) {
+            return runManager as T
+        }
+        return super.getService(serviceClass)
+    }
+}
+
+class MockDeployTargetManager(project: Project): DeployTargetManager(project) {
+
+    override fun getApks(): List<ApkInfo> {
+        return listOf(ApkInfo(assetsApkFile, androidApkPackage))
+    }
+}
+
+class SyncExecutorService: ExecutorService {
+    override fun execute(command: Runnable) {
+        TODO("Not yet implemented")
+    }
+
+    override fun shutdown() {
+        TODO("Not yet implemented")
+    }
+
+    override fun shutdownNow(): MutableList<Runnable> {
+        TODO("Not yet implemented")
+    }
+
+    override fun isShutdown(): Boolean {
+        return false
+    }
+
+    override fun isTerminated(): Boolean {
+        return false
+    }
+
+    override fun awaitTermination(timeout: Long, unit: TimeUnit): Boolean {
+        return true
+    }
+
+    override fun <T : Any?> submit(task: Callable<T>): Future<T> {
+        val result = task.call()
+        return CompletedFuture(result, null)
+    }
+
+    override fun <T : Any?> submit(task: Runnable, result: T): Future<T> {
+        task.run()
+        return CompletedFuture(result, null)
+    }
+
+    override fun submit(task: Runnable): Future<*> {
+        task.run()
+        return CompletedFuture(null, null)
+    }
+
+    override fun <T : Any?> invokeAll(tasks: MutableCollection<out Callable<T>>): MutableList<Future<T>> {
+        TODO("Not yet implemented")
+    }
+
+    override fun <T : Any?> invokeAll(
+        tasks: MutableCollection<out Callable<T>>,
+        timeout: Long,
+        unit: TimeUnit
+    ): MutableList<Future<T>> {
+        TODO("Not yet implemented")
+    }
+
+    override fun <T : Any?> invokeAny(tasks: MutableCollection<out Callable<T>>): T {
+        TODO("Not yet implemented")
+    }
+
+    override fun <T : Any?> invokeAny(tasks: MutableCollection<out Callable<T>>, timeout: Long, unit: TimeUnit): T {
+        TODO("Not yet implemented")
+    }
+
+}
+
+open class CompletedFuture<T>(private val v: T, private val re: Throwable?) : Future<T> {
+    override fun cancel(mayInterruptIfRunning: Boolean): Boolean {
+        return false
+    }
+
+    override fun isCancelled(): Boolean {
+        return false
+    }
+
+    override fun isDone(): Boolean {
+        return true
+    }
+
+    @Throws(ExecutionException::class)
+    override fun get(): T {
+        return if (re != null) {
+            throw ExecutionException(re)
+        } else {
+            v
+        }
+    }
+
+    @Throws(ExecutionException::class)
+    override fun get(timeout: Long, unit: TimeUnit): T {
+        return this.get()
+    }
+}
+
+class MockCompileContextManager(project: Project, projectDir: String)
+    : CompileContextManager(project, projectDir) {
+
+    override fun init() {
+        compileContext = BaseCompileContext(
+            logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
+            androidHome = androidHome,
+            tempCompileDir = tempCompileDir,
+            classPathDir = classPathDir,
+            modules = emptyMap()
+        )
+    }
+}
+
+class MockFileChangesManager(project: Project, projectDir: String)
+    : FileChangesManager(project, projectDir) {
+
+    override fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
+        // do nothing
+    }
+}

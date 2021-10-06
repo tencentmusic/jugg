@@ -1,6 +1,11 @@
 package com.sickworm.intellij.jugg
 
 import com.android.tools.deployer.JuggDeployerHelper
+import com.android.tools.idea.run.ApkInfo
+import com.googlecode.d2j.node.DexFileNode
+import com.googlecode.d2j.reader.BaseDexFileReader
+import com.googlecode.d2j.reader.DexFileReader
+import com.googlecode.d2j.reader.MultiDexFileReader
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -11,42 +16,43 @@ import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
 import com.sickworm.intellij.jugg.toolWindow.JuggLogger
-import com.sickworm.intellij.jugg.toolWindow.JuggToolWindow
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesListener
 import com.sickworm.intellij.jugg.project.FileChangesManager
+import com.sickworm.intellij.jugg.toolWindow.DeviceStatusListener
 import java.io.File
 import java.util.concurrent.Executors
+import kotlin.test.assertEquals
+import com.intellij.openapi.diagnostic.Logger
+import org.jetbrains.annotations.TestOnly
+import java.util.concurrent.ExecutorService
 
-
-class JuggManager(private val project: Project,
-                  private val projectDir: String,
-                  private val toolWindow: JuggToolWindow
-): Disposable {
-
-    private val logger = JuggLogger.getInstance(project, "#Jugg-JuggManager")
-
-    private val compileThread = Executors.newSingleThreadExecutor()
-    private val deployThread = Executors.newSingleThreadExecutor()
-
+class JuggManager @TestOnly constructor(
+    private val project: Project,
+    projectDir: String,
+    private val deviceStatusListener: DeviceStatusListener,
+    private val logger: Logger = JuggLogger.getInstance(project, "#Jugg-JuggManager"),
+    private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
+    private val deployThread: ExecutorService = Executors.newSingleThreadExecutor(),
     // hold compile context
-    private val compileContextManager = CompileContextManager(project, projectDir)
-
+    private val compileContextManager: CompileContextManager  = CompileContextManager(project, projectDir),
     // detect file changes
-    private val fileChangesManager = FileChangesManager(project, projectDir)
-
+    private val fileChangesManager: FileChangesManager = FileChangesManager(project, projectDir),
     // manage deploy data
-    private val deployDataManager = JuggDeployDataManager()
+    private val deployDataManager: JuggDeployDataManager = JuggDeployDataManager(),
+    // deploy target apk
+    private val deployTargetManager: DeployTargetManager = DeployTargetManager(project)
+): Disposable, DeviceStatusListener {
 
-    // compile dependency
-    private val libraryDir = File("$projectDir/.idea/libraries")
+    constructor(project2: Project,
+                projectDir: String,
+                deviceStatusListener: DeviceStatusListener):
+            this(project = project2, projectDir, deviceStatusListener)
 
     // compile
     private lateinit var compiler: JuggCompiler
 
-    // deploy target apk
-    private val deployTargetManager = DeployTargetManager(project)
     private var deployState = DeployState(isReadyInstall = false, isReadyApply = false, DisableMessage(
         DisableMessage.DisableMode.DISABLED, "not initialized", "jugg not initialized"
     ))
@@ -70,12 +76,12 @@ class JuggManager(private val project: Project,
 
     private var hasInit = false
 
-    fun updateStatus(state: DeployState) {
+    override fun updateStatus(state: DeployState) {
         if (deployState == state) {
             return
         }
 
-        toolWindow.updateStatus(state)
+        deviceStatusListener.updateStatus(state)
         deployState = state
 
         if (state.isReadyApply && !hasInit) {

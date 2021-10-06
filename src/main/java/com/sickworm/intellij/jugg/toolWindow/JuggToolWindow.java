@@ -29,7 +29,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Objects;
 
-public class JuggToolWindow {
+public class JuggToolWindow implements DeviceStatusListener {
 
   private JButton deployButton;
   private JPanel myToolWindowContent;
@@ -103,6 +103,7 @@ public class JuggToolWindow {
     statusIconLabel.setOpaque(true);
   }
 
+  @Override
   public void updateStatus(DeployState state) {
     String iconRes;
     if (state.isReadyApply()) {

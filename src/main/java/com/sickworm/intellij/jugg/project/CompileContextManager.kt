@@ -5,11 +5,11 @@ import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel
 import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
-import com.android.tools.idea.gradle.structure.model.helpers.androidGradlePluginVersionValues
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.guessModuleDirAdv
 import com.sickworm.intellij.jugg.relativePath
@@ -18,7 +18,7 @@ import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
 
-class CompileContextManager(
+open class CompileContextManager(
     val project: Project,
     val projectDir: String,
 ) {
@@ -37,7 +37,7 @@ class CompileContextManager(
 
     lateinit var compileContext: BaseCompileContext
 
-    fun init() {
+    open fun init() {
         val modules = initModuleRoots()
         initDependency(modules)
     }
@@ -146,7 +146,7 @@ class CompileContextManager(
                 return@forEach
             }
 
-            val moduleManager = com.intellij.openapi.roots.ModuleRootManager.getInstance(module)
+            val moduleManager = ModuleRootManager.getInstance(module)
             val subSourceRoots = moduleManager.getSourceRoots(
                 setOf(
                     JavaSourceRootType.SOURCE,
