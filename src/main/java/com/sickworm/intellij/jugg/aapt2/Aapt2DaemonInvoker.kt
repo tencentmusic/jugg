@@ -111,7 +111,7 @@ class Aapt2DaemonInvoker(
         fun getEmbeddedAapt2(): File {
             // TODO change to getResources
             if (!isMac) {
-                throw IllegalStateException("embedded aapt2 not support windows nor linux yet")
+//                throw IllegalStateException("embedded aapt2 not support windows nor linux yet")
             }
             return copyResource("/tools/darwin/aapt2")
         }

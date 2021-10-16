@@ -32,8 +32,9 @@ open class CompileContextManager(
     val classPathDir = File(buildDir, "classpath")
 
     val libraryDir = File("$projectDir/.idea/libraries")
+    // TODO use compileContext
     var dependencies = listOf<String>()
-        private set
+        protected set
 
     lateinit var compileContext: BaseCompileContext
 

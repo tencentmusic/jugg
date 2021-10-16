@@ -1,11 +1,6 @@
 package com.sickworm.intellij.jugg
 
 import com.android.tools.deployer.JuggDeployerHelper
-import com.android.tools.idea.run.ApkInfo
-import com.googlecode.d2j.node.DexFileNode
-import com.googlecode.d2j.reader.BaseDexFileReader
-import com.googlecode.d2j.reader.DexFileReader
-import com.googlecode.d2j.reader.MultiDexFileReader
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -21,9 +16,7 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesListener
 import com.sickworm.intellij.jugg.project.FileChangesManager
 import com.sickworm.intellij.jugg.toolWindow.DeviceStatusListener
-import java.io.File
 import java.util.concurrent.Executors
-import kotlin.test.assertEquals
 import com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ExecutorService

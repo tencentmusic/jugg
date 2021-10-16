@@ -28,9 +28,9 @@ open class FileChangesManager(
 
     private val logger = JuggLogger.getInstance(project, "#Jugg-FileChangesManager")
 
-    private lateinit var listener: FileChangesListener
+    protected var listener: FileChangesListener? = null
 
-    private lateinit var compileContext: ICompileContext
+    protected var compileContext: ICompileContext? = null
 
     open fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
         logger.info("start listen project $projectDir")
@@ -59,18 +59,20 @@ open class FileChangesManager(
     }
 
     private fun listenFileChanges() {
-        val vfsListener = object: AsyncFileListener {
-            override fun prepareChange(events: MutableList<out VFileEvent>): AsyncFileListener.ChangeApplier {
-                return object: AsyncFileListener.ChangeApplier {
-                    override fun afterVfsChange() {
-                        val changeFiles = events.mapNotNull(::filterDeployFile)
-                        if (changeFiles.isEmpty()) return
-                        listener.onFileChanges(changeFiles)
-                    }
+        val vfsListener = AsyncFileListener { events ->
+            object: AsyncFileListener.ChangeApplier {
+                override fun afterVfsChange() {
+                    notifyFileChanges(events)
                 }
             }
         }
         VirtualFileManager.getInstance().addAsyncFileListener(vfsListener, this)
+    }
+
+    protected fun notifyFileChanges(events: MutableList<out VFileEvent>) {
+        val changeFiles = events.mapNotNull(::filterDeployFile)
+        if (changeFiles.isEmpty()) return
+        listener?.onFileChanges(changeFiles)
     }
 
     /**
@@ -101,7 +103,12 @@ open class FileChangesManager(
             return null
         }
 
-        val modules = compileContext.modules.values
+        if (compileContext == null) {
+            logger.warn("compileContext not set to FileChangesManager, this should not happened")
+            return null
+        }
+
+        val modules = compileContext?.modules?.values?: emptyList()
         modules.forEach { module ->
             val baseSourceDir = module.sourceDirs.find {
                 virtualFile.path.startsWith(it.path)

@@ -4,19 +4,21 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.RunManager
 import com.intellij.mock.MockProject
 import com.intellij.mock.MockRunManager
+import com.intellij.mock.MockVirtualFile
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
-import com.sickworm.intellij.jugg.project.BaseCompileContext
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.FileChangesListener
-import com.sickworm.intellij.jugg.project.FileChangesManager
+import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.toolWindow.JuggLogger
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.util.concurrent.*
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class JuggManagerTest {
@@ -24,7 +26,7 @@ class JuggManagerTest {
     private lateinit var project: Project
     private lateinit var projectDir: String
     private lateinit var juggManager: JuggManager
-    private lateinit var fileChangesManager: FileChangesManager
+    private lateinit var fileChangesManager: MockFileChangesManager
     private lateinit var deviceStatusListener: DeviceStatusListener
     private lateinit var deployTargetManager: DeployTargetManager
     private lateinit var compileThread: ExecutorService
@@ -64,6 +66,11 @@ class JuggManagerTest {
         juggManager.init()
     }
 
+    private fun initEnv() {
+        val state = DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
+        juggManager.updateStatus(state)
+    }
+
     @Test
     fun testDeviceStatusUpdate() {
         var isReadyApply = false
@@ -77,10 +84,26 @@ class JuggManagerTest {
         }
         renewManager()
 
-        val state = DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
-        juggManager.updateStatus(state)
-
+        initEnv()
         assertTrue(isReadyApply)
+    }
+
+    @Test
+    fun testCompileJavaFile() {
+        initEnv()
+
+        val relativePath = "app/src/main/java/com/example/myapplication/ABC.java"
+        val sourceFile = File(assetsAndroidModifySourceDir, relativePath)
+        val destFile = File(assetsAndroidDir, relativePath)
+        fileChangesManager.copyAndNotifyFileChanges(sourceFile, destFile)
+
+        val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/ABC.class")
+        assertTrue(classPathFile.exists())
+        assertEquals(406, classPathFile.length())
+
+        val dexFile = File(compileContextManager.stagingDir, "classes/com/example/myapplication/ABC.dex")
+        assertTrue(dexFile.exists())
+        assertEquals(716, dexFile.length())
     }
 }
 
@@ -203,8 +226,24 @@ class MockCompileContextManager(project: Project, projectDir: String)
             androidHome = androidHome,
             tempCompileDir = tempCompileDir,
             classPathDir = classPathDir,
-            modules = emptyMap()
+            modules = mapOf(
+                "app" to ModuleInfo(
+                    name = "app",
+                    sourceDirs = listOf(File(assetsAndroidDir, "app/src/main/java")),
+                    assetsDirs = listOf(File(assetsAndroidDir, "app/src/main/assets")),
+                    resourceDirs = listOf(File(assetsAndroidDir, "app/src/main/res")),
+                    compileVersion = "30",
+                    buildToolsVersion = "30.0.3"
+                )
+            )
         )
+
+        // TODO projectDeps
+        val libDep = IntellijLibraryConfigParser(intellijLibraryDir, assetsAndroidDir.absolutePath).parse()!!
+        dependencies = listOf(
+            classPathDir.absolutePath,
+            androidJar.absolutePath
+        ) + libDep
     }
 }
 
@@ -212,6 +251,21 @@ class MockFileChangesManager(project: Project, projectDir: String)
     : FileChangesManager(project, projectDir) {
 
     override fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
-        // do nothing
+        this.compileContext = compileContext
+        this.listener = listener
+    }
+
+    fun copyAndNotifyFileChanges(sourceFile: File, destFile: File) {
+        sourceFile.copyTo(destFile, overwrite = true)
+        val file = MockIoVirtualFile(destFile)
+        val event = VFileContentChangeEvent(Any(), file, 0L, 0L, false)
+        notifyFileChanges(mutableListOf(event))
+    }
+}
+
+class MockIoVirtualFile(val file: File): MockVirtualFile(file.name, file.readText()) {
+
+    override fun getPath(): String {
+        return file.absolutePath
     }
 }
