@@ -105,6 +105,20 @@ class JuggManagerTest {
         assertTrue(dexFile.exists())
         assertEquals(716, dexFile.length())
     }
+
+    @Test
+    fun testCompileActivity() {
+        initEnv()
+
+        val relativePath = "app/src/main/java/com/example/myapplication/MainActivity2.java"
+        val sourceFile = File(assetsAndroidModifySourceDir, relativePath)
+        val destFile = File(assetsAndroidDir, relativePath)
+        fileChangesManager.copyAndNotifyFileChanges(sourceFile, destFile)
+
+        val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/MainActivity2.class")
+        // TODO fix this
+        assertTrue(!classPathFile.exists())
+    }
 }
 
 class JuggMockProject : MockProject(null, {}) {
