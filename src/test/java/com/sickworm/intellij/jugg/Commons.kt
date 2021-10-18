@@ -3,10 +3,8 @@
 package com.sickworm.intellij.jugg
 
 import com.android.tools.idea.run.ApkInfo
-import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.BaseCompileContext
-import com.sickworm.intellij.jugg.toolWindow.ErrorSafeDefaultLogger
+import com.sickworm.intellij.jugg.ide.toolWindow.ErrorSafeDefaultLogger
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

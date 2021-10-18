@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.relativePath
-import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import java.io.File
 import java.nio.file.Paths
 

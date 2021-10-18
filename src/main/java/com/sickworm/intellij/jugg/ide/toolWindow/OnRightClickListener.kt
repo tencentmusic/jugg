@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.toolWindow
+package com.sickworm.intellij.jugg.ide.toolWindow
 
 import java.awt.event.MouseEvent
 import java.awt.event.MouseListener

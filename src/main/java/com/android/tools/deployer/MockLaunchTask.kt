@@ -4,7 +4,7 @@ import com.android.tools.idea.run.ConsolePrinter
 import com.android.tools.idea.run.util.LaunchStatus
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import java.util.function.BooleanSupplier
 
 class MockLaunchStatus: LaunchStatus {

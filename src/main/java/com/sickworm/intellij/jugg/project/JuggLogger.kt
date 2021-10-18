@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.toolWindow
+package com.sickworm.intellij.jugg.ide.toolWindow
 
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger

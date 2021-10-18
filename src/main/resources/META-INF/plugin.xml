@@ -26,7 +26,7 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
                 id="Jugg"
                 icon="AllIcons.Toolwindows.ToolWindowRun"
                 anchor="bottom"
-                factoryClass="com.sickworm.intellij.jugg.toolWindow.JuggToolWindowFactory"
+                factoryClass="com.sickworm.intellij.jugg.ide.toolWindow.JuggToolWindowFactory"
         />
     </extensions>
 </idea-plugin>

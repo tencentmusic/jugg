@@ -12,7 +12,7 @@ import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 
 open class DeployTargetManager(

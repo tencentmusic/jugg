@@ -10,12 +10,12 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
-import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesListener
 import com.sickworm.intellij.jugg.project.FileChangesManager
-import com.sickworm.intellij.jugg.toolWindow.DeviceStatusListener
+import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
 import org.jetbrains.annotations.TestOnly

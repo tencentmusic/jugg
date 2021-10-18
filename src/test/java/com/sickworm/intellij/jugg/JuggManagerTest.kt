@@ -12,15 +12,12 @@ import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.project.*
-import com.sickworm.intellij.jugg.toolWindow.DeviceStatusListener
-import com.sickworm.intellij.jugg.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import org.junit.Before
 import org.junit.Test
 import java.io.File
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Future
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
