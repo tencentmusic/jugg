@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg;
+package com.sickworm.intellij.jugg.ide;
 
 import com.intellij.ide.plugins.DynamicPluginListener;
 import com.intellij.ide.plugins.IdeaPluginDescriptor;

@@ -72,6 +72,9 @@ class JuggManagerTest {
     private fun initEnv() {
         val state = DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
         juggManager.updateStatus(state)
+
+        assertEquals(1, deployTargetManager.getApks().size)
+        assertEquals(1, compileContextManager.compileContext.apks.size)
     }
 
     @Test
