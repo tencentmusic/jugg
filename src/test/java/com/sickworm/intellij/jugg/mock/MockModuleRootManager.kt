@@ -4,24 +4,28 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.vfs.VirtualFile
+import org.jetbrains.jps.model.java.JavaResourceRootType
+import org.jetbrains.jps.model.java.JavaSourceRootType
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType
 import java.io.File
 
 @Suppress("NonExtendableApiUsage")
 class MockModuleRootManager(private val root: VirtualFile): ModuleRootManager() {
 
+    private val roots = mapOf<JpsModuleSourceRootType<*>, List<String>>(
+        JavaSourceRootType.SOURCE to listOf("src/main/java"),
+        JavaResourceRootType.RESOURCE to listOf("src/main/assets", "src/main/res"),
+    )
+
     override fun getContentRoots(): Array<VirtualFile> {
         return arrayOf(root)
     }
 
     override fun getSourceRoots(rootTypes: MutableSet<out JpsModuleSourceRootType<*>>): MutableList<VirtualFile> {
-        return listOf(
-            "src/main/java",
-            "src/main/assets",
-            "src/main/res"
-        ).map {
-            MockIoVirtualFile(File(root.path, it))
-        }.toMutableList()
+        return rootTypes
+            .flatMap { roots[it]?: emptyList() }
+            .map { MockIoVirtualFile(File(root.path, it)) }
+            .toMutableList()
     }
 
     override fun getModule(): Module {

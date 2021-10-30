@@ -21,10 +21,10 @@ class MockGradleBuildModel: GradleBuildModel {
 
     override fun android(): AndroidModel {
         val compileSdkVersion = mock(ResolvedPropertyModel::class.java)
-        `when`(compileSdkVersion.valueAsString()).thenReturn(androidBuildTools.name)
+        `when`(compileSdkVersion.valueAsString()).thenReturn(androidBuildTools.name.substring(0, 2))
 
         val buildToolsVersion = mock(ResolvedPropertyModel::class.java)
-        `when`(buildToolsVersion.valueAsString()).thenReturn(androidBuildTools.name.substring(0, 2))
+        `when`(buildToolsVersion.valueAsString()).thenReturn(androidBuildTools.name)
 
         val androidModel = mock(AndroidModel::class.java)
         `when`(androidModel.sourceSets()).thenReturn(mutableListOf())
