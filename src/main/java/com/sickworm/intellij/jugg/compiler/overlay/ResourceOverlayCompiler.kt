@@ -1,8 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.compiler.Result
-import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.*
 
 class ResourceOverlayCompiler(

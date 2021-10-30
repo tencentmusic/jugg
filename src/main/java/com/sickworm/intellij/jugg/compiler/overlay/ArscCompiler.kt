@@ -1,10 +1,9 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.sickworm.intellij.jugg.*
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
 class ArscCompiler(

@@ -19,7 +19,10 @@ import java.io.File
 
 open class CompileContextManager(
     val project: Project,
-    val projectDir: String,
+    private val projectDir: String,
+    private val moduleManager: ModuleManager = ModuleManager.getInstance(project), // mock
+    private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
+    private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock
 ) {
     private val logger = JuggLogger.getInstance(project, "#Jugg-CompileContextManager")
 
@@ -60,10 +63,10 @@ open class CompileContextManager(
         val androidHome = getAndroidSdkRootDir()
         logger.info("use android sdk home: $androidHome")
         if (androidHome == null) {
-            throw IllegalStateException("can not found android sdk home, exit init.")
+            throw JuggException.androidHomeNotFound()
         }
 
-        val moduleDirs = ModuleManager.getInstance(project).modules.mapNotNull {
+        val moduleDirs = moduleManager.modules.mapNotNull {
             val baseDir = it.guessModuleDirAdv()
             if (baseDir == null) {
                 logger.warn("Module $it dir not found")
@@ -136,7 +139,7 @@ open class CompileContextManager(
         logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
-        ModuleManager.getInstance(project).modules.forEach { module ->
+        moduleManager.modules.forEach { module ->
             val sourceDirs = mutableListOf<File>()
             val resourceDirs = mutableListOf<File>()
             val assetDirs = mutableListOf<File>()
@@ -169,7 +172,7 @@ open class CompileContextManager(
                     assetDirs.add(it.toIoFile())
                 }
             }
-            val buildModel = ProjectBuildModel.get(project).getModuleBuildModel(module)
+            val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
                 logger.warn("Gradle module $module not found")
                 return@forEach
@@ -199,12 +202,12 @@ open class CompileContextManager(
     }
 
     private fun getAndroidSdkRootDir(): File? {
-        val allJdks = ProjectJdkTable.getInstance().allJdks
+        val allJdks = projectJdkTable.allJdks
         val allJdkString = allJdks.map {
             it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
         }
         logger.debug("All available jdks: $allJdkString")
-        val androidJdks = ProjectJdkTable.getInstance().allJdks.filter {
+        val androidJdks = allJdks.filter {
             it.name.contains("Android") && it.homeDirectory?.exists() == true
         }
         logger.debug("All available android jdks: $androidJdks")

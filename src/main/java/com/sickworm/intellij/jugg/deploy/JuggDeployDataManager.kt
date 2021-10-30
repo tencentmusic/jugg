@@ -4,7 +4,7 @@ import com.android.tools.deployer.JuggDeployData
 import com.android.tools.deployer.JuggDeployItem
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.vfs.VirtualFile
-import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput

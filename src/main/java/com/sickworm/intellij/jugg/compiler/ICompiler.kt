@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
 data class CompileTask(

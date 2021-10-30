@@ -1,11 +1,10 @@
 package com.sickworm.intellij.jugg.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.JuggInternalException
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.copyResource
 import com.sickworm.intellij.jugg.isMac
 import java.io.*
-import java.lang.IllegalStateException
 import java.util.*
 
 /**

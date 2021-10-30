@@ -1,10 +1,8 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
-import com.sickworm.intellij.jugg.project.ChangedFile
-import java.io.File
 
 /** Exception for notifying user */
 class JuggException(msg: String): Exception(msg) {
@@ -24,6 +22,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun androidJarNotFound(details: String) =
             JuggException("Can not found android.jar, can not compile. details: $details")
+
+        fun androidHomeNotFound() =
+            JuggException("Can not found android sdk home, exit init.")
     }
 }
 

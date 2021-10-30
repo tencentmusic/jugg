@@ -2,7 +2,6 @@ package com.android.tools.deployer
 
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.gradle.util.DynamicAppUtils
-import com.android.tools.idea.gradle.util.EmbeddedDistributionPaths
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
@@ -14,7 +13,7 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.JuggException
+import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.JuggSettings
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.android.facet.AndroidFacet
