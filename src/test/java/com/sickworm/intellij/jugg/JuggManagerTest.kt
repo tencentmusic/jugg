@@ -27,7 +27,7 @@ class JuggManagerTest {
     private lateinit var projectDir: String
     private lateinit var juggManager: JuggManager
     private lateinit var fileChangesManager: MockFileChangesManager
-    private lateinit var deviceStatusListener: DeviceStatusListener
+    private lateinit var deviceStatusListener: MockDeviceStatusListener
     private lateinit var deployTargetManager: DeployTargetManager
     private lateinit var compileThread: ExecutorService
     private lateinit var deployThread: ExecutorService
@@ -43,10 +43,7 @@ class JuggManagerTest {
     private fun renewComponents() {
         project = JuggMockProject()
         projectDir = "src/test/assets/android/MyApplicationIntellij"
-        deviceStatusListener = object: DeviceStatusListener {
-            override fun updateStatus(state: DeployState) {
-            }
-        }
+        deviceStatusListener = MockDeviceStatusListener()
         fileChangesManager = MockFileChangesManager(project, projectDir)
         deployTargetManager = MockDeployTargetManager(project)
         compileThread = SyncExecutorService()
@@ -72,23 +69,12 @@ class JuggManagerTest {
 
         assertEquals(1, deployTargetManager.getApks().size)
         assertEquals(1, compileContextManager.compileContext.apks.size)
+        assertTrue(deviceStatusListener.isReadyApply)
     }
 
     @Test
     fun testDeviceStatusUpdate() {
-        var isReadyApply = false
-        deviceStatusListener = object: DeviceStatusListener {
-            override fun updateStatus(state: DeployState) {
-                println("updateStatus $state")
-                if (state.isReadyApply) {
-                    isReadyApply = true
-                }
-            }
-        }
-        renewManager()
-
         initEnv()
-        assertTrue(isReadyApply)
     }
 
     @Test
@@ -121,6 +107,18 @@ class JuggManagerTest {
         val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/MainActivity2.class")
         // TODO fix this
         assertTrue(!classPathFile.exists())
+    }
+}
+
+class MockDeviceStatusListener: DeviceStatusListener {
+    var isReadyApply = false
+        private set
+
+    override fun updateStatus(state: DeployState) {
+        println("updateStatus $state")
+        if (state.isReadyApply) {
+            isReadyApply = true
+        }
     }
 }
 
