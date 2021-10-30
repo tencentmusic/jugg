@@ -31,11 +31,13 @@ val assetsAssetsDir = File(assetsDir, "assets")
 
 // dependency
 val androidHome = File(System.getenv("ANDROID_HOME")?: throw IllegalStateException("please specific ANDROID_HOME in env"))
-val androidJar = File("$androidHome/platforms/android-30/android.jar").also {
+val androidPlatform = File("$androidHome/platforms/android-30").also {
     if (!it.exists()) {
         throw IllegalStateException("android.jar not found in: $it")
     }
 }
+val androidJar = File("$androidPlatform/android.jar")
+
 const val androidApkPackage = "com.example.myapplication"
 
 val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {

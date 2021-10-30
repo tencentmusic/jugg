@@ -1,17 +1,19 @@
 package com.sickworm.intellij.jugg
 
+import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.run.ApkInfo
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.project.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.BaseCompileContext
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
 import org.junit.Before
@@ -26,7 +28,6 @@ class JuggManagerTest {
     private lateinit var project: Project
     private lateinit var projectDir: String
     private lateinit var apkInfos: List<ApkInfo>
-    private lateinit var compileContext: ICompileContext
 
     private lateinit var juggManager: JuggManager
     private lateinit var fileChangesManager: FileChangesManager
@@ -39,31 +40,20 @@ class JuggManagerTest {
         project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
         apkInfos = listOf(ApkInfo(assetsApkFile, androidApkPackage))
-        compileContext = BaseCompileContext(
-            logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
-            androidHome = androidHome,
-            tempCompileDir = tempCompileDir,
-            classPathDir = classPathDir,
-            modules = mapOf(
-                "app" to ModuleInfo(
-                    name = "app",
-                    sourceDirs = listOf(File(assetsAndroidDir, "app/src/main/java")),
-                    assetsDirs = listOf(File(assetsAndroidDir, "app/src/main/assets")),
-                    resourceDirs = listOf(File(assetsAndroidDir, "app/src/main/res")),
-                    compileVersion = "30",
-                    buildToolsVersion = "30.0.3"
-                )
-            )
-        )
 
         deviceStatusListener = mock(DeviceStatusListener::class.java)
 
         deployTargetManager = mock(DeployTargetManager::class.java)
         `when`(deployTargetManager.getApks()).thenReturn(apkInfos)
 
-        compileContextManager = spy(CompileContextManager(project, projectDir))
-        doNothing().`when`(compileContextManager).init()
-        doReturn(compileContext).`when`(compileContextManager).compileContext
+        val moduleManager = mock(ModuleManager::class.java)
+        doReturn(arrayOf(MockModule(File(assetsAndroidDir, "app")))).`when`(moduleManager).modules
+        val projectJdkTable = mock(ProjectJdkTable::class.java)
+        doReturn(arrayOf(MockAndroid30Sdk())).`when`(projectJdkTable).allJdks
+        val projectBuildModel = mock(ProjectBuildModel::class.java)
+        doReturn(MockGradleBuildModel()).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
+        compileContextManager = CompileContextManager(project, projectDir,
+            moduleManager, projectJdkTable, projectBuildModel)
 
         val virtualFileManager = mock(VirtualFileManager::class.java)
         `when`(virtualFileManager.addAsyncFileListener(any(), any())).then {
@@ -98,6 +88,12 @@ class JuggManagerTest {
         verify(deviceStatusListener, times(1)).updateStatus(state)
     }
 
+    private fun onFileChanges(relativePath: String) {
+        val sourceFile = File(assetsAndroidModifySourceDir, relativePath)
+        val destFile = File(assetsAndroidDir, relativePath)
+        fileChangeEventSender.copyAndNotifyFileChanges(sourceFile, destFile)
+    }
+
     @Before
     fun init() {
         clearBuild()
@@ -113,10 +109,7 @@ class JuggManagerTest {
 
     @Test
     fun testCompileJavaFile() {
-        val relativePath = "app/src/main/java/com/example/myapplication/ABC.java"
-        val sourceFile = File(assetsAndroidModifySourceDir, relativePath)
-        val destFile = File(assetsAndroidDir, relativePath)
-        fileChangeEventSender.copyAndNotifyFileChanges(sourceFile, destFile)
+        onFileChanges("app/src/main/java/com/example/myapplication/ABC.java")
 
         val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/ABC.class")
         assertTrue(classPathFile.exists())
@@ -129,13 +122,10 @@ class JuggManagerTest {
 
     @Test
     fun testCompileActivity() {
-        val relativePath = "app/src/main/java/com/example/myapplication/MainActivity2.java"
-        val sourceFile = File(assetsAndroidModifySourceDir, relativePath)
-        val destFile = File(assetsAndroidDir, relativePath)
-        fileChangeEventSender.copyAndNotifyFileChanges(sourceFile, destFile)
+        onFileChanges("app/src/main/java/com/example/myapplication/MainActivity2.java")
 
         val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/MainActivity2.class")
         // TODO fix this
-        assertTrue(!classPathFile.exists())
+        assertTrue(classPathFile.exists())
     }
 }
