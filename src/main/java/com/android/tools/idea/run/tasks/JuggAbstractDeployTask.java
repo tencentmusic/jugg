@@ -54,7 +54,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.swing.event.HyperlinkEvent;
 
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger;
+import com.sickworm.intellij.jugg.project.JuggLogger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

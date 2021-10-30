@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide.toolWindow
+package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger
@@ -18,20 +18,27 @@ object JuggLogger {
     }
 
     fun listenProjectLog(project: Project, logger: Logger) {
-        ensure(project)
-        map[project]?.add(logger)
+        val loggerList = ensure(project)
+        if (!loggerList.contains(logger)) {
+            loggerList.add(logger)
+        }
     }
 
-    private fun ensure(project: Project) {
-        if (map[project] == null) {
-            synchronized(map) {
-                if (map[project] == null) {
-                    map[project] = CopyOnWriteArrayList()
-                    Disposer.register(project) {
-                        map.remove(project)
-                    }
-                }
+    private fun ensure(project: Project): MutableList<Logger> {
+        map[project]?.let {
+            return it
+        }
+
+        synchronized(map) {
+            map[project]?.let {
+                return it
             }
+            val loggerList: MutableList<Logger> = CopyOnWriteArrayList()
+            map[project] = loggerList
+            Disposer.register(project) {
+                map.remove(project)
+            }
+            return loggerList
         }
     }
 

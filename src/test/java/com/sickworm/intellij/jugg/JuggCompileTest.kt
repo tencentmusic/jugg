@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File

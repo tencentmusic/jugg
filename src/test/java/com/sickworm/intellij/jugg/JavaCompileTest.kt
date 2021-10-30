@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.source.JavaCompiler
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -77,7 +78,8 @@ class JavaCompileTest {
             CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/jugg/test/JavaFileWithInterdependence.java"), assetsJavaDir),
             CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/jugg/test/NewDep.java"), assetsJavaDir)
         ),
-        stagingDir)
+        stagingDir
+    )
 
     @Test
     fun javaCompileMultiFilesWithDep() {

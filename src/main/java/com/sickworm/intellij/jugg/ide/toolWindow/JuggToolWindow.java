@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.JuggManager;
 import com.sickworm.intellij.jugg.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
 import com.sickworm.intellij.jugg.deploy.DeployState;
+import com.sickworm.intellij.jugg.project.JuggLogger;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

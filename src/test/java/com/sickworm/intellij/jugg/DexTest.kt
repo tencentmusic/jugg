@@ -1,9 +1,10 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
+import com.sickworm.intellij.jugg.mock.clearBuild
+import com.sickworm.intellij.jugg.mock.stagingDir
 import org.junit.Before
 import org.junit.Test
-import kotlin.system.measureTimeMillis
 import kotlin.test.assertTrue
 
 class DexTest {

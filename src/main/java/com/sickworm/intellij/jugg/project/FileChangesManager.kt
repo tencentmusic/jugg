@@ -14,29 +14,34 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.relativePath
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import java.io.File
 import java.nio.file.Paths
 
 /**
  * Manage file changes in project
  */
-open class FileChangesManager(
+class FileChangesManager(
     private val project: Project,
     private val projectDir: String,
+    private val virtualFileManager: VirtualFileManager = VirtualFileManager.getInstance() // for mock
 ): Disposable {
 
     private val logger = JuggLogger.getInstance(project, "#Jugg-FileChangesManager")
 
-    protected var listener: FileChangesListener? = null
+    private var listener: FileChangesListener? = null
 
-    protected var compileContext: ICompileContext? = null
+    private var compileContext: ICompileContext? = null
 
-    open fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
+    fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
         logger.info("start listen project $projectDir")
         this.compileContext = compileContext
         this.listener = listener
 
+        initRootDirs(compileContext)
+        initIdeEvent()
+    }
+
+    private fun initRootDirs(compileContext: ICompileContext) {
         val sourceDirs = compileContext.modules.values.flatMap { it.sourceDirs }
         val resourceDirs = compileContext.modules.values.flatMap { it.resourceDirs }
         val assetDirs = compileContext.modules.values.flatMap { it.assetsDirs }
@@ -49,16 +54,9 @@ open class FileChangesManager(
             |    asset dirs:
             |        ${assetDirs.map { it.path }.relativePath(projectDir) }
             |""".trimMargin())
-
-        listenFileChanges()
-        Disposer.register(project, this)
     }
 
-    override fun dispose() {
-        logger.info("$projectDir dispose")
-    }
-
-    private fun listenFileChanges() {
+    private fun initIdeEvent() {
         val vfsListener = AsyncFileListener { events ->
             object: AsyncFileListener.ChangeApplier {
                 override fun afterVfsChange() {
@@ -66,10 +64,15 @@ open class FileChangesManager(
                 }
             }
         }
-        VirtualFileManager.getInstance().addAsyncFileListener(vfsListener, this)
+        virtualFileManager.addAsyncFileListener(vfsListener, this)
+        Disposer.register(project, this)
     }
 
-    protected fun notifyFileChanges(events: MutableList<out VFileEvent>) {
+    override fun dispose() {
+        logger.info("$projectDir dispose")
+    }
+
+    private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
         val changeFiles = events.mapNotNull(::filterDeployFile)
         if (changeFiles.isEmpty()) return
         listener?.onFileChanges(changeFiles)

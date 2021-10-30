@@ -1,15 +1,15 @@
 @file:Suppress("HasPlatformType")
 
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.mock
 
 import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.clearDir
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.ide.toolWindow.ErrorSafeDefaultLogger
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-val logger = ErrorSafeDefaultLogger("JuggTest")
+val logger = StdLogger("JuggTest")
 
 // build directory
 val buildDir = File("src/test/build").absoluteFile

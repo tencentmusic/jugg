@@ -13,7 +13,6 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.guessModuleDirAdv
 import com.sickworm.intellij.jugg.relativePath
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
@@ -37,6 +36,7 @@ open class CompileContextManager(
         protected set
 
     lateinit var compileContext: BaseCompileContext
+        private set
 
     open fun init() {
         val modules = initModuleRoots()

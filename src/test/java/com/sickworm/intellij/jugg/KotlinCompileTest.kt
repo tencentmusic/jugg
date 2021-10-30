@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.source.KotlinCompiler
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -28,7 +28,8 @@ class KotlinCompileTest {
                 dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
             )
         ),
-        stagingDir)
+        stagingDir
+    )
     @Test
     fun kotlinCompile() {
         val task = resultTask

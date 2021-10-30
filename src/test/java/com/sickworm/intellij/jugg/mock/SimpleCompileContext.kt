@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.mock
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger

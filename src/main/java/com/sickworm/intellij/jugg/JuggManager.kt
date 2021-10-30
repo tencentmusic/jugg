@@ -10,7 +10,7 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggLogger
+import com.sickworm.intellij.jugg.project.JuggLogger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesListener

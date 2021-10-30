@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileTask
-import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File

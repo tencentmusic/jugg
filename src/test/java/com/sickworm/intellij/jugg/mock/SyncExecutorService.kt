@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.mock
 
 import java.util.concurrent.*
 

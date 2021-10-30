@@ -1,9 +1,10 @@
 package com.sickworm.intellij.jugg.aapt2
 
-import com.sickworm.intellij.jugg.*
-import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
-import com.sickworm.intellij.jugg.aapt2.ApkReader
 import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import com.sickworm.intellij.jugg.mock.clearBuild
+import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.mock.tempCompileDir
 import org.junit.Before
 import org.junit.Test
 import java.io.File
