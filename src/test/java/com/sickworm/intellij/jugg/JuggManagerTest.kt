@@ -30,7 +30,7 @@ class JuggManagerTest {
 
     private lateinit var juggManager: JuggManager
     private lateinit var fileChangesManager: FileChangesManager
-    private lateinit var deviceStatusListener: MyDeviceStatusListener
+    private lateinit var deviceStatusListener: DeviceStatusListener
     private lateinit var deployTargetManager: DeployTargetManager
     private lateinit var compileContextManager: CompileContextManager
     private lateinit var fileChangeEventSender: FileChangeEventSender
@@ -56,7 +56,7 @@ class JuggManagerTest {
             )
         )
 
-        deviceStatusListener = MyDeviceStatusListener()
+        deviceStatusListener = mock(DeviceStatusListener::class.java)
 
         deployTargetManager = mock(DeployTargetManager::class.java)
         `when`(deployTargetManager.getApks()).thenReturn(apkInfos)
@@ -94,8 +94,8 @@ class JuggManagerTest {
 
         assertEquals(1, deployTargetManager.getApks().size)
         assertEquals(1, compileContextManager.compileContext.apks.size)
-        assertTrue(deviceStatusListener.isReadyApply)
         assertTrue(::fileChangeEventSender.isInitialized)
+        verify(deviceStatusListener, times(1)).updateStatus(state)
     }
 
     @Before
@@ -139,16 +139,3 @@ class JuggManagerTest {
         assertTrue(!classPathFile.exists())
     }
 }
-
-class MyDeviceStatusListener: DeviceStatusListener {
-    var isReadyApply = false
-        private set
-
-    override fun updateStatus(state: DeployState) {
-        println("updateStatus $state")
-        if (state.isReadyApply) {
-            isReadyApply = true
-        }
-    }
-}
-
