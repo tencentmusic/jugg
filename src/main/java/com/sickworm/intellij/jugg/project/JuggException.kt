@@ -32,21 +32,21 @@ class JuggInternalException(msg: String): Exception(msg) {
 
     companion object {
         fun combineTaskFailed() =
-            JuggInternalException("output dir not matched when combining CompileTask")
+            JuggInternalException("Output dir not matched when combining CompileTask.")
 
         fun compilerNotSupported(compiler: ICompiler, supportedTypes: List<CompileFile.Type>, invalidFiles: List<CompileFile>) =
-            JuggInternalException("Compiler ${compiler::class.java.simpleName} can not compile files.\nsupportedTypes: $supportedTypes\nremaining files:\n$invalidFiles")
+            JuggInternalException("Compiler ${compiler::class.java.simpleName} can not compile files.\nsupportedTypes: $supportedTypes\nremaining files:\n$invalidFiles.")
 
         fun compileOutputDirNotEmpty() =
             JuggInternalException("CompileTask.outputDir is not empty directory, abort. We need empty outputDir to determine output files.")
 
         fun resValuesNotSupported() =
-            JuggInternalException("Currently Jugg don't support deploy values/*.xml")
+            JuggInternalException("Currently Jugg don't support deploy values/*.xml.")
 
         fun startAapt2DaemonFailed() =
-            JuggInternalException("Start aapt2 damon failed")
+            JuggInternalException("Start aapt2 damon failed.")
 
         fun contextInvalidToCompileArsc() =
-            JuggInternalException("Can not compile resource yet due to apk file or android jar not found")
+            JuggInternalException("Can not compile resource yet due to apk file or android jar not found.")
     }
 }
