@@ -55,15 +55,8 @@ class JuggManager @TestOnly constructor(
         register(project, this)
         Disposer.register(project, this)
 
-        compileThread.submit {
-            logger.debug("Init compile context start")
-            try {
-                compileContextManager.init()
-            } catch (e: Throwable) {
-                logger.error("Init compile context failed, please contact ch.operation@gmail.com", e)
-                return@submit
-            }
-            logger.info("Init compile context finished")
+        compileThread.submitSafe("Init compile context") {
+            compileContextManager.init()
         }
     }
 
@@ -86,7 +79,7 @@ class JuggManager @TestOnly constructor(
             hasInit = true
             // TODO check apk md5
             logger.info("Detected deployable apk, start init compile")
-            compileThread.submit {
+            compileThread.submitSafe("Init Compiler") {
                 compileContextManager.compileContext.update(apks = apks)
                 initCompile()
             }
@@ -107,17 +100,9 @@ class JuggManager @TestOnly constructor(
     private fun processFileChanged(changedFiles: List<ChangedFile>) {
         addChanges(changedFiles)
 
-        compileThread.submit {
-            try {
-                logger.info("Compile start")
-                val startTime = System.currentTimeMillis()
-                val compileResult = compileChanges()
-                val costTime = System.currentTimeMillis() - startTime
-                logger.info("Compile finished, cost ${costTime}ms")
-                logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
-            } catch (e: Exception) {
-                logger.error("Compile changes failed", e)
-            }
+        compileThread.submitSafe("Compile") {
+            val compileResult = compileChanges()
+            logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
 
             if (JuggSettings.deployOnSave) {
                 deployAsync()
@@ -156,49 +141,55 @@ class JuggManager @TestOnly constructor(
     }
 
     fun deployAsync() {
-        deployThread.submit(::deploy)
+        deployThread.submitSafe("Deploy", ::deploy)
     }
 
     private fun deploy() {
-        try {
-            logger.info("Deploy start")
-
-            when {
-                deployState.isReadyApply -> {
-                    val apks = compileContextManager.compileContext.apks
-                    if (apks.isEmpty()) {
-                        logger.error("Deploy failed, can not find apks")
-                        return
-                    }
-                    val deployData = deployDataManager.getDeployData(apks)
-                    if (deployData.isEmpty) {
-                        logger.info("Deploy finished with no data to deploy")
-                        return
-                    }
-
-                    logger.info("Deploy data:\n$deployData")
-
-                    JuggDeployerHelper.runTask(deployData, project)
-                    deployDataManager.commit()
-                }
-                deployState.isReadyInstall -> {
-                    logger.info("Can not deploy, install and run apk")
-                    deployTargetManager.runNormalBuild()
+        when {
+            deployState.isReadyApply -> {
+                val apks = compileContextManager.compileContext.apks
+                if (apks.isEmpty()) {
+                    logger.error("Deploy failed, can not find apks")
                     return
                 }
-                else -> {
-                    logger.warn("Not ready to deploy")
+                val deployData = deployDataManager.getDeployData(apks)
+                if (deployData.isEmpty) {
+                    logger.info("Deploy finished with no data to deploy")
+                    return
                 }
-            }
 
-            logger.info("Deploy finished")
-        } catch (e: Throwable) {
-            logger.error("Deploy failed", e)
+                logger.info("Deploy data:\n$deployData")
+
+                JuggDeployerHelper.runTask(deployData, project)
+                deployDataManager.commit()
+            }
+            deployState.isReadyInstall -> {
+                logger.info("Can not deploy, install and run apk")
+                deployTargetManager.runNormalBuild()
+                return
+            }
+            else -> {
+                logger.warn("Not ready to deploy")
+            }
         }
     }
 
     override fun dispose() {
         unregister(project)
+    }
+
+    private fun ExecutorService.submitSafe(jobName: String, task: Runnable) {
+        submit {
+            try {
+                val startTime = System.currentTimeMillis()
+                logger.info("$jobName start")
+                task.run()
+                val costTime = System.currentTimeMillis() - startTime
+                logger.info("$jobName finished, cost $costTime")
+            } catch (e: Throwable) {
+                logger.error("$jobName failed", e)
+            }
+        }
     }
 
     companion object {
