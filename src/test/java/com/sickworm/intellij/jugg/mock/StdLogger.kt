@@ -6,28 +6,33 @@ import org.jetbrains.annotations.NonNls
 class StdLogger(category: String): DefaultLogger(category) {
 
     override fun debug(message: String?) {
-        println(message)
+        println("[D] $message")
     }
 
     override fun debug(t: Throwable?) {
-        dumpExceptionsToStderr("", t)
+        dumpExceptionsToStderr("[D] ", t)
     }
 
     override fun debug(@NonNls message: String?, t: Throwable?) {
-        dumpExceptionsToStderr(message, t)
+        dumpExceptionsToStderr("[D] $message", t)
     }
 
     override fun info(message: String?) {
-        println(message)
+        println("[I] $message")
     }
 
     override fun info(message: String?, t: Throwable?) {
-        dumpExceptionsToStderr(message, t)
+        dumpExceptionsToStderr("[I] $message", t)
+    }
+
+    override fun warn(message: String?, t: Throwable?) {
+        println("[W]: $message")
+        t?.printStackTrace(System.err)
     }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
         val finalT = checkException(t)
-        val finalMessage = message + attachmentsToString(t)
+        val finalMessage = "[E] " + message + attachmentsToString(t)
         dumpExceptionsToStderr(finalMessage, finalT, *details)
     }
 }
