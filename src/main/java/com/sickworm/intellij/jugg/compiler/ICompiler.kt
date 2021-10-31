@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.android.tools.idea.run.ApkInfo
+import com.googlecode.d2j.node.DexClassNode
+import com.googlecode.d2j.node.DexFieldNode
+import com.googlecode.d2j.node.DexMethodNode
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
@@ -115,13 +118,26 @@ interface ICompileContext {
     /** modules in project */
     val modules: Map<String, ModuleInfo>
     /** deployed base apks */
-    val apks: List<ApkInfo>
+    val parsedApks: List<ParsedApk>
 
-    val packageName get() = apks.firstOrNull()?.applicationId
+    val packageName get() = parsedApks.firstOrNull()?.apkInfo?.applicationId
 
-    val apkFile: File? get() = apks.firstOrNull()?.file
+    val apkFile: File? get() = parsedApks.firstOrNull()?.apkInfo?.file
 
     fun listenUpdate(listener: OnContextUpdate)
+}
+
+class ParsedApk(
+    val apkInfo: ApkInfo,
+    val classes: Map<String, DexClassNodeWrapper>,
+)
+
+/** for null safe */
+class DexClassNodeWrapper(private val node: DexClassNode) {
+
+    val methods: List<DexMethodNode> get() = node.methods?: emptyList()
+
+    val fields: List<DexFieldNode> get() = node.fields?: emptyList()
 }
 
 data class ModuleInfo(

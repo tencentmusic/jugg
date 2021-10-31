@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.OnContextUpdate
@@ -13,7 +13,7 @@ data class BaseCompileContext(
     override val androidHome: File,
     override var classPathDir: File,
     override var modules: Map<String, ModuleInfo> = emptyMap(),
-    override var apks: List<ApkInfo> = emptyList(),
+    override var parsedApks: List<ParsedApk> = emptyList(),
 ): ICompileContext {
 
     override val androidJar: File get() = getSuggestedPlatform(modules)
@@ -29,9 +29,9 @@ data class BaseCompileContext(
         }
     }
 
-    fun update(apks: List<ApkInfo>? = null, modules: Map<String, ModuleInfo>? = null) {
-        apks?.let {
-            this.apks = ArrayList(it)
+    fun update(parsedApks: List<ParsedApk>? = null, modules: Map<String, ModuleInfo>? = null) {
+        parsedApks?.let {
+            this.parsedApks = ArrayList(it)
         }
         modules?.let {
             this.modules = HashMap(it)

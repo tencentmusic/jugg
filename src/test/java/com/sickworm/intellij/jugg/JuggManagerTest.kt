@@ -8,7 +8,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
@@ -83,7 +82,7 @@ class JuggManagerTest {
         juggManager.updateStatus(state)
 
         assertEquals(1, deployTargetManager.getApks().size)
-        assertEquals(1, compileContextManager.compileContext.apks.size)
+        assertEquals(1, compileContextManager.compileContext.parsedApks.size)
         assertTrue(::fileChangeEventSender.isInitialized)
         verify(deviceStatusListener, times(1)).updateStatus(state)
     }
@@ -104,7 +103,21 @@ class JuggManagerTest {
 
     @Test
     fun testDeviceStatusUpdate() {
-        // just test @Before
+        // just test assert in initEnv()
+    }
+
+    @Test
+    fun testApkStructureReader() {
+        val parsedApks = compileContextManager.compileContext.parsedApks
+        assertEquals(1, parsedApks.size)
+
+        val parsedApk = parsedApks[0]
+        assertEquals(androidApkPackage, parsedApk.apkInfo.applicationId)
+        assertTrue(parsedApk.apkInfo.file.exists())
+
+        assertEquals(2394, parsedApk.classes.entries.size)
+        assertEquals(12291, parsedApk.classes.entries.sumBy { it.value.fields?.size?: 0 })
+        assertEquals(19352, parsedApk.classes.entries.sumBy { it.value.methods?.size?: 0 })
     }
 
     @Test

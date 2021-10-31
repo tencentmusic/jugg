@@ -1,6 +1,11 @@
 package com.sickworm.intellij.jugg
 
 import com.android.tools.deployer.JuggDeployerHelper
+import com.android.tools.idea.run.ApkInfo
+import com.googlecode.d2j.node.DexFileNode
+import com.googlecode.d2j.reader.BaseDexFileReader
+import com.googlecode.d2j.reader.DexFileReader
+import com.googlecode.d2j.reader.MultiDexFileReader
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -74,14 +79,28 @@ class JuggManager @TestOnly constructor(
             hasInit = true
             // TODO check apk md5
             logger.info("Detected deployable apk, start init compile")
-            compileThread.submitSafe("Init Compiler") {
-                compileContextManager.compileContext.update(apks = apks)
-                initCompile()
+            compileThread.submitSafe("Init Compile") {
+                initCompile(apks)
             }
         }
     }
 
-    private fun initCompile() {
+    private fun initCompile(apks: List<ApkInfo>) {
+        val parsedApks = apks.map { apkInfo ->
+            val apkBytes = apkInfo.file.readBytes()
+            val reader: BaseDexFileReader = MultiDexFileReader.open(apkBytes)
+            val visitor = DexFileNode()
+            reader.accept(visitor, DexFileReader.SKIP_CODE)
+
+            val classes = mutableMapOf<String, DexClassNodeWrapper>()
+            visitor.clzs.forEach {
+                classes[it.className] = DexClassNodeWrapper(it)
+            }
+
+            return@map ParsedApk(apkInfo, classes)
+        }
+
+        compileContextManager.compileContext.update(parsedApks = parsedApks)
         compiler = JuggCompiler(compileContextManager.compileContext)
 
         fileChangesManager.startListen(compileContextManager.compileContext, object: FileChangesListener {
@@ -146,12 +165,12 @@ class JuggManager @TestOnly constructor(
     private fun deploy() {
         when {
             deployState.isReadyApply -> {
-                val apks = compileContextManager.compileContext.apks
+                val apks = compileContextManager.compileContext.parsedApks
                 if (apks.isEmpty()) {
                     logger.error("Deploy failed, can not find apks")
                     return
                 }
-                val deployData = deployDataManager.getDeployData(apks)
+                val deployData = deployDataManager.getDeployData(apks.map { it.apkInfo })
                 if (deployData.isEmpty) {
                     logger.info("Deploy finished with no data to deploy")
                     return
@@ -206,7 +225,6 @@ class JuggManager @TestOnly constructor(
             }
         }
 
-        // TODO remove
         fun getInstance(project: Project): JuggManager? {
             return map[project]
         }
