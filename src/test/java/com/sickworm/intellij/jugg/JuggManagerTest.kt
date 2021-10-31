@@ -125,7 +125,11 @@ class JuggManagerTest {
         onFileChanges("app/src/main/java/com/example/myapplication/MainActivity2.java")
 
         val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/MainActivity2.class")
-        // TODO fix this
         assertTrue(classPathFile.exists())
+        assertEquals(2539, classPathFile.length())
+
+        val dexFile = File(compileContextManager.stagingDir, "classes/com/example/myapplication/MainActivity2.dex")
+        assertTrue(dexFile.exists())
+        assertEquals(2716, dexFile.length())
     }
 }
