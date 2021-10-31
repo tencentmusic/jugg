@@ -104,7 +104,7 @@ class JuggManagerTest {
 
     @Test
     fun testDeviceStatusUpdate() {
-        initEnv()
+        // just test @Before
     }
 
     @Test
