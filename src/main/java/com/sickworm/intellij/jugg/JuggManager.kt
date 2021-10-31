@@ -10,14 +10,10 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
-import com.sickworm.intellij.jugg.project.JuggLogger
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.FileChangesListener
-import com.sickworm.intellij.jugg.project.FileChangesManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ExecutorService
 
@@ -43,8 +39,7 @@ class JuggManager @TestOnly constructor(
                 deviceStatusListener: DeviceStatusListener):
             this(project = project2, projectDir, deviceStatusListener)
 
-    // compile
-    private lateinit var compiler: JuggCompiler
+    private var compiler: JuggCompiler? = null
 
     private var deployState = DeployState(isReadyInstall = false, isReadyApply = false, DisableMessage(
         DisableMessage.DisableMode.DISABLED, "not initialized", "jugg not initialized"
@@ -117,6 +112,10 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun compileChanges(): CompileResult {
+        val compiler = compiler?: run {
+            throw JuggInternalException.compilerNotInit()
+        }
+
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
             CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
