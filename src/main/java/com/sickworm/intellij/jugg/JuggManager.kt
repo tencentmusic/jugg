@@ -11,7 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.deploy.JuggDeployDataManager
+import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.deploy.DisableMessage
@@ -34,7 +34,7 @@ class JuggManager @TestOnly constructor(
     // detect file changes
     private val fileChangesManager: FileChangesManager = FileChangesManager(project, projectDir),
     // manage deploy data
-    private val deployDataManager: JuggDeployDataManager = JuggDeployDataManager(),
+    private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager),
     // deploy target apk
     private val deployTargetManager: DeployTargetManager = DeployTargetManager(project)
 ): Disposable, DeviceStatusListener {
@@ -165,12 +165,11 @@ class JuggManager @TestOnly constructor(
     private fun deploy() {
         when {
             deployState.isReadyApply -> {
-                val apks = compileContextManager.compileContext.parsedApks
-                if (apks.isEmpty()) {
+                val deployData = deployDataManager.getDeployData()
+                if (deployData.apks.isEmpty()) {
                     logger.error("Deploy failed, can not find apks")
                     return
                 }
-                val deployData = deployDataManager.getDeployData(apks.map { it.apkInfo })
                 if (deployData.isEmpty) {
                     logger.info("Deploy finished with no data to deploy")
                     return

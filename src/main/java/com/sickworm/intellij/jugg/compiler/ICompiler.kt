@@ -124,6 +124,8 @@ interface ICompileContext {
 
     val apkFile: File? get() = parsedApks.firstOrNull()?.apkInfo?.file
 
+    val apkInfos: List<ApkInfo> get() = parsedApks.map { it.apkInfo }
+
     fun listenUpdate(listener: OnContextUpdate)
 }
 

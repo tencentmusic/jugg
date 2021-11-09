@@ -2,19 +2,19 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.deployer.JuggDeployData
 import com.android.tools.deployer.JuggDeployItem
-import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.vfs.VirtualFile
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.project.CompileContextManager
 import java.io.File
 import java.util.zip.CRC32
 
 /**
  * Works like a git. Operates with add, commit
  */
-class JuggDeployDataManager {
+class DeployDataManager(private val compileContextManager: CompileContextManager) {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -54,7 +54,7 @@ class JuggDeployDataManager {
     }
 
     @Synchronized
-    fun getDeployData(apks: List<ApkInfo>): JuggDeployData {
+    fun getDeployData(): JuggDeployData {
         if (uncompiledFiles.isNotEmpty()) {
             throw JuggException.notAllCompiled(uncompiledFiles.values)
         }
@@ -68,7 +68,7 @@ class JuggDeployDataManager {
         val changedOverlays = changedOverlayFiles.map { it.toDeployItem() }
 
         return JuggDeployData(
-            apks,
+            compileContextManager.compileContext.apkInfos,
             changedClasses,
             changedOverlays
         )

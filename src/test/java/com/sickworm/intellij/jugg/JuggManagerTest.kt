@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
+import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.project.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
@@ -34,6 +35,7 @@ class JuggManagerTest {
     private lateinit var deployTargetManager: DeployTargetManager
     private lateinit var compileContextManager: CompileContextManager
     private lateinit var fileChangeEventSender: FileChangeEventSender
+    private lateinit var deployDataManager: DeployDataManager
 
     private fun renewComponents() {
         project = JuggMockProject()
@@ -62,6 +64,8 @@ class JuggManagerTest {
         }
         fileChangesManager = FileChangesManager(project, projectDir, virtualFileManager)
 
+        deployDataManager = DeployDataManager(compileContextManager)
+
         JuggLogger.listenProjectLog(project, StdLogger("test"))
     }
 
@@ -72,7 +76,8 @@ class JuggManagerTest {
             deployTargetManager = deployTargetManager,
             compileThread = SyncExecutorService(),
             deployThread = SyncExecutorService(),
-            compileContextManager = compileContextManager
+            compileContextManager = compileContextManager,
+            deployDataManager = deployDataManager
         )
         juggManager.init()
     }
@@ -116,8 +121,8 @@ class JuggManagerTest {
         assertTrue(parsedApk.apkInfo.file.exists())
 
         assertEquals(2394, parsedApk.classes.entries.size)
-        assertEquals(12291, parsedApk.classes.entries.sumBy { it.value.fields?.size?: 0 })
-        assertEquals(19352, parsedApk.classes.entries.sumBy { it.value.methods?.size?: 0 })
+        assertEquals(12291, parsedApk.classes.entries.sumBy { it.value.fields.size })
+        assertEquals(19352, parsedApk.classes.entries.sumBy { it.value.methods.size })
     }
 
     @Test
@@ -131,6 +136,12 @@ class JuggManagerTest {
         val dexFile = File(compileContextManager.stagingDir, "classes/com/example/myapplication/ABC.dex")
         assertTrue(dexFile.exists())
         assertEquals(716, dexFile.length())
+
+        assertEquals(0, deployDataManager.getUncompiledFiles().size)
+        val deployData = deployDataManager.getDeployData()
+        assertEquals(1, deployData.apks.size)
+        assertEquals(1, deployData.classes.size)
+        assertEquals(0, deployData.overlays.size)
     }
 
     @Test
@@ -144,5 +155,11 @@ class JuggManagerTest {
         val dexFile = File(compileContextManager.stagingDir, "classes/com/example/myapplication/MainActivity2.dex")
         assertTrue(dexFile.exists())
         assertEquals(2716, dexFile.length())
+
+        assertEquals(0, deployDataManager.getUncompiledFiles().size)
+        val deployData = deployDataManager.getDeployData()
+        assertEquals(1, deployData.apks.size)
+        assertEquals(1, deployData.classes.size)
+        assertEquals(0, deployData.overlays.size)
     }
 }
