@@ -123,6 +123,8 @@ class JuggManagerTest {
         assertEquals(2394, parsedApk.classes.entries.size)
         assertEquals(12291, parsedApk.classes.entries.sumBy { it.value.fields.size })
         assertEquals(19352, parsedApk.classes.entries.sumBy { it.value.methods.size })
+        assertEquals(2394, parsedApk.classFiles.size)
+        assertEquals(748, parsedApk.overlayFiles.size)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.android.tools.deployer.JuggFileInfo
 import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
@@ -132,6 +133,8 @@ interface ICompileContext {
 class ParsedApk(
     val apkInfo: ApkInfo,
     val classes: Map<String, DexClassNodeWrapper>,
+    val classFiles: Map<String, JuggFileInfo>,
+    val overlayFiles: Map<String, JuggFileInfo>,
 )
 
 /** for null safe */

@@ -11,13 +11,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.deploy.DeployDataManager
-import com.sickworm.intellij.jugg.deploy.DeployState
-import com.sickworm.intellij.jugg.deploy.DeployTargetManager
-import com.sickworm.intellij.jugg.deploy.DisableMessage
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ExecutorService
@@ -86,18 +83,8 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun initCompile(apks: List<ApkInfo>) {
-        val parsedApks = apks.map { apkInfo ->
-            val apkBytes = apkInfo.file.readBytes()
-            val reader: BaseDexFileReader = MultiDexFileReader.open(apkBytes)
-            val visitor = DexFileNode()
-            reader.accept(visitor, DexFileReader.SKIP_CODE)
-
-            val classes = mutableMapOf<String, DexClassNodeWrapper>()
-            visitor.clzs.forEach {
-                classes[it.className] = DexClassNodeWrapper(it)
-            }
-
-            return@map ParsedApk(apkInfo, classes)
+        val parsedApks = apks.map {
+            ApkParser(it).parse()
         }
 
         compileContextManager.compileContext.update(parsedApks = parsedApks)
