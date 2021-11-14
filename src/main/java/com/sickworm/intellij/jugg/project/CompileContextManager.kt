@@ -17,8 +17,8 @@ import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
 
-open class CompileContextManager(
-    val project: Project,
+class CompileContextManager(
+    private val project: Project,
     private val projectDir: String,
     private val moduleManager: ModuleManager = ModuleManager.getInstance(project), // mock
     private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
@@ -26,22 +26,26 @@ open class CompileContextManager(
 ) {
     private val logger = JuggLogger.getInstance(project, "#Jugg-CompileContextManager")
 
-    val rootDir = File("$projectDir/build/jugg")
-    val buildDir = File(rootDir, "build")
+    private val juggRootDir = File("$projectDir/build/jugg")
+    private val compileRootDir = File(juggRootDir, "build")
 
-    val tempCompileDir = File(buildDir, "compiled")
-    val stagingDir = File(buildDir, "staging")
-    val classPathDir = File(buildDir, "classpath")
+    val stagingDir = File(compileRootDir, "staging")
+    private val tempCompileDir = File(compileRootDir, "compiled")
+    private val classPathDir = File(compileRootDir, "classpath")
 
-    val libraryDir = File("$projectDir/.idea/libraries")
+    private val libraryDir = File("$projectDir/.idea/libraries")
     // TODO use compileContext
     var dependencies = listOf<String>()
-        protected set
-
-    lateinit var compileContext: BaseCompileContext
         private set
 
-    open fun init() {
+    val compileContext: BaseCompileContext
+        get() {
+            return compileContextInside?: throw JuggInternalException.compilerContextNotInit()
+        }
+
+    var compileContextInside: BaseCompileContext? = null
+
+    fun init() {
         val modules = initModuleRoots()
         initDependency(modules)
     }
@@ -132,7 +136,7 @@ open class CompileContextManager(
 
         val androidDep = context.androidJar.path
         dependencies = juggClassPathDep + projectDeps + androidDep + libDep
-        compileContext = context
+        compileContextInside = context
     }
 
     private fun initModuleRoots(): Map<String, ModuleInfo> {

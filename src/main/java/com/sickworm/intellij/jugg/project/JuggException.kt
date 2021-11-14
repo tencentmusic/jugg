@@ -38,6 +38,9 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun compilerNotInit() =
             JuggInternalException("Compiler not init, which should not happened in logic.")
 
+        fun compilerContextNotInit() =
+            JuggInternalException("Compiler context not init, which should not happened in logic.")
+
         fun compilerNotSupported(compiler: ICompiler, supportedTypes: List<CompileFile.Type>, invalidFiles: List<CompileFile>) =
             JuggInternalException("Compiler ${compiler::class.java.simpleName} can not compile files.\nsupportedTypes: $supportedTypes\nremaining files:\n$invalidFiles.")
 
