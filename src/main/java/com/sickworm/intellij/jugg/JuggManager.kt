@@ -2,10 +2,6 @@ package com.sickworm.intellij.jugg
 
 import com.android.tools.deployer.JuggDeployerHelper
 import com.android.tools.idea.run.ApkInfo
-import com.googlecode.d2j.node.DexFileNode
-import com.googlecode.d2j.reader.BaseDexFileReader
-import com.googlecode.d2j.reader.DexFileReader
-import com.googlecode.d2j.reader.MultiDexFileReader
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -31,7 +27,7 @@ class JuggManager @TestOnly constructor(
     // detect file changes
     private val fileChangesManager: FileChangesManager = FileChangesManager(project, projectDir),
     // manage deploy data
-    private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager),
+    private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager, logger),
     // deploy target apk
     private val deployTargetManager: DeployTargetManager = DeployTargetManager(project)
 ): Disposable, DeviceStatusListener {
@@ -165,7 +161,7 @@ class JuggManager @TestOnly constructor(
                 logger.info("Deploy data:\n$deployData")
 
                 JuggDeployerHelper.runTask(deployData, project)
-                deployDataManager.commit()
+                deployDataManager.commit(deployData)
             }
             deployState.isReadyInstall -> {
                 logger.info("Can not deploy, install and run apk")

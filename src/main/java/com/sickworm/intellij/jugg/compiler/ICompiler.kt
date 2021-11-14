@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.android.tools.deployer.JuggFileInfo
 import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.JuggFileInfo
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 

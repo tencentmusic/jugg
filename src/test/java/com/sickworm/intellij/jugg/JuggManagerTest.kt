@@ -64,7 +64,7 @@ class JuggManagerTest {
         }
         fileChangesManager = FileChangesManager(project, projectDir, virtualFileManager)
 
-        deployDataManager = DeployDataManager(compileContextManager)
+        deployDataManager = DeployDataManager(compileContextManager, logger)
 
         JuggLogger.listenProjectLog(project, StdLogger("test"))
     }
@@ -142,7 +142,8 @@ class JuggManagerTest {
         assertEquals(0, deployDataManager.getUncompiledFiles().size)
         val deployData = deployDataManager.getDeployData()
         assertEquals(1, deployData.apks.size)
-        assertEquals(1, deployData.classes.size)
+        assertEquals(0, deployData.newClasses.size)
+        assertEquals(1, deployData.modifiedClasses.size)
         assertEquals(0, deployData.overlays.size)
     }
 
@@ -161,7 +162,8 @@ class JuggManagerTest {
         assertEquals(0, deployDataManager.getUncompiledFiles().size)
         val deployData = deployDataManager.getDeployData()
         assertEquals(1, deployData.apks.size)
-        assertEquals(1, deployData.classes.size)
+        assertEquals(0, deployData.newClasses.size)
+        assertEquals(1, deployData.modifiedClasses.size)
         assertEquals(0, deployData.overlays.size)
     }
 }

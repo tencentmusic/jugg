@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.deployer.D8DexSplitter
 import com.android.tools.deployer.DexSplitter
-import com.android.tools.deployer.JuggFileInfo
 import com.android.tools.deployer.ApkParser as ApkParserAdt
 import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.DexFileNode
@@ -44,3 +43,8 @@ class ApkParser(private val apkInfo: ApkInfo) {
         return ParsedApk(apkInfo, classes, classFiles, overlayFiles)
     }
 }
+
+data class JuggFileInfo(
+    val name: String,
+    val checksum: Long
+)

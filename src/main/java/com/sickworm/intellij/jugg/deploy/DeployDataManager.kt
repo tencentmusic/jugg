@@ -1,7 +1,8 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.deployer.JuggDeployData
-import com.android.tools.deployer.JuggDeployItem
+import com.android.tools.deployer.DeployItem
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.vfs.VirtualFile
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -14,7 +15,7 @@ import java.util.zip.CRC32
 /**
  * Works like a git. Operates with add, commit
  */
-class DeployDataManager(private val compileContextManager: CompileContextManager) {
+class DeployDataManager(compileContextManager: CompileContextManager, logger: Logger) {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -24,12 +25,18 @@ class DeployDataManager(private val compileContextManager: CompileContextManager
     /**
      * Staging files for deployment. All operation must be thread-safe
      */
-    private var stagingFiles = mutableMapOf<String, CompileOutput>()
+    private var stagingFiles = mutableMapOf<String, DeployItem>()
 
     /**
      * Deployed files
+     * TODO persist
      */
-    private var deployedFiles = mutableMapOf<String, CompileOutput>()
+    private var deployedFiles = mutableMapOf<String, DeployItem>()
+
+    /**
+     * persisted deploy information
+     */
+    private val deployDataDb = DeployDataDb(compileContextManager, logger)
 
     private var crc32 = CRC32()
 
@@ -49,8 +56,8 @@ class DeployDataManager(private val compileContextManager: CompileContextManager
     }
 
     @Synchronized
-    fun addDeployFile(classFile: CompileOutput) {
-        stagingFiles[classFile.file.stdAbsPath] = classFile
+    fun addDeployFile(compiledFile: CompileOutput) {
+        stagingFiles[compiledFile.file.stdAbsPath] = compiledFile.toDeployItem()
     }
 
     @Synchronized
@@ -59,22 +66,10 @@ class DeployDataManager(private val compileContextManager: CompileContextManager
             throw JuggException.notAllCompiled(uncompiledFiles.values)
         }
 
-        val items = stagingFiles.values
-        val changedClassFiles = items.filter { it.type == CompileOutput.Type.Dex }
-        // TODO do it in addDeployFile
-        val changedClasses = changedClassFiles.map { it.toDeployItem() }
-
-        val changedOverlayFiles = items.filter { it.type == CompileOutput.Type.Overlay }
-        val changedOverlays = changedOverlayFiles.map { it.toDeployItem() }
-
-        return JuggDeployData(
-            compileContextManager.compileContext.apkInfos,
-            changedClasses,
-            changedOverlays
-        )
+        return deployDataDb.buildDeployData(stagingFiles.values)
     }
 
-    private fun CompileOutput.toDeployItem(): JuggDeployItem {
+    private fun CompileOutput.toDeployItem(): DeployItem {
         val bytes = file.readBytes()
         val crc = crc32.run {
             reset()
@@ -88,13 +83,14 @@ class DeployDataManager(private val compileContextManager: CompileContextManager
         } else {
             file.relativeTo(baseDir).stdPath
         }
-        return JuggDeployItem(name, crc, bytes)
+        return DeployItem(name, type, crc, bytes)
     }
 
     @Synchronized
-    fun commit() {
+    fun commit(juggDeployData: JuggDeployData) {
         deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
+        deployDataDb.update(juggDeployData)
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')

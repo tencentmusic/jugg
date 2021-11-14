@@ -3,7 +3,9 @@ package com.sickworm.intellij.jugg.project
 import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
+import java.io.File
 
+// TODO exception unit test
 /** Exception for notifying user */
 class JuggException(msg: String): Exception(msg) {
 
@@ -28,6 +30,7 @@ class JuggException(msg: String): Exception(msg) {
     }
 }
 
+// TODO exception unit test
 /** Exception for plugin internal error, which should not happened */
 class JuggInternalException(msg: String): Exception(msg) {
 
@@ -40,6 +43,9 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun compilerContextNotInit() =
             JuggInternalException("Compiler context not init, which should not happened in logic.")
+
+        fun apkEntryNotFound(apk: File, path: String) =
+            JuggInternalException("Entry{${path}} not found in apk{${apk.absolutePath}}.")
 
         fun compilerNotSupported(compiler: ICompiler, supportedTypes: List<CompileFile.Type>, invalidFiles: List<CompileFile>) =
             JuggInternalException("Compiler ${compiler::class.java.simpleName} can not compile files.\nsupportedTypes: $supportedTypes\nremaining files:\n$invalidFiles.")

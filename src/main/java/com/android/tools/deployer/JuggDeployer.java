@@ -3,18 +3,15 @@ package com.android.tools.deployer;
 import com.android.sdklib.AndroidVersion;
 import com.android.tools.deploy.proto.Deploy;
 import com.android.tools.deployer.model.Apk;
-import com.android.tools.deployer.model.ApkEntry;
 import com.android.tools.deployer.model.FileDiff;
 import com.android.tools.deployer.tasks.Task;
 import com.android.tools.deployer.tasks.TaskResult;
 import com.android.tools.deployer.tasks.TaskRunner;
-import com.android.tools.idea.protobuf.ByteString;
 import com.android.tools.tracer.Trace;
 import com.android.utils.ILogger;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.*;
-import java.util.function.Predicate;
 
 import com.android.tools.deployer.Deployer.InstallMode;
 
@@ -272,21 +269,17 @@ public class JuggDeployer {
                 runner.create(Tasks.OPTIMISTIC_DUMP, deployCache::get, deviceSerial, packageName);
 
         // On an on-host verification of the dump first.
-        // TODO check cost time
         Task<ApplicationDumper> dumper = runner.create(new ApplicationDumper(installer));
         Task<DeploymentCacheDatabase.Entry> verifyDump =
                 runner.create(Tasks.VERIFY_DUMP, JuggDeployer::verifyCache, speculativeDump, dumper);
 
-        JuggDiffer differ = new JuggDiffer(logger);
-
-        // Calculate the difference between them speculating the deployment cache is correct.
-        Task<JuggOverlayUpdate> overlayUpdate =
+        // covert to adt deploy data.
+        OverlayUpdateBuilder builder = new OverlayUpdateBuilder();
+        Task<OptimisticApkSwapper.OverlayUpdate> overlayUpdate =
                 runner.create(Tasks.DIFF,
-                        differ::diff,
+                        builder::build,
                         verifyDump,
                         runner.create(data));
-        Task<OptimisticApkSwapper.OverlayUpdate> androidOverlayUpdate =
-                runner.create(Tasks.JUGG_OVERLAY_UPDATE_CONVERT, differ::convert, overlayUpdate);
 
         // Extract files from the APK for overlays. Currently only extract resources.
 //        Predicate<String> filter = file -> file.startsWith("res") || file.startsWith("assets");
@@ -326,7 +319,7 @@ public class JuggDeployer {
                         packageName,
                         pids,
                         arch,
-                        androidOverlayUpdate);
+                        overlayUpdate);
 
         TaskResult result = runner.run();
         result.getMetrics().forEach(metrics::add);
@@ -347,8 +340,6 @@ public class JuggDeployer {
                 packageName,
                 newFiles,
                 nextOverlayId);
-
-        runner.create(Tasks.JUGG_DIFFER_UPDATE, differ::update, overlayUpdate);
 
         // Wait only for swap to finish
         runner.runAsync();
@@ -425,9 +416,7 @@ public class JuggDeployer {
         OPTIMISTIC_SWAP,
         GET_PIDS,
         GET_ARCH,
-        COMPUTE_FRESHINSTALL_OID,
-        JUGG_DIFFER_UPDATE,
-        JUGG_OVERLAY_UPDATE_CONVERT;
+        COMPUTE_FRESHINSTALL_OID;
 
         private Tasks() {
         }
