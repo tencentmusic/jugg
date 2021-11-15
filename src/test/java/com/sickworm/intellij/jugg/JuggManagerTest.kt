@@ -8,14 +8,14 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
-import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
-import com.sickworm.intellij.jugg.project.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
+import com.sickworm.intellij.jugg.project.JuggLogger
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.*
@@ -100,6 +100,7 @@ class JuggManagerTest {
 
     @Before
     fun init() {
+        tryFixMockito()
         clearBuild()
         renewComponents()
         renewManager()
@@ -165,5 +166,39 @@ class JuggManagerTest {
         assertEquals(0, deployData.newClasses.size)
         assertEquals(1, deployData.modifiedClasses.size)
         assertEquals(0, deployData.overlays.size)
+    }
+
+
+    companion object {
+
+        private fun tryFixMockito() {
+            // actually is fix ByteBuddyAgent used by Mockito
+
+            // 1. ByteBuddyAgent will read System.setProperty("java.home") and invoke,
+            // when the property has white space，it will add " between the white space,
+            // which will cause invoke failed
+
+            // 2. JDK 1.8 will cause invoke failed"Could not self-attach to current VM using external process",
+            // need to use JDK 11
+            val propertyJavaHome = System.getProperty("java.home")
+            val envJavaHome = System.getenv("JAVA_HOME")
+            println("propertyJavaHome: $propertyJavaHome, envJavaHome: $envJavaHome")
+
+            if (propertyJavaHome.contains(" ")) {
+                // manual fix by replace with envJavaHome
+                if (envJavaHome == null || envJavaHome.contains(" ")) {
+                    throw IllegalStateException("please specific \$JAVA_HOME without white space, or Mockito won't work.")
+                }
+                System.setProperty("java.home", envJavaHome)
+            }
+
+            if (!propertyJavaHome.contains("11")) {
+                // manual fix by replace with envJavaHome
+                if (envJavaHome == null || !envJavaHome.contains("11")) {
+                    throw IllegalStateException("please specific \$JAVA_HOME with JDK 11, or Mockito won't work.")
+                }
+                System.setProperty("java.home", envJavaHome)
+            }
+        }
     }
 }
