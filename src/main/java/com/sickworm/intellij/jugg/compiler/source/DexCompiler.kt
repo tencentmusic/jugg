@@ -18,13 +18,13 @@ class DexCompiler(
 
     override fun doCompile(task: CompileTask): CompileResult {
         // TODO dexFileMaker supports multi files now, no need forEach
-        task.files.forEach {
+        val isSuccess = task.files.all {
             dexFileMaker.dex(task.outputDir, it.file)
         }
 
         val dexFiles = task.outputDir.listFilesRecursively()
         var errorMessage = ""
-        if (dexFiles.isEmpty()) {
+        if (!isSuccess) {
             // just simple check because I can't determine how many files will create
             // for it may has desuger operation
             errorMessage = "dex failed! expect files size: ${task.files.size}, actual: ${dexFiles.size}"
