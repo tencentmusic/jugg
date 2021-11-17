@@ -56,7 +56,7 @@ val context = SimpleCompileContext(
     androidJar = androidJar,
     classPathDir = classPathDir,
     modules = emptyMap(),
-    parsedApks = listOf(ParsedApk(ApkInfo(assetsApkFile, androidApkPackage), emptyMap(), emptyMap(), emptyMap()))
+    parsedApks = listOf(ParsedApk(ApkInfo(assetsApkFile, androidApkPackage), emptyMap(), emptyMap()))
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
@@ -114,7 +114,7 @@ fun CompileResult.printCompileErrors() {
     }
 }
 
-fun com.sickworm.intellij.jugg.compiler.Result<CompileFile, CompileError>.printCompileError() {
+fun Result<CompileFile, CompileError>.printCompileError() {
     if (isFailed) {
         println("assertCompileResult error count: ${getFailure().errors.size}")
         println("assertCompileResult error messages:\n ${getFailure().errorMessages}")

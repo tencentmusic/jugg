@@ -133,16 +133,26 @@ interface ICompileContext {
 class ParsedApk(
     val apkInfo: ApkInfo,
     val classes: Map<String, DexClassNodeWrapper>,
-    val classFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
 )
 
 /** for null safe */
 class DexClassNodeWrapper(private val node: DexClassNode) {
 
+    val className get() = convertSigFormatToNormal()
+
     val methods: List<DexMethodNode> get() = node.methods?: emptyList()
 
     val fields: List<DexFieldNode> get() = node.fields?: emptyList()
+
+    // e.g. Landroid/support/v4/os/ResultReceiver$1;
+    // ->
+    // android.support.v4.os.ResultReceiver$1
+    private fun convertSigFormatToNormal(): String {
+        return node.className
+            .substring(1, node.className.length - 1)
+            .replace('/', '.')
+    }
 }
 
 data class ModuleInfo(

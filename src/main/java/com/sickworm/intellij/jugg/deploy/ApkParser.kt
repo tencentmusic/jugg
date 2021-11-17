@@ -1,7 +1,5 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.deployer.D8DexSplitter
-import com.android.tools.deployer.DexSplitter
 import com.android.tools.deployer.ApkParser as ApkParserAdt
 import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.DexFileNode
@@ -22,25 +20,19 @@ class ApkParser(private val apkInfo: ApkInfo) {
 
         val classes = mutableMapOf<String, DexClassNodeWrapper>()
         visitor.clzs.forEach {
-            classes[it.className] = DexClassNodeWrapper(it)
+            val classNode = DexClassNodeWrapper(it)
+            classes[classNode.className] = classNode
         }
 
-        val classFiles = mutableMapOf<String, JuggFileInfo>()
         val overlayFiles = mutableMapOf<String, JuggFileInfo>()
-        val splitter: DexSplitter = D8DexSplitter()
         val apk = ApkParserAdt().parsePaths(listOf(apkInfo.file.absolutePath)).first()
         for (entry in apk.apkEntries.values) {
-            if (entry.name.endsWith(".dex")) {
-                val dexClasses = splitter.split(entry) { true }
-                for (dexClass in dexClasses) {
-                    classFiles[dexClass.name] = JuggFileInfo(dexClass.name, dexClass.checksum)
-                }
-            } else {
+            if (!entry.name.endsWith(".dex")) {
                 overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             }
         }
 
-        return ParsedApk(apkInfo, classes, classFiles, overlayFiles)
+        return ParsedApk(apkInfo, classes, overlayFiles)
     }
 }
 

@@ -65,15 +65,13 @@ class DeployDataDb(
         return inputStream.readAllBytes()
     }
 
-    private fun isNewClass(classPath: String): Boolean {
-        val className = classPath.replace('/', '.')
-
+    private fun isNewClass(className: String): Boolean {
         if (deployedClasses.containsKey(className)) {
             return false
         }
 
         val apks = compileContextManager.compileContext.parsedApks
-        if (apks.any { it.classFiles.containsKey(className) }) {
+        if (apks.any { it.classes.containsKey(className) }) {
             return false
         }
 

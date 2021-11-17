@@ -20,17 +20,17 @@ class DexTest {
     fun dexer() {
         javaCompileTest.javaCompile()
         repeat(100) {
-            dexAndCheck()
+            dexAndCheck(deleteAfterBuild = true)
         }
     }
 
     @Test
     fun dexMultipleFiles() {
         JavaCompileTest().javaCompileMultiFiles()
-        dexAndCheck()
+        dexAndCheck(deleteAfterBuild = false)
     }
 
-    private fun dexAndCheck() {
+    private fun dexAndCheck(deleteAfterBuild: Boolean) {
         val classesFiles = stagingDir.listFilesRecursively()
 
         // ART TI requires one .dex file only contains one .class file
@@ -39,7 +39,9 @@ class DexTest {
             val isSuccess = DexFileMaker().dex(stagingDir, classFile)
             assertTrue(isSuccess)
             assertTrue(dexFile.exists() && dexFile.length() > 0)
-            dexFile.delete()
+            if (deleteAfterBuild) {
+                dexFile.delete()
+            }
         }
     }
 }
