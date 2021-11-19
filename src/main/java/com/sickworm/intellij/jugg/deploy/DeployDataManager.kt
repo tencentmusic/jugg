@@ -78,7 +78,7 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
         }
         val name = if (type == CompileOutput.Type.Dex) {
             file.relativeTo(baseDir).stdPath
-                .replace(File.separatorChar, '.')
+                .replace('/', '.')
                 .replace(file.name, file.nameWithoutExtension)
         } else {
             file.relativeTo(baseDir).stdPath

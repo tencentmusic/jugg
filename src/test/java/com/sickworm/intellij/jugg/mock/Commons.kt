@@ -48,7 +48,7 @@ val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
 
 val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
 
-val context = SimpleCompileContext(
+val context get() = SimpleCompileContext(
     logger = logger,
     tempCompileDir = tempCompileDir,
     androidHome = androidHome,
@@ -68,6 +68,9 @@ fun assertCompileResult(task: CompileTask,
     result.printCompileErrors()
 
     assertEquals(result.task, task)
+    if (!result.isAllSuccess) {
+        println("???")
+    }
     assertTrue(result.isAllSuccess)
     assertEquals(result.details.size, task.files.size)
 

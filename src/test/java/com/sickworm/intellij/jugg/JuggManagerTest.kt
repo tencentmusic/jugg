@@ -171,10 +171,14 @@ class JuggManagerTest {
     companion object {
 
         private fun tryFixMockito() {
+            if (isWindows) {
+                return
+            }
+
             // actually is fix ByteBuddyAgent used by Mockito
 
             // 1. ByteBuddyAgent will read System.setProperty("java.home") and invoke,
-            // when the property has white space，it will add " between the white space,
+            // when the property has white space，it will add " between the path,
             // which will cause invoke failed
 
             // 2. JDK 1.8 will cause invoke failed"Could not self-attach to current VM using external process",
