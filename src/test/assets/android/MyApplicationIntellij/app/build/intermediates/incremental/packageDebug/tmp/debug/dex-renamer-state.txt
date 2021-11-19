@@ -1,4 +1,0 @@
-#Tue Aug 03 21:19:10 CST 2021
-base.0=/Users/wormchen/IdeaProjects/android-incremental-deploy-plugin/src/test/assets/android/MyApplicationIntellij/app/build/intermediates/dex/debug/mergeDexDebug/out/classes.dex
-renamed.0=classes.dex
-path.0=classes.dex
