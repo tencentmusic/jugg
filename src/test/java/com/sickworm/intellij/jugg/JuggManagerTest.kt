@@ -220,7 +220,6 @@ class JuggManagerTest {
     fun testChangeSignatureJavaClass() {
         changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", modifiedClassesSize = 1)
-
     }
 
     companion object {
