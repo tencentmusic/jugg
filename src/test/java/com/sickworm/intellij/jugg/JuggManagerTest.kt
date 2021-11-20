@@ -184,6 +184,10 @@ class JuggManagerTest {
      * count:       single / multiple
      * type:        static / non-static
      * object:      variable / method / class / subclass
+     *
+     * other case:
+     * * Kotlin const value update
+     * * Kotlin multiple class in one file
      *******************************************************************/
 
     @Test
