@@ -208,6 +208,7 @@ class JuggManagerTest {
 
         // revert
         revertFile("TestNewFile.java", isAdd = true)
+        revertFile("TestNewFile2.java", isAdd = true)
     }
 
     // no remove class
