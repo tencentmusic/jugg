@@ -180,8 +180,8 @@ class JuggManagerTest {
     /*******************************************************************
      * Source file test case:
      * operation:   add / remove / update value / change signature
-     * language:    java / kotlin
      * count:       single / multiple
+     * language:    java / kotlin
      * type:        static / non-static
      * object:      variable / method / class / subclass
      *
@@ -200,7 +200,7 @@ class JuggManagerTest {
     }
 
     @Test
-    fun testAddMultiJavaClasses() {
+    fun testAddMultipleJavaClasses() {
         changeFileAndNotify(
             "TestNewFile.java" to "TestNewFile.java",
             "TestNewFile2.java" to "TestNewFile2.java")
@@ -208,6 +208,15 @@ class JuggManagerTest {
 
         // revert
         revertFile("TestNewFile.java", isAdd = true)
+    }
+
+    // no remove class
+
+    // no update value class
+
+    @Test
+    fun testChangeSignatureJavaClass() {
+
     }
 
     companion object {
