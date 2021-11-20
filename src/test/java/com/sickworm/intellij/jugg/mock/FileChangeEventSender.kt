@@ -6,11 +6,13 @@ import java.io.File
 
 class FileChangeEventSender(private val listener: AsyncFileListener) {
 
-    fun copyAndNotifyFileChanges(sourceFile: File, destFile: File) {
-        sourceFile.copyTo(destFile, overwrite = true)
-        val file = MockIoVirtualFile(destFile)
-        val event = VFileContentChangeEvent(Any(), file, 0L, 0L, false)
-        val changeApplier = listener.prepareChange(mutableListOf(event))
+    fun copyAndNotifyFileChanges(filePairs: List<Pair<File, File>>) {
+        val events = filePairs.map { (sourceFile, destFile) ->
+            sourceFile.copyTo(destFile, overwrite = true)
+            val file = MockIoVirtualFile(destFile)
+            VFileContentChangeEvent(Any(), file, 0L, 0L, false)
+        }
+        val changeApplier = listener.prepareChange(events)
         changeApplier?.afterVfsChange()
     }
 }

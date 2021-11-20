@@ -92,10 +92,48 @@ class JuggManagerTest {
         verify(deviceStatusListener, times(1)).updateStatus(state)
     }
 
-    private fun onFileChanges(relativePath: String) {
-        val sourceFile = File(assetsAndroidModifySourceDir, relativePath)
-        val destFile = File(assetsAndroidDir, relativePath)
-        fileChangeEventSender.copyAndNotifyFileChanges(sourceFile, destFile)
+    private val testSourceDirectory = "app/src/main/java/$androidApkPackagePath"
+    private fun changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
+        val pairs = fileNamePairs.map { (sourceFileName, destFileName) ->
+            val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$sourceFileName")
+            val destFile = File(assetsAndroidDir, "$directory/$destFileName")
+            sourceFile to destFile
+        }
+        fileChangeEventSender.copyAndNotifyFileChanges(pairs)
+    }
+
+    private fun revertFile(originFile: String, isAdd: Boolean, directory: String = testSourceDirectory) {
+        val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$originFile")
+        val destFile = File(assetsAndroidDir, "$directory/$originFile")
+        if (isAdd) {
+            destFile.delete()
+            return
+        }
+        sourceFile.copyTo(destFile, overwrite = true)
+    }
+
+    private fun checkCompileResult(
+        vararg fileNames: String,
+        newClassesSize: Int = 0, modifiedClassesSize: Int = 0, overlaysSize: Int = 0,
+    ) {
+        fileNames.forEach { fileName ->
+            val className = File(fileName).nameWithoutExtension + ".class"
+            val classPathFile = File(compileContextManager.compileContext.classPathDir, "$androidApkPackagePath/$className")
+            assertTrue(classPathFile.exists())
+            assertTrue(classPathFile.length() > 0)
+
+            val dexName = File(fileName).nameWithoutExtension + ".dex"
+            val dexFile = File(compileContextManager.stagingDir, "classes/$androidApkPackagePath/$dexName")
+            assertTrue(dexFile.exists())
+            assertTrue(dexFile.length() > 0)
+        }
+
+        assertEquals(0, deployDataManager.getUncompiledFiles().size)
+        val deployData = deployDataManager.getDeployData()
+        assertEquals(1, deployData.apks.size)
+        assertEquals(newClassesSize, deployData.newClasses.size)
+        assertEquals(modifiedClassesSize, deployData.modifiedClasses.size)
+        assertEquals(overlaysSize, deployData.overlays.size)
     }
 
     @Before
@@ -129,44 +167,44 @@ class JuggManagerTest {
 
     @Test
     fun testCompileJavaFile() {
-        onFileChanges("app/src/main/java/com/example/myapplication/ABC.java")
-
-        val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/ABC.class")
-        assertTrue(classPathFile.exists())
-        assertEquals(406, classPathFile.length())
-
-        val dexFile = File(compileContextManager.stagingDir, "classes/com/example/myapplication/ABC.dex")
-        assertTrue(dexFile.exists())
-        assertEquals(716, dexFile.length())
-
-        assertEquals(0, deployDataManager.getUncompiledFiles().size)
-        val deployData = deployDataManager.getDeployData()
-        assertEquals(1, deployData.apks.size)
-        assertEquals(0, deployData.newClasses.size)
-        assertEquals(1, deployData.modifiedClasses.size)
-        assertEquals(0, deployData.overlays.size)
+        changeFileAndNotify("ABC.java" to "ABC.java")
+        checkCompileResult("ABC.java", modifiedClassesSize = 1)
     }
 
     @Test
     fun testCompileActivity() {
-        onFileChanges("app/src/main/java/com/example/myapplication/MainActivity2.java")
-
-        val classPathFile = File(compileContextManager.compileContext.classPathDir, "com/example/myapplication/MainActivity2.class")
-        assertTrue(classPathFile.exists())
-        assertEquals(2539, classPathFile.length())
-
-        val dexFile = File(compileContextManager.stagingDir, "classes/com/example/myapplication/MainActivity2.dex")
-        assertTrue(dexFile.exists())
-        assertEquals(2716, dexFile.length())
-
-        assertEquals(0, deployDataManager.getUncompiledFiles().size)
-        val deployData = deployDataManager.getDeployData()
-        assertEquals(1, deployData.apks.size)
-        assertEquals(0, deployData.newClasses.size)
-        assertEquals(1, deployData.modifiedClasses.size)
-        assertEquals(0, deployData.overlays.size)
+        changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", modifiedClassesSize = 1)
     }
 
+    /*******************************************************************
+     * Source file test case:
+     * operation:   add / remove / update value / change signature
+     * language:    java / kotlin
+     * count:       single / multiple
+     * type:        static / non-static
+     * object:      variable / method / class / subclass
+     *******************************************************************/
+
+    @Test
+    fun testAddSingleJavaClass() {
+        changeFileAndNotify("TestNewFile.java" to "TestNewFile.java")
+        checkCompileResult("TestNewFile.java", newClassesSize = 1)
+
+        // revert
+        revertFile("TestNewFile.java", isAdd = true)
+    }
+
+    @Test
+    fun testAddMultiJavaClasses() {
+        changeFileAndNotify(
+            "TestNewFile.java" to "TestNewFile.java",
+            "TestNewFile2.java" to "TestNewFile2.java")
+        checkCompileResult("TestNewFile.java", "TestNewFile2.java", newClassesSize = 2)
+
+        // revert
+        revertFile("TestNewFile.java", isAdd = true)
+    }
 
     companion object {
 
