@@ -99,10 +99,18 @@ class JuggManagerTest {
             val destFile = File(assetsAndroidDir, "$directory/$destFileName")
             sourceFile to destFile
         }
+        val revertFileMark = pairs.map { (_, destFile) ->
+            destFile to destFile.exists()
+        }
         fileChangeEventSender.copyAndNotifyFileChanges(pairs)
+
+        // revert
+        revertFileMark.forEach { (destFile, isExist) ->
+            revertFile(destFile.name, isAdd = !isExist)
+        }
     }
 
-    private fun revertFile(originFile: String, isAdd: Boolean, directory: String = testSourceDirectory) {
+    private fun revertFile(originFile: String, isAdd: Boolean = false, directory: String = testSourceDirectory) {
         val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$originFile")
         val destFile = File(assetsAndroidDir, "$directory/$originFile")
         if (isAdd) {
@@ -183,7 +191,7 @@ class JuggManagerTest {
      * count:       single / multiple
      * language:    java / kotlin
      * type:        static / non-static
-     * object:      variable / method / class / subclass
+     * object:      class / method / variable
      *
      * other case:
      * * Kotlin const value update
@@ -194,9 +202,6 @@ class JuggManagerTest {
     fun testAddSingleJavaClass() {
         changeFileAndNotify("TestNewFile.java" to "TestNewFile.java")
         checkCompileResult("TestNewFile.java", newClassesSize = 1)
-
-        // revert
-        revertFile("TestNewFile.java", isAdd = true)
     }
 
     @Test
@@ -205,10 +210,6 @@ class JuggManagerTest {
             "TestNewFile.java" to "TestNewFile.java",
             "TestNewFile2.java" to "TestNewFile2.java")
         checkCompileResult("TestNewFile.java", "TestNewFile2.java", newClassesSize = 2)
-
-        // revert
-        revertFile("TestNewFile.java", isAdd = true)
-        revertFile("TestNewFile2.java", isAdd = true)
     }
 
     // no remove class
@@ -217,6 +218,8 @@ class JuggManagerTest {
 
     @Test
     fun testChangeSignatureJavaClass() {
+        changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", modifiedClassesSize = 1)
 
     }
 
