@@ -42,7 +42,7 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
 
     @Synchronized
     fun addChangedFile(file: ChangedFile) {
-        uncompiledFiles[file.file.standardizedPath] = file
+        uncompiledFiles[file.file.stdPath] = file
     }
 
     @Synchronized
@@ -95,5 +95,5 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
     private val File.stdPath get() = path.replace(File.separatorChar, '/')
-    private val VirtualFile.standardizedPath get() = path.replace(File.separatorChar, '/')
+    private val VirtualFile.stdPath get() = path.replace(File.separatorChar, '/')
 }

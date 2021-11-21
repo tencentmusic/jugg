@@ -80,7 +80,7 @@ class JuggManager @TestOnly constructor(
 
     private fun initCompile(apks: List<ApkInfo>) {
         val parsedApks = apks.map {
-            ApkParser(it).parse()
+            ApkParser().parse(it)
         }
 
         compileContextManager.compileContext.update(parsedApks = parsedApks)

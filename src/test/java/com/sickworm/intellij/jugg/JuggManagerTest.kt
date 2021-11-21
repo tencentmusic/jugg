@@ -122,7 +122,10 @@ class JuggManagerTest {
 
     private fun checkCompileResult(
         vararg fileNames: String,
-        newClassesSize: Int = 0, modifiedClassesSize: Int = 0, overlaysSize: Int = 0,
+        newClassesSize: Int = 0,
+        hotFixModifiedClassesSize: Int = 0,
+        hotReloadModifiedClassesSize: Int = 0,
+        overlaysSize: Int = 0,
     ) {
         fileNames.forEach { fileName ->
             val className = File(fileName).nameWithoutExtension + ".class"
@@ -140,7 +143,8 @@ class JuggManagerTest {
         val deployData = deployDataManager.getDeployData()
         assertEquals(1, deployData.apks.size)
         assertEquals(newClassesSize, deployData.newClasses.size)
-        assertEquals(modifiedClassesSize, deployData.modifiedClasses.size)
+        assertEquals(hotFixModifiedClassesSize, deployData.hotFixModifiedClasses.size)
+        assertEquals(hotReloadModifiedClassesSize, deployData.hotReloadModifiedClasses.size)
         assertEquals(overlaysSize, deployData.overlays.size)
     }
 
@@ -176,13 +180,13 @@ class JuggManagerTest {
     @Test
     fun testCompileJavaFile() {
         changeFileAndNotify("ABC.java" to "ABC.java")
-        checkCompileResult("ABC.java", modifiedClassesSize = 1)
+        checkCompileResult("ABC.java", hotReloadModifiedClassesSize = 1)
     }
 
     @Test
     fun testCompileActivity() {
         changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
-        checkCompileResult("MainActivity2.java", modifiedClassesSize = 1)
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 
     /*******************************************************************
@@ -219,7 +223,15 @@ class JuggManagerTest {
     @Test
     fun testChangeSignatureJavaClass() {
         changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
-        checkCompileResult("MainActivity2.java", modifiedClassesSize = 1)
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 
     companion object {

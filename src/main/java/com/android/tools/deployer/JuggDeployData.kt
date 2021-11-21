@@ -6,14 +6,21 @@ import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.DexClassNodeWrapper
 
 data class JuggDeployData(
     val apks: List<ApkInfo>,
-    val newClasses: List<DeployItem>,
-    val modifiedClasses: List<DeployItem>,
+    val newClasses: List<ClassDeployItem>,
+    val hotFixModifiedClasses: List<ClassDeployItem>,
+    val hotReloadModifiedClasses: List<ClassDeployItem>,
     val overlays: List<DeployItem>,
 ) {
-    val isEmpty get() = newClasses.isEmpty() && modifiedClasses.isEmpty() && overlays.isEmpty()
+    val isEmpty get() = newClasses.isEmpty() &&
+            hotFixModifiedClasses.isEmpty() &&
+            hotReloadModifiedClasses.isEmpty() &&
+            overlays.isEmpty()
+
+    val classes get() = newClasses + hotFixModifiedClasses + hotReloadModifiedClasses
 
     override fun toString(): String {
         val builder = StringBuilder()
@@ -25,9 +32,13 @@ data class JuggDeployData(
             builder.append("\nnew classes:\n")
             builder.append(newClasses.toLogString())
         }
-        if (modifiedClasses.isNotEmpty()) {
-            builder.append("\nmodified classes:\n")
-            builder.append(modifiedClasses.toLogString())
+        if (hotFixModifiedClasses.isNotEmpty()) {
+            builder.append("\nhot fix modified classes:\n")
+            builder.append(hotFixModifiedClasses.toLogString())
+        }
+        if (hotReloadModifiedClasses.isNotEmpty()) {
+            builder.append("\nhot reload modified classes:\n")
+            builder.append(hotReloadModifiedClasses.toLogString())
         }
         if (overlays.isNotEmpty()) {
             builder.append("\noverlay files:\n")
@@ -38,24 +49,29 @@ data class JuggDeployData(
     
 }
 
-class DeployItem(
-    val path: String,
+open class DeployItem(
+    val name: String,
     val type: CompileOutput.Type,
     val checksum: Long, // crc
     val content: ByteArray,
 ) {
 
     fun toIncompleteDexClass(): DexClass {
-        return DexClass(path, checksum, content, null)
+        return DexClass(name, checksum, content, null)
     }
 
     fun toIncompleteOverlay(apk: Apk): Pair<ApkEntry, ByteString> {
-        val apkEntry = ApkEntry(path, checksum, apk)
+        val apkEntry = ApkEntry(name, checksum, apk)
         val byteString = ByteString.copyFrom(content)
         return apkEntry to byteString
     }
 }
 
+class ClassDeployItem(
+    deployItem: DeployItem,
+    val dexClassNode: DexClassNodeWrapper
+): DeployItem(deployItem.name, deployItem.type, deployItem.checksum, deployItem.content)
+
 fun Collection<DeployItem>.toLogString(): String {
-    return joinToString(separator = "\n    ", prefix = "    ") { "${it.path}, checksum: ${it.checksum}" }
+    return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
 }

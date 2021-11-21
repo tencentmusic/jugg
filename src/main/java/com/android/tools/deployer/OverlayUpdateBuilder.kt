@@ -3,10 +3,7 @@ package com.android.tools.deployer
 import com.android.tools.deployer.DexComparator.ChangedClasses
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
-import com.android.utils.ILogger
-import com.sickworm.intellij.jugg.deploy.JuggFileInfo
 import com.sickworm.intellij.jugg.project.JuggException
 
 class OverlayUpdateBuilder {
@@ -20,10 +17,10 @@ class OverlayUpdateBuilder {
             throw DeployerException.remoteApkNotFound()
         }
 
-        val newClasses = data.newClasses.map {
+        val newClasses = (data.newClasses + data.hotFixModifiedClasses).map {
             it.toIncompleteDexClass()
         }
-        val modifiedClasses = data.modifiedClasses.map {
+        val modifiedClasses = data.hotReloadModifiedClasses.map {
             it.toIncompleteDexClass()
         }
         val dexOverlays = ChangedClasses(newClasses, modifiedClasses)

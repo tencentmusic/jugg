@@ -61,5 +61,8 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun contextInvalidToCompileArsc() =
             JuggInternalException("Can not compile resource yet due to apk file or android jar not found.")
+
+        fun dexFileNotContainsOnlyOneClass(size: Int) =
+            JuggInternalException("Dex file doesn't contains only one class (actually $size), which is not allow for apply changes.")
     }
 }

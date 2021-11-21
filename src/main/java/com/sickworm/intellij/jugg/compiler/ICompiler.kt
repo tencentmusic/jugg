@@ -145,6 +145,10 @@ class DexClassNodeWrapper(private val node: DexClassNode) {
 
     val fields: List<DexFieldNode> get() = node.fields?: emptyList()
 
+    val interfaceNames: Array<String> get() = node.interfaceNames?: emptyArray()
+
+    val superClass: String? get() = node.superClass
+
     // e.g. Landroid/support/v4/os/ResultReceiver$1;
     // ->
     // android.support.v4.os.ResultReceiver$1

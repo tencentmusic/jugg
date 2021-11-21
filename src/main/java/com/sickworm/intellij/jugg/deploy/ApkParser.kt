@@ -10,9 +10,9 @@ import com.sickworm.intellij.jugg.compiler.DexClassNodeWrapper
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 
 /** Used to parse everything I need in Apk */
-class ApkParser(private val apkInfo: ApkInfo) {
+class ApkParser {
 
-    fun parse(): ParsedApk {
+    fun parse(apkInfo: ApkInfo): ParsedApk {
         val apkBytes = apkInfo.file.readBytes()
         val reader: BaseDexFileReader = MultiDexFileReader.open(apkBytes)
         val visitor = DexFileNode()
@@ -33,6 +33,19 @@ class ApkParser(private val apkInfo: ApkInfo) {
         }
 
         return ParsedApk(apkInfo, classes, overlayFiles)
+    }
+
+    fun parseDex(dexByteCode: ByteArray): Map<String, DexClassNodeWrapper> {
+        val reader: BaseDexFileReader = DexFileReader(dexByteCode)
+        val visitor = DexFileNode()
+        reader.accept(visitor, DexFileReader.SKIP_CODE)
+
+        val classes = mutableMapOf<String, DexClassNodeWrapper>()
+        visitor.clzs.forEach {
+            val classNode = DexClassNodeWrapper(it)
+            classes[classNode.className] = classNode
+        }
+        return classes
     }
 }
 
