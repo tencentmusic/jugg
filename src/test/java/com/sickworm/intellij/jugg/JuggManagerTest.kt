@@ -241,7 +241,7 @@ class JuggManagerTest {
                 return
             }
 
-            // actually is fix ByteBuddyAgent used by Mockito
+            // actually is fixing ByteBuddyAgent used by Mockito
 
             // 1. ByteBuddyAgent will read System.setProperty("java.home") and invoke,
             // when the property has white space，it will add " between the path,
