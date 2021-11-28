@@ -194,7 +194,7 @@ class JuggManagerTest {
      * Source file test case:
      * operation:   add / remove / update value / change signature
      * count:       single / multiple
-     * language:    java / kotlin
+     * language:    java / kotlin / java + kotlin
      * type:        static / non-static
      * object:      class / method / variable
      *
