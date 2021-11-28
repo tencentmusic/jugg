@@ -218,16 +218,16 @@ class JuggManagerTest {
 
     @Test
     fun testAddSingleJavaClass() {
-        changeFileAndNotify("TestNewFile.java" to "TestNewFile.java")
-        checkCompileResult("TestNewFile.java", newClassesSize = 1)
+        changeFileAndNotify("TestNewJavaFile.java" to "TestNewJavaFile.java")
+        checkCompileResult("TestNewJavaFile.java", newClassesSize = 1)
     }
 
     @Test
     fun testAddMultipleJavaClasses() {
         changeFileAndNotify(
-            "TestNewFile.java" to "TestNewFile.java",
-            "TestNewFile2.java" to "TestNewFile2.java")
-        checkCompileResult("TestNewFile.java", "TestNewFile2.java", newClassesSize = 2)
+            "TestNewJavaFile.java" to "TestNewJavaFile.java",
+            "TestNewJavaFile2.java" to "TestNewJavaFile2.java")
+        checkCompileResult("TestNewJavaFile.java", "TestNewJavaFile2.java", newClassesSize = 2)
     }
 
     // no remove class
@@ -236,7 +236,7 @@ class JuggManagerTest {
 
     @Test
     fun testChangeSignatureJavaClass() {
-        changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
+        changeFileAndNotify("MainActivity2.changeSignature.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
 
         // simulate deploy
@@ -244,7 +244,7 @@ class JuggManagerTest {
         deployDataManager.commit(deployData)
 
         // second time deploy will be hot reload
-        changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
+        changeFileAndNotify("MainActivity2.changeSignature.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 
@@ -270,7 +270,7 @@ class JuggManagerTest {
 
     @Test
     fun testChangeSignatureKotlinClass() {
-        changeFileAndNotify("MainActivity.kt.changeSignature" to "MainActivity.kt")
+        changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         // there is a inner class inside MainActivity.kt
         checkCompileResult("MainActivity.kt",
             hotReloadModifiedClassesSize = 1,
@@ -281,7 +281,7 @@ class JuggManagerTest {
         deployDataManager.commit(deployData)
 
         // second time deploy will be hot reload
-        changeFileAndNotify("MainActivity.kt.changeSignature" to "MainActivity.kt")
+        changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 2)
     }
 }

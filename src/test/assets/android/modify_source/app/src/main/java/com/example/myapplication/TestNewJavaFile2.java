@@ -1,6 +1,6 @@
 package com.example.myapplication;
 
-public class TestNewFile {
+public class TestNewJavaFile2 {
 
     public void haha() {
         System.out.println("haha");
