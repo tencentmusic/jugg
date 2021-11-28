@@ -201,7 +201,11 @@ class JuggManagerTest {
      * other case:
      * * Kotlin const value update
      * * Kotlin multiple class in one file
+     * * Java + Kotlin compile
+     * * Part files compile failed
      *******************************************************************/
+
+    // java class
 
     @Test
     fun testAddSingleJavaClass() {
