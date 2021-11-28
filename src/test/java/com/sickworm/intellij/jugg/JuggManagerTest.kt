@@ -238,4 +238,12 @@ class JuggManagerTest {
         changeFileAndNotify("MainActivity2.java.changeSignature" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
+
+    // kotlin class
+
+    @Test
+    fun testAddSingleKotlinClass() {
+        changeFileAndNotify("TestNewKotlinFile.kt" to "TestNewKotlinFile.kt")
+        checkCompileResult("TestNewKotlinFile.kt", newClassesSize = 1)
+    }
 }
