@@ -255,4 +255,33 @@ class JuggManagerTest {
         changeFileAndNotify("TestNewKotlinFile.kt" to "TestNewKotlinFile.kt")
         checkCompileResult("TestNewKotlinFile.kt", newClassesSize = 1)
     }
+
+    @Test
+    fun testAddMultipleKotlinClasses() {
+        changeFileAndNotify(
+            "TestNewKotlinFile.kt" to "TestNewKotlinFile.kt",
+            "TestNewKotlinFile2.kt" to "TestNewKotlinFile2.kt")
+        checkCompileResult("TestNewKotlinFile.kt", "TestNewKotlinFile2.kt", newClassesSize = 2)
+    }
+
+    // no remove class
+
+    // no update value class
+
+    @Test
+    fun testChangeSignatureKotlinClass() {
+        changeFileAndNotify("MainActivity.kt.changeSignature" to "MainActivity.kt")
+        // there is a inner class inside MainActivity.kt
+        checkCompileResult("MainActivity.kt",
+            hotReloadModifiedClassesSize = 1,
+            hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity.kt.changeSignature" to "MainActivity.kt")
+        checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 2)
+    }
 }
