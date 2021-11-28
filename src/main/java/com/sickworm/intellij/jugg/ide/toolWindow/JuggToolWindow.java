@@ -12,7 +12,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.ui.JBColor;
 import com.sickworm.intellij.jugg.JuggManager;
-import com.sickworm.intellij.jugg.JuggSettings;
+import com.sickworm.intellij.jugg.ide.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
 import com.sickworm.intellij.jugg.deploy.DeployState;
 import com.sickworm.intellij.jugg.project.JuggLogger;

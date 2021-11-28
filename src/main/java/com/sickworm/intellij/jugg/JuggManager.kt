@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ExecutorService

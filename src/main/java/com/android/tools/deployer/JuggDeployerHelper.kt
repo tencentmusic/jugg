@@ -14,7 +14,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.JuggSettings
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File

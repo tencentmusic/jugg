@@ -2,16 +2,21 @@ package com.sickworm.intellij.jugg
 
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.run.ApkInfo
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.mock.MockApplication
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.testFramework.registerComponentImplementation
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -39,6 +44,10 @@ class JuggManagerTest {
     private lateinit var deployDataManager: DeployDataManager
 
     private fun renewComponents() {
+        val application = MockApplication {}
+        ApplicationManager.setApplication(application) {}
+        application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
+
         project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
         apkInfos = listOf(ApkInfo(assetsApkFile, androidApkPackage))
