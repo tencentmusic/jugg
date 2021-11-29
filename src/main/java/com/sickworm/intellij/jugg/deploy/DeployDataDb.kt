@@ -17,7 +17,7 @@ class DeployDataDb(
     private val logger: Logger,
 ) {
 
-    // TODO persist
+    // TODO persist?
     private var deployedClasses: MutableMap<String, DexClassNodeWrapper> = mutableMapOf()
     private var deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 

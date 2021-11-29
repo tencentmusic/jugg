@@ -276,4 +276,19 @@ class JuggManagerTest {
         changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 2)
     }
+
+    // java method
+    @Test
+    fun tesAddSingleJavaMethod() {
+        changeFileAndNotify("MainActivity2.addMethod.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity2.addMethod.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
 }
