@@ -208,10 +208,10 @@ class JuggManagerTest {
      * object:      class / method / variable
      *
      * other case:
-     * * Kotlin const value update
-     * * Kotlin multiple class in one file
-     * * Java + Kotlin compile
      * * Part files compile failed
+     * * Kotlin multiple class in one file
+     * * Kotlin const value update (diffusion compilation)
+     * * Kotlin inline method (diffusion compilation)
      *******************************************************************/
 
     // java class
