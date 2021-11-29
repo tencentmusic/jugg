@@ -8,11 +8,19 @@ import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DexClassNodeWrapper
 
+/**
+ * Final data that going to deploy to the device.
+ */
 data class JuggDeployData(
+    /** application apks */
     val apks: List<ApkInfo>,
+    /** brand new deploying classes that not exists in previous deployment */
     val newClasses: List<ClassDeployItem>,
+    /** exists deploying classes, but not compatible with JVM-TI Apply Changes */
     val hotFixModifiedClasses: List<ClassDeployItem>,
+    /** exists deploying classes, and compatible with JVM-TI Apply Changes */
     val hotReloadModifiedClasses: List<ClassDeployItem>,
+    /** modified files that will place into /assets or /res. TODO handle other path? */
     val overlays: List<DeployItem>,
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
