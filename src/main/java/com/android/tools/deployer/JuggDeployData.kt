@@ -6,7 +6,7 @@ import com.android.tools.deployer.model.DexClass
 import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.DexClassNodeWrapper
+import com.sickworm.intellij.jugg.compiler.ClassNode
 
 /**
  * Final data that going to deploy to the device.
@@ -77,7 +77,7 @@ open class DeployItem(
 
 class ClassDeployItem(
     deployItem: DeployItem,
-    val dexClassNode: DexClassNodeWrapper
+    val classNode: ClassNode
 ): DeployItem(deployItem.name, deployItem.type, deployItem.checksum, deployItem.content)
 
 fun Collection<DeployItem>.toLogString(): String {

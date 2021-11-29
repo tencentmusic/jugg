@@ -4,7 +4,7 @@ import com.android.tools.deployer.*
 import com.intellij.openapi.diagnostic.Logger
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.DexClassNodeWrapper
+import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
@@ -18,7 +18,7 @@ class DeployDataDb(
 ) {
 
     // TODO persist?
-    private var deployedClasses: MutableMap<String, DexClassNodeWrapper> = mutableMapOf()
+    private var deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private var deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 
     @Synchronized
@@ -45,7 +45,7 @@ class DeployDataDb(
         val modifiedClasses = changedClasses - newClasses
 
         val hotReloadModifiedClasses = modifiedClasses.filter {
-            isHotReloadClass(it.name, it.dexClassNode)
+            isHotReloadClass(it.name, it.classNode)
         }
         val hotFixModifiedClasses = modifiedClasses - hotReloadModifiedClasses
 
@@ -102,29 +102,29 @@ class DeployDataDb(
         return true
     }
 
-    private fun isHotReloadClass(className: String, newDexClassNode: DexClassNodeWrapper): Boolean {
+    private fun isHotReloadClass(className: String, newClassNode: ClassNode): Boolean {
         val apks = compileContextManager.compileContext.parsedApks
 
-        var oldDexClassNode: DexClassNodeWrapper? = deployedClasses[className]
-        if (oldDexClassNode == null) {
-            oldDexClassNode = apks.firstNotNullResult {
+        var oldClassNode: ClassNode? = deployedClasses[className]
+        if (oldClassNode == null) {
+            oldClassNode = apks.firstNotNullResult {
                 it.classes[className]
             }
         }
-        if (oldDexClassNode == null) {
+        if (oldClassNode == null) {
             // this should not happened, because we just run [isNewClass]
             return false
         }
 
         // compare class node difference
-        val result = ClassNodeComparator(oldDexClassNode, newDexClassNode).compare()
+        val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
         return result.isSameStructure
     }
 
     @Synchronized
     fun update(overlayUpdate: JuggDeployData) {
         overlayUpdate.classes.forEach {
-            deployedClasses[it.name] = it.dexClassNode
+            deployedClasses[it.name] = it.classNode
         }
         overlayUpdate.overlays.forEach {
             deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)

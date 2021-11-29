@@ -1,9 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.android.tools.idea.run.ApkInfo
-import com.googlecode.d2j.node.DexClassNode
-import com.googlecode.d2j.node.DexFieldNode
-import com.googlecode.d2j.node.DexMethodNode
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.JuggFileInfo
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -132,32 +129,9 @@ interface ICompileContext {
 
 class ParsedApk(
     val apkInfo: ApkInfo,
-    val classes: Map<String, DexClassNodeWrapper>,
+    val classes: Map<String, ClassNode>,
     val overlayFiles: Map<String, JuggFileInfo>,
 )
-
-/** for null safe */
-class DexClassNodeWrapper(private val node: DexClassNode) {
-
-    val className get() = convertSigFormatToNormal()
-
-    val methods: List<DexMethodNode> get() = node.methods?: emptyList()
-
-    val fields: List<DexFieldNode> get() = node.fields?: emptyList()
-
-    val interfaceNames: Array<String> get() = node.interfaceNames?: emptyArray()
-
-    val superClass: String? get() = node.superClass
-
-    // e.g. Landroid/support/v4/os/ResultReceiver$1;
-    // ->
-    // android.support.v4.os.ResultReceiver$1
-    private fun convertSigFormatToNormal(): String {
-        return node.className
-            .substring(1, node.className.length - 1)
-            .replace('/', '.')
-    }
-}
 
 data class ModuleInfo(
     val name: String,

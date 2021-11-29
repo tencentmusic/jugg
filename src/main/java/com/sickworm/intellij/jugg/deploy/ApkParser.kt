@@ -6,7 +6,7 @@ import com.googlecode.d2j.node.DexFileNode
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader
-import com.sickworm.intellij.jugg.compiler.DexClassNodeWrapper
+import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 
 /** Used to parse everything I need in Apk */
@@ -18,9 +18,9 @@ class ApkParser {
         val visitor = DexFileNode()
         reader.accept(visitor, DexFileReader.SKIP_CODE)
 
-        val classes = mutableMapOf<String, DexClassNodeWrapper>()
+        val classes = mutableMapOf<String, ClassNode>()
         visitor.clzs.forEach {
-            val classNode = DexClassNodeWrapper(it)
+            val classNode = ClassNode(it)
             classes[classNode.className] = classNode
         }
 
@@ -35,14 +35,14 @@ class ApkParser {
         return ParsedApk(apkInfo, classes, overlayFiles)
     }
 
-    fun parseDex(dexByteCode: ByteArray): Map<String, DexClassNodeWrapper> {
+    fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
         val reader: BaseDexFileReader = DexFileReader(dexByteCode)
         val visitor = DexFileNode()
         reader.accept(visitor, DexFileReader.SKIP_CODE)
 
-        val classes = mutableMapOf<String, DexClassNodeWrapper>()
+        val classes = mutableMapOf<String, ClassNode>()
         visitor.clzs.forEach {
-            val classNode = DexClassNodeWrapper(it)
+            val classNode = ClassNode(it)
             classes[classNode.className] = classNode
         }
         return classes
