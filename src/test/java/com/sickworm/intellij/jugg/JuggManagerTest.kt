@@ -230,10 +230,6 @@ class JuggManagerTest {
         checkCompileResult("TestNewJavaFile.java", "TestNewJavaFile2.java", newClassesSize = 2)
     }
 
-    // no remove class
-
-    // no update value class
-
     @Test
     fun testChangeSignatureJavaClass() {
         changeFileAndNotify("MainActivity2.changeSignature.java" to "MainActivity2.java")
@@ -263,10 +259,6 @@ class JuggManagerTest {
             "TestNewKotlinFile2.kt" to "TestNewKotlinFile2.kt")
         checkCompileResult("TestNewKotlinFile.kt", "TestNewKotlinFile2.kt", newClassesSize = 2)
     }
-
-    // no remove class
-
-    // no update value class
 
     @Test
     fun testChangeSignatureKotlinClass() {
