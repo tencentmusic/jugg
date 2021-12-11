@@ -201,11 +201,11 @@ class JuggManagerTest {
 
     /*******************************************************************
      * Source file test case:
-     * operation:   add / remove / update value / change signature
-     * count:       single / multiple
      * language:    java / kotlin / java + kotlin
+     * operation:   add / remove / update value / change signature
      * type:        static / non-static
      * object:      class / method / variable
+     * count:       single / multiple
      *
      * other case:
      * * Part files compile failed
@@ -217,13 +217,13 @@ class JuggManagerTest {
     // java class
 
     @Test
-    fun testAddSingleJavaClass() {
+    fun testJavaClassAddSingle() {
         changeFileAndNotify("TestNewJavaFile.java" to "TestNewJavaFile.java")
         checkCompileResult("TestNewJavaFile.java", newClassesSize = 1)
     }
 
     @Test
-    fun testAddMultipleJavaClasses() {
+    fun testJavaClassAddMultiple() {
         changeFileAndNotify(
             "TestNewJavaFile.java" to "TestNewJavaFile.java",
             "TestNewJavaFile2.java" to "TestNewJavaFile2.java")
@@ -231,7 +231,7 @@ class JuggManagerTest {
     }
 
     @Test
-    fun testChangeSignatureJavaClass() {
+    fun testJavaClassChangeSignature() {
         changeFileAndNotify("MainActivity2.changeSignature.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
 
@@ -247,13 +247,13 @@ class JuggManagerTest {
     // kotlin class
 
     @Test
-    fun testAddSingleKotlinClass() {
+    fun testKotlinClassAddSingle() {
         changeFileAndNotify("TestNewKotlinFile.kt" to "TestNewKotlinFile.kt")
         checkCompileResult("TestNewKotlinFile.kt", newClassesSize = 1)
     }
 
     @Test
-    fun testAddMultipleKotlinClasses() {
+    fun testKotlinClassAddMultiple() {
         changeFileAndNotify(
             "TestNewKotlinFile.kt" to "TestNewKotlinFile.kt",
             "TestNewKotlinFile2.kt" to "TestNewKotlinFile2.kt")
@@ -261,7 +261,7 @@ class JuggManagerTest {
     }
 
     @Test
-    fun testChangeSignatureKotlinClass() {
+    fun testKotlinClassChangeSignature() {
         changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         // there is a inner class inside MainActivity.kt
         checkCompileResult("MainActivity.kt",
@@ -278,8 +278,9 @@ class JuggManagerTest {
     }
 
     // java method
+
     @Test
-    fun tesAddSingleJavaMethod() {
+    fun testJavaMethodAddSingle() {
         changeFileAndNotify("MainActivity2.addMethod.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
 
@@ -289,6 +290,68 @@ class JuggManagerTest {
 
         // second time deploy will be hot reload
         changeFileAndNotify("MainActivity2.addMethod.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testJavaMethodRemoveSingle() {
+        changeFileAndNotify("MainActivity2.removeMethod.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity2.removeMethod.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testJavaMethodChangeReturn() {
+        changeFileAndNotify("MainActivity2.changeMethodReturn.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity2.changeMethodReturn.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testJavaMethodChangeArgument() {
+        changeFileAndNotify("MainActivity2.changeMethodArgument.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity2.changeMethodArgument.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testJavaMethodChangeReturnThenChangeArgument() {
+        changeFileAndNotify("MainActivity2.changeMethodReturn.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        // second time deploy will be hot reload
+        changeFileAndNotify("MainActivity2.changeMethodArgument.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testJavaMethodChangeContent() {
+        changeFileAndNotify("MainActivity2.changeContent.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 }
