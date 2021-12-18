@@ -120,7 +120,7 @@ public abstract class JuggAbstractDeployTask implements LaunchTask {
                 }
             }
             catch (DeployerException e) {
-                logger.warning("%s failed: %s %s", getDescription(), e.getMessage(), e.getDetails());
+                logger.error(e, "%s failed: %s %s", getDescription(), e.getMessage(), e.getDetails());
                 return toLaunchResult(executor, e, printer);
             }
         }

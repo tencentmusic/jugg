@@ -89,8 +89,10 @@ open class BasicJuggMock {
         juggDeployerHelper = spy(JuggDeployerHelper(MockExecutor()))
         doReturn(device).`when`(juggDeployerHelper).getIDevice(project)
         juggDeployerHelper.installPathProvider = Computable {
+            // TODO normalize
             if (isWindows) {
-                return@Computable "D:\\Android\\Android Studio\\plugins\\android\\resources\\installer"
+                return@Computable "./build/idea-sandbox/system/android/android-plugin-resources/" +
+                        "27.1.1.1/plugins/android/resources/installer"
             } else {
                 TODO()
             }

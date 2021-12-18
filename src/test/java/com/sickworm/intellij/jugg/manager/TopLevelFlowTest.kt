@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.android.tools.deployer.JuggDeployData
+import com.android.tools.deployer.JuggDeployerHelper
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -40,8 +42,26 @@ class TopLevelFlowTest: BasicJuggMock() {
     }
 
     @Test
+    fun testInstall() {
+        val data = deployDataManager.getDeployData()
+        juggDeployerHelper.runTask(data, project, true)
+    }
+
+    @Test
     fun testDeploy() {
+        testInstall()
+
         changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+
+        juggManager.deploy()
+    }
+
+    @Test
+    fun testDeploy2() {
+        testInstall()
+
+        changeFileAndNotify("MainActivity2.changeImageAndToast.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
         juggManager.deploy()
