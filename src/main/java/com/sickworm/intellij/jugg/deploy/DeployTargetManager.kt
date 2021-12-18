@@ -16,7 +16,8 @@ import com.sickworm.intellij.jugg.project.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 
 class DeployTargetManager(
-    private val project: Project
+    private val project: Project,
+    private val juggDeployerHelper: JuggDeployerHelper
 ) {
     private val logger = JuggLogger.getInstance(project, "#Jugg-DeployTargetManager")
 
@@ -44,7 +45,7 @@ class DeployTargetManager(
             val facet: AndroidFacet = AndroidFacet.getInstance(module)!!
             val targetDeviceSpec = null
             val apkProvider = facet.getModuleSystem().getApkProvider(runConfig, targetDeviceSpec)!!
-            val device = JuggDeployerHelper.getIDevice(project)
+            val device = juggDeployerHelper.getIDevice(project)
             apkProvider.getApks(device).toList()
         } catch (e: Exception) {
             logger.debug("getApks failed", e)

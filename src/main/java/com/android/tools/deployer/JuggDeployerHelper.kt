@@ -26,7 +26,7 @@ import java.util.stream.Collectors
  * @see [com.android.tools.idea.run.AndroidRunConfigurationBase.getState]
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]
  */
-object JuggDeployerHelper {
+class JuggDeployerHelper {
 
     var installPathProvider: Computable<String> = Computable<String> {
         findEmbeddedInstaller()
