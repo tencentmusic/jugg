@@ -4,7 +4,7 @@ import java.util.concurrent.*
 
 class SyncExecutorService: ExecutorService {
     override fun execute(command: Runnable) {
-        TODO("Not yet implemented")
+        command.run()
     }
 
     override fun shutdown() {

@@ -8,6 +8,7 @@ import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.tasks.JuggApplyChangesTask
 import com.android.tools.idea.run.tasks.JuggApplyCodeChangesTask
 import com.google.common.collect.ImmutableList
+import com.intellij.execution.Executor
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.module.ModuleManager
@@ -26,7 +27,9 @@ import java.util.stream.Collectors
  * @see [com.android.tools.idea.run.AndroidRunConfigurationBase.getState]
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]
  */
-class JuggDeployerHelper {
+class JuggDeployerHelper(
+    private val executor: Executor = DefaultRunExecutor.getRunExecutorInstance()
+) {
 
     var installPathProvider: Computable<String> = Computable<String> {
         findEmbeddedInstaller()
@@ -44,7 +47,6 @@ class JuggDeployerHelper {
         } else {
             JuggApplyCodeChangesTask(project, packages, true, installPathProvider, data)
         }
-        val executor = DefaultRunExecutor.getRunExecutorInstance()
         val device = getIDevice(project)
         val launchStatus = MockLaunchStatus()
 
@@ -104,7 +106,7 @@ class JuggDeployerHelper {
     }
 
     private val isDebugging = true // ??
-    private val deployTargetContext = DeployTargetContext()
+    private val deployTargetContext: DeployTargetContext by lazy { DeployTargetContext() }
     private fun supportMultipleDevices() = false
 
     // private in Android Studio 4.1.2，so I copied it out

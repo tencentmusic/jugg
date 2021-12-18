@@ -148,7 +148,8 @@ class JuggManager @TestOnly constructor(
         deployThread.submitSafe("Deploy", ::deploy)
     }
 
-    private fun deploy() {
+    @TestOnly
+    fun deploy() {
         when {
             deployState.isReadyApply -> {
                 val deployData = deployDataManager.getDeployData()

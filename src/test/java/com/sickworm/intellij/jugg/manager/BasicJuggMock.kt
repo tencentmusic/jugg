@@ -1,5 +1,9 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.android.ddmlib.AndroidDebugBridge
+import com.android.ddmlib.IDevice
+import com.android.ddmlib.internal.DeviceImpl
+import com.android.tools.deployer.JuggDeployerHelper
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.ide.util.PropertiesComponent
@@ -9,6 +13,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.sickworm.intellij.jugg.JuggManager
@@ -17,6 +22,7 @@ import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
+import com.sickworm.intellij.jugg.isWindows
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
@@ -40,7 +46,14 @@ open class BasicJuggMock {
     protected lateinit var deployTargetManager: DeployTargetManager
     protected lateinit var compileContextManager: CompileContextManager
     protected lateinit var fileChangeEventSender: FileChangeEventSender
+    protected lateinit var juggDeployerHelper: JuggDeployerHelper
     protected lateinit var deployDataManager: DeployDataManager
+
+    private val device = DeviceImpl(null, "R5CR2195N0Z", IDevice.DeviceState.ONLINE)
+
+    init {
+        AndroidDebugBridge.init(true) // init adb
+    }
 
     private fun renewComponents() {
         val application = MockApplication {}
@@ -73,6 +86,16 @@ open class BasicJuggMock {
         }
         fileChangesManager = FileChangesManager(project, projectDir, virtualFileManager)
 
+        juggDeployerHelper = spy(JuggDeployerHelper(MockExecutor()))
+        doReturn(device).`when`(juggDeployerHelper).getIDevice(project)
+        juggDeployerHelper.installPathProvider = Computable {
+            if (isWindows) {
+                return@Computable "D:\\Android\\Android Studio\\plugins\\android\\resources\\installer"
+            } else {
+                TODO()
+            }
+        }
+
         deployDataManager = DeployDataManager(compileContextManager, logger)
 
         JuggLogger.listenProjectLog(project, StdLogger("test"))
@@ -86,6 +109,7 @@ open class BasicJuggMock {
             compileThread = SyncExecutorService(),
             deployThread = SyncExecutorService(),
             compileContextManager = compileContextManager,
+            juggDeployerHelper = juggDeployerHelper,
             deployDataManager = deployDataManager
         )
         juggManager.init()

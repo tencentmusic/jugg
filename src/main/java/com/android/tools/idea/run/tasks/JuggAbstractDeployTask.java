@@ -60,10 +60,6 @@ import org.jetbrains.annotations.Nullable;
 
 public abstract class JuggAbstractDeployTask implements LaunchTask {
 
-    public static final int MIN_API_VERSION = 26;
-    private static final NotificationGroup NOTIFICATION_GROUP =
-            NotificationGroup.toolWindowGroup("UnifiedDeployTask", ToolWindowId.RUN, true, PluginId.getId("org.jetbrains.android"));
-
     @NotNull private final Project myProject;
     @NotNull private final Map<String, List<File>> myPackages;
     @NotNull protected List<LaunchTaskDetail> mySubTaskDetails;

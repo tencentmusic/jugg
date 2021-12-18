@@ -38,4 +38,12 @@ class TopLevelFlowTest: BasicJuggMock() {
         changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
+
+    @Test
+    fun testDeploy() {
+        changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+
+        juggManager.deploy()
+    }
 }
