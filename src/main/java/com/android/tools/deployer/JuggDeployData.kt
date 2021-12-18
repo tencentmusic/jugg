@@ -36,22 +36,28 @@ data class JuggDeployData(
             builder.append("[nothing to deploy]")
             return builder.toString()
         }
+        builder.append("[\n")
         if (newClasses.isNotEmpty()) {
-            builder.append("\nnew classes:\n")
+            builder.append("new classes:\n")
             builder.append(newClasses.toLogString())
+            builder.append("\n")
         }
         if (hotFixModifiedClasses.isNotEmpty()) {
-            builder.append("\nhot fix modified classes:\n")
+            builder.append("hot fix modified classes:\n")
             builder.append(hotFixModifiedClasses.toLogString())
+            builder.append("\n")
         }
         if (hotReloadModifiedClasses.isNotEmpty()) {
-            builder.append("\nhot reload modified classes:\n")
+            builder.append("hot reload modified classes:\n")
             builder.append(hotReloadModifiedClasses.toLogString())
+            builder.append("\n")
         }
         if (overlays.isNotEmpty()) {
-            builder.append("\noverlay files:\n")
+            builder.append("overlay files:\n")
             builder.append(overlays.toLogString())
+            builder.append("\n")
         }
+        builder.append("]")
         return builder.toString()
     }
     
