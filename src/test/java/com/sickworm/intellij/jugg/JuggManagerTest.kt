@@ -354,4 +354,24 @@ class JuggManagerTest {
         changeFileAndNotify("MainActivity2.changeContent.java" to "MainActivity2.java")
         checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
+
+    // java static method, skip because I don't have static method on demo project, and
+    // I need to implement auto-build on demo project apk first
+
+    // kotlin method, skip because I don't want to write now
+
+    // java variable
+
+    @Test
+    fun testJavaVariableAdd() {
+        changeFileAndNotify("MainActivity2.addVariable.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
+
+        // simulate deploy
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
+
+        changeFileAndNotify("MainActivity2.addVariable.java" to "MainActivity2.java")
+        checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
 }

@@ -41,4 +41,11 @@ class MethodNode(private val node: DexMethodNode) {
 /** for null safe */
 class FieldNode(private val node: DexFieldNode) {
 
+    fun isSignatureEquals(other: FieldNode): Boolean {
+        // TODO read agent source code, whether need check access and annotation
+        return node.access == other.node.access &&
+                node.field.owner == other.node.field.owner &&
+                node.field.name == other.node.field.name &&
+                node.field.type == other.node.field.type
+    }
 }
