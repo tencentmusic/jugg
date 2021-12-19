@@ -49,10 +49,11 @@ open class BasicJuggMock {
     protected lateinit var juggDeployerHelper: JuggDeployerHelper
     protected lateinit var deployDataManager: DeployDataManager
 
-    private val device = DeviceImpl(null, "R5CR2195N0Z", IDevice.DeviceState.ONLINE)
+    val device = DeviceImpl(null, "R5CR2195N0Z", IDevice.DeviceState.ONLINE)
 
     init {
-        AndroidDebugBridge.init(true) // init adb
+        // init adb
+        AndroidDebugBridge.init(true)
     }
 
     private fun renewComponents() {

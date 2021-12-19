@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.tools.deployer.JuggDeployData
-import com.android.tools.deployer.JuggDeployerHelper
+import com.sickworm.intellij.jugg.mock.DeviceClientMonitorTask
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -45,6 +44,11 @@ class TopLevelFlowTest: BasicJuggMock() {
     fun testInstall() {
         val data = deployDataManager.getDeployData()
         juggDeployerHelper.runTask(data, project, true)
+
+        // register adb after install
+        val monitor = DeviceClientMonitorTask()
+        val socket = monitor.register(device)
+        monitor.run(socket, device)
     }
 
     @Test
