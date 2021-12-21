@@ -23,14 +23,12 @@ import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
 import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
-import com.sickworm.intellij.jugg.isWindows
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
 import com.sickworm.intellij.jugg.project.JuggLogger
 import org.junit.Before
 import org.junit.BeforeClass
-import org.junit.Test
 import org.mockito.Mockito.*
 import java.io.File
 import kotlin.test.assertEquals
@@ -87,13 +85,7 @@ open class BasicJuggMock {
         juggDeployerHelper = spy(JuggDeployerHelper(MockExecutor()))
         doReturn(device).`when`(juggDeployerHelper).getIDevice(project)
         juggDeployerHelper.installPathProvider = Computable {
-            // TODO normalize
-            if (isWindows) {
-                return@Computable "./build/idea-sandbox/system/android/android-plugin-resources/" +
-                        "27.1.1.1/plugins/android/resources/installer"
-            } else {
-                TODO()
-            }
+            return@Computable "./src/test/assets/libs/installer"
         }
 
         deployDataManager = DeployDataManager(compileContextManager, logger)
