@@ -16,6 +16,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.DeployDataManager
@@ -28,6 +29,7 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
 import com.sickworm.intellij.jugg.project.JuggLogger
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 import org.mockito.Mockito.*
 import java.io.File
@@ -182,6 +184,14 @@ open class BasicJuggMock {
         assertEquals(hotFixModifiedClassesSize, deployData.hotFixModifiedClasses.size)
         assertEquals(hotReloadModifiedClassesSize, deployData.hotReloadModifiedClasses.size)
         assertEquals(overlaysSize, deployData.overlays.size)
+    }
+
+    companion object {
+        @BeforeClass
+        @JvmStatic
+        fun initApk() {
+            BuildDemoApkTest().buildApkIfNeeded()
+        }
     }
 
     @Before

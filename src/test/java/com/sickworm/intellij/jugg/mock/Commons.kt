@@ -25,7 +25,7 @@ val assetsLibDir = File(assetsDir, "libs")
 val assetsClassDir = File(assetsDir, "class")
 val assetsAndroidDir = File(assetsDir, "android/MyApplicationIntellij")
 val assetsAndroidModifySourceDir = File(assetsDir, "android/modify_source")
-val assetsApkFile = File(assetsDir, "android/app-debug.apk")
+val assetsApkFile = File(assetsAndroidDir, "app/build/outputs/apk/debug/app-debug.apk")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
