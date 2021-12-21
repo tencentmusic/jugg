@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.mock.DeviceClientMonitorTask
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import org.junit.Test
@@ -22,10 +23,7 @@ class TopLevelFlowTest: BasicJuggMock() {
         assertEquals(androidApkPackage, parsedApk.apkInfo.applicationId)
         assertTrue(parsedApk.apkInfo.file.exists())
 
-        assertEquals(2394, parsedApk.classes.entries.size)
-        assertEquals(12291, parsedApk.classes.entries.sumBy { it.value.fields.size })
-        assertEquals(19352, parsedApk.classes.entries.sumBy { it.value.methods.size })
-        assertEquals(748, parsedApk.overlayFiles.size)
+        BuildDemoApkTest().checkApkStructure(parsedApk)
     }
 
     @Test

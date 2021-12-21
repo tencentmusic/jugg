@@ -53,11 +53,6 @@ open class BasicJuggMock {
 
     val device = DeviceImpl(null, "R5CR2195N0Z", IDevice.DeviceState.ONLINE)
 
-    init {
-        // init adb
-        AndroidDebugBridge.init(true)
-    }
-
     private fun renewComponents() {
         val application = MockApplication {}
         ApplicationManager.setApplication(application) {}
@@ -192,6 +187,13 @@ open class BasicJuggMock {
         fun initApk() {
             BuildDemoApkTest().buildApkIfNeeded()
         }
+
+        @BeforeClass
+        @JvmStatic
+        fun initAdb() {
+            AndroidDebugBridge.init(true)
+        }
+
     }
 
     @Before
