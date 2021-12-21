@@ -17,6 +17,9 @@ object MockitoFixer {
 
         // 2. JDK 1.8 will cause invoke failed"Could not self-attach to current VM using external process",
         // need to use JDK 11
+
+        println("\ntryFix Mockito crash start")
+
         val propertyJavaHome = System.getProperty("java.home")
         val envJavaHome = System.getenv("JAVA_HOME")
         println("propertyJavaHome: $propertyJavaHome, envJavaHome: $envJavaHome")
@@ -36,5 +39,7 @@ object MockitoFixer {
             }
             System.setProperty("java.home", envJavaHome)
         }
+
+        println("tryFix Mockito crash end\n")
     }
 }
