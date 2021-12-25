@@ -85,12 +85,19 @@ class CompileContextManager(
         logger.debug("modules dir: ${moduleDirs.relativePath(projectDir)}")
 
         // TODO OPTIMIZE split by modules
+        // TODO read from apk
         val projectDeps: List<String> = moduleDirs.flatMap { baseDir ->
             // java class path
             val deps = mutableListOf<String>()
             val buildClassPath = "${baseDir}/build/intermediates/javac/debug/classes"
             if (File(buildClassPath).exists()) {
                 deps.add(buildClassPath)
+            }
+
+            // on gradle 3.2.1 has different java class path
+            val buildClassPath2 = "${baseDir}/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes"
+            if (File(buildClassPath2).exists()) {
+                deps.add(buildClassPath2)
             }
 
             // on gradle 4.1.1, R.class not storage in buildClassPath
