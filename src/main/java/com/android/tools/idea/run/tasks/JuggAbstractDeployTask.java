@@ -100,7 +100,6 @@ public abstract class JuggAbstractDeployTask implements LaunchTask {
 
         AdbClient adb = new AdbClient(device, logger);
         Installer installer = new AdbInstaller(getLocalInstaller(), adb, metrics, logger);
-        // TODO use self DeploymentService
         DeploymentService service = DeploymentService.getInstance(myProject);
         IdeService ideService = new IdeService(myProject);
         JuggDeployer deployer = new JuggDeployer(adb, service.getDeploymentCacheDatabase(), service.getDexDatabase(), service.getTaskRunner(),

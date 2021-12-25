@@ -45,7 +45,8 @@ class JuggDeployerHelper(
             }
         val task = when {
             isInstall -> {
-                JuggDeployTask(project, packages, "-t", true, installPathProvider, data)
+                // default has -t -r
+                JuggDeployTask(project, packages, "", true, installPathProvider, data)
             }
             JuggSettings.restartActivity -> {
                 JuggApplyChangesTask(project, packages, true, installPathProvider, data)

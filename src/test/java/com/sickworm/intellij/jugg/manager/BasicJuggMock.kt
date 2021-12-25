@@ -13,6 +13,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -55,6 +56,7 @@ open class BasicJuggMock {
         val application = MockApplication {}
         ApplicationManager.setApplication(application) {}
         application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
+        application.registerService(MessagesService::class.java, DummyMessagesService())
 
         project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
