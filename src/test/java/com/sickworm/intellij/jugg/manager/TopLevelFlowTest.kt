@@ -40,6 +40,10 @@ class TopLevelFlowTest: BasicJuggMock() {
 
     @Test
     fun testInstall() {
+        Runtime.getRuntime()
+            .exec("adb shell am force-stop $androidApkPackage")
+            .waitFor()
+
         val data = deployDataManager.getDeployData()
         juggDeployerHelper.runTask(data, project, true)
 
@@ -47,6 +51,10 @@ class TopLevelFlowTest: BasicJuggMock() {
         val monitor = DeviceClientMonitorTask()
         val socket = monitor.register(device)
         monitor.run(socket, device)
+
+        Runtime.getRuntime()
+            .exec("adb shell am start -n $androidApkPackage/com.example.myapplication.MainActivity")
+            .waitFor()
     }
 
     @Test
