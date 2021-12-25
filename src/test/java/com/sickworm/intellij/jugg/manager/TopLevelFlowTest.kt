@@ -63,13 +63,19 @@ class TopLevelFlowTest: BasicJuggMock() {
         var times = 0
         var isReady = false
         val monitor = DeviceClientMonitorTask()
-        val socket = monitor.register(device)
-        while (!isReady && times++ < 5) {
+        while (times++ < 5) {
             println("check app launch $times time")
+            val socket = monitor.register(device)
             if (monitor.run(socket, device)) {
                 isReady = true
             }
-            Thread.sleep(1000)
+            socket.close()
+
+            if (isReady) {
+                break
+            } else {
+                Thread.sleep(1000)
+            }
         }
         if (isReady) {
             println("app launched")
