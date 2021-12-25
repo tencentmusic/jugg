@@ -45,7 +45,7 @@ class BuildDemoApkTest {
                 testApkStructure()
                 println("apk structure is correct, no need to rebuild")
                 return
-            } catch (e: Exception) {
+            } catch (e: AssertionError) {
                 println("apk structure not correct, rebuild")
             }
         } else {
