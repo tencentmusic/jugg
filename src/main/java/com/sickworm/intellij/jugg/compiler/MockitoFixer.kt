@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.isWindows
+import java.io.File
 
 object MockitoFixer {
 
@@ -20,7 +21,7 @@ object MockitoFixer {
 
         println("\ntryFix Mockito crash start")
 
-        val propertyJavaHome = System.getProperty("java.home")
+        var propertyJavaHome = System.getProperty("java.home")
         val envJavaHome = System.getenv("JAVA_HOME")
         println("propertyJavaHome: $propertyJavaHome, envJavaHome: $envJavaHome")
 
@@ -30,16 +31,27 @@ object MockitoFixer {
                 throw IllegalStateException("please specific \$JAVA_HOME without white space, or Mockito won't work.")
             }
             System.setProperty("java.home", envJavaHome)
+            propertyJavaHome = envJavaHome
         }
 
-        if (!propertyJavaHome.contains("11")) {
+        val jdkVersion = getJdkVersion(propertyJavaHome)
+        if (!jdkVersion.startsWith("java version \"11.")) {
+            val envJdkVersion = getJdkVersion(propertyJavaHome)
             // manual fix by replace with envJavaHome
-            if (envJavaHome == null || !envJavaHome.contains("11")) {
+            if (envJavaHome == null || !envJdkVersion.contains("java version \"11.")) {
+                // maybe jdk 12 or higher is ok too, but I haven't test
                 throw IllegalStateException("please specific \$JAVA_HOME with JDK 11, or Mockito won't work.")
             }
             System.setProperty("java.home", envJavaHome)
         }
 
         println("tryFix Mockito crash end\n")
+    }
+
+    private fun getJdkVersion(javaHome: String): String {
+        val process = Runtime.getRuntime().exec("bin/java -version", null, File(javaHome))
+        val output = String(process.errorStream.readBytes())
+        process.waitFor()
+        return output
     }
 }
