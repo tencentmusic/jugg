@@ -128,7 +128,7 @@ public class DeviceClientMonitorTask {
         });
     }
 
-    public void run(SocketChannel socket, DeviceImpl device)
+    public boolean run(SocketChannel socket, DeviceImpl device)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException, IOException {
         byte[] lengthBuffer = new byte[4];
 
@@ -155,7 +155,7 @@ public class DeviceClientMonitorTask {
 //                                if (socket != null) {
 //                                    try {
                                         int length = AdbSocketUtils.readLength(socket, lengthBuffer);
-                                        this.processIncomingJdwpData(device, socket, length);
+                                        return this.processIncomingJdwpData(device, socket, length);
 //                                    } catch (IOException var10) {
 //                                        Log.d("DeviceClientMonitorTask", "Error reading jdwp list: " + var10.getMessage());
 //                                        socket.close();
@@ -198,8 +198,9 @@ public class DeviceClientMonitorTask {
         }
     }
 
-    private void processIncomingJdwpData(DeviceImpl device, SocketChannel monitorSocket, int length)
+    private boolean processIncomingJdwpData(DeviceImpl device, SocketChannel monitorSocket, int length)
             throws IOException, InvocationTargetException, NoSuchMethodException, IllegalAccessException {
+        boolean isSuccess = false;
         if (length >= 0) {
             Set<Integer> newPids = new HashSet();
             if (length > 0) {
@@ -254,7 +255,7 @@ public class DeviceClientMonitorTask {
 
             while(var24.hasNext()) {
                 int newPid = (Integer)var24.next();
-                openClient(device, newPid, monitorThread);
+                isSuccess |= openClient(device, newPid, monitorThread);
             }
 
             if (!pidsToAdd.isEmpty() || !clientsToRemove.isEmpty()) {
@@ -262,9 +263,10 @@ public class DeviceClientMonitorTask {
             }
         }
 
+        return isSuccess;
     }
 
-    private static void openClient(DeviceImpl device, int pid, MonitorThread monitorThread)
+    private static boolean openClient(DeviceImpl device, int pid, MonitorThread monitorThread)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
         SocketChannel clientSocket;
         try {
@@ -272,19 +274,19 @@ public class DeviceClientMonitorTask {
             clientSocket.configureBlocking(false);
         } catch (UnknownHostException var5) {
             Log.d("DeviceClientMonitorTask", "Unknown Jdwp pid: " + pid);
-            return;
+            return false;
         } catch (TimeoutException var6) {
             Log.w("DeviceClientMonitorTask", "Failed to connect to client '" + pid + "': timeout");
-            return;
+            return false;
         } catch (AdbCommandRejectedException var7) {
             Log.d("DeviceClientMonitorTask", "Adb rejected connection to client '" + pid + "': " + var7.getMessage());
-            return;
+            return false;
         } catch (IOException var8) {
             Log.w("DeviceClientMonitorTask", "Failed to connect to client '" + pid + "': " + var8.getMessage());
-            return;
+            return false;
         }
 
-        createClient(device, pid, clientSocket, monitorThread);
+        return createClient(device, pid, clientSocket, monitorThread);
     }
 
     private static boolean createClient(DeviceImpl device, int pid, SocketChannel socket, MonitorThread monitorThread)
@@ -315,6 +317,7 @@ public class DeviceClientMonitorTask {
 
             client.getClientData().setNames(new ClientData.Names(androidApkPackage, 0, androidApkPackage));
             client.getClientData().setAbi("64-bit");
+            return true;
         }
 
         return false;
