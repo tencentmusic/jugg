@@ -12,15 +12,11 @@ import kotlin.test.assertTrue
 
 class BuildDemoApkTest {
 
-    @Test
-    fun testCleanAndBuildApk() {
-        testClean()
-        testBuildApk()
-    }
+    private val gradlew = if (isWindows) "cmd.exe /c gradlew" else "./gradlew"
 
     @Test
     fun testClean() {
-        val process = Runtime.getRuntime().exec("./gradlew clean", null, assetsAndroidDir)
+        val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
         println("\n----------- clean start -----------\n")
         println(String(process.inputStream.readBytes()))
         println("\n-----------  clean end  -----------\n")
@@ -30,13 +26,19 @@ class BuildDemoApkTest {
 
     @Test
     fun testBuildApk() {
-        val process = Runtime.getRuntime().exec("./gradlew assembleDebug", null, assetsAndroidDir)
+        val process = Runtime.getRuntime().exec("$gradlew assembleDebug", null, assetsAndroidDir)
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
         println("\n-----------  assembleDebug end  -----------\n")
         process.waitFor()
 
         assertTrue(assetsApkFile.exists())
+    }
+
+    @Test
+    fun testCleanAndBuildApk() {
+        testClean()
+        testBuildApk()
     }
 
     fun buildApkIfNeeded() {
