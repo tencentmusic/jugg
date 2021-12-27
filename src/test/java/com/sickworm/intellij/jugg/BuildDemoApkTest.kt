@@ -4,6 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.mock.androidApkPackage
+import com.sickworm.intellij.jugg.mock.apkInfo
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.assetsApkFile
 import org.junit.Test
@@ -19,6 +20,8 @@ class BuildDemoApkTest {
         val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
         println("\n----------- clean start -----------\n")
         println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
         println("\n-----------  clean end  -----------\n")
 
         assertTrue(!assetsApkFile.exists())
@@ -29,6 +32,8 @@ class BuildDemoApkTest {
         val process = Runtime.getRuntime().exec("$gradlew assembleDebug", null, assetsAndroidDir)
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
         println("\n-----------  assembleDebug end  -----------\n")
         process.waitFor()
 
@@ -68,9 +73,9 @@ class BuildDemoApkTest {
     }
 
     fun checkApkStructure(parsedApk: ParsedApk) {
-        assertEquals(2387, parsedApk.classes.entries.size)
-        assertEquals(12293, parsedApk.classes.entries.sumBy { it.value.fields.size })
-        assertEquals(19338, parsedApk.classes.entries.sumBy { it.value.methods.size })
-        assertEquals(756, parsedApk.overlayFiles.size)
+        assertEquals(apkInfo.classCount, parsedApk.classes.entries.size)
+        assertEquals(apkInfo.fieldCount, parsedApk.classes.entries.sumBy { it.value.fields.size })
+        assertEquals(apkInfo.methodCount, parsedApk.classes.entries.sumBy { it.value.methods.size })
+        assertEquals(apkInfo.overlayFileCount, parsedApk.overlayFiles.size)
     }
 }

@@ -23,11 +23,14 @@ val assetsJavaDir = File(assetsDir, "java")
 val assetsKotlinDir = File(assetsDir, "kotlin")
 val assetsLibDir = File(assetsDir, "libs")
 val assetsClassDir = File(assetsDir, "class")
-val assetsAndroidDir = File(assetsDir, "android/MyApplicationIntellij")
-val assetsAndroidModifySourceDir = File(assetsDir, "android/modify_source")
-val assetsApkFile = File(assetsAndroidDir, "app/build/outputs/apk/debug/app-debug.apk")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
+
+val projectInfo = ProjectInfo.DEMO
+val assetsAndroidDir = projectInfo.projectRoot
+val assetsAndroidModifySourceDir = projectInfo.modifiedSource
+val assetsApkFile = projectInfo.apk
+val apkInfo = projectInfo.apkInfo
 
 // dependency
 val androidHome = File(System.getenv("ANDROID_HOME")?: throw IllegalStateException("please specific ANDROID_HOME in env"))
