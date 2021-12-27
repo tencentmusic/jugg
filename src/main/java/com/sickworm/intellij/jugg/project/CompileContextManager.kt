@@ -240,6 +240,7 @@ class CompileContextManager(
             val index = value.indexOf(" as ")
             value = value.substring(0, index)
         }
+        // TODO try model.ext() ?
         val property = model.inScopeProperties[value]
         if (property != null) {
             return property.valueAsString()
