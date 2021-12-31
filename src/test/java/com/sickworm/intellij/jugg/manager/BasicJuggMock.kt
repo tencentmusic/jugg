@@ -50,7 +50,7 @@ open class BasicJuggMock {
     protected lateinit var juggDeployerHelper: JuggDeployerHelper
     protected lateinit var deployDataManager: DeployDataManager
 
-    val device = DeviceImpl(null, "R5CR2195N0Z", IDevice.DeviceState.ONLINE)
+    val device = DeviceImpl(null, "192.168.31.82:34267", IDevice.DeviceState.ONLINE)
 
     private fun renewComponents() {
         val application = MockApplication {}

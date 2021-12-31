@@ -29,7 +29,7 @@ class BuildDemoApkTest {
 
     @Test
     fun testBuildApk() {
-        val process = Runtime.getRuntime().exec("$gradlew assembleDebug", null, assetsAndroidDir)
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug", null, assetsAndroidDir)
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()

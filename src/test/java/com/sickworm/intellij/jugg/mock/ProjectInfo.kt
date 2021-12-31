@@ -25,6 +25,18 @@ class ProjectInfo(
                 overlayFileCount = 756
             ),
         )
+
+        val WESING = ProjectInfo(
+            projectRootDir = "/Users/wormchen/IdeaProjects/wesing_international_android",
+            modifiedSourceDir = "",
+            apkPath = "app/build/outputs/apk/debug/app-debug.apk",
+            apkInfo = ApkInfo(
+                classCount = 2387,
+                fieldCount = 12293,
+                methodCount = 19338,
+                overlayFileCount = 756
+            ),
+        )
     }
 
     class ApkInfo(

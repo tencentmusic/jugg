@@ -26,7 +26,7 @@ val assetsClassDir = File(assetsDir, "class")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
-val projectInfo = ProjectInfo.DEMO
+val projectInfo = ProjectInfo.WESING
 val assetsAndroidDir = projectInfo.projectRoot
 val assetsAndroidModifySourceDir = projectInfo.modifiedSource
 val assetsApkFile = projectInfo.apk
