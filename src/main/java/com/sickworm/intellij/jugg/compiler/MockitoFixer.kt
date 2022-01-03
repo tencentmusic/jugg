@@ -35,7 +35,8 @@ object MockitoFixer {
         }
 
         val jdkVersion = getJdkVersion(propertyJavaHome)
-        if (!jdkVersion.startsWith("java version \"11.")) {
+        if (!jdkVersion.startsWith("java version \"11.") &&
+            !jdkVersion.startsWith("openjdk version \"11.")) {
             val envJdkVersion = getJdkVersion(propertyJavaHome)
             // manual fix by replace with envJavaHome
             if (envJavaHome == null || !envJdkVersion.contains("java version \"11.")) {
