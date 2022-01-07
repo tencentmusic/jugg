@@ -24,7 +24,9 @@ class MockModuleRootManager(private val root: VirtualFile): ModuleRootManager() 
     override fun getSourceRoots(rootTypes: MutableSet<out JpsModuleSourceRootType<*>>): MutableList<VirtualFile> {
         return rootTypes
             .flatMap { roots[it]?: emptyList() }
-            .map { MockIoVirtualFile(File(root.path, it)) }
+            .map { File(root.path, it) }
+            .filter { it.exists() }
+            .map { MockIoVirtualFile(it) }
             .toMutableList()
     }
 

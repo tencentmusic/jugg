@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
+import org.objectweb.asm.*
 
 /** for null safe */
 class ClassNode(private val node: DexClassNode) {
@@ -16,6 +17,60 @@ class ClassNode(private val node: DexClassNode) {
     val interfaceNames: Array<String> get() = node.interfaceNames?: emptyArray()
 
     val superClass: String? get() = node.superClass
+
+    /**
+     * dump class structure by ASM, without private methods fields and actual code
+     */
+    fun dumpClassStub(): ByteArray {
+        val cw = ClassWriter(0)
+        cw.visit(
+            51, // Java 7
+            Opcodes.ACC_PUBLIC + Opcodes.ACC_SUPER,
+            node.className,
+            null,
+            superClass?: "java/lang/Object",
+            node.interfaceNames
+        )
+        cw.visitSource(node.source, null)
+
+        // constructor
+        run {
+            val mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null)
+            mv.visitVarInsn(Opcodes.ALOAD, 0)
+            mv.visitMethodInsn(
+                Opcodes.INVOKESPECIAL,
+                "java/lang/Object",
+                "<init>",
+                "()V"
+            )
+            mv.visitInsn(Opcodes.RETURN)
+            mv.visitMaxs(1, 1)
+            mv.visitEnd()
+        }
+
+        // fields
+        node.fields?.forEach {
+            if (it.access and )
+            cw.visitField(it.access, it.field.name, it.field.type, null, it.cst)
+        }
+
+        // methods
+        node.methods?.forEach {
+            val mv = cw.visitMethod(
+                it.access,
+                it.method.name,
+                it.method.desc,
+                null,
+                null
+            )
+            mv.visitInsn(Opcodes.RETURN)
+            mv.visitMaxs(1, 1)
+            mv.visitEnd()
+        }
+
+        cw.visitEnd()
+        return cw.toByteArray()
+    }
 
     // e.g. Landroid/support/v4/os/ResultReceiver$1;
     // ->

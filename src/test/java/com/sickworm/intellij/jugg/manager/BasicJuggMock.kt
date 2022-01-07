@@ -68,7 +68,10 @@ open class BasicJuggMock {
         `when`(deployTargetManager.getApks()).thenReturn(apkInfos)
 
         val moduleManager = mock(ModuleManager::class.java)
-        doReturn(arrayOf(MockModule(File(assetsAndroidDir, "app")))).`when`(moduleManager).modules
+        val modules = listModuleRootDirs(assetsAndroidDir).map {
+            MockModule(it)
+        }.toTypedArray()
+        doReturn(modules).`when`(moduleManager).modules
         val projectJdkTable = mock(ProjectJdkTable::class.java)
         doReturn(arrayOf(MockAndroid30Sdk())).`when`(projectJdkTable).allJdks
         val projectBuildModel = mock(ProjectBuildModel::class.java)
@@ -133,11 +136,11 @@ open class BasicJuggMock {
 
         // revert
         revertFileMark.forEach { (destFile, isExist) ->
-            revertFile(destFile.name, isAdd = !isExist)
+            revertFile(destFile.name, isAdd = !isExist, directory = directory)
         }
     }
 
-    private fun revertFile(originFile: String, isAdd: Boolean = false, directory: String = testSourceDirectory) {
+    private fun revertFile(originFile: String, isAdd: Boolean = false, directory: String) {
         val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$originFile")
         val destFile = File(assetsAndroidDir, "$directory/$originFile")
         if (isAdd) {
@@ -188,6 +191,17 @@ open class BasicJuggMock {
             AndroidDebugBridge.init(true)
         }
 
+        private fun listModuleRootDirs(projectDir: File): List<File> {
+            val childFiles = projectDir.listFiles()?: return emptyList()
+            return childFiles.filter { file ->
+                if (!file.isDirectory) return@filter false
+                val containsBuildGradle = file.listFiles()?.any { it.name.equals("build.gradle") }
+                if (containsBuildGradle != true) {
+                    return@filter false
+                }
+                return@filter true
+            }.toList()
+        }
     }
 
     @Before

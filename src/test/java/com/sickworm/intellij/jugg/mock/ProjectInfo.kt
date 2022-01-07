@@ -27,14 +27,14 @@ class ProjectInfo(
         )
 
         val WESING = ProjectInfo(
-            projectRootDir = "/Users/wormchen/IdeaProjects/wesing_international_android",
-            modifiedSourceDir = "",
-            apkPath = "app/build/outputs/apk/debug/app-debug.apk",
+            projectRootDir = "/Users/wormchen/IdeaProjects/fix_wesing_international_android",
+            modifiedSourceDir = "/Users/wormchen/IdeaProjects/fix_wesing_international_android_modify_source",
+            apkPath = "app/build/outputs/apk/debug/app-arm64-v8a-debug.apk",
             apkInfo = ApkInfo(
-                classCount = 2387,
-                fieldCount = 12293,
-                methodCount = 19338,
-                overlayFileCount = 756
+                classCount = 72560,
+                fieldCount = 1095734,
+                methodCount = 499415,
+                overlayFileCount = 6333
             ),
         )
     }
