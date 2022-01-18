@@ -91,10 +91,18 @@ class BuildDemoApkTest {
     }
 
     fun checkApkStructure(parsedApk: ParsedApk) {
-        assertEquals(apkInfo.classCount, parsedApk.classes.entries.size)
-        assertEquals(apkInfo.fieldCount, parsedApk.classes.entries.sumBy { it.value.fields.size })
-        assertEquals(apkInfo.methodCount, parsedApk.classes.entries.sumBy { it.value.methods.size })
-        assertEquals(apkInfo.overlayFileCount, parsedApk.overlayFiles.size)
+        if (apkInfo.classCount > 0) {
+            assertEquals(apkInfo.classCount, parsedApk.classes.entries.size)
+        }
+        if (apkInfo.fieldCount > 0) {
+            assertEquals(apkInfo.fieldCount, parsedApk.classes.entries.sumBy { it.value.fields.size })
+        }
+        if (apkInfo.methodCount > 0) {
+            assertEquals(apkInfo.methodCount, parsedApk.classes.entries.sumBy { it.value.methods.size })
+        }
+        if (apkInfo.overlayFileCount > 0) {
+            assertEquals(apkInfo.overlayFileCount, parsedApk.overlayFiles.size)
+        }
     }
 
     private fun formatSize(v: Long): String? {

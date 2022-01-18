@@ -68,7 +68,7 @@ open class BasicJuggMock {
         `when`(deployTargetManager.getApks()).thenReturn(apkInfos)
 
         val moduleManager = mock(ModuleManager::class.java)
-        val modules = listModuleRootDirs(assetsAndroidDir).map {
+        val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {
             MockModule(it)
         }.toTypedArray()
         doReturn(modules).`when`(moduleManager).modules
@@ -189,18 +189,6 @@ open class BasicJuggMock {
         @JvmStatic
         fun initAdb() {
             AndroidDebugBridge.init(true)
-        }
-
-        private fun listModuleRootDirs(projectDir: File): List<File> {
-            val childFiles = projectDir.listFiles()?: return emptyList()
-            return childFiles.filter { file ->
-                if (!file.isDirectory) return@filter false
-                val containsBuildGradle = file.listFiles()?.any { it.name.equals("build.gradle") }
-                if (containsBuildGradle != true) {
-                    return@filter false
-                }
-                return@filter true
-            }.toList()
         }
     }
 

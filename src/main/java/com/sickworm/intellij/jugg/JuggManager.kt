@@ -51,8 +51,8 @@ class JuggManager @TestOnly constructor(
         register(project, this)
         Disposer.register(project, this)
 
-        compileThread.submitSafe("Init compile context") {
-            compileContextManager.init()
+        compileThread.submitSafe("Init compile context - initProjectInfo") {
+            compileContextManager.initProjectInfo()
         }
     }
 
@@ -75,18 +75,14 @@ class JuggManager @TestOnly constructor(
             hasInit = true
             // TODO check apk md5
             logger.info("Detected deployable apk, start init compile")
-            compileThread.submitSafe("Init Compile") {
+            compileThread.submitSafe("Init compile context - initCompile") {
                 initCompile(apks)
             }
         }
     }
 
     private fun initCompile(apks: List<ApkInfo>) {
-        val parsedApks = apks.map {
-            ApkParser().parse(it)
-        }
-
-        compileContextManager.compileContext.update(parsedApks = parsedApks)
+        compileContextManager.initFullBuildInfo(apks)
         compiler = JuggCompiler(compileContextManager.compileContext)
 
         fileChangesManager.startListen(compileContextManager.compileContext, object: FileChangesListener {

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mock
 import java.io.File
 
 class ProjectInfo(
+    packageName: String,
     projectRootDir: String,
     modifiedSourceDir: String,
     apkPath: String,
@@ -15,6 +16,7 @@ class ProjectInfo(
 
     companion object {
         val DEMO = ProjectInfo(
+            packageName = "com.example.myapplication",
             projectRootDir = "src/test/assets/android/MyApplicationIntellij",
             modifiedSourceDir = "src/test/assets/android/modify_source",
             apkPath = "app/build/outputs/apk/debug/app-debug.apk",
@@ -27,14 +29,15 @@ class ProjectInfo(
         )
 
         val WESING = ProjectInfo(
+            packageName = "com.tencent.wesing",
             projectRootDir = "/Users/wormchen/IdeaProjects/fix_wesing_international_android",
             modifiedSourceDir = "/Users/wormchen/IdeaProjects/fix_wesing_international_android_modify_source",
             apkPath = "app/build/outputs/apk/debug/app-arm64-v8a-debug.apk",
             apkInfo = ApkInfo(
-                classCount = 72560,
-                fieldCount = 1095734,
-                methodCount = 499415,
-                overlayFileCount = 6333
+                classCount = -1,
+                fieldCount = -1,
+                methodCount = -1,
+                overlayFileCount = -1
             ),
         )
     }

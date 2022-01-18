@@ -5,18 +5,29 @@ import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel
 import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
+import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.guessModuleDirAdv
 import com.sickworm.intellij.jugg.relativePath
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
 
+/**
+ * Manage context for JuggCompiler.
+ * Do:
+ * 1. read project structure
+ * 2. read android sdk information
+ * 3. parse apk
+ * 4. generate class path
+ * ...
+ */
 class CompileContextManager(
     private val project: Project,
     private val projectDir: String,
@@ -31,7 +42,8 @@ class CompileContextManager(
 
     val stagingDir = File(compileRootDir, "staging")
     private val tempCompileDir = File(compileRootDir, "compiled")
-    private val classPathDir = File(compileRootDir, "classpath")
+    private val fullBuildClassPathDir = File(compileRootDir, "classpath_full")
+    private val incBuildClassPathDir = File(compileRootDir, "classpath_inc")
 
     private val libraryDir = File("$projectDir/.idea/libraries")
     // TODO use compileContext
@@ -45,9 +57,40 @@ class CompileContextManager(
 
     var compileContextInside: BaseCompileContext? = null
 
-    fun init() {
+    fun initProjectInfo() {
         val modules = initModuleRoots()
         initDependency(modules)
+    }
+
+    fun initFullBuildInfo(apks: List<ApkInfo>) {
+        val startTime = System.currentTimeMillis()
+        val parsedApks = apks.map {
+            ApkParser().parse(it)
+        }
+        val parsedApksEndTime = System.currentTimeMillis()
+        logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}")
+
+        // something wrong with this.. use build class path for now
+//        parsedApks.forEach { apk ->
+//            apk.classes.values.forEach { classNode ->
+//                val bytes = classNode.dumpClassStub()
+//                val outputPath = classNode.className.replace('.', '/') + ".class"
+//                val outputFile = File(fullBuildClassPathDir, outputPath)
+//                if (outputFile.exists()) {
+//                    outputFile.delete()
+//                }
+//                outputFile.parentFile?.mkdirs()
+//                outputFile.writeBytes(bytes)
+//            }
+//        }
+
+        val buildClassPathEndTime = System.currentTimeMillis()
+        logger.debug("initFullBuildInfo parsedApks cost ${buildClassPathEndTime - parsedApksEndTime}")
+
+        compileContext.update(parsedApks = parsedApks)
+
+        val updateEndTime = System.currentTimeMillis()
+        logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - updateEndTime}")
     }
 
     private fun initDependency(modules: Map<String, ModuleInfo>) {
@@ -84,8 +127,7 @@ class CompileContextManager(
         }
         logger.debug("modules dir: ${moduleDirs.relativePath(projectDir)}")
 
-        // TODO OPTIMIZE split by modules
-        // TODO read from apk
+        // TODO maybe we can remove this because we have apk class dump now
         val projectDeps: List<String> = moduleDirs.flatMap { baseDir ->
             // java class path
             val deps = mutableListOf<String>()
@@ -120,16 +162,20 @@ class CompileContextManager(
             }
         }
 
-        if (!classPathDir.exists()) {
-            classPathDir.mkdirs()
+        if (!incBuildClassPathDir.exists()) {
+            incBuildClassPathDir.mkdirs()
         }
-        val juggClassPathDep = listOf(classPathDir.absolutePath)
+        if (!fullBuildClassPathDir.exists()) {
+            fullBuildClassPathDir.mkdirs()
+        }
+//        val juggClassPathDep = listOf(fullBuildClassPathDir.absolutePath, incBuildClassPathDir.absolutePath)
+        val juggClassPathDep = listOf<String>(incBuildClassPathDir.absolutePath)
 
         val context = BaseCompileContext(
             logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
             androidHome = androidHome,
             tempCompileDir = tempCompileDir,
-            classPathDir = classPathDir,
+            classPathDir = incBuildClassPathDir,
             modules = modules,
         )
         logger.debug("""
@@ -139,7 +185,7 @@ class CompileContextManager(
             build-tools:${context.androidBuildTools}
             android.jar:${context.androidJar}
         """.trimIndent())
-        logger.info("Dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 1")
+        logger.info("Dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 2")
 
         val androidDep = context.androidJar.path
         dependencies = juggClassPathDep + projectDeps + androidDep + libDep

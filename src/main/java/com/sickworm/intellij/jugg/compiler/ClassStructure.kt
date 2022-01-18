@@ -8,7 +8,7 @@ import org.objectweb.asm.*
 /** for null safe */
 class ClassNode(private val node: DexClassNode) {
 
-    val className get() = convertSigFormatToNormal()
+    val className get() = node.className.convertSigFormatToPackage()
 
     val methods: List<MethodNode> get() = node.methods?.map { MethodNode(it) }?: emptyList()
 
@@ -23,39 +23,30 @@ class ClassNode(private val node: DexClassNode) {
      */
     fun dumpClassStub(): ByteArray {
         val cw = ClassWriter(0)
+        // class
         cw.visit(
-            51, // Java 7
-            Opcodes.ACC_PUBLIC + Opcodes.ACC_SUPER,
-            node.className,
+            Opcodes.V1_7, // Java 7
+            node.access,
+            node.className.convertSigFormatToNormal(),
             null,
-            superClass?: "java/lang/Object",
-            node.interfaceNames
+            superClass?.convertSigFormatToNormal() ?: "java/lang/Object",
+            node.interfaceNames.map { it.convertSigFormatToNormal() }.toTypedArray()
         )
         cw.visitSource(node.source, null)
 
-        // constructor
-        run {
-            val mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null)
-            mv.visitVarInsn(Opcodes.ALOAD, 0)
-            mv.visitMethodInsn(
-                Opcodes.INVOKESPECIAL,
-                "java/lang/Object",
-                "<init>",
-                "()V"
-            )
-            mv.visitInsn(Opcodes.RETURN)
-            mv.visitMaxs(1, 1)
-            mv.visitEnd()
-        }
-
         // fields
         node.fields?.forEach {
-            if (it.access and )
+            if (it.access and Opcodes.ACC_PRIVATE != 0) {
+                return@forEach
+            }
             cw.visitField(it.access, it.field.name, it.field.type, null, it.cst)
         }
 
         // methods
         node.methods?.forEach {
+            if (it.access and Opcodes.ACC_PRIVATE != 0) {
+                return@forEach
+            }
             val mv = cw.visitMethod(
                 it.access,
                 it.method.name,
@@ -63,8 +54,38 @@ class ClassNode(private val node: DexClassNode) {
                 null,
                 null
             )
-            mv.visitInsn(Opcodes.RETURN)
-            mv.visitMaxs(1, 1)
+            when (it.method.returnType) {
+                "V" -> {
+                    mv.visitInsn(Opcodes.RETURN)
+                    mv.visitMaxs(0, 1)
+                }
+                "I", "Z" -> {
+                    mv.visitInsn(Opcodes.ICONST_0)
+                    mv.visitInsn(Opcodes.IRETURN)
+                    mv.visitMaxs(1, 1)
+                }
+                "F" -> {
+                    mv.visitInsn(Opcodes.FCONST_0)
+                    mv.visitInsn(Opcodes.FRETURN)
+                    mv.visitMaxs(1, 1)
+                }
+                "L" -> {
+                    mv.visitInsn(Opcodes.LCONST_0)
+                    mv.visitInsn(Opcodes.LRETURN)
+                    mv.visitMaxs(2, 1)
+                }
+                "D" -> {
+                    mv.visitInsn(Opcodes.DCONST_0)
+                    mv.visitInsn(Opcodes.DRETURN)
+                    mv.visitMaxs(2, 1)
+                }
+                else -> {
+                    // object
+                    mv.visitInsn(Opcodes.ACONST_NULL)
+                    mv.visitInsn(Opcodes.ARETURN)
+                    mv.visitMaxs(1, 1)
+                }
+            }
             mv.visitEnd()
         }
 
@@ -75,10 +96,15 @@ class ClassNode(private val node: DexClassNode) {
     // e.g. Landroid/support/v4/os/ResultReceiver$1;
     // ->
     // android.support.v4.os.ResultReceiver$1
-    private fun convertSigFormatToNormal(): String {
-        return node.className
-            .substring(1, node.className.length - 1)
-            .replace('/', '.')
+    private fun String.convertSigFormatToPackage(): String {
+        return this.convertSigFormatToNormal().replace('/', '.')
+    }
+
+    // e.g. Landroid/support/v4/os/ResultReceiver$1;
+    // ->
+    // android/support/v4/os/ResultReceiver$1
+    private fun String.convertSigFormatToNormal(): String {
+        return this.substring(1, this.length - 1)
     }
 }
 
