@@ -26,8 +26,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-import static com.sickworm.intellij.jugg.mock.CommonsKt.androidApkPackage;
-
 public class DeviceClientMonitorTask {
     private static final String ADB_TRACK_JDWP_COMMAND = "track-jdwp";
     private volatile boolean mQuit;
@@ -315,7 +313,10 @@ public class DeviceClientMonitorTask {
             method.invoke(device, client);
             monitorThread.addClient(client);
 
-            client.getClientData().setNames(new ClientData.Names(androidApkPackage, 0, androidApkPackage));
+            client.getClientData().setNames(new ClientData.Names(
+                    CommonsKt.getAndroidApkPackage(),
+                    0,
+                    CommonsKt.getAndroidApkPackage()));
             client.getClientData().setAbi("64-bit");
             return true;
         }

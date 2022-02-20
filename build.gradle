@@ -4,6 +4,12 @@ plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.4.32'
 }
 
+test {
+    minHeapSize = "512m" // initial heap size
+    maxHeapSize = "4096m" // maximum heap size
+    jvmArgs '-XX:MaxPermSize=152m' // mem argument for the test JVM
+}
+
 group 'com.sickworm.intellij'
 version '1.0-SNAPSHOT'
 

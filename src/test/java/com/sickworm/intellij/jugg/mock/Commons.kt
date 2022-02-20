@@ -41,8 +41,7 @@ val androidPlatform = File("$androidHome/platforms/android-30").also {
 }
 val androidJar = File("$androidPlatform/android.jar")
 
-const val androidApkPackage = "com.example.myapplication"
-val androidApkPackagePath = androidApkPackage.replace('.', '/')
+val androidApkPackage = projectInfo.packageName
 
 val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
     if (!it.exists()) {

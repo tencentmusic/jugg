@@ -11,13 +11,19 @@ class DeployManagerTest2: BasicJuggMock() {
     fun testJavaClassAddSingle() {
         changeFileAndNotify("TestNewJavaFile.java" to "TestNewJavaFile.java",
             directory = "app/src/main/java/com/tencent/karaoke/")
-        checkCompileResult("TestNewJavaFile.java", newClassesSize = 1)
+        checkCompileResult(
+            "TestNewJavaFile.java",
+            filePackageName = "com.tencent.karaoke",
+            newClassesSize = 1)
     }
 
     @Test
     fun testRecordModuleModifySingle() {
         changeFileAndNotify("RecordDialogHelper.kt" to "RecordDialogHelper.kt",
             directory = "module_record/src/main/java/com/tencent/wesing/record/module/recording/ui/main/logic/")
-        checkCompileResult("RecordDialogHelper.kt", hotReloadModifiedClassesSize = 1)
+        checkCompileResult(
+            "RecordDialogHelper.kt",
+            filePackageName = "com.tencent.karaoke",
+            hotReloadModifiedClassesSize = 1)
     }
 }

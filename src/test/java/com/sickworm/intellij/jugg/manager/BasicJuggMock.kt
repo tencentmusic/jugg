@@ -122,7 +122,8 @@ open class BasicJuggMock {
         verify(deviceStatusListener, times(1)).updateStatus(state)
     }
 
-    private val testSourceDirectory = "app/src/main/java/$androidApkPackagePath"
+    private val testSourceDirectory = "app/src/main/java/${androidApkPackage.replace('.', '/')}"
+
     protected fun changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
         val pairs = fileNamePairs.map { (sourceFileName, destFileName) ->
             val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$sourceFileName")
@@ -152,19 +153,21 @@ open class BasicJuggMock {
 
     protected fun checkCompileResult(
         vararg fileNames: String,
+        filePackageName: String = androidApkPackage,
         newClassesSize: Int = 0,
         hotFixModifiedClassesSize: Int = 0,
         hotReloadModifiedClassesSize: Int = 0,
         overlaysSize: Int = 0,
     ) {
         fileNames.forEach { fileName ->
+            val relativePath = filePackageName.replace('.', '/')
             val className = File(fileName).nameWithoutExtension + ".class"
-            val classPathFile = File(compileContextManager.compileContext.classPathDir, "$androidApkPackagePath/$className")
-            assertTrue(classPathFile.exists())
+            val classPathFile = File(compileContextManager.compileContext.classPathDir, "$relativePath/$className")
+            assertTrue(classPathFile.exists(), "$classPathFile not exists")
             assertTrue(classPathFile.length() > 0)
 
             val dexName = File(fileName).nameWithoutExtension + ".dex"
-            val dexFile = File(compileContextManager.stagingDir, "classes/$androidApkPackagePath/$dexName")
+            val dexFile = File(compileContextManager.stagingDir, "classes/$relativePath/$dexName")
             assertTrue(dexFile.exists())
             assertTrue(dexFile.length() > 0)
         }
