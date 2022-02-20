@@ -64,5 +64,8 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun dexFileNotContainsOnlyOneClass(size: Int) =
             JuggInternalException("Dex file doesn't contains only one class (actually $size), which is not allow for apply changes.")
+
+        fun compareWithDifferentClass(oldClassName: String, newClassName: String) =
+            JuggInternalException("ClassNodeComparator receive different class name which is meaningless, old class: $oldClassName, new class: $newClassName")
     }
 }

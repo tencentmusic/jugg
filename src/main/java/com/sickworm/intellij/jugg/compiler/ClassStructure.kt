@@ -16,7 +16,7 @@ class ClassNode(private val node: DexClassNode) {
 
     val interfaceNames: Array<String> get() = node.interfaceNames?: emptyArray()
 
-    val superClass: String? get() = node.superClass
+    val superClass: String get() = node.superClass
 
     /**
      * dump class structure by ASM, without private methods fields and actual code
@@ -29,7 +29,7 @@ class ClassNode(private val node: DexClassNode) {
             node.access,
             node.className.convertSigFormatToNormal(),
             null,
-            superClass?.convertSigFormatToNormal() ?: "java/lang/Object",
+            superClass.convertSigFormatToNormal(),
             node.interfaceNames.map { it.convertSigFormatToNormal() }.toTypedArray()
         )
         cw.visitSource(node.source, null)
@@ -113,8 +113,19 @@ class MethodNode(private val node: DexMethodNode) {
 
     val signature get() = node.method.toString()
 
-    fun isSignatureEquals(other: MethodNode): Boolean {
-        return node.method.equals(other.node.method)
+    override fun equals(other: Any?): Boolean {
+        if (other !is MethodNode) {
+            return false
+        }
+        return signature == other.signature
+    }
+
+    override fun toString(): String {
+        return signature
+    }
+
+    override fun hashCode(): Int {
+        return signature.hashCode()
     }
 }
 
@@ -122,11 +133,20 @@ class MethodNode(private val node: DexMethodNode) {
 /** for null safe */
 class FieldNode(private val node: DexFieldNode) {
 
-    fun isSignatureEquals(other: FieldNode): Boolean {
-        // TODO read agent source code, whether need check access and annotation
-        return node.access == other.node.access &&
-                node.field.owner == other.node.field.owner &&
-                node.field.name == other.node.field.name &&
-                node.field.type == other.node.field.type
+    val signature get() = "${node.access} ${node.field.owner} ${node.field.name} ${node.field.type}"
+
+    override fun equals(other: Any?): Boolean {
+        if (other !is FieldNode) {
+            return false
+        }
+        return signature == other.signature
+    }
+
+    override fun toString(): String {
+        return signature
+    }
+
+    override fun hashCode(): Int {
+        return signature.hashCode()
     }
 }

@@ -43,11 +43,15 @@ class DeployDataDb(
             isNewClass(it.name)
         }
         val modifiedClasses = changedClasses - newClasses
+        logger.debug("newClasses: $newClasses")
 
         val hotReloadModifiedClasses = modifiedClasses.filter {
             isHotReloadClass(it.name, it.classNode)
         }
+        logger.debug("hotReloadModifiedClasses: $hotReloadModifiedClasses")
+
         val hotFixModifiedClasses = modifiedClasses - hotReloadModifiedClasses
+        logger.debug("hotFixModifiedClasses: $hotFixModifiedClasses")
 
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
         val overlays = changedOverlays.toMutableList()
@@ -118,6 +122,8 @@ class DeployDataDb(
 
         // compare class node difference
         val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
+        logger.debug(result.toString())
+
         return result.isSameStructure
     }
 

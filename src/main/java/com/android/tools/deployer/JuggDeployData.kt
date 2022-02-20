@@ -84,7 +84,12 @@ open class DeployItem(
 class ClassDeployItem(
     deployItem: DeployItem,
     val classNode: ClassNode
-): DeployItem(deployItem.name, deployItem.type, deployItem.checksum, deployItem.content)
+): DeployItem(deployItem.name, deployItem.type, deployItem.checksum, deployItem.content) {
+
+    override fun toString(): String {
+        return name
+    }
+}
 
 fun Collection<DeployItem>.toLogString(): String {
     return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }

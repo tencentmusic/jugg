@@ -52,7 +52,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-jvm-target", "1.8",
             "-no-stdlib",
             "-no-reflect",
-            "-module-name", "page-record",
+            "-module-name", "page-record_debug",
             "-Xfriend-paths=/Users/wormchen/IdeaProjects/wesing_international_android/SubModule/Business/pages/page-record/build/tmp/kotlin-classes/debug",
             "-d", task.outputDir.absolutePath,
         )

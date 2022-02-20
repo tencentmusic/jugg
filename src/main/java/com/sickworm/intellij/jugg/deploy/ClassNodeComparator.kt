@@ -3,78 +3,137 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.project.JuggInternalException
+import java.lang.StringBuilder
+import java.util.*
 
 class ClassNodeComparator(
     private val oldClassNode: ClassNode,
-    private val newClassNode: ClassNode
+    private val newClassNode: ClassNode,
 ) {
 
-    fun compare(): Result {
+    fun compare(): ClassNodeDiffResult {
+        if (oldClassNode.className != newClassNode.className) {
+            throw JuggInternalException.compareWithDifferentClass(oldClassNode.className, newClassNode.className)
+        }
+
+        // compare super class
+        val modifiedParentClass = mutableListOf<Pair<String?, String?>>()
         if (oldClassNode.superClass != newClassNode.superClass) {
-            return Result(Result.SIGNATURE_CHANGED)
+            modifiedParentClass.add(oldClassNode.superClass to newClassNode.superClass)
         }
 
-        if (!interfaceEquals(oldClassNode.interfaceNames, newClassNode.interfaceNames)) {
-            return Result(Result.SIGNATURE_CHANGED)
-        }
+        // here, we don't use map or set to diff result, because in most cases,
+        // the order of these data is basically the same
 
-        if (!methodEquals(oldClassNode.methods, newClassNode.methods)) {
-            return Result(Result.METHOD_CHANGED)
-        }
+        // compare interface
+        val addedInterfaces = newClassNode.interfaceNames.toLinkedList()
+        val deletedInterfaces = oldClassNode.interfaceNames.toLinkedList()
+        removeUnion(addedInterfaces, deletedInterfaces)
 
-        if (!fieldEquals(oldClassNode.fields, newClassNode.fields)) {
-            return Result(Result.METHOD_CHANGED)
-        }
+        // compare field
+        val addedFields = LinkedList(newClassNode.fields)
+        val deletedFields = LinkedList(oldClassNode.fields)
+        removeUnion(addedFields, deletedFields)
 
-        return Result(Result.SAME_STRUCTURE)
+        // compare methods
+        val addedMethods = LinkedList(newClassNode.methods)
+        val deletedMethods = LinkedList(oldClassNode.methods)
+        removeUnion(addedMethods, deletedMethods)
+
+        return ClassNodeDiffResult(
+            oldClassNode.className,
+            modifiedParentClass,
+            addedInterfaces,
+            deletedInterfaces,
+            addedFields,
+            deletedFields,
+            addedMethods,
+            deletedMethods,
+        )
     }
 
     companion object {
 
-        private fun interfaceEquals(oldInterfaceNames: Array<String>, newInterfaceNames: Array<String>): Boolean {
-            return oldInterfaceNames.contentEquals(newInterfaceNames)
-        }
-
-        private fun methodEquals(oldMethods: List<MethodNode>, newMethods: List<MethodNode>): Boolean {
-            if (oldMethods.size != newMethods.size) {
-                return false
-            }
-
-            oldMethods.forEachIndexed { index, oldMethod ->
-                val newMethod = newMethods[index]
-                if (!oldMethod.isSignatureEquals(newMethod)) {
-                    return false
+        /**
+         * Remove elements that exist in both lists.
+         * Limit input to LinkedList for better performance.
+         */
+        private fun <T> removeUnion(list1: LinkedList<T>, list2: LinkedList<T>) {
+            list1.iterator().let { iterator ->
+                while (iterator.hasNext()) {
+                    val newInterface = iterator.next()
+                    val oldInterface = list2.find { it == newInterface }
+                    if (oldInterface != null) {
+                        iterator.remove()
+                        list2.remove(oldInterface)
+                    }
                 }
             }
-
-            return true
         }
 
-        private fun fieldEquals(oldFields: List<FieldNode>, newFields: List<FieldNode>): Boolean {
-            if (oldFields.size != newFields.size) {
-                return false
+        private fun <T> Array<out T>.toLinkedList(): LinkedList<T> {
+            val list = LinkedList<T>()
+            this.forEach {
+                list.add(it)
             }
-
-            oldFields.forEachIndexed { index, oldMethod ->
-                val newMethod = newFields[index]
-                if (!oldMethod.isSignatureEquals(newMethod)) {
-                    return false
-                }
-            }
-
-            return true
+            return list
         }
     }
+}
 
-    class Result(val code: Int) {
+class ClassNodeDiffResult(
+    val className: String,
 
-        val isSameStructure = code == SAME_STRUCTURE
+    val modifiedParentClass: List<Pair<String?, String?>>, // Pair<old, new>
 
-        companion object {
-            const val SAME_STRUCTURE = 0
-            const val SIGNATURE_CHANGED = 1 shl 0
-            const val METHOD_CHANGED = 1 shl 1
-            const val VARIABLE_CHANGED = 1 shl 2
+    val addedInterfaces: List<String>,
+    val deletedInterfaces: List<String>,
+
+    val addedFields: List<FieldNode>,
+    val deletedFields: List<FieldNode>,
+
+    val addedMethods: List<MethodNode>,
+    val deletedMethods: List<MethodNode>,
+) {
+
+    val isSameStructure
+        get() = modifiedParentClass.isEmpty() &&
+                addedInterfaces.isEmpty() &&
+                deletedInterfaces.isEmpty() &&
+                addedFields.isEmpty() &&
+                deletedFields.isEmpty() &&
+                addedMethods.isEmpty() &&
+                deletedMethods.isEmpty()
+
+    override fun toString(): String {
+        val builder = StringBuilder()
+        builder.append("class $className isSameStructure: $isSameStructure")
+        if (!isSameStructure) {
+            builder.append(", diff result: ")
         }
+        if (modifiedParentClass.isNotEmpty()) {
+            builder.append("\nmodifiedParentClass: $modifiedParentClass")
+        }
+        if (addedInterfaces.isNotEmpty()) {
+            builder.append("\naddedInterfaces: $addedInterfaces")
+        }
+        if (deletedInterfaces.isNotEmpty()) {
+            builder.append("\ndeletedInterfaces: $deletedInterfaces")
+        }
+        if (addedFields.isNotEmpty()) {
+            builder.append("\naddedFields: $addedFields")
+        }
+        if (deletedFields.isNotEmpty()) {
+            builder.append("\ndeletedFields: $deletedFields")
+        }
+        if (addedMethods.isNotEmpty()) {
+            builder.append("\naddedMethods: $addedMethods")
+        }
+        if (deletedMethods.isNotEmpty()) {
+            builder.append("\ndeletedMethods: $deletedMethods")
+        }
+
+        return builder.toString()
     }
 }

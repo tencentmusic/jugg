@@ -21,6 +21,6 @@ class DeployManagerTest2: BasicJuggMock() {
         checkCompileResult(
             "RecordDialogHelper.kt",
             filePackageName = "com.tencent.wesing.record.module.recording.ui.main.logic",
-            hotReloadModifiedClassesSize = 1)
+            hotReloadModifiedClassesSize = 36)
     }
 }
