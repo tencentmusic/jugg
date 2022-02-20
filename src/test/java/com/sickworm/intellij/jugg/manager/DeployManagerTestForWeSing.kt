@@ -1,9 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
 import org.junit.Test
-import org.objectweb.asm.*
-import java.io.File
-import kotlin.test.assertTrue
 
 class DeployManagerTest2: BasicJuggMock() {
 
@@ -20,10 +17,10 @@ class DeployManagerTest2: BasicJuggMock() {
     @Test
     fun testRecordModuleModifySingle() {
         changeFileAndNotify("RecordDialogHelper.kt" to "RecordDialogHelper.kt",
-            directory = "module_record/src/main/java/com/tencent/wesing/record/module/recording/ui/main/logic/")
+            directory = "SubModule/Business/pages/page-record/src/main/java/com/tencent/wesing/record/module/recording/ui/main/logic/")
         checkCompileResult(
             "RecordDialogHelper.kt",
-            filePackageName = "com.tencent.karaoke",
+            filePackageName = "com.tencent.wesing.record.module.recording.ui.main.logic",
             hotReloadModifiedClassesSize = 1)
     }
 }
