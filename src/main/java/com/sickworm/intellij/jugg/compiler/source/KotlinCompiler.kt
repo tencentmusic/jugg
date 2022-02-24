@@ -19,6 +19,18 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     private var kotlinAndroidExtensionsPath: String? = null
 
     override fun doCompile(task: CompileTask): CompileResult {
+        // split by module
+        val files = task.files.groupBy { it.module.name }
+        val results = files.map {
+            doModuleCompile(CompileTask(it.value, task.outputDir), it.value[0].module)
+        }
+        if (results.isEmpty()) {
+            return CompileResult(task, emptyList(), emptyList())
+        }
+        return results.reduce { acc, compileResult -> acc + compileResult }
+    }
+
+    private fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
 
         if (kotlinAndroidExtensionsPath == null) {
@@ -52,7 +64,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-jvm-target", "1.8",
             "-no-stdlib",
             "-no-reflect",
-            "-module-name", "page-record_debug",
+            "-module-name", "${module.name}_${context.variant}",
             "-Xfriend-paths=/Users/wormchen/IdeaProjects/wesing_international_android/SubModule/Business/pages/page-record/build/tmp/kotlin-classes/debug",
             "-d", task.outputDir.absolutePath,
         )

@@ -15,7 +15,8 @@ class SimpleCompileContext(
     override val androidJar: File,
     override val classPathDir: File,
     override val modules: Map<String, ModuleInfo>,
-    override val parsedApks: List<ParsedApk>
+    override val parsedApks: List<ParsedApk>,
+    override val variant: String
 ) : ICompileContext {
 
     override fun listenUpdate(listener: OnContextUpdate) {

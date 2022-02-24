@@ -59,7 +59,8 @@ val context get() = SimpleCompileContext(
     androidJar = androidJar,
     classPathDir = classPathDir,
     modules = emptyMap(),
-    parsedApks = listOf(ParsedApk(ApkInfo(assetsApkFile, androidApkPackage), emptyMap(), emptyMap()))
+    parsedApks = listOf(ParsedApk(ApkInfo(assetsApkFile, androidApkPackage), emptyMap(), emptyMap())),
+    variant = "debug"
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
