@@ -16,18 +16,18 @@ import kotlin.test.assertTrue
 class TopLevelFlowTest {
 
     companion object {
-        private val juggMock = BasicJuggMock()
+        private val jugg = MockJugg()
 
         @BeforeClass
         @JvmStatic
         fun initEnv() {
-            juggMock.initEnv()
+            jugg.initEnv()
         }
     }
 
     @Before
     fun resetAllState() {
-        juggMock.resetAllState()
+        jugg.resetAllState()
     }
 
     @Test
@@ -37,7 +37,7 @@ class TopLevelFlowTest {
 
     @Test
     fun testApkStructureReader() {
-        val parsedApks = juggMock.compileContextManager.compileContext.parsedApks
+        val parsedApks = jugg.compileContextManager.compileContext.parsedApks
         assertEquals(1, parsedApks.size)
 
         val parsedApk = parsedApks[0]
@@ -49,14 +49,14 @@ class TopLevelFlowTest {
 
     @Test
     fun testCompileJavaFile() {
-        juggMock.changeFileAndNotify("ABC.java" to "ABC.java")
-        juggMock.checkCompileResult("ABC.java", hotReloadModifiedClassesSize = 1)
+        jugg.changeFileAndNotify("ABC.java" to "ABC.java")
+        jugg.checkCompileResult("ABC.java", hotReloadModifiedClassesSize = 1)
     }
 
     @Test
     fun testCompileActivity() {
-        juggMock.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
-        juggMock.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 
     @Test
@@ -65,8 +65,8 @@ class TopLevelFlowTest {
             .exec("adb shell am force-stop $androidApkPackage")
             .waitFor()
 
-        val data = juggMock.deployDataManager.getDeployData()
-        juggMock.juggDeployerHelper.runTask(data, juggMock.project, true)
+        val data = jugg.deployDataManager.getDeployData()
+        jugg.juggDeployerHelper.runTask(data, jugg.project, true)
 
         Runtime.getRuntime()
             .exec("adb shell am start -n $androidApkPackage/com.example.myapplication.MainActivity")
@@ -76,7 +76,7 @@ class TopLevelFlowTest {
     }
 
     private fun checkDeployState() {
-        val device = juggMock.device
+        val device = jugg.device
 
         if (device.clients.size == 1) {
             val logger = LogWrapper(logger)
@@ -132,19 +132,19 @@ class TopLevelFlowTest {
     fun testDeploy() {
         testInstall()
 
-        juggMock.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
-        juggMock.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
-        juggMock.juggManager.deploy()
+        jugg.juggManager.deploy()
     }
 
     @Test
     fun testDeploy2() {
         testInstall()
 
-        juggMock.changeFileAndNotify("MainActivity2.changeImageAndToast.java" to "MainActivity2.java")
-        juggMock.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+        jugg.changeFileAndNotify("MainActivity2.changeImageAndToast.java" to "MainActivity2.java")
+        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
-        juggMock.juggManager.deploy()
+        jugg.juggManager.deploy()
     }
 }

@@ -33,7 +33,7 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class BasicJuggMock {
+class MockJugg {
 
     lateinit var project: Project
     lateinit var projectDir: String

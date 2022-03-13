@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 private val testSourceDirectory = "app/src/main/java/${androidApkPackage.replace('.', '/')}"
 
-fun BasicJuggMock.changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
+fun MockJugg.changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
     val pairs = fileNamePairs.map { (sourceFileName, destFileName) ->
         val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$sourceFileName")
         val destFile = File(assetsAndroidDir, "$directory/$destFileName")
@@ -34,7 +34,7 @@ private fun revertFile(originFile: String, isAdd: Boolean = false, directory: St
     sourceFile.copyTo(destFile, overwrite = true)
 }
 
-fun BasicJuggMock.checkCompileResult(
+fun MockJugg.checkCompileResult(
     vararg fileNames: String,
     filePackageName: String = androidApkPackage,
     newClassesSize: Int = 0,
