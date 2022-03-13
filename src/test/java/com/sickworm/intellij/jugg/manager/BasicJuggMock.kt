@@ -37,7 +37,7 @@ class BasicJuggMock {
 
     lateinit var project: Project
     lateinit var projectDir: String
-    lateinit var apkInfos: List<ApkInfo>
+    lateinit var apkInfoList: List<ApkInfo>
 
     lateinit var juggManager: JuggManager
     lateinit var fileChangesManager: FileChangesManager
@@ -58,12 +58,12 @@ class BasicJuggMock {
 
         project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
-        apkInfos = listOf(ApkInfo(assetsApkFile, androidApkPackage))
+        apkInfoList = listOf(ApkInfo(assetsApkFile, androidApkPackage))
 
         deviceStatusListener = mock(DeviceStatusListener::class.java)
 
         deployTargetManager = mock(DeployTargetManager::class.java)
-        `when`(deployTargetManager.getApks()).thenReturn(apkInfos)
+        `when`(deployTargetManager.getApks()).thenReturn(apkInfoList)
 
         val moduleManager = mock(ModuleManager::class.java)
         val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {
