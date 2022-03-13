@@ -45,8 +45,9 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
         val classFiles = compileResult.outputs.filter {
             it.type == CompileOutput.Type.Class
         }
+        val dependencies = (javaCompileTask.files + kotlinCompileTask.files).flatMap { it.dependencyPaths }
         val compileClassFiles = classFiles.map {
-            CompileFile(CompileFile.Type.Class, it.file, it.baseDir)
+            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, dependencyPaths = dependencies)
         }
         val dexOutputDir = File(context.tempCompileDir, "dex")
         val dexTask = CompileTask(compileClassFiles, dexOutputDir)

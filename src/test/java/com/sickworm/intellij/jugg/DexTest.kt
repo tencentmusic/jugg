@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
 import com.sickworm.intellij.jugg.mock.clearBuild
 import com.sickworm.intellij.jugg.mock.stagingDir
@@ -17,27 +18,32 @@ class DexTest {
     }
 
     @Test
-    fun dexer() {
+    fun dex() {
         javaCompileTest.javaCompile()
+        val task = JavaCompileTest().helloWorldTask
         repeat(100) {
-            dexAndCheck(deleteAfterBuild = true)
+            dexAndCheck(task, deleteAfterBuild = true)
         }
     }
 
     @Test
     fun dexMultipleFiles() {
         JavaCompileTest().javaCompileMultiFiles()
-        dexAndCheck(deleteAfterBuild = false)
+        val task = JavaCompileTest().multiFilesTask
+        dexAndCheck(task, deleteAfterBuild = false)
     }
 
-    private fun dexAndCheck(deleteAfterBuild: Boolean) {
+    private fun dexAndCheck(task: CompileTask, deleteAfterBuild: Boolean) {
         val classesFiles = stagingDir.listFilesRecursively()
 
         // ART TI requires one .dex file only contains one .class file
+
+        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
+        val isSuccess = DexFileMaker().dex(stagingDir, classesFiles, dependencies)
+        assertTrue(isSuccess)
+
         classesFiles.forEach { classFile ->
             val dexFile = classFile.changeBaseDir(stagingDir, stagingDir, "dex")
-            val isSuccess = DexFileMaker().dex(stagingDir, classFile)
-            assertTrue(isSuccess)
             assertTrue(dexFile.exists() && dexFile.length() > 0)
             if (deleteAfterBuild) {
                 dexFile.delete()

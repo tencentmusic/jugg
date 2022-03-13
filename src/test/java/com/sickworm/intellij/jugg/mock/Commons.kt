@@ -26,11 +26,12 @@ val assetsClassDir = File(assetsDir, "class")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
-val projectInfo = ProjectInfo.WESING
-val assetsAndroidDir = projectInfo.projectRoot
-val assetsAndroidModifySourceDir = projectInfo.modifiedSource
-val assetsApkFile = projectInfo.apk
-val apkInfo = projectInfo.apkInfo
+var projectInfo = ProjectInfo.DEMO
+val assetsAndroidDir get() = projectInfo.projectRoot
+val assetsAndroidModifySourceDir get() = projectInfo.modifiedSource
+val assetsApkFile get() = projectInfo.apk
+val apkInfo get() = projectInfo.apkInfo
+val androidApkPackage get() = projectInfo.packageName
 
 // dependency
 val androidHome = File(System.getenv("ANDROID_HOME")?: throw IllegalStateException("please specific ANDROID_HOME in env"))
@@ -40,8 +41,6 @@ val androidPlatform = File("$androidHome/platforms/android-30").also {
     }
 }
 val androidJar = File("$androidPlatform/android.jar")
-
-val androidApkPackage = projectInfo.packageName
 
 val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
     if (!it.exists()) {

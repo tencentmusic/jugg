@@ -30,7 +30,6 @@ data class CompileFile(
     val file: File,
     val baseDir: File,
     val module: ModuleInfo = ModuleInfo.NO_MODULE,
-    // TODO saved to module
     val dependencyPaths: List<String> = emptyList()
 ) {
 

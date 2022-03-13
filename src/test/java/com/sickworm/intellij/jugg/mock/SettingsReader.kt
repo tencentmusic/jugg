@@ -4,6 +4,7 @@ package com.sickworm.intellij.jugg.mock
 
 import groovy.lang.Closure
 import groovy.util.Eval
+import org.gradle.api.initialization.ProjectDescriptor
 import java.io.File
 
 class GradleSettingsDummyReader(private val projectDir: File) {
@@ -54,6 +55,47 @@ class GradleSettingsDummyDelegate(private val projectRootDir: String) {
 
     fun getList(): List<File> {
         return list.map { File(projectRootDir, it.projectDir) }
+    }
+
+    fun getRootProject(): ProjectDescriptor {
+        return object: ProjectDescriptor {
+            override fun getName(): String {
+                return ""
+            }
+
+            override fun setName(p0: String) {
+            }
+
+            override fun getProjectDir(): File {
+                return File(projectRootDir)
+            }
+
+            override fun setProjectDir(p0: File) {
+            }
+
+            override fun getBuildFileName(): String {
+                return "build.gradle"
+            }
+
+            override fun setBuildFileName(p0: String) {
+            }
+
+            override fun getBuildFile(): File {
+                return File(projectRootDir, "build.gradle")
+            }
+
+            override fun getParent(): ProjectDescriptor? {
+                return null
+            }
+
+            override fun getChildren(): MutableSet<ProjectDescriptor> {
+                return mutableSetOf()
+            }
+
+            override fun getPath(): String {
+                return projectRootDir
+            }
+        }
     }
 }
 

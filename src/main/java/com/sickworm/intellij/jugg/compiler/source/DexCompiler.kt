@@ -13,14 +13,12 @@ class DexCompiler(
 
     override val isNeedOutputDirEmpty: Boolean = true
 
-    // TODO jar invoke
     private val dexFileMaker = DexFileMaker()
 
     override fun doCompile(task: CompileTask): CompileResult {
-        // TODO dexFileMaker supports multi files now, no need forEach
-        val isSuccess = task.files.all {
-            dexFileMaker.dex(task.outputDir, it.file)
-        }
+        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
+        val files = task.files.map { it.file }
+        val isSuccess = dexFileMaker.dex(task.outputDir, files, dependencies)
 
         val dexFiles = task.outputDir.listFilesRecursively()
         var errorMessage = ""

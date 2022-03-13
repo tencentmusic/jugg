@@ -71,18 +71,18 @@ class CompileContextManager(
         logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}")
 
         // something wrong with this.. use build class path for now
-//        parsedApks.forEach { apk ->
-//            apk.classes.values.forEach { classNode ->
-//                val bytes = classNode.dumpClassStub()
-//                val outputPath = classNode.className.replace('.', '/') + ".class"
-//                val outputFile = File(fullBuildClassPathDir, outputPath)
-//                if (outputFile.exists()) {
-//                    outputFile.delete()
-//                }
-//                outputFile.parentFile?.mkdirs()
-//                outputFile.writeBytes(bytes)
-//            }
-//        }
+        parsedApks.forEach { apk ->
+            apk.classes.values.forEach { classNode ->
+                val bytes = classNode.dumpClassStub()
+                val outputPath = classNode.className.replace('.', '/') + ".class"
+                val outputFile = File(fullBuildClassPathDir, outputPath)
+                if (outputFile.exists()) {
+                    outputFile.delete()
+                }
+                outputFile.parentFile?.mkdirs()
+                outputFile.writeBytes(bytes)
+            }
+        }
 
         val buildClassPathEndTime = System.currentTimeMillis()
         logger.debug("initFullBuildInfo parsedApks cost ${buildClassPathEndTime - parsedApksEndTime}")

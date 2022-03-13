@@ -15,7 +15,7 @@ class IntellijLibraryConfigParserTest {
     fun loadLibraryConfig() {
         val result = loadLibraryConfigInTest()
         assertNotNull(result)
-        assertEquals(50, result.size)
+        assertEquals(46, result.size)
         result.forEach {
             println("file: $it")
             assertTrue(File(it).exists())

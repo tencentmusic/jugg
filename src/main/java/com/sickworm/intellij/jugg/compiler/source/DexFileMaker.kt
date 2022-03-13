@@ -7,12 +7,30 @@ import java.io.File
 
 class DexFileMaker {
 
-    fun dex(outputDir: File, classFileOrDir: File): Boolean {
+    fun dex(outputDir: File, classFilesOrDir: List<File>, classpath: Collection<String>): Boolean {
         outputDir.mkdirs()
-        val args = "--file-per-class --output $outputDir $classFileOrDir".split(" ").toTypedArray()
+        // see https://developer.android.com/studio/command-line/d8
+        // TODO --lib android.jar?
+
+        val args = mutableListOf<String>()
+
+        args.add("--file-per-class")
+
+        if (classpath.isNotEmpty()) {
+            classpath.forEach {
+                args.add("--classpath")
+                args.add(it)
+            }
+        }
+
+        args.add("--output")
+        args.add(outputDir.absolutePath)
+
+        val filesPath = classFilesOrDir.map { it.absolutePath }
+        args.addAll(filesPath)
 
         try {
-            val command = D8Command.parse(args, Origin.root()).build()
+            val command = D8Command.parse(args.toTypedArray(), Origin.root()).build()
             com.android.tools.r8.D8.run(command)
         } catch (e: Exception) {
             // TODO supports error return

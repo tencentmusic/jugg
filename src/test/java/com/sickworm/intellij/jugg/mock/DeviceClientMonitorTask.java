@@ -313,6 +313,7 @@ public class DeviceClientMonitorTask {
             method.invoke(device, client);
             monitorThread.addClient(client);
 
+            // make fake data
             client.getClientData().setNames(new ClientData.Names(
                     CommonsKt.getAndroidApkPackage(),
                     0,

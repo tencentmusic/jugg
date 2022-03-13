@@ -5,6 +5,10 @@ import org.jetbrains.annotations.NonNls
 
 class StdLogger(category: String): DefaultLogger(category) {
 
+    override fun isDebugEnabled(): Boolean {
+        return true
+    }
+
     override fun debug(message: String?) {
         println("[D] $message")
     }

@@ -33,51 +33,51 @@ class BuildDemoApkTest {
         println("heap free size: " + formatSize(heapFreeSize))
     }
 
-//    @Test
-//    fun testClean() {
-//        val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
-//        println("\n----------- clean start -----------\n")
-//        println(String(process.inputStream.readBytes()))
-//        println()
-//        println(String(process.errorStream.readBytes()))
-//        println("\n-----------  clean end  -----------\n")
-//
-//        assertTrue(!assetsApkFile.exists())
-//    }
-//
-//    @Test
-//    fun testBuildApk() {
-//        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug", null, assetsAndroidDir)
-//        println("\n----------- assembleDebug start -----------\n")
-//        println(String(process.inputStream.readBytes()))
-//        println()
-//        println(String(process.errorStream.readBytes()))
-//        println("\n-----------  assembleDebug end  -----------\n")
-//        process.waitFor()
-//
-//        assertTrue(assetsApkFile.exists())
-//    }
-//
-//    @Test
-//    fun testCleanAndBuildApk() {
-//        testClean()
-//        testBuildApk()
-//    }
+    @Test
+    fun testClean() {
+        val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
+        println("\n----------- clean start -----------\n")
+        println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
+        println("\n-----------  clean end  -----------\n")
+
+        assertTrue(!assetsApkFile.exists())
+    }
+
+    @Test
+    fun testBuildApk() {
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug", null, assetsAndroidDir)
+        println("\n----------- assembleDebug start -----------\n")
+        println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
+        println("\n-----------  assembleDebug end  -----------\n")
+        process.waitFor()
+
+        assertTrue(assetsApkFile.exists())
+    }
+
+    @Test
+    fun testCleanAndBuildApk() {
+        testClean()
+        testBuildApk()
+    }
 
     fun buildApkIfNeeded() {
-//        if (assetsApkFile.exists()) {
-//            try {
-//                testApkStructure()
-//                println("apk structure is correct, no need to rebuild")
-//                return
-//            } catch (e: AssertionError) {
-//                println("apk structure not correct, rebuild")
-//            }
-//        } else {
-//            println("apk not exists, rebuild")
-//        }
-//
-//        testBuildApk()
+        if (assetsApkFile.exists()) {
+            try {
+                testApkStructure()
+                println("apk structure is correct, no need to rebuild")
+                return
+            } catch (e: AssertionError) {
+                println("apk structure not correct, rebuild")
+            }
+        } else {
+            println("apk not exists, rebuild")
+        }
+
+        testBuildApk()
         testApkStructure()
     }
 

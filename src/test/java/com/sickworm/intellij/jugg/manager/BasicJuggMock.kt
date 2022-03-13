@@ -28,29 +28,27 @@ import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
 import com.sickworm.intellij.jugg.project.JuggLogger
-import org.junit.Before
-import org.junit.BeforeClass
 import org.mockito.Mockito.*
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-open class BasicJuggMock {
+class BasicJuggMock {
 
-    protected lateinit var project: Project
-    protected lateinit var projectDir: String
-    protected lateinit var apkInfos: List<ApkInfo>
+    lateinit var project: Project
+    lateinit var projectDir: String
+    lateinit var apkInfos: List<ApkInfo>
 
-    protected lateinit var juggManager: JuggManager
-    protected lateinit var fileChangesManager: FileChangesManager
-    protected lateinit var deviceStatusListener: DeviceStatusListener
-    protected lateinit var deployTargetManager: DeployTargetManager
-    protected lateinit var compileContextManager: CompileContextManager
-    protected lateinit var fileChangeEventSender: FileChangeEventSender
-    protected lateinit var juggDeployerHelper: JuggDeployerHelper
-    protected lateinit var deployDataManager: DeployDataManager
+    lateinit var juggManager: JuggManager
+    lateinit var fileChangesManager: FileChangesManager
+    lateinit var deviceStatusListener: DeviceStatusListener
+    lateinit var deployTargetManager: DeployTargetManager
+    lateinit var compileContextManager: CompileContextManager
+    lateinit var fileChangeEventSender: FileChangeEventSender
+    lateinit var juggDeployerHelper: JuggDeployerHelper
+    lateinit var deployDataManager: DeployDataManager
 
-    val device = DeviceImpl(null, "192.168.31.82:34267", IDevice.DeviceState.ONLINE)
+    val device = DeviceImpl(null, "192.168.31.243:33105", IDevice.DeviceState.ONLINE)
 
     private fun renewComponents() {
         val application = MockApplication {}
@@ -112,7 +110,7 @@ open class BasicJuggMock {
         juggManager.init()
     }
 
-    private fun initEnv() {
+    private fun markAsReadyToDeploy() {
         val state = DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
         juggManager.updateStatus(state)
 
@@ -124,7 +122,7 @@ open class BasicJuggMock {
 
     private val testSourceDirectory = "app/src/main/java/${androidApkPackage.replace('.', '/')}"
 
-    protected fun changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
+    fun changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
         val pairs = fileNamePairs.map { (sourceFileName, destFileName) ->
             val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$sourceFileName")
             val destFile = File(assetsAndroidDir, "$directory/$destFileName")
@@ -151,7 +149,7 @@ open class BasicJuggMock {
         sourceFile.copyTo(destFile, overwrite = true)
     }
 
-    protected fun checkCompileResult(
+    fun checkCompileResult(
         vararg fileNames: String,
         filePackageName: String = androidApkPackage,
         newClassesSize: Int = 0,
@@ -181,26 +179,32 @@ open class BasicJuggMock {
         assertEquals(overlaysSize, deployData.overlays.size)
     }
 
-    companion object {
-        @BeforeClass
-        @JvmStatic
-        fun initApk() {
-            BuildDemoApkTest().buildApkIfNeeded()
-        }
 
-        @BeforeClass
-        @JvmStatic
-        fun initAdb() {
-            AndroidDebugBridge.init(true)
-        }
+    companion object {
+        private var hasInitOnce: Boolean = false
     }
 
-    @Before
-    fun init() {
-        MockitoFixer.tryFix()
+    fun initEnv() {
+        if (!hasInitOnce) {
+            hasInitOnce = true
+            MockitoFixer.tryFix()
+            AndroidDebugBridge.init(true)
+        }
+        BuildDemoApkTest().buildApkIfNeeded()
+    }
+
+    fun resetAllState() {
         clearBuild()
         renewComponents()
         renewManager()
-        initEnv()
+        markAsReadyToDeploy()
+    }
+
+    /**
+     * Just simply mark changes as deployed. Use this we don't need an android device to run tests.
+     */
+    fun dryDeploy() {
+        val deployData = deployDataManager.getDeployData()
+        deployDataManager.commit(deployData)
     }
 }
