@@ -1,12 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.tools.deploy.proto.Deploy
-import com.android.tools.deployer.AdbClient
-import com.android.tools.idea.log.LogWrapper
 import com.sickworm.intellij.jugg.BuildDemoApkTest
-import com.sickworm.intellij.jugg.mock.DeviceClientMonitorTask
 import com.sickworm.intellij.jugg.mock.androidApkPackage
-import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
@@ -72,60 +67,7 @@ class TopLevelFlowTest {
             .exec("adb shell am start -n $androidApkPackage/com.example.myapplication.MainActivity")
             .waitFor()
 
-        checkDeployState()
-    }
-
-    private fun checkDeployState() {
-        val device = jugg.device
-
-        if (device.clients.size == 1) {
-            val logger = LogWrapper(logger)
-            val adb = AdbClient(device, logger)
-            val pids = adb.getPids(androidApkPackage)
-            if (pids.size == 1) {
-                return
-            }
-        }
-
-        // wait app launch
-        var times = 0
-        var isReady = false
-        val monitor = DeviceClientMonitorTask()
-        while (times++ < 5) {
-            println("check app launch $times time")
-            val socket = monitor.register(device)
-            if (monitor.run(socket, device)) {
-                isReady = true
-            }
-            socket.close()
-
-            if (isReady) {
-                break
-            } else {
-                Thread.sleep(1000)
-            }
-        }
-        if (isReady) {
-            println("app launched")
-        } else {
-            println("app not launched")
-        }
-        assertTrue(isReady)
-
-        val clients = device.clients
-        assertEquals(1, clients.size)
-
-        val logger = LogWrapper(logger)
-        val adb = AdbClient(device, logger)
-        val pids = adb.getPids(androidApkPackage)
-        assertEquals(1, pids.size)
-
-        val arch = adb.getArch(pids)
-        assertEquals(Deploy.Arch.ARCH_64_BIT, arch)
-    }
-
-    private fun checkBeforeDeploy() {
-        checkDeployState()
+        jugg.checkDeployStateAndRegisterAdb()
     }
 
     @Test

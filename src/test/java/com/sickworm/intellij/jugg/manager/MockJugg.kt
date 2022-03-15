@@ -3,8 +3,11 @@ package com.sickworm.intellij.jugg.manager
 import com.android.ddmlib.AndroidDebugBridge
 import com.android.ddmlib.IDevice
 import com.android.ddmlib.internal.DeviceImpl
+import com.android.tools.deploy.proto.Deploy
+import com.android.tools.deployer.AdbClient
 import com.android.tools.deployer.JuggDeployerHelper
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
+import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
@@ -49,7 +52,7 @@ class MockJugg {
     lateinit var deployDataManager: DeployDataManager
 
     // TODO use adb command
-    val device = DeviceImpl(null, "192.168.31.243:33105", IDevice.DeviceState.ONLINE)
+    val device = DeviceImpl(null, "adb-R5CR2195N0Z-ls86s8._adb-tls-connect._tcp.", IDevice.DeviceState.ONLINE)
 
     companion object {
         private var hasInitOnce: Boolean = false
@@ -71,12 +74,75 @@ class MockJugg {
         markAsReadyToDeploy()
     }
 
+    fun checkDeployStateAndRegisterAdb() {
+        if (device.clients.size == 1) {
+            val logger = LogWrapper(logger)
+            val adb = AdbClient(device, logger)
+            val pids = adb.getPids(androidApkPackage)
+            if (pids.size == 1) {
+                return
+            }
+        }
+
+        // wait app launch
+        var times = 0
+        var isReady = false
+        val monitor = DeviceClientMonitorTask()
+        while (times++ < 5) {
+            println("check app launch $times time")
+            val socket = monitor.register(device)
+            if (monitor.run(socket, device)) {
+                isReady = true
+            }
+            socket.close()
+
+            if (isReady) {
+                break
+            } else {
+                Thread.sleep(1000)
+            }
+        }
+        if (isReady) {
+            println("app launched")
+        } else {
+            println("app not launched")
+        }
+        assertTrue(isReady)
+
+        val clients = device.clients
+        assertEquals(1, clients.size)
+
+        val logger = LogWrapper(logger)
+        val adb = AdbClient(device, logger)
+        val pids = adb.getPids(androidApkPackage)
+        assertEquals(1, pids.size)
+
+        val arch = adb.getArch(pids)
+        assertEquals(Deploy.Arch.ARCH_64_BIT, arch)
+    }
+
+    fun install() {
+        val data = deployDataManager.getDeployData()
+        juggDeployerHelper.runTask(data, project, true)
+    }
+
+    /**
+     * Just simply mark changes as deployed. Use this we don't need an android device to run tests.
+     */
+    fun deploy() {
+        juggManager.deploy()
+    }
+
     /**
      * Just simply mark changes as deployed. Use this we don't need an android device to run tests.
      */
     fun dryDeploy() {
         val deployData = deployDataManager.getDeployData()
         deployDataManager.commit(deployData)
+    }
+
+    fun notifyFileChanges(file: List<File>) {
+        fileChangeEventSender.notifyFileChanges(file)
     }
 
     private fun renewComponents() {
