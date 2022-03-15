@@ -90,7 +90,7 @@ class CompileContextManager(
         compileContext.update(parsedApks = parsedApks)
 
         val updateEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - updateEndTime}")
+        logger.debug("initFullBuildInfo parsedApks cost ${updateEndTime - buildClassPathEndTime}")
     }
 
     private fun initDependency(modules: Map<String, ModuleInfo>) {
