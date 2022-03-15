@@ -12,7 +12,7 @@ class DeployManagerTest {
         @BeforeClass
         @JvmStatic
         fun initEnv() {
-            jugg.initEnv()
+            jugg.initEnv(isNeedRealAbdDevice = false)
         }
     }
 

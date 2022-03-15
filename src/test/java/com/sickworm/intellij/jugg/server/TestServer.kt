@@ -24,7 +24,7 @@ class TestServer {
 
     fun run() {
         val jugg = MockJugg()
-        jugg.initEnv()
+        jugg.initEnv(isNeedRealAbdDevice = true)
         jugg.resetAllState()
         jugg.install()
         jugg.checkDeployStateAndRegisterAdb()

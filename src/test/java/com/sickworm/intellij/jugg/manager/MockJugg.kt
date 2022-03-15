@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.android.ddmlib.AndroidDebugBridge
+import com.android.ddmlib.ClientTracker
 import com.android.ddmlib.IDevice
+import com.android.ddmlib.internal.ClientImpl
 import com.android.ddmlib.internal.DeviceImpl
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
@@ -20,6 +22,7 @@ import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
@@ -50,20 +53,22 @@ class MockJugg {
     lateinit var fileChangeEventSender: FileChangeEventSender
     lateinit var juggDeployerHelper: JuggDeployerHelper
     lateinit var deployDataManager: DeployDataManager
-
-    // TODO use adb command
-    val device = DeviceImpl(null, "adb-R5CR2195N0Z-ls86s8._adb-tls-connect._tcp.", IDevice.DeviceState.ONLINE)
+    var device: DeviceImpl? = null
 
     companion object {
         private var hasInitOnce: Boolean = false
     }
 
-    fun initEnv() {
+    fun initEnv(isNeedRealAbdDevice: Boolean) {
         if (!hasInitOnce) {
             hasInitOnce = true
             MockitoFixer.tryFix()
             AndroidDebugBridge.init(true)
+            if (isNeedRealAbdDevice) {
+                initAndCheckAdbDevice()
+            }
         }
+
         BuildDemoApkTest().buildApkIfNeeded()
     }
 
@@ -74,8 +79,12 @@ class MockJugg {
         markAsReadyToDeploy()
     }
 
+    /**
+     * Init adb client.
+     * Must call this method if you need real device deploy.
+     */
     fun checkDeployStateAndRegisterAdb() {
-        if (device.clients.size == 1) {
+        if (device?.clients?.size == 1) {
             val logger = LogWrapper(logger)
             val adb = AdbClient(device, logger)
             val pids = adb.getPids(androidApkPackage)
@@ -109,7 +118,7 @@ class MockJugg {
         }
         assertTrue(isReady)
 
-        val clients = device.clients
+        val clients = device?.clients?: emptyArray()
         assertEquals(1, clients.size)
 
         val logger = LogWrapper(logger)
@@ -121,13 +130,16 @@ class MockJugg {
         assertEquals(Deploy.Arch.ARCH_64_BIT, arch)
     }
 
+    /**
+     * Run gradle build in [assetsAndroidDir] and install apk.
+     */
     fun install() {
         val data = deployDataManager.getDeployData()
         juggDeployerHelper.runTask(data, project, true)
     }
 
     /**
-     * Just simply mark changes as deployed. Use this we don't need an android device to run tests.
+     * Deploy changes to device connected by adb.
      */
     fun deploy() {
         juggManager.deploy()
@@ -141,8 +153,37 @@ class MockJugg {
         deployDataManager.commit(deployData)
     }
 
+    /**
+     * Notify that some files have changed and Jugg will compile it.
+     */
     fun notifyFileChanges(file: List<File>) {
         fileChangeEventSender.notifyFileChanges(file)
+    }
+
+    /**
+     * Init real adb device.
+     * Must call this method if you need real device deploy.
+     */
+    private fun initAndCheckAdbDevice() {
+        val deviceList = DeviceListMonitorTask().deviceList
+        assertEquals(1, deviceList.size)
+        assertEquals(IDevice.DeviceState.ONLINE, deviceList.first().value)
+
+        val tracker = object: ClientTracker {
+            override fun trackDisconnectedClient(client: ClientImpl?) {
+                println("trackDisconnectedClient")
+            }
+
+            override fun trackClientToDropAndReopen(client: ClientImpl?) {
+                println("trackClientToDropAndReopen")
+            }
+
+            override fun trackDeviceToDropAndReopen(device: DeviceImpl?) {
+                println("trackClientToDropAndReopen")
+            }
+        }
+        val device = DeviceImpl(tracker, deviceList.first().key, deviceList.first().value)
+        this.device = device
     }
 
     private fun renewComponents() {

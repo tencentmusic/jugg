@@ -26,6 +26,9 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Copied from DeviceClientMonitorTask and modified
+ */
 public class DeviceClientMonitorTask {
     private static final String ADB_TRACK_JDWP_COMMAND = "track-jdwp";
     private volatile boolean mQuit;
