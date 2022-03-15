@@ -15,10 +15,12 @@ class IntellijLibraryConfigParserTest {
     fun loadLibraryConfig() {
         val result = loadLibraryConfigInTest()
         assertNotNull(result)
-        assertEquals(46, result.size)
+        // it depends on what version of Android Studio you opened
+        assertTrue(result.size == 46 || result.size == 50)
         result.forEach {
-            println("file: $it")
-            assertTrue(File(it).exists())
+            val isExists = File(it).exists()
+            println("file: $it, exists: $isExists")
+            assertTrue(isExists)
         }
     }
 
