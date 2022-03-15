@@ -1,12 +1,12 @@
-package com.sickworm.intellij.jugg.mock
+package com.sickworm.intellij.jugg.server
 
 import com.intellij.openapi.diagnostic.DefaultLogger
 import org.jetbrains.annotations.NonNls
 
 /**
- * Output log to [System.out].
+ * logger for [TestServer].
  */
-class StdLogger(category: String): DefaultLogger(category) {
+class ServerLogger: DefaultLogger("Server") {
 
     override fun isTraceEnabled(): Boolean {
         return false
@@ -29,7 +29,7 @@ class StdLogger(category: String): DefaultLogger(category) {
     }
 
     override fun debug(message: String?) {
-        println("[D] $message")
+        printlnWithTag("[D] $message")
     }
 
     override fun debug(t: Throwable?) {
@@ -41,7 +41,7 @@ class StdLogger(category: String): DefaultLogger(category) {
     }
 
     override fun info(message: String?) {
-        println("[I] $message")
+        printlnWithTag("[I] $message")
     }
 
     override fun info(message: String?, t: Throwable?) {
@@ -49,7 +49,7 @@ class StdLogger(category: String): DefaultLogger(category) {
     }
 
     override fun warn(message: String?, t: Throwable?) {
-        println("[W]: $message")
+        printlnWithTag("[W]: $message")
         t?.printStackTrace(System.err)
     }
 
@@ -57,5 +57,9 @@ class StdLogger(category: String): DefaultLogger(category) {
         val finalT = checkException(t)
         val finalMessage = "[E] " + message + attachmentsToString(t)
         dumpExceptionsToStderr(finalMessage, finalT, *details)
+    }
+
+    private fun printlnWithTag(message: String) {
+        println("[SERVER] $message")
     }
 }
