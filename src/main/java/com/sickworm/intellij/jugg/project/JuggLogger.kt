@@ -47,6 +47,22 @@ object JuggLogger {
 
         private val project: Project? get() = projectRef.get()
 
+        override fun isTraceEnabled(): Boolean {
+            return false
+        }
+
+        override fun trace(message: String?) {
+            if (isTraceEnabled) {
+                super.trace(message)
+            }
+        }
+
+        override fun trace(t: Throwable?) {
+            if (isTraceEnabled) {
+                super.trace(t)
+            }
+        }
+
         override fun isDebugEnabled(): Boolean {
             return true
         }
@@ -90,6 +106,22 @@ private class ProxyLogger(
 ): Logger() {
 
     val impl = ErrorSafeDefaultLogger(tag)
+
+    override fun isTraceEnabled(): Boolean {
+        return false
+    }
+
+    override fun trace(message: String?) {
+        if (isTraceEnabled) {
+            super.trace(message)
+        }
+    }
+
+    override fun trace(t: Throwable?) {
+        if (isTraceEnabled) {
+            super.trace(t)
+        }
+    }
 
     override fun isDebugEnabled(): Boolean {
         return true

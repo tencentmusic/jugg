@@ -86,7 +86,7 @@ class FileChangesManager(
             return null
         }
 
-        logger.debug("file event ${event::class.java.name} $event")
+        logger.trace("file event ${event::class.java.name} $event")
         if (event is VFileDeleteEvent || event is VFilePropertyChangeEvent) {
             return null
         }
