@@ -3,6 +3,7 @@
 package com.sickworm.intellij.jugg.mock
 
 import com.android.tools.idea.run.ApkInfo
+import com.google.gson.JsonSyntaxException
 import com.sickworm.intellij.jugg.clearDir
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
@@ -26,7 +27,12 @@ val assetsClassDir = File(assetsDir, "class")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
-var projectInfo = ProjectInfo.DEMO
+var projectInfo = try {
+    ProjectInfo.parseJson(ProjectInfo.DEMO_JSON)
+} catch (e: JsonSyntaxException) {
+    throw IllegalArgumentException("parse project info failed", e)
+}
+
 val assetsAndroidDir get() = projectInfo.projectRoot
 val assetsAndroidModifySourceDir get() = projectInfo.modifiedSource
 val assetsApkFile get() = projectInfo.apk
