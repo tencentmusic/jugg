@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mock
 import com.google.gson.Gson
 import java.io.File
 
+@Suppress("MemberVisibilityCanBePrivate")
 class ProjectInfo(
     val packageName: String,
     val projectRootDir: String,
@@ -11,9 +12,9 @@ class ProjectInfo(
     val apkInfo: ApkInfo,
 ) {
 
-    val projectRoot get() = File(projectRootDir).absoluteFile
-    val apk get() = File(projectRoot, apkPath).absoluteFile
-    val modifiedSource get() = File(modifiedSourceDir).absoluteFile
+    val projectRoot: File get() = File(projectRootDir).absoluteFile
+    val apk: File get() = File(projectRoot, apkPath).absoluteFile
+    val modifiedSource: File get() = File(modifiedSourceDir).absoluteFile
 
     companion object {
         val DEMO_JSON = """
