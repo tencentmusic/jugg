@@ -70,27 +70,28 @@ class CompileContextManager(
         val parsedApksEndTime = System.currentTimeMillis()
         logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}")
 
-        // something wrong with this.. use build class path for now
-        parsedApks.forEach { apk ->
-            apk.classes.values.forEach { classNode ->
-                val bytes = classNode.dumpClassStub()
-                val outputPath = classNode.className.replace('.', '/') + ".class"
-                val outputFile = File(fullBuildClassPathDir, outputPath)
-                if (outputFile.exists()) {
-                    outputFile.delete()
-                }
-                outputFile.parentFile?.mkdirs()
-                outputFile.writeBytes(bytes)
-            }
-        }
-
+        // TODO reopen
+        // close for now for better performance
+//        // something wrong with this... use build class path for now
+//        parsedApks.forEach { apk ->
+//            apk.classes.values.forEach { classNode ->
+//                val bytes = classNode.dumpClassStub()
+//                val outputPath = classNode.className.replace('.', '/') + ".class"
+//                val outputFile = File(fullBuildClassPathDir, outputPath)
+//                if (outputFile.exists()) {
+//                    outputFile.delete()
+//                }
+//                outputFile.parentFile?.mkdirs()
+//                outputFile.writeBytes(bytes)
+//            }
+//        }
         val buildClassPathEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo parsedApks cost ${buildClassPathEndTime - parsedApksEndTime}")
+        logger.debug("initFullBuildInfo dumpClassStub cost ${buildClassPathEndTime - parsedApksEndTime}")
 
         compileContext.update(parsedApks = parsedApks)
 
         val updateEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo parsedApks cost ${updateEndTime - buildClassPathEndTime}")
+        logger.debug("initFullBuildInfo compileContext.update cost ${updateEndTime - buildClassPathEndTime}")
     }
 
     private fun initDependency(modules: Map<String, ModuleInfo>) {
