@@ -30,7 +30,7 @@ class JuggManager @TestOnly constructor(
     // manage deploy data
     private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager, logger),
     // deploy to device
-    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(),
+    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project),
     // manage deploy target apk and device
     private val deployTargetManager: DeployTargetManager = DeployTargetManager(project, juggDeployerHelper),
 ): Disposable, DeviceStatusListener {
@@ -160,7 +160,7 @@ class JuggManager @TestOnly constructor(
 
                 logger.info("Deploy data:\n$deployData")
 
-                juggDeployerHelper.runTask(deployData, project)
+                juggDeployerHelper.runTask(deployData)
                 deployDataManager.commit(deployData)
             }
             deployState.isReadyInstall -> {
@@ -182,12 +182,12 @@ class JuggManager @TestOnly constructor(
         submit {
             try {
                 val startTime = System.currentTimeMillis()
-                logger.info("$jobName start")
+                logger.info("job $jobName start")
                 task.run()
                 val costTime = System.currentTimeMillis() - startTime
-                logger.info("$jobName finished, cost $costTime")
+                logger.info("job $jobName finished, cost $costTime")
             } catch (e: Throwable) {
-                logger.error("$jobName failed", e)
+                logger.error("job $jobName failed", e)
             }
         }
     }

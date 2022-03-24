@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.android.facet.AndroidFacet
+import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.stream.Collectors
 
@@ -29,14 +30,21 @@ import java.util.stream.Collectors
  * @see [com.android.tools.idea.run.LaunchTaskRunner.run]
  */
 class JuggDeployerHelper(
-    private val executor: Executor = DefaultRunExecutor.getRunExecutorInstance()
+    private val project: Project,
+    private val executor: Executor = DefaultRunExecutor.getRunExecutorInstance(),
 ) {
 
+    @TestOnly
     var installPathProvider: Computable<String> = Computable<String> {
         findEmbeddedInstaller()
     }
 
-    fun runTask(data: JuggDeployData, project: Project, isInstall: Boolean = false) {
+    @TestOnly
+    var deviceProvider: Computable<IDevice> = Computable<IDevice> {
+        DeviceGetter(project).getDevice()
+    }
+
+    fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
         val packages = data.apks.associate {
                 // com.android.tools.idea.run.LaunchTaskRunner.run
                 // Add packages to the deployment, filtering out any dynamic features that are disabled.
@@ -45,7 +53,7 @@ class JuggDeployerHelper(
             }
         val task = when {
             isInstall -> {
-                // default has -t -r
+                // default has -t -r --full --dont-kill
                 JuggDeployTask(project, packages, "", true, installPathProvider, data)
             }
             JuggSettings.restartActivity -> {
@@ -55,46 +63,21 @@ class JuggDeployerHelper(
                 JuggApplyCodeChangesTask(project, packages, true, installPathProvider, data)
             }
         }
-        val device = getIDevice(project)
+
         val launchStatus = MockLaunchStatus()
 
         // TODO ConsolePrinter
         val consolePrinter = MockConsolePrinter(project)
         // TODO try ExecutionManager
+        val device = getDevice()
         val launchResult = task.run(executor, device, launchStatus, consolePrinter)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
         }
     }
 
-    fun getIDevice(project: Project): IDevice {
-        val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
-        val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
-//        val module = JavaRunConfigurationModule(project, false)
-//        module.setModuleName("app") // TODO read from project
-        val module = ModuleManager.getInstance(project).modules.first { it.name.contains("app") }
-        val facet = AndroidFacet.getInstance(module!!)!!
-
-        val deviceFutures =
-            deployTarget.getDevices(deployTargetState, facet, getDeviceCount(isDebugging), isDebugging, hashCode())
-                ?: throw IllegalStateException("no device futures")
-
-        // got ClassCastException if use DeviceFutures.get() for different ClassLoader
-        val devices = deviceFutures.ifReady
-        if (devices.isNullOrEmpty()) {
-            throw IllegalStateException("no devices")
-        }
-
-        return devices[0]
-    }
-
-    fun getConfiguration(project: Project): AndroidRunConfiguration {
-        val factory = AndroidRunConfigurationType.getInstance().factory
-        return factory.createTemplateConfiguration(project) as AndroidRunConfiguration
-    }
-
-    private fun getDeviceCount(debug: Boolean): DeviceCount {
-        return DeviceCount.fromBoolean(supportMultipleDevices() && !debug)
+    fun getDevice(): IDevice {
+        return deviceProvider.compute()
     }
 
     private fun getFilteredFeatures(apkInfo: ApkInfo, disabledFeatures: List<String>): List<File> {
@@ -112,10 +95,6 @@ class JuggDeployerHelper(
             ImmutableList.of(apkInfo.file)
         }
     }
-
-    private val isDebugging = true // ??
-    private val deployTargetContext: DeployTargetContext by lazy { DeployTargetContext() }
-    private fun supportMultipleDevices() = false
 
     // private in Android Studio 4.1.2，so I copied it out
     private fun findEmbeddedInstaller(): String? {
@@ -135,4 +114,40 @@ class JuggDeployerHelper(
         // Development mode
     }
 
+}
+
+private class DeviceGetter(private val project: Project) {
+
+    private val deployTargetContext: DeployTargetContext by lazy { DeployTargetContext() }
+
+    private val isDebugging = true
+
+    private fun supportMultipleDevices() = false
+
+    fun getDevice(): IDevice {
+        val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
+        val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
+        val module = ModuleManager.getInstance(project).modules.first()
+        val facet = AndroidFacet.getInstance(module)!!
+
+        val deviceFutures =
+            deployTarget.getDevices(deployTargetState, facet, getDeviceCount(isDebugging), isDebugging, hashCode())
+                ?: throw IllegalStateException("no device futures")
+
+        // got ClassCastException if using DeviceFutures.get() for different ClassLoader
+        val devices = deviceFutures.ifReady
+        if (devices == null || devices.size == 0) {
+            throw JuggException.deviceNotFound()
+        }
+
+        if (devices.size > 1) {
+            throw JuggException.multipleDeviceFound()
+        }
+
+        return devices[0]
+    }
+
+    private fun getDeviceCount(@Suppress("SameParameterValue") debug: Boolean): DeviceCount {
+        return DeviceCount.fromBoolean(supportMultipleDevices() && !debug)
+    }
 }

@@ -60,12 +60,7 @@ class TopLevelFlowTest {
             .exec("adb shell am force-stop $androidApkPackage")
             .waitFor()
 
-        val data = jugg.deployDataManager.getDeployData()
-        jugg.juggDeployerHelper.runTask(data, jugg.project, true)
-
-        Runtime.getRuntime()
-            .exec("adb shell am start -n $androidApkPackage/com.example.myapplication.MainActivity")
-            .waitFor()
+        jugg.installAndStart()
 
         jugg.checkDeployStateAndRegisterAdb()
     }

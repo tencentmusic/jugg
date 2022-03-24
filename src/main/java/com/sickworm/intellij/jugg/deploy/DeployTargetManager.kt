@@ -45,7 +45,7 @@ class DeployTargetManager(
             val facet: AndroidFacet = AndroidFacet.getInstance(module)!!
             val targetDeviceSpec = null
             val apkProvider = facet.getModuleSystem().getApkProvider(runConfig, targetDeviceSpec)!!
-            val device = juggDeployerHelper.getIDevice(project)
+            val device = juggDeployerHelper.getDevice()
             apkProvider.getApks(device).toList()
         } catch (e: Exception) {
             logger.debug("getApks failed", e)

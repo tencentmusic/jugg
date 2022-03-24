@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.server
 
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.manager.MockJugg
-import com.sickworm.intellij.jugg.manager.TopLevelFlowTest
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sun.nio.file.SensitivityWatchEventModifier
 import java.io.File
@@ -26,7 +25,7 @@ class TestServer {
         val jugg = MockJugg()
         jugg.initEnv(isNeedRealAbdDevice = true)
         jugg.resetAllState()
-        jugg.install()
+        jugg.installAndStart()
         jugg.checkDeployStateAndRegisterAdb()
         JuggSettings.deployOnSave = true
 
@@ -47,7 +46,7 @@ class TestServer {
 class FileChangeServer {
 
     fun run(onFileChange: (List<File>) -> Unit) {
-        serverLogger.debug("start init files")
+        serverLogger.debug("start init file listening")
 
         val watchService = FileSystems.getDefault().newWatchService()
         val rootDir = assetsAndroidDir.toPath()

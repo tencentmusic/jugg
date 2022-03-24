@@ -6,6 +6,7 @@ import java.io.File
 @Suppress("MemberVisibilityCanBePrivate")
 class ProjectInfo(
     val packageName: String,
+    val launchedActivity: String,
     val projectRootDir: String,
     val modifiedSourceDir: String,
     val apkPath: String,
@@ -20,6 +21,7 @@ class ProjectInfo(
         val DEMO_JSON = """
 {
     "packageName": "com.example.myapplication",
+    "launchedActivity": "com.example.myapplication.MainActivity",
     "projectRootDir": "src/test/assets/android/MyApplicationIntellij",
     "modifiedSourceDir": "src/test/assets/android/modify_source",
     "apkPath": "app/build/outputs/apk/debug/app-debug.apk",

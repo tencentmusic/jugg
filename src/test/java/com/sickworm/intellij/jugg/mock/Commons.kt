@@ -28,7 +28,13 @@ val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
 var projectInfo = try {
-    ProjectInfo.parseJson(ProjectInfo.DEMO_JSON)
+    val projectInfoFromEnv = System.getenv("JUGG_PROJECT_INFO_PATH")
+    val json = if (projectInfoFromEnv != null) {
+        File(projectInfoFromEnv).readText()
+    } else {
+        ProjectInfo.DEMO_JSON
+    }
+    ProjectInfo.parseJson(json)
 } catch (e: JsonSyntaxException) {
     throw IllegalArgumentException("parse project info failed", e)
 }

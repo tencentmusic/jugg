@@ -27,6 +27,12 @@ class JuggException(msg: String): Exception(msg) {
 
         fun androidHomeNotFound() =
             JuggException("Can not found android sdk home, exit init.")
+
+        fun deviceNotFound() =
+            JuggException("Can not found any device to deploy.")
+
+        fun multipleDeviceFound() =
+            JuggException("More than one device found via adb, please make sure there is only one device to be deployed.")
     }
 }
 

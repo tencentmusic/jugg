@@ -1,10 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.ddmlib.AndroidDebugBridge
-import com.android.ddmlib.ClientTracker
-import com.android.ddmlib.IDevice
-import com.android.ddmlib.internal.ClientImpl
-import com.android.ddmlib.internal.DeviceImpl
+import com.android.ddmlib.*
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.deployer.JuggDeployerHelper
@@ -22,9 +18,9 @@ import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.mock.AdbDeviceHelper
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.DeployDataManager
 import com.sickworm.intellij.jugg.deploy.DeployState
@@ -33,10 +29,14 @@ import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
+import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggLogger
 import org.mockito.Mockito.*
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class MockJugg {
@@ -53,7 +53,8 @@ class MockJugg {
     lateinit var fileChangeEventSender: FileChangeEventSender
     lateinit var juggDeployerHelper: JuggDeployerHelper
     lateinit var deployDataManager: DeployDataManager
-    var device: DeviceImpl? = null
+
+    private val adbDeviceHelper = AdbDeviceHelper()
 
     companion object {
         private var hasInitOnce: Boolean = false
@@ -63,9 +64,8 @@ class MockJugg {
         if (!hasInitOnce) {
             hasInitOnce = true
             MockitoFixer.tryFix()
-            AndroidDebugBridge.init(true)
             if (isNeedRealAbdDevice) {
-                initAndCheckAdbDevice()
+                adbDeviceHelper.start()
             }
         }
 
@@ -84,45 +84,15 @@ class MockJugg {
      * Must call this method if you need real device deploy.
      */
     fun checkDeployStateAndRegisterAdb() {
-        if (device?.clients?.size == 1) {
-            val logger = LogWrapper(logger)
-            val adb = AdbClient(device, logger)
-            val pids = adb.getPids(androidApkPackage)
-            if (pids.size == 1) {
-                return
-            }
-        }
+        val device = adbDeviceHelper.waitingForDeviceOfLaunchedApp(androidApkPackage)
+        assertNotNull(device, "can not find $androidApkPackage on any device")
 
-        // wait app launch
-        var times = 0
-        var isReady = false
-        val monitor = DeviceClientMonitorTask()
-        while (times++ < 5) {
-            println("check app launch $times time")
-            val socket = monitor.register(device)
-            if (monitor.run(socket, device)) {
-                isReady = true
-            }
-            socket.close()
-
-            if (isReady) {
-                break
-            } else {
-                Thread.sleep(1000)
-            }
-        }
-        if (isReady) {
-            println("app launched")
-        } else {
-            println("app not launched")
-        }
-        assertTrue(isReady)
-
-        val clients = device?.clients?: emptyArray()
-        assertEquals(1, clients.size)
+        val clients = device.clients
+        assertNotEquals(0, clients.size)
 
         val logger = LogWrapper(logger)
         val adb = AdbClient(device, logger)
+
         val pids = adb.getPids(androidApkPackage)
         assertEquals(1, pids.size)
 
@@ -133,9 +103,35 @@ class MockJugg {
     /**
      * Run gradle build in [assetsAndroidDir] and install apk.
      */
-    fun install() {
+    fun installAndStart() {
         val data = deployDataManager.getDeployData()
-        juggDeployerHelper.runTask(data, project, true)
+        juggDeployerHelper.runTask(data, true)
+
+        startActivity(androidApkPackage)
+    }
+
+    private fun startActivity(packageName: String) {
+        val receiver = object : MultiLineReceiver() {
+            override fun isCancelled(): Boolean {
+                return false
+            }
+
+            override fun processNewLines(lines: Array<out String>?) {
+                lines?.forEach {
+                    logger.debug("[start activity]: $it")
+                }
+            }
+        }
+
+        val command = "am start -S -n $packageName/${projectInfo.launchedActivity}"
+        @Suppress("DEPRECATION")
+        AdbHelper.executeRemoteCommand(
+            AndroidDebugBridge.getSocketAddress(),
+            command,
+            getDevice(),
+            receiver,
+            DdmPreferences.getTimeOut().toLong(),
+            TimeUnit.MILLISECONDS)
     }
 
     /**
@@ -158,32 +154,6 @@ class MockJugg {
      */
     fun notifyFileChanges(file: List<File>) {
         fileChangeEventSender.notifyFileChanges(file)
-    }
-
-    /**
-     * Init real adb device.
-     * Must call this method if you need real device deploy.
-     */
-    private fun initAndCheckAdbDevice() {
-        val deviceList = DeviceListMonitorTask().deviceList
-        assertEquals(1, deviceList.size)
-        assertEquals(IDevice.DeviceState.ONLINE, deviceList.first().value)
-
-        val tracker = object: ClientTracker {
-            override fun trackDisconnectedClient(client: ClientImpl?) {
-                println("trackDisconnectedClient")
-            }
-
-            override fun trackClientToDropAndReopen(client: ClientImpl?) {
-                println("trackClientToDropAndReopen")
-            }
-
-            override fun trackDeviceToDropAndReopen(device: DeviceImpl?) {
-                println("trackClientToDropAndReopen")
-            }
-        }
-        val device = DeviceImpl(tracker, deviceList.first().key, deviceList.first().value)
-        this.device = device
     }
 
     private fun renewComponents() {
@@ -221,15 +191,29 @@ class MockJugg {
         }
         fileChangesManager = FileChangesManager(project, projectDir, virtualFileManager)
 
-        juggDeployerHelper = spy(JuggDeployerHelper(MockExecutor()))
-        doReturn(device).`when`(juggDeployerHelper).getIDevice(project)
+        juggDeployerHelper = JuggDeployerHelper(project, MockExecutor())
         juggDeployerHelper.installPathProvider = Computable {
             return@Computable "./src/test/assets/libs/installer"
+        }
+        juggDeployerHelper.deviceProvider = Computable {
+            return@Computable getDevice()
         }
 
         deployDataManager = DeployDataManager(compileContextManager, logger)
 
         JuggLogger.listenProjectLog(project, StdLogger("test"))
+    }
+
+    private fun getDevice(): IDevice {
+        val deviceList = adbDeviceHelper.getDeviceList()
+            .filter { it.state == IDevice.DeviceState.ONLINE }
+        if (deviceList.isEmpty()) {
+            throw JuggException.deviceNotFound()
+        }
+        if (deviceList.size > 1) {
+            throw JuggException.multipleDeviceFound()
+        }
+        return deviceList.first()
     }
 
     private fun renewManager() {
