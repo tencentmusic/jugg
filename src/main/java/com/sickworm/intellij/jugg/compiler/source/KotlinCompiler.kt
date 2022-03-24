@@ -65,7 +65,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-no-stdlib",
             "-no-reflect",
             "-module-name", "${module.name}_${context.variant}",
-            "-Xfriend-paths=/Users/wormchen/IdeaProjects/wesing_international_android/SubModule/Business/pages/page-record/build/tmp/kotlin-classes/debug",
+            "-Xfriend-paths=${module.buildPathInfo.kotlinClassPath}",
             "-d", task.outputDir.absolutePath,
         )
 

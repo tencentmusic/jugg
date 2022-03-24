@@ -46,7 +46,10 @@ class CompileContextManager(
     private val incBuildClassPathDir = File(compileRootDir, "classpath_inc")
 
     private val libraryDir = File("$projectDir/.idea/libraries")
-    // TODO use compileContext
+    /**
+     * contains all dependencies in an Android project.
+     * TODO more efficient
+     */
     var dependencies = listOf<String>()
         private set
 
@@ -55,11 +58,11 @@ class CompileContextManager(
             return compileContextInside?: throw JuggInternalException.compilerContextNotInit()
         }
 
-    var compileContextInside: BaseCompileContext? = null
+    private var compileContextInside: BaseCompileContext? = null
 
     fun initProjectInfo() {
-        val modules = initModuleRoots()
-        initDependency(modules)
+        val modules = initModules()
+        initContext(modules)
     }
 
     fun initFullBuildInfo(apks: List<ApkInfo>) {
@@ -92,10 +95,39 @@ class CompileContextManager(
 
         val updateEndTime = System.currentTimeMillis()
         logger.debug("initFullBuildInfo compileContext.update cost ${updateEndTime - buildClassPathEndTime}")
+
+        updateProjectDependencies()
+
+        val updateDepEndTime = System.currentTimeMillis()
+        logger.debug("initFullBuildInfo updateProjectDependencies cost ${updateDepEndTime - buildClassPathEndTime}")
     }
 
-    private fun initDependency(modules: Map<String, ModuleInfo>) {
-        logger.debug("Start init dependency")
+    private fun initContext(modules: Map<String, ModuleInfo>) {
+        logger.debug("Start initContext")
+
+        val androidHome = getAndroidSdkRootDir()
+        logger.info("use android sdk home: $androidHome")
+        if (androidHome == null) {
+            throw JuggException.androidHomeNotFound()
+        }
+
+        val context = BaseCompileContext(
+            logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
+            androidHome = androidHome,
+            tempCompileDir = tempCompileDir,
+            classPathDir = incBuildClassPathDir,
+            modules = modules,
+        )
+        logger.debug("""
+            context loaded:
+            build-tools:${context.androidBuildTools}
+            android.jar:${context.androidJar}
+        """.trimIndent())
+
+        compileContextInside = context
+    }
+
+    private fun updateProjectDependencies() {
 
         // TODO auto update when file changes
         // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
@@ -114,48 +146,14 @@ class CompileContextManager(
             throw JuggException.androidHomeNotFound()
         }
 
-        val moduleDirs = moduleManager.modules.mapNotNull {
-            val baseDir = it.guessModuleDirAdv()
-            if (baseDir == null) {
-                logger.warn("Module $it dir not found")
-                return@mapNotNull null
-            }
-            if (!baseDir.exists()) {
-                logger.warn("Module $it dir not exist")
-                return@mapNotNull null
-            }
-            baseDir.path
-        }
+        val moduleDirs = compileContext.modules.values.map { it.rootDir.path }
         logger.debug("modules dir: ${moduleDirs.relativePath(projectDir)}")
 
-        // TODO maybe we can remove this because we have apk class dump now
-        val projectDeps: List<String> = moduleDirs.flatMap { baseDir ->
-            // java class path
-            val deps = mutableListOf<String>()
-            val buildClassPath = "${baseDir}/build/intermediates/javac/debug/classes"
-            if (File(buildClassPath).exists()) {
-                deps.add(buildClassPath)
-            }
-
-            // on gradle 3.2.1 has different java class path
-            val buildClassPath2 = "${baseDir}/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes"
-            if (File(buildClassPath2).exists()) {
-                deps.add(buildClassPath2)
-            }
-
-            // on gradle 4.1.1, R.class not storage in buildClassPath
-            val rJarPath = "${baseDir}/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-            if (File(rJarPath).exists()) {
-                deps.add(rJarPath)
-            }
-
-            // kotlin class path
-            val kotlinClassPath = "${baseDir}/build/tmp/kotlin-classes/debug"
-            if (File(kotlinClassPath).exists()) {
-                deps.add(kotlinClassPath)
-            }
-
-            deps
+        // TODO remove this after enable apk class dump, or we need focus on build dir changed / deleted
+        val projectDeps: List<String> = compileContext.modules.values.flatMap { module ->
+            module.buildPathInfo.allClassPath
+                .filter { it.exists() }
+                .map { it.path }
         }
         for (dep in projectDeps) {
             if (!File(dep).exists()) {
@@ -172,28 +170,19 @@ class CompileContextManager(
 //        val juggClassPathDep = listOf(fullBuildClassPathDir.absolutePath, incBuildClassPathDir.absolutePath)
         val juggClassPathDep = listOf<String>(incBuildClassPathDir.absolutePath)
 
-        val context = BaseCompileContext(
-            logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
-            androidHome = androidHome,
-            tempCompileDir = tempCompileDir,
-            classPathDir = incBuildClassPathDir,
-            modules = modules,
-        )
+        val androidDep = compileContext.androidJar.path
+        dependencies = juggClassPathDep + projectDeps + androidDep + libDep
+
         logger.debug("""
-            dependencies loaded:
+            Dependencies loaded:
             libDep:$libDep
             projectDep:${projectDeps.relativePath(projectDir)}
-            build-tools:${context.androidBuildTools}
-            android.jar:${context.androidJar}
         """.trimIndent())
         logger.info("Dependencies loaded, libDep size: ${libDep.size}, projectDep size: ${projectDeps.size}, androidDep size: 1, juggClassPathDep size: 2")
 
-        val androidDep = context.androidJar.path
-        dependencies = juggClassPathDep + projectDeps + androidDep + libDep
-        compileContextInside = context
     }
 
-    private fun initModuleRoots(): Map<String, ModuleInfo> {
+    private fun initModules(): Map<String, ModuleInfo> {
         logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
@@ -202,7 +191,7 @@ class CompileContextManager(
             val resourceDirs = mutableListOf<File>()
             val assetDirs = mutableListOf<File>()
 
-            val baseDir = module.guessModuleDirAdv()?.path
+            val baseDir = module.guessModuleDirAdv()
             if (baseDir == null) {
                 logger.warn("Gradle module $module dir not found")
                 return@forEach
@@ -215,7 +204,7 @@ class CompileContextManager(
                     org.jetbrains.kotlin.config.SourceKotlinRootType
                 ))
                 .map { it.toIoFile() }
-                .filter { !it.relativeTo(File(baseDir)).path.startsWith("build") } // ignore build source
+                .filter { !it.relativeTo(baseDir).path.startsWith("build") } // ignore build source
             sourceDirs.addAll(subSourceRoots)
 
             val subResourceRoots = moduleManager.getSourceRoots(
@@ -253,7 +242,9 @@ class CompileContextManager(
             val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
             val compileVersion: String? = buildModel.android().compileSdkVersion().readString(buildModel)
 
-            modules[module.name] = ModuleInfo(module.name, sourceDirs, resourceDirs, assetDirs, compileVersion, buildToolsVersion)
+            modules[module.name] = ModuleInfo(
+                module.name, baseDir, sourceDirs, resourceDirs, assetDirs,
+                compileVersion, buildToolsVersion)
         }
 
         return modules
@@ -273,7 +264,7 @@ class CompileContextManager(
         return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
     }
 
-    private fun SourceDirectoryModel.getFileList(baseDir: String): List<File> {
+    private fun SourceDirectoryModel.getFileList(baseDir: File): List<File> {
         val dirs = srcDirs().getValue(GradlePropertyModel.LIST_TYPE)?: emptyList()
         return dirs
             .mapNotNull { it.getValue(GradlePropertyModel.STRING_TYPE) }

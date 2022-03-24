@@ -136,16 +136,38 @@ class ParsedApk(
 
 data class ModuleInfo(
     val name: String,
+    val rootDir: File,
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
     val compileVersion: String?,
-    val buildToolsVersion: String?
+    val buildToolsVersion: String?,
 ) {
 
+    val buildPathInfo = ModuleBuildPathInfo(rootDir)
+
     companion object {
-        val NO_MODULE = ModuleInfo("no_module", emptyList(), emptyList(), emptyList(), null, null)
+        val NO_MODULE = ModuleInfo("no_module",
+            File("."),
+            emptyList(), emptyList(), emptyList(),
+            null, null)
     }
+}
+
+class ModuleBuildPathInfo(private val moduleRootDir: File) {
+
+    /** build root dir */
+    private val buildDir get() = File(moduleRootDir, "build")
+    /** java class path */
+    val javaClassPath get() = File(buildDir, "intermediates/javac/debug/classes")
+    /** on gradle 3.2.1 has different java class path */
+    val javaClassPath2 get() = File(buildDir, "intermediates/javac/debug/compileDebugJavaWithJavac/classes")
+    /** on gradle 4.1.1, R.class not storage in buildClassPath */
+    val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar")
+    /** kotlin class path */
+    val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/debug")
+
+    val allClassPath get() = listOf(javaClassPath, javaClassPath2, rFilePath, kotlinClassPath)
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
