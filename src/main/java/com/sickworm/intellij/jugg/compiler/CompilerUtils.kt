@@ -59,7 +59,7 @@ fun Module.guessModuleDirAdv(): File? {
     return VfsUtil.virtualToIoFile(virtualFile)
 }
 
-fun List<String>.relativePath(baseDirPath: String) = map { File(it).relativeTo(File(baseDirPath)) }
+fun List<File>.relativePath(baseDirPath: String) = map { it.relativeTo(File(baseDirPath)) }
 
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")

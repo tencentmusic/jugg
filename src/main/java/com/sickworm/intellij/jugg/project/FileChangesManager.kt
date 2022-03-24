@@ -48,11 +48,11 @@ class FileChangesManager(
         logger.debug("""
             |start listen.
             |    source dirs:
-            |        ${sourceDirs.map { it.path }.relativePath(projectDir) }
+            |        ${sourceDirs.relativePath(projectDir) }
             |    resource dirs:
-            |        ${resourceDirs.map { it.path }.relativePath(projectDir) }
+            |        ${resourceDirs.relativePath(projectDir) }
             |    asset dirs:
-            |        ${assetDirs.map { it.path }.relativePath(projectDir) }
+            |        ${assetDirs.relativePath(projectDir) }
             |""".trimMargin())
     }
 

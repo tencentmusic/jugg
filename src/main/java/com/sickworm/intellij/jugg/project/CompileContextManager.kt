@@ -146,20 +146,20 @@ class CompileContextManager(
             throw JuggException.androidHomeNotFound()
         }
 
-        val moduleDirs = compileContext.modules.values.map { it.rootDir.path }
+        val moduleDirs = compileContext.modules.values.map { it.rootDir }
         logger.debug("modules dir: ${moduleDirs.relativePath(projectDir)}")
 
         // TODO remove this after enable apk class dump, or we need focus on build dir changed / deleted
-        val projectDeps: List<String> = compileContext.modules.values.flatMap { module ->
+        val projectDeps: List<File> = compileContext.modules.values.flatMap { module ->
             module.buildPathInfo.allClassPath
                 .filter { it.exists() }
-                .map { it.path }
         }
         for (dep in projectDeps) {
-            if (!File(dep).exists()) {
+            if (!dep.exists()) {
                 logger.debug("ProjectDep file not exists: $dep")
             }
         }
+        val projectDepStrings = projectDeps.map { it.path }
 
         if (!incBuildClassPathDir.exists()) {
             incBuildClassPathDir.mkdirs()
@@ -171,7 +171,7 @@ class CompileContextManager(
         val juggClassPathDep = listOf<String>(incBuildClassPathDir.absolutePath)
 
         val androidDep = compileContext.androidJar.path
-        dependencies = juggClassPathDep + projectDeps + androidDep + libDep
+        dependencies = juggClassPathDep + projectDepStrings + androidDep + libDep
 
         logger.debug("""
             Dependencies loaded:
