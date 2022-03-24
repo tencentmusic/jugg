@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.aapt2
 
-import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.clearBuild
 import com.sickworm.intellij.jugg.mock.logger

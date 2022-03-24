@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.source
 
 import com.sickworm.intellij.jugg.compiler.Result
-import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
 import javax.tools.*

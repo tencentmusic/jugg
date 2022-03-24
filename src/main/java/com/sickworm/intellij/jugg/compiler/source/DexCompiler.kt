@@ -1,9 +1,8 @@
 package com.sickworm.intellij.jugg.compiler.source
 
 import com.sickworm.intellij.jugg.compiler.Result
-import com.sickworm.intellij.jugg.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 
 class DexCompiler(
     context: ICompileContext

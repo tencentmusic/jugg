@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.compiler.CompileTask
+import com.sickworm.intellij.jugg.compiler.changeBaseDir
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
 import com.sickworm.intellij.jugg.mock.clearBuild
 import com.sickworm.intellij.jugg.mock.stagingDir

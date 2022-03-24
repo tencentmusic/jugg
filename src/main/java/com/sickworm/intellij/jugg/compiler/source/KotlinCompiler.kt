@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.source
 
 import com.intellij.util.lang.UrlClassLoader
-import com.sickworm.intellij.jugg.listFilesRecursively
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler

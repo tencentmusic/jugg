@@ -1,19 +1,14 @@
 package com.sickworm.intellij.jugg
 
 import com.android.tools.idea.run.ApkInfo
-import com.googlecode.d2j.node.DexFileNode
-import com.googlecode.d2j.reader.DexFileReader
-import com.googlecode.d2j.visitors.DexFileVisitor
 import com.sickworm.intellij.jugg.compiler.ParsedApk
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.apkInfo
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.assetsApkFile
 import org.junit.Test
-import java.io.File
-import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 

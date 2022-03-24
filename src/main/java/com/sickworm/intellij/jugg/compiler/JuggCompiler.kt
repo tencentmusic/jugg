@@ -3,8 +3,6 @@ package com.sickworm.intellij.jugg.compiler
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
-import com.sickworm.intellij.jugg.changeBaseDir
-import com.sickworm.intellij.jugg.clearDir
 import java.io.File
 
 class JuggCompiler(

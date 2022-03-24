@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.sickworm.intellij.jugg.isWindows
 import java.io.File
 
 object MockitoFixer {

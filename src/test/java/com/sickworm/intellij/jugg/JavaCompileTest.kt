@@ -1,9 +1,6 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.CompileResult
-import com.sickworm.intellij.jugg.compiler.CompileTask
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.JavaCompiler
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before

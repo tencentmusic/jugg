@@ -1,13 +1,11 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.compiler
 
-import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.rootManager
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.vfs.VfsUtil
-import com.intellij.openapi.vfs.VirtualFile
+import com.sickworm.intellij.jugg.JuggManager
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader

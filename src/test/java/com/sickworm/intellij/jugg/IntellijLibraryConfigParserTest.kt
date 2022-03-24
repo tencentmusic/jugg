@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.intellijLibraryDir
 import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
 import org.junit.Test
 import java.io.File
-import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 

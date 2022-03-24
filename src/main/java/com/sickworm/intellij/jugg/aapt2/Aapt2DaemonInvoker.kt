@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.copyResource
-import com.sickworm.intellij.jugg.isMac
+import com.sickworm.intellij.jugg.compiler.copyResource
+import com.sickworm.intellij.jugg.compiler.isMac
 import java.io.*
 import java.util.*
 

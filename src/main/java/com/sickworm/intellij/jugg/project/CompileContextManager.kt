@@ -13,8 +13,8 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.ApkParser
-import com.sickworm.intellij.jugg.guessModuleDirAdv
-import com.sickworm.intellij.jugg.relativePath
+import com.sickworm.intellij.jugg.compiler.guessModuleDirAdv
+import com.sickworm.intellij.jugg.compiler.relativePath
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File

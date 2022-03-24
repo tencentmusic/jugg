@@ -13,7 +13,7 @@ import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
-import com.sickworm.intellij.jugg.relativePath
+import com.sickworm.intellij.jugg.compiler.relativePath
 import java.io.File
 import java.nio.file.Paths
 

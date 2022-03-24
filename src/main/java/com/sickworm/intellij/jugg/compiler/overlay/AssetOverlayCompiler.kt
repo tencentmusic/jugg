@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.sickworm.intellij.jugg.compiler.Result
-import com.sickworm.intellij.jugg.changeBaseDir
+import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.*
 
 class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
