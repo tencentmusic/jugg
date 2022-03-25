@@ -29,10 +29,10 @@ class JuggManager @TestOnly constructor(
     private val fileChangesManager: FileChangesManager = FileChangesManager(project, projectDir),
     // manage deploy data
     private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager, logger),
-    // deploy to device
-    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project),
     // manage deploy target apk and device
-    private val deployTargetManager: DeployTargetManager = DeployTargetManager(project, juggDeployerHelper),
+    private val deployTargetManager: DeployTargetManager = DeployTargetManager(project),
+    // deploy to device
+    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager),
 ): Disposable, DeviceStatusListener {
 
     constructor(project2: Project,

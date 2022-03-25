@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
+import com.android.ddmlib.IDevice
 import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
@@ -13,8 +14,8 @@ class JuggException(msg: String): Exception(msg) {
         fun notAllCompiled(remainFiles: Collection<ChangedFile>) =
             JuggException("Can not deploy changes because not all files been successfully compiled.\nremaining files:\n$remainFiles")
 
-        fun notSupportMultiApkOverlays() =
-            JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk overlay")
+        fun notSupportMultiApk() =
+            JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk")
 
         fun applyChangesFailed(launchResult: LaunchResult) =
             JuggException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
@@ -73,5 +74,9 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun compareWithDifferentClass(oldClassName: String, newClassName: String) =
             JuggInternalException("ClassNodeComparator receive different class name which is meaningless, old class: $oldClassName, new class: $newClassName")
+
+        fun apkNotFound(device: IDevice) =
+            JuggInternalException("Can not found apk on device $device")
+
     }
 }

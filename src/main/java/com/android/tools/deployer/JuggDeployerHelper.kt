@@ -2,9 +2,8 @@ package com.android.tools.deployer
 
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.gradle.util.DynamicAppUtils
-import com.android.tools.idea.run.*
-import com.android.tools.idea.run.editor.DeployTargetContext
-import com.android.tools.idea.run.editor.DeployTargetState
+import com.android.tools.idea.run.ApkFileUnit
+import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.tasks.JuggApplyChangesTask
 import com.android.tools.idea.run.tasks.JuggApplyCodeChangesTask
 import com.android.tools.idea.run.tasks.JuggDeployTask
@@ -12,13 +11,12 @@ import com.google.common.collect.ImmutableList
 import com.intellij.execution.Executor
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.PathManager
-import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.deploy.DeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.project.JuggException
 import org.jetbrains.android.download.AndroidProfilerDownloader
-import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.stream.Collectors
@@ -31,17 +29,13 @@ import java.util.stream.Collectors
  */
 class JuggDeployerHelper(
     private val project: Project,
+    private val deployTargetManager: DeployTargetManager,
     private val executor: Executor = DefaultRunExecutor.getRunExecutorInstance(),
 ) {
 
     @TestOnly
     var installPathProvider: Computable<String> = Computable<String> {
         findEmbeddedInstaller()
-    }
-
-    @TestOnly
-    var deviceProvider: Computable<IDevice> = Computable<IDevice> {
-        DeviceGetter(project).getDevice()
     }
 
     fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
@@ -69,15 +63,15 @@ class JuggDeployerHelper(
         // TODO ConsolePrinter
         val consolePrinter = MockConsolePrinter(project)
         // TODO try ExecutionManager
-        val device = getDevice()
+        val device = deployTargetManager.getDevice()
         val launchResult = task.run(executor, device, launchStatus, consolePrinter)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
         }
-    }
 
-    fun getDevice(): IDevice {
-        return deviceProvider.compute()
+        if (data.isNeedRestartApp) {
+            deployTargetManager.restartApp()
+        }
     }
 
     private fun getFilteredFeatures(apkInfo: ApkInfo, disabledFeatures: List<String>): List<File> {
@@ -116,38 +110,3 @@ class JuggDeployerHelper(
 
 }
 
-private class DeviceGetter(private val project: Project) {
-
-    private val deployTargetContext: DeployTargetContext by lazy { DeployTargetContext() }
-
-    private val isDebugging = true
-
-    private fun supportMultipleDevices() = false
-
-    fun getDevice(): IDevice {
-        val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
-        val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
-        val module = ModuleManager.getInstance(project).modules.first()
-        val facet = AndroidFacet.getInstance(module)!!
-
-        val deviceFutures =
-            deployTarget.getDevices(deployTargetState, facet, getDeviceCount(isDebugging), isDebugging, hashCode())
-                ?: throw IllegalStateException("no device futures")
-
-        // got ClassCastException if using DeviceFutures.get() for different ClassLoader
-        val devices = deviceFutures.ifReady
-        if (devices == null || devices.size == 0) {
-            throw JuggException.deviceNotFound()
-        }
-
-        if (devices.size > 1) {
-            throw JuggException.multipleDeviceFound()
-        }
-
-        return devices[0]
-    }
-
-    private fun getDeviceCount(@Suppress("SameParameterValue") debug: Boolean): DeviceCount {
-        return DeviceCount.fromBoolean(supportMultipleDevices() && !debug)
-    }
-}

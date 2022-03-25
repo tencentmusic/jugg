@@ -30,6 +30,8 @@ data class JuggDeployData(
 
     val classes get() = newClasses + hotFixModifiedClasses + hotReloadModifiedClasses
 
+    val isNeedRestartApp get() = hotFixModifiedClasses.isNotEmpty()
+
     override fun toString(): String {
         val builder = StringBuilder()
         if (isEmpty) {

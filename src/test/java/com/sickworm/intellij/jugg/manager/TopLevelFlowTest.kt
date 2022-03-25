@@ -56,11 +56,7 @@ class TopLevelFlowTest {
 
     @Test
     fun testInstall() {
-        Runtime.getRuntime()
-            .exec("adb shell am force-stop $androidApkPackage")
-            .waitFor()
-
-        jugg.installAndStart()
+        jugg.installAndReStart()
 
         jugg.checkDeployStateAndRegisterAdb()
     }

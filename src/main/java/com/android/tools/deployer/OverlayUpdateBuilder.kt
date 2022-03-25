@@ -10,7 +10,7 @@ class OverlayUpdateBuilder {
 
     fun build(cacheEntry: DeploymentCacheDatabase.Entry?, data: JuggDeployData): OverlayUpdate {
         if (data.apks.size > 1 && data.overlays.isNotEmpty()) {
-            throw JuggException.notSupportMultiApkOverlays()
+            throw JuggException.notSupportMultiApk()
         }
 
         if (cacheEntry == null) {

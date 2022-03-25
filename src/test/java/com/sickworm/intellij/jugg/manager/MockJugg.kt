@@ -1,12 +1,14 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.ddmlib.*
+import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.deployer.JuggDeployerHelper
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
+import com.android.tools.idea.run.ApkProvider
+import com.android.tools.idea.run.ValidationError
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
 import com.intellij.openapi.application.ApplicationManager
@@ -20,11 +22,8 @@ import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.JuggManager
-import com.sickworm.intellij.jugg.mock.AdbDeviceHelper
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
-import com.sickworm.intellij.jugg.deploy.DeployDataManager
-import com.sickworm.intellij.jugg.deploy.DeployState
-import com.sickworm.intellij.jugg.deploy.DeployTargetManager
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -33,17 +32,17 @@ import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggLogger
 import org.mockito.Mockito.*
 import java.io.File
-import java.util.concurrent.TimeUnit
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+
 class MockJugg {
 
     lateinit var project: Project
     lateinit var projectDir: String
-    lateinit var apkInfoList: List<ApkInfo>
 
     lateinit var juggManager: JuggManager
     lateinit var fileChangesManager: FileChangesManager
@@ -103,35 +102,11 @@ class MockJugg {
     /**
      * Run gradle build in [assetsAndroidDir] and install apk.
      */
-    fun installAndStart() {
+    fun installAndReStart() {
         val data = deployDataManager.getDeployData()
         juggDeployerHelper.runTask(data, true)
 
-        startActivity(androidApkPackage)
-    }
-
-    private fun startActivity(packageName: String) {
-        val receiver = object : MultiLineReceiver() {
-            override fun isCancelled(): Boolean {
-                return false
-            }
-
-            override fun processNewLines(lines: Array<out String>?) {
-                lines?.forEach {
-                    logger.debug("[start activity]: $it")
-                }
-            }
-        }
-
-        val command = "am start -S -n $packageName/${projectInfo.launchedActivity}"
-        @Suppress("DEPRECATION")
-        AdbHelper.executeRemoteCommand(
-            AndroidDebugBridge.getSocketAddress(),
-            command,
-            getDevice(),
-            receiver,
-            DdmPreferences.getTimeOut().toLong(),
-            TimeUnit.MILLISECONDS)
+        deployTargetManager.restartApp()
     }
 
     /**
@@ -164,12 +139,26 @@ class MockJugg {
 
         project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
-        apkInfoList = listOf(ApkInfo(assetsApkFile, androidApkPackage))
 
         deviceStatusListener = mock(DeviceStatusListener::class.java)
 
-        deployTargetManager = mock(DeployTargetManager::class.java)
-        `when`(deployTargetManager.getApks()).thenReturn(apkInfoList)
+        val deviceGetter = object : IDeviceGetter {
+            override fun getDevice(): IDevice {
+                return this@MockJugg.getDevice()
+            }
+        }
+        val apkProvider = object : ApkProvider {
+            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
+                return mutableListOf(ApkInfo(assetsApkFile, androidApkPackage))
+            }
+
+            override fun validate(): MutableList<ValidationError> {
+                return mutableListOf()
+            }
+        }
+        val realDeployTargetManager = DeployTargetManager(project, deviceGetter)
+        deployTargetManager = spy(realDeployTargetManager)
+        doReturn(apkProvider).`when`(deployTargetManager).getApkProvider()
 
         val moduleManager = mock(ModuleManager::class.java)
         val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {
@@ -191,12 +180,9 @@ class MockJugg {
         }
         fileChangesManager = FileChangesManager(project, projectDir, virtualFileManager)
 
-        juggDeployerHelper = JuggDeployerHelper(project, MockExecutor())
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, MockExecutor())
         juggDeployerHelper.installPathProvider = Computable {
             return@Computable "./src/test/assets/libs/installer"
-        }
-        juggDeployerHelper.deviceProvider = Computable {
-            return@Computable getDevice()
         }
 
         deployDataManager = DeployDataManager(compileContextManager, logger)
@@ -224,8 +210,8 @@ class MockJugg {
             compileThread = SyncExecutorService(),
             deployThread = SyncExecutorService(),
             compileContextManager = compileContextManager,
+            deployDataManager = deployDataManager,
             juggDeployerHelper = juggDeployerHelper,
-            deployDataManager = deployDataManager
         )
         juggManager.init()
     }
