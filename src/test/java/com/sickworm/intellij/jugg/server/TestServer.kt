@@ -9,6 +9,7 @@ import java.nio.file.*
 import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import java.nio.file.attribute.BasicFileAttributes
+import kotlin.system.measureTimeMillis
 
 val serverLogger = ServerLogger()
 
@@ -46,18 +47,26 @@ class TestServer {
 class FileChangeServer {
 
     fun run(onFileChange: (List<File>) -> Unit) {
+        val startTime = System.currentTimeMillis()
         serverLogger.debug("start init file listening")
 
-        val watchService = FileSystems.getDefault().newWatchService()
-        val rootDir = assetsAndroidDir.toPath()
-        Files.walkFileTree(rootDir, object: SimpleFileVisitor<Path>() {
-            override fun preVisitDirectory(dir: Path?, attrs: BasicFileAttributes?): FileVisitResult {
-                dir?.register(watchService,
-                    arrayOf<WatchEvent.Kind<*>>(ENTRY_CREATE, ENTRY_MODIFY),
-                    SensitivityWatchEventModifier.HIGH)
-                return FileVisitResult.CONTINUE
-            }
-        })
+        val watchService: WatchService
+        val costTime = measureTimeMillis {
+            watchService = FileSystems.getDefault().newWatchService()
+            val rootDir = assetsAndroidDir.toPath()
+            Files.walkFileTree(rootDir, object: SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (dir.fileName.toString() == "build") {
+                        return FileVisitResult.SKIP_SUBTREE
+                    }
+                    dir.register(watchService,
+                        arrayOf<WatchEvent.Kind<*>>(ENTRY_CREATE, ENTRY_MODIFY),
+                        SensitivityWatchEventModifier.HIGH)
+                    return FileVisitResult.CONTINUE
+                }
+            })
+        }
+        serverLogger.debug("init file listening finished, cost $costTime")
 
         serverLogger.debug("start listen")
         while(!Thread.currentThread().isInterrupted) {
