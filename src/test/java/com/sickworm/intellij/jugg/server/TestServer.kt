@@ -47,7 +47,6 @@ class TestServer {
 class FileChangeServer {
 
     fun run(onFileChange: (List<File>) -> Unit) {
-        val startTime = System.currentTimeMillis()
         serverLogger.debug("start init file listening")
 
         val watchService: WatchService
