@@ -68,7 +68,7 @@ class TopLevelFlowTest {
         jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
-        jugg.juggManager.deploy()
+        jugg.deploy()
     }
 
     @Test
@@ -78,6 +78,6 @@ class TopLevelFlowTest {
         jugg.changeFileAndNotify("MainActivity2.changeImageAndToast.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
 
-        jugg.juggManager.deploy()
+        jugg.deploy()
     }
 }
