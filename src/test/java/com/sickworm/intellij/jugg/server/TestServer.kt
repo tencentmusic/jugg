@@ -55,7 +55,11 @@ class FileChangeServer {
             val rootDir = assetsAndroidDir.toPath()
             Files.walkFileTree(rootDir, object: SimpleFileVisitor<Path>() {
                 override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                    if (dir.fileName.toString() == "build") {
+                    val fileName = dir.fileName.toString()
+                    if (fileName == "build") {
+                        return FileVisitResult.SKIP_SUBTREE
+                    }
+                    if (fileName.startsWith(".")) {
                         return FileVisitResult.SKIP_SUBTREE
                     }
                     dir.register(watchService,
