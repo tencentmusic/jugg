@@ -59,14 +59,13 @@ class MockJugg {
         private var hasInitOnce: Boolean = false
     }
 
-    fun initEnv(isNeedRealAbdDevice: Boolean) {
+    fun initEnv() {
         if (!hasInitOnce) {
             hasInitOnce = true
             MockitoFixer.tryFix()
-            if (isNeedRealAbdDevice) {
-                adbDeviceHelper.start()
-            }
         }
+
+        adbDeviceHelper.init()
 
         BuildDemoApkTest().buildApkIfNeeded()
     }

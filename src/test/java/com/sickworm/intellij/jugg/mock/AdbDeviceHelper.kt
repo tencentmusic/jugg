@@ -14,7 +14,7 @@ class AdbDeviceHelper {
 
     private lateinit var androidDebugBridge: AndroidDebugBridge
 
-    fun start() {
+    fun init() {
         Log.setLevel(Log.LogLevel.DEBUG)
         Log.addLogger(object : Log.ILogOutput {
             override fun printLog(logLevel: Log.LogLevel, tag: String?, message: String?) {
@@ -26,7 +26,8 @@ class AdbDeviceHelper {
             }
         })
 
-        AndroidDebugBridge.init(true)
+        @Suppress("DEPRECATION") // deprecated for non-test usages
+        AndroidDebugBridge.initIfNeeded(true)
         androidDebugBridge = AndroidDebugBridge.createBridge(Long.MAX_VALUE, TimeUnit.MILLISECONDS)
     }
 

@@ -16,7 +16,7 @@ class TopLevelFlowTest {
         @BeforeClass
         @JvmStatic
         fun initEnv() {
-            jugg.initEnv(isNeedRealAbdDevice = true)
+            jugg.initEnv()
         }
     }
 
