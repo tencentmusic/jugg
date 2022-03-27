@@ -146,7 +146,7 @@ class MockJugg {
                 return this@MockJugg.getDevice()
             }
         }
-        val apks = mutableListOf(ApkInfo(assetsApkFile, androidApkPackage))
+        val apks = mutableListOf(projectInfo.apkInfo)
         val apkProvider = object : ApkProvider {
             override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
                 return apks

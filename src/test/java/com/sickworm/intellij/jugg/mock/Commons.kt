@@ -42,7 +42,6 @@ var projectInfo = try {
 val assetsAndroidDir get() = projectInfo.projectRoot
 val assetsAndroidModifySourceDir get() = projectInfo.modifiedSource
 val assetsApkFile get() = projectInfo.apk
-val apkInfo get() = projectInfo.apkInfo
 val androidApkPackage get() = projectInfo.packageName
 
 // dependency
@@ -70,7 +69,7 @@ val context get() = SimpleCompileContext(
     androidJar = androidJar,
     classPathDir = classPathDir,
     modules = emptyMap(),
-    parsedApks = listOf(ParsedApk(ApkInfo(assetsApkFile, androidApkPackage), emptyMap(), emptyMap())),
+    parsedApks = listOf(ParsedApk(projectInfo.apkInfo, emptyMap(), emptyMap())),
     variant = "debug"
 )
 

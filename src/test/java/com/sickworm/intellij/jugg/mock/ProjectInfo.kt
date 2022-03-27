@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.android.tools.idea.run.ApkInfo
 import com.google.gson.Gson
 import java.io.File
 
@@ -9,12 +10,13 @@ class ProjectInfo(
     val projectRootDir: String,
     val modifiedSourceDir: String,
     val apkPath: String,
-    val apkInfo: ApkInfo,
+    val apkEntryInfo: ApkEntryInfo,
 ) {
 
     val projectRoot: File get() = File(projectRootDir).absoluteFile
     val apk: File get() = File(projectRoot, apkPath).absoluteFile
     val modifiedSource: File get() = File(modifiedSourceDir).absoluteFile
+    val apkInfo: ApkInfo get() = ApkInfo(assetsApkFile, androidApkPackage)
 
     companion object {
         val DEMO_JSON = """
@@ -23,7 +25,7 @@ class ProjectInfo(
     "projectRootDir": "src/test/assets/android/MyApplicationIntellij",
     "modifiedSourceDir": "src/test/assets/android/modify_source",
     "apkPath": "app/build/outputs/apk/debug/app-debug.apk",
-    "apkInfo": {
+    "apkEntryInfo": {
         classCount": 2387,
         fieldCount": 12293,
         methodCount": 19338,
@@ -37,7 +39,7 @@ class ProjectInfo(
         }
     }
 
-    class ApkInfo(
+    class ApkEntryInfo(
         val classCount: Int,
         val fieldCount: Int,
         val methodCount: Int,

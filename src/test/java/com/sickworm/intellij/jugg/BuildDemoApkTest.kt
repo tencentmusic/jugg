@@ -4,10 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.ApkParser
-import com.sickworm.intellij.jugg.mock.androidApkPackage
-import com.sickworm.intellij.jugg.mock.apkInfo
-import com.sickworm.intellij.jugg.mock.assetsAndroidDir
-import com.sickworm.intellij.jugg.mock.assetsApkFile
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -77,26 +74,26 @@ class BuildDemoApkTest {
     }
 
     private fun testApkStructure() {
-        val apkInfo = ApkInfo(
-            assetsApkFile,
-            androidApkPackage
-        )
-        val parsedApk = ApkParser().parse(apkInfo)
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
         checkApkStructure(parsedApk)
     }
 
     fun checkApkStructure(parsedApk: ParsedApk) {
-        if (apkInfo.classCount > 0) {
-            assertEquals(apkInfo.classCount, parsedApk.classes.entries.size)
+        if (projectInfo.apkEntryInfo.classCount > 0) {
+            assertEquals(projectInfo.apkEntryInfo.classCount,
+                parsedApk.classes.entries.size)
         }
-        if (apkInfo.fieldCount > 0) {
-            assertEquals(apkInfo.fieldCount, parsedApk.classes.entries.sumBy { it.value.fields.size })
+        if (projectInfo.apkEntryInfo.fieldCount > 0) {
+            assertEquals(projectInfo.apkEntryInfo.fieldCount,
+                parsedApk.classes.entries.sumBy { it.value.fields.size })
         }
-        if (apkInfo.methodCount > 0) {
-            assertEquals(apkInfo.methodCount, parsedApk.classes.entries.sumBy { it.value.methods.size })
+        if (projectInfo.apkEntryInfo.methodCount > 0) {
+            assertEquals(projectInfo.apkEntryInfo.methodCount,
+                parsedApk.classes.entries.sumBy { it.value.methods.size })
         }
-        if (apkInfo.overlayFileCount > 0) {
-            assertEquals(apkInfo.overlayFileCount, parsedApk.overlayFiles.size)
+        if (projectInfo.apkEntryInfo.overlayFileCount > 0) {
+            assertEquals(projectInfo.apkEntryInfo.overlayFileCount,
+                parsedApk.overlayFiles.size)
         }
     }
 
