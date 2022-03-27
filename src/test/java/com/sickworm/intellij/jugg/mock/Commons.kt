@@ -2,7 +2,6 @@
 
 package com.sickworm.intellij.jugg.mock
 
-import com.android.tools.idea.run.ApkInfo
 import com.google.gson.JsonSyntaxException
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*

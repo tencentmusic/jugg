@@ -192,7 +192,7 @@ class MockJugg {
 
         deployDataManager = DeployDataManager(compileContextManager, logger)
 
-        JuggLogger.listenProjectLog(project, StdLogger("test"))
+        JuggLogger.listenProjectLog(project, logger)
     }
 
     private fun getDevice(): IDevice {

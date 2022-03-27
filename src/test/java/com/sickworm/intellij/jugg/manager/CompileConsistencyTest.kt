@@ -133,5 +133,7 @@ class CompileConsistencyTest {
         }
 
         jugg.dryDeploy()
+
+        println("check consistency passed")
     }
 }
