@@ -77,6 +77,8 @@ fun copyResource(resourcePath: String): File {
     return storePath
 }
 
+val File.isResourceValueFile get() = parent.endsWith("values")
+
 private val osName = System.getProperty("os.name").toLowerCase()
 val isWindows = osName.contains("win")
 val isLinux = listOf("nix", "nux", "aix").any { osName.contains(it) }

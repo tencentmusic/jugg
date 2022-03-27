@@ -130,6 +130,10 @@ class MockJugg {
         fileChangeEventSender.notifyFileChanges(file)
     }
 
+    fun compileChangedFiles() {
+        juggManager.compileChanges()
+    }
+
     private fun renewComponents() {
         val application = MockApplication {}
         ApplicationManager.setApplication(application) {}

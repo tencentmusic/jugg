@@ -96,6 +96,18 @@ class JuggManager @TestOnly constructor(
     private fun processFileChanged(changedFiles: List<ChangedFile>) {
         addChanges(changedFiles)
 
+        if (JuggSettings.compileOnSave) {
+            compileChangesAsync()
+        }
+    }
+
+    private fun addChanges(changedFiles: List<ChangedFile>) {
+        changedFiles.forEach {
+            deployDataManager.addChangedFile(it)
+        }
+    }
+
+    private fun compileChangesAsync() {
         compileThread.submitSafe("Compile") {
             val compileResult = compileChanges()
             logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
@@ -106,13 +118,8 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun addChanges(changedFiles: List<ChangedFile>) {
-        changedFiles.forEach {
-            deployDataManager.addChangedFile(it)
-        }
-    }
-
-    private fun compileChanges(): CompileResult {
+    @TestOnly
+    fun compileChanges(): CompileResult {
         val compiler = compiler?: run {
             throw JuggInternalException.compilerNotInit()
         }

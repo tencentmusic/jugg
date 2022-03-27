@@ -73,15 +73,15 @@ class FileChangesManager(
     }
 
     private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
-        val changeFiles = events.mapNotNull(::filterDeployFile)
+        val changeFiles = events.mapNotNull(::toChangeFile)
         if (changeFiles.isEmpty()) return
         listener?.onFileChanges(changeFiles)
     }
 
     /**
-     * filter events
+     * filter events and convert to ChangeFile if it is compilable
      */
-    private fun filterDeployFile(event: VFileEvent?): ChangedFile? {
+    private fun toChangeFile(event: VFileEvent?): ChangedFile? {
         if (event == null) {
             return null
         }
