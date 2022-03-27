@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg
 
-import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.ApkParser
@@ -34,7 +33,7 @@ class BuildDemoApkTest {
         println(String(process.errorStream.readBytes()))
         println("\n-----------  clean end  -----------\n")
 
-        assertTrue(!assetsApkFile.exists())
+        assertTrue(!projectInfo.apkFile.exists())
     }
 
     @Test
@@ -47,7 +46,7 @@ class BuildDemoApkTest {
         println("\n-----------  assembleDebug end  -----------\n")
         process.waitFor()
 
-        assertTrue(assetsApkFile.exists())
+        assertTrue(projectInfo.apkFile.exists())
     }
 
     @Test
@@ -57,7 +56,7 @@ class BuildDemoApkTest {
     }
 
     fun buildApkIfNeeded() {
-        if (assetsApkFile.exists()) {
+        if (projectInfo.apkFile.exists()) {
             try {
                 testApkStructure()
                 println("apk structure is correct, no need to rebuild")

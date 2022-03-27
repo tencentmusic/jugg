@@ -41,7 +41,6 @@ var projectInfo = try {
 
 val assetsAndroidDir get() = projectInfo.projectRoot
 val assetsAndroidModifySourceDir get() = projectInfo.modifiedSource
-val assetsApkFile get() = projectInfo.apk
 val androidApkPackage get() = projectInfo.packageName
 
 // dependency
