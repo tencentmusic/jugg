@@ -146,9 +146,10 @@ class MockJugg {
                 return this@MockJugg.getDevice()
             }
         }
+        val apks = mutableListOf(ApkInfo(assetsApkFile, androidApkPackage))
         val apkProvider = object : ApkProvider {
             override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
-                return mutableListOf(ApkInfo(assetsApkFile, androidApkPackage))
+                return apks
             }
 
             override fun validate(): MutableList<ValidationError> {
@@ -158,6 +159,7 @@ class MockJugg {
         val realDeployTargetManager = DeployTargetManager(project, deviceGetter)
         deployTargetManager = spy(realDeployTargetManager)
         doReturn(apkProvider).`when`(deployTargetManager).getApkProvider()
+        doReturn(apks).`when`(deployTargetManager).getApks()
 
         val moduleManager = mock(ModuleManager::class.java)
         val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {

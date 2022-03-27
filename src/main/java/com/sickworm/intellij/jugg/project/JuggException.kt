@@ -75,8 +75,8 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun compareWithDifferentClass(oldClassName: String, newClassName: String) =
             JuggInternalException("ClassNodeComparator receive different class name which is meaningless, old class: $oldClassName, new class: $newClassName")
 
-        fun apkNotFound(device: IDevice) =
-            JuggInternalException("Can not found apk on device $device")
+        fun getPackageNameFailedApkNotFound() =
+            JuggInternalException("Can not get package name, because can not found apk by ApkProvider.")
 
     }
 }

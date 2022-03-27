@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.jvm.Throws
 
 /**
- * Manage config，deivce，application
+ * Manage device list，application state
  */
 class DeployTargetManager(
     private val project: Project,
@@ -99,18 +99,6 @@ class DeployTargetManager(
             TimeUnit.MILLISECONDS)
     }
 
-    fun getPackageName(): String {
-        val device = getDevice()
-        val apks = getApkProvider().getApks(device)
-        if (apks.isEmpty()) {
-            throw JuggInternalException.apkNotFound(device)
-        }
-        if (apks.size > 1) {
-            throw JuggException.notSupportMultiApk()
-        }
-        return apks.first().applicationId
-    }
-
     @TestOnly
     fun getApkProvider(): ApkProvider {
         val (_, runConfig) = getRunConfig()
@@ -127,6 +115,17 @@ class DeployTargetManager(
         val locator = DefaultApkActivityLocator(apkProvider)
         val device = getDevice()
         return locator.getQualifiedActivityName(device)
+    }
+
+    private fun getPackageName(): String {
+        val apks = getApks()
+        if (apks.isEmpty()) {
+            throw JuggInternalException.getPackageNameFailedApkNotFound()
+        }
+        if (apks.size > 1) {
+            throw JuggException.notSupportMultiApk()
+        }
+        return apks.first().applicationId
     }
 
     @Throws(Exception::class)
