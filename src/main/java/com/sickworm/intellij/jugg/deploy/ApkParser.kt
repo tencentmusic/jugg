@@ -20,7 +20,7 @@ class ApkParser {
         return ParsedApk(apkInfo, classes, overlays)
     }
 
-    fun parseCode(bytes: ByteArray, isSkipCode: Boolean): Map<String, ClassNode> {
+    private fun parseCode(bytes: ByteArray, isSkipCode: Boolean): Map<String, ClassNode> {
         val reader: BaseDexFileReader = MultiDexFileReader.open(bytes)
         val visitor = DexFileNode()
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
