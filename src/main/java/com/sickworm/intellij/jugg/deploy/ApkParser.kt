@@ -8,13 +8,20 @@ import com.googlecode.d2j.reader.DexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ParsedApk
+import java.io.File
 
 /** Used to parse everything I need in Apk */
 class ApkParser {
 
     fun parse(apkInfo: ApkInfo, isSkipCode: Boolean): ParsedApk {
         val apkBytes = apkInfo.file.readBytes()
-        val reader: BaseDexFileReader = MultiDexFileReader.open(apkBytes)
+        val classes = parseCode(apkBytes, isSkipCode)
+        val overlays = parseOverlays(apkInfo.file)
+        return ParsedApk(apkInfo, classes, overlays)
+    }
+
+    fun parseCode(bytes: ByteArray, isSkipCode: Boolean): Map<String, ClassNode> {
+        val reader: BaseDexFileReader = MultiDexFileReader.open(bytes)
         val visitor = DexFileNode()
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
@@ -25,15 +32,19 @@ class ApkParser {
             classes[classNode.className] = classNode
         }
 
+        return classes
+    }
+
+    private fun parseOverlays(apkFile: File): Map<String, JuggFileInfo> {
         val overlayFiles = mutableMapOf<String, JuggFileInfo>()
-        val apk = ApkParserAdt().parsePaths(listOf(apkInfo.file.absolutePath)).first()
+        val apk = ApkParserAdt().parsePaths(listOf(apkFile.absolutePath)).first()
         for (entry in apk.apkEntries.values) {
             if (!entry.name.endsWith(".dex")) {
                 overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             }
         }
 
-        return ParsedApk(apkInfo, classes, overlayFiles)
+        return overlayFiles
     }
 
     fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
