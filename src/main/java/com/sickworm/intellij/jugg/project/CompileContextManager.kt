@@ -68,7 +68,7 @@ class CompileContextManager(
     fun initFullBuildInfo(apks: List<ApkInfo>) {
         val startTime = System.currentTimeMillis()
         val parsedApks = apks.map {
-            ApkParser().parse(it)
+            ApkParser().parse(it, isSkipCode = true)
         }
         val parsedApksEndTime = System.currentTimeMillis()
         logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}")

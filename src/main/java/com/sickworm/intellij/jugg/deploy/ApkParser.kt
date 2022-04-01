@@ -12,11 +12,12 @@ import com.sickworm.intellij.jugg.compiler.ParsedApk
 /** Used to parse everything I need in Apk */
 class ApkParser {
 
-    fun parse(apkInfo: ApkInfo): ParsedApk {
+    fun parse(apkInfo: ApkInfo, isSkipCode: Boolean): ParsedApk {
         val apkBytes = apkInfo.file.readBytes()
         val reader: BaseDexFileReader = MultiDexFileReader.open(apkBytes)
         val visitor = DexFileNode()
-        reader.accept(visitor, DexFileReader.SKIP_CODE)
+        val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
+        reader.accept(visitor, flag)
 
         val classes = mutableMapOf<String, ClassNode>()
         visitor.clzs.forEach {

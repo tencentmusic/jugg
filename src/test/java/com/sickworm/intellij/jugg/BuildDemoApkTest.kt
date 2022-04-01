@@ -73,7 +73,7 @@ class BuildDemoApkTest {
     }
 
     private fun testApkStructure() {
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo, true)
         checkApkStructure(parsedApk)
     }
 
