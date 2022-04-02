@@ -1,9 +1,12 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.googlecode.d2j.DexType
+import com.googlecode.d2j.Visibility
 import com.googlecode.d2j.node.*
 import org.junit.Assert
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class DexClassNodeComparator(
     private val except: DexClassNode?,
@@ -29,6 +32,7 @@ class DexClassNodeComparator(
         assertListEquals(except.fields, actual.fields) { exceptField, actualField ->
             compareFields(exceptField, actualField)
         }
+
         compareAnnotations(except.anns, actual.anns)
     }
 
@@ -45,6 +49,11 @@ class DexClassNodeComparator(
         // annotations
         compareAnnotations(except.anns, actual.anns)
         assertArrayEquals(except.parameterAnns, actual.parameterAnns) { exceptAnns, actualAnns ->
+            // TODO check build annotation (not ready for such strict inspection) (e.g. Landroidx/annotation/Nullable;)
+            if (actualAnns.all { it.visibility == Visibility.BUILD }) {
+                return@assertArrayEquals
+            }
+
             compareAnnotations(exceptAnns, actualAnns)
         }
 
@@ -53,7 +62,7 @@ class DexClassNodeComparator(
 
     private fun compareCodeNode(except: DexCodeNode, actual: DexCodeNode, methodName: String) {
 
-        // TODO not ready for such strict inspection
+        // TODO check debug and register (not ready for such strict inspection)
 //        assertEquals(except.totalRegister, actual.totalRegister, methodName)
 //        if (except.debugNode != null && actual.debugNode != null) {
 //            assertEquals(except.debugNode.fineName, actual.debugNode.fineName)
@@ -89,8 +98,37 @@ class DexClassNodeComparator(
         compareAnnotations(except.anns, actual.anns)
     }
 
-    private fun compareAnnotations(exceptField: List<DexAnnotationNode>?, actualField: List<DexAnnotationNode>?) {
-        // TODO
+    private fun compareAnnotations(except: List<DexAnnotationNode>?, actual: List<DexAnnotationNode>?) {
+        assertListEquals(except, actual) { exceptAnn, actualAnn ->
+            assertEquals(exceptAnn.type, actualAnn.type)
+            // TODO check Metadata (not ready for such strict inspection)
+            if (exceptAnn.type == "Lkotlin/Metadata;") {
+                return@assertListEquals
+            }
+
+            assertEquals(exceptAnn.visibility, actualAnn.visibility)
+            assertListEquals(exceptAnn.items, actualAnn.items) { exceptItem, actualItem ->
+                compareAnnotationNode(exceptItem, actualItem)
+            }
+        }
+    }
+
+    private fun compareAnnotationNode(except: DexAnnotationNode.Item, actual: DexAnnotationNode.Item) {
+        assertEquals(except.name, actual.name)
+        when (except.value) {
+            is Array<*> -> {
+                assertTrue(actual.value is Array<*>)
+                @Suppress("UNCHECKED_CAST", "PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+                assertArrayEquals(except.value as Array<Object>, actual.value as Array<Object>)
+            }
+            is DexType -> {
+                assertTrue(actual.value is DexType)
+                assertEquals((except.value as DexType).desc, (actual.value as DexType).desc)
+            }
+            else -> {
+                assertEquals(except.value, actual.value)
+            }
+        }
     }
 }
 

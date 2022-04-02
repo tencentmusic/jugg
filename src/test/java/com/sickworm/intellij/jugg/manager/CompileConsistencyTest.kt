@@ -231,6 +231,11 @@ class CompileConsistencyTest {
     }
 
     private fun checkCompileBinary(deployItem: DeployItem) {
+        // not supported case for now
+        if (deployItem.name in ignoreBinaryCheckList) {
+            return
+        }
+
         when (deployItem.type) {
             CompileOutput.Type.Dex -> {
                 compareClassNode(deployItem)
@@ -254,11 +259,6 @@ class CompileConsistencyTest {
     }
 
     private fun compareOverlay(deployItem: DeployItem) {
-        // Currently not supported case
-        // TODO support ignoreBinaryCheckList
-        if (deployItem.name in ignoreBinaryCheckList) {
-            return
-        }
         val apk = jugg.deployTargetManager.getApks().first().file
         val bytes = getOverlayBytesFromApk(deployItem, apk)
         OverlayComparator(bytes, deployItem.content).compare()
@@ -276,7 +276,13 @@ class CompileConsistencyTest {
         return inputStream.readAllBytes()
     }
 
+    // FIXME
     private val ignoreBinaryCheckList = listOf(
+        // classes
+        "com.example.myapplication.R",
+        "com.example.myapplication.R\$attr",
+
+        // overlays
         "resources.arsc",
         "res/drawable-v24/\$ic_launcher_foreground__0.xml",
         "res/mipmap-xxxhdpi-v4/ic_launcher.png",
