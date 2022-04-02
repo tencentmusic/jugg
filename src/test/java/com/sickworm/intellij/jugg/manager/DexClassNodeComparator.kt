@@ -26,7 +26,9 @@ class DexClassNodeComparator(
         assertListEquals(except.methods, actual.methods) { exceptMethod, actualMethod ->
             compareMethod(exceptMethod, actualMethod)
         }
-        compareFields(except.fields, actual.fields)
+        assertListEquals(except.fields, actual.fields) { exceptField, actualField ->
+            compareFields(exceptField, actualField)
+        }
         compareAnnotations(except.anns, actual.anns)
     }
 
@@ -77,8 +79,14 @@ class DexClassNodeComparator(
 
     }
 
-    private fun compareFields(exceptField: List<DexFieldNode>?, actualField: List<DexFieldNode>?) {
-        // TODO
+    private fun compareFields(except: DexFieldNode, actual: DexFieldNode) {
+        assertEquals(except.access, actual.access)
+        assertEquals(except.cst, actual.cst)
+        assertEquals(except.field.name, actual.field.name)
+        assertEquals(except.field.owner, actual.field.owner)
+        assertEquals(except.field.type, actual.field.type)
+
+        compareAnnotations(except.anns, actual.anns)
     }
 
     private fun compareAnnotations(exceptField: List<DexAnnotationNode>?, actualField: List<DexAnnotationNode>?) {
