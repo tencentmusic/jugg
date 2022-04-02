@@ -2,9 +2,13 @@ package com.sickworm.intellij.jugg.manager
 
 import com.android.tools.deployer.DeployItem
 import com.android.tools.deployer.JuggDeployData
-import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.isResourceValueFile
+import com.android.tools.idea.run.ApkInfo
+import com.googlecode.d2j.node.*
+import com.googlecode.d2j.reader.BaseDexFileReader
+import com.googlecode.d2j.reader.MultiDexFileReader
+import com.intellij.packageDependencies.ui.FileNode
+import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -16,7 +20,9 @@ import java.io.File
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.ZipFile
+import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -28,6 +34,7 @@ class CompileConsistencyTest {
         private val jugg = MockJugg()
         private var oldCompileForSave = false
         private var firstTimeDeployOverlays = true
+        private val apkClasses = mutableMapOf<String, DexClassNode>()
 
         @BeforeClass
         @JvmStatic
@@ -35,8 +42,32 @@ class CompileConsistencyTest {
             jugg.initEnv()
             jugg.resetAllState()
 
+            val costTime = measureTimeMillis {
+                initClasses(jugg.deployTargetManager.getApks())
+            }
+            println("initClasses cost ${costTime}ms")
+
             oldCompileForSave = JuggSettings.compileOnSave
             JuggSettings.compileOnSave = false
+        }
+
+        private fun initClasses(apkInfos: List<ApkInfo>) {
+            assertEquals(1, apkInfos.size)
+            val apkInfo = apkInfos.first()
+            val apkBytes = apkInfo.file.readBytes()
+            apkClasses.putAll(parseDexClasses(apkBytes))
+        }
+
+        private fun parseDexClasses(content: ByteArray): Map<String, DexClassNode> {
+            val reader: BaseDexFileReader = MultiDexFileReader.open(content)
+            val visitor = DexFileNode()
+            reader.accept(visitor)
+
+            val dexClasses = mutableMapOf<String, DexClassNode>()
+            visitor.clzs.forEach {
+                dexClasses[it.className] = it
+            }
+            return dexClasses
         }
 
         @AfterClass
@@ -48,9 +79,13 @@ class CompileConsistencyTest {
 
     @Test
     fun testConsistency() {
-
         val rootDir = assetsAndroidDir
-        val fileList = getCheckFiles(rootDir)
+
+        val fileList: List<File>
+        val costTime = measureTimeMillis {
+            fileList = getCheckFiles(rootDir)
+        }
+        println("getCheckFiles cost ${costTime}ms")
         println("${fileList.size} files to be check (including not compilable files)")
 
         for (file in fileList) {
@@ -168,8 +203,7 @@ class CompileConsistencyTest {
     private fun checkCompileBinary(deployItem: DeployItem, apk: File) {
         when (deployItem.type) {
             CompileOutput.Type.Dex -> {
-                val bytes = getClassBytesFromApk(deployItem, apk)
-                compareBinary(deployItem, bytes, deployItem.content)
+                compareClassFileBytes(deployItem)
             }
             CompileOutput.Type.Overlay -> {
                 val bytes = getOverlayBytesFromApk(deployItem, apk)
@@ -181,9 +215,37 @@ class CompileConsistencyTest {
         }
     }
 
-    private fun getClassBytesFromApk(deployItem: DeployItem, apk: File): ByteArray {
+    private fun compareClassFileBytes(deployItem: DeployItem) {
+        val exceptClassNode = apkClasses[deployItem.name]
+        val deployClasses = parseDexClasses(deployItem.content)
+        val actualClassNode = deployClasses[deployItem.name]
+
+        if (exceptClassNode == null) {
+            // not exists in apk, it's ok
+            return
+        }
+        assertNotNull(actualClassNode)
+
+        assertEquals(exceptClassNode.className, actualClassNode.className)
+        assertEquals(exceptClassNode.superClass, actualClassNode.superClass)
+        assertEquals(exceptClassNode.access, actualClassNode.access)
+        assertEquals(exceptClassNode.source, actualClassNode.source)
+        assertEquals(exceptClassNode.interfaceNames, actualClassNode.interfaceNames)
+        compareMethods(exceptClassNode.methods, actualClassNode.methods)
+        compareFields(exceptClassNode.fields, actualClassNode.fields)
+        compareAnnotations(exceptClassNode.anns, actualClassNode.anns)
+    }
+
+    private fun compareMethods(exceptMethods: List<DexMethodNode>, actualMethods: List<DexMethodNode>) {
         // TODO
-        return deployItem.content
+    }
+
+    private fun compareFields(exceptField: List<DexFieldNode>, actualField: List<DexFieldNode>) {
+        // TODO
+    }
+
+    private fun compareAnnotations(exceptField: List<DexAnnotationNode>, actualField: List<DexAnnotationNode>) {
+        // TODO
     }
 
     private fun getOverlayBytesFromApk(deployItem: DeployItem, apk: File): ByteArray? {
