@@ -35,6 +35,13 @@ class CompileConsistencyTest {
         private val apkClasses = mutableMapOf<String, DexClassNode>()
 
         private var collectErrorFilesOnly = System.getenv("JUGG_COLLECT_ERROR_FILES_ONLY") == "true"
+        private val checkFiles: List<String>? =
+            System.getenv("JUGG_CHECK_FILES")?.let { value ->
+                File(value)
+                    .takeIf { it.exists() }
+                    ?.readText()
+                    ?.split("\n")
+            }
 
         @BeforeClass
         @JvmStatic
@@ -111,6 +118,10 @@ class CompileConsistencyTest {
     }
 
     private fun getCheckFiles(rootDir: File): List<File> {
+        if (checkFiles != null) {
+            return checkFiles.map { File(it) }
+        }
+
         val fileList = mutableListOf<File>()
         Files.walkFileTree(rootDir.toPath(), object: SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
