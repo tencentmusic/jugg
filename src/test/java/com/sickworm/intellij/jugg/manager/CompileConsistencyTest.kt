@@ -6,9 +6,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.*
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader
-import com.intellij.packageDependencies.ui.FileNode
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -55,7 +53,8 @@ class CompileConsistencyTest {
             assertEquals(1, apkInfos.size)
             val apkInfo = apkInfos.first()
             val apkBytes = apkInfo.file.readBytes()
-            apkClasses.putAll(parseDexClasses(apkBytes))
+            val parsedClasses = parseDexClasses(apkBytes)
+            apkClasses.putAll(parsedClasses)
         }
 
         private fun parseDexClasses(content: ByteArray): Map<String, DexClassNode> {
@@ -218,9 +217,10 @@ class CompileConsistencyTest {
     }
 
     private fun compareClassFileBytes(deployItem: DeployItem) {
-        val exceptClassNode = apkClasses[deployItem.name]
+        val className = deployItem.name.convertClassToSigFormat()
+        val exceptClassNode = apkClasses[className]
         val deployClasses = parseDexClasses(deployItem.content)
-        val actualClassNode = deployClasses[deployItem.name]
+        val actualClassNode = deployClasses[className]
 
         if (exceptClassNode == null) {
             // not exists in apk, it's ok
@@ -232,21 +232,26 @@ class CompileConsistencyTest {
         assertEquals(exceptClassNode.superClass, actualClassNode.superClass)
         assertEquals(exceptClassNode.access, actualClassNode.access)
         assertEquals(exceptClassNode.source, actualClassNode.source)
-        assertEquals(exceptClassNode.interfaceNames, actualClassNode.interfaceNames)
+        assertArrayEquals(exceptClassNode.interfaceNames, actualClassNode.interfaceNames)
+
         compareMethods(exceptClassNode.methods, actualClassNode.methods)
         compareFields(exceptClassNode.fields, actualClassNode.fields)
         compareAnnotations(exceptClassNode.anns, actualClassNode.anns)
+    }
+
+    private fun String.convertClassToSigFormat(): String {
+        return "L" + this.replace('.', '/') + ";"
     }
 
     private fun compareMethods(exceptMethods: List<DexMethodNode>, actualMethods: List<DexMethodNode>) {
         // TODO
     }
 
-    private fun compareFields(exceptField: List<DexFieldNode>, actualField: List<DexFieldNode>) {
+    private fun compareFields(exceptField: List<DexFieldNode>?, actualField: List<DexFieldNode>?) {
         // TODO
     }
 
-    private fun compareAnnotations(exceptField: List<DexAnnotationNode>, actualField: List<DexAnnotationNode>) {
+    private fun compareAnnotations(exceptField: List<DexAnnotationNode>?, actualField: List<DexAnnotationNode>?) {
         // TODO
     }
 
@@ -291,4 +296,18 @@ class CompileConsistencyTest {
         "res/drawable-v24/\$ic_launcher_foreground__0.xml",
         "res/mipmap-xxxhdpi-v4/ic_launcher.png",
     )
+}
+
+private fun assertArrayEquals(except: Array<*>, actual: Array<*>) {
+    assertEquals(except.size, actual.size)
+    for (index in except.indices) {
+        assertEquals(except[index], actual[index])
+    }
+}
+
+private fun assertListEquals(except: List<*>, actual: List<*>) {
+    assertEquals(except.size, actual.size)
+    for (index in except.indices) {
+        assertEquals(except[index], actual[index])
+    }
 }
