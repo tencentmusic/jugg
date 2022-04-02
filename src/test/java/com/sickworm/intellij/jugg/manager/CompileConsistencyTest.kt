@@ -298,16 +298,17 @@ class CompileConsistencyTest {
     )
 }
 
-private fun assertArrayEquals(except: Array<*>, actual: Array<*>) {
-    assertEquals(except.size, actual.size)
-    for (index in except.indices) {
-        assertEquals(except[index], actual[index])
-    }
+private fun <T> assertArrayEquals(except: Array<T>, actual: Array<T>, block: ((T, T) -> Unit)? = null) {
+    assertListEquals(except.toList(), actual.toList(), block)
 }
 
-private fun assertListEquals(except: List<*>, actual: List<*>) {
+private fun <T> assertListEquals(except: List<T>, actual: List<T>, block: ((T, T) -> Unit)? = null) {
     assertEquals(except.size, actual.size)
     for (index in except.indices) {
-        assertEquals(except[index], actual[index])
+        if (block != null) {
+            block(except[index], actual[index])
+        } else {
+            assertEquals(except[index], actual[index])
+        }
     }
 }
