@@ -34,6 +34,8 @@ class CompileConsistencyTest {
         private var firstTimeDeployOverlays = true
         private val apkClasses = mutableMapOf<String, DexClassNode>()
 
+        private var collectErrorFilesOnly = System.getenv("JUGG_COLLECT_ERROR_FILES_ONLY") == "true"
+
         @BeforeClass
         @JvmStatic
         fun initAndSetNotCompileOnSave() {
@@ -89,11 +91,22 @@ class CompileConsistencyTest {
 
         for (file in fileList) {
             println("checking ${file.relativeTo(rootDir)}...")
-            checkFileCompileConsistency(file)
+            try {
+                checkFileCompileConsistency(file)
+            } catch (e: AssertionError) {
+                if (collectErrorFilesOnly) {
+                    failedBinaryCheckList.add(file.absolutePath)
+                    jugg.dryDeploy()
+                } else {
+                    throw e
+                }
+            }
         }
 
         if (failedBinaryCheckList.isNotEmpty()) {
-            System.err.println(failedBinaryCheckList.toList())
+            System.err.println("error files: ")
+            System.err.println(failedBinaryCheckList.joinToString("\n"))
+            Assert.fail("failedBinaryCheckList not empty")
         }
     }
 
@@ -160,6 +173,7 @@ class CompileConsistencyTest {
             deployData.overlays
         ).flatten()
         deployItems.forEach {
+            println("    checking ${it.name}...")
             checkCompileBinary(it, apk)
         }
 
