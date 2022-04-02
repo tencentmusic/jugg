@@ -234,7 +234,9 @@ class CompileConsistencyTest {
         assertEquals(exceptClassNode.source, actualClassNode.source)
         assertArrayEquals(exceptClassNode.interfaceNames, actualClassNode.interfaceNames)
 
-        compareMethods(exceptClassNode.methods, actualClassNode.methods)
+        assertListEquals(exceptClassNode.methods, actualClassNode.methods) { except, actual ->
+            compareMethod(except, actual)
+        }
         compareFields(exceptClassNode.fields, actualClassNode.fields)
         compareAnnotations(exceptClassNode.anns, actualClassNode.anns)
     }
@@ -243,7 +245,7 @@ class CompileConsistencyTest {
         return "L" + this.replace('.', '/') + ";"
     }
 
-    private fun compareMethods(exceptMethods: List<DexMethodNode>, actualMethods: List<DexMethodNode>) {
+    private fun compareMethod(except: DexMethodNode, actual: DexMethodNode) {
         // TODO
     }
 
@@ -298,11 +300,19 @@ class CompileConsistencyTest {
     )
 }
 
-private fun <T> assertArrayEquals(except: Array<T>, actual: Array<T>, block: ((T, T) -> Unit)? = null) {
-    assertListEquals(except.toList(), actual.toList(), block)
+private fun <T> assertArrayEquals(except: Array<T>?, actual: Array<T>?, block: ((T, T) -> Unit)? = null) {
+    assertListEquals(except?.toList(), actual?.toList(), block)
 }
 
-private fun <T> assertListEquals(except: List<T>, actual: List<T>, block: ((T, T) -> Unit)? = null) {
+private fun <T> assertListEquals(except: List<T>?, actual: List<T>?, block: ((T, T) -> Unit)? = null) {
+    if (except == null && actual == null) {
+        return
+    }
+    if (except == null || actual == null) {
+        Assert.fail("except null ${except == null}, actual null ${actual == null}")
+        return
+    }
+
     assertEquals(except.size, actual.size)
     for (index in except.indices) {
         if (block != null) {
