@@ -93,7 +93,9 @@ class CompileConsistencyTest {
             checkFileCompileConsistency(file)
         }
 
-        System.err.println(failedBinaryCheckList.toList())
+        if (failedBinaryCheckList.isNotEmpty()) {
+            System.err.println(failedBinaryCheckList.toList())
+        }
     }
 
     private fun getCheckFiles(rootDir: File): List<File> {
