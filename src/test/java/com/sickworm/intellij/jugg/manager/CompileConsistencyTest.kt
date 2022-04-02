@@ -20,7 +20,6 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -85,6 +84,8 @@ class CompileConsistencyTest {
         }
     }
 
+    private val failedBinaryCheckList = mutableListOf<String>()
+
     @Test
     fun testConsistency() {
         val rootDir = assetsAndroidDir
@@ -123,7 +124,7 @@ class CompileConsistencyTest {
         }
 
         val fileList = mutableListOf<File>()
-        Files.walkFileTree(rootDir.toPath(), object: SimpleFileVisitor<Path>() {
+        Files.walkFileTree(rootDir.toPath(), object : SimpleFileVisitor<Path>() {
             override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val fileName = dir.fileName.toString()
                 if (fileName == "build") {
@@ -175,25 +176,15 @@ class CompileConsistencyTest {
         }
 
         val deployData = jugg.deployDataManager.getDeployData()
-        checkDeployData(uncompiledFile, deployData)
-        val apk = jugg.deployTargetManager.getApks().first().file
-        val deployItems = listOf(
-            deployData.hotFixModifiedClasses,
-            deployData.hotReloadModifiedClasses,
-            deployData.newClasses,
-            deployData.overlays
-        ).flatten()
-        deployItems.forEach {
-            println("    checking ${it.name}...")
-            checkCompileBinary(it, apk)
-        }
+        checkDeployStatus(uncompiledFile, deployData)
+        checkDeployBinary(deployData)
 
         jugg.dryDeploy()
 
         println("check consistency passed")
     }
 
-    private fun checkDeployData(uncompiledFile: ChangedFile, deployData: JuggDeployData) {
+    private fun checkDeployStatus(uncompiledFile: ChangedFile, deployData: JuggDeployData) {
         val errorMessage = deployData.toString()
 
         when (uncompiledFile.type) {
@@ -226,14 +217,26 @@ class CompileConsistencyTest {
         }
     }
 
-    private fun checkCompileBinary(deployItem: DeployItem, apk: File) {
+    private fun checkDeployBinary(deployData: JuggDeployData) {
+        val deployItems = listOf(
+            deployData.hotFixModifiedClasses,
+            deployData.hotReloadModifiedClasses,
+            deployData.newClasses,
+            deployData.overlays
+        ).flatten()
+        deployItems.forEach {
+            println("    checking ${it.name}...")
+            checkCompileBinary(it)
+        }
+    }
+
+    private fun checkCompileBinary(deployItem: DeployItem) {
         when (deployItem.type) {
             CompileOutput.Type.Dex -> {
-                compareClassFileBytes(deployItem)
+                compareClassNode(deployItem)
             }
             CompileOutput.Type.Overlay -> {
-                val bytes = getOverlayBytesFromApk(deployItem, apk)
-                compareBinary(deployItem, bytes, deployItem.content)
+                compareOverlay(deployItem)
             }
             else -> {
                 Assert.fail("Unexpected deploy file type ${deployItem.type}")
@@ -241,45 +244,28 @@ class CompileConsistencyTest {
         }
     }
 
-    private fun compareClassFileBytes(deployItem: DeployItem) {
+    private fun compareClassNode(deployItem: DeployItem) {
         val className = deployItem.name.convertClassToSigFormat()
         val exceptClassNode = apkClasses[className]
         val deployClasses = parseDexClasses(deployItem.content)
         val actualClassNode = deployClasses[className]
 
-        if (exceptClassNode == null) {
-            // not exists in apk, it's ok
+        DexClassNodeComparator(exceptClassNode, actualClassNode).compare()
+    }
+
+    private fun compareOverlay(deployItem: DeployItem) {
+        // Currently not supported case
+        // TODO support ignoreBinaryCheckList
+        if (deployItem.name in ignoreBinaryCheckList) {
             return
         }
-        assertNotNull(actualClassNode)
-
-        assertEquals(exceptClassNode.className, actualClassNode.className)
-        assertEquals(exceptClassNode.superClass, actualClassNode.superClass)
-        assertEquals(exceptClassNode.access, actualClassNode.access)
-        assertEquals(exceptClassNode.source, actualClassNode.source)
-        assertArrayEquals(exceptClassNode.interfaceNames, actualClassNode.interfaceNames)
-
-        assertListEquals(exceptClassNode.methods, actualClassNode.methods) { except, actual ->
-            compareMethod(except, actual)
-        }
-        compareFields(exceptClassNode.fields, actualClassNode.fields)
-        compareAnnotations(exceptClassNode.anns, actualClassNode.anns)
+        val apk = jugg.deployTargetManager.getApks().first().file
+        val bytes = getOverlayBytesFromApk(deployItem, apk)
+        OverlayComparator(bytes, deployItem.content).compare()
     }
 
     private fun String.convertClassToSigFormat(): String {
         return "L" + this.replace('.', '/') + ";"
-    }
-
-    private fun compareMethod(except: DexMethodNode, actual: DexMethodNode) {
-        // TODO
-    }
-
-    private fun compareFields(exceptField: List<DexFieldNode>?, actualField: List<DexFieldNode>?) {
-        // TODO
-    }
-
-    private fun compareAnnotations(exceptField: List<DexAnnotationNode>?, actualField: List<DexAnnotationNode>?) {
-        // TODO
     }
 
     private fun getOverlayBytesFromApk(deployItem: DeployItem, apk: File): ByteArray? {
@@ -290,60 +276,9 @@ class CompileConsistencyTest {
         return inputStream.readAllBytes()
     }
 
-    private val failedBinaryCheckList = mutableListOf<String>()
-
-    private fun compareBinary(deployItem: DeployItem, except: ByteArray?, actual: ByteArray) {
-        // Currently not supported case
-        // TODO support ignoreBinaryCheckList
-        if (deployItem.name in ignoreBinaryCheckList) {
-            return
-        }
-
-        if (except == null) {
-            // not exists in apk, it's ok
-            return
-        }
-
-        if (!except.contentEquals(actual)) {
-            val message = """
-                file: ${deployItem.name}
-                except size: ${except.size}, actual size: ${actual.size}
-                except content:
-                ${String(except)}
-                actual content:
-                ${String(actual)}
-            """.trimIndent()
-            Assert.fail(message)
-            failedBinaryCheckList.add(deployItem.name)
-        }
-    }
-
     private val ignoreBinaryCheckList = listOf(
         "resources.arsc",
         "res/drawable-v24/\$ic_launcher_foreground__0.xml",
         "res/mipmap-xxxhdpi-v4/ic_launcher.png",
     )
-}
-
-private fun <T> assertArrayEquals(except: Array<T>?, actual: Array<T>?, block: ((T, T) -> Unit)? = null) {
-    assertListEquals(except?.toList(), actual?.toList(), block)
-}
-
-private fun <T> assertListEquals(except: List<T>?, actual: List<T>?, block: ((T, T) -> Unit)? = null) {
-    if (except == null && actual == null) {
-        return
-    }
-    if (except == null || actual == null) {
-        Assert.fail("except null ${except == null}, actual null ${actual == null}")
-        return
-    }
-
-    assertEquals(except.size, actual.size)
-    for (index in except.indices) {
-        if (block != null) {
-            block(except[index], actual[index])
-        } else {
-            assertEquals(except[index], actual[index])
-        }
-    }
 }
