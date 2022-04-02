@@ -94,11 +94,21 @@ class DexClassNodeComparator(
     }
 }
 
-private fun <T> assertArrayEquals(except: Array<T>?, actual: Array<T>?, errorMessage: String? = null, block: ((T, T) -> Unit)? = null) {
+private inline fun <T> assertArrayEquals(
+    except: Array<T>?,
+    actual: Array<T>?,
+    errorMessage: String? = null,
+    block: ((T, T) -> Unit) = { a, b -> assertEquals(a, b, errorMessage) }
+) {
     assertListEquals(except?.toList(), actual?.toList(), errorMessage, block)
 }
 
-private fun <T> assertListEquals(except: List<T>?, actual: List<T>?, errorMessage: String? = null, block: ((T, T) -> Unit)? = null) {
+private inline fun <T> assertListEquals(
+    except: List<T>?,
+    actual: List<T>?,
+    errorMessage: String? = null,
+    block: ((T, T) -> Unit) = { a, b -> assertEquals(a, b, errorMessage) }
+) {
     if (except == null && actual == null) {
         return
     }
@@ -109,10 +119,6 @@ private fun <T> assertListEquals(except: List<T>?, actual: List<T>?, errorMessag
 
     assertEquals(except.size, actual.size)
     for (index in except.indices) {
-        if (block != null) {
-            block(except[index], actual[index])
-        } else {
-            assertEquals(except[index], actual[index], errorMessage)
-        }
+        block(except[index], actual[index])
     }
 }
