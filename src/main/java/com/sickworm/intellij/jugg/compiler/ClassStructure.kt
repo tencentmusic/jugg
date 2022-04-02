@@ -5,7 +5,9 @@ import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
 import org.objectweb.asm.*
 
-/** for null safe */
+/**
+ * A dex class structure parsed from .dex file.
+ */
 class ClassNode(private val node: DexClassNode) {
 
     val className get() = node.className.convertSigFormatToPackage()
@@ -108,7 +110,9 @@ class ClassNode(private val node: DexClassNode) {
     }
 }
 
-/** for null safe */
+/**
+ * A dex method structure parsed from .dex file.
+ */
 class MethodNode(private val node: DexMethodNode) {
 
     val signature get() = node.method.toString()
@@ -129,8 +133,9 @@ class MethodNode(private val node: DexMethodNode) {
     }
 }
 
-
-/** for null safe */
+/**
+ * A dex field structure parsed from .dex file.
+ */
 class FieldNode(private val node: DexFieldNode) {
 
     val signature get() = "${node.access} ${node.field.owner} ${node.field.name} ${node.field.type}"
