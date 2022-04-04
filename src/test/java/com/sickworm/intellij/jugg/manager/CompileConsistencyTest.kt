@@ -33,7 +33,7 @@ class CompileConsistencyTest {
         private var firstTimeDeployOverlays = true
         private val apkClasses = mutableMapOf<String, DexClassNode>()
 
-        private var collectErrorFilesOnly = System.getenv("JUGG_COLLECT_ERROR_FILES_ONLY") == "true"
+        private var isCollectErrorFilesOnly = System.getenv("JUGG_COLLECT_ERROR_FILES_ONLY") == "true"
         private val checkFiles: List<String>? =
             System.getenv("JUGG_CHECK_FILES")?.let { value ->
                 File(value)
@@ -103,7 +103,7 @@ class CompileConsistencyTest {
             try {
                 checkFileCompileConsistency(file)
             } catch (e: Throwable) {
-                if (collectErrorFilesOnly) {
+                if (isCollectErrorFilesOnly) {
                     failedBinaryCheckList.add(file.absolutePath)
                     jugg.resetDeploy()
                 } else {
