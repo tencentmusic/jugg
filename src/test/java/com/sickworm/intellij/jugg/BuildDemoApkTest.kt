@@ -58,7 +58,7 @@ class BuildDemoApkTest {
     fun buildApkIfNeeded() {
         if (projectInfo.apkFile.exists()) {
             try {
-                testApkStructure()
+                checkApkEntryInfo()
                 println("apk structure is correct, no need to rebuild")
                 return
             } catch (e: AssertionError) {
@@ -69,15 +69,21 @@ class BuildDemoApkTest {
         }
 
         testBuildApk()
-        testApkStructure()
+        checkApkEntryInfo()
     }
 
-    private fun testApkStructure() {
+    private fun checkApkEntryInfo() {
+        if (!projectInfo.apkEntryInfo.isNeedCheck) {
+            println("testApkStructure no need to check")
+            return
+        }
+        println("testApkStructure start")
         val parsedApk = ApkParser().parse(projectInfo.apkInfo, true)
-        checkApkStructure(parsedApk)
+        checkApkEntryInfo(parsedApk)
+        println("testApkStructure end")
     }
 
-    fun checkApkStructure(parsedApk: ParsedApk) {
+    fun checkApkEntryInfo(parsedApk: ParsedApk) {
         if (projectInfo.apkEntryInfo.classCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.classCount,
                 parsedApk.classes.entries.size)

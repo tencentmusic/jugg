@@ -39,7 +39,7 @@ class TopLevelFlowTest {
         assertEquals(androidApkPackage, parsedApk.apkInfo.applicationId)
         assertTrue(parsedApk.apkInfo.file.exists())
 
-        BuildDemoApkTest().checkApkStructure(parsedApk)
+        BuildDemoApkTest().checkApkEntryInfo(parsedApk)
     }
 
     @Test

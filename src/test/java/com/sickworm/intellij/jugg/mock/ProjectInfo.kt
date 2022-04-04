@@ -44,5 +44,8 @@ class ProjectInfo(
         val fieldCount: Int,
         val methodCount: Int,
         val overlayFileCount: Int
-    )
+    ) {
+
+        val isNeedCheck get() = classCount > 0 || fieldCount > 0 || methodCount > 0 || overlayFileCount > 0
+    }
 }
