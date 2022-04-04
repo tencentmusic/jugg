@@ -6,6 +6,7 @@ import com.googlecode.d2j.node.*
 import org.junit.Assert
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DexClassNodeComparator(
@@ -60,7 +61,12 @@ class DexClassNodeComparator(
         compareCodeNode(except.codeNode, actual.codeNode, except.method.toString())
     }
 
-    private fun compareCodeNode(except: DexCodeNode, actual: DexCodeNode, methodName: String) {
+    private fun compareCodeNode(except: DexCodeNode?, actual: DexCodeNode?, methodName: String) {
+        if (except == null) {
+            assertNull(actual)
+            return
+        }
+        assertNotNull(actual)
 
         // TODO check debug and register (not ready for such strict inspection)
 //        assertEquals(except.totalRegister, actual.totalRegister, methodName)
@@ -74,13 +80,22 @@ class DexClassNodeComparator(
 //            assertTrue(except.debugNode == null && actual.debugNode == null)
 //        }
 
-        assertListEquals(except.stmts, actual.stmts) { exceptStmt, actualStmt ->
-            // TODO check stmt sub class fields (not ready for such strict inspection)
-            assertEquals(exceptStmt.op, actualStmt.op, methodName)
-            assertEquals(exceptStmt.__index, actualStmt.__index, methodName)
+        try {
+            assertListEquals(except.stmts, actual.stmts, methodName) { exceptStmt, actualStmt ->
+                // TODO check stmt sub class fields (not ready for such strict inspection)
+                assertEquals(exceptStmt.op, actualStmt.op, methodName)
+                assertEquals(exceptStmt.__index, actualStmt.__index, methodName)
+            }
+        } catch (e: AssertionError) {
+            val expectStmts = except.stmts?.joinToString("\n") { it.toArgString() }
+            val actualStmts = actual.stmts?.joinToString("\n") { it.toArgString() }
+            System.err.println("expectStmts:\n$expectStmts")
+
+            System.err.println("actualStmts:\n$actualStmts")
+            throw e
         }
 
-        assertListEquals(except.tryStmts, actual.tryStmts) { exceptStmt, actualStmt ->
+        assertListEquals(except.tryStmts, actual.tryStmts, methodName) { exceptStmt, actualStmt ->
             assertArrayEquals(exceptStmt.type, actualStmt.type, methodName)
             assertEquals(exceptStmt.start.toString(), actualStmt.start.toString(), methodName)
             assertEquals(exceptStmt.end.toString(), actualStmt.end.toString(), methodName)
@@ -155,7 +170,7 @@ private inline fun <T> assertListEquals(
         return
     }
 
-    assertEquals(except.size, actual.size)
+    assertEquals(except.size, actual.size, errorMessage)
     for (index in except.indices) {
         block(except[index], actual[index])
     }

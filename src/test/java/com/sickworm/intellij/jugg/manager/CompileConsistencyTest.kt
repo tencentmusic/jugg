@@ -94,23 +94,28 @@ class CompileConsistencyTest {
         val costTime = measureTimeMillis {
             fileList = getCheckFiles(rootDir)
         }
+        val fileListSize = fileList.size
         println("getCheckFiles cost ${costTime}ms")
-        println("${fileList.size} files to be check (including not compilable files)")
+        println("$fileListSize files to be check (including not compilable files)")
 
-        for (file in fileList) {
-            println("checking ${file.relativeTo(rootDir)}...")
+        fileList.forEachIndexed { index, file ->
+            println("($fileListSize/${index + 1})checking ${file.relativeTo(rootDir)}...")
             try {
                 checkFileCompileConsistency(file)
-            } catch (e: AssertionError) {
+            } catch (e: Throwable) {
                 if (collectErrorFilesOnly) {
                     failedBinaryCheckList.add(file.absolutePath)
-                    jugg.dryDeploy()
+                    jugg.resetDeploy()
                 } else {
                     throw e
                 }
             }
         }
 
+        checkFailedList()
+    }
+
+    private fun checkFailedList() {
         if (failedBinaryCheckList.isNotEmpty()) {
             System.err.println("error files: ")
             System.err.println(failedBinaryCheckList.joinToString("\n"))
