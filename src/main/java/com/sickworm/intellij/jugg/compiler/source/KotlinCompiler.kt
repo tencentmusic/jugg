@@ -79,7 +79,9 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         val fileArgs = task.files.map { it.file.absolutePath }
 
         val command = extensionArgs + compileArgs + classPathArgs + fileArgs
-        logger.debug("kotlin compile: kotlinc ${command.joinToString(" ")}")
+        if (logger.isTraceEnabled) {
+            logger.trace("kotlin compile: kotlinc ${command.joinToString(" ")}")
+        }
 
         val outputStream = ByteArrayOutputStream()
         val printStream = PrintStream(outputStream)

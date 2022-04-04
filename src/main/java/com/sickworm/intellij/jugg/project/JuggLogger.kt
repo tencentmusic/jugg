@@ -168,11 +168,32 @@ private class ProxyLogger(
     }
 }
 
+/**
+ * Log to idea.log
+ */
 class ErrorSafeDefaultLogger(category: String): DefaultLogger(category) {
+
+    override fun warn(message: String?, t: Throwable?) {
+        val finalT = checkException(t)
+        val finalMessage = message + attachmentsToString(t)
+    }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
         val finalT = checkException(t)
         val finalMessage = message + attachmentsToString(t)
         dumpExceptionsToStderr(finalMessage, finalT, *details)
+    }
+
+    private fun dumpWarnExceptions(message: String?, t: Throwable?, vararg details: String?) {
+        if (shouldDumpExceptionToStderr()) {
+            println("WARN: $message")
+            t?.printStackTrace(System.err)
+            if (details.isNotEmpty()) {
+                println("details: ")
+                for (detail in details) {
+                    println(detail)
+                }
+            }
+        }
     }
 }

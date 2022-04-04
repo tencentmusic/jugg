@@ -71,7 +71,7 @@ class CompileContextManager(
             ApkParser().parse(it, isSkipCode = true)
         }
         val parsedApksEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}")
+        logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}ms")
 
         // TODO reopen
         // close for now for better performance
@@ -89,17 +89,17 @@ class CompileContextManager(
 //            }
 //        }
         val buildClassPathEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo dumpClassStub cost ${buildClassPathEndTime - parsedApksEndTime}")
+        logger.debug("initFullBuildInfo dumpClassStub cost ${buildClassPathEndTime - parsedApksEndTime}ms")
 
         compileContext.update(parsedApks = parsedApks)
 
         val updateEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo compileContext.update cost ${updateEndTime - buildClassPathEndTime}")
+        logger.debug("initFullBuildInfo compileContext.update cost ${updateEndTime - buildClassPathEndTime}ms")
 
         updateProjectDependencies()
 
         val updateDepEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo updateProjectDependencies cost ${updateDepEndTime - buildClassPathEndTime}")
+        logger.debug("initFullBuildInfo updateProjectDependencies cost ${updateDepEndTime - buildClassPathEndTime}ms")
     }
 
     private fun initContext(modules: Map<String, ModuleInfo>) {

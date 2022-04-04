@@ -77,7 +77,7 @@ class DeployDataDb(
                 }
             }
 
-            logger.debug("first time deploy overlay, need full deployment finish, cost $costTime")
+            logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
         return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays)
