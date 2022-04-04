@@ -43,8 +43,7 @@ class DexTest {
         // ART TI requires one .dex file only contains one .class file
 
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        val isSuccess = DexFileMaker().dex(stagingDir, classesFiles, dependencies, androidJar, JuggSettings.minApi)
-        assertTrue(isSuccess)
+        DexFileMaker().dex(stagingDir, classesFiles, dependencies, androidJar, JuggSettings.minApi)
 
         classesFiles.forEach { classFile ->
             val dexFile = classFile.changeBaseDir(stagingDir, stagingDir, "dex")

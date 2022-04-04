@@ -53,8 +53,7 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
         val dexTask = CompileTask(compileClassFiles, dexOutputDir)
         val dexResult = dexCompiler.compile(dexTask)
         if (!dexResult.isAllSuccess) {
-            // TODO handle successfully compiled files
-            return compileResult.copy(task = task, outputs = emptyList())
+            return dexResult
         }
 
         // move dex files to output dir
