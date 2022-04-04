@@ -175,19 +175,19 @@ class CompileConsistencyTest {
     private fun checkFileCompileConsistency(file: File) {
         jugg.notifyFileChanges(listOf(file))
 
-        val uncompiledFiles = jugg.deployDataManager.getUncompiledFiles()
-        if (uncompiledFiles.isEmpty()) {
+        val changedFiles = jugg.deployDataManager.getUncompiledFiles()
+        if (changedFiles.isEmpty()) {
             println("not a compilable file, ignore")
             return
         }
-        assertEquals(1, uncompiledFiles.size)
-        val uncompiledFile = uncompiledFiles.first()
+        assertEquals(1, changedFiles.size)
+        val changedFile = changedFiles.first()
 
         jugg.compileChangedFiles()
 
         if (firstTimeDeployOverlays) {
-            if (uncompiledFile.type == CompileFile.Type.Resource ||
-                uncompiledFile.type == CompileFile.Type.Asset) {
+            if (changedFile.type == CompileFile.Type.Resource ||
+                changedFile.type == CompileFile.Type.Asset) {
                 println("FirstTime deploy overlays needs full deployment, dry deploy and recompile again.")
                 firstTimeDeployOverlays = false
                 jugg.dryDeploy()
@@ -203,7 +203,7 @@ class CompileConsistencyTest {
         val deployData = jugg.deployDataManager.getDeployData()
 
         if (consistencyLevel >= 2) {
-            checkDeployStatus(uncompiledFile, deployData)
+            checkDeployStatus(changedFile, deployData)
         }
 
         if (consistencyLevel >= 3) {
@@ -220,10 +220,10 @@ class CompileConsistencyTest {
         assertEquals(0, jugg.deployDataManager.getUncompiledFiles().size)
     }
 
-    private fun checkDeployStatus(uncompiledFile: ChangedFile, deployData: JuggDeployData) {
+    private fun checkDeployStatus(changedFile: ChangedFile, deployData: JuggDeployData) {
         val errorMessage = deployData.toString()
 
-        when (uncompiledFile.type) {
+        when (changedFile.type) {
             CompileFile.Type.Java, CompileFile.Type.Kotlin -> {
                 assertEquals(0, deployData.newClasses.size, errorMessage)
                 assertEquals(0, deployData.hotFixModifiedClasses.size, errorMessage)
@@ -233,7 +233,7 @@ class CompileConsistencyTest {
             CompileFile.Type.Resource, CompileFile.Type.Asset -> {
                 assertEquals(0, deployData.newClasses.size, errorMessage)
                 assertEquals(0, deployData.hotFixModifiedClasses.size, errorMessage)
-                if (uncompiledFile.type == CompileFile.Type.Resource) {
+                if (changedFile.type == CompileFile.Type.Resource) {
                     val rFileSize = 13 // R, R$drawable, etc.
                     assertEquals(rFileSize, deployData.hotReloadModifiedClasses.size, errorMessage)
                     overlayCommonFiles.forEach { name ->
@@ -251,7 +251,7 @@ class CompileConsistencyTest {
                 }
             }
             else -> {
-                Assert.fail("Unexpected compile file type ${uncompiledFile.type} for file ${uncompiledFile.file}")
+                Assert.fail("Unexpected compile file type ${changedFile.type} for file ${changedFile.file}")
             }
         }
     }
