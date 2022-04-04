@@ -29,6 +29,14 @@ import kotlin.test.assertTrue
 class CompileConsistencyTest {
 
     companion object {
+        /**
+         * Compile consistency level description:
+         * Level-1: compilable
+         * Level-2: and same class structure
+         * Level-3: and same byte code
+         */
+        private const val consistencyLevel: Int = 1
+
         private val jugg = MockJugg()
         private var oldCompileForSave = false
         private var firstTimeDeployOverlays = true
@@ -178,7 +186,8 @@ class CompileConsistencyTest {
         jugg.compileChangedFiles()
 
         if (firstTimeDeployOverlays) {
-            if (uncompiledFile.type == CompileFile.Type.Resource || uncompiledFile.type == CompileFile.Type.Asset) {
+            if (uncompiledFile.type == CompileFile.Type.Resource ||
+                uncompiledFile.type == CompileFile.Type.Asset) {
                 println("FirstTime deploy overlays needs full deployment, dry deploy and recompile again.")
                 firstTimeDeployOverlays = false
                 jugg.dryDeploy()
@@ -187,14 +196,28 @@ class CompileConsistencyTest {
             }
         }
 
+        if (consistencyLevel >= 1) {
+            checkCompileStatus()
+        }
+
         val deployData = jugg.deployDataManager.getDeployData()
-        checkDeployStatus(uncompiledFile, deployData)
-        // TODO not ready for such strict inspection
-//        checkDeployBinary(deployData)
+
+        if (consistencyLevel >= 2) {
+            checkDeployStatus(uncompiledFile, deployData)
+        }
+
+        if (consistencyLevel >= 3) {
+            checkDeployBinary(deployData)
+        }
+
 
         jugg.dryDeploy()
 
         println("check consistency passed")
+    }
+
+    private fun checkCompileStatus() {
+        assertEquals(0, jugg.deployDataManager.getUncompiledFiles().size)
     }
 
     private fun checkDeployStatus(uncompiledFile: ChangedFile, deployData: JuggDeployData) {
