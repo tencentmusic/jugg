@@ -124,6 +124,13 @@ class MockJugg {
     }
 
     /**
+     * reset deploy state
+     */
+    fun resetDeploy() {
+        deployDataManager.reset()
+    }
+
+    /**
      * Notify that some files have changed and Jugg will compile it.
      */
     fun notifyFileChanges(file: List<File>) {

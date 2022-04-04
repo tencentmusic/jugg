@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.project.CompileContextManager
+import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
 
@@ -91,6 +92,14 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
         deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
         deployDataDb.update(juggDeployData)
+    }
+
+    @TestOnly
+    @Synchronized
+    fun reset() {
+        uncompiledFiles.clear()
+        stagingFiles.clear()
+        deployedFiles.clear()
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
