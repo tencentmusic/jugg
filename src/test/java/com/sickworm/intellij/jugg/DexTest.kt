@@ -4,6 +4,8 @@ import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
+import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.mock.androidJar
 import com.sickworm.intellij.jugg.mock.clearBuild
 import com.sickworm.intellij.jugg.mock.stagingDir
 import org.junit.Before
@@ -41,7 +43,7 @@ class DexTest {
         // ART TI requires one .dex file only contains one .class file
 
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        val isSuccess = DexFileMaker().dex(stagingDir, classesFiles, dependencies)
+        val isSuccess = DexFileMaker().dex(stagingDir, classesFiles, dependencies, androidJar, JuggSettings.minApi)
         assertTrue(isSuccess)
 
         classesFiles.forEach { classFile ->

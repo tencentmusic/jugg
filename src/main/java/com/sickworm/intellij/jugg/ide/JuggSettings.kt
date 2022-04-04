@@ -14,6 +14,9 @@ object JuggSettings {
     var deployOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     var restartActivity: Boolean by propertiesComponent.delegate(defaultValue = true)
+
+    /** don't support change minApi dynamically */
+    const val minApi = 30 // Android 11
 }
 
 /**

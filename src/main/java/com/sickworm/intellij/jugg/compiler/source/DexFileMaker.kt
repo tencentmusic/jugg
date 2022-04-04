@@ -7,20 +7,32 @@ import java.io.File
 
 class DexFileMaker {
 
-    fun dex(outputDir: File, classFilesOrDir: List<File>, classpath: Collection<String>): Boolean {
-        outputDir.mkdirs()
-        // see https://developer.android.com/studio/command-line/d8
-        // TODO --lib android.jar?
+    private val isEnableDesugaring = true
 
+    fun dex(outputDir: File, classFilesOrDir: List<File>, classpath: Collection<String>,
+            androidJar: File, minApi: Int): Boolean {
+        outputDir.mkdirs()
+
+        // see https://developer.android.com/studio/command-line/d8
         val args = mutableListOf<String>()
 
         args.add("--file-per-class")
 
-        if (classpath.isNotEmpty()) {
-            classpath.forEach {
-                args.add("--classpath")
-                args.add(it)
+        args.add("--lib")
+        args.add(androidJar.absolutePath)
+
+        if (isEnableDesugaring) {
+            // it's fucking slow when classpath.size larger than 500... so better don't use desugaring
+            if (classpath.isNotEmpty()) {
+                classpath.forEach {
+                    args.add("--classpath")
+                    args.add(it)
+                }
             }
+        } else {
+            args.add("--min-api")
+            args.add("$minApi")
+            args.add("--no-desugaring")
         }
 
         args.add("--output")

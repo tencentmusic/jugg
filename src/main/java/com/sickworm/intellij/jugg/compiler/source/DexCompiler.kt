@@ -17,7 +17,7 @@ class DexCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         val files = task.files.map { it.file }
-        val isSuccess = dexFileMaker.dex(task.outputDir, files, dependencies)
+        val isSuccess = dexFileMaker.dex(task.outputDir, files, dependencies, context.androidJar, context.minApi)
 
         val dexFiles = task.outputDir.listFilesRecursively()
         var errorMessage = ""

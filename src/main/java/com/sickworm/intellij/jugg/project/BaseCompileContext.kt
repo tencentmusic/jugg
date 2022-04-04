@@ -14,6 +14,7 @@ data class BaseCompileContext(
     override var classPathDir: File,
     override var modules: Map<String, ModuleInfo> = emptyMap(),
     override var parsedApks: List<ParsedApk> = emptyList(),
+    override val minApi: Int,
 ): ICompileContext {
 
     override val androidJar: File get() = getSuggestedPlatform(modules)

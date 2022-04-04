@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.compiler.guessModuleDirAdv
 import com.sickworm.intellij.jugg.compiler.relativePath
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
@@ -117,6 +118,7 @@ class CompileContextManager(
             tempCompileDir = tempCompileDir,
             classPathDir = incBuildClassPathDir,
             modules = modules,
+            minApi = JuggSettings.minApi
         )
         logger.debug("""
             context loaded:

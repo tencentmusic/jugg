@@ -5,6 +5,7 @@ package com.sickworm.intellij.jugg.mock
 import com.google.gson.JsonSyntaxException
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -68,7 +69,8 @@ val context get() = SimpleCompileContext(
     classPathDir = classPathDir,
     modules = emptyMap(),
     parsedApks = listOf(ParsedApk(projectInfo.apkInfo, emptyMap(), emptyMap())),
-    variant = "debug"
+    variant = "debug",
+    minApi = JuggSettings.minApi
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>

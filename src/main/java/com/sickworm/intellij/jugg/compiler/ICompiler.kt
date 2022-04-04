@@ -116,6 +116,8 @@ interface ICompileContext {
     val modules: Map<String, ModuleInfo>
     /** deployed base apks */
     val parsedApks: List<ParsedApk>
+    /** compile min api */
+    val minApi: Int
 
     val packageName get() = parsedApks.firstOrNull()?.apkInfo?.applicationId
 
