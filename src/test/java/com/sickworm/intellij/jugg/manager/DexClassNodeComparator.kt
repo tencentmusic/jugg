@@ -68,21 +68,19 @@ class DexClassNodeComparator(
         }
         assertNotNull(actual)
 
-        // TODO check debug and register (not ready for such strict inspection)
-//        assertEquals(except.totalRegister, actual.totalRegister, methodName)
-//        if (except.debugNode != null && actual.debugNode != null) {
-//            assertEquals(except.debugNode.fineName, actual.debugNode.fineName)
-//            assertListEquals(except.debugNode.parameterNames, actual.debugNode.parameterNames)
-//            assertListEquals(except.debugNode.debugNodes, actual.debugNode.debugNodes) { exceptNode, actualNode ->
-//                assertEquals(exceptNode.label.toString(), actualNode.label.toString())
-//            }
-//        } else {
-//            assertTrue(except.debugNode == null && actual.debugNode == null)
-//        }
+        assertEquals(except.totalRegister, actual.totalRegister, methodName)
+        if (except.debugNode != null && actual.debugNode != null) {
+            assertEquals(except.debugNode.fineName, actual.debugNode.fineName)
+            assertListEquals(except.debugNode.parameterNames, actual.debugNode.parameterNames)
+            assertListEquals(except.debugNode.debugNodes, actual.debugNode.debugNodes) { exceptNode, actualNode ->
+                assertEquals(exceptNode.label.toString(), actualNode.label.toString())
+            }
+        } else {
+            assertTrue(except.debugNode == null && actual.debugNode == null)
+        }
 
         try {
             assertListEquals(except.stmts, actual.stmts, methodName) { exceptStmt, actualStmt ->
-                // TODO check stmt sub class fields (not ready for such strict inspection)
                 assertEquals(exceptStmt.op, actualStmt.op, methodName)
                 assertEquals(exceptStmt.__index, actualStmt.__index, methodName)
             }
