@@ -20,6 +20,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -212,16 +213,19 @@ class CompileConsistencyTest {
                 if (uncompiledFile.type == CompileFile.Type.Resource) {
                     val rFileSize = 13 // R, R$drawable, etc.
                     assertEquals(rFileSize, deployData.hotReloadModifiedClasses.size, errorMessage)
-                    // TODO compile res/drawable-v24/ic_launcher_foreground.xml will get extra res/drawable-v24/$ic_launcher_foreground__0.xml
-                    // TODO so disable exactly number of overlay size for now
-//                    val overlaysSize = 3 // resources.arsc, resource, AndroidManifest.xml
-//                    assertEquals(overlaysSize, deployData.overlays.size, errorMessage)
+                    overlayCommonFiles.forEach { name ->
+                        assertNotNull(deployData.overlays.find { it.name == name })
+                    }
+                    val remainFileSize = deployData.overlays.size - overlayCommonFiles.size
+                    // why >= 1?
+                    // e.g. compile res/drawable-v24/ic_launcher_foreground.xml
+                    // will get ic_launcher_foreground.xml and $ic_launcher_foreground__0.xml
+                    assertTrue(remainFileSize >= 1, errorMessage)
                     assertTrue(deployData.overlays.isNotEmpty(), errorMessage) // >= 1
                 } else {
                     assertEquals(0, deployData.hotReloadModifiedClasses.size, errorMessage)
                     assertEquals(1, deployData.overlays.size, errorMessage)
                 }
-
             }
             else -> {
                 Assert.fail("Unexpected compile file type ${uncompiledFile.type} for file ${uncompiledFile.file}")
@@ -294,5 +298,10 @@ class CompileConsistencyTest {
         "resources.arsc",
         "res/drawable-v24/\$ic_launcher_foreground__0.xml",
         "res/mipmap-xxxhdpi-v4/ic_launcher.png",
+    )
+
+    private val overlayCommonFiles = listOf(
+        "resources.arsc",
+        "AndroidManifest.xml"
     )
 }
