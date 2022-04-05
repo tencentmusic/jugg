@@ -33,7 +33,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
             if (diagnostic.kind != Diagnostic.Kind.ERROR || item == null) {
-                logger.warn(diagnostic.toString())
+                logger.debug(diagnostic.toString())
                 return@DiagnosticListener
             }
             logger.error(diagnostic.toString())

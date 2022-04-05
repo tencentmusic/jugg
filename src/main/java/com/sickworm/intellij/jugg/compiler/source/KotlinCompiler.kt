@@ -106,7 +106,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
                 if (isError) {
                     logger.error(message.toString())
                 } else {
-                    logger.warn(message.toString())
+                    logger.debug(message.toString())
                 }
                 message.clear()
             }
