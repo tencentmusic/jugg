@@ -4,6 +4,7 @@ import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
+import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -85,25 +86,28 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
         val outputStream = ByteArrayOutputStream()
         val printStream = PrintStream(outputStream)
-        kotlinCompile.exec(printStream, *command.toTypedArray())
-        val outputString = String(outputStream.toByteArray())
+        val exitCode = kotlinCompile.exec(printStream, *command.toTypedArray())
+        logger.debug("kotlin compile result code: $exitCode")
 
-        // TODO more elegant to check error?
-        var hasError = false
-        var isError = true
+        val outputString = String(outputStream.toByteArray())
+        var isError = false
         val message = StringBuilder()
-        var isNewMessage = false
-        outputString.split("\n").forEach {
+        val outputStringLines = outputString.split("\n")
+        outputStringLines.forEach {
+            val isLastError = isError
+            val isNewMessage: Boolean
             if (it.contains("warning:")) {
                 isNewMessage = true
+                isError = false
             } else if (it.contains("error:")) {
                 isNewMessage = true
-                hasError = true
+                isError = true
+            } else {
+                isNewMessage = false
             }
 
             if (isNewMessage && message.isNotEmpty()) {
-                isNewMessage = false
-                if (isError) {
+                if (isLastError) {
                     logger.error(message.toString())
                 } else {
                     logger.debug(message.toString())
@@ -115,14 +119,17 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
                 message.appendLine()
             }
             message.append(it)
-            if (it.contains("warning:")) {
-                isError = false
-            } else if (it.contains("error:")) {
-                isError = true
+        }
+        if (message.isNotEmpty()) {
+            if (isError) {
+                logger.error(message.toString())
+            } else {
+                logger.debug(message.toString())
             }
+            message.clear()
         }
 
-        if (hasError) {
+        if (exitCode != ExitCode.OK) {
             return CompileResult(task, task.files.map {
                 // TODO split error
                 Result.failure(CompileError(it, listOf(0L to outputString)))
