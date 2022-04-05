@@ -189,12 +189,12 @@ class JuggManager @TestOnly constructor(
         submit {
             try {
                 val startTime = System.currentTimeMillis()
-                logger.info("job $jobName start")
+                logger.info("job <$jobName> start")
                 task.run()
                 val costTime = System.currentTimeMillis() - startTime
-                logger.info("job $jobName finished, cost ${costTime}ms")
+                logger.info("job <$jobName> finished, cost ${costTime}ms")
             } catch (e: Throwable) {
-                logger.error("job $jobName failed", e)
+                logger.error("job <$jobName> failed", e)
             }
         }
     }
