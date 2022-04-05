@@ -61,6 +61,10 @@ class CompileContextManager(
 
     private var compileContextInside: BaseCompileContext? = null
 
+    fun getRootDir(): File {
+        return juggRootDir
+    }
+
     fun initProjectInfo() {
         val modules = initModules()
         initContext(modules)

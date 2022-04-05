@@ -23,6 +23,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
+import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import com.sickworm.intellij.jugg.mock.*
@@ -32,7 +33,6 @@ import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggLogger
 import org.mockito.Mockito.*
 import java.io.File
-import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -71,9 +71,9 @@ class MockJugg {
     }
 
     fun resetAllState() {
-        clearBuild()
         renewComponents()
         renewManager()
+        compileContextManager.getRootDir().clearDir()
         markAsReadyToDeploy()
     }
 
