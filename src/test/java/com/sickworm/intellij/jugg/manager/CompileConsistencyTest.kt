@@ -111,7 +111,9 @@ class CompileConsistencyTest {
             println("($fileListSize/${index + 1})checking ${file.relativeTo(rootDir)}...")
             try {
                 checkFileCompileConsistency(file)
+                println("check consistency passed")
             } catch (e: Throwable) {
+                println("check consistency failed")
                 if (isCollectErrorFilesOnly) {
                     failedBinaryCheckList.add(file.absolutePath)
                     jugg.resetDeploy()
@@ -120,7 +122,7 @@ class CompileConsistencyTest {
                 }
             }
 
-            if (index % 50 == 0) {
+            if (index % 200 == 0) {
                 checkFailedList()
             }
         }
@@ -212,8 +214,6 @@ class CompileConsistencyTest {
 
 
         jugg.dryDeploy()
-
-        println("check consistency passed")
     }
 
     private fun checkCompileStatus() {
