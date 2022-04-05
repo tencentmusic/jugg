@@ -57,11 +57,6 @@ class CompileConsistencyTest {
             jugg.initEnv()
             jugg.resetAllState()
 
-            val costTime = measureTimeMillis {
-                initClasses(jugg.deployTargetManager.getApks())
-            }
-            println("initClasses cost ${costTime}ms")
-
             oldCompileForSave = JuggSettings.compileOnSave
             JuggSettings.compileOnSave = false
         }
@@ -257,6 +252,14 @@ class CompileConsistencyTest {
     }
 
     private fun checkDeployBinary(deployData: JuggDeployData) {
+        if (apkClasses.isEmpty()) {
+            println("start initClasses")
+            val costTime = measureTimeMillis {
+                initClasses(jugg.deployTargetManager.getApks())
+            }
+            println("initClasses cost ${costTime}ms")
+        }
+
         val deployItems = listOf(
             deployData.hotFixModifiedClasses,
             deployData.hotReloadModifiedClasses,
