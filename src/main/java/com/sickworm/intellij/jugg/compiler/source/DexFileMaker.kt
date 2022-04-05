@@ -7,7 +7,7 @@ import java.io.File
 
 class DexFileMaker {
 
-    private val isEnableDesugaring = true
+    private val isEnableDesugaring = false
 
     fun dex(outputDir: File, classFilesOrDir: List<File>, classpath: Collection<String>,
             androidJar: File, minApi: Int) {
