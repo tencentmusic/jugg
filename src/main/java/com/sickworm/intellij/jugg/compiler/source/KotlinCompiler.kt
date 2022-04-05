@@ -40,7 +40,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
                 // running in IDE
                 classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
             } else {
-                // running in test. notion: this may cost 500+ms which will effect compile cost
+                // running in test. notion: this may cost 500+ms which will affect compile cost
                 ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
             }
         }
