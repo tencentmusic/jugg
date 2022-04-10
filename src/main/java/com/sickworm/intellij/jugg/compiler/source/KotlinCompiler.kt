@@ -46,6 +46,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         }
 
         val packageName = context.packageName
+        val kotlinClassPath = module.buildPathInfo.kotlinClassPath
         // TODO read flavor from sourceSets
         val flavor = "main"
         val resourcePaths: List<String> = task.files.flatMap {
@@ -66,8 +67,12 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-no-stdlib",
             "-no-reflect",
             "-module-name", "${module.name}_${context.variant}",
-            "-Xfriend-paths=${context.classPathDir},${module.buildPathInfo.kotlinClassPath}",
-            "-d", task.outputDir.absolutePath,
+            "-Xfriend-paths=${kotlinClassPath.absolutePath}",
+            "-Xallow-no-source-files",
+            "-Xreport-output-files",
+            // we have to set output dir to kotlin compiled class path to resolve
+            // 'xxx' is a public API property declared in different module
+            "-d", kotlinClassPath.absolutePath,
         )
 
         var classPathArgs = listOf<String>()
@@ -93,9 +98,12 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             return CompileResult(task, outputParser.results, emptyList())
         }
 
-        val outputs = task.outputDir.listFilesRecursively().mapNotNull {
+        val outputs = outputParser.outputs.mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
-            CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
+            val targetFile = it.changeBaseDir(kotlinClassPath, task.outputDir)
+            targetFile.parentFile?.mkdirs()
+            it.copyTo(targetFile, overwrite = true)
+            CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
