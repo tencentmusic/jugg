@@ -77,7 +77,7 @@ class KotlinCompilerOutputParser(
                 logger.debug(message)
             }
             MessageType.ERROR -> {
-                logger.error(message)
+                logger.warn(message)
                 parseErrorMessage(message)
             }
             MessageType.OUTPUT -> {

@@ -49,13 +49,10 @@ class StdLogger(category: String): DefaultLogger(category) {
     }
 
     override fun warn(message: String?, t: Throwable?) {
-        println("[W]: $message")
-        t?.printStackTrace(System.err)
+        // no need for logging warn, JuggLogger will print it via System.err.out
     }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
-        val finalT = checkException(t)
-        val finalMessage = "[E] " + message + attachmentsToString(t)
-        dumpExceptionsToStderr(finalMessage, finalT, *details)
+        // no need for logging error, JuggLogger will print it via System.err.out
     }
 }
