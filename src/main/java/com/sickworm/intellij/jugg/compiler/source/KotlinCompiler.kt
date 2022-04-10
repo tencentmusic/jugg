@@ -84,56 +84,13 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             logger.trace("kotlin compile: kotlinc ${command.joinToString(" ")}")
         }
 
-        val outputStream = ByteArrayOutputStream()
-        val printStream = PrintStream(outputStream)
-        val exitCode = kotlinCompile.exec(printStream, *command.toTypedArray())
+        val outputParser = KotlinCompilerOutputParser(task.files, logger)
+        val exitCode = kotlinCompile.exec(outputParser.printStream, *command.toTypedArray())
+        outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
-        val outputString = String(outputStream.toByteArray())
-        var isError = false
-        val message = StringBuilder()
-        val outputStringLines = outputString.split("\n")
-        outputStringLines.forEach {
-            val isLastError = isError
-            val isNewMessage: Boolean
-            if (it.contains("warning:")) {
-                isNewMessage = true
-                isError = false
-            } else if (it.contains("error:")) {
-                isNewMessage = true
-                isError = true
-            } else {
-                isNewMessage = false
-            }
-
-            if (isNewMessage && message.isNotEmpty()) {
-                if (isLastError) {
-                    logger.error(message.toString())
-                } else {
-                    logger.debug(message.toString())
-                }
-                message.clear()
-            }
-
-            if (message.isNotEmpty()) {
-                message.appendLine()
-            }
-            message.append(it)
-        }
-        if (message.isNotEmpty()) {
-            if (isError) {
-                logger.error(message.toString())
-            } else {
-                logger.debug(message.toString())
-            }
-            message.clear()
-        }
-
         if (exitCode != ExitCode.OK) {
-            return CompileResult(task, task.files.map {
-                // TODO split error
-                Result.failure(CompileError(it, listOf(0L to outputString)))
-            }, emptyList())
+            return CompileResult(task, outputParser.results, emptyList())
         }
 
         val outputs = task.outputDir.listFilesRecursively().mapNotNull {
