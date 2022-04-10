@@ -63,6 +63,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         ) + variantArgs
 
         val compileArgs = listOf(
+            "-verbose",
             "-jvm-target", "1.8",
             "-no-stdlib",
             "-no-reflect",
