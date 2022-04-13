@@ -103,7 +103,7 @@ class CompileConsistencyTest {
         println("$fileListSize files to be check (including not compilable files)")
 
         fileList.forEachIndexed { index, file ->
-            println("($fileListSize/${index + 1})checking ${file.relativeTo(rootDir)}...")
+            println("(${index + 1}/$fileListSize)checking ${file.relativeTo(rootDir)}...")
             try {
                 checkFileCompileConsistency(file)
                 println("check consistency passed")
