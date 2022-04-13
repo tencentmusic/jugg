@@ -1,6 +1,6 @@
-package com.sickworm.jugg.demo.testcase
+package com.sickworm.jugg.demo.testcase.ktsmartcast
 
-data class CaseKtSmartCast2(
+data class DataClass2(
     val dataList: MutableList<String>? = null,
     val index: Int = 0,
     val nextIndex: Int = 0,

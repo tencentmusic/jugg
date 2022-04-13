@@ -1,8 +1,8 @@
-package com.sickworm.jugg.demo.testcase
+package com.sickworm.jugg.demo.testcase.ktsmartcast
 
-class CaseKtSmartCast {
+class ImplClass1 {
     fun test(): String {
-        val class2 = CaseKtSmartCast2()
+        val class2 = DataClass2()
         if (class2.dataList == null) {
             return "null"
         }
