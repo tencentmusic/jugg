@@ -8,15 +8,19 @@ import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.manager.utils.ListFiles
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
+import org.jetbrains.kotlin.idea.kdoc.insert
 import org.junit.AfterClass
 import org.junit.Assert
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.LinkedList
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
@@ -43,13 +47,6 @@ class CompileConsistencyTest {
         private val apkClasses = mutableMapOf<String, DexClassNode>()
 
         private var isCollectErrorFilesOnly = System.getenv("JUGG_COLLECT_ERROR_FILES_ONLY") == "true"
-        private val checkFiles: List<String>? =
-            System.getenv("JUGG_CHECK_FILES")?.let { value ->
-                File(value)
-                    .takeIf { it.exists() }
-                    ?.readText()
-                    ?.split("\n")
-            }
 
         @BeforeClass
         @JvmStatic
@@ -133,40 +130,17 @@ class CompileConsistencyTest {
     }
 
     private fun getCheckFiles(rootDir: File): List<File> {
+        val checkFiles: List<String>? = System.getenv("JUGG_CHECK_FILES")?.let { value ->
+            File(value)
+                .takeIf { it.exists() }
+                ?.readText()
+                ?.split("\n")
+        }
         if (checkFiles != null) {
             return checkFiles.map { File(it) }
         }
 
-        val fileList = mutableListOf<File>()
-        Files.walkFileTree(rootDir.toPath(), object : SimpleFileVisitor<Path>() {
-            override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-                val fileName = dir.fileName.toString()
-                if (fileName == "build") {
-                    return FileVisitResult.SKIP_SUBTREE
-                }
-                if (fileName.startsWith(".")) {
-                    return FileVisitResult.SKIP_SUBTREE
-                }
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                val fileName = file.fileName.toString()
-                if (fileName.startsWith(".")) {
-                    return FileVisitResult.CONTINUE
-                }
-                // TODO remove, see [JuggInternalException.resValuesNotSupported}
-                if (file.toFile().isResourceValueFile) {
-                    return FileVisitResult.CONTINUE
-                }
-
-                if (fileName.endsWith(".java") || fileName.endsWith(".kt")) {
-                    fileList.add(file.toFile())
-                }
-                return FileVisitResult.CONTINUE
-            }
-        })
-        return fileList
+        return ListFiles.listFileOrderedByNameLastChar(rootDir)
     }
 
     private fun checkFileCompileConsistency(file: File) {
