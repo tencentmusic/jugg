@@ -71,6 +71,8 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-Xfriend-paths=${kotlinClassPath.absolutePath}",
             "-Xallow-no-source-files",
             "-Xreport-output-files",
+            // resolve "class is not abstract and does not implement abstract member"
+            "-Xjava-source-roots=${module.sourceDirs.joinToString(", ")}",
             // we have to set output dir to kotlin compiled class path to resolve
             // 'xxx' is a public API property declared in different module
             "-d", kotlinClassPath.absolutePath,
