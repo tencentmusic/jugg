@@ -32,19 +32,22 @@ class KotlinCompilerOutputParser(
     }
 
     val outputs: List<File>
-        get() = innerOutputs
+        get() = innerOutputs.flatMap { it.value }
     val results: List<Result<CompileFile, CompileError>>
-        get() = files.map {
-            val errorDetails = innerErrors[it]
+        get() = files.map { file ->
+            val errorDetails = innerErrors[file]
             if (errorDetails != null) {
-                Result.failure(CompileError(it, errorDetails))
+                Result.failure(CompileError(file, errorDetails))
+            } else if (innerOutputs.keys.any { it.absolutePath == file.file.absolutePath}){
+                Result.success(file)
             } else {
-                Result.success(it)
+                Result.failure(CompileError(file, listOf(-1L to "no outputs")))
             }
         }
 
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
-    private val innerOutputs = mutableListOf<File>()
+    /** Map<SourceFile, List<OutputClassFile>> */
+    private val innerOutputs = mutableMapOf<File, MutableList<File>>()
 
     val currentMessage = StringBuilder()
     private var currentMessageType: MessageType = MessageType.LOGGING
@@ -121,15 +124,22 @@ class KotlinCompilerOutputParser(
 
         val contents = message.split("\n")
         if (contents.isEmpty()) {
-            logger.debug("Failed to parse output message: $message")
+            logger.debug("Failed to parse output message with no line wrap: $message")
             return
         }
 
         val outputFiles = mutableListOf<File>()
+        var sourceFile: File? = null
         // first line is "output: output:", ignore
         for (i in 1 until contents.size) {
             val filePath = contents[i]
             if (filePath == "Sources:") {
+                if (i == contents.size - 2) {
+                    sourceFile = File(contents[i + 1])
+                } else {
+                    // parse message failed... maybe kotlin output message format is changed
+                    logger.warn("Failed to parse output message with Sources line not correct: $message")
+                }
                 // reaches end
                 break
             }
@@ -142,12 +152,21 @@ class KotlinCompilerOutputParser(
             }
         }
 
-        if (outputFiles.isEmpty()) {
-            logger.debug("Failed to parse output message: $message")
+        val finalSourceFile = sourceFile
+        if (finalSourceFile == null) {
+            logger.warn("Failed to parse output message with no source file: $message")
             return
         }
 
-        innerOutputs.addAll(outputFiles)
+        if (outputFiles.isEmpty()) {
+            logger.warn("Failed to parse output message with no output file: $message")
+            return
+        }
+
+        if (!innerOutputs.containsKey(finalSourceFile)) {
+            innerOutputs[finalSourceFile] = mutableListOf()
+        }
+        innerOutputs[sourceFile]?.addAll(outputFiles)
     }
 
     fun flush() {
