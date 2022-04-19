@@ -1,19 +1,16 @@
 package com.sickworm.intellij.jugg.compiler.source
 
 import com.intellij.util.lang.UrlClassLoader
-import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.PrintStream
 
 class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
 
-    override val isNeedOutputDirEmpty = true
+    override val isNeedOutputDirEmpty = false
 
     private val kotlinCompile = K2JVMCompiler()
 
@@ -101,6 +98,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             return CompileResult(task, outputParser.results, emptyList())
         }
 
+        // copy outputs to task.outputDir
         val outputs = outputParser.outputs.mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
             val targetFile = it.changeBaseDir(kotlinClassPath, task.outputDir)

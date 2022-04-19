@@ -15,7 +15,6 @@ val logger = StdLogger("JuggTest")
 // build directory
 val buildDir = File("src/test/build").absoluteFile
 val tempCompileDir = File(buildDir, "compiled")
-val classPathDir = File(buildDir, "classpath")
 val stagingDir = File(buildDir, "staging")
 
 // source file
@@ -66,7 +65,6 @@ val context get() = SimpleCompileContext(
     androidHome = androidHome,
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
-    classPathDir = classPathDir,
     modules = emptyMap(),
     parsedApks = listOf(ParsedApk(projectInfo.apkInfo, emptyMap(), emptyMap())),
     variant = "debug",

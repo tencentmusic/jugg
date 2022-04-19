@@ -110,8 +110,6 @@ interface ICompileContext {
     val androidBuildTools: File
     /** android.jar */
     val androidJar: File
-    /** source class path directory compiled by Jugg */
-    val classPathDir: File
     /** modules in project */
     val modules: Map<String, ModuleInfo>
     /** deployed base apks */
@@ -161,15 +159,17 @@ class ModuleBuildPathInfo(private val moduleRootDir: File) {
     /** build root dir */
     private val buildDir get() = File(moduleRootDir, "build")
     /** java class path */
-    val javaClassPath get() = File(buildDir, "intermediates/javac/debug/classes")
+    private val javaClassPathNew get() = File(buildDir, "intermediates/javac/debug/classes")
     /** on gradle 3.2.1 has different java class path */
-    val javaClassPath2 get() = File(buildDir, "intermediates/javac/debug/compileDebugJavaWithJavac/classes")
+    private val javaClassPathOld get() = File(buildDir, "intermediates/javac/debug/compileDebugJavaWithJavac/classes")
+    /** java class path */
+    val javaClassPath get() = if (javaClassPathNew.exists()) javaClassPathNew else javaClassPathOld
     /** on gradle 4.1.1, R.class not storage in buildClassPath */
     val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar")
     /** kotlin class path */
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/debug")
 
-    val allClassPath get() = listOf(javaClassPath, javaClassPath2, rFilePath, kotlinClassPath)
+    val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath)
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {

@@ -44,7 +44,6 @@ class CompileContextManager(
     val stagingDir = File(compileRootDir, "staging")
     private val tempCompileDir = File(compileRootDir, "compiled")
     private val fullBuildClassPathDir = File(compileRootDir, "classpath_full")
-    private val incBuildClassPathDir = File(compileRootDir, "classpath_inc")
 
     private val libraryDir = File("$projectDir/.idea/libraries")
     /**
@@ -120,7 +119,6 @@ class CompileContextManager(
             logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
             androidHome = androidHome,
             tempCompileDir = tempCompileDir,
-            classPathDir = incBuildClassPathDir,
             modules = modules,
             minApi = JuggSettings.minApi
         )
@@ -167,17 +165,13 @@ class CompileContextManager(
         }
         val projectDepStrings = projectDeps.map { it.path }
 
-        if (!incBuildClassPathDir.exists()) {
-            incBuildClassPathDir.mkdirs()
-        }
         if (!fullBuildClassPathDir.exists()) {
             fullBuildClassPathDir.mkdirs()
         }
-//        val juggClassPathDep = listOf(fullBuildClassPathDir.absolutePath, incBuildClassPathDir.absolutePath)
-        val juggClassPathDep = listOf<String>(incBuildClassPathDir.absolutePath)
+//        val juggClassPathDep = listOf(fullBuildClassPathDir.absolutePath)
 
         val androidDep = compileContext.androidJar.path
-        dependencies = juggClassPathDep + projectDepStrings + androidDep + libDep
+        dependencies = projectDepStrings + androidDep + libDep
 
         logger.debug("""
             Dependencies loaded:

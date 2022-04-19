@@ -44,14 +44,9 @@ fun MockJugg.checkCompileResult(
 ) {
     fileNames.forEach { fileName ->
         val relativePath = filePackageName.replace('.', '/')
-        val className = File(fileName).nameWithoutExtension + ".class"
-        val classPathFile = File(compileContextManager.compileContext.classPathDir, "$relativePath/$className")
-        assertTrue(classPathFile.exists(), ".class file not exists, path: $classPathFile")
-        assertTrue(classPathFile.length() > 0)
-
         val dexName = File(fileName).nameWithoutExtension + ".dex"
         val dexFile = File(compileContextManager.stagingDir, "classes/$relativePath/$dexName")
-        assertTrue(dexFile.exists(), ".dex file not exists, path: $classPathFile")
+        assertTrue(dexFile.exists(), ".dex file not exists, path: ${compileContextManager.stagingDir}")
         assertTrue(dexFile.length() > 0)
     }
 

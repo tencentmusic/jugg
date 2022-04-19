@@ -13,7 +13,6 @@ class SimpleCompileContext(
     override val androidHome: File,
     override val androidBuildTools: File,
     override val androidJar: File,
-    override val classPathDir: File,
     override val modules: Map<String, ModuleInfo>,
     override val parsedApks: List<ParsedApk>,
     override val variant: String,

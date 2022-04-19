@@ -67,22 +67,6 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             CompileOutput(CompileOutput.Type.Dex, outputFile, task.outputDir)
         }
 
-
-        // move compiled files to class path for future compile dependencies
-        val isMoveToClassPathSuccess = classFiles.map {
-            val classPathFile = it.file.changeBaseDir(it.baseDir, context.classPathDir)
-            classPathFile.parentFile?.mkdirs()
-            classPathFile.delete()
-            return@map it.file.renameTo(classPathFile)
-        }.all { true }
-        if (!isMoveToClassPathSuccess) {
-            logger.error("move class file to class path failed!")
-            // we don't know .class file is from which source file, so all error
-            return CompileResult(task, compileResult.details.map { result ->
-                Result.failure(CompileError(result.file, emptyList()))
-            }, emptyList())
-        }
-
         return CompileResult(task, compileResult.details, finalOutputs)
     }
 }

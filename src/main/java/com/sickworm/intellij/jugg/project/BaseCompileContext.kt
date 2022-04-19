@@ -11,7 +11,6 @@ data class BaseCompileContext(
     override val logger: Logger,
     override var tempCompileDir: File,
     override val androidHome: File,
-    override var classPathDir: File,
     override var modules: Map<String, ModuleInfo> = emptyMap(),
     override var parsedApks: List<ParsedApk> = emptyList(),
     override val minApi: Int,
