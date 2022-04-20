@@ -186,7 +186,7 @@ class CompileConsistencyTest {
     }
 
     private fun checkCompileStatus() {
-        assertEquals(0, jugg.deployDataManager.getUncompiledFiles().size)
+        assertEquals(0, jugg.deployDataManager.getUncompiledFiles().size, "not all files are compiled")
     }
 
     private fun checkDeployStatus(changedFile: ChangedFile, deployData: JuggDeployData) {
