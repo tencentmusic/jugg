@@ -6,6 +6,41 @@ import kotlinx.metadata.jvm.KotlinClassHeader
 import kotlinx.metadata.jvm.KotlinModuleMetadata
 import java.io.File
 
+/**
+ * Read, write and merge .kotlin_module files in classPaths.
+ */
+class KmModuleMergerForCompilation(
+    private val classPath: File,
+) {
+
+    private val metaInfDir get() = File(classPath, "META-INF")
+    private val kmModuleFileMap = mutableMapOf<String, KmModuleMerger>()
+
+    fun loadAndMerge() {
+        metaInfDir.listFiles()
+            ?.filter { it.extension == "kotlin_module" }
+            ?.forEach {
+                var merger = kmModuleFileMap[it.absolutePath]
+                if (merger == null) {
+                    merger = KmModuleMerger()
+                    kmModuleFileMap[it.absolutePath] = merger
+                }
+                merger.merge(it)
+            }
+    }
+
+    fun save() {
+        kmModuleFileMap.forEach { (filePath, merger) ->
+            val destFile = File(filePath)
+            merger.writeTo(destFile)
+        }
+    }
+
+}
+
+/**
+ * Read, write and merge .kotlin_module files.
+ */
 class KmModuleMerger {
 
     private val kmModule = KmModule()

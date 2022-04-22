@@ -89,10 +89,17 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             logger.trace("kotlin compile: kotlinc ${command.joinToString(" ")}")
         }
 
+        // resolve kotlin extension function unresolved reference
+        val merger = KmModuleMergerForCompilation(kotlinClassPath)
+        merger.loadAndMerge()
+
         val outputParser = KotlinCompilerOutputParser(task.files, logger)
         val exitCode = kotlinCompile.exec(outputParser.printStream, *command.toTypedArray())
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
+
+        merger.loadAndMerge()
+        merger.save()
 
         if (exitCode != ExitCode.OK) {
             return CompileResult(task, outputParser.results, emptyList())
