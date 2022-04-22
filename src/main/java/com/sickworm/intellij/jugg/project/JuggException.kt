@@ -78,5 +78,8 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun getPackageNameFailedApkNotFound() =
             JuggInternalException("Can not get package name, because can not found apk by ApkProvider.")
 
+        fun kotlinModuleFailed(detail: String) =
+            JuggInternalException("Merge and update .kotlin_module failed, detail: $detail.")
+
     }
 }
