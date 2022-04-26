@@ -204,7 +204,6 @@ class CompileContextManager(
                     org.jetbrains.kotlin.config.SourceKotlinRootType
                 ))
                 .map { it.toIoFile() }
-                .filter { !it.relativeTo(baseDir).path.startsWith("build") } // ignore build source
             sourceDirs.addAll(subSourceRoots)
 
             val subResourceRoots = moduleManager.getSourceRoots(

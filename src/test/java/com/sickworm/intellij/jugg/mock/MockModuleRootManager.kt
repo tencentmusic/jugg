@@ -13,7 +13,7 @@ import java.io.File
 class MockModuleRootManager(private val root: VirtualFile): ModuleRootManager() {
 
     private val roots = mapOf<JpsModuleSourceRootType<*>, List<String>>(
-        JavaSourceRootType.SOURCE to listOf("src/main/java"),
+        JavaSourceRootType.SOURCE to listOf("src/main/java", "build/generated/data_binding_base_class_source_out/debug/out"),
         JavaResourceRootType.RESOURCE to listOf("src/main/assets", "src/main/res"),
     )
 
