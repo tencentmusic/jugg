@@ -16,6 +16,8 @@ import java.net.URLClassLoader
  * because PsiClassImpl is "com.intellij.psi.impl.source.PsiClassImpl" instead of
  * "org.jetbrains.kotlin.com.intellij.psi.impl.source.PsiClassImpl"
  *
+ * 2. avoid using wrong version of K2JVMCompiler which embedded in IntelliJ Idea
+ *
  */
 class K2JVMCompilerIsolate(private val logger: Logger) {
 
@@ -56,13 +58,13 @@ class K2JVMCompilerIsolate(private val logger: Logger) {
         private val requiredLibraries = listOf(
             "annotations-13.0.jar", // as plugin
             "annotations-19.0.0.jar", // in test
-            "kotlin-compiler-embeddable-1.4.32.jar",
+            "kotlin-compiler-embeddable-1.5.31.jar",
             "trove4j-1.0.20181211.jar",
-            "kotlin-reflect-1.4.32.jar",
-            "kotlin-stdlib-1.4.32.jar",
-            "kotlin-stdlib-common-1.4.32.jar",
-            "kotlin-stdlib-jdk7-1.4.32.jar",
-            "kotlin-stdlib-jdk8-1.4.32.jar"
+            "kotlin-reflect-1.5.31.jar",
+            "kotlin-stdlib-1.5.31.jar",
+            "kotlin-stdlib-common-1.5.31.jar",
+            "kotlin-stdlib-jdk7-1.5.31.jar",
+            "kotlin-stdlib-jdk8-1.5.31.jar"
         )
         private val exceptLibrariesSize = requiredLibraries.size - 1 // two annotations inside
 
