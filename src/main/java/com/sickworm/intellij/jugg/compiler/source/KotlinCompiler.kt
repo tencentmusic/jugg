@@ -14,6 +14,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
     private val kotlinCompile = K2JVMCompilerIsolate(logger)
 
+    private var hasFoundKotlinAndroidExtensions: Boolean = false
     private var kotlinAndroidExtensionsPath: String? = null
 
     override fun doCompile(task: CompileTask): CompileResult {
@@ -31,7 +32,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     private fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
 
-        if (kotlinAndroidExtensionsPath == null) {
+        if (!hasFoundKotlinAndroidExtensions) {
             val classLoader = this::class.java.classLoader
             kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
                 // running in IDE
@@ -40,6 +41,10 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
                 // running in test. notion: this may cost 500+ms which will affect compile cost
                 ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
             }
+            hasFoundKotlinAndroidExtensions = true
+        }
+        if (kotlinAndroidExtensionsPath == null) {
+            logger.warn("kotlinAndroidExtensionsPath not found in classpath")
         }
 
         val packageName = context.packageName
