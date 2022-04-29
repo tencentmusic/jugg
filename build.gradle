@@ -56,7 +56,10 @@ dependencies {
     // for K2JVMCompiler
     implementation "org.jetbrains.kotlin:kotlin-compiler-embeddable"
     implementation "org.jetbrains.kotlin:kotlin-android-extensions"
-    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.3.0"
+    // kotlinx-metadata-jvm:
+    // 0.2.0 depends kotlin-stdlib:1.4.10
+    // 0.3.0 depends kotlin-stdlib:1.5.0
+    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.2.0"
     implementation "io.github.classgraph:classgraph:4.8.110"
 
     testImplementation "junit:junit:4.12"

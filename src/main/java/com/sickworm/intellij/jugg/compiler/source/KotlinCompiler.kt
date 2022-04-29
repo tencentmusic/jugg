@@ -12,7 +12,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val isNeedOutputDirEmpty = false
 
-    private val kotlinCompile = K2JVMCompiler()
+    private val kotlinCompile = K2JVMCompilerIsolate(logger)
 
     private var kotlinAndroidExtensionsPath: String? = null
 

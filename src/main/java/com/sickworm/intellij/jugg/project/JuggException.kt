@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.ddmlib.IDevice
 import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
@@ -81,5 +80,7 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun kotlinModuleFailed(detail: String) =
             JuggInternalException("Merge and update .kotlin_module failed, detail: $detail.")
 
+        fun initKotlinCompilerFailed(missingClassPaths: List<String>) =
+            JuggInternalException("Init kotlin compiler failed, missing classpath: $missingClassPaths.")
     }
 }
