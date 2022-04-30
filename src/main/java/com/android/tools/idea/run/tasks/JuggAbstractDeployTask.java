@@ -60,6 +60,8 @@ import org.jetbrains.annotations.Nullable;
 
 public abstract class JuggAbstractDeployTask implements LaunchTask {
 
+    public static final int MIN_API_VERSION = 30; // Android 11
+
     @NotNull private final Project myProject;
     @NotNull private final Map<String, List<File>> myPackages;
     @NotNull protected List<LaunchTaskDetail> mySubTaskDetails;

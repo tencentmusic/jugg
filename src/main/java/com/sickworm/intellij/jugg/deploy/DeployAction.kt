@@ -5,6 +5,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.android.tools.idea.run.DeploymentService
 import com.android.tools.idea.run.deployable.Deployable
 import com.android.tools.idea.run.tasks.AbstractDeployTask
+import com.android.tools.idea.run.tasks.JuggAbstractDeployTask
 import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.util.CommonAndroidUtil
 import com.intellij.execution.ExecutionManager
@@ -121,10 +122,10 @@ class DeployAction: AnAction(
                         "its API level is currently unknown"
                     ), true)
                 }
-                if (versionFuture.get().apiLevel < AbstractDeployTask.MIN_API_VERSION) {
+                if (versionFuture.get().apiLevel < JuggAbstractDeployTask.MIN_API_VERSION) {
                     return DeployState(DisableMessage(
                         DisableMessage.DisableMode.DISABLED, "incompatible device API level",
-                        "its API level is lower than 26"
+                        "its API level is lower than 30"
                     ))
                 }
                 if (deployable.searchClientsForPackage().isEmpty()) {
