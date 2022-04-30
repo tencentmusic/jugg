@@ -27,7 +27,7 @@ class TopLevelFlowTest {
 
     @Test
     fun testDeviceStatusUpdate() {
-        // just test assert in initEnv()
+        // already test assert in resetAllState
     }
 
     @Test
