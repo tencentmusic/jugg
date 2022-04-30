@@ -48,7 +48,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         }
 
         val packageName = context.packageName
-        val kotlinClassPath = module.buildPathInfo.kotlinClassPath
+        val kotlinClassPath = module.buildPathInfo.kotlinClassPath.absoluteFile
         // TODO read flavor from sourceSets
         val flavor = "main"
         val resourcePaths: List<String> = task.files.flatMap {
