@@ -105,7 +105,7 @@ public class JuggToolWindow implements JuggStateListener {
   @Override
   public void onDeployStateUpdate(@NotNull JuggDeployState state) {
     String iconRes;
-    if (state.isReadyApply()) {
+    if (state.isReadyDeploy()) {
       iconRes = "/res/icon_green.png";
     } else if (state.isReadyInstall()) {
       iconRes = "/res/icon_yellow.png";
@@ -129,7 +129,7 @@ public class JuggToolWindow implements JuggStateListener {
       return;
     }
 
-    manager.deployAsync();
+    manager.deployAsync(true);
   }
 
   public JPanel getContent() {

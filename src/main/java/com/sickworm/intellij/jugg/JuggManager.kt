@@ -58,11 +58,22 @@ class JuggManager @TestOnly constructor(
 
     fun onActionUpdate(): JuggDeployState {
 
+        val oldDeployState = deployStateManager.deployState
         val deployState = deployStateManager.onActionUpdate()
+        if (deployState == oldDeployState) {
+            // won't do anything if deploy state is not changed
+            return deployState
+        }
+
         deployStateListener.onDeployStateUpdate(deployState)
 
-        if (deployState.isReadyApply) {
+        if (deployState.isReadyCompile) {
             initCompileIfNeeded()
+        } else {
+            if (!deployState.isReadyDeploy && oldDeployState.isReadyDeploy) {
+                // revert
+                hasInit = false
+            }
         }
 
         return deployState
@@ -118,7 +129,7 @@ class JuggManager @TestOnly constructor(
             logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
 
             if (JuggSettings.deployOnSave) {
-                deployAsync()
+                deployAsync(false)
             }
         }
     }
@@ -152,14 +163,22 @@ class JuggManager @TestOnly constructor(
         return result
     }
 
-    fun deployAsync() {
+    fun deployAsync(isUserClick: Boolean) {
+        if (!deployStateManager.deployState.isReadyDeploy) {
+            if (isUserClick) {
+                logger.warn("Deployment is not ready, skip deploy")
+            } else {
+                logger.info("Deployment is not ready, skip deploy")
+            }
+            return
+        }
         deployThread.submitSafe("Deploy", ::deploy)
     }
 
     @TestOnly
     fun deploy() {
         when {
-            deployStateManager.deployState.isReadyApply -> {
+            deployStateManager.deployState.isReadyDeploy -> {
                 val deployData = deployDataManager.getDeployData()
                 if (deployData.apks.isEmpty()) {
                     logger.error("Deploy failed, can not find apks")

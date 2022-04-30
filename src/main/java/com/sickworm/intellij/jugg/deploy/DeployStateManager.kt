@@ -19,16 +19,30 @@ class DeployStateManager(
     private val ideDeployStateHelper: IdeDeployStateHelper = IdeDeployStateHelper(project)
 ) {
 
-    var deployState = JuggDeployState(isReadyInstall = false, isReadyApply = false, DisableMessage(
-        DisableMessage.DisableMode.DISABLED, "not initialized", "jugg not initialized"
-    ))
+    var deployState = JuggDeployState(isReadyInstall = false, isReadyCompile = false, isReadyDeploy = false,
+        DisableMessage(DisableMessage.DisableMode.DISABLED, "not initialized", "jugg not initialized")
+    )
         private set
 
+    private var isBuildGradleChanged = false
+
     fun onActionUpdate(): JuggDeployState {
-        deployState = ideDeployStateHelper.getIdeDeployState()
+        deployState = getNewDeployState()
         return deployState
     }
 
+    private fun getNewDeployState(): JuggDeployState {
+        val ideDeployState = ideDeployStateHelper.getIdeDeployState()
+        if (!ideDeployState.isReadyInstall) {
+            return ideDeployState
+        }
+
+        if (isBuildGradleChanged) {
+            return ideDeployState.copy(isReadyCompile = false, isReadyDeploy = false)
+        }
+
+        return ideDeployState
+    }
 }
 
 class IdeDeployStateHelper(
@@ -130,7 +144,7 @@ class IdeDeployStateHelper(
                 ))
             }
         }
-        return JuggDeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
+        return JuggDeployState.READY
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {

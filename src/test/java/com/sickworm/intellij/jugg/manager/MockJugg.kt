@@ -201,7 +201,7 @@ class MockJugg {
         deployDataManager = DeployDataManager(compileContextManager, logger)
 
         val ideDeployStateHelper = mock(IdeDeployStateHelper::class.java)
-        val state = JuggDeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
+        val state = JuggDeployState.READY
         `when`(ideDeployStateHelper.getIdeDeployState()).thenReturn(state)
         deployStateManager = DeployStateManager(project, ideDeployStateHelper)
 
@@ -241,6 +241,7 @@ class MockJugg {
         assertEquals(1, deployTargetManager.getApks().size)
         assertEquals(1, compileContextManager.compileContext.parsedApks.size)
         assertTrue(::fileChangeEventSender.isInitialized)
-        verify(juggStateListener, times(1)).onDeployStateUpdate(deployStateManager.deployState)
+        assertEquals(JuggDeployState.READY, deployStateManager.deployState)
+        verify(juggStateListener, times(1)).onDeployStateUpdate(JuggDeployState.READY)
     }
 }
