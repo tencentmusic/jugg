@@ -8,6 +8,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+/**
+ * Need an Android device for this test.
+ */
 class TopLevelFlowTest {
 
     companion object {
