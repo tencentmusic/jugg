@@ -50,7 +50,8 @@ class GitManager(override val rootDir: File): IGitManager {
     override fun getCurrentBranchCommitSize(): Int {
         Git.open(rootDir).use { git ->
             return try {
-                git.log().call().count()
+                val commits = git.log().call()
+                return commits.count()
             } catch (e: NoHeadException) {
                 0
             }
