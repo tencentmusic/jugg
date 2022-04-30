@@ -4,15 +4,23 @@ import java.io.File
 
 interface IGitManager {
 
-    /** root dir using git */
+    /**
+     * root dir to use git
+     */
     val rootDir: File
 
-    /** whether [rootDir] has invoked git init */
+    /**
+     * whether [rootDir] has git
+     */
     fun hasInit(): Boolean
 
-    /** git init */
+    /**
+     * git init
+     */
     fun init()
 
-    /** remove .git folder */
+    /**
+     * rm -rf .git
+     */
     fun deleteGit()
 }
