@@ -57,8 +57,6 @@ class TopLevelFlowTest {
     @Test
     fun testInstall() {
         jugg.installAndReStart()
-
-        jugg.checkDeployStateAndRegisterAdb()
     }
 
     @Test
