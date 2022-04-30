@@ -19,8 +19,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.sickworm.intellij.jugg.project.JuggLogger
 import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.project.JuggLogger
 import java.util.concurrent.ExecutionException
 
 private const val NAME = "Jugg Deploy"
@@ -185,13 +185,3 @@ class DeployAction: AnAction(
 
 }
 
-class DisableMessage(
-    val disableMode: DisableMode,
-    val tooltip: String,
-    val description: String
-) {
-    enum class DisableMode {
-        INVISIBLE, DISABLED
-    }
-
-}
