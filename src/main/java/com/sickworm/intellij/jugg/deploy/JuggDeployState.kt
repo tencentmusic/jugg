@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
-data class DeployState(
+data class JuggDeployState(
     val isReadyInstall: Boolean,
     val isReadyApply: Boolean,
     val disableMessage: DisableMessage?,

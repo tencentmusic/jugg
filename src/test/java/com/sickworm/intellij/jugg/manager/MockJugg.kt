@@ -25,7 +25,7 @@ import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesManager
@@ -46,12 +46,13 @@ class MockJugg {
 
     lateinit var juggManager: JuggManager
     lateinit var fileChangesManager: FileChangesManager
-    lateinit var deviceStatusListener: DeviceStatusListener
+    lateinit var juggStateListener: JuggStateListener
     lateinit var deployTargetManager: DeployTargetManager
     lateinit var compileContextManager: CompileContextManager
     lateinit var fileChangeEventSender: FileChangeEventSender
     lateinit var juggDeployerHelper: JuggDeployerHelper
     lateinit var deployDataManager: DeployDataManager
+    lateinit var deployStateManager: DeployStateManager
 
     private val adbDeviceHelper = AdbDeviceHelper()
 
@@ -150,7 +151,7 @@ class MockJugg {
         project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
 
-        deviceStatusListener = mock(DeviceStatusListener::class.java)
+        juggStateListener = mock(JuggStateListener::class.java)
 
         val deviceGetter = object : IDeviceGetter {
             override fun getDevice(): IDevice {
@@ -199,6 +200,11 @@ class MockJugg {
 
         deployDataManager = DeployDataManager(compileContextManager, logger)
 
+        val ideDeployStateHelper = mock(IdeDeployStateHelper::class.java)
+        val state = JuggDeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
+        `when`(ideDeployStateHelper.getIdeDeployState()).thenReturn(state)
+        deployStateManager = DeployStateManager(project, ideDeployStateHelper)
+
         JuggLogger.listenProjectLog(project, logger)
     }
 
@@ -216,7 +222,7 @@ class MockJugg {
 
     private fun renewManager() {
         juggManager = JuggManager(
-            project, projectDir, deviceStatusListener,
+            project, projectDir, juggStateListener,
             fileChangesManager = fileChangesManager,
             deployTargetManager = deployTargetManager,
             compileThread = SyncExecutorService(),
@@ -224,17 +230,17 @@ class MockJugg {
             compileContextManager = compileContextManager,
             deployDataManager = deployDataManager,
             juggDeployerHelper = juggDeployerHelper,
+            deployStateManager = deployStateManager,
         )
         juggManager.init()
     }
 
     private fun markAsReadyToDeploy() {
-        val state = DeployState(isReadyInstall = true, isReadyApply = true, disableMessage = null)
-        juggManager.updateStatus(state)
+        juggManager.onActionUpdate()
 
         assertEquals(1, deployTargetManager.getApks().size)
         assertEquals(1, compileContextManager.compileContext.parsedApks.size)
         assertTrue(::fileChangeEventSender.isInitialized)
-        verify(deviceStatusListener, times(1)).updateStatus(state)
+        verify(juggStateListener, times(1)).onDeployStateUpdate(deployStateManager.deployState)
     }
 }

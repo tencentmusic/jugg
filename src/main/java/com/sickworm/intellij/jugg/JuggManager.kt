@@ -7,11 +7,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.ide.toolWindow.DeviceStatusListener
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import java.util.concurrent.ExecutorService
@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutorService
 class JuggManager @TestOnly constructor(
     private val project: Project,
     projectDir: String,
-    private val deviceStatusListener: DeviceStatusListener,
+    private val deployStateListener: JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "#Jugg-JuggManager"),
     private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
     private val deployThread: ExecutorService = Executors.newSingleThreadExecutor(),
@@ -31,20 +31,18 @@ class JuggManager @TestOnly constructor(
     private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager, logger),
     // manage deploy target apk and device
     private val deployTargetManager: DeployTargetManager = DeployTargetManager(project),
+    // manage JuggDeployState
+    private val deployStateManager: DeployStateManager = DeployStateManager(project),
     // deploy to device
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager),
-): Disposable, DeviceStatusListener {
+): Disposable {
 
     constructor(project2: Project,
                 projectDir: String,
-                deviceStatusListener: DeviceStatusListener):
-            this(project = project2, projectDir, deviceStatusListener)
+                juggDeployStateListener: JuggStateListener):
+            this(project = project2, projectDir, juggDeployStateListener)
 
     private var compiler: JuggCompiler? = null
-
-    private var deployState = DeployState(isReadyInstall = false, isReadyApply = false, DisableMessage(
-        DisableMessage.DisableMode.DISABLED, "not initialized", "jugg not initialized"
-    ))
 
     fun init() {
         logger.info("Start Jugg")
@@ -58,26 +56,33 @@ class JuggManager @TestOnly constructor(
 
     private var hasInit = false
 
-    override fun updateStatus(state: DeployState) {
-        if (deployState == state) {
+    fun onActionUpdate(): JuggDeployState {
+
+        val deployState = deployStateManager.onActionUpdate()
+        deployStateListener.onDeployStateUpdate(deployState)
+
+        if (deployState.isReadyApply) {
+            initCompileIfNeeded()
+        }
+
+        return deployState
+    }
+
+    private fun initCompileIfNeeded() {
+        if (hasInit) {
             return
         }
 
-        deviceStatusListener.updateStatus(state)
-        deployState = state
+        val apks = deployTargetManager.getApks()
+        if (apks.isEmpty()) {
+            return
+        }
 
-        if (state.isReadyApply && !hasInit) {
-            val apks = deployTargetManager.getApks()
-            if (apks.isEmpty()) {
-                return
-            }
-
-            hasInit = true
-            // TODO check apk md5
-            logger.info("Detected deployable apk, start init compile")
-            compileThread.submitSafe("Init compile context - initCompile") {
-                initCompile(apks)
-            }
+        hasInit = true
+        // TODO check apk md5
+        logger.info("Detected deployable apk, start init compile")
+        compileThread.submitSafe("Init compile context - initCompile") {
+            initCompile(apks)
         }
     }
 
@@ -154,7 +159,7 @@ class JuggManager @TestOnly constructor(
     @TestOnly
     fun deploy() {
         when {
-            deployState.isReadyApply -> {
+            deployStateManager.deployState.isReadyApply -> {
                 val deployData = deployDataManager.getDeployData()
                 if (deployData.apks.isEmpty()) {
                     logger.error("Deploy failed, can not find apks")
@@ -170,7 +175,7 @@ class JuggManager @TestOnly constructor(
                 juggDeployerHelper.runTask(deployData)
                 deployDataManager.commit(deployData)
             }
-            deployState.isReadyInstall -> {
+            deployStateManager.deployState.isReadyInstall -> {
                 logger.info("Can not deploy, install and run apk")
                 deployTargetManager.runNormalBuild()
                 return

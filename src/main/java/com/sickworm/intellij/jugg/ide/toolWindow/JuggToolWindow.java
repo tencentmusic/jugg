@@ -12,9 +12,9 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.ui.JBColor;
 import com.sickworm.intellij.jugg.JuggManager;
+import com.sickworm.intellij.jugg.deploy.JuggDeployState;
 import com.sickworm.intellij.jugg.ide.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
-import com.sickworm.intellij.jugg.deploy.DeployState;
 import com.sickworm.intellij.jugg.project.JuggLogger;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
@@ -30,7 +30,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Objects;
 
-public class JuggToolWindow implements DeviceStatusListener {
+public class JuggToolWindow implements JuggStateListener {
 
   private JButton deployButton;
   private JPanel myToolWindowContent;
@@ -46,8 +46,6 @@ public class JuggToolWindow implements DeviceStatusListener {
 
   private final Logger logger;
 
-  private JuggManager juggManager;
-
   @SuppressWarnings("unused")
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
@@ -61,7 +59,7 @@ public class JuggToolWindow implements DeviceStatusListener {
     }
 
     JuggLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
-    this.juggManager = new JuggManager(project, projectDir, this);
+    JuggManager juggManager = new JuggManager(project, projectDir, this);
     juggManager.init();
 
     deployButton.addActionListener(e -> deploy());
@@ -105,7 +103,7 @@ public class JuggToolWindow implements DeviceStatusListener {
   }
 
   @Override
-  public void updateStatus(DeployState state) {
+  public void onDeployStateUpdate(@NotNull JuggDeployState state) {
     String iconRes;
     if (state.isReadyApply()) {
       iconRes = "/res/icon_green.png";
