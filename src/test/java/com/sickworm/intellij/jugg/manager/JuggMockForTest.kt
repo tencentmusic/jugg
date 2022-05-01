@@ -8,30 +8,47 @@ import kotlin.test.assertTrue
 private val testSourceDirectory = "app/src/main/java/${androidApkPackage.replace('.', '/')}"
 
 fun MockJugg.changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
-    val pairs = fileNamePairs.map { (sourceFileName, destFileName) ->
+    changeAndRevert(*fileNamePairs, directory = directory) {
+        fileChangesDetector.notifyFileChanges(it)
+    }
+}
+
+fun changeAndRevert(
+    vararg fileNamePairs: Pair<String, String>,
+    directory: String = testSourceDirectory,
+    block: (List<File>) -> Unit,
+) {
+    // locate file path
+    val filePairs = fileNamePairs.map { (sourceFileName, destFileName) ->
         val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$sourceFileName")
         val destFile = File(assetsAndroidDir, "$directory/$destFileName")
         sourceFile to destFile
     }
-    val revertFileMark = pairs.map { (_, destFile) ->
+    val revertFileMark = filePairs.map { (_, destFile) ->
         destFile to destFile.exists()
     }
-    fileChangesDetector.copyAndNotifyFileChanges(pairs)
 
-    // revert
-    revertFileMark.forEach { (destFile, isExist) ->
-        revertFile(destFile.name, isAdd = !isExist, directory = directory)
+    // copy
+    filePairs.forEach { (sourceFile, destFile) ->
+        sourceFile.copyTo(destFile, overwrite = true)
     }
-}
 
-private fun revertFile(originFile: String, isAdd: Boolean = false, directory: String) {
-    val sourceFile = File(assetsAndroidModifySourceDir, "$directory/$originFile")
-    val destFile = File(assetsAndroidDir, "$directory/$originFile")
-    if (isAdd) {
-        destFile.delete()
-        return
+    try {
+        // run block
+        val files = filePairs.map { it.second }
+        block(files)
+    } finally {
+        // revert
+        revertFileMark.forEach { (originFile, isExist) ->
+            val sourceFile = File(assetsAndroidModifySourceDir, "$directory/${originFile.name}")
+            val destFile = File(assetsAndroidDir, "$directory/${originFile.name}")
+            if (!isExist) {
+                destFile.delete()
+                return@forEach
+            }
+            sourceFile.copyTo(destFile, overwrite = true)
+        }
     }
-    sourceFile.copyTo(destFile, overwrite = true)
 }
 
 fun MockJugg.checkCompileResult(
