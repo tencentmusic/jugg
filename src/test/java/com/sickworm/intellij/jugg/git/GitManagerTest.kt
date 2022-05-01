@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.git
 
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -11,16 +12,17 @@ import kotlin.test.assertTrue
 
 class GitManagerTest {
 
+    private val gitManager = GitManager(assetsAndroidDir)
+
     @Before
+    @After
     fun checkoutDir() {
         Runtime.getRuntime().exec("git checkout $assetsAndroidDir").waitFor()
+        gitManager.deleteGit()
     }
 
     @Test
     fun testBasicOperation() {
-        val gitManager = GitManager(assetsAndroidDir)
-
-        gitManager.deleteGit()
         assertFalse(gitManager.isGitAvailable())
 
         gitManager.init()
@@ -58,8 +60,6 @@ class GitManagerTest {
 
     @Test
     fun testDiff() {
-        val gitManager = GitManager(assetsAndroidDir)
-
         repeat(100) { index ->
             val commitFile = File(gitManager.rootDir, "commit_file_$index.txt")
             commitFile.delete()
