@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.git
 
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -9,6 +10,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class GitManagerTest {
+
+    @Before
+    fun checkoutDir() {
+        Runtime.getRuntime().exec("git checkout $assetsAndroidDir").waitFor()
+    }
 
     @Test
     fun testBasicOperation() {
