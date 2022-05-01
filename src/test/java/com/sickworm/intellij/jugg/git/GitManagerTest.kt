@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 class GitManagerTest {
 
     @Test
-    fun test() {
+    fun testBasicOperation() {
         val gitManager = GitManager(assetsAndroidDir)
 
         gitManager.deleteGit()
@@ -51,7 +51,7 @@ class GitManagerTest {
     }
 
     @Test
-    fun test2() {
+    fun testDiff() {
         val gitManager = GitManager(assetsAndroidDir)
 
         repeat(100) { index ->
