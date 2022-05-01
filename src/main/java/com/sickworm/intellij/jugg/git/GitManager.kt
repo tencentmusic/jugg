@@ -2,11 +2,17 @@ package com.sickworm.intellij.jugg.git
 
 import org.gradle.internal.impldep.org.eclipse.jgit.api.Git
 import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.NoHeadException
+import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevCommit
+import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevWalk
+import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.AbstractTreeIterator
+import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.CanonicalTreeParser
 import java.io.File
+import java.io.IOException
+
 
 class GitManager(override val rootDir: File): IGitManager {
 
-    override fun hasInit(): Boolean {
+    override fun isGitAvailable(): Boolean {
         if (!File(rootDir, ".git").exists()) {
             return false
         }
@@ -24,7 +30,7 @@ class GitManager(override val rootDir: File): IGitManager {
     }
 
     override fun deleteGit() {
-        if (!hasInit()) {
+        if (!isGitAvailable()) {
             return
         }
         File(rootDir, ".git").deleteRecursively()
@@ -37,6 +43,29 @@ class GitManager(override val rootDir: File): IGitManager {
             return uncommittedFiles.map {
                 File(rootDir, it)
             }
+        }
+    }
+
+    override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> {
+        Git.open(rootDir).use { git ->
+            val oldCommitTree = getCanonicalTreeParser(git, oldCommit)
+            val newCommitTree = getCanonicalTreeParser(git, newCommit)
+            val diffResult = git.diff()
+                .setShowNameAndStatusOnly(true)
+                .setOldTree(oldCommitTree)
+                .setNewTree(newCommitTree)
+                .call()
+            return diffResult.map { File(it.newPath) }
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun getCanonicalTreeParser(git: Git, commitHash: String): AbstractTreeIterator {
+        val commitId = git.repository.resolve(commitHash)
+        RevWalk(git.repository).use { walk ->
+            val commit: RevCommit = walk.parseCommit(commitId)
+            val treeId = commit.tree.id
+            git.repository.newObjectReader().use { reader -> return CanonicalTreeParser(null, reader, treeId) }
         }
     }
 

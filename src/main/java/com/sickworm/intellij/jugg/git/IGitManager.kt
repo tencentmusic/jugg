@@ -12,7 +12,7 @@ interface IGitManager {
     /**
      * whether [rootDir] has git
      */
-    fun hasInit(): Boolean
+    fun isGitAvailable(): Boolean
 
     /**
      * git init
@@ -28,6 +28,11 @@ interface IGitManager {
      * git status
      */
     fun getUncommittedFiles(): List<File>
+
+    /**
+     * git --no-pager diff --name-only [oldCommit] [newCommit]
+     */
+    fun getChangedFiles(oldCommit: String, newCommit: String): List<File>
 
     /**
      * git add . && git commit -m "[message]"

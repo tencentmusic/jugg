@@ -5,6 +5,7 @@ import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class GitManagerTest {
@@ -14,10 +15,10 @@ class GitManagerTest {
         val gitManager = GitManager(assetsAndroidDir)
 
         gitManager.deleteGit()
-        assertFalse(gitManager.hasInit())
+        assertFalse(gitManager.isGitAvailable())
 
         gitManager.init()
-        assertTrue(gitManager.hasInit())
+        assertTrue(gitManager.isGitAvailable())
 
         val uncommittedFiles = gitManager.getUncommittedFiles()
         assertTrue(uncommittedFiles.isNotEmpty())
@@ -35,9 +36,11 @@ class GitManagerTest {
         repeat(100) { index ->
             val commitCount = 2 + index // we have one commit already, so starts with 2
             commitFile.writeText("$commitCount")
+            val uncommittedFileBeforeCommit = gitManager.getUncommittedFiles()
+            assertTrue(uncommittedFileBeforeCommit.isNotEmpty())
             gitManager.addAllAndCommit("commit $commitCount")
-            val uncommittedFile = gitManager.getUncommittedFiles()
-            assertTrue(uncommittedFile.isEmpty())
+            val uncommittedFileAfterCommit = gitManager.getUncommittedFiles()
+            assertTrue(uncommittedFileAfterCommit.isEmpty())
             assertEquals(commitCount, gitManager.getCurrentBranchCommitSize())
             val commit = gitManager.getLastCommitHash()
             assertEquals(40, commit?.length)
@@ -45,5 +48,43 @@ class GitManagerTest {
         commitFile.delete()
 
         gitManager.deleteGit()
+    }
+
+    @Test
+    fun test2() {
+        val gitManager = GitManager(assetsAndroidDir)
+
+        repeat(100) { index ->
+            val commitFile = File(gitManager.rootDir, "commit_file_$index.txt")
+            commitFile.delete()
+        }
+
+        gitManager.deleteGit()
+        gitManager.init()
+        gitManager.addAllAndCommit("first commit")
+        val firstHash = gitManager.getLastCommitHash()
+        assertNotNull(firstHash)
+
+        var lastHash: String = firstHash
+        repeat(100) { index ->
+            val commitFile = File(gitManager.rootDir, "commit_file_$index.txt")
+            assertTrue(!commitFile.exists())
+
+            commitFile.writeText("$index")
+            gitManager.addAllAndCommit("commit $index")
+
+            val newCommitHash = gitManager.getLastCommitHash()
+            assertNotNull(newCommitHash)
+            val changedFilesInOneCommit = gitManager.getChangedFiles(lastHash, newCommitHash)
+            assertEquals(1, changedFilesInOneCommit.size)
+            val changedFilesInAllCommit = gitManager.getChangedFiles(firstHash, newCommitHash)
+            assertEquals(index + 1, changedFilesInAllCommit.size)
+            lastHash = newCommitHash
+        }
+
+        repeat(100) { index ->
+            val commitFile = File(gitManager.rootDir, "commit_file_$index.txt")
+            commitFile.delete()
+        }
     }
 }
