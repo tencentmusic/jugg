@@ -82,6 +82,9 @@ class DeployManagerTest {
 
     @Test
     fun testKotlinClassChangeSignature() {
+        // there is an inner class inside MainActivity.kt
+        // ↑ we disable desugar for now so no more inner class
+
         jugg.changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         jugg.checkCompileResult("MainActivity.kt",
             hotReloadModifiedClassesSize = 0,
