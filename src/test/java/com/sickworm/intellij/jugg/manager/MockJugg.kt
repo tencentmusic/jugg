@@ -188,7 +188,7 @@ class MockJugg {
             return@Computable "./src/test/assets/libs/installer"
         }
 
-        deployDataManager = DeployDataManager(compileContextManager, logger)
+        deployDataManager = DeployDataManager(project)
 
         val ideDeployStateHelper = mock(IdeDeployStateHelper::class.java)
         val state = JuggDeployState.READY
@@ -230,7 +230,7 @@ class MockJugg {
         juggManager.onActionUpdate()
 
         assertEquals(1, deployTargetManager.getApks().size)
-        assertEquals(1, compileContextManager.compileContext.parsedApks.size)
+        assertEquals(1, compileContextManager.compileContext.apkInfos.size)
         assertEquals(JuggDeployState.READY, deployStateManager.deployState)
         verify(juggStateListener, times(1)).onDeployStateUpdate(JuggDeployState.READY)
     }

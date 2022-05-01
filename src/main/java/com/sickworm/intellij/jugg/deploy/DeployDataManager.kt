@@ -2,13 +2,15 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.deployer.JuggDeployData
 import com.android.tools.deployer.DeployItem
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.JuggLogger
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
@@ -16,7 +18,9 @@ import java.util.zip.CRC32
 /**
  * Works like a git. Operates with add, commit
  */
-class DeployDataManager(compileContextManager: CompileContextManager, logger: Logger) {
+class DeployDataManager(logger: Logger) {
+
+    constructor(project: Project): this(JuggLogger.getInstance(project, "#Jugg-DeployDataManager"))
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -29,17 +33,16 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
     private var stagingFiles = mutableMapOf<String, DeployItem>()
 
     /**
-     * Deployed files
-     * TODO persist
-     */
-    private var deployedFiles = mutableMapOf<String, DeployItem>()
-
-    /**
      * persisted deploy information
      */
-    private val deployDataDb = DeployDataDb(compileContextManager, logger)
+    private val deployDataDb = DeployDataDb(logger)
 
     private var crc32 = CRC32()
+
+    @Synchronized
+    fun initAndResetAfterFullCompile(apks: List<ApkInfo>) {
+        deployDataDb.initAfterFullCompile(apks)
+    }
 
     @Synchronized
     fun addChangedFile(files: List<ChangedFile>) {
@@ -91,16 +94,14 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
 
     @Synchronized
     fun commit(juggDeployData: JuggDeployData) {
-        deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
-        deployDataDb.update(juggDeployData)
+        deployDataDb.commitDeployedData(juggDeployData)
     }
 
     @Synchronized
     fun reset() {
         uncompiledFiles.clear()
         stagingFiles.clear()
-        deployedFiles.clear()
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')

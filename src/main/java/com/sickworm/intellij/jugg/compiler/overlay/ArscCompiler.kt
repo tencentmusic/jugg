@@ -19,8 +19,8 @@ class ArscCompiler(
     private var hasLoaded = false
 
     private val canCompile: Boolean get() {
-        val apks = context.parsedApks
-        return apks.size == 1 && apks.first().apkInfo.file.exists() && context.androidJar.exists()
+        val apks = context.apkInfos
+        return apks.size == 1 && (context.apkFile?.exists() == true) && context.androidJar.exists()
     }
 
     override fun checkContextCanCompile(task: CompileTask) {

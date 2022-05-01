@@ -12,7 +12,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
-import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.compiler.guessModuleDirAdv
 import com.sickworm.intellij.jugg.compiler.relativePath
 import com.sickworm.intellij.jugg.ide.JuggSettings
@@ -69,41 +68,14 @@ class CompileContextManager(
         initContext(modules)
     }
 
-    fun initFullBuildInfo(apks: List<ApkInfo>) {
+    fun initFullBuildInfo(apkInfos: List<ApkInfo>) {
         val startTime = System.currentTimeMillis()
-        val parsedApks = apks.map {
-            ApkParser().parse(it, isSkipCode = true)
-        }
-        val parsedApksEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo parsedApks cost ${parsedApksEndTime - startTime}ms")
 
-        // TODO reopen
-        // close for now for better performance
-//        // something wrong with this... use build class path for now
-//        parsedApks.forEach { apk ->
-//            apk.classes.values.forEach { classNode ->
-//                val bytes = classNode.dumpClassStub()
-//                val outputPath = classNode.className.replace('.', '/') + ".class"
-//                val outputFile = File(fullBuildClassPathDir, outputPath)
-//                if (outputFile.exists()) {
-//                    outputFile.delete()
-//                }
-//                outputFile.parentFile?.mkdirs()
-//                outputFile.writeBytes(bytes)
-//            }
-//        }
-        val buildClassPathEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo dumpClassStub cost ${buildClassPathEndTime - parsedApksEndTime}ms")
-
-        compileContext.update(parsedApks = parsedApks)
-
-        val updateEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo compileContext.update cost ${updateEndTime - buildClassPathEndTime}ms")
-
+        compileContext.update(apkInfos = apkInfos)
         updateProjectDependencies()
 
-        val updateDepEndTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo updateProjectDependencies cost ${updateDepEndTime - buildClassPathEndTime}ms")
+        val endTime = System.currentTimeMillis()
+        logger.debug("initFullBuildInfo cost ${endTime - startTime}ms")
     }
 
     private fun initContext(modules: Map<String, ModuleInfo>) {

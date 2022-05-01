@@ -66,7 +66,7 @@ val context get() = SimpleCompileContext(
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
     modules = emptyMap(),
-    parsedApks = listOf(ParsedApk(projectInfo.apkInfo, emptyMap(), emptyMap())),
+    apkInfos = listOf(projectInfo.apkInfo),
     variant = "debug",
     minApi = JuggSettings.minApi
 )

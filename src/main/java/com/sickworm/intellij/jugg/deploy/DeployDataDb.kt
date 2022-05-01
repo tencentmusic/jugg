@@ -1,30 +1,35 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.deployer.*
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import java.io.File
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 
+/**
+ * Manage deployment history and generate [JuggDeployData] according to deployment history.
+ */
 class DeployDataDb(
-    private val compileContextManager: CompileContextManager,
     private val logger: Logger,
 ) {
 
     // TODO persist?
+    private var parsedApks: List<ParsedApk> = emptyList()
     private var deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private var deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 
+    /**
+     * Build [JuggDeployData] according to deployment history.
+     */
     @Synchronized
     fun buildDeployData(items: Collection<DeployItem>): JuggDeployData {
-        val apks = compileContextManager.compileContext.apkInfos
-
         val changedClasses = items
             .filter {
                 it.type == CompileOutput.Type.Dex
@@ -61,7 +66,6 @@ class DeployDataDb(
 
             val nameSet = overlays.map { it.name }.toSet()
             val costTime = measureTimeMillis {
-                val parsedApks = compileContextManager.compileContext.parsedApks
                 parsedApks.forEach { parsedApk ->
                     parsedApk.overlayFiles.forEach loop@{
                         val path = it.value.name
@@ -80,6 +84,7 @@ class DeployDataDb(
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
+        val apks = parsedApks.map { it.apkInfo }
         return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays)
     }
 
@@ -98,8 +103,7 @@ class DeployDataDb(
             return false
         }
 
-        val apks = compileContextManager.compileContext.parsedApks
-        if (apks.any { it.classes.containsKey(className) }) {
+        if (parsedApks.any { it.classes.containsKey(className) }) {
             return false
         }
 
@@ -107,11 +111,9 @@ class DeployDataDb(
     }
 
     private fun isHotReloadClass(className: String, newClassNode: ClassNode): Boolean {
-        val apks = compileContextManager.compileContext.parsedApks
-
         var oldClassNode: ClassNode? = deployedClasses[className]
         if (oldClassNode == null) {
-            oldClassNode = apks.firstNotNullResult {
+            oldClassNode = parsedApks.firstNotNullResult {
                 it.classes[className]
             }
         }
@@ -127,12 +129,41 @@ class DeployDataDb(
         return result.isSameStructure
     }
 
+    /**
+     * Collect information after compiled
+     */
     @Synchronized
-    fun update(overlayUpdate: JuggDeployData) {
-        overlayUpdate.classes.forEach {
+    fun initAfterFullCompile(apks: List<ApkInfo>) {
+        parsedApks = apks.map {
+            ApkParser().parse(it, isSkipCode = true)
+        }
+
+        // TODO reopen
+        // close for now for better performance and compile consistency
+//        // something wrong with this... use build class path for now
+//        parsedApks.forEach { apk ->
+//            apk.classes.values.forEach { classNode ->
+//                val bytes = classNode.dumpClassStub()
+//                val outputPath = classNode.className.replace('.', '/') + ".class"
+//                val outputFile = File(fullBuildClassPathDir, outputPath)
+//                if (outputFile.exists()) {
+//                    outputFile.delete()
+//                }
+//                outputFile.parentFile?.mkdirs()
+//                outputFile.writeBytes(bytes)
+//            }
+//        }
+    }
+
+    /**
+     * Mark [juggDeployData] as deployed.
+     */
+    @Synchronized
+    fun commitDeployedData(juggDeployData: JuggDeployData) {
+        juggDeployData.classes.forEach {
             deployedClasses[it.name] = it.classNode
         }
-        overlayUpdate.overlays.forEach {
+        juggDeployData.overlays.forEach {
             deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
         }
     }

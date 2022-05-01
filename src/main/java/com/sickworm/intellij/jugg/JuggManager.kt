@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.concurrent.ExecutorService
+import kotlin.system.measureTimeMillis
 
 class JuggManager @TestOnly constructor(
     private val project: Project,
@@ -30,7 +31,7 @@ class JuggManager @TestOnly constructor(
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
     // manage deploy data
-    private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager, logger),
+    private val deployDataManager: DeployDataManager = DeployDataManager(project),
     // manage deploy target apk and device
     private val deployTargetManager: DeployTargetManager = DeployTargetManager(project),
     // manage JuggDeployState
@@ -100,8 +101,18 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun initCompile(apks: List<ApkInfo>) {
-        compileContextManager.initFullBuildInfo(apks)
+        val costTime1 = measureTimeMillis {
+            deployDataManager.initAndResetAfterFullCompile(apks)
+        }
+        logger.debug("deployDataManager.initAfterFullCompile cost ${costTime1}ms")
+
+        val costTime2 = measureTimeMillis {
+            compileContextManager.initFullBuildInfo(apks)
+        }
+        logger.debug("compileContextManager.initFullBuildInfo cost ${costTime2}ms")
+
         fileChangesHandler.init(compileContextManager.compileContext)
+
         compiler = JuggCompiler(compileContextManager.compileContext)
 
         fileChangesDetector.startListen(object: FileChangesListener {

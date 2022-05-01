@@ -1,12 +1,8 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.sickworm.intellij.jugg.BuildDemoApkTest
-import com.sickworm.intellij.jugg.mock.androidApkPackage
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * Need an Android device for this test.
@@ -31,18 +27,6 @@ class TopLevelFlowTest {
     @Test
     fun testDeviceStatusUpdate() {
         // already test assert in resetAllState
-    }
-
-    @Test
-    fun testApkStructureReader() {
-        val parsedApks = jugg.compileContextManager.compileContext.parsedApks
-        assertEquals(1, parsedApks.size)
-
-        val parsedApk = parsedApks[0]
-        assertEquals(androidApkPackage, parsedApk.apkInfo.applicationId)
-        assertTrue(parsedApk.apkInfo.file.exists())
-
-        BuildDemoApkTest().checkApkEntryInfo(parsedApk)
     }
 
     @Test

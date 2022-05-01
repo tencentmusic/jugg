@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.compiler.ICompileContext
@@ -14,7 +15,7 @@ class SimpleCompileContext(
     override val androidBuildTools: File,
     override val androidJar: File,
     override val modules: Map<String, ModuleInfo>,
-    override val parsedApks: List<ParsedApk>,
+    override val apkInfos: List<ApkInfo>,
     override val variant: String,
     override val minApi: Int
 ) : ICompileContext {
