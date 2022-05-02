@@ -142,7 +142,7 @@ class JuggManager @TestOnly constructor(
 
         // read all uncompiled files
         val compileFiles = deployDataManager.getUncompiledFiles().map {
-            CompileFile(it.type, VfsUtil.virtualToIoFile(it.file), it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
+            CompileFile(it.type, it.file, it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
         }
 
         // do compile

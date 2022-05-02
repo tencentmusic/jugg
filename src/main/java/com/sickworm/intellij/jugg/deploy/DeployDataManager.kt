@@ -104,5 +104,4 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
     private val File.stdPath get() = path.replace(File.separatorChar, '/')
-    private val VirtualFile.stdPath get() = path.replace(File.separatorChar, '/')
 }

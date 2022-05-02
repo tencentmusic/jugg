@@ -4,7 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileCopyEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
@@ -97,12 +97,24 @@ class FileChangesManager(
             event.file
         }
 
+        if (virtualFile == null) {
+            return null
+        }
+
+        val file = VfsUtil.virtualToIoFile(virtualFile)
+        return toChangeFile(file)
+    }
+
+    /**
+     * filter events and convert to ChangeFile if it is compilable
+     */
+    private fun toChangeFile(file: File): ChangedFile? {
         // file not exists
-        if (virtualFile == null || !virtualFile.exists()) {
+        if (!file.exists()) {
             return null
         }
         // is directory
-        if (virtualFile.isDirectory) {
+        if (file.isDirectory) {
             return null
         }
 
@@ -114,31 +126,31 @@ class FileChangesManager(
         val modules = compileContext?.modules?.values?: emptyList()
         modules.forEach { module ->
             val baseSourceDir = module.sourceDirs.find {
-                virtualFile.path.startsWith(it.path)
+                file.path.startsWith(it.path)
             }
             if (baseSourceDir != null) {
-                logger.info("source file changed: ${virtualFile.name}")
-                val type = when (virtualFile.extension) {
+                logger.info("source file changed: ${file.name}")
+                val type = when (file.extension) {
                     "java" -> CompileFile.Type.Java
                     "kt" -> CompileFile.Type.Kotlin
                     else -> {
-                        logger.warn("file ${virtualFile.name} has invalid extension, ignore")
+                        logger.warn("file ${file.name} has invalid extension, ignore")
                         return null
                     }
                 }
-                return ChangedFile(type, virtualFile, baseSourceDir, module)
+                return ChangedFile(type, file, baseSourceDir, module)
             }
 
-            val baseResourceDir = module.resourceDirs.find { virtualFile.path.startsWith(it.path) }
+            val baseResourceDir = module.resourceDirs.find { file.path.startsWith(it.path) }
             if (baseResourceDir != null) {
-                logger.info("resource file changed: ${virtualFile.name}")
-                return ChangedFile(CompileFile.Type.Resource, virtualFile, baseResourceDir, module)
+                logger.info("resource file changed: ${file.name}")
+                return ChangedFile(CompileFile.Type.Resource, file, baseResourceDir, module)
             }
 
-            val baseAssetDir = module.assetsDirs.find { virtualFile.path.startsWith(it.path) }
+            val baseAssetDir = module.assetsDirs.find { file.path.startsWith(it.path) }
             if (baseAssetDir != null) {
-                logger.info("asset file changed: ${virtualFile.name}")
-                return ChangedFile(CompileFile.Type.Asset, virtualFile, baseAssetDir, module)
+                logger.info("asset file changed: ${file.name}")
+                return ChangedFile(CompileFile.Type.Asset, file, baseAssetDir, module)
             }
         }
 
@@ -152,7 +164,7 @@ interface FileChangesListener {
 
 data class ChangedFile(
     val type: CompileFile.Type,
-    val file: VirtualFile,
+    val file: File,
     val baseDir: File,
     val module: ModuleInfo,
 )
