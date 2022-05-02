@@ -5,7 +5,6 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.compiler.*
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
@@ -14,6 +13,7 @@ import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
+import java.io.File
 import java.util.concurrent.ExecutorService
 
 class JuggManager @TestOnly constructor(
@@ -26,7 +26,8 @@ class JuggManager @TestOnly constructor(
     // hold compile context
     private val compileContextManager: CompileContextManager  = CompileContextManager(project, projectDir),
     // detect file changes
-    private val fileChangesManager: FileChangesManager = FileChangesManager(project, projectDir),
+    private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
+    private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
     // manage deploy data
     private val deployDataManager: DeployDataManager = DeployDataManager(compileContextManager, logger),
     // manage deploy target apk and device
@@ -99,27 +100,23 @@ class JuggManager @TestOnly constructor(
 
     private fun initCompile(apks: List<ApkInfo>) {
         compileContextManager.initFullBuildInfo(apks)
+        fileChangesHandler.init(compileContextManager.compileContext)
         compiler = JuggCompiler(compileContextManager.compileContext)
 
-        fileChangesManager.startListen(compileContextManager.compileContext, object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<ChangedFile>) {
+        fileChangesDetector.startListen(object: FileChangesListener {
+            override fun onFileChanges(changedFiles: List<File>) {
                 processFileChanged(changedFiles)
             }
         })
         logger.info("Jugg ready to deploy!")
     }
 
-    private fun processFileChanged(changedFiles: List<ChangedFile>) {
-        addChanges(changedFiles)
+    private fun processFileChanged(changedFiles: List<File>) {
+        val realChangedFiles = fileChangesHandler.filter(changedFiles)
+        deployDataManager.addChangedFile(realChangedFiles)
 
         if (JuggSettings.compileOnSave) {
             compileChangesAsync()
-        }
-    }
-
-    private fun addChanges(changedFiles: List<ChangedFile>) {
-        changedFiles.forEach {
-            deployDataManager.addChangedFile(it)
         }
     }
 

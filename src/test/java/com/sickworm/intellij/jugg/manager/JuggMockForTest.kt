@@ -16,7 +16,7 @@ fun MockJugg.changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, dir
     val revertFileMark = pairs.map { (_, destFile) ->
         destFile to destFile.exists()
     }
-    fileChangeEventSender.copyAndNotifyFileChanges(pairs)
+    fileChangesDetector.copyAndNotifyFileChanges(pairs)
 
     // revert
     revertFileMark.forEach { (destFile, isExist) ->

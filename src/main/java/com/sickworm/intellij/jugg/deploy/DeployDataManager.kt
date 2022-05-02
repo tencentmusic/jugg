@@ -42,8 +42,10 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
     private var crc32 = CRC32()
 
     @Synchronized
-    fun addChangedFile(file: ChangedFile) {
-        uncompiledFiles[file.file.stdPath] = file
+    fun addChangedFile(files: List<ChangedFile>) {
+        files.forEach {
+            uncompiledFiles[it.file.stdPath] = it
+        }
     }
 
     @Synchronized

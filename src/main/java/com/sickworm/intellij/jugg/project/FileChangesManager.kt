@@ -1,52 +1,33 @@
 package com.sickworm.intellij.jugg.project
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.AsyncFileListener
-import com.intellij.openapi.vfs.VfsUtil
-import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.openapi.vfs.newvfs.events.VFileCopyEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileEvent
-import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.relativePath
 import java.io.File
-import java.nio.file.Paths
 
 /**
  * Manage file changes in project
  */
-class FileChangesManager(
+class FileChangesHandler(
     private val project: Project,
-    private val projectDir: String,
-    private val virtualFileManager: VirtualFileManager = VirtualFileManager.getInstance() // for mock
-): Disposable {
+) :
+    IFileChangesHandler
+{
 
     private val logger = JuggLogger.getInstance(project, "#Jugg-FileChangesManager")
 
-    private var listener: FileChangesListener? = null
-
     private var compileContext: ICompileContext? = null
 
-    fun startListen(compileContext: ICompileContext, listener: FileChangesListener) {
-        logger.info("start listen project $projectDir")
+    override fun init(compileContext: ICompileContext) {
         this.compileContext = compileContext
-        this.listener = listener
 
-        initRootDirs(compileContext)
-        initIdeEvent()
-    }
-
-    private fun initRootDirs(compileContext: ICompileContext) {
         val sourceDirs = compileContext.modules.values.flatMap { it.sourceDirs }
         val resourceDirs = compileContext.modules.values.flatMap { it.resourceDirs }
         val assetDirs = compileContext.modules.values.flatMap { it.assetsDirs }
+        val projectDir = project.basePath?: ""
         logger.debug("""
-            |start listen.
+            |File changes scope:
             |    source dirs:
             |        ${sourceDirs.relativePath(projectDir) }
             |    resource dirs:
@@ -56,58 +37,10 @@ class FileChangesManager(
             |""".trimMargin())
     }
 
-    private fun initIdeEvent() {
-        val vfsListener = AsyncFileListener { events ->
-            object: AsyncFileListener.ChangeApplier {
-                override fun afterVfsChange() {
-                    notifyFileChanges(events)
-                }
-            }
-        }
-        virtualFileManager.addAsyncFileListener(vfsListener, this)
-        Disposer.register(project, this)
+    override fun filter(file: List<File>): List<ChangedFile> {
+        return file.mapNotNull(::toChangeFile)
     }
 
-    override fun dispose() {
-        logger.info("$projectDir dispose")
-    }
-
-    private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
-        val changeFiles = events.mapNotNull(::toChangeFile)
-        if (changeFiles.isEmpty()) return
-        listener?.onFileChanges(changeFiles)
-    }
-
-    /**
-     * filter events and convert to ChangeFile if it is compilable
-     */
-    private fun toChangeFile(event: VFileEvent?): ChangedFile? {
-        if (event == null) {
-            return null
-        }
-
-        logger.trace("file event ${event::class.java.name} $event")
-        if (event is VFileDeleteEvent || event is VFilePropertyChangeEvent) {
-            return null
-        }
-
-        val virtualFile = if (event is VFileCopyEvent) {
-            VirtualFileManager.getInstance().findFileByNioPath(Paths.get(event.path))
-        } else {
-            event.file
-        }
-
-        if (virtualFile == null) {
-            return null
-        }
-
-        val file = VfsUtil.virtualToIoFile(virtualFile)
-        return toChangeFile(file)
-    }
-
-    /**
-     * filter events and convert to ChangeFile if it is compilable
-     */
     private fun toChangeFile(file: File): ChangedFile? {
         // file not exists
         if (!file.exists()) {
@@ -157,14 +90,3 @@ class FileChangesManager(
         return null
     }
 }
-
-interface FileChangesListener {
-    fun onFileChanges(changedFiles: List<ChangedFile>)
-}
-
-data class ChangedFile(
-    val type: CompileFile.Type,
-    val file: File,
-    val baseDir: File,
-    val module: ModuleInfo,
-)

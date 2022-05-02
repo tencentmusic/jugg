@@ -12,9 +12,10 @@ import com.intellij.mock.MockRunManager
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.util.NotNullLazyValue
 import org.mockito.Mockito.*
+import java.io.File
 import java.nio.file.Paths
 
-class JuggMockProject: MockProject(null, {}) {
+class JuggMockProject(private val basePath: String): MockProject(null, {}) {
 
     private val runManager = MockRunManager()
 
@@ -61,5 +62,9 @@ class JuggMockProject: MockProject(null, {}) {
             }
             else -> super.getService(serviceClass)
         }
+    }
+
+    override fun getBasePath(): String {
+        return basePath
     }
 }

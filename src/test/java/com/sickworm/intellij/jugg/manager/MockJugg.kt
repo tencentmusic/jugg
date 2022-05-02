@@ -18,8 +18,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.openapi.util.Computable
-import com.intellij.openapi.vfs.AsyncFileListener
-import com.intellij.openapi.vfs.VirtualFileManager
 import com.sickworm.intellij.jugg.BuildDemoApkTest
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
@@ -27,10 +25,7 @@ import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.FileChangesManager
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggLogger
+import com.sickworm.intellij.jugg.project.*
 import org.mockito.Mockito.*
 import java.io.File
 import kotlin.test.assertEquals
@@ -45,11 +40,11 @@ class MockJugg {
     lateinit var projectDir: String
 
     lateinit var juggManager: JuggManager
-    lateinit var fileChangesManager: FileChangesManager
+    lateinit var fileChangesHandler: FileChangesHandler
+    lateinit var fileChangesDetector: MockFileChangesDetector
     lateinit var juggStateListener: JuggStateListener
     lateinit var deployTargetManager: DeployTargetManager
     lateinit var compileContextManager: CompileContextManager
-    lateinit var fileChangeEventSender: FileChangeEventSender
     lateinit var juggDeployerHelper: JuggDeployerHelper
     lateinit var deployDataManager: DeployDataManager
     lateinit var deployStateManager: DeployStateManager
@@ -135,7 +130,7 @@ class MockJugg {
      * Notify that some files have changed and Jugg will compile it.
      */
     fun notifyFileChanges(file: List<File>) {
-        fileChangeEventSender.notifyFileChanges(file)
+        fileChangesDetector.notifyFileChanges(file)
     }
 
     fun compileChangedFiles() {
@@ -148,8 +143,8 @@ class MockJugg {
         application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
         application.registerService(MessagesService::class.java, DummyMessagesService())
 
-        project = JuggMockProject()
         projectDir = assetsAndroidDir.absolutePath
+        project = JuggMockProject(projectDir)
 
         juggStateListener = mock(JuggStateListener::class.java)
 
@@ -185,13 +180,8 @@ class MockJugg {
         compileContextManager = CompileContextManager(project, projectDir,
             moduleManager, projectJdkTable, projectBuildModel)
 
-        val virtualFileManager = mock(VirtualFileManager::class.java)
-        `when`(virtualFileManager.addAsyncFileListener(any(), any())).then {
-            val asyncFileListener = it.arguments[0] as AsyncFileListener
-            fileChangeEventSender = FileChangeEventSender(asyncFileListener)
-            return@then Unit
-        }
-        fileChangesManager = FileChangesManager(project, projectDir, virtualFileManager)
+        fileChangesHandler = FileChangesHandler(project)
+        fileChangesDetector = MockFileChangesDetector()
 
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, MockExecutor())
         juggDeployerHelper.installPathProvider = Computable {
@@ -223,7 +213,8 @@ class MockJugg {
     private fun renewManager() {
         juggManager = JuggManager(
             project, projectDir, juggStateListener,
-            fileChangesManager = fileChangesManager,
+            fileChangesHandler = fileChangesHandler,
+            fileChangesDetector = fileChangesDetector,
             deployTargetManager = deployTargetManager,
             compileThread = SyncExecutorService(),
             deployThread = SyncExecutorService(),
@@ -240,7 +231,6 @@ class MockJugg {
 
         assertEquals(1, deployTargetManager.getApks().size)
         assertEquals(1, compileContextManager.compileContext.parsedApks.size)
-        assertTrue(::fileChangeEventSender.isInitialized)
         assertEquals(JuggDeployState.READY, deployStateManager.deployState)
         verify(juggStateListener, times(1)).onDeployStateUpdate(JuggDeployState.READY)
     }
