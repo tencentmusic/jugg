@@ -26,10 +26,10 @@ class ProjectInfo(
     "modifiedSourceDir": "src/test/assets/android/modify_source",
     "apkPath": "app/build/outputs/apk/debug/app-debug.apk",
     "apkEntryInfo": {
-        classCount": 2387,
-        fieldCount": 12293,
-        methodCount": 19338,
-        overlayFileCount": 756
+        "classCount": 2399,
+        "fieldCount": 12300,
+        "methodCount": 19370,
+        "overlayFileCount": 756
     }
 }
 """.trimIndent()

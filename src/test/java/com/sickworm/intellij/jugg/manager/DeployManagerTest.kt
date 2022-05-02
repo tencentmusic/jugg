@@ -83,16 +83,15 @@ class DeployManagerTest {
     @Test
     fun testKotlinClassChangeSignature() {
         jugg.changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
-        // there is a inner class inside MainActivity.kt
         jugg.checkCompileResult("MainActivity.kt",
-            hotReloadModifiedClassesSize = 1,
+            hotReloadModifiedClassesSize = 0,
             hotFixModifiedClassesSize = 1)
 
         jugg.dryDeploy()
 
         // second time deploy will be hot reload
         jugg.changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
-        jugg.checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 2)
+        jugg.checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 1)
     }
 
     // java method
