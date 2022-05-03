@@ -40,7 +40,6 @@ public class JuggToolWindow implements JuggStateListener {
   private JCheckBox restartActivityCheckBox;
   private JLabel statusIconLabel;
   private JLabel statusLabel;
-  private JPanel actionPanel;
 
   private final Project project;
 
@@ -96,8 +95,6 @@ public class JuggToolWindow implements JuggStateListener {
     ActionManager.getInstance().registerAction("Jugg Deploy", action);
     DefaultActionGroup actionGroup = new DefaultActionGroup(action);
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("JuggToolWindow", actionGroup, false);
-    toolbar.setTargetComponent(actionPanel);
-    actionPanel.add(toolbar.getComponent());
 
     statusIconLabel.setOpaque(true);
   }
