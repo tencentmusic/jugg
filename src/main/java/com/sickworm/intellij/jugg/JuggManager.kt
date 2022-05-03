@@ -194,6 +194,7 @@ class JuggManager @TestOnly constructor(
             deployStateManager.deployState.isReadyInstall -> {
                 logger.info("Can not deploy, install and run apk")
                 deployTargetManager.runNormalBuild()
+                deployDataManager.reset()
                 return
             }
             else -> {

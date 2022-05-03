@@ -96,7 +96,6 @@ class DeployDataManager(compileContextManager: CompileContextManager, logger: Lo
         deployDataDb.update(juggDeployData)
     }
 
-    @TestOnly
     @Synchronized
     fun reset() {
         uncompiledFiles.clear()
