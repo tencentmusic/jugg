@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.project.JuggLogger;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 
 import javax.swing.*;
 import javax.swing.text.*;
@@ -28,22 +29,33 @@ import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Objects;
+import java.util.*;
+import java.util.List;
 
 public class JuggToolWindow implements JuggStateListener {
 
+  public JPanel myToolWindowContent;
   private JButton deployButton;
-  private JPanel myToolWindowContent;
   private JTextPane runningLog;
   private JCheckBox deployOnSaveCheckBox;
   private JCheckBox enableDebugLogCheckBox;
   private JCheckBox restartActivityCheckBox;
   private JLabel statusIconLabel;
   private JLabel statusLabel;
+  private JTable fileStatusTable;
+  private FileTableModel tableModel;
 
   private final Project project;
 
   private final Logger logger;
+
+  private final Object[] tableColumns = { "File", "Status" };
+
+  @TestOnly
+  public JuggToolWindow() {
+    this.project = null;
+    this.logger = null;
+  }
 
   @SuppressWarnings("unused")
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
@@ -116,6 +128,44 @@ public class JuggToolWindow implements JuggStateListener {
     statusIconLabel.setIcon(newImgIcon);
 
     statusLabel.setText(state.getMsg());
+
+    tableModel = new FileTableModel(null, tableColumns);
+    fileStatusTable.setModel(tableModel);
+  }
+
+  private final List<ChangedFileInfo> tableData = new ArrayList<>();
+
+  @Override
+  public void onFileStatesUpdate(@NotNull List<ChangedFileInfo> infos) {
+    for (ChangedFileInfo info : infos) {
+      int insertIndex = -1;
+      for (int i = 0; i < tableData.size(); i++) {
+        ChangedFileInfo curInfo = tableData.get(i);
+        if (curInfo.getFile().getAbsolutePath().equals(info.getFile().getAbsolutePath())) {
+          insertIndex = i;
+          break;
+        }
+      }
+      if (insertIndex > 0) {
+        tableData.set(insertIndex, info);
+      } else {
+        tableData.add(info);
+      }
+    }
+
+    Object[][] data = new Object[tableData.size()][2];
+    for (int i = 0; i < tableData.size(); i++) {
+      ChangedFileInfo curInfo = tableData.get(i);
+      data[i] = new Object[] { curInfo.getFile().getName(), curInfo.getState().name() };
+    }
+
+    tableModel = new FileTableModel(data, tableColumns);
+    fileStatusTable.setModel(tableModel);
+  }
+
+  @Override
+  public void onDeployed() {
+    fileStatusTable.removeAll();
   }
 
   public void deploy() {

@@ -10,6 +10,7 @@ import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
@@ -114,6 +115,9 @@ class JuggManager @TestOnly constructor(
     private fun processFileChanged(changedFiles: List<File>) {
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
         deployDataManager.addChangedFile(realChangedFiles)
+        deployStateListener.onFileStatesUpdate(changedFiles.map {
+            ChangedFileInfo(it, ChangedFileInfo.State.MODIFIED)
+        })
 
         if (JuggSettings.compileOnSave) {
             compileChangesAsync()
@@ -123,7 +127,14 @@ class JuggManager @TestOnly constructor(
     private fun compileChangesAsync() {
         compileThread.submitSafe("Compile") {
             val compileResult = compileChanges()
+            val successStates = compileResult.failedFiles.map {
+                ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILED)
+            }
+            val failedStates = compileResult.failedFiles.map {
+                ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILE_FAILED)
+            }
             logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
+            deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
             if (JuggSettings.deployOnSave) {
                 deployAsync(false)
@@ -201,6 +212,8 @@ class JuggManager @TestOnly constructor(
                 logger.warn("Not ready to deploy")
             }
         }
+
+        deployStateListener.onDeployed()
     }
 
     override fun dispose() {
