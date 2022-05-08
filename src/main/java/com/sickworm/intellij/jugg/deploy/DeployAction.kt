@@ -13,6 +13,11 @@ private const val NAME = "Jugg Deploy"
 
 private const val DESC = "Attempt to apply resource and code changes by Jugg."
 
+/**
+ * Usage:
+ * 1. Register Jugg Deploy.
+ * 2. listen and update deploy state.
+ */
 class DeployAction: AnAction(
     NAME, DESC, AllIcons.Actions.Execute
 ) {

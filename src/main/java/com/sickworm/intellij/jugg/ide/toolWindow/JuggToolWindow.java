@@ -43,7 +43,7 @@ public class JuggToolWindow implements JuggStateListener {
   private JLabel statusIconLabel;
   private JLabel statusLabel;
   private JTable fileStatusTable;
-  private FileTableModel tableModel;
+  private JPanel invisibleActionPanel;
 
   private final Project project;
 
@@ -107,9 +107,13 @@ public class JuggToolWindow implements JuggStateListener {
     ActionManager.getInstance().registerAction("Jugg Deploy", action);
     DefaultActionGroup actionGroup = new DefaultActionGroup(action);
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("JuggToolWindow", actionGroup, false);
+    toolbar.setTargetComponent(invisibleActionPanel);
+    invisibleActionPanel.add(toolbar.getComponent());
 
     statusIconLabel.setOpaque(true);
   }
+
+  private String currentIconRes = null;
 
   @Override
   public void onDeployStateUpdate(@NotNull JuggDeployState state) {
@@ -121,16 +125,16 @@ public class JuggToolWindow implements JuggStateListener {
     } else {
       iconRes = "/res/icon_red.png";
     }
-    ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource(iconRes)));
-    Image image = icon.getImage(); // transform it
-    Image newImg = image.getScaledInstance(8, 8,  java.awt.Image.SCALE_SMOOTH);
-    ImageIcon newImgIcon = new ImageIcon(newImg);
-    statusIconLabel.setIcon(newImgIcon);
+    if (!iconRes.equals(currentIconRes)) {
+      ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource(iconRes)));
+      Image image = icon.getImage(); // transform it
+      Image newImg = image.getScaledInstance(8, 8,  java.awt.Image.SCALE_SMOOTH);
+      ImageIcon newImgIcon = new ImageIcon(newImg);
+      statusIconLabel.setIcon(newImgIcon);
+      currentIconRes = iconRes;
+    }
 
     statusLabel.setText(state.getMsg());
-
-    tableModel = new FileTableModel(null, tableColumns);
-    fileStatusTable.setModel(tableModel);
   }
 
   private final List<ChangedFileInfo> tableData = new ArrayList<>();
@@ -159,12 +163,13 @@ public class JuggToolWindow implements JuggStateListener {
       data[i] = new Object[] { curInfo.getFile().getName(), curInfo.getState().name() };
     }
 
-    tableModel = new FileTableModel(data, tableColumns);
+    FileTableModel tableModel = new FileTableModel(data, tableColumns);
     fileStatusTable.setModel(tableModel);
   }
 
   @Override
   public void onDeployed() {
+    tableData.clear();
     fileStatusTable.removeAll();
   }
 
