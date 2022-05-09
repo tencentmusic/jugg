@@ -21,7 +21,7 @@ class GradleSettingsDummyReader(private val projectDir: File) {
                 }
         """.trimIndent()
         )
-        return result as List<File>
+        return (result as List<File>).filter { it.exists() }
     }
 
 }
