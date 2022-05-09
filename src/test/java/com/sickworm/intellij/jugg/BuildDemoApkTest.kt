@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.compiler.ParsedApk
-import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.ApkParser
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Test
@@ -9,8 +8,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BuildDemoApkTest {
-
-    private val gradlew = if (isWindows) "cmd.exe /c gradlew" else "./gradlew"
 
     @Test
     fun testHeapSpace() {
@@ -26,26 +23,13 @@ class BuildDemoApkTest {
 
     @Test
     fun testClean() {
-        val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
-        println("\n----------- clean start -----------\n")
-        println(String(process.inputStream.readBytes()))
-        println()
-        println(String(process.errorStream.readBytes()))
-        println("\n-----------  clean end  -----------\n")
-
+        GradleBuildHelper.clean()
         assertTrue(!projectInfo.apkFile.exists())
     }
 
     @Test
     fun testBuildApk() {
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug", null, assetsAndroidDir)
-        println("\n----------- assembleDebug start -----------\n")
-        println(String(process.inputStream.readBytes()))
-        println()
-        println(String(process.errorStream.readBytes()))
-        println("\n-----------  assembleDebug end  -----------\n")
-        process.waitFor()
-
+        GradleBuildHelper.appAssembleDebug()
         assertTrue(projectInfo.apkFile.exists())
     }
 

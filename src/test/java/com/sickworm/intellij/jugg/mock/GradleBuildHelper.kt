@@ -1,0 +1,28 @@
+package com.sickworm.intellij.jugg.mock
+
+import com.sickworm.intellij.jugg.compiler.isWindows
+
+object GradleBuildHelper {
+
+    private val gradlew = if (isWindows) "cmd.exe /c gradlew" else "./gradlew"
+
+    fun clean() {
+        val process = Runtime.getRuntime().exec("$gradlew clean", null, assetsAndroidDir)
+        println("\n----------- clean start -----------\n")
+        println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
+        println("\n-----------  clean end  -----------\n")
+    }
+
+    fun appAssembleDebug() {
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug", null, assetsAndroidDir)
+        println("\n----------- assembleDebug start -----------\n")
+        println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
+        println("\n-----------  assembleDebug end  -----------\n")
+        process.waitFor()
+    }
+
+}
