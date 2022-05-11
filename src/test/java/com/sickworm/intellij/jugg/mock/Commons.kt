@@ -71,6 +71,8 @@ val context get() = SimpleCompileContext(
     minApi = JuggSettings.minApi
 )
 
+val emptyModule = ModuleInfo.NO_MODULE.copy(rootDir = buildDir, buildPathInfo = ModuleBuildPathInfo(buildDir))
+
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
 
 fun assertCompileResult(task: CompileTask,
@@ -137,4 +139,4 @@ fun Result<CompileFile, CompileError>.printCompileError() {
 }
 
 fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, dependencies: List<String> = emptyList()) =
-    CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, dependencyPaths = dependencies)), outputDir)
+    CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, emptyModule, dependencyPaths = dependencies)), outputDir)

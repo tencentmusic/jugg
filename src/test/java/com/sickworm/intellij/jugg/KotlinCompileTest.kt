@@ -22,6 +22,7 @@ class KotlinCompileTest {
                 CompileFile.Type.Kotlin,
                 File("$assetsKotlinDir/com/sickworm/intellij/jugg/test/Result.kt"),
                 assetsKotlinDir,
+                emptyModule,
                 dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
             )
         ),
@@ -40,6 +41,7 @@ class KotlinCompileTest {
             CompileFile.Type.Kotlin,
             File(assetsAndroidDir, "app/src/main/java/com/example/myapplication/MainActivity.kt"),
             File(assetsAndroidDir, "app/src/main/java/"),
+            emptyModule,
             dependencyPaths = listOf(androidJar.absolutePath)
                     + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                     + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
