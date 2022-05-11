@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.manager.MockJugg
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -17,7 +18,6 @@ class DeployHistoryManagerTest {
     private val gitManager = GitManager(assetsAndroidDir)
 
     @Before
-    @After
     fun checkoutDir() {
         clearBuild()
         Runtime.getRuntime().exec("git checkout $assetsAndroidDir").waitFor()
@@ -27,30 +27,36 @@ class DeployHistoryManagerTest {
     @Test
     fun test() {
         val storageDir = buildDir
-        val historyManager = DeployHistoryManager(gitManager, storageDir, logger)
+        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
 
         gitManager.deleteGit()
-        assertFalse(historyManager.isAvailable)
+        assertFalse(historyManager.isRecoverFeatureAvailable)
+        assertFalse(historyManager.hasBeenFullCompiled)
 
         gitManager.init()
-        assertTrue(historyManager.isAvailable)
-        assertNull(historyManager.getChangedFilesSinceLastDeployed())
+        assertTrue(historyManager.isRecoverFeatureAvailable)
+        assertFalse(historyManager.hasBeenFullCompiled)
+        assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
         gitManager.addAllAndCommit("first commit")
-        assertNull(historyManager.getChangedFilesSinceLastDeployed())
+        assertFalse(historyManager.hasBeenFullCompiled)
+        assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
-        historyManager.onAfterFullCompiled()
-        assertTrue(historyManager.getChangedFilesSinceLastDeployed()?.isEmpty() == true)
+        val jugg = MockJugg()
+        jugg.compileContextManager.initProjectInfo()
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, jugg.compileContextManager.compileContext.modules)
+        assertTrue(historyManager.hasBeenFullCompiled)
+        assertTrue(historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.isEmpty() == true)
 
         changeAndRevert("MainActivity2.changeMethodReturn.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
                 ChangedFile(CompileFile.Type.Java, file, File(""), ModuleInfo.NO_MODULE)
             }
-            assertEquals(1, historyManager.getChangedFilesSinceLastDeployed()?.size)
-            historyManager.onAfterDeployed(changedFiles)
-            assertEquals(0, historyManager.getChangedFilesSinceLastDeployed()?.size)
+            assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
+            historyManager.updateHistoryOnAfterDeployed(changedFiles, emptyList())
+            assertEquals(0, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
 
-            val deployHistoryFile = File(storageDir, "deploy_history.json")
+            val deployHistoryFile = File(storageDir, "deploy_history.db/deploy_history.json")
             val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
             assertNotNull(deployHistoryData?.fullCompileGitCommitHash)
             assertEquals(DeployHistoryData(
@@ -65,11 +71,11 @@ class DeployHistoryManagerTest {
             val changedFiles = files.map { file ->
                 ChangedFile(CompileFile.Type.Java, file, File(""), ModuleInfo.NO_MODULE)
             }
-            assertEquals(1, historyManager.getChangedFilesSinceLastDeployed()?.size)
-            historyManager.onAfterDeployed(changedFiles)
-            assertEquals(0, historyManager.getChangedFilesSinceLastDeployed()?.size)
+            assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
+            historyManager.updateHistoryOnAfterDeployed(changedFiles, emptyList())
+            assertEquals(0, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
 
-            val deployHistoryFile = File(storageDir, "deploy_history.json")
+            val deployHistoryFile = File(storageDir, "deploy_history.db/deploy_history.json")
             val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
             assertNotNull(deployHistoryData?.fullCompileGitCommitHash)
             assertEquals(DeployHistoryData(

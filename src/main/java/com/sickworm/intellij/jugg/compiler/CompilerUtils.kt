@@ -40,6 +40,13 @@ fun File.changeBaseDir(curBaseDir: File, newBaseDir: File, newExtension: String?
     return File(newBaseDir, relativePath)
 }
 
+fun File.copyToBaseDir(curBaseDir: File, newBaseDir: File): File {
+    val newFile = changeBaseDir(curBaseDir, newBaseDir)
+    newFile.parentFile?.mkdirs()
+    copyTo(newFile, overwrite = true)
+    return newFile
+}
+
 fun Process.readOutput(logger: Logger) {
     val ins = BufferedReader(InputStreamReader(errorStream))
     while (true) {
@@ -60,6 +67,8 @@ fun Module.guessModuleDirAdv(): File? {
 }
 
 fun List<File>.relativePath(baseDirPath: String) = map { it.relativeTo(File(baseDirPath)) }
+
+fun List<File>.relativePath(baseDirPath: File) = map { it.relativeTo(baseDirPath) }
 
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")

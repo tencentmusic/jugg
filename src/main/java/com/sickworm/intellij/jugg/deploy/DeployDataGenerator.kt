@@ -14,9 +14,9 @@ import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 
 /**
- * Manage deployment history and generate [JuggDeployData] according to deployment history.
+ * Generate [JuggDeployData] according to deployment history.
  */
-class DeployDataDb(
+class DeployDataGenerator(
     private val logger: Logger,
 ) {
 
@@ -96,7 +96,7 @@ class DeployDataDb(
     }
 
     /**
-     * check whether the class has deploy before
+     * check whether the class has deployment before
      */
     private fun isNewClass(className: String): Boolean {
         if (deployedClasses.containsKey(className)) {

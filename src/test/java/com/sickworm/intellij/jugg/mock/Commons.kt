@@ -66,7 +66,7 @@ val context get() = SimpleCompileContext(
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
     modules = emptyMap(),
-    apkInfos = listOf(projectInfo.apkInfo),
+    apkInfos = projectInfo.apkInfos,
     variant = "debug",
     minApi = JuggSettings.minApi
 )
@@ -101,8 +101,8 @@ fun assertCompileResult(task: CompileTask,
     }
 
     // TODO check compiled xml outputs size
-    val exceptedOutputWithoutXml = result.outputs.filter { !it.file.relativeTo(it.baseDir).startsWith("res") }
-    val outputWithoutXml = result.outputs.filter { !it.file.relativeTo(it.baseDir).startsWith("res") }
+    val exceptedOutputWithoutXml = result.outputs.filter { !it.relativeFile.startsWith("res") }
+    val outputWithoutXml = result.outputs.filter { !it.relativeFile.startsWith("res") }
     assertEquals(exceptedOutputWithoutXml.size, outputWithoutXml.size)
 }
 

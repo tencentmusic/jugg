@@ -89,4 +89,16 @@ class FileChangesHandler(
 
         return null
     }
+
+    override fun checkBuildGradleChanged(files: List<File>): Boolean {
+        var isBuildGradleChanged = false
+        files.forEach {
+            val isGradleFile = it.name.endsWith(".gradle") || it.name.endsWith(".gradle.kts")
+            if (isGradleFile) {
+                logger.info("detect gradle file changed: $it")
+                isBuildGradleChanged = true
+            }
+        }
+        return isBuildGradleChanged
+    }
 }

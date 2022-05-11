@@ -27,6 +27,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.*;
@@ -51,10 +52,13 @@ public class JuggToolWindow implements JuggStateListener {
 
   private final Object[] tableColumns = { "File", "Status" };
 
+  private final JuggManager juggManager;
+
   @TestOnly
   public JuggToolWindow() {
     this.project = null;
     this.logger = null;
+    this.juggManager = null;
   }
 
   @SuppressWarnings("unused")
@@ -64,13 +68,14 @@ public class JuggToolWindow implements JuggStateListener {
 
     String projectDir = project.getBasePath();
     logger.info("projectOpened " + project + " " + projectDir);
-    if (projectDir == null) {
+    if (projectDir == null || (!new File(projectDir).exists())) {
       logger.error("can not get project directory, exit");
+      juggManager = null;
       return;
     }
 
     JuggLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
-    JuggManager juggManager = new JuggManager(project, projectDir, this);
+    juggManager = new JuggManager(project, new File(projectDir), this);
     juggManager.init();
 
     deployButton.addActionListener(e -> deploy());
@@ -103,7 +108,7 @@ public class JuggToolWindow implements JuggStateListener {
       }
     });
 
-    AnAction action = new DeployAction();
+    AnAction action = new DeployAction(juggManager);
     ActionManager.getInstance().registerAction("Jugg Deploy", action);
     DefaultActionGroup actionGroup = new DefaultActionGroup(action);
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("JuggToolWindow", actionGroup, false);
@@ -120,7 +125,7 @@ public class JuggToolWindow implements JuggStateListener {
     String iconRes;
     if (state.isReadyDeploy()) {
       iconRes = "/res/icon_green.png";
-    } else if (state.isReadyInstall()) {
+    } else if (state.isReadyRunFullBuild()) {
       iconRes = "/res/icon_yellow.png";
     } else {
       iconRes = "/res/icon_red.png";
@@ -175,13 +180,7 @@ public class JuggToolWindow implements JuggStateListener {
 
   public void deploy() {
     logger.info("onDeploy");
-    JuggManager manager = JuggManager.Companion.getInstance(project);
-    if (manager == null) {
-      logger.error("deploy failed for JuggManager not found");
-      return;
-    }
-
-    manager.deployAsync(true);
+    juggManager.deployAsync(true);
   }
 
   public JPanel getContent() {

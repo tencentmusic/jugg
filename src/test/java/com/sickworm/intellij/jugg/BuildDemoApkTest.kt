@@ -53,7 +53,13 @@ class BuildDemoApkTest {
         }
 
         testBuildApk()
-        checkApkEntryInfo()
+        try {
+            checkApkEntryInfo()
+        } catch (e: AssertionError) {
+            println("apk structure not correct, clean and rebuild")
+            testCleanAndBuildApk()
+            checkApkEntryInfo()
+        }
     }
 
     private fun checkApkEntryInfo() {
@@ -67,7 +73,7 @@ class BuildDemoApkTest {
         println("testApkStructure end")
     }
 
-    fun checkApkEntryInfo(parsedApk: ParsedApk) {
+    private fun checkApkEntryInfo(parsedApk: ParsedApk) {
         if (projectInfo.apkEntryInfo.classCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.classCount,
                 parsedApk.classes.entries.size)

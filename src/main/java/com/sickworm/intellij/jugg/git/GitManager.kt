@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.git
 
 import org.gradle.internal.impldep.org.eclipse.jgit.api.Git
 import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.NoHeadException
+import org.gradle.internal.impldep.org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevCommit
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevWalk
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.AbstractTreeIterator
@@ -88,10 +89,14 @@ class GitManager(override val rootDir: File): IGitManager {
     }
 
     override fun getLastCommitHash(): String? {
-        Git.open(rootDir).use { git ->
-            val head = git.repository.resolve("HEAD") ?: return null
-            val commit = git.repository.resolve(head.name())
-            return commit.name()
+        try {
+            Git.open(rootDir).use { git ->
+                val head = git.repository.resolve("HEAD") ?: return null
+                val commit = git.repository.resolve(head.name())
+                return commit.name()
+            }
+        } catch (e: RepositoryNotFoundException) {
+            return null
         }
     }
 }

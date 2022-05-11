@@ -1,5 +1,9 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 
@@ -9,22 +13,48 @@ import java.io.File
 interface IDeployHistoryManager {
 
     /**
-     * this object is available for use.
+     * history feature is available for use.
      */
-    val isAvailable: Boolean
+    val isRecoverFeatureAvailable: Boolean
 
     /**
-     * @return List of not deployed files. Null if not available
+     * Whether current project has deployment history.
      */
-    fun getChangedFilesSinceLastDeployed(): List<File>?
+    val hasBeenFullCompiled: Boolean
 
     /**
-     * invoke this method to reset deploy history after project complete compiling by gradle.
+     * @return False if [hasBeenFullCompiled] is false. Otherwise, return true.
      */
-    fun onAfterFullCompiled()
+    fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo?
 
     /**
-     * invoke this method to update deploy history after project complete deploying by Jugg.
+     * Invoke this method to reset deploy history after project complete compiling by gradle.
+     * Will do:
+     * 1. Clear deploy history
+     * 2. Collect incremental compile dependencies after full build.
      */
-    fun onAfterDeployed(deployedFiles: List<ChangedFile>)
+    fun reInitAfterFullCompiled(apkInfos: List<ApkInfo>, modules: Map<String, ModuleInfo>): CompileContextInfo
+
+    /**
+     * Invoke this method to update deploy history after project complete deploying by Jugg.
+     */
+    fun updateHistoryOnAfterDeployed(sourceFiles: List<ChangedFile>, deployedFiles: List<CompileOutput>)
 }
+
+/**
+ * All things we need to recover incremental compile.
+ */
+class DeployContextRecoverInfo(
+    val changedFiles: List<File>,
+    val compileContextInfo: CompileContextInfo,
+    val deployedFiles: List<CompileOutput>,
+)
+
+/**
+ * All incremental compile dependencies that we need.
+ */
+class CompileContextInfo(
+    val apkInfos: List<ApkInfo>,
+    val moduleBuildPathInfos: Map<String, ModuleBuildPathInfo>,
+    val thirdPartyDependencies: List<String>,
+)

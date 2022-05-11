@@ -5,7 +5,6 @@ import com.android.tools.idea.projectsystem.getModuleSystem
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.activity.DefaultApkActivityLocator
 import com.intellij.execution.ProgramRunnerUtil
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
@@ -17,27 +16,23 @@ import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
-import org.jetbrains.annotations.TestOnly
-import java.util.concurrent.TimeUnit
 import kotlin.jvm.Throws
 
-/**
- * Manage device list，application state
- */
 class DeployTargetManager(
     private val project: Project,
-    private val deviceGetter: IDeviceGetter = DeviceGetter(project) // for mock
-) {
+): IDeployTargetManager {
     private val logger = JuggLogger.getInstance(project, "#Jugg-DeployTargetManager")
 
-    fun runNormalBuild() {
+    private val deviceGetter: DeviceGetter = DeviceGetter(project)
+
+    override fun runFullBuildAndLaunch() {
         val (runConfigAndSettings, _) = getRunConfig()
         ApplicationManager.getApplication().invokeAndWait {
             ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
         }
     }
 
-    fun getApks(): List<ApkInfo> {
+    override fun getApks(): List<ApkInfo> {
         try {
             val apkProvider = getApkProvider()
             val device = getDevice()
@@ -48,7 +43,7 @@ class DeployTargetManager(
         }
     }
 
-    fun getDevice(): IDevice {
+    override fun getDevice(): IDevice {
         try {
             return deviceGetter.getDevice()
         } catch (e: Exception) {
@@ -57,64 +52,13 @@ class DeployTargetManager(
         }
     }
 
-    fun restartApp() {
+    override fun restartApp() {
         try {
-            val packageName = getPackageName()
-            stopApp(packageName)
-            startApp(packageName)
+            AppStarter().startDefaultApp(getPackageName(), getApkProvider(), getDevice())
         } catch (e: Exception) {
             logger.error("restartApp failed", e)
             throw e
         }
-    }
-
-    private fun stopApp(packageName: String) {
-        Runtime.getRuntime()
-            .exec("adb shell am force-stop $packageName")
-            .waitFor()
-    }
-
-    private fun startApp(packageName: String) {
-        val receiver = object : MultiLineReceiver() {
-            override fun isCancelled(): Boolean {
-                return false
-            }
-
-            override fun processNewLines(lines: Array<out String>?) {
-                lines?.forEach {
-                    logger.debug("[start activity]: $it")
-                }
-            }
-        }
-
-        val launchedActivity = getDefaultActivity()
-        val command = "am start -S -n $packageName/$launchedActivity"
-        @Suppress("DEPRECATION")
-        AdbHelper.executeRemoteCommand(
-            AndroidDebugBridge.getSocketAddress(),
-            command,
-            getDevice(),
-            receiver,
-            DdmPreferences.getTimeOut().toLong(),
-            TimeUnit.MILLISECONDS)
-    }
-
-    @TestOnly
-    fun getApkProvider(): ApkProvider {
-        val (_, runConfig) = getRunConfig()
-        return runConfig.getApkProvider()
-    }
-
-    private fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
-        val runConfig = RunManager.getInstance(project).selectedConfiguration!!
-        return runConfig to runConfig.configuration as AndroidRunConfiguration
-    }
-
-    private fun getDefaultActivity(): String {
-        val apkProvider = getApkProvider()
-        val locator = DefaultApkActivityLocator(apkProvider)
-        val device = getDevice()
-        return locator.getQualifiedActivityName(device)
     }
 
     private fun getPackageName(): String {
@@ -126,6 +70,16 @@ class DeployTargetManager(
             throw JuggException.notSupportMultiApk()
         }
         return apks.first().applicationId
+    }
+
+    private fun getApkProvider(): ApkProvider {
+        val (_, runConfig) = getRunConfig()
+        return runConfig.getApkProvider()
+    }
+
+    private fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
+        val runConfig = RunManager.getInstance(project).selectedConfiguration!!
+        return runConfig to runConfig.configuration as AndroidRunConfiguration
     }
 
     @Throws(Exception::class)

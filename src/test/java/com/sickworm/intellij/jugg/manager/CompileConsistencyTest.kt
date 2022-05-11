@@ -11,16 +11,11 @@ import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.manager.utils.ListFiles
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
-import org.jetbrains.kotlin.idea.kdoc.insert
 import org.junit.AfterClass
 import org.junit.Assert
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
-import java.io.IOException
-import java.nio.file.*
-import java.nio.file.attribute.BasicFileAttributes
-import java.util.LinkedList
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
@@ -146,7 +141,7 @@ class CompileConsistencyTest {
     private fun checkFileCompileConsistency(file: File) {
         jugg.notifyFileChanges(listOf(file))
 
-        val changedFiles = jugg.deployDataManager.getUncompiledFiles()
+        val changedFiles = jugg.deployFileManager.getUncompiledFiles()
         if (changedFiles.isEmpty()) {
             println("not a compilable file, ignore")
             return
@@ -171,7 +166,7 @@ class CompileConsistencyTest {
             checkCompileStatus()
         }
 
-        val deployData = jugg.deployDataManager.getDeployData()
+        val deployData = jugg.deployFileManager.getDeployData()
 
         if (consistencyLevel >= 2) {
             checkDeployStatus(changedFile, deployData)
@@ -186,7 +181,7 @@ class CompileConsistencyTest {
     }
 
     private fun checkCompileStatus() {
-        assertEquals(0, jugg.deployDataManager.getUncompiledFiles().size, "not all files are compiled")
+        assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size, "not all files are compiled")
     }
 
     private fun checkDeployStatus(changedFile: ChangedFile, deployData: JuggDeployData) {

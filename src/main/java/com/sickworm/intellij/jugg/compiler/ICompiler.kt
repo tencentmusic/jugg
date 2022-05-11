@@ -53,6 +53,8 @@ data class CompileOutput(
     val baseDir: File,
 ) {
 
+    val relativeFile get() = file.absoluteFile.relativeTo(baseDir)
+
     enum class Type {
         Class,
         Dex,
@@ -140,22 +142,22 @@ data class ModuleInfo(
     val assetsDirs: List<File>,
     val compileVersion: String?,
     val buildToolsVersion: String?,
+    val buildPathInfo: ModuleBuildPathInfo,
 ) {
-
-    val buildPathInfo = ModuleBuildPathInfo(rootDir)
 
     companion object {
         val NO_MODULE = ModuleInfo("no_module",
             File("."),
             emptyList(), emptyList(), emptyList(),
-            null, null)
+            null, null, ModuleBuildPathInfo(File(".")),
+        )
     }
 }
 
-class ModuleBuildPathInfo(private val moduleRootDir: File) {
-
+class ModuleBuildPathInfo(
     /** build root dir */
-    private val buildDir get() = File(moduleRootDir, "build")
+    private val buildDir: File,
+) {
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/debug/classes")
     /** on gradle 3.2.1 has different java class path */
@@ -168,6 +170,10 @@ class ModuleBuildPathInfo(private val moduleRootDir: File) {
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/debug")
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath)
+
+    companion object {
+        fun fromModule(moduleRootDir: File) = ModuleBuildPathInfo(File(moduleRootDir, "build"))
+    }
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {

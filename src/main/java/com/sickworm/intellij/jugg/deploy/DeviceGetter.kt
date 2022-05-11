@@ -9,15 +9,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.project.JuggException
 import org.jetbrains.android.facet.AndroidFacet
 
-interface IDeviceGetter {
-
-    /**
-     * return [IDevice] or throw exceptions.
-     */
-    fun getDevice(): IDevice
-}
-
-class DeviceGetter(private val project: Project): IDeviceGetter {
+class DeviceGetter(private val project: Project) {
 
     private val deployTargetContext: DeployTargetContext by lazy { DeployTargetContext() }
 
@@ -25,7 +17,7 @@ class DeviceGetter(private val project: Project): IDeviceGetter {
 
     private fun supportMultipleDevices() = false
 
-    override fun getDevice(): IDevice {
+    fun getDevice(): IDevice {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
         val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
         val module = ModuleManager.getInstance(project).modules.first()

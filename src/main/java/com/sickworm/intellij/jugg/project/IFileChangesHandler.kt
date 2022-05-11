@@ -15,6 +15,8 @@ interface IFileChangesHandler {
      * Filter files and convert to [ChangedFile] if it is compilable
      */
     fun filter(file: List<File>): List<ChangedFile>
+
+    fun checkBuildGradleChanged(files: List<File>): Boolean
 }
 
 data class ChangedFile(
@@ -22,4 +24,15 @@ data class ChangedFile(
     val file: File,
     val baseDir: File,
     val module: ModuleInfo,
-)
+) {
+    override fun toString(): String {
+        return """
+            ChangedFile(
+                type=$type,
+                file=$file,
+                baseDir=$baseDir,
+                module=${module.name}
+            )
+        """.trimIndent()
+    }
+}

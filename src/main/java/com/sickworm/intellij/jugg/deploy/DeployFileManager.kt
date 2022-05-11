@@ -4,23 +4,19 @@ import com.android.tools.deployer.JuggDeployData
 import com.android.tools.deployer.DeployItem
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.VirtualFile
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.project.JuggLogger
-import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
 
 /**
- * Works like a git. Operates with add, commit
+ * Manage runtime deploy file status and provides [JuggDeployData]
  */
-class DeployDataManager(logger: Logger) {
-
-    constructor(project: Project): this(JuggLogger.getInstance(project, "#Jugg-DeployDataManager"))
+class DeployFileManager(
+    private val logger: Logger,
+) {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -28,20 +24,26 @@ class DeployDataManager(logger: Logger) {
     private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
 
     /**
-     * Staging files for deployment. All operation must be thread-safe
+     * compiled files. All operation must be thread-safe
      */
-    private var stagingFiles = mutableMapOf<String, DeployItem>()
+    private var compiledFiles = mutableMapOf<String, ChangedFile>()
 
     /**
-     * persisted deploy information
+     * Staging files for deployment. All operation must be thread-safe
      */
-    private val deployDataDb = DeployDataDb(logger)
+    private var stagingFiles = mutableMapOf<String, CompileOutput>()
+
+    /**
+     * build [JuggDeployData]
+     */
+    private val deployDataGenerator = DeployDataGenerator(logger)
 
     private var crc32 = CRC32()
 
     @Synchronized
     fun initAndResetAfterFullCompile(apks: List<ApkInfo>) {
-        deployDataDb.initAfterFullCompile(apks)
+        reset()
+        deployDataGenerator.initAfterFullCompile(apks)
     }
 
     @Synchronized
@@ -52,8 +54,17 @@ class DeployDataManager(logger: Logger) {
     }
 
     @Synchronized
-    fun markAsCompiled(file: CompileFile) {
-        uncompiledFiles.remove(file.file.stdAbsPath)
+    fun markAsCompiled(files: List<CompileFile>) {
+        files.forEach {
+            val fileKey = it.file.stdAbsPath
+            val changedFile = uncompiledFiles[fileKey]
+            if (changedFile == null) {
+                logger.warn("try to mark a file as compiled, but it's not in uncompiled list. File: $it")
+                return@forEach
+            }
+            uncompiledFiles.remove(fileKey)
+            compiledFiles[fileKey] = changedFile
+        }
     }
 
     @Synchronized
@@ -62,8 +73,20 @@ class DeployDataManager(logger: Logger) {
     }
 
     @Synchronized
-    fun addDeployFile(compiledFile: CompileOutput) {
-        stagingFiles[compiledFile.file.stdAbsPath] = compiledFile.toDeployItem()
+    fun getCompiledFiles(): List<ChangedFile> {
+        return compiledFiles.values.toList()
+    }
+
+    @Synchronized
+    fun getStagingFiles(): List<CompileOutput> {
+        return stagingFiles.values.toList()
+    }
+
+    @Synchronized
+    fun addDeployFiles(compiledFiles: List<CompileOutput>) {
+        compiledFiles.forEach {
+            stagingFiles[it.file.stdAbsPath] = it
+        }
     }
 
     @Synchronized
@@ -72,7 +95,8 @@ class DeployDataManager(logger: Logger) {
             throw JuggException.notAllCompiled(uncompiledFiles.values)
         }
 
-        return deployDataDb.buildDeployData(stagingFiles.values)
+        val deployItems = stagingFiles.values.map { it.toDeployItem() }
+        return deployDataGenerator.buildDeployData(deployItems)
     }
 
     private fun CompileOutput.toDeployItem(): DeployItem {
@@ -83,19 +107,20 @@ class DeployDataManager(logger: Logger) {
             value
         }
         val name = if (type == CompileOutput.Type.Dex) {
-            file.relativeTo(baseDir).stdPath
+            relativeFile.stdPath
                 .replace('/', '.')
                 .replace(file.name, file.nameWithoutExtension)
         } else {
-            file.relativeTo(baseDir).stdPath
+            relativeFile.stdPath
         }
         return DeployItem(name, type, crc, bytes)
     }
 
     @Synchronized
     fun commit(juggDeployData: JuggDeployData) {
+        deployDataGenerator.commitDeployedData(juggDeployData)
         stagingFiles.clear()
-        deployDataDb.commitDeployedData(juggDeployData)
+        compiledFiles.clear()
     }
 
     @Synchronized
@@ -107,3 +132,5 @@ class DeployDataManager(logger: Logger) {
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
     private val File.stdPath get() = path.replace(File.separatorChar, '/')
 }
+
+class StagingFile(val file: File, val type: CompileOutput.Type)

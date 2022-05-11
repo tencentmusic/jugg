@@ -100,10 +100,10 @@ class ResourceCompileTest {
         val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Overlay }
         assertEquals(exceptOverlayOutputSize, resFiles.size) // TODO more logical
 
-        val arscFile = resFiles.filter { it.file.relativeTo(it.baseDir).path == ARSC_FILE_NAME }
+        val arscFile = resFiles.filter { it.relativeFile.path == ARSC_FILE_NAME }
         assertEquals(1, arscFile.size)
 
-        val manifestFile = resFiles.filter { it.file.relativeTo(it.baseDir).path == "AndroidManifest.xml" }
+        val manifestFile = resFiles.filter { it.relativeFile.path == "AndroidManifest.xml" }
         assertEquals(1, manifestFile.size)
 
         result.outputs.forEach {

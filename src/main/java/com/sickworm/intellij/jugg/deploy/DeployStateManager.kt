@@ -16,15 +16,16 @@ import java.util.concurrent.ExecutionException
 
 class DeployStateManager(
     private val project: Project,
-    private val ideDeployStateHelper: IdeDeployStateHelper = IdeDeployStateHelper(project)
+    private val deployHistoryManager: IDeployHistoryManager,
+    private val ideDeployStateHelper: IdeDeployStateHelper = IdeDeployStateHelper(project),
 ) {
 
-    var deployState = JuggDeployState(isReadyInstall = false, isReadyCompile = false, isReadyDeploy = false,
+    var deployState = JuggDeployState(isReadyRunFullBuild = false, isReadyCompile = false, isReadyDeploy = false,
         DisableMessage(DisableMessage.DisableMode.DISABLED, "not initialized", "jugg not initialized")
     )
         private set
 
-    private var isBuildGradleChanged = false
+    var isBuildGradleChanged = false
 
     fun onActionUpdate(): JuggDeployState {
         deployState = getNewDeployState()
@@ -33,12 +34,16 @@ class DeployStateManager(
 
     private fun getNewDeployState(): JuggDeployState {
         val ideDeployState = ideDeployStateHelper.getIdeDeployState()
-        if (!ideDeployState.isReadyInstall) {
+        if (!ideDeployState.isReadyRunFullBuild) {
             return ideDeployState
         }
 
         if (isBuildGradleChanged) {
             return ideDeployState.copy(isReadyCompile = false, isReadyDeploy = false)
+        }
+
+        if (!deployHistoryManager.hasBeenFullCompiled) {
+            return ideDeployState.copy(isReadyDeploy = false)
         }
 
         return ideDeployState

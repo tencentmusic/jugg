@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler.source
 
-import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*

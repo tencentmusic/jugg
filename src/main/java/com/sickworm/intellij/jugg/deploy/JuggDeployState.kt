@@ -7,7 +7,7 @@ data class JuggDeployState(
     /**
      * We can do assemble app and launch if it's true.
      */
-    val isReadyInstall: Boolean,
+    val isReadyRunFullBuild: Boolean,
     /**
      * We can do incremental compile if it's true.
      */
@@ -26,9 +26,15 @@ data class JuggDeployState(
 
     val msg get() = disableMessage?.tooltip ?: "ready to deploy"
 
+    override fun toString(): String {
+        return "[${isReadyRunFullBuild.toInt()}${isReadyCompile.toInt()}${isReadyDeploy.toInt()}](${msg})"
+    }
+
+    private fun Boolean.toInt() = if (this) 1 else 0
+
     companion object {
         val READY = JuggDeployState(
-            isReadyInstall = true,
+            isReadyRunFullBuild = true,
             isReadyCompile = true,
             isReadyDeploy = true,
             disableMessage = null

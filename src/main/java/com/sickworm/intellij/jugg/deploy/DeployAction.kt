@@ -18,7 +18,9 @@ private const val DESC = "Attempt to apply resource and code changes by Jugg."
  * 1. Register Jugg Deploy.
  * 2. listen and update deploy state.
  */
-class DeployAction: AnAction(
+class DeployAction(
+    private val juggManager: JuggManager,
+): AnAction(
     NAME, DESC, AllIcons.Actions.Execute
 ) {
 
@@ -39,7 +41,6 @@ class DeployAction: AnAction(
             return
         }
 
-        val juggManager = JuggManager.getInstance(project) ?: return
         val deployState = juggManager.onActionUpdate()
         currentText = deployState.msg
     }

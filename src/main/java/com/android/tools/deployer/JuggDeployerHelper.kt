@@ -1,6 +1,5 @@
 package com.android.tools.deployer
 
-import com.android.ddmlib.IDevice
 import com.android.tools.idea.gradle.util.DynamicAppUtils
 import com.android.tools.idea.run.ApkFileUnit
 import com.android.tools.idea.run.ApkInfo
@@ -13,7 +12,7 @@ import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.deploy.DeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggException
 import org.jetbrains.android.download.AndroidProfilerDownloader
@@ -29,7 +28,7 @@ import java.util.stream.Collectors
  */
 class JuggDeployerHelper(
     private val project: Project,
-    private val deployTargetManager: DeployTargetManager,
+    private val deployTargetManager: IDeployTargetManager,
     private val executor: Executor = DefaultRunExecutor.getRunExecutorInstance(),
 ) {
 

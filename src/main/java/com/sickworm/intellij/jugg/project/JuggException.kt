@@ -82,5 +82,8 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun initKotlinCompilerFailed(missingClassPaths: List<String>) =
             JuggInternalException("Init kotlin compiler failed, missing classpath: $missingClassPaths.")
+
+        fun historyNotAvailable(projectDir: File) =
+            JuggInternalException("$projectDir is not a git repository, deployment history is not available")
     }
 }

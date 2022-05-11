@@ -75,9 +75,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
             // copy outputs to java class path
             val javaClassPath = module.buildPathInfo.javaClassPath
             outputs.forEach {
-                val targetFile = it.file.changeBaseDir(task.outputDir, javaClassPath)
-                targetFile.parentFile?.mkdirs()
-                it.file.copyTo(targetFile, overwrite = true)
+                it.file.copyToBaseDir(task.outputDir, javaClassPath)
             }
 
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)

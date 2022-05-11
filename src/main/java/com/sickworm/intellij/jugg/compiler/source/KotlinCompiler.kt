@@ -113,9 +113,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         // copy outputs to task.outputDir
         val outputs = outputParser.outputs.mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
-            val targetFile = it.changeBaseDir(kotlinClassPath, task.outputDir)
-            targetFile.parentFile?.mkdirs()
-            it.copyTo(targetFile, overwrite = true)
+            val targetFile = it.copyToBaseDir(kotlinClassPath, task.outputDir)
             CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 

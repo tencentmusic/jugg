@@ -17,6 +17,7 @@ class ProjectInfo(
     val apkFile: File get() = File(projectRoot, apkPath).absoluteFile
     val modifiedSource: File get() = File(modifiedSourceDir).absoluteFile
     val apkInfo: ApkInfo get() = ApkInfo(apkFile, androidApkPackage)
+    val apkInfos: List<ApkInfo> get() = listOf(apkInfo)
 
     companion object {
         val DEMO_JSON = """

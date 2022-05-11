@@ -67,8 +67,8 @@ fun MockJugg.checkCompileResult(
         assertTrue(dexFile.length() > 0)
     }
 
-    assertEquals(0, deployDataManager.getUncompiledFiles().size)
-    val deployData = deployDataManager.getDeployData()
+    assertEquals(0, deployFileManager.getUncompiledFiles().size)
+    val deployData = deployFileManager.getDeployData()
     assertEquals(1, deployData.apks.size)
     assertEquals(newClassesSize, deployData.newClasses.size)
     assertEquals(hotFixModifiedClassesSize, deployData.hotFixModifiedClasses.size)

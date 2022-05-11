@@ -20,14 +20,13 @@ class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
                 return@forEach
             }
 
-            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
             try {
-                it.file.copyTo(outputFile, overwrite = true)
+                val outputFile = it.file.copyToBaseDir(it.baseDir, task.outputDir)
                 outputs.add(CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir))
                 details.add(Result.success(it))
             } catch (e: Exception) {
-                val errorMessage = "move file ${it.file.absolutePath} to ${outputFile.absolutePath} failed, e: $e"
-                logger.error(errorMessage)
+                val errorMessage = "copy file ${it.file.absolutePath} to ${task.outputDir} failed, e: $e"
+                logger.warn(errorMessage)
                 val result = CompileError(it, listOf(0L to errorMessage))
                 details.add(Result.failure(result))
             }

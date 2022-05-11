@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
+import com.android.tools.deployer.JuggDeployData
 import com.android.tools.deployer.JuggDeployerHelper
-import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -14,34 +14,36 @@ import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
+import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.util.concurrent.ExecutorService
 import kotlin.system.measureTimeMillis
 
 class JuggManager @TestOnly constructor(
     private val project: Project,
-    projectDir: String,
+    private val projectDir: File,
     private val deployStateListener: JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "#Jugg-JuggManager"),
     private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
-    private val deployThread: ExecutorService = Executors.newSingleThreadExecutor(),
-    // hold compile context
-    private val compileContextManager: CompileContextManager  = CompileContextManager(project, projectDir),
-    // detect file changes
+    private val pathManager: JuggPathManager = JuggPathManager(projectDir),
+    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
-    // manage deploy data
-    private val deployDataManager: DeployDataManager = DeployDataManager(project),
-    // manage deploy target apk and device
-    private val deployTargetManager: DeployTargetManager = DeployTargetManager(project),
-    // manage JuggDeployState
-    private val deployStateManager: DeployStateManager = DeployStateManager(project),
-    // deploy to device
+    private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
+        projectDir,
+        pathManager.historyDir,
+        JuggLogger.getInstance(project, "#Jugg-DeployHistoryManager")
+    ),
+    private val deployFileManager: DeployFileManager = DeployFileManager(
+        JuggLogger.getInstance(project, "#Jugg-DeployDataManager")
+    ),
+    private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
+    private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager),
 ): Disposable {
 
     constructor(project2: Project,
-                projectDir: String,
+                projectDir: File,
                 juggDeployStateListener: JuggStateListener):
             this(project = project2, projectDir, juggDeployStateListener)
 
@@ -49,18 +51,46 @@ class JuggManager @TestOnly constructor(
 
     fun init() {
         logger.info("Start Jugg")
-        register(project, this)
         Disposer.register(project, this)
+        compileThread.submitSafe("InitProject", ::initProject)
+    }
 
-        compileThread.submitSafe("Init compile context - initProjectInfo") {
+    private fun initProject() {
+        try {
+            logger.info("Init project info")
             compileContextManager.initProjectInfo()
+
+            logger.info("Init deploy history")
+            if (!deployHistoryManager.isRecoverFeatureAvailable) {
+                logger.warn("Current project don't support deploy history, need full build")
+                return
+            }
+
+            val contextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
+            if (contextRecoverInfo == null) {
+                logger.warn("Deploy history not available")
+                return
+            }
+            recoverDeployContext(contextRecoverInfo)
+        } finally {
+            onActionUpdate()
         }
     }
 
-    private var hasInit = false
+    private fun recoverDeployContext(deployContextRecoverInfo: DeployContextRecoverInfo) {
+        logger.info("Start recover deploy context")
+        // step 1: recover compile context
+        initCompile(deployContextRecoverInfo.compileContextInfo)
+        // step 2: recover deploy files
+        deployFileManager.addDeployFiles(deployContextRecoverInfo.deployedFiles)
+        // step 3: recover changed files
+        processFileChanged(deployContextRecoverInfo.changedFiles)
+        // step 4: update deploy state
+        onActionUpdate()
+        logger.info("Finish recover deploy context")
+    }
 
     fun onActionUpdate(): JuggDeployState {
-
         val oldDeployState = deployStateManager.deployState
         val deployState = deployStateManager.onActionUpdate()
         if (deployState == oldDeployState) {
@@ -68,122 +98,67 @@ class JuggManager @TestOnly constructor(
             return deployState
         }
 
+        logger.debug("state changed: $oldDeployState -> $deployState")
         deployStateListener.onDeployStateUpdate(deployState)
-
-        if (deployState.isReadyCompile) {
-            initCompileIfNeeded()
-        } else {
-            if (!deployState.isReadyDeploy && oldDeployState.isReadyDeploy) {
-                // revert
-                hasInit = false
-            }
-        }
 
         return deployState
     }
 
-    private fun initCompileIfNeeded() {
-        if (hasInit) {
-            return
-        }
-
-        val apks = deployTargetManager.getApks()
-        if (apks.isEmpty()) {
-            return
-        }
-
-        hasInit = true
-        // TODO check apk md5
-        logger.info("Detected deployable apk, start init compile")
-        compileThread.submitSafe("Init compile context - initCompile") {
-            initCompile(apks)
-        }
-    }
-
-    private fun initCompile(apks: List<ApkInfo>) {
-        val costTime1 = measureTimeMillis {
-            deployDataManager.initAndResetAfterFullCompile(apks)
-        }
-        logger.debug("deployDataManager.initAfterFullCompile cost ${costTime1}ms")
-
-        val costTime2 = measureTimeMillis {
-            compileContextManager.initFullBuildInfo(apks)
-        }
-        logger.debug("compileContextManager.initFullBuildInfo cost ${costTime2}ms")
-
-        fileChangesHandler.init(compileContextManager.compileContext)
-
-        compiler = JuggCompiler(compileContextManager.compileContext)
-
-        fileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>) {
-                processFileChanged(changedFiles)
-            }
-        })
-        logger.info("Jugg ready to deploy!")
-    }
-
     private fun processFileChanged(changedFiles: List<File>) {
+        if (fileChangesHandler.checkBuildGradleChanged(changedFiles)) {
+            deployStateManager.isBuildGradleChanged = true
+            return
+        }
+        logger.info("Build.gradle changed, need rebuild")
+
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
-        deployDataManager.addChangedFile(realChangedFiles)
+
+        deployFileManager.addChangedFile(realChangedFiles)
         deployStateListener.onFileStatesUpdate(changedFiles.map {
             ChangedFileInfo(it, ChangedFileInfo.State.MODIFIED)
         })
 
         if (JuggSettings.compileOnSave) {
-            compileChangesAsync()
-        }
-    }
-
-    private fun compileChangesAsync() {
-        compileThread.submitSafe("Compile") {
-            val compileResult = compileChanges()
-            val successStates = compileResult.failedFiles.map {
-                ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILED)
-            }
-            val failedStates = compileResult.failedFiles.map {
-                ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILE_FAILED)
-            }
-            logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
-            deployStateListener.onFileStatesUpdate(successStates + failedStates)
-
-            if (JuggSettings.deployOnSave) {
-                deployAsync(false)
-            }
+            compileThread.submitSafe("Compile", ::compileChanges)
         }
     }
 
     @TestOnly
-    fun compileChanges(): CompileResult {
+    fun compileChanges() {
         val compiler = compiler?: run {
             throw JuggInternalException.compilerNotInit()
         }
 
         // read all uncompiled files
-        val compileFiles = deployDataManager.getUncompiledFiles().map {
+        val compileFiles = deployFileManager.getUncompiledFiles().map {
             CompileFile(it.type, it.file, it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
         }
 
         // do compile
-        val result = compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
+        val compileResult = compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
 
-        // mark source files compiled
-        result.details.forEach {
-            if (it.isSuccess) {
-                deployDataManager.markAsCompiled(it.file)
-            }
+        // update file status
+        val successFiles = compileResult.details.filter { it.isSuccess }.map { it.get() }
+        deployFileManager.markAsCompiled(successFiles)
+        deployFileManager.addDeployFiles(compileResult.outputs)
+
+        // notify ui state
+        val successStates = compileResult.failedFiles.map {
+            ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILED)
         }
-
-        // stage deploy files
-        result.outputs.forEach {
-            deployDataManager.addDeployFile(it)
+        val failedStates = compileResult.failedFiles.map {
+            ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILE_FAILED)
         }
+        logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
+        deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
-        return result
+        if (JuggSettings.deployOnSave) {
+            deployAsync(false)
+        }
     }
 
     fun deployAsync(isUserClick: Boolean) {
-        if (!deployStateManager.deployState.isReadyDeploy) {
+        if (!deployStateManager.deployState.isReadyRunFullBuild) {
             if (isUserClick) {
                 logger.warn("Deployment is not ready, skip deploy")
             } else {
@@ -191,14 +166,16 @@ class JuggManager @TestOnly constructor(
             }
             return
         }
-        deployThread.submitSafe("Deploy", ::deploy)
+        compileThread.submitSafe("Deploy", ::deploy)
     }
 
     @TestOnly
     fun deploy() {
+        logger.info("start deploy, deploy state: ${deployStateManager.deployState}")
+
         when {
             deployStateManager.deployState.isReadyDeploy -> {
-                val deployData = deployDataManager.getDeployData()
+                val deployData = deployFileManager.getDeployData()
                 if (deployData.apks.isEmpty()) {
                     logger.error("Deploy failed, can not find apks")
                     return
@@ -211,12 +188,12 @@ class JuggManager @TestOnly constructor(
                 logger.info("Deploy data:\n$deployData")
 
                 juggDeployerHelper.runTask(deployData)
-                deployDataManager.commit(deployData)
+                updateInfoAfterIncDeploy(deployData)
             }
-            deployStateManager.deployState.isReadyInstall -> {
+            deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Can not deploy, install and run apk")
-                deployTargetManager.runNormalBuild()
-                deployDataManager.reset()
+                deployTargetManager.runFullBuildAndLaunch()
+                initCompileAfterFullBuild()
                 return
             }
             else -> {
@@ -227,8 +204,55 @@ class JuggManager @TestOnly constructor(
         deployStateListener.onDeployed()
     }
 
-    override fun dispose() {
-        unregister(project)
+    private fun updateInfoAfterIncDeploy(deployData: JuggDeployData) {
+        val compiledFiles = deployFileManager.getCompiledFiles()
+        val deployedFiles = deployFileManager.getStagingFiles()
+        deployHistoryManager.updateHistoryOnAfterDeployed(compiledFiles, deployedFiles)
+        deployFileManager.commit(deployData)
+    }
+
+    private fun initCompileAfterFullBuild() {
+        logger.debug("Init compile after full build")
+
+        val (costTime, compileContextInfo) = measureTimeMillisWithResult {
+            val apkInfos = deployTargetManager.getApks()
+            if (apkInfos.isEmpty()) {
+                logger.warn("Init compile failed for no apk found")
+                return
+            }
+            deployHistoryManager.reInitAfterFullCompiled(
+                apkInfos, compileContextManager.compileContext.modules)
+        }
+        logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
+
+        initCompile(compileContextInfo)
+    }
+
+    private fun initCompile(
+        compileContextInfo: CompileContextInfo,
+    ) {
+        logger.info("Init compile")
+
+        deployStateManager.isBuildGradleChanged = false
+        deployFileManager.reset()
+
+        val costTime = measureTimeMillis {
+            deployFileManager.initAndResetAfterFullCompile(compileContextInfo.apkInfos)
+            compileContextManager.initFullBuildInfo(compileContextInfo)
+            compiler = JuggCompiler(compileContextManager.compileContext)
+        }
+        logger.debug("Init compile cost ${costTime}ms")
+
+        fileChangesHandler.init(compileContextManager.compileContext)
+        fileChangesDetector.startListen(object: FileChangesListener {
+            override fun onFileChanges(changedFiles: List<File>) {
+                processFileChanged(changedFiles)
+            }
+        })
+        logger.debug("Start listen file changes")
+
+        logger.info("Jugg ready to deploy!")
+        onActionUpdate()
     }
 
     private fun ExecutorService.submitSafe(jobName: String, task: Runnable) {
@@ -245,23 +269,7 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    companion object {
-        val map = mutableMapOf<Project, JuggManager>()
-
-        fun register(project: Project, juggManager: JuggManager) {
-            synchronized(map) {
-                map[project] = juggManager
-            }
-        }
-
-        fun unregister(project: Project) {
-            synchronized(map) {
-                map.remove(project)
-            }
-        }
-
-        fun getInstance(project: Project): JuggManager? {
-            return map[project]
-        }
+    override fun dispose() {
+        logger.info("project $projectDir dispose")
     }
 }
