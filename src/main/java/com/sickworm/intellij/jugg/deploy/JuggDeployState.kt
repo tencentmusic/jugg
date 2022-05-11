@@ -42,7 +42,7 @@ data class JuggDeployState(
     }
 }
 
-class DisableMessage(
+data class DisableMessage(
     val disableMode: DisableMode,
     val tooltip: String,
     val description: String
