@@ -34,10 +34,8 @@ data class JuggDeployState(
     }
 
     override fun toString(): String {
-        return "[${isReadyRunFullBuild.toInt()}${isReadyIncCompile.toInt()}${isReadyDeploy.toInt()}](${msg})"
+        return "[$state]($msg)"
     }
-
-    private fun Boolean.toInt() = if (this) 1 else 0
 
     companion object {
         val READY = JuggDeployState(
