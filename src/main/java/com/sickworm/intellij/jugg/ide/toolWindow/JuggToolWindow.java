@@ -112,6 +112,8 @@ public class JuggToolWindow implements JuggStateListener {
     invisibleActionPanel.add(toolbar.getComponent());
 
     statusIconLabel.setOpaque(true);
+
+    onFileStatesUpdate(new ArrayList<>());
   }
 
   private String currentIconRes = null;
