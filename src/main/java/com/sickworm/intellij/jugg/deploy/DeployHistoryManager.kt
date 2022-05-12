@@ -29,10 +29,18 @@ class DeployHistoryManager(
 ): IDeployHistoryManager {
 
     override val isRecoverFeatureAvailable: Boolean
-        get() = deployHistoryDb.isGitAvailable // CompileContextDb always available
+        get() = deployHistoryDb.isGitAvailable
+
+    private var hasBeenFullCompiledRuntime = false
 
     override val hasBeenFullCompiled: Boolean
-        get() = compileContextDb.hasBeenFullCompiled
+        get() = if (isRecoverFeatureAvailable) {
+            // we can recover from last full compile in db, because we have recover feature
+            compileContextDb.hasBeenFullCompiled
+        } else {
+            // we need to do one full compile, because we don't have recover feature
+            hasBeenFullCompiledRuntime
+        }
 
     override fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo? {
         if (!isRecoverFeatureAvailable) {
@@ -68,6 +76,7 @@ class DeployHistoryManager(
         deployHistoryDb.deleteHistory()
         val compileContextInfo = compileContextDb.copyFullCompileOutput(apkInfos, modules)
         deployHistoryDb.resetHistoryAfterFullCompiled()
+        hasBeenFullCompiledRuntime = true
         return compileContextInfo
     }
 
