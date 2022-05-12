@@ -141,6 +141,9 @@ class JuggManager @TestOnly constructor(
         val compileFiles = deployFileManager.getUncompiledFiles().map {
             CompileFile(it.type, it.file, it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
         }
+        deployStateListener.onFileStatesUpdate(compileFiles.map {
+            ChangedFileInfo(it.file, ChangedFileInfo.State.COMPILING)
+        })
 
         // do compile
         val compileResult = compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
