@@ -195,6 +195,10 @@ class JuggManager @TestOnly constructor(
                 juggDeployerHelper.runTask(deployData)
                 updateInfoAfterIncDeploy(deployData)
             }
+            // TODO install app and deploy all deployed data
+//            deployStateManager.deployState.isReadyIncCompile -> {
+//                // recover deploy state for device
+//            }
             deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Can not deploy, install and run apk")
                 deployTargetManager.runFullBuildAndLaunch()
