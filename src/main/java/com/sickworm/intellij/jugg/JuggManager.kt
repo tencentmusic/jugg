@@ -249,9 +249,8 @@ class JuggManager @TestOnly constructor(
                 processFileChanged(changedFiles)
             }
         })
-        logger.debug("Start listen file changes")
 
-        logger.info("Jugg ready to deploy!")
+        logger.info("Jugg init complete, waiting for file changes")
         onActionUpdate()
     }
 
