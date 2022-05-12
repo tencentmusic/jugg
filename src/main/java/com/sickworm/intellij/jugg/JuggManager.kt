@@ -125,6 +125,11 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun compileChanges() {
+        if (!deployStateManager.deployState.isReadyIncCompile) {
+            logger.info("Not ready to compile changes. Current deploy state: ${deployStateManager.deployState}")
+            return
+        }
+
         val compiler = compiler?: run {
             throw JuggInternalException.compilerNotInit()
         }
