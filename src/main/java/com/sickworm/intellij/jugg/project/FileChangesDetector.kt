@@ -28,12 +28,17 @@ class FileChangesDetector(
     private var listener: FileChangesListener? = null
 
     override fun startListen(listener: FileChangesListener) {
-        logger.info("start listen project ${project.basePath}")
         this.listener = listener
-        initIdeEvent()
+        initIdeEventOnce()
     }
 
-    private fun initIdeEvent() {
+    private var isInitIdeEvent = false
+
+    @Synchronized
+    private fun initIdeEventOnce() {
+        if (isInitIdeEvent) return
+
+        logger.info("start listen project ${project.basePath}")
         val vfsListener = AsyncFileListener { events ->
             object: AsyncFileListener.ChangeApplier {
                 override fun afterVfsChange() {
@@ -43,6 +48,8 @@ class FileChangesDetector(
         }
         VirtualFileManager.getInstance().addAsyncFileListener(vfsListener, this)
         Disposer.register(project, this)
+
+        isInitIdeEvent = true
     }
 
     private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
