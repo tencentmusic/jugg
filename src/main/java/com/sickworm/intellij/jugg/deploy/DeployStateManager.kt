@@ -24,7 +24,7 @@ class DeployStateManager(
 ) {
 
     var deployState = JuggDeployState(
-        JuggDeployState.State.CANNOT_FULL_COMPILE,
+        JuggDeployState.State.NOTHING_CAN_DO,
         "jugg not initialized"
     )
         private set
@@ -46,11 +46,11 @@ class DeployStateManager(
         }
 
         if (isBuildGradleChanged) {
-            return JuggDeployState(JuggDeployState.State.CANNOT_INCREMENTAL_COMPILE, "build.gradle changed")
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "build.gradle changed")
         }
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
-            return JuggDeployState(JuggDeployState.State.CANNOT_INCREMENTAL_COMPILE, "need full compile")
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "need full compile")
         }
 
         return ideDeployState

@@ -6,7 +6,7 @@ package com.sickworm.intellij.jugg.deploy
 data class JuggDeployState(
     val state: State,
     /**
-     * Reason why we can't do incremental deploy. Or "ready to deploy" if state = [State.READY_TO_DEPLOY].
+     * Reason why we can't do incremental deploy. Or "ready to deploy" if state = [State.READY_DEPLOY].
      */
     val msg: String,
 ) {
@@ -14,23 +14,23 @@ data class JuggDeployState(
     /**
      * We can do assemble app and launch if it's true.
      */
-    val isReadyRunFullBuild: Boolean get() = state > State.CANNOT_FULL_COMPILE
+    val isReadyRunFullBuild: Boolean get() = state > State.NOTHING_CAN_DO
 
     /**
      * We can do incremental compile if it's true.
      */
-    val isReadyIncCompile: Boolean get() = state > State.CANNOT_INCREMENTAL_COMPILE
+    val isReadyIncCompile: Boolean get() = state > State.READY_FULL_COMPILE
 
     /**
      * We can do incremental deploy if it's true.
      */
-    val isReadyDeploy: Boolean get() = state > State.CANNOT_INCREMENTAL_DEPLOY
+    val isReadyDeploy: Boolean get() = state > State.READY_INCREMENTAL_COMPILE
 
     val deployButtonText: String get() = when(state) {
-        State.CANNOT_FULL_COMPILE -> "Deploy"
-        State.CANNOT_INCREMENTAL_COMPILE -> "Build & Launch"
-        State.CANNOT_INCREMENTAL_DEPLOY -> "Install & Launch"
-        State.READY_TO_DEPLOY -> "Deploy"
+        State.NOTHING_CAN_DO -> "Deploy"
+        State.READY_FULL_COMPILE -> "Build & Launch"
+        State.READY_INCREMENTAL_COMPILE -> "Install & Launch"
+        State.READY_DEPLOY -> "Deploy"
     }
 
     override fun toString(): String {
@@ -39,24 +39,24 @@ data class JuggDeployState(
 
     companion object {
         val READY = JuggDeployState(
-            State.READY_TO_DEPLOY,
+            State.READY_DEPLOY,
             msg = "ready to deploy",
         )
 
         fun canNotFullBuild(disableMessage: DisableMessage): JuggDeployState {
-            return JuggDeployState(State.CANNOT_FULL_COMPILE, disableMessage.tooltip)
+            return JuggDeployState(State.NOTHING_CAN_DO, disableMessage.tooltip)
         }
 
         fun canNotIncrementalDeploy(disableMessage: DisableMessage): JuggDeployState {
-            return JuggDeployState(State.CANNOT_INCREMENTAL_DEPLOY, disableMessage.tooltip)
+            return JuggDeployState(State.READY_INCREMENTAL_COMPILE, disableMessage.tooltip)
         }
     }
 
     enum class State {
-        CANNOT_FULL_COMPILE,
-        CANNOT_INCREMENTAL_COMPILE,
-        CANNOT_INCREMENTAL_DEPLOY,
-        READY_TO_DEPLOY,
+        NOTHING_CAN_DO,
+        READY_FULL_COMPILE,
+        READY_INCREMENTAL_COMPILE,
+        READY_DEPLOY,
         ;
     }
 }

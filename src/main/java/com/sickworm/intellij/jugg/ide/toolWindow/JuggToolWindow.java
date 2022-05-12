@@ -135,8 +135,12 @@ public class JuggToolWindow implements JuggStateListener {
       currentIconRes = iconRes;
     }
 
-    deployButton.setEnabled(state.isReadyRunFullBuild());
-    deployButton.setText(state.getDeployButtonText());
+    if (state.isReadyRunFullBuild()) {
+      deployButton.setEnabled(true);
+      deployButton.setText(state.getDeployButtonText());
+    } else {
+      deployButton.setEnabled(false);
+    }
 
     statusLabel.setText(state.getMsg());
   }
