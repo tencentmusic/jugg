@@ -46,8 +46,6 @@ public class JuggToolWindow implements JuggStateListener {
   private JTable fileStatusTable;
   private JPanel invisibleActionPanel;
 
-  private final Project project;
-
   private final Logger logger;
 
   private final Object[] tableColumns = { "File", "Status" };
@@ -56,14 +54,12 @@ public class JuggToolWindow implements JuggStateListener {
 
   @TestOnly
   public JuggToolWindow() {
-    this.project = null;
     this.logger = null;
     this.juggManager = null;
   }
 
   @SuppressWarnings("unused")
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
-    this.project = project;
     this.logger = JuggLogger.INSTANCE.getInstance(project, "#Jugg-JuggToolWindow");
 
     String projectDir = project.getBasePath();
