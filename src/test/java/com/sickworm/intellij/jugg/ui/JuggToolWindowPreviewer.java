@@ -22,8 +22,7 @@ public class JuggToolWindowPreviewer {
         frame.pack();
         frame.setVisible(true);
 
-        JuggDeployState state = new JuggDeployState(true, true, true, null);
-        juggToolWindow.onDeployStateUpdate(state);
+        juggToolWindow.onDeployStateUpdate(JuggDeployState.Companion.getREADY());
 
         int count = 10;
         while (count-- > 0) {
