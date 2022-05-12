@@ -114,8 +114,8 @@ class JuggManager @TestOnly constructor(
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
 
         deployFileManager.addChangedFile(realChangedFiles)
-        deployStateListener.onFileStatesUpdate(changedFiles.map {
-            ChangedFileInfo(it, ChangedFileInfo.State.MODIFIED)
+        deployStateListener.onFileStatesUpdate(realChangedFiles.map {
+            ChangedFileInfo(it.file, ChangedFileInfo.State.MODIFIED)
         })
 
         if (JuggSettings.compileOnSave) {
