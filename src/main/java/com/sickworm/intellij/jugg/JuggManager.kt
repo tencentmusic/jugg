@@ -107,9 +107,9 @@ class JuggManager @TestOnly constructor(
     private fun processFileChanged(changedFiles: List<File>) {
         if (fileChangesHandler.checkBuildGradleChanged(changedFiles)) {
             deployStateManager.isBuildGradleChanged = true
+            logger.warn("Build.gradle changed, need rebuild")
             return
         }
-        logger.info("Build.gradle changed, need rebuild")
 
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
 
