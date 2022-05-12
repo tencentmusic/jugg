@@ -171,7 +171,8 @@ public class JuggToolWindow implements JuggStateListener {
   @Override
   public void onDeployed() {
     tableData.clear();
-    fileStatusTable.removeAll();
+    FileTableModel tableModel = new FileTableModel(new Object[][] {}, tableColumns);
+    fileStatusTable.setModel(tableModel);
   }
 
   public void deploy() {
