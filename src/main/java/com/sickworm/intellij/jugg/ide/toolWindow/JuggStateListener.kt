@@ -12,7 +12,7 @@ interface JuggStateListener {
     fun onDeployed()
 }
 
-class ChangedFileInfo(
+data class ChangedFileInfo(
     val file: File,
     val state: State
 ) {
