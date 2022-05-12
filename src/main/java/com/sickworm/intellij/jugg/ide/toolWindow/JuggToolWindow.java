@@ -158,7 +158,7 @@ public class JuggToolWindow implements JuggStateListener {
           break;
         }
       }
-      if (insertIndex > 0) {
+      if (insertIndex >= 0) {
         tableData.set(insertIndex, info);
       } else {
         tableData.add(info);
