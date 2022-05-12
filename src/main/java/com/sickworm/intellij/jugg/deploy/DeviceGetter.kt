@@ -21,7 +21,8 @@ class DeviceGetter(private val project: Project) {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
         val deployTargetState: DeployTargetState = deployTargetContext.currentDeployTargetState
         val module = ModuleManager.getInstance(project).modules.first()
-        val facet = AndroidFacet.getInstance(module)!!
+        val facet = AndroidFacet.getInstance(module)
+            ?: throw IllegalStateException("no android facet")
 
         val deviceFutures =
             deployTarget.getDevices(deployTargetState, facet, getDeviceCount(isDebugging), isDebugging, hashCode())
