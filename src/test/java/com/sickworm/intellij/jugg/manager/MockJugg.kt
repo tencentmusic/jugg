@@ -228,6 +228,7 @@ class MockJugg {
             deployFileManager = deployFileManager,
             juggDeployerHelper = juggDeployerHelper,
             deployStateManager = deployStateManager,
+            deployHistoryManager = deployHistoryManager,
         )
         juggManager.init()
     }
