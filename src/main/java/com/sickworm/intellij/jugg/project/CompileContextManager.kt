@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.ide.JuggSettings
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 /**
  * Manage context for JuggCompiler.
@@ -58,11 +59,17 @@ class CompileContextManager(
     private var compileContextInside: BaseCompileContext? = null
 
     fun initProjectInfo() {
-        val modules = initModules()
-        initContext(modules)
+        val costTime = measureTimeMillis {
+            val modules = initModules()
+            initContext(modules)
+        }
+        logger.debug("initProjectInfo cost ${costTime}ms")
     }
 
     fun initFullBuildInfo(compileContextInfo: CompileContextInfo) {
+        // need re init project info after full compile
+        initProjectInfo()
+
         val startTime = System.currentTimeMillis()
         updateProjectDependencies(compileContextInfo)
         val endTime = System.currentTimeMillis()
