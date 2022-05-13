@@ -167,7 +167,7 @@ class MockJugg {
                     override fun getApks(device: IDevice) = projectInfo.apkInfos
                     override fun validate() = mutableListOf<ValidationError>()
                 }
-                AppStarter().startDefaultApp(projectInfo.projectRootDir, apkProvider, getDevice())
+                AppStarter().startDefaultApp(projectInfo.packageName, apkProvider, getDevice())
             }
         }
 
