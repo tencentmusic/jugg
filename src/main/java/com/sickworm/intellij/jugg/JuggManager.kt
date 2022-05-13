@@ -209,13 +209,14 @@ class JuggManager @TestOnly constructor(
                 logger.info("Can not deploy, install and run apk")
                 deployTargetManager.runFullBuildAndLaunch()
                 initCompileAfterFullBuild()
-                return
             }
             else -> {
                 logger.warn("Not ready to deploy")
+                return
             }
         }
 
+        onActionUpdate()
         deployStateListener.onDeployed()
     }
 
@@ -266,7 +267,6 @@ class JuggManager @TestOnly constructor(
         })
 
         logger.info("Jugg init complete, waiting for file changes")
-        onActionUpdate()
     }
 
     private fun ExecutorService.submitSafe(jobName: String, task: Runnable) {
