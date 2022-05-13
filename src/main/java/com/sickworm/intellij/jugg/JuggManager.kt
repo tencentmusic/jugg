@@ -155,10 +155,10 @@ class JuggManager @TestOnly constructor(
 
         // notify ui state
         val successStates = compileResult.successFiles.map {
-            ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILED)
+            ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILED)
         }
         val failedStates = compileResult.failedFiles.map {
-            ChangedFileInfo(it.get().file, ChangedFileInfo.State.COMPILE_FAILED)
+            ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
         logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
