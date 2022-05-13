@@ -21,7 +21,7 @@ class ResourceCompileTest {
             !it.name.endsWith("notification_template_custom_big.xml.flat")
         }
         .map {
-            CompileFile(CompileFile.Type.Flat, it, assetsFlatDir)
+            CompileFile(CompileFile.Type.Flat, it, assetsFlatDir, mockModule)
         }
 
     @Before
@@ -46,7 +46,7 @@ class ResourceCompileTest {
     private fun compileRes(files: List<File>, baseDir: File) {
         val resCompiler = ResourceCompiler(context)
         val task = CompileTask(
-            files.map { CompileFile(CompileFile.Type.Resource, it, baseDir) },
+            files.map { CompileFile(CompileFile.Type.Resource, it, baseDir, mockModule) },
             stagingDir
         )
         val result = resCompiler.compile(task)
@@ -74,10 +74,10 @@ class ResourceCompileTest {
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
     val resourceOverlayTask = CompileTask(
         listOf(
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main2.xml"), baseDir),
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main3.xml"), baseDir),
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/drawable/ic_launcher_background.xml"), baseDir),
-            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/drawable/ic_launcher_background2.xml"), baseDir),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main2.xml"), baseDir, mockModule),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/layout/activity_main3.xml"), baseDir, mockModule),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/drawable/ic_launcher_background.xml"), baseDir, mockModule),
+            CompileFile(CompileFile.Type.Resource, File(assetsAndroidDir, "app/src/main/res/drawable/ic_launcher_background2.xml"), baseDir, mockModule),
         ),
         stagingDir
     )

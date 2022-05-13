@@ -72,8 +72,8 @@ class JavaCompileTest {
 
     val interdependenceTask = CompileTask(
         listOf(
-            CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/jugg/test/JavaFileWithInterdependence.java"), assetsJavaDir, emptyModule),
-            CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/jugg/test/NewDep.java"), assetsJavaDir, emptyModule)
+            CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/jugg/test/JavaFileWithInterdependence.java"), assetsJavaDir, mockModule),
+            CompileFile(CompileFile.Type.Java, File(assetsJavaDir, "com/sickworm/intellij/jugg/test/NewDep.java"), assetsJavaDir, mockModule)
         ),
         stagingDir
     )

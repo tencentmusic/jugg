@@ -50,7 +50,7 @@ class DeployHistoryManagerTest {
 
         changeAndRevert("MainActivity2.changeMethodReturn.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
-                ChangedFile(CompileFile.Type.Java, file, File(""), ModuleInfo.NO_MODULE)
+                ChangedFile(CompileFile.Type.Java, file, File(""), mockModule)
             }
             assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
             historyManager.updateHistoryOnAfterDeployed(changedFiles, emptyList())
@@ -69,7 +69,7 @@ class DeployHistoryManagerTest {
 
         changeAndRevert("MainActivity2.addMethod.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
-                ChangedFile(CompileFile.Type.Java, file, File(""), ModuleInfo.NO_MODULE)
+                ChangedFile(CompileFile.Type.Java, file, File(""), mockModule)
             }
             assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
             historyManager.updateHistoryOnAfterDeployed(changedFiles, emptyList())

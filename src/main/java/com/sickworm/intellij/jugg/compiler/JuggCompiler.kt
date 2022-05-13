@@ -83,8 +83,9 @@ class JuggCompiler(
 
                 // compile R.java
                 val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
+                val module = task.files.first().module // TODO split module
                 val rJavaTask = CompileTask(
-                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir)),
+                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, module)),
                     outputDir = classesOutputDir,
                 )
                 val rJavaResult = sourceCompiler.compile(rJavaTask)

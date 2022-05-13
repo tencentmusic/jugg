@@ -37,9 +37,10 @@ class ResourceOverlayCompiler(
         }
 
         // build .arsc
+        val module = task.files.first().module // TODO split module
         val arscTask = CompileTask(
             resourceResult.outputs.map {
-                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir)
+                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, module)
             },
             task.outputDir
         )

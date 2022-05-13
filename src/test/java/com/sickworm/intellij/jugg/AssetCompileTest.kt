@@ -18,7 +18,7 @@ class AssetCompileTest {
 
     val singleFileTask = CompileTask(
         listOf(
-            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "logo.png"), assetsAssetsDir),
+            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "logo.png"), assetsAssetsDir, mockModule),
         ),
         stagingDir
     )
@@ -31,8 +31,8 @@ class AssetCompileTest {
 
     val multiFilesTask = CompileTask(
         listOf(
-            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "logo.png"), assetsAssetsDir),
-            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "git/index"), assetsAssetsDir),
+            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "logo.png"), assetsAssetsDir, mockModule),
+            CompileFile(CompileFile.Type.Asset, File(assetsAssetsDir, "git/index"), assetsAssetsDir, mockModule),
         ),
         stagingDir
     )

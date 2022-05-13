@@ -71,8 +71,14 @@ val context get() = SimpleCompileContext(
     minApi = JuggSettings.minApi
 )
 
-val mockModule = ModuleInfo.NO_MODULE.copy(
+val mockModule = ModuleInfo(
+    name = "mock_module",
     rootDir = buildDir,
+    sourceDirs = emptyList(),
+    resourceDirs = emptyList(),
+    assetsDirs = emptyList(),
+    compileVersion = null,
+    buildToolsVersion = null,
     buildPathInfo = ModuleBuildPathInfo(buildDir),
     kotlinJvmTarget = "1.8", // TODO read from build.gradle
     javaSourceCompatibility = "1.8",

@@ -29,7 +29,7 @@ data class CompileFile(
     val type: Type,
     val file: File,
     val baseDir: File,
-    val module: ModuleInfo = ModuleInfo.NO_MODULE,
+    val module: ModuleInfo,
     val dependencyPaths: List<String> = emptyList()
 ) {
 
@@ -146,18 +146,7 @@ data class ModuleInfo(
     val javaSourceCompatibility: String?,
     val javaTargetCompatibility: String?,
     val buildPathInfo: ModuleBuildPathInfo,
-) {
-
-    companion object {
-        val NO_MODULE = ModuleInfo("no_module",
-            File("."),
-            emptyList(), emptyList(), emptyList(),
-            null, null,
-            null, null, null,
-            ModuleBuildPathInfo(File(".")),
-        )
-    }
-}
+)
 
 class ModuleBuildPathInfo(
     /** build root dir */
