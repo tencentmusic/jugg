@@ -187,10 +187,18 @@ class CompileContextManager(
 
             val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
             val compileVersion: String? = buildModel.android().compileSdkVersion().readString(buildModel)
+            val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
+                .toLanguageLevel()?.toJavaVersion()?.toString()
+            val javaSourceCompatibility: String? = buildModel.android().compileOptions().sourceCompatibility()
+                .toLanguageLevel()?.toJavaVersion()?.toString()
+            val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
+                .toLanguageLevel()?.toJavaVersion()?.toString()
 
             modules[module.name] = ModuleInfo(
                 module.name, baseDir, sourceDirs, resourceDirs, assetDirs,
-                compileVersion, buildToolsVersion, ModuleBuildPathInfo.fromModule(baseDir),
+                compileVersion, buildToolsVersion,
+                kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
+                ModuleBuildPathInfo.fromModule(baseDir),
             )
         }
 

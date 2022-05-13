@@ -4,7 +4,6 @@ import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
-import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import java.io.File
 
 class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
@@ -66,7 +65,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
         val compileArgs = listOf(
             "-verbose",
-            "-jvm-target", "1.8",
+            "-jvm-target", module.kotlinJvmTarget ?: "1.6",
             "-no-stdlib",
             "-no-reflect",
             "-module-name", "${module.name}_${context.variant}",

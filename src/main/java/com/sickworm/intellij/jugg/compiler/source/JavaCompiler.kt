@@ -37,8 +37,8 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         options.addAll(listOf("-cp", dependencies.joinToString(File.pathSeparator)))
         // ensure class file version for later dex
-        options.addAll(listOf("-source", "1.8"))
-        options.addAll(listOf("-target", "1.8"))
+        options.addAll(listOf("-source", module.javaSourceCompatibility ?: "1.6"))
+        options.addAll(listOf("-target", module.javaTargetCompatibility ?: "1.6"))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->

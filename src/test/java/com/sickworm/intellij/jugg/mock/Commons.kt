@@ -71,7 +71,13 @@ val context get() = SimpleCompileContext(
     minApi = JuggSettings.minApi
 )
 
-val emptyModule = ModuleInfo.NO_MODULE.copy(rootDir = buildDir, buildPathInfo = ModuleBuildPathInfo(buildDir))
+val mockModule = ModuleInfo.NO_MODULE.copy(
+    rootDir = buildDir,
+    buildPathInfo = ModuleBuildPathInfo(buildDir),
+    kotlinJvmTarget = "1.8", // TODO read from build.gradle
+    javaSourceCompatibility = "1.8",
+    javaTargetCompatibility = "1.8",
+)
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
 
@@ -139,4 +145,4 @@ fun Result<CompileFile, CompileError>.printCompileError() {
 }
 
 fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, dependencies: List<String> = emptyList()) =
-    CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, emptyModule, dependencyPaths = dependencies)), outputDir)
+    CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, mockModule, dependencyPaths = dependencies)), outputDir)

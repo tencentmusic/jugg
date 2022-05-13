@@ -8,9 +8,11 @@ import com.android.tools.idea.gradle.dsl.api.ext.ExtModel
 import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
 import com.android.tools.idea.gradle.dsl.api.java.JavaModel
+import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.gradle.dsl.api.repositories.RepositoriesModel
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.pom.java.LanguageLevel
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import org.mockito.Mockito.`when`
@@ -26,10 +28,23 @@ class MockGradleBuildModel: GradleBuildModel {
         val buildToolsVersion = mock(ResolvedPropertyModel::class.java)
         `when`(buildToolsVersion.valueAsString()).thenReturn(androidBuildTools.name)
 
+        val compileOptionsModel = mock(CompileOptionsModel::class.java)
+        val languageLevelPropertyModel = mock(LanguageLevelPropertyModel::class.java)
+        `when`(languageLevelPropertyModel.toLanguageLevel()).thenReturn(LanguageLevel.JDK_1_8) // TODO read from build.gradle
+        `when`(compileOptionsModel.sourceCompatibility()).thenReturn(languageLevelPropertyModel)
+        `when`(compileOptionsModel.targetCompatibility()).thenReturn(languageLevelPropertyModel)
+
+        val kotlinOptionsModel = mock(KotlinOptionsModel::class.java)
+        val jvmTarget = mock(LanguageLevelPropertyModel::class.java)
+        `when`(jvmTarget.toLanguageLevel()).thenReturn(LanguageLevel.JDK_1_8) // TODO read from build.gradle
+        `when`(kotlinOptionsModel.jvmTarget()).thenReturn(jvmTarget)
+
         val androidModel = mock(AndroidModel::class.java)
         `when`(androidModel.sourceSets()).thenReturn(mutableListOf())
         `when`(androidModel.buildToolsVersion()).thenReturn(buildToolsVersion)
         `when`(androidModel.compileSdkVersion()).thenReturn(compileSdkVersion)
+        `when`(androidModel.compileOptions()).thenReturn(compileOptionsModel)
+        `when`(androidModel.kotlinOptions()).thenReturn(kotlinOptionsModel)
 
         return androidModel
     }

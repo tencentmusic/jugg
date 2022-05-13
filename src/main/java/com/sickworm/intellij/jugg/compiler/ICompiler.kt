@@ -142,6 +142,9 @@ data class ModuleInfo(
     val assetsDirs: List<File>,
     val compileVersion: String?,
     val buildToolsVersion: String?,
+    val kotlinJvmTarget: String?,
+    val javaSourceCompatibility: String?,
+    val javaTargetCompatibility: String?,
     val buildPathInfo: ModuleBuildPathInfo,
 ) {
 
@@ -149,7 +152,9 @@ data class ModuleInfo(
         val NO_MODULE = ModuleInfo("no_module",
             File("."),
             emptyList(), emptyList(), emptyList(),
-            null, null, ModuleBuildPathInfo(File(".")),
+            null, null,
+            null, null, null,
+            ModuleBuildPathInfo(File(".")),
         )
     }
 }

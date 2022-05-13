@@ -42,6 +42,12 @@ class TopLevelFlowTest {
     }
 
     @Test
+    fun testCompileKtActivity() {
+        jugg.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
+        jugg.checkCompileResult("MainActivity.kt", hotFixModifiedClassesSize = 1)
+    }
+
+    @Test
     fun testInstall() {
         jugg.installAndReStart()
     }
@@ -62,6 +68,16 @@ class TopLevelFlowTest {
 
         jugg.changeFileAndNotify("MainActivity2.changeImageAndToast.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+
+        jugg.deploy()
+    }
+
+    @Test
+    fun testDeployKtActivity() {
+        testInstall()
+
+        jugg.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
+        jugg.checkCompileResult("MainActivity.kt", hotFixModifiedClassesSize = 1)
 
         jugg.deploy()
     }
