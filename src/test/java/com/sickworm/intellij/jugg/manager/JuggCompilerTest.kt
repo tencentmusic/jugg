@@ -1,10 +1,9 @@
 package com.sickworm.intellij.jugg.manager
 
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.Test
 
-class DeployManagerTest {
+class JuggCompilerTest {
 
     companion object {
         private val jugg = MockJugg()
