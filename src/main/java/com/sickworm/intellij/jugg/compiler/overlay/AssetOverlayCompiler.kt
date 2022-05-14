@@ -1,14 +1,13 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.sickworm.intellij.jugg.compiler.Result
-import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.*
 
 class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)
 
-    override fun doCompile(task: CompileTask): CompileResult {
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // just copy
         val outputs = mutableListOf<CompileOutput>()
         val details = mutableListOf<Result<CompileFile, CompileError>>()

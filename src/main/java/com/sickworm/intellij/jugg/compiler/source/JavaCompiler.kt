@@ -15,18 +15,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
     private val compiler: JavaCompiler = ToolProvider.getSystemJavaCompiler()
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
-    override fun doCompile(task: CompileTask): CompileResult {// split by module
-        val files = task.files.groupBy { it.module.name }
-        val results = files.map {
-            doModuleCompile(CompileTask(it.value, task.outputDir), it.value[0].module)
-        }
-        if (results.isEmpty()) {
-            return CompileResult(task, emptyList(), emptyList())
-        }
-        return results.reduce { acc, compileResult -> acc + compileResult }
-    }
-
-    private fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
             JavaCompileItem(it, fileObject)

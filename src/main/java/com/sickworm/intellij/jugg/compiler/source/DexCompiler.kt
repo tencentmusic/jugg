@@ -14,7 +14,7 @@ class DexCompiler(
 
     private val dexFileMaker = DexFileMaker()
 
-    override fun doCompile(task: CompileTask): CompileResult {
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
         val files = task.files.map { it.file }
 

@@ -25,8 +25,7 @@ class JuggCompiler(
     private val sourceCompiler = SourceCompiler(
         context.subContext("classes"))
 
-    override fun doCompile(task: CompileTask): CompileResult {
-
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         var compileResult = CompileResult(task, emptyList(), emptyList())
         val overlayOutputDir = File(task.outputDir, "overlays")
         val classesOutputDir = File(task.outputDir, "classes")
@@ -83,7 +82,6 @@ class JuggCompiler(
 
                 // compile R.java
                 val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
-                val module = task.files.first().module // TODO split module
                 val rJavaTask = CompileTask(
                     files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, module)),
                     outputDir = classesOutputDir,

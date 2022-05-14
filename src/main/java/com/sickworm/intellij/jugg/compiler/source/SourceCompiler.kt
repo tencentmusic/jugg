@@ -15,7 +15,7 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
 
     private val dexCompiler = DexCompiler(context)
 
-    override fun doCompile(task: CompileTask): CompileResult {
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         context.tempCompileDir.clearDir()
         var compileResult = CompileResult(task.copy(outputDir = context.tempCompileDir), emptyList(), emptyList())
 
@@ -45,7 +45,6 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             it.type == CompileOutput.Type.Class
         }
         val dependencies = (javaCompileTask.files + kotlinCompileTask.files).flatMap { it.dependencyPaths }
-        val module = task.files.first().module // TODO split module
         val compileClassFiles = classFiles.map {
             CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module, dependencyPaths = dependencies)
         }

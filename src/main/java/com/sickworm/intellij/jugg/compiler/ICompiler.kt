@@ -200,16 +200,28 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
             task.outputDir.mkdirs()
         }
 
-        val result = doCompile(task)
+        val result = splitModuleAndCompile(task)
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms")
         return result
     }
 
-    open fun onContextUpdate() = Unit
+    private fun splitModuleAndCompile(task: CompileTask): CompileResult {
+        // split by module
+        val files = task.files.groupBy { it.module.name }
+        val results = files.map {
+            doModuleCompile(CompileTask(it.value, task.outputDir), it.value[0].module)
+        }
+        if (results.isEmpty()) {
+            return CompileResult(task, emptyList(), emptyList())
+        }
+        return results.reduce { acc, compileResult -> acc + compileResult }
+    }
 
-    abstract fun doCompile(task: CompileTask): CompileResult
+    abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
+
+    open fun onContextUpdate() = Unit
 
     private fun checkTypesCanCompile(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }

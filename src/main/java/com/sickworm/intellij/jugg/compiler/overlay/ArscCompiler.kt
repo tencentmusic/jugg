@@ -65,20 +65,20 @@ class ArscCompiler(
         return true
     }
 
-    override fun doCompile(task: CompileTask): CompileResult {
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val flatFiles = task.files.map { it.file }
         val result = incLinkCompile(flatFiles, task.outputDir)
 
         if (result.isEmpty()) {
             return CompileResult(task, task.files.map {
                 val error = CompileError(it, listOf(0L to "makeResApk failed"))
-                com.sickworm.intellij.jugg.compiler.Result.failure(error)
+                Result.failure(error)
             }, emptyList())
         }
 
         return CompileResult(
             task,
-            task.files.map { com.sickworm.intellij.jugg.compiler.Result.success(it) },
+            task.files.map { Result.success(it) },
             result
         )
     }
