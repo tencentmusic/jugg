@@ -58,6 +58,7 @@ class MockJugg {
 
     init {
         renewComponents()
+        renewManager()
         adbDeviceHelper.init()
     }
 
@@ -65,7 +66,7 @@ class MockJugg {
         pathManager.juggRootDir.deleteRecursively()
         renewComponents()
         renewManager()
-        markAsReadyToDeploy()
+        deployAndCheckState()
     }
 
     /**
@@ -226,7 +227,7 @@ class MockJugg {
         juggManager.init()
     }
 
-    private fun markAsReadyToDeploy() {
+    private fun deployAndCheckState() {
         juggManager.deploy()
 
         assertEquals(JuggDeployState.READY, deployStateManager.deployState)
