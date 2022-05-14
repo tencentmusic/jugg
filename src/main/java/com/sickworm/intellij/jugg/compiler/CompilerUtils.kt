@@ -41,6 +41,9 @@ fun File.changeBaseDir(curBaseDir: File, newBaseDir: File, newExtension: String?
 }
 
 fun File.copyToBaseDir(curBaseDir: File, newBaseDir: File): File {
+    if (curBaseDir == newBaseDir) {
+        return this
+    }
     val newFile = changeBaseDir(curBaseDir, newBaseDir)
     newFile.parentFile?.mkdirs()
     copyTo(newFile, overwrite = true)
