@@ -29,7 +29,7 @@ class DeployHistoryManager(
 ): IDeployHistoryManager {
 
     override val isRecoverFeatureAvailable: Boolean
-        get() = deployHistoryDb.isGitAvailable
+        get() = deployHistoryDb.isAvailable
 
     private var hasBeenFullCompiledRuntime = false
 

@@ -33,11 +33,12 @@ class DeployHistoryManagerTest {
         assertFalse(historyManager.hasBeenFullCompiled)
 
         gitManager.init()
-        assertTrue(historyManager.isRecoverFeatureAvailable)
+        assertFalse(historyManager.isRecoverFeatureAvailable)
         assertFalse(historyManager.hasBeenFullCompiled)
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
         gitManager.addAllAndCommit("first commit")
+        assertTrue(historyManager.isRecoverFeatureAvailable)
         assertFalse(historyManager.hasBeenFullCompiled)
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 

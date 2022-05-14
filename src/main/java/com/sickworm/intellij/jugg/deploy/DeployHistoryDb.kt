@@ -31,11 +31,11 @@ class DeployHistoryDb(
     /** Directory to store deployment changes record */
     private val deployLogsDir = File(dbDir, "logs")
 
-    val isGitAvailable: Boolean
-        get() = gitManager.hasInitGit
+    val isAvailable: Boolean
+        get() = gitManager.hasInitGit && (gitManager.getLastCommitHash() != null)
 
     fun getChangedFilesSinceLastFullCompiled(): List<File>? {
-        if (!isGitAvailable) {
+        if (!isAvailable) {
             logger.warn("getChangedFilesSinceLastFullCompiled failed, git not available")
             return null
         }
