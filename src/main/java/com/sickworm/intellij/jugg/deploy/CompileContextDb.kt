@@ -135,12 +135,12 @@ class CompileContextDb(
             return null
         }
 
-        val dexFiles = dexDeployedDir.listFiles()?.map {
+        val dexFiles = dexDeployedDir.listFilesRecursively().map {
             CompileOutput(CompileOutput.Type.Dex, it, dexDeployedDir)
-        } ?: emptyList()
-        val overlayFiles = overlayDeployedDir.listFiles()?.map {
+        }
+        val overlayFiles = overlayDeployedDir.listFilesRecursively().map {
             CompileOutput(CompileOutput.Type.Overlay, it, overlayDeployedDir)
-        } ?: emptyList()
+        }
         return dexFiles + overlayFiles
     }
 }

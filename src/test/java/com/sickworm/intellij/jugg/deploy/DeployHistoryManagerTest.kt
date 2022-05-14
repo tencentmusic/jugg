@@ -123,6 +123,7 @@ class DeployHistoryManagerTest {
         val recoverInfoNew = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfoNew)
         assertEquals(1, recoverInfoNew.deployedFiles.size)
+        assertEquals(storageFile, recoverInfoNew.deployedFiles.first().file)
         assertTrue(storageFile.exists())
 
         val deployedFile2 = File(buildDir, "drawable/B.xml").let {
