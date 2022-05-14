@@ -73,7 +73,7 @@ class MockJugg {
      * Init adb client.
      * Must call this method if you need real device deploy.
      */
-    fun checkDeployStateAndRegisterAdb() {
+    fun waitingForDeviceOfLaunchedApp() {
         val device = adbDeviceHelper.waitingForDeviceOfLaunchedApp(androidApkPackage)
         assertNotNull(device, "can not find $androidApkPackage on any device")
 
