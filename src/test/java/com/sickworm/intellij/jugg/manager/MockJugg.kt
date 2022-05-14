@@ -33,9 +33,9 @@ import kotlin.test.assertNotNull
 
 class MockJugg {
 
-    lateinit var project: Project
-    lateinit var projectDir: String
+    val projectDir: File = projectInfo.projectRoot
 
+    lateinit var project: Project
     lateinit var juggManager: JuggManager
     lateinit var pathManager: JuggPathManager
     lateinit var fileChangesHandler: FileChangesHandler
@@ -138,7 +138,6 @@ class MockJugg {
         application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
         application.registerService(MessagesService::class.java, DummyMessagesService())
 
-        projectDir = assetsAndroidDir.absolutePath
         project = JuggMockProject(projectDir)
 
         juggStateListener = mock(JuggStateListener::class.java)
@@ -165,7 +164,7 @@ class MockJugg {
             }
         }
 
-        pathManager = JuggPathManager(File(projectDir), buildDir)
+        pathManager = JuggPathManager(projectDir, buildDir)
 
         val moduleManager = mock(ModuleManager::class.java)
         val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {

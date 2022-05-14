@@ -15,7 +15,7 @@ import org.mockito.Mockito.*
 import java.io.File
 import java.nio.file.Paths
 
-class JuggMockProject(private val basePath: String): MockProject(null, {}) {
+class JuggMockProject(private val basePath: File): MockProject(null, {}) {
 
     private val runManager = MockRunManager()
 
@@ -65,6 +65,6 @@ class JuggMockProject(private val basePath: String): MockProject(null, {}) {
     }
 
     override fun getBasePath(): String {
-        return basePath
+        return basePath.absolutePath
     }
 }
