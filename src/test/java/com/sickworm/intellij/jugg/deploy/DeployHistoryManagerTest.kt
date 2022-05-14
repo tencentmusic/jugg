@@ -1,13 +1,12 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.manager.MockJugg
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ChangedFile
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -25,7 +24,7 @@ class DeployHistoryManagerTest {
     }
 
     @Test
-    fun test() {
+    fun testHistoryDb() {
         val storageDir = buildDir
         val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
 
@@ -46,7 +45,16 @@ class DeployHistoryManagerTest {
         jugg.compileContextManager.initProjectInfo()
         historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, jugg.compileContextManager.compileContext.modules)
         assertTrue(historyManager.hasBeenFullCompiled)
-        assertTrue(historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.isEmpty() == true)
+        val recoverInfo1 = historyManager.tryGetContextRecoverInfoFromDb()
+        assertNotNull(recoverInfo1)
+        assertTrue(recoverInfo1.deployedFiles.isEmpty())
+        assertTrue(recoverInfo1.changedFiles.isEmpty())
+        assertEquals(
+            ApkInfoSerializer().serialize(projectInfo.apkInfos),
+            ApkInfoSerializer().serialize(recoverInfo1.compileContextInfo.apkInfos),
+        )
+        assertTrue(recoverInfo1.compileContextInfo.moduleBuildPathInfos.isNotEmpty())
+        assertTrue(recoverInfo1.compileContextInfo.thirdPartyDependencies.isNotEmpty())
 
         changeAndRevert("MainActivity2.changeMethodReturn.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
@@ -85,7 +93,48 @@ class DeployHistoryManagerTest {
                 1,
             ), deployHistoryData)
         }
+    }
+
+    @Test
+    fun testDeployDb() {
+        val storageDir = buildDir
+        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
 
         gitManager.deleteGit()
+        gitManager.init()
+        gitManager.addAllAndCommit("first commit")
+        val jugg = MockJugg()
+        jugg.compileContextManager.initProjectInfo()
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, jugg.compileContextManager.compileContext.modules)
+
+        val deployedFile = File(buildDir, "com/A.dex").let {
+            it.parentFile.mkdirs()
+            it.createNewFile()
+            CompileOutput(CompileOutput.Type.Dex, it, buildDir)
+        }
+        val storageFile = File(storageDir, "compile_context.db/deployed/classes/com/A.dex")
+        assertFalse(storageFile.exists())
+
+        val recoverInfo = historyManager.tryGetContextRecoverInfoFromDb()
+        assertNotNull(recoverInfo)
+        assertEquals(0, recoverInfo.deployedFiles.size)
+        historyManager.updateHistoryOnAfterDeployed(emptyList(), listOf(deployedFile))
+        val recoverInfoNew = historyManager.tryGetContextRecoverInfoFromDb()
+        assertNotNull(recoverInfoNew)
+        assertEquals(1, recoverInfoNew.deployedFiles.size)
+        assertTrue(storageFile.exists())
+
+        val deployedFile2 = File(buildDir, "drawable/B.xml").let {
+            it.parentFile.mkdirs()
+            it.createNewFile()
+            CompileOutput(CompileOutput.Type.Overlay, it, buildDir)
+        }
+        val storageFile2 = File(storageDir, "compile_context.db/deployed/overlays/drawable/B.xml")
+        assertFalse(storageFile2.exists())
+        historyManager.updateHistoryOnAfterDeployed(emptyList(), listOf(deployedFile2))
+        val recoverInfoNew2 = historyManager.tryGetContextRecoverInfoFromDb()
+        assertNotNull(recoverInfoNew2)
+        assertEquals(2, recoverInfoNew2.deployedFiles.size)
+        assertTrue(storageFile2.exists())
     }
 }
