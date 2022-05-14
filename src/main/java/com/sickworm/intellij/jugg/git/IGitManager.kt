@@ -12,7 +12,7 @@ interface IGitManager {
     /**
      * whether [rootDir] has git
      */
-    fun isGitAvailable(): Boolean
+    val hasInitGit: Boolean
 
     /**
      * git init

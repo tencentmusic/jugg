@@ -23,10 +23,10 @@ class GitManagerTest {
 
     @Test
     fun testBasicOperation() {
-        assertFalse(gitManager.isGitAvailable())
+        assertFalse(gitManager.hasInitGit)
 
         gitManager.init()
-        assertTrue(gitManager.isGitAvailable())
+        assertTrue(gitManager.hasInitGit)
 
         val uncommittedFiles = gitManager.getUncommittedFiles()
         assertTrue(uncommittedFiles.isNotEmpty())

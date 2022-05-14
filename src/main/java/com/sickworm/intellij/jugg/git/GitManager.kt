@@ -13,7 +13,7 @@ import java.io.IOException
 
 class GitManager(override val rootDir: File): IGitManager {
 
-    override fun isGitAvailable(): Boolean {
+    override val hasInitGit: Boolean get() {
         if (!File(rootDir, ".git").exists()) {
             return false
         }
@@ -31,7 +31,7 @@ class GitManager(override val rootDir: File): IGitManager {
     }
 
     override fun deleteGit() {
-        if (!isGitAvailable()) {
+        if (!hasInitGit) {
             return
         }
         File(rootDir, ".git").deleteRecursively()
