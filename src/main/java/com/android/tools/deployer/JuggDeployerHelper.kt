@@ -46,7 +46,7 @@ class JuggDeployerHelper(
             }
         val task = when {
             isInstall -> {
-                // default has -t -r --full --dont-kill
+                // default install argument has: -t -r --full --dont-kill
                 JuggDeployTask(project, packages, "", true, installPathProvider, data)
             }
             JuggSettings.restartActivity -> {
