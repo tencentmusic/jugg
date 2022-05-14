@@ -8,9 +8,13 @@ import kotlin.test.assertTrue
 private val testSourceDirectory = "app/src/main/java/${androidApkPackage.replace('.', '/')}"
 
 fun MockJugg.changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, directory: String = testSourceDirectory) {
+    val currentSize = deployFileManager.getCompiledFiles().size
+
     changeAndRevert(*fileNamePairs, directory = directory) {
-        fileChangesDetector.notifyFileChanges(it)
+        fileChangesDetector.notifyFileChanges(it) // will do compile
     }
+
+    assertEquals(currentSize + fileNamePairs.size, deployFileManager.getCompiledFiles().size)
 }
 
 fun changeAndRevert(
