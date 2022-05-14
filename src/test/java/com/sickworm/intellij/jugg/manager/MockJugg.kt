@@ -51,19 +51,13 @@ class MockJugg {
     private val adbDeviceHelper = AdbDeviceHelper()
 
     companion object {
-        private var hasInitOnce: Boolean = false
+        init {
+            MockitoFixer.tryFix()
+        }
     }
 
     init {
         renewComponents()
-    }
-
-    fun initEnv() {
-        if (!hasInitOnce) {
-            hasInitOnce = true
-            MockitoFixer.tryFix()
-        }
-
         adbDeviceHelper.init()
     }
 

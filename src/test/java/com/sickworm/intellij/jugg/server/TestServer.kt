@@ -24,7 +24,6 @@ class TestServer {
 
     fun run() {
         val jugg = MockJugg()
-        jugg.initEnv()
         jugg.resetAllState()
         jugg.checkDeployStateAndRegisterAdb()
         JuggSettings.deployOnSave = true

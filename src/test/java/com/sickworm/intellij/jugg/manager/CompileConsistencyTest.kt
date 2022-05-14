@@ -46,7 +46,6 @@ class CompileConsistencyTest {
         @BeforeClass
         @JvmStatic
         fun initAndSetNotCompileOnSave() {
-            jugg.initEnv()
             jugg.resetAllState()
 
             oldCompileForSave = JuggSettings.compileOnSave

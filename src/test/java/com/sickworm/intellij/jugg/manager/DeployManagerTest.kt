@@ -8,12 +8,6 @@ class DeployManagerTest {
 
     companion object {
         private val jugg = MockJugg()
-
-        @BeforeClass
-        @JvmStatic
-        fun initEnv() {
-            jugg.initEnv()
-        }
     }
 
     @Before
