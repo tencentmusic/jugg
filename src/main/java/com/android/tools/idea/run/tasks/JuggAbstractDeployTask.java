@@ -90,7 +90,8 @@ public abstract class JuggAbstractDeployTask implements LaunchTask {
     public LaunchResult run(@NotNull Executor executor, @NotNull IDevice device, @NotNull LaunchStatus launchStatus, @NotNull ConsolePrinter printer) {
         Stopwatch stopwatch = Stopwatch.createStarted();
 //        LogWrapper logger = new LogWrapper(LOG);
-        LogWrapper logger = new LogWrapper(JuggLogger.INSTANCE.getInstance(myProject, "#JUGG-JuggDeployer"));
+        Logger realLogger = JuggLogger.INSTANCE.getInstance(myProject, "#JUGG-JuggDeployer");
+        LogWrapper logger = new TraceLogger(realLogger);
         logger.alwaysLogAsDebug(true);
 
         // Collection that will accumulate metrics for the deployment.

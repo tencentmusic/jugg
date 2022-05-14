@@ -36,7 +36,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
                 logger.debug(diagnostic.toString())
                 return@DiagnosticListener
             }
-            logger.error(diagnostic.toString())
+            logger.warn(diagnostic.toString())
             item.errors.add(diagnostic.lineNumber to diagnostic.toString())
         }
 
@@ -50,7 +50,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         }
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
         if (!javaTask.call()) {
-            logger.error("javaTask call failed!")
+            logger.warn("javaTask call failed!")
         }
 
         // check result

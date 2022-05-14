@@ -49,10 +49,12 @@ class StdLogger(category: String): DefaultLogger(category) {
     }
 
     override fun warn(message: String?, t: Throwable?) {
-        // no need for logging warn, JuggLogger will print it via System.err.out
+        println("[W] $message")
+        t?.printStackTrace(System.err)
     }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
-        // no need for logging error, JuggLogger will print it via System.err.out
+        println("[E] $message")
+        t?.printStackTrace(System.err)
     }
 }
