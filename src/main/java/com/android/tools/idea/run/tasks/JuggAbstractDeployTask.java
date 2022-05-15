@@ -140,10 +140,6 @@ public abstract class JuggAbstractDeployTask implements LaunchTask {
             logger.info("%s. %s", title, content);
         }
 
-        if (myJuggDeployData.isNeedRestartApp()) {
-
-        }
-
         return new LaunchResult();
     }
 
