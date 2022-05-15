@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutionException
 class DeployStateManager(
     private val project: Project,
     private val deployHistoryManager: IDeployHistoryManager,
-    private val ideDeployStateHelper: IdeDeployStateHelper = IdeDeployStateHelper(project),
+    private val ideDeployStateHelper: IIdeDeployStateHelper = IdeDeployStateHelper(project),
 ) {
 
     var deployState = JuggDeployState(
@@ -57,13 +57,17 @@ class DeployStateManager(
     }
 }
 
+interface IIdeDeployStateHelper {
+    fun getIdeDeployState(): JuggDeployState
+}
+
 class IdeDeployStateHelper(
     private val project: Project,
-) {
+) : IIdeDeployStateHelper {
 
     private val logger = JuggLogger.getInstance(project, "#Jugg-IdeDeployStateHelper")
 
-    fun getIdeDeployState(): JuggDeployState {
+    override fun getIdeDeployState(): JuggDeployState {
         val configSettings = RunManager.getInstance(project).selectedConfiguration
             ?: return JuggDeployState.canNotFullBuild(DisableMessage(
                 DisableMessage.DisableMode.DISABLED,

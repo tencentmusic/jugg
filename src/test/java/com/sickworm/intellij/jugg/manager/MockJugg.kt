@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.manager
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
+import com.android.tools.deployer.JuggDeployData
 import com.android.tools.deployer.JuggDeployerHelper
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.log.LogWrapper
@@ -57,23 +58,22 @@ class MockJugg {
     }
 
     init {
+        adbDeviceHelper.init()
         renewComponents()
         renewManager()
-        adbDeviceHelper.init()
     }
 
     fun resetAllState() {
         pathManager.juggRootDir.deleteRecursively()
         renewComponents()
         renewManager()
-        deployAndCheckState()
     }
 
     /**
      * Init adb client.
      * Must call this method if you need real device deploy.
      */
-    fun waitingForDeviceOfLaunchedApp() {
+    fun waitingLaunchAppAndCheck() {
         val device = adbDeviceHelper.waitingForDeviceOfLaunchedApp(androidApkPackage)
         assertNotNull(device, "can not find $androidApkPackage on any device")
 
@@ -91,20 +91,29 @@ class MockJugg {
     }
 
     /**
-     * Run gradle build in [assetsAndroidDir] and install apk.
-     */
-    fun installAndReStart() {
-        val data = deployFileManager.getDeployData()
-        juggDeployerHelper.runTask(data, true)
-
-        deployTargetManager.restartApp()
-    }
-
-    /**
      * Deploy changes to device connected by adb.
      */
     fun deploy() {
+        // In this state, Jugg will wait app launched, so we need to update state asynchronously
+        val shouldUpdateStateAsync = deployStateManager.deployState.state == JuggDeployState.State.READY_INCREMENTAL_COMPILE
+        if (shouldUpdateStateAsync) {
+            Thread {
+                adbDeviceHelper.waitingForDeviceOfLaunchedApp(projectInfo.packageName)
+                juggManager.onActionUpdate()
+            }.start()
+        }
+
         juggManager.deploy()
+        waitingLaunchAppAndCheck()
+        juggManager.onActionUpdate()
+    }
+
+    /**
+     * Just simply mark changes as full compiled. Use this we don't need an android device to run tests.
+     */
+    fun dryFullCompile() {
+        juggManager.initCompileAfterFullBuild()
+        juggManager.onActionUpdate()
     }
 
     /**
@@ -146,6 +155,8 @@ class MockJugg {
         deployTargetManager = object: IDeployTargetManager {
             override fun runFullBuildAndLaunch() {
                 GradleBuildHelper.appAssembleDebug()
+                juggDeployerHelper.runTask(JuggDeployData(projectInfo.apkInfos, emptyList(), emptyList(), emptyList(), emptyList()), true)
+                deployTargetManager.restartApp()
             }
 
             override fun getApks(): List<ApkInfo> {
@@ -161,7 +172,7 @@ class MockJugg {
                     override fun getApks(device: IDevice) = projectInfo.apkInfos
                     override fun validate() = mutableListOf<ValidationError>()
                 }
-                AppStarter().startDefaultApp(projectInfo.packageName, apkProvider, getDevice())
+                AdbCmdHelper.startDefaultApp(projectInfo.packageName, apkProvider, getDevice())
             }
         }
 
@@ -190,9 +201,15 @@ class MockJugg {
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
         deployFileManager = DeployFileManager(logger)
 
-        val ideDeployStateHelper = mock(IdeDeployStateHelper::class.java)
-        val state = JuggDeployState.READY
-        `when`(ideDeployStateHelper.getIdeDeployState()).thenReturn(state)
+        val ideDeployStateHelper = object : IIdeDeployStateHelper {
+            override fun getIdeDeployState(): JuggDeployState {
+                return if (adbDeviceHelper.hasLaunchedApp(projectInfo.packageName)) {
+                    JuggDeployState.READY
+                } else {
+                    JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE, "mock: app not launched")
+                }
+            }
+        }
         deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
 
         JuggLogger.listenProjectLog(project, logger)
@@ -225,14 +242,5 @@ class MockJugg {
             deployHistoryManager = deployHistoryManager,
         )
         juggManager.init()
-    }
-
-    private fun deployAndCheckState() {
-        juggManager.deploy()
-
-        assertEquals(JuggDeployState.READY, deployStateManager.deployState)
-        assertEquals(1, deployTargetManager.getApks().size)
-        assertEquals(1, compileContextManager.compileContext.apkInfos.size)
-        verify(juggStateListener, times(1)).onDeployStateUpdate(JuggDeployState.READY)
     }
 }

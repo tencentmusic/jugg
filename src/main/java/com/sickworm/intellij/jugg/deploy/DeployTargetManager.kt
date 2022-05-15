@@ -54,7 +54,7 @@ class DeployTargetManager(
 
     override fun restartApp() {
         try {
-            AppStarter().startDefaultApp(getPackageName(), getApkProvider(), getDevice())
+            AdbCmdHelper.startDefaultApp(getPackageName(), getApkProvider(), getDevice())
         } catch (e: Exception) {
             logger.error("restartApp failed", e)
             throw e

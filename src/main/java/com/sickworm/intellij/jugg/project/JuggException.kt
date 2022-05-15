@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
+import com.android.tools.deployer.JuggDeployData
 import com.android.tools.idea.run.tasks.LaunchResult
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
@@ -33,6 +34,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun multipleDeviceFound() =
             JuggException("More than one device found via adb, please make sure there is only one device to be deployed.")
+
+        fun invokeAdbFailed(cmd: String, resultCode: Int) =
+            JuggException("Invoke cmd command \"$cmd\" failed, result code: $resultCode. Make sure you have adb in \$PATH.")
     }
 }
 
@@ -49,6 +53,9 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun compilerContextNotInit() =
             JuggInternalException("Compiler context not init, which should not happened in logic.")
+
+        fun apkNotFound(data: JuggDeployData) =
+            JuggInternalException("Apk files not found in: $data.")
 
         fun apkEntryNotFound(apk: File, path: String) =
             JuggInternalException("Entry{${path}} not found in apk{${apk.absolutePath}}.")

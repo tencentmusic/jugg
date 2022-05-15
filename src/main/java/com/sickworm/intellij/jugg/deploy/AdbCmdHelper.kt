@@ -1,18 +1,18 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.IDevice
+import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.activity.DefaultApkActivityLocator
+import com.sickworm.intellij.jugg.project.JuggException
 
-class AppStarter {
+object AdbCmdHelper {
 
     fun startApp(packageName: String, launchedActivity: String, isRestart: Boolean = true) {
         if (isRestart) {
             stopApp(packageName)
         }
-        Runtime.getRuntime()
-            .exec("adb shell am start -S -n $packageName/$launchedActivity")
-            .waitFor()
+        invokeCmdAndCheckResult("adb shell am start -S -n $packageName/$launchedActivity")
     }
 
     fun startDefaultApp(packageName: String, apkProvider: ApkProvider, device: IDevice, isRestart: Boolean = true) {
@@ -25,9 +25,16 @@ class AppStarter {
         return locator.getQualifiedActivityName(device)
     }
 
-    private fun stopApp(packageName: String) {
-        Runtime.getRuntime()
-            .exec("adb shell am force-stop $packageName")
+    fun stopApp(packageName: String) {
+        invokeCmdAndCheckResult("adb shell am force-stop $packageName")
+    }
+
+    private fun invokeCmdAndCheckResult(cmd: String) {
+        val resultCode = Runtime.getRuntime()
+            .exec(cmd)
             .waitFor()
+        if (resultCode != 0) {
+            throw JuggException.invokeAdbFailed(cmd, resultCode)
+        }
     }
 }

@@ -15,6 +15,7 @@ import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -38,6 +39,9 @@ class JuggDeployerHelper(
     }
 
     fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
+        if (data.apks.isEmpty()) {
+            throw JuggInternalException.apkNotFound(data)
+        }
         val packages = data.apks.associate {
                 // com.android.tools.idea.run.LaunchTaskRunner.run
                 // Add packages to the deployment, filtering out any dynamic features that are disabled.
@@ -68,7 +72,7 @@ class JuggDeployerHelper(
             throw JuggException.applyChangesFailed(launchResult)
         }
 
-        if (data.isNeedRestartApp) {
+        if (data.isNeedRestartApp || isInstall) {
             deployTargetManager.restartApp()
         }
     }

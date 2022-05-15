@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.Test
+import org.mockito.Mockito
+import kotlin.test.assertEquals
 
 /**
  * Need an Android device for this test.
@@ -19,36 +21,18 @@ class TopLevelFlowTest {
     }
 
     @Test
-    fun testDeviceStatusUpdate() {
-        // already test assert in resetAllState
-    }
-
-    @Test
-    fun testCompileJavaFile() {
-        jugg.changeFileAndNotify("ABC.java" to "ABC.java")
-        jugg.checkCompileResult("ABC.java", hotReloadModifiedClassesSize = 1)
-    }
-
-    @Test
-    fun testCompileActivity() {
-        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
-        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
-    }
-
-    @Test
-    fun testCompileKtActivity() {
-        jugg.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
-        jugg.checkCompileResult("MainActivity.kt", hotFixModifiedClassesSize = 1)
-    }
-
-    @Test
-    fun testInstall() {
-        jugg.installAndReStart()
+    fun testInstallAndLaunch() {
+        assertEquals(JuggDeployState.State.READY_FULL_COMPILE, jugg.deployStateManager.deployState.state)
+        jugg.deploy()
+        assertEquals(JuggDeployState.State.READY_DEPLOY, jugg.deployStateManager.deployState.state)
+        assertEquals(1, jugg.deployTargetManager.getApks().size)
+        assertEquals(1, jugg.compileContextManager.compileContext.apkInfos.size)
+        Mockito.verify(jugg.juggStateListener, Mockito.times(1)).onDeployStateUpdate(JuggDeployState.READY)
     }
 
     @Test
     fun testDeploy() {
-        testInstall()
+        testInstallAndLaunch()
 
         jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
@@ -58,7 +42,7 @@ class TopLevelFlowTest {
 
     @Test
     fun testDeploy2() {
-        testInstall()
+        testInstallAndLaunch()
 
         jugg.changeFileAndNotify("MainActivity2.changeImageAndToast.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
@@ -68,7 +52,7 @@ class TopLevelFlowTest {
 
     @Test
     fun testDeployKtActivity() {
-        testInstall()
+        testInstallAndLaunch()
 
         jugg.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
         jugg.checkCompileResult("MainActivity.kt", hotFixModifiedClassesSize = 1)

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.mock.projectInfo
@@ -132,4 +133,30 @@ class TopLevelFlowWithGitTest {
         assertEquals(2, jugg3.deployFileManager.getStagingFiles().size)
     }
 
+    @Test
+    fun recoveryDeployOnIsReadyIncCompileState() {
+        val jugg = MockJugg()
+        initDeployWithGit(jugg)
+
+        // first deploy
+        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
+        jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+        jugg.deploy()
+
+        // set app not launched
+        AdbCmdHelper.stopApp(projectInfo.packageName)
+
+        // recoverable state after renew Jugg
+        val jugg2 = MockJugg()
+        assertEquals(JuggDeployState.State.READY_INCREMENTAL_COMPILE, jugg2.deployStateManager.deployState.state)
+        assertTrue(jugg2.deployHistoryManager.isRecoverFeatureAvailable)
+        assertTrue(jugg2.deployHistoryManager.hasBeenFullCompiled)
+        val recoverInfo2 = jugg2.deployHistoryManager.tryGetContextRecoverInfoFromDb()
+        assertNotNull(recoverInfo2)
+        assertEquals(1, recoverInfo2.deployedFiles.size)
+        assertEquals(1, jugg2.deployFileManager.getStagingFiles().size)
+
+        jugg2.deploy()
+        assertEquals(0, jugg2.deployFileManager.getStagingFiles().size)
+    }
 }

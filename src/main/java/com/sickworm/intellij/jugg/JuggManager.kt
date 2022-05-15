@@ -201,12 +201,15 @@ class JuggManager @TestOnly constructor(
                 juggDeployerHelper.runTask(deployData)
                 updateInfoAfterIncDeploy(deployData)
             }
-            // TODO install app and deploy all deployed data
-//            deployStateManager.deployState.isReadyIncCompile -> {
-//                // recover deploy state for device
-//            }
+            deployStateManager.deployState.isReadyIncCompile -> {
+                logger.info("Recover deploy state from history")
+                // recover deploy state for device
+                val deployData = deployFileManager.getDeployData()
+                juggDeployerHelper.runTask(deployData, true)
+                waitingForDeployable()
+            }
             deployStateManager.deployState.isReadyRunFullBuild -> {
-                logger.info("Can not deploy, install and run apk")
+                logger.info("Install and run apk")
                 deployTargetManager.runFullBuildAndLaunch()
                 initCompileAfterFullBuild()
             }
@@ -227,7 +230,26 @@ class JuggManager @TestOnly constructor(
         deployFileManager.commit(deployData)
     }
 
-    private fun initCompileAfterFullBuild() {
+    private fun waitingForDeployable() {
+        val maxWaitTimeSecond = 5
+        var waitedTimeSecond = 0
+        val waitGapMillSecond = 1
+        while (waitedTimeSecond < maxWaitTimeSecond) {
+            Thread.sleep(waitGapMillSecond * 1000L)
+            waitedTimeSecond += waitGapMillSecond
+            logger.info("($waitedTimeSecond/$maxWaitTimeSecond)waiting app launched...")
+            if (deployStateManager.deployState.isReadyDeploy) {
+                logger.info("device online, start deploy")
+                deployAsync(false)
+                return
+            }
+        }
+
+        logger.info("app not launched, exit waiting")
+    }
+
+    @TestOnly
+    fun initCompileAfterFullBuild() {
         logger.debug("Init compile after full build")
 
         val (costTime, compileContextInfo) = measureTimeMillisWithResult {

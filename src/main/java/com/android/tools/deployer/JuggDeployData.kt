@@ -34,6 +34,7 @@ data class JuggDeployData(
 
     override fun toString(): String {
         val builder = StringBuilder()
+        builder.append("JuggDeployData: ")
         if (isEmpty) {
             builder.append("[nothing to deploy]")
             return builder.toString()

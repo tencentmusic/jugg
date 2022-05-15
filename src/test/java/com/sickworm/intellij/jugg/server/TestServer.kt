@@ -25,7 +25,7 @@ class TestServer {
     fun run() {
         val jugg = MockJugg()
         jugg.resetAllState()
-        jugg.waitingForDeviceOfLaunchedApp()
+        jugg.waitingLaunchAppAndCheck()
         JuggSettings.deployOnSave = true
 
         Thread {

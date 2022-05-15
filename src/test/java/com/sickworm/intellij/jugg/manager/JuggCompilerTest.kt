@@ -1,7 +1,10 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import org.junit.Before
 import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class JuggCompilerTest {
 
@@ -12,6 +15,8 @@ class JuggCompilerTest {
     @Before
     fun resetAllState() {
         jugg.resetAllState()
+        jugg.dryFullCompile()
+        assertTrue(jugg.deployStateManager.deployState.isReadyIncCompile)
     }
 
     /*******************************************************************
