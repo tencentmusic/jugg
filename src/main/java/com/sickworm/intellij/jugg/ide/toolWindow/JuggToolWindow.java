@@ -167,6 +167,34 @@ public class JuggToolWindow implements JuggStateListener {
       }
     }
 
+    updateFileTable();
+  }
+
+  @Override
+  public void onDeployed(boolean isInstall, @NotNull List<? extends File> files) {
+    if (isInstall) {
+      tableData.clear();
+    } else {
+      Iterator<ChangedFileInfo> iterator = tableData.iterator();
+      while (iterator.hasNext()) {
+        ChangedFileInfo changedFileInfo = iterator.next();
+        boolean isExist = false;
+        for (File file: files) {
+          if (file.getAbsolutePath().equals(changedFileInfo.getFile().getAbsolutePath())) {
+            isExist = true;
+            break;
+          }
+        }
+        if (isExist) {
+          iterator.remove();
+        }
+      }
+    }
+
+    updateFileTable();
+  }
+
+  private void updateFileTable() {
     Object[][] data = new Object[tableData.size()][2];
     for (int i = 0; i < tableData.size(); i++) {
       ChangedFileInfo curInfo = tableData.get(i);
@@ -174,13 +202,6 @@ public class JuggToolWindow implements JuggStateListener {
     }
 
     FileTableModel tableModel = new FileTableModel(data, tableColumns);
-    fileStatusTable.setModel(tableModel);
-  }
-
-  @Override
-  public void onDeployed() {
-    tableData.clear();
-    FileTableModel tableModel = new FileTableModel(new Object[][] {}, tableColumns);
     fileStatusTable.setModel(tableModel);
   }
 

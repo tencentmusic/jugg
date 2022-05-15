@@ -42,6 +42,11 @@ public class JuggToolWindowPreviewer {
         );
         infos.add(info);
         juggToolWindow.onFileStatesUpdate(infos);
+
+        List<File> files = new ArrayList<>();
+        files.add(new File("File5"));
+        files.add(new File("File7"));
+        juggToolWindow.onDeployed(false, files);
     }
 
 }

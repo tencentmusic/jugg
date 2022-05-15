@@ -91,10 +91,6 @@ class DeployFileManager(
 
     @Synchronized
     fun getDeployData(): JuggDeployData {
-        if (uncompiledFiles.isNotEmpty()) {
-            throw JuggException.notAllCompiled(uncompiledFiles.values)
-        }
-
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
         return deployDataGenerator.buildDeployData(deployItems)
     }

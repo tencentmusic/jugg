@@ -199,6 +199,10 @@ class JuggManager @TestOnly constructor(
                 logger.info("Deploy data:\n$deployData")
 
                 juggDeployerHelper.runTask(deployData)
+                deployStateListener.onDeployed(
+                    false,
+                    deployFileManager.getCompiledFiles().map { it.file },
+                )
                 updateInfoAfterIncDeploy(deployData)
             }
             deployStateManager.deployState.isReadyIncCompile -> {
@@ -212,6 +216,7 @@ class JuggManager @TestOnly constructor(
                 logger.info("Install and run apk")
                 deployTargetManager.runFullBuildAndLaunch()
                 initCompileAfterFullBuild()
+                deployStateListener.onDeployed(true, emptyList())
             }
             else -> {
                 logger.warn("Not ready to deploy")
@@ -220,7 +225,6 @@ class JuggManager @TestOnly constructor(
         }
 
         onActionUpdate()
-        deployStateListener.onDeployed()
     }
 
     private fun updateInfoAfterIncDeploy(deployData: JuggDeployData) {

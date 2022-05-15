@@ -11,8 +11,6 @@ import java.io.File
 class JuggException(msg: String): Exception(msg) {
 
     companion object {
-        fun notAllCompiled(remainFiles: Collection<ChangedFile>) =
-            JuggException("Can not deploy changes because not all files been successfully compiled.\nremaining files:\n$remainFiles")
 
         fun notSupportMultiApk() =
             JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk")

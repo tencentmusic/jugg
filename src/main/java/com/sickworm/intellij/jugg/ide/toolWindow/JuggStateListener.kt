@@ -9,7 +9,7 @@ import java.io.File
 interface JuggStateListener {
     fun onDeployStateUpdate(state: JuggDeployState)
     fun onFileStatesUpdate(infos: List<ChangedFileInfo>)
-    fun onDeployed()
+    fun onDeployed(isInstall: Boolean, files: List<File>)
 }
 
 data class ChangedFileInfo(
