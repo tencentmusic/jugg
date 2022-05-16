@@ -105,7 +105,13 @@ class CompileContextManager(
 
     private fun updateProjectDependencies(compileContextInfo: CompileContextInfo) {
         val copyModules = compileContext.modules.map { (name, module) ->
-            name to module.copy(buildPathInfo = compileContextInfo.moduleBuildPathInfos[name]!!)
+            val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
+            if (newBuildPathInfo != null) {
+                name to module.copy(buildPathInfo = newBuildPathInfo)
+            } else {
+                // module that without build path. e.g. root project
+                name to module
+            }
         }.toMap()
         compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
 
