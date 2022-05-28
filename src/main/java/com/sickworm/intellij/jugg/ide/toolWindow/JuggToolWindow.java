@@ -113,6 +113,8 @@ public class JuggToolWindow implements JuggStateListener {
 
     statusIconLabel.setOpaque(true);
 
+    fileStatusTable.setFocusable(false);
+
     onFileStatesUpdate(new ArrayList<>());
   }
 
