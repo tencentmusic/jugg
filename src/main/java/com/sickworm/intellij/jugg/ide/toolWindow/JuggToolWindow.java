@@ -123,8 +123,10 @@ public class JuggToolWindow implements JuggStateListener {
     String iconRes;
     if (state.isReadyDeploy()) {
       iconRes = "/res/icon_green.png";
-    } else if (state.isReadyRunFullBuild()) {
+    } else if (state.isReadyIncCompile()) {
       iconRes = "/res/icon_yellow.png";
+    } else if (state.isReadyRunFullBuild()) {
+      iconRes = "/res/icon_orange.png";
     } else {
       iconRes = "/res/icon_red.png";
     }
