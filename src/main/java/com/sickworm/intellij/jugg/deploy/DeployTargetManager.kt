@@ -14,7 +14,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
-import com.sickworm.intellij.jugg.project.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 import kotlin.jvm.Throws
 

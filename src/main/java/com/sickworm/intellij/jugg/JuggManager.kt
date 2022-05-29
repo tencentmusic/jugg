@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -23,9 +24,9 @@ class JuggManager @TestOnly constructor(
     private val project: Project,
     private val projectDir: File,
     private val deployStateListener: JuggStateListener,
+    private val pathManager: JuggPathManager = JuggPathManager(project, projectDir),
     private val logger: Logger = JuggLogger.getInstance(project, "#Jugg-JuggManager"),
     private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
-    private val pathManager: JuggPathManager = JuggPathManager(projectDir),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),

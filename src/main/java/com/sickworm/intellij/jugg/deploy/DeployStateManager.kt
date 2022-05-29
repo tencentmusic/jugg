@@ -11,7 +11,7 @@ import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.project.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.util.concurrent.ExecutionException
 
 /**

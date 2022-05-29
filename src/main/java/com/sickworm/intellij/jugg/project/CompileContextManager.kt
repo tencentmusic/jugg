@@ -6,6 +6,7 @@ import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryM
 import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
 import com.android.tools.idea.util.toIoFile
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
@@ -16,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.guessModuleDirAdv
 import com.sickworm.intellij.jugg.compiler.relativePath
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
@@ -35,9 +37,9 @@ class CompileContextManager(
     private val pathManager: JuggPathManager,
     private val moduleManager: ModuleManager = ModuleManager.getInstance(project), // mock
     private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
-    private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock
+    private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock,
+    private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager")
 ) {
-    private val logger = JuggLogger.getInstance(project, "#Jugg-CompileContextManager")
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
     private val tempCompileDir = File(pathManager.compileRootDir, "compiled")

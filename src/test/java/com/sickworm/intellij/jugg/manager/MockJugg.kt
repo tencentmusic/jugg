@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.*
 import org.mockito.Mockito.*
@@ -149,6 +150,7 @@ class MockJugg {
         application.registerService(MessagesService::class.java, DummyMessagesService())
 
         project = JuggMockProject(projectDir)
+        pathManager = JuggPathManager(project, projectDir, buildDir)
 
         juggStateListener = mock(JuggStateListener::class.java)
 
@@ -176,8 +178,6 @@ class MockJugg {
             }
         }
 
-        pathManager = JuggPathManager(projectDir, buildDir)
-
         val moduleManager = mock(ModuleManager::class.java)
         val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {
             MockModule(it)
@@ -188,9 +188,9 @@ class MockJugg {
         val projectBuildModel = mock(ProjectBuildModel::class.java)
         doReturn(MockGradleBuildModel()).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
         compileContextManager = CompileContextManager(project, pathManager,
-            moduleManager, projectJdkTable, projectBuildModel)
+            moduleManager, projectJdkTable, projectBuildModel, logger)
 
-        fileChangesHandler = FileChangesHandler(project)
+        fileChangesHandler = FileChangesHandler(project, logger)
         fileChangesDetector = MockFileChangesDetector()
 
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, MockExecutor())

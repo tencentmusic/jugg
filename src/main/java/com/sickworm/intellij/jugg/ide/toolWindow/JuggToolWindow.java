@@ -15,7 +15,7 @@ import com.sickworm.intellij.jugg.JuggManager;
 import com.sickworm.intellij.jugg.deploy.JuggDeployState;
 import com.sickworm.intellij.jugg.ide.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
-import com.sickworm.intellij.jugg.project.JuggLogger;
+import com.sickworm.intellij.jugg.logger.JuggLogger;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,33 +46,30 @@ public class JuggToolWindow implements JuggStateListener {
   private JTable fileStatusTable;
   private JPanel invisibleActionPanel;
 
-  private final Logger logger;
-
   private final Object[] tableColumns = { "File", "Status" };
 
   private final JuggManager juggManager;
 
+  private final LoggerPrinter loggerPrinter = new LoggerPrinter();
+
   @TestOnly
   public JuggToolWindow() {
-    this.logger = null;
     this.juggManager = null;
   }
 
   @SuppressWarnings("unused")
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
-    this.logger = JuggLogger.INSTANCE.getInstance(project, "#Jugg-JuggToolWindow");
-
     String projectDir = project.getBasePath();
-    logger.info("projectOpened " + project + " " + projectDir);
+    loggerPrinter.info("Start Jugg on " + projectDir);
     if (projectDir == null || (!new File(projectDir).exists())) {
-      logger.error("can not get project directory, exit");
+      loggerPrinter.warn("Can not get project directory, exit");
       juggManager = null;
       return;
     }
 
-    JuggLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
     juggManager = new JuggManager(project, new File(projectDir), this);
     juggManager.init();
+    JuggLogger.INSTANCE.listenProjectLog(project, loggerPrinter);
 
     deployButton.addActionListener(e -> deploy());
 
@@ -210,7 +207,6 @@ public class JuggToolWindow implements JuggStateListener {
   }
 
   public void deploy() {
-    logger.info("onDeploy");
     juggManager.deployAsync(true);
   }
 
