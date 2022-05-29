@@ -44,10 +44,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         val objects = compileItems.map { it.fileObject }
 
         // do compile
-        if (logger.isTraceEnabled) {
-            logger.trace("Compile files: $objects")
-            logger.trace("Compile options: $options")
-        }
+        logCompileCommand(module, options, compileItems)
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
         if (!javaTask.call()) {
             logger.warn("javaTask call failed!")
@@ -71,6 +68,37 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         } else {
             CompileResult(task, compileItems.map { Result.failure(CompileError(it.file, it.errors)) }, emptyList())
         }
+    }
+
+    private fun logCompileCommand(module: ModuleInfo, options: List<String>, files: List<JavaCompileItem>) {
+        val baseDir = module.buildPathInfo.buildDir
+
+        var lastOption = ""
+        val shortOptions = options.map {
+            if (lastOption == "-cp") {
+                return@map it
+                    .split(File.pathSeparator)
+                    .joinToString(File.pathSeparator) { cpPath ->
+                        File(cpPath).relativeToOrSelf(baseDir).path
+                    }
+            }
+            lastOption = it
+
+            if (!it.startsWith('/')) {
+                return@map it
+            }
+            val file = File(it).relativeToOrSelf(baseDir)
+            return@map file.path
+        }
+        val shortFiles = files.map {
+            it.file.file.relativeToOrSelf(baseDir)
+        }
+        logger.debug("java compile base dir: $baseDir")
+        logger.debug("java compile: javac " +
+                shortOptions.joinToString(" ") +
+                " " +
+                shortFiles.joinToString(" ")
+        )
     }
 
     private class JavaCompileItem(

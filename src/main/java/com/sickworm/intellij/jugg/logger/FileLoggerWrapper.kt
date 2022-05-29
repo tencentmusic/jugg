@@ -51,6 +51,10 @@ class FileLoggerWrapper(
         }
     }
 
+    init {
+        logger.level = Level.ALL
+    }
+
     override fun isTraceEnabled(): Boolean {
         return true
     }

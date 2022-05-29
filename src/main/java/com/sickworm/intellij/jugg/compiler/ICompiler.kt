@@ -150,7 +150,7 @@ data class ModuleInfo(
 
 class ModuleBuildPathInfo(
     /** build root dir */
-    private val buildDir: File,
+    val buildDir: File,
 ) {
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/debug/classes")

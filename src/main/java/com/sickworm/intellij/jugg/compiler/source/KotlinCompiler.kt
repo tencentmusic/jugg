@@ -77,9 +77,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         val fileArgs = task.files.map { it.file.absolutePath }
 
         val command = extensionArgs + compileArgs + classPathArgs + fileArgs
-        if (logger.isTraceEnabled) {
-            logger.trace("kotlin compile: kotlinc ${command.joinToString(" ")}")
-        }
+        logCompileCommand(module, command)
 
         // resolve kotlin extension function unresolved reference
         val merger = KmModuleMergerForCompilation(kotlinClassPath)
@@ -105,5 +103,29 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         }
 
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
+    }
+
+    private fun logCompileCommand(module: ModuleInfo, options: List<String>) {
+        val baseDir = module.buildPathInfo.buildDir
+
+        var lastOption = ""
+        val shortOptions = options.map {
+            if (lastOption == "-cp") {
+                return@map it
+                    .split(File.pathSeparator)
+                    .joinToString(File.pathSeparator) { cpPath ->
+                        File(cpPath).relativeToOrSelf(baseDir).path
+                    }
+            }
+            lastOption = it
+
+            if (!it.startsWith('/')) {
+                return@map it
+            }
+            val file = File(it).relativeToOrSelf(baseDir)
+            return@map file.path
+        }
+        logger.debug("kotlin compile base dir: $baseDir")
+        logger.debug("kotlin compile: kotlinc ${shortOptions.joinToString(" ")}")
     }
 }
