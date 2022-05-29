@@ -25,7 +25,7 @@ class JuggManager @TestOnly constructor(
     private val projectDir: File,
     private val deployStateListener: JuggStateListener,
     private val pathManager: JuggPathManager = JuggPathManager(project, projectDir),
-    private val logger: Logger = JuggLogger.getInstance(project, "#Jugg-JuggManager"),
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
@@ -33,10 +33,10 @@ class JuggManager @TestOnly constructor(
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
         projectDir,
         pathManager.historyDir,
-        JuggLogger.getInstance(project, "#Jugg-DeployHistoryManager")
+        JuggLogger.getInstance(project, "DeployHistoryManager")
     ),
     private val deployFileManager: DeployFileManager = DeployFileManager(
-        JuggLogger.getInstance(project, "#Jugg-DeployDataManager")
+        JuggLogger.getInstance(project, "DeployDataManager")
     ),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),

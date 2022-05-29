@@ -65,7 +65,7 @@ class IdeDeployStateHelper(
     private val project: Project,
 ) : IIdeDeployStateHelper {
 
-    private val logger = JuggLogger.getInstance(project, "#Jugg-IdeDeployStateHelper")
+    private val logger = JuggLogger.getInstance(project, "IdeDeployStateHelper")
 
     override fun getIdeDeployState(): JuggDeployState {
         val configSettings = RunManager.getInstance(project).selectedConfiguration

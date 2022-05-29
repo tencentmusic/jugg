@@ -21,7 +21,7 @@ import kotlin.jvm.Throws
 class DeployTargetManager(
     private val project: Project,
 ): IDeployTargetManager {
-    private val logger = JuggLogger.getInstance(project, "#Jugg-DeployTargetManager")
+    private val logger = JuggLogger.getInstance(project, "DeployTargetManager")
 
     private val deviceGetter: DeviceGetter = DeviceGetter(project)
 

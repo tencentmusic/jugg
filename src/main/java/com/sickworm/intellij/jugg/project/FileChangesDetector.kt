@@ -24,7 +24,7 @@ class FileChangesDetector(
     Disposable
 {
 
-    private val logger = JuggLogger.getInstance(project, "#Jugg-FileChangesDetector")
+    private val logger = JuggLogger.getInstance(project, "FileChangesDetector")
 
     private var listener: FileChangesListener? = null
 

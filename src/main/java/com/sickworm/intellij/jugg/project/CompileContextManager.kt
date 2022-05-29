@@ -38,7 +38,7 @@ class CompileContextManager(
     private val moduleManager: ModuleManager = ModuleManager.getInstance(project), // mock
     private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
     private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock,
-    private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager")
+    private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
 ) {
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
@@ -90,7 +90,7 @@ class CompileContextManager(
         }
 
         val context = BaseCompileContext(
-            logger = JuggLogger.getInstance(project, "#Jugg-Compiler"),
+            logger = JuggLogger.getInstance(project, "Compiler"),
             androidHome = androidHome,
             tempCompileDir = tempCompileDir,
             modules = modules,
