@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
 import java.io.File
+import kotlin.io.path.relativeTo
 
 /**
  * Manage compile context build files, e.g. apk, classpath, etc.
@@ -84,7 +85,16 @@ class CompileContextDb(
             if (!file.exists()) {
                 return@mapNotNull null
             }
-            val copyFile = File(thirdPartiesDirFile, file.path)
+
+            var relativeIndex = file.path.indexOf("files-2.1") // it's a gradle cache
+            if (relativeIndex >= 0) {
+                relativeIndex += "files-2.1".length + 1
+            } else {
+                val root = file.toPath().root // remove root path. e.g. "/" in linux-like system or "D:\" in windows system
+                relativeIndex = root?.toString()?.length ?: 0
+            }
+            val relativePath = file.path.substring(relativeIndex)
+            val copyFile = File(thirdPartiesDirFile, relativePath)
             copyFile.parentFile?.mkdirs()
             file.copyTo(copyFile)
             return@mapNotNull copyFile.path

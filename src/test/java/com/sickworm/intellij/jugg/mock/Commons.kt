@@ -152,3 +152,5 @@ fun Result<CompileFile, CompileError>.printCompileError() {
 
 fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, dependencies: List<String> = emptyList()) =
     CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, mockModule, dependencyPaths = dependencies)), outputDir)
+
+val String.systemBasedPath get() = File(this).path

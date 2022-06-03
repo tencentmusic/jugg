@@ -12,9 +12,10 @@ class GradleSettingsDummyReader(private val projectDir: File) {
     @Suppress("UNCHECKED_CAST")
     fun readProjectDirs(): List<File> {
         val settingsContent = File(projectDir, "settings.gradle").readText()
+        val stdPath = projectDir.absolutePath.replace("\\", "/")
         val result = Eval.me("""
                 // parsing settings.gradle
-                def delegate = new com.sickworm.intellij.jugg.mock.GradleSettingsDummyDelegate("$projectDir")
+                def delegate = new com.sickworm.intellij.jugg.mock.GradleSettingsDummyDelegate("$stdPath")
                 delegate.eval {
                     $settingsContent
                     getList()

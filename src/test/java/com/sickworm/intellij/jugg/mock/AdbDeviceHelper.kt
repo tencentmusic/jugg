@@ -4,6 +4,7 @@ import com.android.ddmlib.AndroidDebugBridge
 import com.android.ddmlib.ClientData
 import com.android.ddmlib.IDevice
 import com.android.ddmlib.Log
+import com.sickworm.intellij.jugg.compiler.isWindows
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
@@ -103,10 +104,12 @@ class AdbDeviceHelper {
         return null
     }
 
-    private var pattern = Pattern.compile(" *pid=(\\d+)\n")
+    private var pattern = Pattern.compile(" *pid=(\\d+)(\r?\n.*)*")
     private fun getPidByPackageName(packageName: String): Int {
+        val cmd = if (isWindows) "cmd /C adb shell am dump p $packageName | findstr pid"
+            else "adb shell am dump p $packageName | grep pid"
         val process = Runtime.getRuntime()
-            .exec("adb shell am dump p $packageName|grep pid")
+            .exec(cmd)
         val result = String(process.inputStream.readBytes())
         if (result.isNotEmpty()) {
             // e.g. "     pid=24114"

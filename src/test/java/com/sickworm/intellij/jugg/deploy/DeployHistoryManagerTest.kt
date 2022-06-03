@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.manager.MockJugg
 import com.sickworm.intellij.jugg.manager.changeAndRevert
@@ -71,7 +72,9 @@ class DeployHistoryManagerTest {
             assertEquals(DeployHistoryData(
                 deployHistoryData?.fullCompileGitCommitHash,
                 1,
-                mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java" to 2808648208),
+                mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java".systemBasedPath to
+                        if (isWindows) 901992344 else 2808648208 // "/r/n" vs "/n"
+                ),
                 1,
             ), deployHistoryData)
         }
@@ -90,7 +93,9 @@ class DeployHistoryManagerTest {
             assertEquals(DeployHistoryData(
                 deployHistoryData?.fullCompileGitCommitHash,
                 2,
-                mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java" to 1715140577),
+                mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java".systemBasedPath to
+                        if (isWindows) 3934764329 else 1715140577 // "/r/n" vs "/n"
+                ),
                 1,
             ), deployHistoryData)
         }
