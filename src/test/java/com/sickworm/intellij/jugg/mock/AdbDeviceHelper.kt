@@ -36,7 +36,7 @@ class AdbDeviceHelper {
         return androidDebugBridge.devices.toList()
     }
 
-    fun waitingForDeviceOfLaunchedApp(exceptPackageName: String, maxWaitingMills: Int = 5000): IDevice? {
+    fun waitingForDeviceOfLaunchedApp(exceptPackageName: String, maxWaitingMills: Int = 10_000): IDevice? {
         var remainWaitingMills = maxWaitingMills
         val waitingGap = 500
         while (remainWaitingMills >= 0) {
