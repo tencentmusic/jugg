@@ -85,6 +85,7 @@ class JuggCompilerTest {
 
         jugg.changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         jugg.checkCompileResult("MainActivity.kt",
+            newClassesSize = 1,
             hotReloadModifiedClassesSize = 0,
             hotFixModifiedClassesSize = 1)
 
@@ -92,7 +93,7 @@ class JuggCompilerTest {
 
         // second time deploy will be hot reload
         jugg.changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
-        jugg.checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 1)
+        jugg.checkCompileResult("MainActivity.kt", hotReloadModifiedClassesSize = 2)
     }
 
     // java method

@@ -114,13 +114,14 @@ class TopLevelFlowWithGitTest {
 
         // second deploy
         jugg2.changeFileAndNotify("MainActivity.kt" to "MainActivity.kt")
-        jugg2.checkCompileResult("MainActivity.kt", hotFixModifiedClassesSize = 1)
+        jugg2.checkCompileResult("MainActivity.kt",
+            newClassesSize = 1, hotFixModifiedClassesSize = 1)
         jugg2.deploy()
 
         // check state after second deploy
         val recoverInfo3 = jugg2.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo3)
-        assertEquals(2, recoverInfo3.deployedFiles.size)
+        assertEquals(3, recoverInfo3.deployedFiles.size)
 
         // recoverable state after renew Jugg
         val jugg3 = MockJugg()
@@ -129,8 +130,8 @@ class TopLevelFlowWithGitTest {
         assertTrue(jugg3.deployHistoryManager.hasBeenFullCompiled)
         val recoverInfo4 = jugg3.deployHistoryManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo4)
-        assertEquals(2, recoverInfo4.deployedFiles.size)
-        assertEquals(2, jugg3.deployFileManager.getStagingFiles().size)
+        assertEquals(3, recoverInfo4.deployedFiles.size)
+        assertEquals(3, jugg3.deployFileManager.getStagingFiles().size)
     }
 
     @Test

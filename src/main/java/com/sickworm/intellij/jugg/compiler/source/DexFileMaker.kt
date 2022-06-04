@@ -7,7 +7,7 @@ import java.io.File
 
 class DexFileMaker {
 
-    private val isEnableDesugaring = false
+    private val isEnableDesugaring = true
 
     fun dex(outputDir: File, classFilesOrDir: List<File>, classpath: Collection<String>,
             androidJar: File, minApi: Int) {
@@ -21,17 +21,21 @@ class DexFileMaker {
         args.add("--lib")
         args.add(androidJar.absolutePath)
 
+        args.add("--min-api")
+        args.add("$minApi")
+
         if (isEnableDesugaring) {
-            // it's fucking slow when classpath.size larger than 500... so better don't use desugaring
-            if (classpath.isNotEmpty()) {
-                classpath.forEach {
-                    args.add("--classpath")
-                    args.add(it)
-                }
-            }
+            // get warning without --classpath and --min-api:
+            // Type `kotlin.jvm.internal.Intrinsics` was not found, it is required for default or static interface methods desugaring of `Lcom/example/myapplication/MainActivity;onCreate$lambda-0(Lcom/example/myapplication/MainActivity;Landroid/view/View;)V`
+            // Type `androidx.appcompat.app.AppCompatActivity` was not found, it is required for default or static interface methods desugaring of `Lcom/example/myapplication/MainActivity;onCreate(Landroid/os/Bundle;)V`
+            // it's fucking slow when classpath.size larger than 500... so better don't add --classpath
+//            if (classpath.isNotEmpty()) {
+//                classpath.forEach {
+//                    args.add("--classpath")
+//                    args.add(it)
+//                }
+//            }
         } else {
-            args.add("--min-api")
-            args.add("$minApi")
             args.add("--no-desugaring")
         }
 
