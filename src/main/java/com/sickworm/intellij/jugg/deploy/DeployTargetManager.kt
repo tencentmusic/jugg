@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.*
-import com.android.tools.idea.projectsystem.getModuleSystem
+import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
@@ -12,6 +12,7 @@ import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -22,8 +23,6 @@ class DeployTargetManager(
     private val project: Project,
 ): IDeployTargetManager {
     private val logger = JuggLogger.getInstance(project, "DeployTargetManager")
-
-    private val deviceGetter: DeviceGetter = DeviceGetter(project)
 
     override fun runFullBuildAndLaunch() {
         val (runConfigAndSettings, _) = getRunConfig()
@@ -45,7 +44,16 @@ class DeployTargetManager(
 
     override fun getDevice(): IDevice {
         try {
-            return deviceGetter.getDevice()
+            val devices = AsDeployerCompat.getDevices(project)
+            if (devices == null || devices.isEmpty()) {
+                throw JuggException.deviceNotFound()
+            }
+
+            if (devices.size > 1) {
+                throw JuggException.multipleDeviceFound()
+            }
+
+            return devices[0]
         } catch (e: Exception) {
             logger.error("getDevice failed", e)
             throw e
@@ -74,7 +82,7 @@ class DeployTargetManager(
 
     private fun getApkProvider(): ApkProvider {
         val (_, runConfig) = getRunConfig()
-        return runConfig.getApkProvider()
+        return AsDeployerCompat.getApkProvider(project, runConfig)
     }
 
     private fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
@@ -82,15 +90,4 @@ class DeployTargetManager(
         return runConfig to runConfig.configuration as AndroidRunConfiguration
     }
 
-    @Throws(Exception::class)
-    private fun AndroidRunConfiguration.getApkProvider(): ApkProvider {
-        val targetDeviceSpec = null
-        return getFacet().getModuleSystem().getApkProvider(this, targetDeviceSpec)!!
-    }
-
-    @Throws(Exception::class)
-    private fun AndroidRunConfiguration.getFacet(): AndroidFacet {
-        val module: Module = configurationModule.module!!
-        return AndroidFacet.getInstance(module)!!
-    }
 }

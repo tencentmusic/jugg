@@ -100,9 +100,8 @@ class FileLoggerWrapper(
     }
 
     override fun error(message: String, t: Throwable?, vararg details: String) {
-        val finalT = checkException(t)
         val finalMessage = message.withPrefix + attachmentsToString(t)
-        printError(finalMessage, finalT, *details)
+        printError(finalMessage, t, *details)
     }
 
     private val String.withPrefix get() = "[$category] $this"

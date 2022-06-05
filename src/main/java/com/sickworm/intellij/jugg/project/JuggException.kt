@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.tools.deployer.JuggDeployData
-import com.android.tools.idea.run.tasks.LaunchResult
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
+import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import java.io.File
 
 // TODO exception unit test

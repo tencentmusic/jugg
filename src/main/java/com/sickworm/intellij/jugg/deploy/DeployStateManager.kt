@@ -1,9 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.idea.run.DeploymentService
-import com.android.tools.idea.run.deployable.Deployable
-import com.android.tools.idea.run.tasks.JuggAbstractDeployTask
 import com.android.tools.idea.run.ui.BaseAction
+import com.android.tools.idea.run.ui.BaseAction.DisableMessage
 import com.intellij.execution.ExecutionManager
 import com.intellij.execution.Executor
 import com.intellij.execution.RunManager
@@ -11,6 +9,7 @@ import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.project.Project
+import java.lang.reflect.Field
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.util.concurrent.ExecutionException
 
@@ -61,105 +60,72 @@ interface IIdeDeployStateHelper {
     fun getIdeDeployState(): JuggDeployState
 }
 
+/**
+ * @see [com.android.tools.idea.run.ui.BaseAction]
+ */
 class IdeDeployStateHelper(
     private val project: Project,
 ) : IIdeDeployStateHelper {
 
-    private val logger = JuggLogger.getInstance(project, "IdeDeployStateHelper")
-
     override fun getIdeDeployState(): JuggDeployState {
+        val fullBuildState = detectCanFullBuild()
+        if (fullBuildState != JuggDeployState.READY) {
+            return fullBuildState
+        }
+
+        val disableMessage = BaseAction.getDisableMessage(project)
+        if (disableMessage != null) {
+            return canNotIncrementalDeploy(disableMessage)
+        }
+
+        return JuggDeployState.READY
+    }
+
+    private fun canNotFullBuild(disableMessage: DisableMessage): JuggDeployState {
+        val toolTip = getToolTipField()
+        return JuggDeployState(JuggDeployState.State.NOTHING_CAN_DO, toolTip.get(disableMessage) as String)
+    }
+
+    private fun canNotIncrementalDeploy(disableMessage: DisableMessage): JuggDeployState {
+        val toolTip = getToolTipField()
+        return JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE, toolTip.get(disableMessage) as String)
+    }
+
+    private var toolTipField: Field? = null
+
+    private fun getToolTipField(): Field {
+        toolTipField?.let { return it }
+        val toolTipField = DisableMessage::class.java.getDeclaredField("myTooltip")
+        toolTipField.isAccessible = true
+        this.toolTipField = toolTipField
+        return toolTipField
+    }
+
+
+    /**
+     * @see [com.android.tools.idea.run.ui.BaseAction]
+     */
+    private fun detectCanFullBuild(): JuggDeployState {
         val configSettings = RunManager.getInstance(project).selectedConfiguration
-            ?: return JuggDeployState.canNotFullBuild(DisableMessage(
+            ?: return canNotFullBuild(DisableMessage(
                 DisableMessage.DisableMode.DISABLED,
                 "no configuration selected",
                 "there is no configuration selected"
             ))
         val selectedRunConfig = configSettings.configuration
         if (!isApplyChangesRelevant(selectedRunConfig)) {
-            return JuggDeployState.canNotFullBuild(DisableMessage(
+            return canNotFullBuild(DisableMessage(
                 DisableMessage.DisableMode.INVISIBLE, "unsupported configuration",
                 "the selected configuration is not supported"
             ))
         }
         if (isExecutorStarting(project, selectedRunConfig)) {
-            return JuggDeployState.canNotFullBuild(DisableMessage(
+            return canNotFullBuild(DisableMessage(
                 DisableMessage.DisableMode.DISABLED, "building and/or launching",
                 "the selected configuration is currently building and/or launching"
             ))
         }
-        val deployableProvider = DeploymentService.getInstance(project).deployableProvider
-            ?: return JuggDeployState.canNotFullBuild(DisableMessage(
-                DisableMessage.DisableMode.DISABLED, "no deployment provider",
-                "there is no deployment provider specified"
-            ))
-        if (!deployableProvider.isDependentOnUserInput) {
-            val deployable: Deployable?
-            try {
-                deployable = deployableProvider.deployable
-                if (deployable == null) {
-                    return JuggDeployState.canNotFullBuild(DisableMessage(
-                        DisableMessage.DisableMode.DISABLED,
-                        "selected device is invalid",
-                        "the selected device is not valid"
-                    ))
-                }
-                if (!deployable.isOnline) {
-                    return if (deployable.isUnauthorized) {
-                        JuggDeployState.canNotFullBuild(DisableMessage(
-                            DisableMessage.DisableMode.DISABLED, "device not authorized",
-                            "the selected device is not authorized"
-                        ))
-                    } else {
-                        JuggDeployState.canNotFullBuild(DisableMessage(
-                            DisableMessage.DisableMode.DISABLED,
-                            "device not connected",
-                            "the selected device is not connected"
-                        ))
-                    }
-                }
-                val versionFuture = deployable.version
-                if (!versionFuture.isDone) {
-                    // Don't stall the EDT - if the Future isn't ready, just return false.
-                    return JuggDeployState.canNotIncrementalDeploy(DisableMessage(
-                        DisableMessage.DisableMode.DISABLED,
-                        "unknown device API level",
-                        "its API level is currently unknown"
-                    ))
-                }
-                if (versionFuture.get().apiLevel < JuggAbstractDeployTask.MIN_API_VERSION) {
-                    return JuggDeployState.canNotIncrementalDeploy(DisableMessage(
-                        DisableMessage.DisableMode.DISABLED, "incompatible device API level",
-                        "its API level is lower than 30"
-                    ))
-                }
-                if (deployable.searchClientsForPackage().isEmpty()) {
-                    return JuggDeployState.canNotIncrementalDeploy(DisableMessage(
-                        DisableMessage.DisableMode.DISABLED, "app not detected",
-                        "the app is not yet running or not debuggable"
-                    ))
-                }
-            } catch (ex: InterruptedException) {
-                logger.warn(ex)
-                return JuggDeployState.canNotIncrementalDeploy(DisableMessage(
-                    DisableMessage.DisableMode.DISABLED,
-                    "update interrupted",
-                    "its status update was interrupted"
-                ))
-            } catch (ex: ExecutionException) {
-                logger.warn(ex)
-                return JuggDeployState.canNotIncrementalDeploy(DisableMessage(
-                    DisableMessage.DisableMode.DISABLED, "unknown device API level",
-                    "its API level could not be determined"
-                ))
-            } catch (ex: Exception) {
-                logger.warn(ex)
-                return JuggDeployState.canNotFullBuild(DisableMessage(
-                    DisableMessage.DisableMode.DISABLED,
-                    "unexpected exception",
-                    "an unexpected exception was thrown: $ex"
-                ))
-            }
-        }
+
         return JuggDeployState.READY
     }
 

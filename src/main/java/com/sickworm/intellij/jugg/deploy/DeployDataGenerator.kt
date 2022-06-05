@@ -1,12 +1,14 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.deployer.*
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ParsedApk
+import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import java.io.File

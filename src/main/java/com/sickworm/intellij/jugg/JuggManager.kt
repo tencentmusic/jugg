@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
-import com.android.tools.deployer.JuggDeployData
-import com.android.tools.deployer.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer

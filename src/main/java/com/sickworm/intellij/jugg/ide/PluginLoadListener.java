@@ -7,7 +7,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class PluginLoadListener implements DynamicPluginListener {
 
-    private final Logger logger = Logger.getInstance( "#Jugg-PluginLoadListener");
+    private final Logger logger = Logger.getInstance("PluginLoadListener");
 
     @Override
     public void beforePluginLoaded(@NotNull IdeaPluginDescriptor pluginDescriptor) {

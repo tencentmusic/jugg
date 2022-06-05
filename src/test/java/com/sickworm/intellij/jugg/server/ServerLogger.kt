@@ -54,9 +54,8 @@ class ServerLogger: DefaultLogger("Server") {
     }
 
     override fun error(message: String?, t: Throwable?, vararg details: String?) {
-        val finalT = checkException(t)
         val finalMessage = "[E] " + message + attachmentsToString(t)
-        dumpExceptionsToStderr(finalMessage, finalT, *details)
+        dumpExceptionsToStderr(finalMessage, t, *details)
     }
 
     private fun printlnWithTag(message: String) {

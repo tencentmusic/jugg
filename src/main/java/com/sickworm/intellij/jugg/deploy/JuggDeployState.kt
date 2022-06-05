@@ -42,14 +42,6 @@ data class JuggDeployState(
             State.READY_DEPLOY,
             msg = "ready to deploy",
         )
-
-        fun canNotFullBuild(disableMessage: DisableMessage): JuggDeployState {
-            return JuggDeployState(State.NOTHING_CAN_DO, disableMessage.tooltip)
-        }
-
-        fun canNotIncrementalDeploy(disableMessage: DisableMessage): JuggDeployState {
-            return JuggDeployState(State.READY_INCREMENTAL_COMPILE, disableMessage.tooltip)
-        }
     }
 
     enum class State {
@@ -58,15 +50,5 @@ data class JuggDeployState(
         READY_INCREMENTAL_COMPILE,
         READY_DEPLOY,
         ;
-    }
-}
-
-data class DisableMessage(
-    val disableMode: DisableMode,
-    val tooltip: String,
-    val description: String
-) {
-    enum class DisableMode {
-        INVISIBLE, DISABLED
     }
 }

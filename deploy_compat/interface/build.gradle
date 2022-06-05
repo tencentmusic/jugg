@@ -1,0 +1,32 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'java'
+    id 'org.jetbrains.intellij'
+}
+
+intellij {
+    updateSinceUntilBuild false
+    version '211.7442.40' // IntelliJ Idea 2021.1, closed to the Android Studio Plugin version of Android 4.1.2
+    plugins 'android'
+}
+
+repositories {
+    google()
+    mavenCentral()
+
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: '../../libs', include: ['*.jar'])
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+test {
+    useJUnitPlatform()
+}

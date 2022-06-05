@@ -1,0 +1,34 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'java'
+    id 'org.jetbrains.intellij'
+}
+
+intellij {
+    updateSinceUntilBuild false
+    version '212.5712.43' // Android Studio Chipmunk
+    plugins 'android'
+}
+
+repositories {
+    google()
+    mavenCentral()
+
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: '../libs', include: ['*.jar'])
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+
+    implementation project(':deploy_compat:interface')
+}
+
+test {
+    useJUnitPlatform()
+}

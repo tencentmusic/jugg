@@ -3,9 +3,15 @@ package com.sickworm.intellij.jugg.manager
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
-import com.android.tools.deployer.JuggDeployData
-import com.android.tools.deployer.JuggDeployerHelper
+import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
+import com.android.tools.idea.gradle.dsl.api.android.AndroidModel
+import com.android.tools.idea.gradle.dsl.api.android.CompileOptionsModel
+import com.android.tools.idea.gradle.dsl.api.android.KotlinOptionsModel
+import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
+import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
@@ -17,8 +23,10 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
+import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.openapi.util.Computable
+import com.intellij.pom.java.LanguageLevel
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
@@ -147,7 +155,7 @@ class MockJugg {
         val application = MockApplication {}
         ApplicationManager.setApplication(application) {}
         application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
-        application.registerService(MessagesService::class.java, DummyMessagesService())
+        application.registerService(MessagesService::class.java, mock(MessagesService::class.java))
 
         project = JuggMockProject(projectDir)
         pathManager = JuggPathManager(project, projectDir, buildDir)
@@ -180,20 +188,22 @@ class MockJugg {
 
         val moduleManager = mock(ModuleManager::class.java)
         val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {
-            MockModule(it)
+            getModel(it)
         }.toTypedArray()
         doReturn(modules).`when`(moduleManager).modules
         val projectJdkTable = mock(ProjectJdkTable::class.java)
         doReturn(arrayOf(MockAndroid30Sdk())).`when`(projectJdkTable).allJdks
         val projectBuildModel = mock(ProjectBuildModel::class.java)
-        doReturn(MockGradleBuildModel()).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
+        val gradleBuildModule = mock(GradleBuildModel::class.java)
+        doReturn(getAndroidModel()).`when`(gradleBuildModule).android()
+        doReturn(gradleBuildModule).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
         compileContextManager = CompileContextManager(project, pathManager,
             moduleManager, projectJdkTable, projectBuildModel, logger)
 
         fileChangesHandler = FileChangesHandler(project, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, MockExecutor())
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager)
         juggDeployerHelper.installPathProvider = Computable {
             return@Computable "./src/test/assets/libs/installer"
         }
@@ -213,6 +223,45 @@ class MockJugg {
         deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
 
         JuggLogger.listenProjectLog(project, logger)
+    }
+
+    private fun getAndroidModel(): AndroidModel {
+        val compileSdkVersion = mock(ResolvedPropertyModel::class.java)
+        `when`(compileSdkVersion.valueAsString()).thenReturn(androidBuildTools.name.substring(0, 2))
+
+        val buildToolsVersion = mock(ResolvedPropertyModel::class.java)
+        `when`(buildToolsVersion.valueAsString()).thenReturn(androidBuildTools.name)
+
+        val compileOptionsModel = mock(CompileOptionsModel::class.java)
+        val languageLevelPropertyModel = mock(LanguageLevelPropertyModel::class.java)
+        `when`(languageLevelPropertyModel.toLanguageLevel()).thenReturn(LanguageLevel.JDK_1_8) // TODO read from build.gradle
+        `when`(compileOptionsModel.sourceCompatibility()).thenReturn(languageLevelPropertyModel)
+        `when`(compileOptionsModel.targetCompatibility()).thenReturn(languageLevelPropertyModel)
+
+        val kotlinOptionsModel = mock(KotlinOptionsModel::class.java)
+        val jvmTarget = mock(LanguageLevelPropertyModel::class.java)
+        `when`(jvmTarget.toLanguageLevel()).thenReturn(LanguageLevel.JDK_1_8) // TODO read from build.gradle
+        `when`(kotlinOptionsModel.jvmTarget()).thenReturn(jvmTarget)
+
+        val androidModel = mock(AndroidModel::class.java)
+        `when`(androidModel.sourceSets()).thenReturn(mutableListOf())
+        `when`(androidModel.buildToolsVersion()).thenReturn(buildToolsVersion)
+        `when`(androidModel.compileSdkVersion()).thenReturn(compileSdkVersion)
+        `when`(androidModel.compileOptions()).thenReturn(compileOptionsModel)
+        `when`(androidModel.kotlinOptions()).thenReturn(kotlinOptionsModel)
+
+        return androidModel
+    }
+
+    private fun getModel(file: File): Module {
+        val virtualFile = MockIoVirtualFile(file)
+        val manager = MockModuleRootManager(virtualFile)
+        val module = mock(Module::class.java)
+        doReturn(manager).`when`(module).getComponent(ModuleRootManager::class.java)
+        doReturn(virtualFile).`when`(module).moduleFile
+        doReturn(virtualFile.name).`when`(module).name
+
+        return module
     }
 
     private fun getDevice(): IDevice {

@@ -1,12 +1,12 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.tools.deployer.DeployItem
-import com.android.tools.deployer.JuggDeployData
 import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.*
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.manager.utils.ListFiles
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir

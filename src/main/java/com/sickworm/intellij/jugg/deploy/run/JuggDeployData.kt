@@ -1,4 +1,4 @@
-package com.android.tools.deployer
+package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkEntry
