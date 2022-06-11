@@ -73,15 +73,20 @@ class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     override fun getDevices(project: Project): List<IDevice>? {
         val deployTargetContext = DeployTargetContext()
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
-        val module = ModuleManager.getInstance(project).modules.first()
-        val facet = AndroidFacet.getInstance(module)
-            ?: throw IllegalStateException("no android facet")
 
-        val deviceFutures = deployTarget.getDevices(facet)
-            ?: throw IllegalStateException("no device futures")
+        // find the first available devices
+        // TODO more elegant
+        ModuleManager.getInstance(project).modules.forEach { module ->
+            val facet = AndroidFacet.getInstance(module) ?: return@forEach
+            val deviceFutures = deployTarget.getDevices(facet) ?: return@forEach
 
-        // got ClassCastException if using DeviceFutures.get() for different ClassLoader
-        return deviceFutures.ifReady
+            val devices = deviceFutures.ifReady
+            if (!devices.isNullOrEmpty()) {
+                return devices
+            }
+        }
+
+        return null
     }
 
     override fun getInstaller(
