@@ -1,10 +1,14 @@
 package com.sickworm.intellij.jugg.logger
 
+import com.android.internal.os.LoggingPrintStream
 import com.intellij.openapi.diagnostic.Attachment
+import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.ExceptionWithAttachments
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.ExceptionUtil
 import java.io.File
+import java.io.PrintStream
+import java.lang.StringBuilder
 import java.util.*
 import java.util.function.Function
 import java.util.logging.*
@@ -38,11 +42,19 @@ class FileLoggerWrapper(
                         private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s %n"
 
                         override fun format(lr: LogRecord): String {
-                            return String.format(format,
+                            val string = String.format(format,
                                 Date(lr.millis),
                                 lr.level.name,
                                 lr.message
-                            );
+                            )
+                            val stackString = StringBuilder()
+                            lr.thrown?.printStackTrace(object : LoggingPrintStream() {
+                                override fun log(stackTrace: String?) {
+                                    stackString.append(stackTrace)
+                                    stackString.append("\n")
+                                }
+                            })
+                            return string + stackString.toString()
                         }
                     }
                     it.addHandler(loggerHandler)
@@ -100,14 +112,14 @@ class FileLoggerWrapper(
     }
 
     override fun error(message: String, t: Throwable?, vararg details: String) {
-        val finalMessage = message.withPrefix + attachmentsToString(t)
-        printError(finalMessage, t, *details)
+        printError(message, t, *details)
     }
 
     private val String.withPrefix get() = "[$category] $this"
 
     private fun printError(message: String, t: Throwable?, vararg details: String) {
-        logger.log(Level.SEVERE, "ERROR: ${message.withPrefix}", t)
+        val finalMessage = message.withPrefix + attachmentsToString(t)
+        logger.log(Level.SEVERE, finalMessage, t)
         if (details.isNotEmpty()) {
             logger.log(Level.SEVERE, "details: ")
             for (detail in details) {

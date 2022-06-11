@@ -111,7 +111,7 @@ class CompileContextDb(
 
     fun getCompileBuildPathInfoFromDb(): CompileContextInfo? {
         if (!hasBeenFullCompiled) {
-            logger.warn("No compile context db found")
+            logger.debug("No compile context db found")
             return null
         }
 

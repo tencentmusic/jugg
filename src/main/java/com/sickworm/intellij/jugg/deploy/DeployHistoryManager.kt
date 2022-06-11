@@ -53,15 +53,15 @@ class DeployHistoryManager(
         val deployedFiles = compileContextDb.getDeployedData()
 
         if (changedFiles == null) {
-            logger.warn("getChangedFilesSinceLastFullCompiled failed, return null")
+            logger.debug("getChangedFilesSinceLastFullCompiled failed, return null")
             return null
         }
         if (compileContextInfo == null) {
-            logger.warn("getCompileBuildPathInfoFromDb failed, return null")
+            logger.debug("getCompileBuildPathInfoFromDb failed, return null")
             return null
         }
         if (deployedFiles == null) {
-            logger.warn("getDeployedData failed, return null")
+            logger.debug("getDeployedData failed, return null")
             return null
         }
 
