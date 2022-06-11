@@ -12,6 +12,7 @@ import com.android.tools.idea.run.DeviceFutures
 import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.utils.ILogger
 import com.intellij.openapi.project.Project
+import org.apache.maven.artifact.versioning.ComparableVersion
 import org.jetbrains.android.facet.AndroidFacet
 
 /**

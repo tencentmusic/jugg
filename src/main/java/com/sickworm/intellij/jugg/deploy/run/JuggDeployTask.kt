@@ -59,7 +59,10 @@ class JuggDeployTask(
 
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
-        val logger = LogWrapper(logger)
+        val logger = LogWrapper(logger).also {
+            it.alwaysLogAsDebug(true)
+            it.allowVerbose(true)
+        }
         val device = launchContext.device
         val printer = launchContext.consolePrinter
         val adb = AdbClient(device, logger)

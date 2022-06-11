@@ -15,6 +15,7 @@ import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import org.apache.maven.artifact.versioning.ComparableVersion
 import org.jetbrains.android.facet.AndroidFacet
 import java.util.*
 
@@ -24,25 +25,29 @@ import java.util.*
 class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     companion object {
-        private val OPTIMISTIC_INSTALL_SUPPORT: Map<StudioFlags.OptimisticInstallSupportLevel, EnumSet<ChangeType>>
-                = ImmutableMap.of(
-            StudioFlags.OptimisticInstallSupportLevel.DISABLED, EnumSet.noneOf(ChangeType::class.java),
-            StudioFlags.OptimisticInstallSupportLevel.DEX, EnumSet.of(ChangeType.DEX),
-            StudioFlags.OptimisticInstallSupportLevel.DEX_AND_NATIVE,
-            EnumSet.of(ChangeType.DEX, ChangeType.NATIVE_LIBRARY),
-            StudioFlags.OptimisticInstallSupportLevel.DEX_AND_NATIVE_AND_RESOURCES,
-            EnumSet.of(
-                ChangeType.DEX,
-                ChangeType.NATIVE_LIBRARY,
-                ChangeType.RESOURCE)
-        )
+
+        val deployVersion: ComparableVersion = ComparableVersion("27.2.0.0")
+
     }
+
+    private val optimisticInstallSupportFull: Map<StudioFlags.OptimisticInstallSupportLevel, EnumSet<ChangeType>>
+            = ImmutableMap.of(
+        StudioFlags.OptimisticInstallSupportLevel.DISABLED, EnumSet.noneOf(ChangeType::class.java),
+        StudioFlags.OptimisticInstallSupportLevel.DEX, EnumSet.of(ChangeType.DEX),
+        StudioFlags.OptimisticInstallSupportLevel.DEX_AND_NATIVE,
+        EnumSet.of(ChangeType.DEX, ChangeType.NATIVE_LIBRARY),
+        StudioFlags.OptimisticInstallSupportLevel.DEX_AND_NATIVE_AND_RESOURCES,
+        EnumSet.of(
+            ChangeType.DEX,
+            ChangeType.NATIVE_LIBRARY,
+            ChangeType.RESOURCE)
+    )
 
     private val myRerunOnSwapFailure: Boolean = false
     private val myAlwaysInstallWithPm: Boolean = false
     private val optimisticInstallSupport: EnumSet<ChangeType> =
         if (!myAlwaysInstallWithPm) {
-            OPTIMISTIC_INSTALL_SUPPORT.getOrDefault(
+            optimisticInstallSupportFull.getOrDefault(
                 StudioFlags.OPTIMISTIC_INSTALL_SUPPORT_LEVEL.get(), EnumSet.noneOf(ChangeType::class.java)
             )
         } else {

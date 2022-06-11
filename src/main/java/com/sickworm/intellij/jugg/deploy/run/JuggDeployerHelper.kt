@@ -1,16 +1,15 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.android.tools.idea.gradle.util.EmbeddedDistributionPaths
 import com.android.tools.idea.run.ConsolePrinter
-import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
-import org.jetbrains.android.download.AndroidProfilerDownloader
 import org.jetbrains.annotations.TestOnly
-import java.io.File
 
 /**
  * Create a deploy task.
@@ -21,11 +20,16 @@ import java.io.File
 class JuggDeployerHelper(
     private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
 ) {
+
+    init {
+        AsDeployerCompat.init(logger)
+    }
 
     @TestOnly
     var installPathProvider: Computable<String> = Computable<String> {
-        findEmbeddedInstaller()
+        EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()
     }
 
     fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
@@ -41,7 +45,7 @@ class JuggDeployerHelper(
         val task = JuggDeployTask(project, installPathProvider, type, data)
 
         // TODO ConsolePrinter
-        val consolePrinter = MockConsolePrinter(project)
+        val consolePrinter = MockConsolePrinter(logger)
         // TODO try ExecutionManager
         val device = deployTargetManager.getDevice()
         val launchContext = LaunchContext(consolePrinter, device)
@@ -55,29 +59,9 @@ class JuggDeployerHelper(
         }
     }
 
-    // private in Android Studio 4.1.2，so I copied it out
-    private fun findEmbeddedInstaller(): String? {
-        val path = "plugins/android/resources/installer"
-        val file = File(PathManager.getHomePath(), path)
-        if (file.exists()) {
-            return file.absolutePath
-        }
-        AndroidProfilerDownloader.getInstance().makeSureComponentIsInPlace()
-        val dir = AndroidProfilerDownloader.getInstance().getHostDir(path)
-        return if (dir.exists()) {
-            dir.absolutePath
-        } else File(
-            PathManager.getHomePath(),
-            "../../bazel-genfiles/tools/base/deploy/installer/android-installer"
-        ).absolutePath
-        // Development mode
-    }
-
 }
 
-class MockConsolePrinter(val project: Project): ConsolePrinter {
-
-    val logger = JuggLogger.getInstance(project, "ConsolePrinter")
+class MockConsolePrinter(private val logger: Logger): ConsolePrinter {
 
     override fun stdout(message: String) {
         logger.info(message)

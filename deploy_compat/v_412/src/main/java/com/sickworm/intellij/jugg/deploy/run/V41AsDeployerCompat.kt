@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableMap
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import org.apache.maven.artifact.versioning.ComparableVersion
 import org.jetbrains.android.facet.AndroidFacet
 import kotlin.jvm.Throws
 
@@ -23,6 +24,10 @@ import kotlin.jvm.Throws
  * Android Studio 4.1
  */
 class V41AsDeployerCompat : IAsDeployerCompat {
+
+    companion object {
+        val deployVersion: ComparableVersion = ComparableVersion("27.1.1.1")
+    }
 
     // Collection that will accumulate metrics for the deployment.
     private val metrics = ArrayList<DeployMetric>()
