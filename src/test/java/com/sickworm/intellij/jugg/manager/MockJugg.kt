@@ -34,11 +34,13 @@ import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.*
+import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.mockito.Mockito.*
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 
 class MockJugg {
@@ -203,9 +205,16 @@ class MockJugg {
         fileChangesHandler = FileChangesHandler(project, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager)
-        juggDeployerHelper.installPathProvider = Computable {
-            return@Computable "./src/test/assets/libs/installer"
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, logger)
+        juggDeployerHelper.installPathProvider = Computable<String> {
+            val downloader = MockAndroidProfilerDownloader()
+            val (costTime, isInPlace) = measureTimeMillisWithResult {
+                downloader.makeSureComponentIsInPlace()
+            }
+            println("makeSureComponentIsInPlace cost ${costTime}ms")
+            assertTrue(isInPlace)
+
+            downloader.installerFilePath.absolutePath
         }
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
