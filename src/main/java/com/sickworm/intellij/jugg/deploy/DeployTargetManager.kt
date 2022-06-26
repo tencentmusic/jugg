@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.*
-import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
@@ -10,14 +9,11 @@ import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import org.jetbrains.android.facet.AndroidFacet
-import kotlin.jvm.Throws
 
 class DeployTargetManager(
     private val project: Project,
@@ -60,12 +56,13 @@ class DeployTargetManager(
         }
     }
 
-    override fun restartApp() {
-        try {
+    override fun restartApp(): Boolean {
+        return try {
             AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), getApkProvider())
+            true
         } catch (e: Exception) {
             logger.error("restartApp failed", e)
-            throw e
+            false
         }
     }
 

@@ -62,24 +62,21 @@ class JuggManager @TestOnly constructor(
             compileContextManager.initProjectInfo()
 
             logger.info("Init deploy history")
-            if (!deployHistoryManager.isRecoverFeatureAvailable) {
-                logger.warn("Current project don't support deploy history, need full build")
-                return
-            }
-
-            val contextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
-            if (contextRecoverInfo == null) {
-                logger.warn("Deploy state recover function unavailable")
-                return
-            }
-            recoverDeployContext(contextRecoverInfo)
+            recoverDeployContext()
         } finally {
             onActionUpdate()
         }
     }
 
-    private fun recoverDeployContext(deployContextRecoverInfo: DeployContextRecoverInfo) {
+    private fun recoverDeployContext() {
         logger.info("Start recover deploy context")
+
+        val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
+        if (deployContextRecoverInfo == null) {
+            logger.warn("Deploy state recover function unavailable")
+            return
+        }
+
         // step 1: recover compile context
         initCompile(deployContextRecoverInfo.compileContextInfo)
         // step 2: recover deploy files
@@ -207,11 +204,7 @@ class JuggManager @TestOnly constructor(
                 updateInfoAfterIncDeploy(deployData)
             }
             deployStateManager.deployState.isReadyIncCompile -> {
-                logger.info("Recover deploy state from history")
-                // recover deploy state for device
-                val deployData = deployFileManager.getDeployData()
-                juggDeployerHelper.runTask(deployData, true)
-                waitingForDeployable()
+                recoverDeployState()
             }
             deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Install and run apk")
@@ -235,7 +228,59 @@ class JuggManager @TestOnly constructor(
         deployFileManager.commit(deployData)
     }
 
-    private fun waitingForDeployable() {
+    /**
+     * Redeploy apk and compiled files.
+     * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
+     */
+    private fun recoverDeployState() {
+        logger.info("Recover deploy state from history")
+
+        // dry deploy first, if success, no need to reinstall and recover
+        if (tryDryDeploy()) {
+            logger.info("Deploy state matched, no need reinstall app")
+            deployAsync(false)
+            return
+        }
+        logger.info("Need reinstall app")
+
+        // recover deploy state for device
+        val deployData = deployFileManager.getDeployData()
+        juggDeployerHelper.runTask(deployData, true)
+        val isDeviceDeployable = waitingForDeployable()
+        if (!isDeviceDeployable) {
+            logger.warn("Recovery failed for app not launched")
+            return
+        }
+
+        logger.info("Device online, start recover and deploy")
+        deployAsync(false)
+    }
+
+    private fun tryDryDeploy(): Boolean {
+        logger.info("Start app directly")
+        if (!deployTargetManager.restartApp()) {
+            logger.debug("Try start app failed")
+            return false
+        }
+        val isDeviceDeployable = waitingForDeployable()
+        if (!isDeviceDeployable) {
+            logger.warn("Dry deploy failed for app not launched")
+            return false
+        }
+
+        logger.info("Device online, try dry deploy")
+        return try {
+            val deployData = deployFileManager.getDeployData()
+            val dryDeployData = JuggDeployData(deployData.apks, emptyList(), emptyList(), emptyList(), emptyList())
+            juggDeployerHelper.runTask(dryDeployData)
+            true
+        } catch (e: Exception) {
+            logger.debug("Dry deploy failed, reason: $e")
+            false
+        }
+    }
+
+    private fun waitingForDeployable(): Boolean {
         val maxWaitTimeSecond = 5
         var waitedTimeSecond = 0
         val waitGapMillSecond = 1
@@ -244,13 +289,12 @@ class JuggManager @TestOnly constructor(
             waitedTimeSecond += waitGapMillSecond
             logger.info("($waitedTimeSecond/$maxWaitTimeSecond)waiting app launched...")
             if (deployStateManager.deployState.isReadyDeploy) {
-                logger.info("device online, start deploy")
-                deployAsync(false)
-                return
+                return true
             }
         }
 
-        logger.info("app not launched, exit waiting")
+        logger.warn("App not launched, please check the app is started and adb is not occupied by other process")
+        return false
     }
 
     @TestOnly

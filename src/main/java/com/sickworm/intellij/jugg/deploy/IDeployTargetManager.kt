@@ -14,5 +14,5 @@ interface IDeployTargetManager {
 
     fun getDevice(): IDevice
 
-    fun restartApp()
+    fun restartApp(): Boolean
 }

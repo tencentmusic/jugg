@@ -149,6 +149,7 @@ class TopLevelFlowWithGitTest {
         AdbCmdHelper(jugg.deployTargetManager.getDevice(), logger).stopApp(projectInfo.packageName)
 
         // recoverable state after renew Jugg
+        println("\n\nstart deploy 2")
         val jugg2 = MockJugg()
         assertEquals(JuggDeployState.State.READY_INCREMENTAL_COMPILE, jugg2.deployStateManager.deployState.state)
         assertTrue(jugg2.deployHistoryManager.isRecoverFeatureAvailable)
@@ -158,6 +159,7 @@ class TopLevelFlowWithGitTest {
         assertEquals(1, recoverInfo2.deployedFiles.size)
         assertEquals(1, jugg2.deployFileManager.getStagingFiles().size)
 
+        println("\n\nstart deploy 3")
         jugg2.deploy()
         assertEquals(0, jugg2.deployFileManager.getStagingFiles().size)
     }
