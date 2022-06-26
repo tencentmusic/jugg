@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.manager
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
 import org.junit.Before
 import org.junit.Test
@@ -145,7 +146,7 @@ class TopLevelFlowWithGitTest {
         jugg.deploy()
 
         // set app not launched
-        AdbCmdHelper.stopApp(projectInfo.packageName)
+        AdbCmdHelper(jugg.deployTargetManager.getDevice(), logger).stopApp(projectInfo.packageName)
 
         // recoverable state after renew Jugg
         val jugg2 = MockJugg()

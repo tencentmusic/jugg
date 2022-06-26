@@ -35,6 +35,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun invokeAdbFailed(cmd: String, resultCode: Int) =
             JuggException("Invoke cmd command \"$cmd\" failed, result code: $resultCode. Make sure you have adb in \$PATH.")
+
+        fun invokeAdbFailed2(cmd: String, e: Exception) =
+            JuggException("Invoke cmd command \"$cmd\" failed, message: ${e.message}")
     }
 }
 

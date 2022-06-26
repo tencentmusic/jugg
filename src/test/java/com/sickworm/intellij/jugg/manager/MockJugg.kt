@@ -184,7 +184,7 @@ class MockJugg {
                     override fun getApks(device: IDevice) = projectInfo.apkInfos
                     override fun validate() = mutableListOf<ValidationError>()
                 }
-                AdbCmdHelper.startDefaultApp(projectInfo.packageName, apkProvider, getDevice())
+                AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, apkProvider)
             }
         }
 
