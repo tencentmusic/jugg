@@ -16,7 +16,9 @@ version '1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 intellij {
+    pluginName 'jugg'
     updateSinceUntilBuild false
+
 //    version '211.7442.40' // Android 4.1.2, deployer version 27.1.1.1
     version '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0
     plugins 'android'
