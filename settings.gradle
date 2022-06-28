@@ -1,5 +1,6 @@
 rootProject.name = 'jugg'
 
+include ':main'
 include ':deploy_compat:interface'
 include ':deploy_compat:v_412'
 include ':deploy_compat:v_chipmunk'
