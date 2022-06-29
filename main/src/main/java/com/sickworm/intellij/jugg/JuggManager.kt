@@ -211,6 +211,7 @@ class JuggManager @TestOnly constructor(
             deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Install and run apk")
                 deployTargetManager.runFullBuildAndLaunch()
+                logger.debug("Init compile after full build")
                 initCompileAfterFullBuild()
                 deployStateListener.onDeployed(true, emptyList())
             }
@@ -301,8 +302,6 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun initCompileAfterFullBuild() {
-        logger.debug("Init compile after full build")
-
         val (costTime, compileContextInfo) = measureTimeMillisWithResult {
             val apkInfos = deployTargetManager.getApks()
             if (apkInfos.isEmpty()) {
