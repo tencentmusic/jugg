@@ -10,13 +10,11 @@ import java.io.File
 class JuggPathManager(
     val project: Project,
     val projectDir: File,
-    val juggRootDir: File = File("$projectDir/build/jugg")
+    val juggRootDir: File,
 ) {
+    constructor(project2: Project, projectDir: File) : this(project2, projectDir, File("$projectDir/build/jugg"))
+
     val compileRootDir = File(juggRootDir, "build")
     val historyDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
-
-    init {
-        JuggLogger.register(project, logDir)
-    }
 }

@@ -24,7 +24,7 @@ class JuggManager @TestOnly constructor(
     private val project: Project,
     private val projectDir: File,
     private val deployStateListener: JuggStateListener,
-    private val pathManager: JuggPathManager = JuggPathManager(project, projectDir),
+    private val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
@@ -45,8 +45,10 @@ class JuggManager @TestOnly constructor(
 
     constructor(project2: Project,
                 projectDir: File,
-                juggDeployStateListener: JuggStateListener):
-            this(project = project2, projectDir, juggDeployStateListener)
+                juggDeployStateListener: JuggStateListener,
+                pathManager: JuggPathManager,
+    ):
+            this(project = project2, projectDir, juggDeployStateListener, pathManager)
 
     private var compiler: JuggCompiler? = null
 

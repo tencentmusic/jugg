@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.JuggDeployState;
 import com.sickworm.intellij.jugg.ide.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
 import com.sickworm.intellij.jugg.logger.JuggLogger;
+import com.sickworm.intellij.jugg.project.JuggPathManager;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -67,9 +68,12 @@ public class JuggToolWindow implements JuggStateListener {
       return;
     }
 
-    juggManager = new JuggManager(project, new File(projectDir), this);
-    juggManager.init();
+    JuggPathManager pathManager = new JuggPathManager(project, new File(projectDir));
+    JuggLogger.INSTANCE.register(project, pathManager.getLogDir());
     JuggLogger.INSTANCE.listenProjectLog(project, loggerPrinter);
+
+    juggManager = new JuggManager(project, new File(projectDir), this, pathManager);
+    juggManager.init();
 
     deployButton.addActionListener(e -> deploy());
 
