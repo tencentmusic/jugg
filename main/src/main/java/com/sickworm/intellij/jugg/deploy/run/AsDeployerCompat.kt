@@ -6,58 +6,51 @@ import com.android.tools.deployer.*
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkProvider
 import com.android.utils.ILogger
+import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import org.apache.maven.artifact.versioning.ComparableVersion
-import org.jetbrains.android.download.AndroidComponentDownloader
-import java.lang.IllegalStateException
+import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
+import kotlin.math.min
 
 object AsDeployerCompat : IAsDeployerCompat {
 
     private lateinit var impl : IAsDeployerCompat
 
+    /**
+     * Must order DESC
+     */
+    private val compatImplList = listOf(
+        CompatImpl(
+            IdeVersion("Android Studio Chipmunk", "IA", "212.5712.43"),
+            lazy { ChipmunkAsDeployerCompat() }
+        ),
+        CompatImpl(
+            IdeVersion("Android Studio 4.1.2", "IA", "211.7442.40"),
+            lazy { V41AsDeployerCompat() },
+        ),
+    )
+
     fun init(logger: Logger) {
-        val deployVersion = getIdeDeployVersion()
-        logger.info("Get deploy sdk version in IDE: $deployVersion")
-        val v412 = V41AsDeployerCompat.deployVersion
-        val chipmunk = ChipmunkAsDeployerCompat.deployVersion
+        val ideVersion = IdeVersion(ApplicationInfo.getInstance())
+        logger.info("IDE version: $ideVersion")
 
-        impl = when {
-            deployVersion == v412 -> {
-                logger.debug("Good! Fully matched deploy version of Android Studio 4.1.2")
-                V41AsDeployerCompat()
+        var impl: IAsDeployerCompat? = compatImplList.firstNotNullResult { compatImpl ->
+            if (compatImpl.ideVersion == ideVersion) {
+                logger.debug("Good! Fully matched deploy version of ${compatImpl.ideVersion}")
+                return@firstNotNullResult compatImpl.impl.value
+            } else if (compatImpl.ideVersion < ideVersion) {
+                logger.warn("Bad! IDE version higher than ${compatImpl.ideVersion}, use this for compat, good luck.")
+                return@firstNotNullResult compatImpl.impl.value
             }
-            deployVersion == chipmunk -> {
-                logger.debug("Good! Fully matched deploy version of Fully match Android Studio Chipmunk")
-                ChipmunkAsDeployerCompat()
-            }
-            deployVersion < chipmunk -> {
-                logger.warn("Bad! Deploy version lower than Android Studio Chipmunk, use 4.1.2 API for compat, good luck.")
-                V41AsDeployerCompat()
-            }
-            deployVersion > chipmunk -> {
-                logger.warn("Bad! Deploy version higher than Android Studio Chipmunk, use Chipmunk API for compat, good luck.")
-                ChipmunkAsDeployerCompat()
-            }
-            else -> {
-                throw IllegalStateException("Won't reach here in logic.")
-            }
+            return@firstNotNullResult null
         }
-    }
-
-    /** get version of android deployer, e.g. "27.2.0.0" . */
-    private fun getIdeDeployVersion(): ComparableVersion {
-        val obj = object : AndroidComponentDownloader() {
-
-            override fun getArtifactName(): String {
-                return ""
-            }
-
-            fun versionPublic(): String {
-                return super.getVersion()
-            }
+        if (impl == null) {
+            val compatImpl = compatImplList.last()
+            impl = compatImpl.impl.value
+            logger.warn("Bad! Deploy version lower than ${compatImpl.ideVersion}, use this for compat, good luck.")
+            V41AsDeployerCompat()
         }
-        return ComparableVersion(obj.versionPublic())
+        this.impl = impl
     }
 
     override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
@@ -105,5 +98,70 @@ object AsDeployerCompat : IAsDeployerCompat {
         logger: ILogger
     ): OverlayId {
         return impl.optimisticSwap(installer, redefiners, packageName, argRestart, pids, arch, overlayUpdate, adb, logger)
+    }
+}
+
+
+private class CompatImpl(
+    val ideVersion: IdeVersion,
+    val impl: Lazy<IAsDeployerCompat>,
+)
+
+private class IdeVersion(
+    /**
+     * e.g.
+     * Android Studio Chipmunk | 2021.2.1 Patch 1
+     */
+    val name: String,
+    /**
+     * e.g.
+     * Intellij Idea Community -> IC
+     * Android Studio -> IA
+     */
+    val type: String,
+    /**
+     * e.g.
+     * 212.5712.43
+     */
+    val mainVersion: String,
+    /**
+     * e.g.
+     * 212.5712.43.2112.8609683
+     */
+    val fullVersion: String? = null,
+) {
+
+    constructor(applicationInfo: ApplicationInfo) : this (
+        applicationInfo.fullApplicationName,
+        applicationInfo.build.productCode,
+        applicationInfo.apiVersion.substringAfter('-'),
+        applicationInfo.build.asStringWithoutProductCodeAndSnapshot()
+    )
+
+    operator fun compareTo(version: IdeVersion): Int {
+        val a = mainVersion.split('.')
+        val b = version.mainVersion.split('.')
+        val length = min(a.size, b.size)
+        for (i in 0 until length) {
+            val aI = a[i].toInt()
+            val bI = b[i].toInt()
+            if (aI != bI) return aI - bI
+        }
+
+        if (a.size == b.size) {
+            return 0
+        }
+        return a.size - b.size
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (other is IdeVersion) {
+            return compareTo(other) == 0
+        }
+        return super.equals(other)
+    }
+
+    override fun toString(): String {
+        return "$name($mainVersion)"
     }
 }

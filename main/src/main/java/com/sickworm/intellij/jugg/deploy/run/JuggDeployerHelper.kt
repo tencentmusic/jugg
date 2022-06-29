@@ -23,10 +23,6 @@ class JuggDeployerHelper(
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
 ) {
 
-    init {
-        AsDeployerCompat.init(logger)
-    }
-
     @TestOnly
     var installPathProvider: Computable<String> = Computable<String> {
         EmbeddedDistributionPaths.getInstance().findEmbeddedInstaller()

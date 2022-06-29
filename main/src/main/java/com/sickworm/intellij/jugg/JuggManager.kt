@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
@@ -53,7 +54,6 @@ class JuggManager @TestOnly constructor(
     private var compiler: JuggCompiler? = null
 
     fun init() {
-        logger.info("Start Jugg")
         Disposer.register(project, this)
         compileThread.submitSafe("InitProject", ::initProject)
     }
@@ -61,8 +61,8 @@ class JuggManager @TestOnly constructor(
     private fun initProject() {
         try {
             logger.info("Init project info")
+            AsDeployerCompat.init(logger)
             compileContextManager.initProjectInfo()
-
             logger.info("Init deploy history")
             recoverDeployContext()
         } finally {

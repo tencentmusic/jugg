@@ -15,7 +15,6 @@ import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import org.apache.maven.artifact.versioning.ComparableVersion
 import org.jetbrains.android.facet.AndroidFacet
 import java.util.*
 
@@ -23,12 +22,6 @@ import java.util.*
  * Android Studio Chipmunk
  */
 class ChipmunkAsDeployerCompat: IAsDeployerCompat {
-
-    companion object {
-
-        val deployVersion: ComparableVersion = ComparableVersion("27.2.0.0")
-
-    }
 
     private val optimisticInstallSupportFull: Map<StudioFlags.OptimisticInstallSupportLevel, EnumSet<ChangeType>>
             = ImmutableMap.of(
