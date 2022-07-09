@@ -94,9 +94,6 @@ fun assertCompileResult(task: CompileTask,
     result.printCompileErrors()
 
     assertEquals(result.task, task)
-    if (!result.isAllSuccess) {
-        println("???")
-    }
     assertTrue(result.isAllSuccess)
     assertEquals(result.details.size, task.files.size)
 
@@ -120,7 +117,10 @@ fun assertCompileResult(task: CompileTask,
     assertEquals(exceptedOutputWithoutXml.size, outputWithoutXml.size)
 }
 
-fun clearBuild() = buildDir.clearDir()
+fun clearBuild() {
+    AssembleAndroidProjectOnce.ensure()
+    buildDir.clearDir()
+}
 
 fun assertCompileResultFailed(task: CompileTask, result: CompileResult, errorList: Map<CompileFile, Int>) {
     result.printCompileErrors()

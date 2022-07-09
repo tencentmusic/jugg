@@ -4,8 +4,6 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.android.AndroidModel
 import com.android.tools.idea.gradle.dsl.api.android.CompileOptionsModel
@@ -18,7 +16,9 @@ import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.ValidationError
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
+import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.impl.ApplicationInfoImpl
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -30,10 +30,15 @@ import com.intellij.pom.java.LanguageLevel
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.FileChangesHandler
+import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.mockito.Mockito.*
 import java.io.File
@@ -158,9 +163,11 @@ class MockJugg {
         ApplicationManager.setApplication(application) {}
         application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
         application.registerService(MessagesService::class.java, mock(MessagesService::class.java))
+        application.registerService(ApplicationInfo::class.java, ApplicationInfoImpl.getShadowInstance())
 
         project = JuggMockProject(projectDir)
         pathManager = JuggPathManager(project, projectDir, buildDir)
+        JuggLogger.register(project, pathManager.logDir)
 
         juggStateListener = mock(JuggStateListener::class.java)
 
