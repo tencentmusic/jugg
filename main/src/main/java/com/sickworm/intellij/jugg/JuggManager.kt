@@ -102,6 +102,14 @@ class JuggManager @TestOnly constructor(
         logger.debug("deploy state changed: $oldDeployState -> $deployState")
         deployStateListener.onDeployStateUpdate(deployState)
 
+        if (oldDeployState.isGradleBuilding && deployState.isReadyRunFullBuild) {
+            logger.info("Detect gradle build finished")
+            synchronized(buildFinishedLock) {
+                buildFinishedLock.notify()
+                compileThread.submitSafe("InitCompile", ::initCompileAfterFullBuild)
+            }
+        }
+
         return deployState
     }
 
@@ -210,11 +218,10 @@ class JuggManager @TestOnly constructor(
                 recoverDeployState()
             }
             deployStateManager.deployState.isReadyRunFullBuild -> {
-                logger.info("Install and run apk")
+                logger.info("Build, install and run apk")
                 deployTargetManager.runFullBuildAndLaunch()
-                logger.debug("Init compile after full build")
-                initCompileAfterFullBuild()
-                deployStateListener.onDeployed(true, emptyList())
+                waitingForBuildFinished()
+                logger.info("Build, install and run apk finished")
             }
             else -> {
                 logger.warn("Not ready to deploy")
@@ -284,6 +291,13 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    private val buildFinishedLock = Object()
+    private fun waitingForBuildFinished() {
+        synchronized(buildFinishedLock) {
+            buildFinishedLock.wait()
+        }
+    }
+
     private fun waitingForDeployable(): Boolean {
         val maxWaitTimeSecond = 5
         var waitedTimeSecond = 0
@@ -303,6 +317,7 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun initCompileAfterFullBuild() {
+        logger.debug("Init compile after full build")
         val (costTime, compileContextInfo) = measureTimeMillisWithResult {
             val apkInfos = deployTargetManager.getApks()
             if (apkInfos.isEmpty()) {
@@ -315,6 +330,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
         initCompile(compileContextInfo)
+        deployStateListener.onDeployed(true, emptyList())
     }
 
     private fun initCompile(

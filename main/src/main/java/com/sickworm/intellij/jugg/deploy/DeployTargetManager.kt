@@ -11,6 +11,7 @@ import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.runners.ExecutionEnvironmentBuilder
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -27,24 +28,8 @@ class DeployTargetManager(
 
     override fun runFullBuildAndLaunch() {
         val (runConfigAndSettings, _) = getRunConfig()
-        val executor = DefaultRunExecutor.getRunExecutorInstance()
-        ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
-        val builder: ExecutionEnvironmentBuilder = try {
-            ExecutionEnvironmentBuilder.create(executor, runConfigAndSettings)
-        } catch (e: ExecutionException) {
-            logger.error("runFullBuildAndLaunch create builder failed", e)
-            return
-        }
-        val environment = builder.contentToReuse(null).dataContext(null).activeTarget().build()
-
-        val lock = Object()
-        ProgramRunnerUtil.executeConfigurationAsync(environment, true, true) {
-            synchronized(lock) {
-                lock.notify()
-            }
-        }
-        synchronized(lock) {
-            lock.wait()
+        ApplicationManager.getApplication().invokeAndWait {
+            ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
         }
     }
 

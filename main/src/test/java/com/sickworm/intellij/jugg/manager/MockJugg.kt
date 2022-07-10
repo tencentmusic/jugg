@@ -67,6 +67,20 @@ class MockJugg {
 
     private val adbDeviceHelper = AdbDeviceHelper()
 
+    var isGradleBuilding = false
+    private val ideDeployStateHelper = object : IIdeDeployStateHelper {
+        override fun getIdeDeployState(): JuggDeployState {
+            if (isGradleBuilding) {
+                return JuggDeployState(JuggDeployState.State.GRADLE_BUILDING, "mock: gradle building")
+            }
+            return if (adbDeviceHelper.hasLaunchedApp(projectInfo.packageName)) {
+                JuggDeployState.READY
+            } else {
+                JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE, "mock: app not launched")
+            }
+        }
+    }
+
     companion object {
         init {
             MockitoFixer.tryFix()
@@ -173,9 +187,19 @@ class MockJugg {
 
         deployTargetManager = object: IDeployTargetManager {
             override fun runFullBuildAndLaunch() {
+                Thread {
+                    isGradleBuilding = true
+                    juggManager.onActionUpdate()
+                }.start()
+
                 GradleBuildHelper.appAssembleDebug()
                 juggDeployerHelper.runTask(JuggDeployData(projectInfo.apkInfos, emptyList(), emptyList(), emptyList(), emptyList()), true)
                 deployTargetManager.restartApp()
+
+                Thread {
+                    isGradleBuilding = false
+                    juggManager.onActionUpdate()
+                }.start()
             }
 
             override fun setApksFromRecover(apks: List<ApkInfo>) {
@@ -230,16 +254,6 @@ class MockJugg {
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
         deployFileManager = DeployFileManager(logger)
-
-        val ideDeployStateHelper = object : IIdeDeployStateHelper {
-            override fun getIdeDeployState(): JuggDeployState {
-                return if (adbDeviceHelper.hasLaunchedApp(projectInfo.packageName)) {
-                    JuggDeployState.READY
-                } else {
-                    JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE, "mock: app not launched")
-                }
-            }
-        }
         deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
 
         JuggLogger.listenProjectLog(project, logger)

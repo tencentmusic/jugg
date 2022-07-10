@@ -11,10 +11,12 @@ data class JuggDeployState(
     val msg: String,
 ) {
 
+    val isGradleBuilding: Boolean get() = state == State.GRADLE_BUILDING
+
     /**
      * We can do assemble app and launch if it's true.
      */
-    val isReadyRunFullBuild: Boolean get() = state > State.NOTHING_CAN_DO
+    val isReadyRunFullBuild: Boolean get() = state > State.GRADLE_BUILDING
 
     /**
      * We can do incremental compile if it's true.
@@ -27,7 +29,8 @@ data class JuggDeployState(
     val isReadyDeploy: Boolean get() = state > State.READY_INCREMENTAL_COMPILE
 
     val deployButtonText: String get() = when(state) {
-        State.NOTHING_CAN_DO -> "Deploy"
+        State.NOTHING_CAN_DO -> "Not Init"
+        State.GRADLE_BUILDING -> "Gradle Building"
         State.READY_FULL_COMPILE -> "Build & Launch"
         State.READY_INCREMENTAL_COMPILE -> "Install & Launch"
         State.READY_DEPLOY -> "Deploy"
@@ -46,6 +49,7 @@ data class JuggDeployState(
 
     enum class State {
         NOTHING_CAN_DO,
+        GRADLE_BUILDING,
         READY_FULL_COMPILE,
         READY_INCREMENTAL_COMPILE,
         READY_DEPLOY,

@@ -8,6 +8,9 @@ import com.android.tools.idea.run.ApkInfo
  */
 interface IDeployTargetManager {
 
+    /**
+     * Click the "Run" button for current selected configuration
+     */
     fun runFullBuildAndLaunch()
 
     /**

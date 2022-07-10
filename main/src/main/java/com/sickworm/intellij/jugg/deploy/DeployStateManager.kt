@@ -81,6 +81,11 @@ class IdeDeployStateHelper(
         return JuggDeployState.READY
     }
 
+    private fun building(disableMessage: DisableMessage): JuggDeployState {
+        val toolTip = getToolTipField()
+        return JuggDeployState(JuggDeployState.State.GRADLE_BUILDING, toolTip.get(disableMessage) as String)
+    }
+
     private fun canNotFullBuild(disableMessage: DisableMessage): JuggDeployState {
         val toolTip = getToolTipField()
         return JuggDeployState(JuggDeployState.State.NOTHING_CAN_DO, toolTip.get(disableMessage) as String)
@@ -120,7 +125,7 @@ class IdeDeployStateHelper(
             ))
         }
         if (isExecutorStarting(project, selectedRunConfig)) {
-            return canNotFullBuild(DisableMessage(
+            return building(DisableMessage(
                 DisableMessage.DisableMode.DISABLED, "building and/or launching",
                 "the selected configuration is currently building and/or launching"
             ))
