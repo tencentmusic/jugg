@@ -10,6 +10,11 @@ interface IDeployTargetManager {
 
     fun runFullBuildAndLaunch()
 
+    /**
+     * Use apks from recover history instead of reading it from gradle, which requires full build.
+     */
+    fun setApksFromRecover(apks: List<ApkInfo>)
+
     fun getApks(): List<ApkInfo>
 
     fun getDevice(): IDevice

@@ -82,6 +82,7 @@ class JuggManager @TestOnly constructor(
         // step 1: recover compile context
         initCompile(deployContextRecoverInfo.compileContextInfo)
         // step 2: recover deploy files
+        deployTargetManager.setApksFromRecover(deployContextRecoverInfo.compileContextInfo.apkInfos)
         deployFileManager.addDeployFiles(deployContextRecoverInfo.deployedFiles)
         // step 3: recover changed files
         processFileChanged(deployContextRecoverInfo.changedFiles)

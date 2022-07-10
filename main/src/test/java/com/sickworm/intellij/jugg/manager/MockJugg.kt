@@ -178,6 +178,9 @@ class MockJugg {
                 deployTargetManager.restartApp()
             }
 
+            override fun setApksFromRecover(apks: List<ApkInfo>) {
+            }
+
             override fun getApks(): List<ApkInfo> {
                 return projectInfo.apkInfos
             }

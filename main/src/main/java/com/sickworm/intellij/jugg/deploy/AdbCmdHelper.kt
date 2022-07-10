@@ -8,6 +8,7 @@ import com.android.tools.idea.run.activity.DefaultApkActivityLocator
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggException
+import java.util.concurrent.TimeUnit
 
 class AdbCmdHelper(
     private val device: IDevice,
@@ -44,7 +45,9 @@ class AdbCmdHelper(
     private fun execAdbShellCmd(cmd: String): String {
         try {
             logger.info("adb in: adb shell $cmd")
-            val response = adb.shell(cmd.split(" ").toTypedArray())
+            val response = adb.shell(
+                cmd.split(" ").toTypedArray(),
+                null, 5L, TimeUnit.MINUTES)
             if (response.isNotEmpty()) {
                 val extraMsg = String(response, Charsets.UTF_8).trim { it <= ' ' }
                 logger.info("adb out: $extraMsg")

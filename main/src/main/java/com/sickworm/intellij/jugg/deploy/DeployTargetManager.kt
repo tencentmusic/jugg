@@ -4,6 +4,7 @@ import com.android.ddmlib.*
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
+import com.android.tools.idea.run.ValidationError
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.ProgramRunnerUtil
 import com.intellij.execution.RunManager
@@ -47,14 +48,28 @@ class DeployTargetManager(
         }
     }
 
+    private var apkProviderFromRecover: ApkProvider? = null
+
+    override fun setApksFromRecover(apks: List<ApkInfo>) {
+        apkProviderFromRecover = object : ApkProvider {
+            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
+                return apks.toMutableList()
+            }
+
+            override fun validate(): MutableList<ValidationError> {
+                return mutableListOf()
+            }
+        }
+    }
+
     override fun getApks(): List<ApkInfo> {
-        try {
+        return try {
             val apkProvider = getApkProvider()
             val device = getDevice()
-            return apkProvider.getApks(device).toList()
+            apkProvider.getApks(device).toList()
         } catch (e: Exception) {
             logger.error("getApks failed", e)
-            throw e
+            emptyList()
         }
     }
 
@@ -98,6 +113,10 @@ class DeployTargetManager(
     }
 
     private fun getApkProvider(): ApkProvider {
+        return apkProviderFromRecover ?: getGradleApkProvider()
+    }
+
+    private fun getGradleApkProvider(): ApkProvider {
         val (_, runConfig) = getRunConfig()
         return AsDeployerCompat.getApkProvider(project, runConfig)
     }
