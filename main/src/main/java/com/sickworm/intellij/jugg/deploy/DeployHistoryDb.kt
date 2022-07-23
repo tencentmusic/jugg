@@ -36,24 +36,24 @@ class DeployHistoryDb(
 
     fun getChangedFilesSinceLastFullCompiled(): List<File>? {
         if (!isAvailable) {
-            logger.warn("getChangedFilesSinceLastFullCompiled failed, git not available")
+            logger.info("Git not init in this project")
             return null
         }
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
         if (deployHistoryData == null) {
-            logger.warn("$projectDir has no deployment history")
+            logger.info("Project has not deploy yet")
             return null
         }
 
         val lastDeployCommitHash = deployHistoryData.fullCompileGitCommitHash
         val lastProjectCommitHash = gitManager.getLastCommitHash()
         if (lastDeployCommitHash == null) {
-            logger.warn("$projectDir has no last deploy commit")
+            logger.info("Project has no full compile on specific commit, this should not happened")
             return null
         }
         if (lastProjectCommitHash == null) {
-            logger.warn("$projectDir has no last project commit")
+            logger.info("Project has no git commit, this should not happened")
             return null
         }
 
@@ -112,7 +112,7 @@ class DeployHistoryDb(
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
         if (deployHistoryData == null) {
-            logger.warn("$projectDir has no deployment history")
+            logger.info("Project has no deployment history")
             return
         }
 

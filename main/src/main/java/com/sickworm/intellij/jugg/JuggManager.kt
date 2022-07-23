@@ -75,7 +75,7 @@ class JuggManager @TestOnly constructor(
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
         if (deployContextRecoverInfo == null) {
-            logger.warn("Deploy state recover function unavailable")
+            logger.warn("Can not recover from deploy history, please run gradle compile first")
             return
         }
 
