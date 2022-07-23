@@ -28,9 +28,7 @@ class DeployTargetManager(
 
     override fun runFullBuildAndLaunch() {
         val (runConfigAndSettings, _) = getRunConfig()
-        ApplicationManager.getApplication().invokeAndWait {
-            ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
-        }
+        ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
     }
 
     private var apkProviderFromRecover: ApkProvider? = null
