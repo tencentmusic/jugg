@@ -191,8 +191,12 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun deploy() {
-        logger.info("start deploy, deploy state: ${deployStateManager.deployState}")
+        if (!checkDeviceAvailable()) {
+            logger.warn("No available device to run, please connect device first")
+            return
+        }
 
+        logger.info("Start deploy, deploy state: ${deployStateManager.deployState}")
         when {
             deployStateManager.deployState.isReadyDeploy -> {
                 val deployData = deployFileManager.getDeployData()
@@ -287,6 +291,15 @@ class JuggManager @TestOnly constructor(
             true
         } catch (e: Exception) {
             logger.debug("Dry deploy failed, reason: $e")
+            false
+        }
+    }
+
+    private fun checkDeviceAvailable(): Boolean {
+        return try {
+            deployTargetManager.getDevice()
+            true
+        } catch (e: Exception) {
             false
         }
     }

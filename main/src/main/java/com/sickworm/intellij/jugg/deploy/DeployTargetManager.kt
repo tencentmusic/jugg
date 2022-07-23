@@ -69,7 +69,11 @@ class DeployTargetManager(
 
             return devices[0]
         } catch (e: Exception) {
-            logger.error("getDevice failed", e)
+            if (e is JuggException) {
+                logger.debug("getDevice failed: ${e.message}")
+            } else {
+                logger.error("getDevice failed", e)
+            }
             throw e
         }
     }
