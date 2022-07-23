@@ -13,7 +13,7 @@ test {
 group 'com.sickworm.intellij'
 version '1.0-SNAPSHOT'
 
-sourceCompatibility = 1.8
+sourceCompatibility = 11
 
 intellij {
     pluginName 'jugg'
@@ -61,7 +61,7 @@ dependencies {
     // kotlinx-metadata-jvm:
     // 0.2.0 depends kotlin-stdlib:1.4.10
     // 0.3.0 depends kotlin-stdlib:1.5.0
-    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.3.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.4.2"
     implementation "io.github.classgraph:classgraph:4.8.110"
 
     implementation project(':deploy_compat:interface')
@@ -74,8 +74,8 @@ dependencies {
 }
 
 compileKotlin {
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = "11"
 }
 compileTestKotlin {
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = "11"
 }

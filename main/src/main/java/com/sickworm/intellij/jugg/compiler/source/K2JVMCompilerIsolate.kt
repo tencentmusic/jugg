@@ -58,13 +58,13 @@ class K2JVMCompilerIsolate(private val logger: Logger) {
         private val requiredLibraries = listOf(
             "annotations-13.0.jar", // as plugin
             "annotations-19.0.0.jar", // in test
-            "kotlin-compiler-embeddable-1.5.31.jar",
-            "trove4j-1.0.20181211.jar",
-            "kotlin-reflect-1.5.31.jar",
-            "kotlin-stdlib-1.5.31.jar",
-            "kotlin-stdlib-common-1.5.31.jar",
-            "kotlin-stdlib-jdk7-1.5.31.jar",
-            "kotlin-stdlib-jdk8-1.5.31.jar"
+            "kotlin-compiler-embeddable-1.7.10.jar",
+            "trove4j-1.0.20200330.jar",
+            "kotlin-reflect-1.7.10.jar",
+            "kotlin-stdlib-1.7.10.jar",
+            "kotlin-stdlib-common-1.7.10.jar",
+            "kotlin-stdlib-jdk7-1.7.10.jar",
+            "kotlin-stdlib-jdk8-1.7.10.jar"
         )
         private val exceptLibrariesSize = requiredLibraries.size - 1 // two annotations inside
 
