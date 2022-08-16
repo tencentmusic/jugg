@@ -23,7 +23,6 @@ import kotlin.system.measureTimeMillis
 
 class JuggManager @TestOnly constructor(
     private val project: Project,
-    private val projectDir: File,
     private val deployStateListener: JuggStateListener,
     private val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
@@ -32,7 +31,7 @@ class JuggManager @TestOnly constructor(
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
-        projectDir,
+        pathManager.projectDir,
         pathManager.historyDir,
         JuggLogger.getInstance(project, "DeployHistoryManager")
     ),
@@ -45,11 +44,10 @@ class JuggManager @TestOnly constructor(
 ): Disposable {
 
     constructor(project2: Project,
-                projectDir: File,
-                juggDeployStateListener: JuggStateListener,
                 pathManager: JuggPathManager,
+                juggDeployStateListener: JuggStateListener,
     ):
-            this(project = project2, projectDir, juggDeployStateListener, pathManager)
+            this(project = project2, juggDeployStateListener, pathManager)
 
     private var compiler: JuggCompiler? = null
 
@@ -386,6 +384,6 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun dispose() {
-        logger.info("project $projectDir dispose")
+        logger.info("project ${pathManager.projectDir} dispose")
     }
 }

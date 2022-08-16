@@ -9,7 +9,9 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.messages.AlertMessagesManager;
 import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.JBColor;
 import com.sickworm.intellij.jugg.JuggManager;
 import com.sickworm.intellij.jugg.deploy.JuggDeployState;
@@ -17,6 +19,7 @@ import com.sickworm.intellij.jugg.ide.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
 import com.sickworm.intellij.jugg.logger.JuggLogger;
 import com.sickworm.intellij.jugg.project.JuggPathManager;
+import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,6 +32,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.*;
@@ -46,36 +50,46 @@ public class JuggToolWindow implements JuggStateListener {
   private JLabel statusLabel;
   private JTable fileStatusTable;
   private JPanel invisibleActionPanel;
+  private JButton resetButton;
 
   private final Object[] tableColumns = { "File", "Status" };
 
-  private final JuggManager juggManager;
+  private JuggManager juggManager;
+  private final JuggPathManager pathManager;
 
   private final LoggerPrinter loggerPrinter = new LoggerPrinter();
+
+  private final Project project;
 
   @TestOnly
   public JuggToolWindow() {
     this.juggManager = null;
+    this.pathManager = null;
+    this.project = null;
   }
 
   @SuppressWarnings("unused")
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
+    this.project = project;
+
     String projectDir = project.getBasePath();
     loggerPrinter.info("Start Jugg on " + projectDir);
     if (projectDir == null || (!new File(projectDir).exists())) {
       loggerPrinter.warn("Can not get project directory, exit");
       juggManager = null;
+      pathManager = null;
       return;
     }
 
-    JuggPathManager pathManager = new JuggPathManager(project, new File(projectDir));
+    pathManager = new JuggPathManager(project, new File(projectDir));
     JuggLogger.INSTANCE.register(project, pathManager.getLogDir());
     JuggLogger.INSTANCE.listenProjectLog(project, loggerPrinter);
 
-    juggManager = new JuggManager(project, new File(projectDir), this, pathManager);
+    juggManager = new JuggManager(project, pathManager, this);
     juggManager.init();
 
     deployButton.addActionListener(e -> deploy());
+    resetButton.addActionListener(e -> reset());
 
     deployOnSaveCheckBox.setSelected(JuggSettings.INSTANCE.getDeployOnSave());
     deployOnSaveCheckBox.addItemListener(e -> JuggSettings.INSTANCE.setDeployOnSave(e.getStateChange() == ItemEvent.SELECTED));
@@ -142,11 +156,13 @@ public class JuggToolWindow implements JuggStateListener {
       currentIconRes = iconRes;
     }
 
-    if (state.isReadyRunFullBuild()) {
-      deployButton.setEnabled(true);
-      deployButton.setText(state.getDeployButtonText());
-    } else {
+    if (state.isGradleBuilding()) {
       deployButton.setEnabled(false);
+      resetButton.setEnabled(false);
+    } else {
+      deployButton.setEnabled(true);
+      resetButton.setEnabled(true);
+      deployButton.setText(state.getDeployButtonText());
     }
 
     statusLabel.setText(state.getMsg());
@@ -212,6 +228,32 @@ public class JuggToolWindow implements JuggStateListener {
 
   public void deploy() {
     juggManager.deployAsync(true);
+  }
+
+  public void reset() {
+    AlertMessagesManager alertMessagesManager = project.getService(AlertMessagesManager.class);
+    boolean reset = alertMessagesManager.showYesNoDialog(
+            "Reset Jugg",
+            "Are you sure to reset Jugg and delete all history deploy data?",
+            "Yes",
+            "No",
+            WindowManager.getInstance().suggestParentWindow(project),
+            null,
+            null,
+            null
+    );
+    if (reset) {
+      loggerPrinter.info("Resetting Jugg...");
+      try {
+        FileUtils.deleteDirectory(pathManager.getJuggRootDir());
+      } catch (IOException e) {
+        loggerPrinter.error("Delete root directory failed", e);
+      }
+      juggManager.dispose();
+      juggManager = new JuggManager(project, pathManager, this);
+      juggManager.init();
+      loggerPrinter.info("Reset Jugg completed.");
+    }
   }
 
   public JPanel getContent() {
