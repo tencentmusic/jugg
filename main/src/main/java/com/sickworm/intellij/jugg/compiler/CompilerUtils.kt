@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.JuggManager
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.util.*
 
 fun File.listFilesRecursively(): List<File> {
     if (!exists()) {
@@ -91,7 +92,7 @@ fun copyResource(resourcePath: String): File {
 
 val File.isResourceValueFile get() = parent.endsWith("values")
 
-private val osName = System.getProperty("os.name").toLowerCase()
+private val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
 val isWindows = osName.contains("win")
 val isLinux = listOf("nix", "nux", "aix").any { osName.contains(it) }
 val isMac = osName.contains("mac")

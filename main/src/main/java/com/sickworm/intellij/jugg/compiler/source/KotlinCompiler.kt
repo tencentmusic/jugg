@@ -84,7 +84,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         merger.loadAndMerge()
 
         val outputParser = KotlinCompilerOutputParser(task.files, logger)
-        val exitCode = kotlinCompile.exec(outputParser.printStream, *command.toTypedArray())
+        val exitCode = kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 

@@ -9,8 +9,13 @@ class DexFileMaker {
 
     private val isEnableDesugaring = true
 
-    fun dex(outputDir: File, classFilesOrDir: List<File>, classpath: Collection<String>,
-            androidJar: File, minApi: Int) {
+    fun dex(outputDir: File,
+            classFilesOrDir: List<File>,
+            @Suppress("UNUSED_PARAMETER")
+            classpath: Collection<String>,
+            androidJar: File,
+            minApi: Int,
+    ) {
         outputDir.mkdirs()
 
         // see https://developer.android.com/studio/command-line/d8

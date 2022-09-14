@@ -23,7 +23,7 @@ class KotlinCompilerOutputParser(
 
     val line = StringBuilder()
     private fun onInput(b: Int) {
-        if (b == '\n'.toInt()) {
+        if (b == '\n'.code) {
             onNewLine(line.toString())
             line.clear()
         } else {
