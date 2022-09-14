@@ -84,7 +84,7 @@ class CompileContextManager(
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
         val androidHome = getAndroidSdkRootDir()
-        logger.info("use android sdk home: $androidHome")
+        logger.debug("Use android sdk home: $androidHome")
         if (androidHome == null) {
             throw JuggException.androidHomeNotFound()
         }
@@ -182,7 +182,7 @@ class CompileContextManager(
             }
             val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
-                logger.warn("Gradle module $module not found")
+                logger.debug("$module is not a gradle module, ignore")
                 return@forEach
             }
             val sourceSets = buildModel.android().sourceSets()

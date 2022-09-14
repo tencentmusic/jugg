@@ -32,7 +32,7 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     fun init(logger: Logger) {
         val ideVersion = IdeVersion(ApplicationInfo.getInstance())
-        logger.info("IDE version: $ideVersion")
+        logger.debug("IDE version: $ideVersion")
 
         var impl: IAsDeployerCompat? = compatImplList.firstNotNullResult { compatImpl ->
             if (compatImpl.ideVersion == ideVersion) {

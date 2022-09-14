@@ -69,7 +69,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun recoverDeployContext() {
-        logger.info("Start recover deploy context")
+        logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
         if (deployContextRecoverInfo == null) {
@@ -373,10 +373,10 @@ class JuggManager @TestOnly constructor(
         submit {
             try {
                 val startTime = System.currentTimeMillis()
-                logger.info("job <$jobName> start")
+                logger.debug("job <$jobName> start")
                 task.run()
                 val costTime = System.currentTimeMillis() - startTime
-                logger.info("job <$jobName> finished, cost ${costTime}ms")
+                logger.debug("job <$jobName> finished, cost ${costTime}ms")
             } catch (e: Throwable) {
                 logger.error("job <$jobName> failed", e)
             }
