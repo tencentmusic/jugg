@@ -145,7 +145,7 @@ class JuggDeployTask(
                 }
                 options.setSkipVerification(device, applicationId)
 
-                logger.info("Installing application: $applicationId...")
+                logger.info("Installing application $applicationId...")
                 var installMode = InstallMode.DELTA
                 if (!StudioFlags.DELTA_INSTALL.get()) {
                     installMode = InstallMode.FULL
@@ -154,11 +154,11 @@ class JuggDeployTask(
                 return deployer.install(applicationId, getPathsToInstall(files), options.build(), installMode)
             }
             JuggDeployType.HOT_FIX -> {
-                logger.info("Applying changes to application: $applicationId...")
+                logger.info("Applying changes to application $applicationId...")
                 return deployer.fullSwap(getPathsToInstall(files), data)
             }
             JuggDeployType.HOT_RELOAD -> {
-                logger.info("Applying changes to application: $applicationId...")
+                logger.info("Applying changes to application $applicationId...")
                 val fastRerunOnSwapFailure = false
                 val debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
                     project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()

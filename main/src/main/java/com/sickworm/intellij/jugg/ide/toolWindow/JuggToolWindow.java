@@ -57,8 +57,7 @@ public class JuggToolWindow implements JuggStateListener {
 
   private JuggManager juggManager;
   private final JuggPathManager pathManager;
-
-  private final LoggerPrinter loggerPrinter = new LoggerPrinter();
+  private final Logger logger;
 
   private final Project project;
 
@@ -67,6 +66,7 @@ public class JuggToolWindow implements JuggStateListener {
     this.juggManager = null;
     this.pathManager = null;
     this.project = null;
+    this.logger = null;
   }
 
   @SuppressWarnings("unused")
@@ -74,17 +74,20 @@ public class JuggToolWindow implements JuggStateListener {
     this.project = project;
 
     String projectDir = project.getBasePath();
+    LoggerPrinter loggerPrinter = new LoggerPrinter();
     loggerPrinter.info("Start Jugg on " + projectDir);
     if (projectDir == null || (!new File(projectDir).exists())) {
       loggerPrinter.warn("Can not get project directory, exit");
       juggManager = null;
       pathManager = null;
+      logger = null;
       return;
     }
 
     pathManager = new JuggPathManager(project, new File(projectDir));
     JuggLogger.INSTANCE.register(project, pathManager.getLogDir());
     JuggLogger.INSTANCE.listenProjectLog(project, loggerPrinter);
+    logger = JuggLogger.INSTANCE.getInstance(project, "JuggManager");
 
     juggManager = new JuggManager(project, pathManager, this);
     juggManager.init();
@@ -228,6 +231,7 @@ public class JuggToolWindow implements JuggStateListener {
   }
 
   public void deploy() {
+    logger.info("============== click deploy ===============");
     juggManager.deployAsync(true);
   }
 
@@ -244,16 +248,17 @@ public class JuggToolWindow implements JuggStateListener {
             null
     );
     if (reset) {
-      loggerPrinter.info("Resetting Jugg...");
+      logger.info("============== click reset ===============");
+      logger.info("Resetting Jugg...");
       try {
         FileUtils.deleteDirectory(pathManager.getJuggRootDir());
       } catch (IOException e) {
-        loggerPrinter.error("Delete root directory failed", e);
+        logger.error("Delete root directory failed", e);
       }
       juggManager.dispose();
       juggManager = new JuggManager(project, pathManager, this);
       juggManager.init();
-      loggerPrinter.info("Reset Jugg completed.");
+      logger.info("Reset Jugg completed.");
     }
   }
 
@@ -281,6 +286,9 @@ public class JuggToolWindow implements JuggStateListener {
     });
   }
 
+  /**
+   * Log on Text panel.
+   */
   private class LoggerPrinter extends Logger {
 
     @Override
