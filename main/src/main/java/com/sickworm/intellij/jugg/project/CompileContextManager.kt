@@ -140,7 +140,7 @@ class CompileContextManager(
         """.trimIndent())
         logger.info("Dependencies loaded, " +
                 "${thirdPartyDependencies.size} library dependencies, " +
-                "${projectDeps.size} project dependencies"
+                "${projectDeps.size} project dependencies."
         )
     }
 

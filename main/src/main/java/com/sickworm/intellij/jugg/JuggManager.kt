@@ -58,10 +58,10 @@ class JuggManager @TestOnly constructor(
 
     private fun initProject() {
         try {
-            logger.info("Init project info")
+            logger.info("Init project info...")
             AsDeployerCompat.init(logger)
             compileContextManager.initProjectInfo()
-            logger.info("Init deploy history")
+            logger.info("Init deploy history...")
             recoverDeployContext()
         } finally {
             onActionUpdate()
@@ -86,7 +86,8 @@ class JuggManager @TestOnly constructor(
         processFileChanged(deployContextRecoverInfo.changedFiles)
         // step 4: update deploy state
         onActionUpdate()
-        logger.info("Finish recover deploy context")
+
+        logger.info("Deploy history recover successfully, no need full compile.")
     }
 
     fun onActionUpdate(): JuggDeployState {
@@ -101,7 +102,7 @@ class JuggManager @TestOnly constructor(
         deployStateListener.onDeployStateUpdate(deployState)
 
         if (oldDeployState.isGradleBuilding && deployState.isReadyRunFullBuild) {
-            logger.info("Gradle build finished")
+            logger.info("Gradle build finished.")
             synchronized(buildFinishedLock) {
                 buildFinishedLock.notify()
                 compileThread.submitSafe("InitCompile", ::initCompileAfterFullBuild)
@@ -136,7 +137,7 @@ class JuggManager @TestOnly constructor(
     @TestOnly
     fun compileChanges() {
         if (!deployStateManager.deployState.isReadyIncCompile) {
-            logger.info("Not ready to compile changes. Current deploy state: ${deployStateManager.deployState}")
+            logger.info("Not ready to compile changes. Current deploy state: ${deployStateManager.deployState}.")
             return
         }
 
@@ -167,7 +168,7 @@ class JuggManager @TestOnly constructor(
         val failedStates = compileResult.failedFiles.map {
             ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
-        logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}")
+        logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
         if (JuggSettings.deployOnSave) {
@@ -178,9 +179,9 @@ class JuggManager @TestOnly constructor(
     fun deployAsync(isUserClick: Boolean) {
         if (!deployStateManager.deployState.isReadyRunFullBuild) {
             if (isUserClick) {
-                logger.warn("Deployment is not ready, skip deploy")
+                logger.warn("Deployment is not ready, skip deploy.")
             } else {
-                logger.info("Deployment is not ready, skip deploy")
+                logger.info("Deployment is not ready, skip deploy.")
             }
             return
         }
@@ -194,16 +195,16 @@ class JuggManager @TestOnly constructor(
             return
         }
 
-        logger.info("Start deploy, deploy state: ${deployStateManager.deployState}")
+        logger.info("Start deploy, deploy state: ${deployStateManager.deployState}.")
         when {
             deployStateManager.deployState.isReadyDeploy -> {
                 val deployData = deployFileManager.getDeployData()
                 if (deployData.apks.isEmpty()) {
-                    logger.error("Deploy failed, can not find apks")
+                    logger.error("Deploy failed, can not find apks.")
                     return
                 }
                 if (deployData.isEmpty) {
-                    logger.info("Deploy finished with no data to deploy")
+                    logger.info("Deploy finished with no data to deploy.")
                     return
                 }
 
@@ -220,13 +221,13 @@ class JuggManager @TestOnly constructor(
                 recoverDeployState()
             }
             deployStateManager.deployState.isReadyRunFullBuild -> {
-                logger.info("Build, install and run apk")
+                logger.info("Build, install and run apk.")
                 deployTargetManager.runFullBuildAndLaunch()
                 waitingForBuildFinished()
-                logger.info("Build, install and run apk finished")
+                logger.info("Build, install and run apk finished.")
             }
             else -> {
-                logger.warn("Not ready to deploy")
+                logger.warn("Not ready to deploy.")
                 return
             }
         }
@@ -246,42 +247,42 @@ class JuggManager @TestOnly constructor(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      */
     private fun recoverDeployState() {
-        logger.info("Recover deploy state from history")
+        logger.info("Recover deploy state from history.")
 
         // dry deploy first, if success, no need to reinstall and recover
         if (tryDryDeploy()) {
-            logger.info("Deploy state matched, no need reinstall app")
+            logger.info("Deploy state matched, no need reinstall app.")
             deployAsync(false)
             return
         }
-        logger.info("Need reinstall app")
+        logger.info("Need reinstall app.")
 
         // recover deploy state for device
         val deployData = deployFileManager.getDeployData()
         juggDeployerHelper.runTask(deployData, true)
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
-            logger.warn("Recovery failed for app not launched")
+            logger.warn("Recovery failed for app not launched.")
             return
         }
 
-        logger.info("Device online, start recover and deploy")
+        logger.info("Device online, start recover and deploy.")
         deployAsync(false)
     }
 
     private fun tryDryDeploy(): Boolean {
-        logger.info("Start app directly")
+        logger.info("Start app directly.")
         if (!deployTargetManager.restartApp()) {
             logger.debug("Try start app failed")
             return false
         }
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
-            logger.warn("Dry deploy failed for app not launched")
+            logger.warn("Dry deploy failed for app not launched.")
             return false
         }
 
-        logger.info("Device online, try dry deploy")
+        logger.info("Device online, try dry deploy.")
         return try {
             val deployData = deployFileManager.getDeployData()
             val dryDeployData = JuggDeployData(deployData.apks, emptyList(), emptyList(), emptyList(), emptyList())
@@ -347,7 +348,7 @@ class JuggManager @TestOnly constructor(
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
     ) {
-        logger.info("Init compile")
+        logger.info("Init compile...")
 
         deployStateManager.isBuildGradleChanged = false
         deployFileManager.reset()
@@ -366,7 +367,7 @@ class JuggManager @TestOnly constructor(
             }
         })
 
-        logger.info("Jugg init complete, waiting for file changes")
+        logger.info("Jugg init complete, start listening file changes.")
     }
 
     private fun ExecutorService.submitSafe(jobName: String, task: Runnable) {
@@ -384,6 +385,6 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun dispose() {
-        logger.info("project ${pathManager.projectDir} dispose")
+        logger.debug("project ${pathManager.projectDir} dispose")
     }
 }

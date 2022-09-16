@@ -35,6 +35,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
 
@@ -263,10 +264,18 @@ public class JuggToolWindow implements JuggStateListener {
   private void append(String message, Color c) {
     EventQueue.invokeLater(() -> {
       MutableAttributeSet set = new SimpleAttributeSet();
-      StyleConstants.setForeground(set, c);
 
       int len = runningLog.getDocument().getLength();
       runningLog.setCaretPosition(len);
+
+      SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+      Date date = new Date();
+      String dateString = sdf.format(date);
+      StyleConstants.setForeground(set, JBColor.GRAY.darker());
+      runningLog.setCharacterAttributes(set, false);
+      runningLog.replaceSelection(dateString + " ");
+
+      StyleConstants.setForeground(set, c);
       runningLog.setCharacterAttributes(set, false);
       runningLog.replaceSelection(message + "\n");
     });

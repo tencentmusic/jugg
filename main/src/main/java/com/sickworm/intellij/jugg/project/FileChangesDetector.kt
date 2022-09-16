@@ -82,7 +82,7 @@ class FileChangesDetector(
     }
 
     override fun dispose() {
-        logger.info("${project.basePath} dispose")
+        logger.debug("${project.basePath} dispose")
     }
 
 }
