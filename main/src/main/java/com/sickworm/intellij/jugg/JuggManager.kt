@@ -101,7 +101,7 @@ class JuggManager @TestOnly constructor(
         deployStateListener.onDeployStateUpdate(deployState)
 
         if (oldDeployState.isGradleBuilding && deployState.isReadyRunFullBuild) {
-            logger.info("Detect gradle build finished")
+            logger.info("Gradle build finished")
             synchronized(buildFinishedLock) {
                 buildFinishedLock.notify()
                 compileThread.submitSafe("InitCompile", ::initCompileAfterFullBuild)

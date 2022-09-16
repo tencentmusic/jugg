@@ -139,8 +139,8 @@ class CompileContextManager(
             projectDep:${projectDeps.relativePath(pathManager.projectDir)}
         """.trimIndent())
         logger.info("Dependencies loaded, " +
-                "libDep size: ${thirdPartyDependencies.size}, " +
-                "projectDep size: ${projectDeps.size}"
+                "${thirdPartyDependencies.size} library dependencies, " +
+                "${projectDeps.size} project dependencies"
         )
     }
 

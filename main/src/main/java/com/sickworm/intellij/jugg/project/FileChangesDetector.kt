@@ -39,7 +39,7 @@ class FileChangesDetector(
     private fun initIdeEventOnce() {
         if (isInitIdeEvent) return
 
-        logger.info("start listen project ${project.basePath}")
+        logger.debug("Start listen project ${project.basePath}")
         val vfsListener = AsyncFileListener { events ->
             object: AsyncFileListener.ChangeApplier {
                 override fun afterVfsChange() {
