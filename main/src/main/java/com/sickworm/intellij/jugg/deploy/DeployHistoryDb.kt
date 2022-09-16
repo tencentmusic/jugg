@@ -20,7 +20,7 @@ class DeployHistoryDb(
 ) {
 
     /** Used to generate hash of a file */
-    private val crc32 = CRC32()
+    private val crc32Digest = CRC32()
 
     /** File to store deploy history */
     private val deployHistoryFile = File(dbDir, "deploy_history.json")
@@ -67,18 +67,16 @@ class DeployHistoryDb(
 
     private fun isCrcChanged(deployHistoryData: DeployHistoryData, file: File): Boolean {
         val path = file.relativeTo(projectDir).path
-        val deployedCrc = deployHistoryData.deployedFiles[path]
-        @Suppress("FoldInitializerAndIfToElvis")
-        if (deployedCrc == null) {
-            // not in deployed file list
+        val fileCrc = deployHistoryData.changedFiles[path]
+
+        val isOnUncommittedFileList = fileCrc != null
+        if (!isOnUncommittedFileList) {
+            // not in uncommitted file list
             return true
         }
-        val newCrc = crc32.run {
-            reset()
-            update(file.readBytes())
-            value
-        }
-        if (deployedCrc != newCrc) {
+
+        val newCrc = file.crc32
+        if (fileCrc != newCrc) {
             // file changed
             return true
         }
@@ -92,8 +90,15 @@ class DeployHistoryDb(
     }
 
     fun resetHistoryAfterFullCompiled() {
-        val newCommitHash = gitManager.getLastCommitHash()
-        val newDeployHistoryData = DeployHistoryData(newCommitHash, 0, emptyMap())
+        val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
+            val newCommitHash = gitManager.getLastCommitHash()
+            val changedFiles = gitManager.getUncommittedFiles().associate {
+                it.changedFilePair
+            }
+            DeployHistoryData(newCommitHash, 0, changedFiles)
+        } else {
+            DeployHistoryData(null, 0, emptyMap())
+        }
         newDeployHistoryData.save(deployHistoryFile)
         deployLogsDir.deleteRecursively()
         deployItemsDir.deleteRecursively()
@@ -101,23 +106,17 @@ class DeployHistoryDb(
 
     fun updateHistory(sourceFiles: List<ChangedFile>) {
         val newDeployedFiles = sourceFiles.associate {
-            val relativePath = it.file.relativeTo(projectDir).path
-            val crc = crc32.run {
-                reset()
-                update(it.file.readBytes())
-                value
-            }
-            relativePath to crc
+           it.file.changedFilePair
         }
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
         if (deployHistoryData == null) {
-            logger.info("Project has no deployment history")
+            logger.info("Project has no deployment history.")
             return
         }
 
         val newDeployHistoryData = deployHistoryData.copy(
-            deployedFiles = deployHistoryData.deployedFiles + newDeployedFiles,
+            changedFiles = deployHistoryData.changedFiles + newDeployedFiles,
             incDeployTimes = deployHistoryData.incDeployTimes + 1,
         )
         newDeployHistoryData.save(deployHistoryFile)
@@ -129,16 +128,34 @@ class DeployHistoryDb(
             it.toString()
         })
     }
+
+    private val File.changedFilePair: Pair<String, Long> get() {
+        val relativePath = relativeTo(projectDir).path
+        val crc = crc32
+        return relativePath to crc
+    }
+
+    private val File.crc32: Long get() {
+        return crc32Digest.run {
+            reset()
+            update(readBytes())
+            value
+        }
+    }
 }
 
 /**
  * Persisted deploy history.
+ * Used to find out changed files since last deploy, even IDE is closed (requires Git).
  */
 data class DeployHistoryData(
     val fullCompileGitCommitHash: String?,
     val incDeployTimes: Int,
-    /** Map<RelativeFilePath, Crc32Hash> */
-    val deployedFiles: Map<String, Long>,
+    /**
+     * Map of RelativeFilePath to Crc32Hash.
+     * Records changed files on full compile and deploy.
+     */
+    val changedFiles: Map<String, Long>,
     val version: Int = LATEST_VERSION,
 ) {
 
