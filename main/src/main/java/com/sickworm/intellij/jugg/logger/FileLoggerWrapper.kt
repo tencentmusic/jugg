@@ -1,14 +1,12 @@
 package com.sickworm.intellij.jugg.logger
 
-import com.android.internal.os.LoggingPrintStream
 import com.intellij.openapi.diagnostic.Attachment
-import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.ExceptionWithAttachments
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.ExceptionUtil
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
-import java.lang.StringBuilder
 import java.util.*
 import java.util.function.Function
 import java.util.logging.*
@@ -47,14 +45,9 @@ class FileLoggerWrapper(
                                 lr.level.name,
                                 lr.message
                             )
-                            val stackString = StringBuilder()
-                            lr.thrown?.printStackTrace(object : LoggingPrintStream() {
-                                override fun log(stackTrace: String?) {
-                                    stackString.append(stackTrace)
-                                    stackString.append("\n")
-                                }
-                            })
-                            return string + stackString.toString()
+                            val outputStream = ByteArrayOutputStream()
+                            lr.thrown?.printStackTrace(PrintStream(outputStream))
+                            return string + outputStream.toString()
                         }
                     }
                     it.addHandler(loggerHandler)

@@ -378,7 +378,7 @@ class JuggManager @TestOnly constructor(
                 val costTime = System.currentTimeMillis() - startTime
                 logger.debug("job <$jobName> finished, cost ${costTime}ms")
             } catch (e: Throwable) {
-                logger.error("job <$jobName> failed", e)
+                logger.error("job <$jobName> failed, try clicking reset button if error still occurred", e)
             }
         }
     }

@@ -321,9 +321,7 @@ public class JuggToolWindow implements JuggStateListener {
       for (String detail : details) {
         append(detail, JBColor.RED);
       }
-      if (isDebugEnabled()) {
-        append(toStackTrace(t).substring(1), JBColor.GRAY);
-      }
+      append(toStackTrace(t).substring(1), JBColor.GRAY);
     }
 
     @Override
