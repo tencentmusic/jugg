@@ -338,7 +338,9 @@ class JuggManager @TestOnly constructor(
                 return
             }
             deployHistoryManager.reInitAfterFullCompiled(
-                apkInfos, compileContextManager.compileContext.modules)
+                apkInfos,
+                compileContextManager.getAllModulesByModuleManager()
+            )
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 

@@ -62,7 +62,7 @@ class CompileContextManager(
 
     fun initProjectInfo() {
         val costTime = measureTimeMillis {
-            val modules = initModules()
+            val modules = getAllModulesByModuleManager()
             initContext(modules)
         }
         logger.debug("initProjectInfo cost ${costTime}ms")
@@ -106,6 +106,8 @@ class CompileContextManager(
     }
 
     private fun updateProjectDependencies(compileContextInfo: CompileContextInfo) {
+        logger.debug("updateProjectDependencies")
+
         val copyModules = compileContext.modules.map { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
             if (newBuildPathInfo != null) {
@@ -120,12 +122,10 @@ class CompileContextManager(
         val thirdPartyDependencies = compileContextInfo.thirdPartyDependencies
 
         val projectDeps: List<File> = compileContext.modules.values.flatMap { module ->
-            module.buildPathInfo.allClassPath
-                .filter { it.exists() }
-        }
-        for (dep in projectDeps) {
-            if (!dep.exists()) {
-                logger.debug("ProjectDep file not exists: $dep")
+            module.buildPathInfo.allClassPath.filter {
+                if (it.exists()) return@filter true
+                logger.debug("projectDeps file not exists: $it")
+                false
             }
         }
         val projectDepStrings = projectDeps.map { it.path }
@@ -144,7 +144,7 @@ class CompileContextManager(
         )
     }
 
-    private fun initModules(): Map<String, ModuleInfo> {
+    fun getAllModulesByModuleManager(): Map<String, ModuleInfo> {
         logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
