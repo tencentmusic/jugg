@@ -372,6 +372,17 @@ class JuggManager @TestOnly constructor(
         })
 
         logger.info("Jugg init complete, start listening file changes.")
+
+        warnUpCompiler()
+    }
+
+    private fun warnUpCompiler() {
+        logger.debug("going to warn up compiler")
+        compileThread.submitSafe("WarnUpCompiler", ::doWarnUpCompiler)
+    }
+
+    private fun doWarnUpCompiler() {
+        compiler?.warnUp()
     }
 
     private fun ExecutorService.submitSafe(jobName: String, task: Runnable) {

@@ -99,6 +99,8 @@ interface ICompiler {
     val supportedTypes: List<CompileFile.Type>
 
     fun compile(task: CompileTask): CompileResult
+
+    fun warnUp() = Unit
 }
 
 interface ICompileContext {

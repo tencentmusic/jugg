@@ -128,4 +128,10 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         logger.debug("kotlin compile base dir: $baseDir")
         logger.debug("kotlin compile: kotlinc ${shortOptions.joinToString(" ")}")
     }
+
+    override fun warnUp() {
+        logger.debug("start KotlinCompiler warn up")
+        doModuleCompile(CompileTask(emptyList(), context.tempCompileDir), context.modules.values.first())
+        logger.debug("finish KotlinCompiler warn up")
+    }
 }
