@@ -115,7 +115,7 @@ public class JuggToolWindow implements JuggStateListener {
         JMenuItem menuItem = new JMenuItem("Clear All", AllIcons.Actions.GC);
         menuItem.addActionListener(actionEvent -> {
           if (actionEvent.getID() == ActionEvent.ACTION_PERFORMED) {
-            runningLog.setText("");
+            clearLog();
           }
         });
         popup.add(menuItem);
@@ -248,6 +248,7 @@ public class JuggToolWindow implements JuggStateListener {
             null
     );
     if (reset) {
+      clearLog();
       logger.info("============== click reset ===============");
       logger.info("Resetting Jugg...");
       try {
@@ -255,11 +256,17 @@ public class JuggToolWindow implements JuggStateListener {
       } catch (IOException e) {
         logger.error("Delete root directory failed", e);
       }
+
       juggManager.dispose();
       juggManager = new JuggManager(project, pathManager, this);
       juggManager.init();
-      logger.info("Reset Jugg completed.");
     }
+  }
+
+  private void clearLog() {
+    EventQueue.invokeLater(() -> {
+      runningLog.setText("");
+    });
   }
 
   public JPanel getContent() {

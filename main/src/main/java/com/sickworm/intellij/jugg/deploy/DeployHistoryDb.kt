@@ -42,7 +42,7 @@ class DeployHistoryDb(
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
         if (deployHistoryData == null) {
-            logger.info("Project has not deployed yet.")
+            logger.info("Project has not been deployed yet, need full compile first.")
             return null
         }
 

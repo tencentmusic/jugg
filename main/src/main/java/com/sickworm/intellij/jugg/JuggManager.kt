@@ -58,11 +58,12 @@ class JuggManager @TestOnly constructor(
 
     private fun initProject() {
         try {
-            logger.info("Init project info...")
+            logger.debug("Starting Jugg...")
             AsDeployerCompat.init(logger)
             compileContextManager.initProjectInfo()
-            logger.info("Init deploy history...")
+            logger.debug("Init deploy history...")
             recoverDeployContext()
+            logger.debug("Start jugg finished.")
         } finally {
             onActionUpdate()
         }
@@ -73,14 +74,14 @@ class JuggManager @TestOnly constructor(
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
         if (deployContextRecoverInfo == null) {
-            logger.warn("Can not recover from deploy history, please run gradle compile first")
+            logger.debug("Can not recover from deploy history, please run gradle compile first")
             return
         }
 
         // step 1: recover compile context
         initCompile(deployContextRecoverInfo.compileContextInfo)
         // step 2: recover deploy files
-        logger.info("Start recover deploy history...")
+        logger.debug("Start recover deploy history...")
         deployTargetManager.setApksFromRecover(deployContextRecoverInfo.compileContextInfo.apkInfos)
         deployFileManager.addDeployFiles(deployContextRecoverInfo.deployedFiles)
         // step 3: recover changed files
@@ -88,7 +89,7 @@ class JuggManager @TestOnly constructor(
         // step 4: update deploy state
         onActionUpdate()
 
-        logger.info("Deploy history recover successfully, no need full compile.")
+        logger.debug("Deploy history recover successfully, no need full compile.")
     }
 
     fun onActionUpdate(): JuggDeployState {
