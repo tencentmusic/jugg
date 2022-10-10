@@ -257,6 +257,9 @@ public class JuggToolWindow implements JuggStateListener {
         logger.error("Delete root directory failed", e);
       }
 
+      tableData.clear();
+      updateFileTable();
+
       juggManager.dispose();
       juggManager = new JuggManager(project, pathManager, this);
       juggManager.init();
