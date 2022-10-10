@@ -92,9 +92,9 @@ class DeployHistoryDb(
     fun resetHistoryAfterFullCompiled() {
         val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
             val newCommitHash = gitManager.getLastCommitHash()
-            val changedFiles = gitManager.getUncommittedFiles().associate {
-                it.changedFilePair
-            }
+            val changedFiles = gitManager.getUncommittedFiles()
+                .filter { it.exists() } // ignore deleted files
+                .associate { it.changedFilePair }
             DeployHistoryData(newCommitHash, 0, changedFiles)
         } else {
             DeployHistoryData(null, 0, emptyMap())
