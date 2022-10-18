@@ -124,7 +124,9 @@ class CompileContextManager(
         val projectDeps: List<File> = compileContext.modules.values.flatMap { module ->
             module.buildPathInfo.allClassPath.filter {
                 if (it.exists()) return@filter true
-                logger.debug("projectDeps file not exists: $it")
+                if (it.absolutePath != module.buildPathInfo.rFilePath.absolutePath) {
+                    logger.debug("projectDeps file not exists: $it")
+                }
                 false
             }
         }

@@ -126,6 +126,13 @@ class JuggManager @TestOnly constructor(
             return
         }
 
+        if (realChangedFiles.find { it.type == CompileFile.Type.Resource } != null) {
+            // FIXME inc aapt not stable, close for now
+            logger.warn("Resource changed, need rebuild")
+            deployStateManager.isResourceFileChanged = true
+            return
+        }
+
         deployFileManager.addChangedFile(realChangedFiles)
         deployStateListener.onFileStatesUpdate(realChangedFiles.map {
             ChangedFileInfo(it.file, ChangedFileInfo.State.MODIFIED)
@@ -170,7 +177,8 @@ class JuggManager @TestOnly constructor(
         val failedStates = compileResult.failedFiles.map {
             ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
-        logger.info("Compile result, success: ${compileResult.successFiles.size}, failure: ${compileResult.failedFiles.size}.")
+        logger.info("Compile finished, success: ${compileResult.successFiles.size}, " +
+                "failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
         if (JuggSettings.deployOnSave) {
@@ -223,7 +231,7 @@ class JuggManager @TestOnly constructor(
                 recoverDeployState()
             }
             deployStateManager.deployState.isReadyRunFullBuild -> {
-                logger.info("Build, install and run apk.")
+                logger.info("Build, install and run apk...")
                 deployTargetManager.runFullBuildAndLaunch()
                 waitingForBuildFinished()
                 logger.info("Build, install and run apk finished.")
@@ -355,6 +363,7 @@ class JuggManager @TestOnly constructor(
         logger.info("Init compile...")
 
         deployStateManager.isBuildGradleChanged = false
+        deployStateManager.isResourceFileChanged = false
         deployFileManager.reset()
 
         val costTime = measureTimeMillis {
