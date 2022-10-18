@@ -248,22 +248,43 @@ public class JuggToolWindow implements JuggStateListener {
             null
     );
     if (reset) {
-      clearLog();
-      logger.info("============== click reset ===============");
-      logger.info("Resetting Jugg...");
-      try {
-        FileUtils.deleteDirectory(pathManager.getJuggRootDir());
-      } catch (IOException e) {
-        logger.error("Delete root directory failed", e);
-      }
+      beforeReset();
 
-      tableData.clear();
-      updateFileTable();
-
-      juggManager.dispose();
-      juggManager = new JuggManager(project, pathManager, this);
-      juggManager.init();
+      new Thread(() -> {
+        synchronized (JuggToolWindow.this) {
+          doReset();
+        }
+        EventQueue.invokeLater(this::afterReset);
+      }).start();
     }
+  }
+
+  private void beforeReset() {
+    deployButton.setEnabled(false);
+    resetButton.setEnabled(false);
+    clearLog();
+    logger.info("============== click reset ===============");
+    logger.info("Resetting Jugg...");
+  }
+
+  private void doReset() {
+    try {
+      FileUtils.deleteDirectory(pathManager.getJuggRootDir());
+    } catch (IOException e) {
+      logger.error("Delete root directory failed", e);
+    }
+    JuggLogger.INSTANCE.register(project, pathManager.getLogDir());
+    JuggLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
+    juggManager.dispose();
+    juggManager = new JuggManager(project, pathManager, this);
+    juggManager.init();
+  }
+
+  private void afterReset() {
+    tableData.clear();
+    updateFileTable();
+    deployButton.setEnabled(true);
+    resetButton.setEnabled(true);
   }
 
   private void clearLog() {

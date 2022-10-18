@@ -31,27 +31,31 @@ class FileLoggerWrapper(
             return Logger.getLogger(dir.absolutePath).also {
                 it.useParentHandlers = false
                 it.level = Level.ALL
-                if (it.handlers.isEmpty()) {
-                    val loggerHandler = FileHandler(
-                        dir.absolutePath + "/running_log.log",
-                        limit, count, true)
-                    loggerHandler.formatter = object : SimpleFormatter() {
-
-                        private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s %n"
-
-                        override fun format(lr: LogRecord): String {
-                            val string = String.format(format,
-                                Date(lr.millis),
-                                lr.level.name,
-                                lr.message
-                            )
-                            val outputStream = ByteArrayOutputStream()
-                            lr.thrown?.printStackTrace(PrintStream(outputStream))
-                            return string + outputStream.toString()
-                        }
+                if (it.handlers.isNotEmpty()) {
+                    it.handlers.clone().forEach { handler ->
+                        it.removeHandler(handler)
+                        (handler as? FileHandler)?.close()
                     }
-                    it.addHandler(loggerHandler)
                 }
+                val loggerHandler = FileHandler(
+                    dir.absolutePath + "/running_log.log",
+                    limit, count, true)
+                loggerHandler.formatter = object : SimpleFormatter() {
+
+                    private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s %n"
+
+                    override fun format(lr: LogRecord): String {
+                        val string = String.format(format,
+                            Date(lr.millis),
+                            lr.level.name,
+                            lr.message
+                        )
+                        val outputStream = ByteArrayOutputStream()
+                        lr.thrown?.printStackTrace(PrintStream(outputStream))
+                        return string + outputStream.toString()
+                    }
+                }
+                it.addHandler(loggerHandler)
             }
         }
     }
