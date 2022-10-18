@@ -25,6 +25,11 @@ data class ChangedFile(
     val baseDir: File,
     val module: ModuleInfo,
 ) {
+
+    var compiledTimes: Int = 0
+
+    val hasCompiledOnce: Boolean get() = compiledTimes > 0
+
     override fun toString(): String {
         return """
             ChangedFile(

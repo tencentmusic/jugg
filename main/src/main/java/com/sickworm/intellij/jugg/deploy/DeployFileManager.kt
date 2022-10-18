@@ -53,16 +53,26 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun markAsCompiled(files: List<CompileFile>) {
-        files.forEach {
+    fun updateUncompiledFiles(successFiles: List<CompileFile>, failedFiles: List<CompileFile>) {
+        successFiles.forEach {
             val fileKey = it.file.stdAbsPath
             val changedFile = uncompiledFiles[fileKey]
             if (changedFile == null) {
-                logger.warn("try to mark a file as compiled, but it's not in uncompiled list. File: $it")
+                logger.warn("try to update file compile status, but it's not in uncompiled list. File: $it")
                 return@forEach
             }
+            changedFile.compiledTimes++
             uncompiledFiles.remove(fileKey)
             compiledFiles[fileKey] = changedFile
+        }
+        failedFiles.forEach {
+            val fileKey = it.file.stdAbsPath
+            val changedFile = uncompiledFiles[fileKey]
+            if (changedFile == null) {
+                logger.warn("try to update file compile status, but it's not in uncompiled list. File: $it")
+                return@forEach
+            }
+            changedFile.compiledTimes++
         }
     }
 

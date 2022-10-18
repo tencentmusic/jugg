@@ -17,7 +17,8 @@ class SimpleCompileContext(
     override val modules: Map<String, ModuleInfo>,
     override val apkInfos: List<ApkInfo>,
     override val variant: String,
-    override val minApi: Int
+    override val minApi: Int,
+    override val projectDir: File,
 ) : ICompileContext {
 
     override fun listenUpdate(listener: OnContextUpdate) {

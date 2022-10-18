@@ -94,7 +94,8 @@ class CompileContextManager(
             androidHome = androidHome,
             tempCompileDir = tempCompileDir,
             modules = modules,
-            minApi = JuggSettings.minApi
+            minApi = JuggSettings.minApi,
+            projectDir = pathManager.projectDir,
         )
         logger.debug("""
             context loaded:

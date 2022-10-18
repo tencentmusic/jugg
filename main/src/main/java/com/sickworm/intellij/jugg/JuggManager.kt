@@ -155,19 +155,28 @@ class JuggManager @TestOnly constructor(
         }
 
         // read all uncompiled files
-        val compileFiles = deployFileManager.getUncompiledFiles().map {
+        val uncompiledFiles = deployFileManager.getUncompiledFiles()
+        if (uncompiledFiles.all { it.hasCompiledOnce }) {
+            logger.debug("All files has compiled at least once, skip compile")
+            return
+        }
+
+        val compileFiles = uncompiledFiles.map {
             CompileFile(it.type, it.file, it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
         }
+
         deployStateListener.onFileStatesUpdate(compileFiles.map {
             ChangedFileInfo(it.file, ChangedFileInfo.State.COMPILING)
         })
 
         // do compile
+        logger.info("Compile files: $compileFiles")
         val compileResult = compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
 
         // update file status
         val successFiles = compileResult.details.filter { it.isSuccess }.map { it.get() }
-        deployFileManager.markAsCompiled(successFiles)
+        val failedFiles = compileResult.details.filter { !it.isSuccess }.map { it.getFailure().file }
+        deployFileManager.updateUncompiledFiles(successFiles, failedFiles)
         deployFileManager.addDeployFiles(compileResult.outputs)
 
         // notify ui state

@@ -68,7 +68,8 @@ val context get() = SimpleCompileContext(
     modules = emptyMap(),
     apkInfos = projectInfo.apkInfos,
     variant = "debug",
-    minApi = JuggSettings.minApi
+    minApi = JuggSettings.minApi,
+    projectDir = projectInfo.projectRoot
 )
 
 val mockModule = ModuleInfo(

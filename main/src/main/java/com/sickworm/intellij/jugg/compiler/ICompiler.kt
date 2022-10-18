@@ -120,6 +120,8 @@ interface ICompileContext {
     val apkInfos: List<ApkInfo>
     /** compile min api */
     val minApi: Int
+    /** project root directory, for log print */
+    val projectDir: File
 
     val packageName get() = apkInfos.firstOrNull()?.applicationId
 

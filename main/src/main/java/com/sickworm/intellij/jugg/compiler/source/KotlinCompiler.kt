@@ -77,7 +77,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         val fileArgs = task.files.map { it.file.absolutePath }
 
         val command = extensionArgs + compileArgs + classPathArgs + fileArgs
-        logCompileCommand(module, command)
+        logCompileCommand(command)
 
         // resolve kotlin extension function unresolved reference
         val merger = KmModuleMergerForCompilation(kotlinClassPath)
@@ -105,8 +105,8 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
     }
 
-    private fun logCompileCommand(module: ModuleInfo, options: List<String>) {
-        val baseDir = module.buildPathInfo.buildDir
+    private fun logCompileCommand(options: List<String>) {
+        val baseDir = context.projectDir
 
         var lastOption = ""
         val shortOptions = options.map {
