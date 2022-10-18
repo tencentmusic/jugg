@@ -42,7 +42,7 @@ class FileLoggerWrapper(
                     limit, count, true)
                 loggerHandler.formatter = object : SimpleFormatter() {
 
-                    private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s %n"
+                    private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s%n"
 
                     override fun format(lr: LogRecord): String {
                         val string = String.format(format,
