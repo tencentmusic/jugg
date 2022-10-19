@@ -158,7 +158,13 @@ class CompileContextManager(
 
             val baseDir = module.guessModuleDirAdv()
             if (baseDir == null) {
-                logger.warn("Gradle module $module dir not found")
+                logger.warn("ignore $module because module directory not found")
+                return@forEach
+            }
+
+            val relativePath = baseDir.relativeTo(pathManager.projectDir)
+            if (relativePath.startsWith(".idea")) {
+                logger.debug("ignore $module because it is in .idea folder (test module)")
                 return@forEach
             }
 
@@ -168,6 +174,10 @@ class CompileContextManager(
                     JavaSourceRootType.SOURCE,
                     org.jetbrains.kotlin.config.SourceKotlinRootType
                 ))
+                .filter { file ->
+                    // ignore source in excludeRoots, etc. build
+                    moduleManager.excludeRoots.all { !file.path.startsWith(it.path) }
+                }
                 .map { it.toIoFile() }
             sourceDirs.addAll(subSourceRoots)
 
@@ -185,7 +195,7 @@ class CompileContextManager(
             }
             val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
-                logger.debug("$module is not a gradle module, ignore")
+                logger.debug("ignore $module because is not a gradle module")
                 return@forEach
             }
             val sourceSets = buildModel.android().sourceSets()
@@ -203,6 +213,11 @@ class CompileContextManager(
                 .flatMap { it.getFileList(baseDir) }
             assetDirs.addAll(assetsSets)
 
+            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() ) {
+                logger.debug("ignore $module because all source dirs are empty")
+                return@forEach
+            }
+
             val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
             val compileVersion: String? = buildModel.android().compileSdkVersion().readString(buildModel)
             val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
@@ -218,11 +233,15 @@ class CompileContextManager(
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
                 ModuleBuildPathInfo.fromModule(baseDir),
             )
+
+            logger.debug("add $module, " +
+                    "dir: $relativePath, " +
+                    "sourceDirs: $sourceDirs, " +
+                    "resourceDirs: $resourceDirs, " +
+                    "assetDirs: $assetDirs")
         }
 
-        val moduleDirs = modules.values.map { it.rootDir }
-        logger.debug("modules dir: ${moduleDirs.relativePath(pathManager.projectDir)}")
-
+        logger.debug("total ${modules.size} modules loaded")
         return modules
     }
 
