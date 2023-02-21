@@ -63,6 +63,7 @@ dependencies {
     // 0.3.0 depends kotlin-stdlib:1.5.0
     implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.4.2"
     implementation "io.github.classgraph:classgraph:4.8.110"
+    implementation 'com.jcraft:jsch:0.1.55'
 
     implementation project(':deploy_compat:interface')
     implementation project(':deploy_compat:v_412')
