@@ -7,6 +7,7 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import java.io.File
 import java.io.PrintStream
 
 class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Disposable {
@@ -50,7 +51,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         }
     }
 
-    override fun compileAndFetchResult() {
+    override fun compileAndFetchResult(): RemoteCompileResult {
         val channel = channel
         val clientInfo = clientInfo
         if (channel == null || clientInfo == null) {
@@ -58,9 +59,28 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         }
 
         val syncFileCommand = SyncFileCommand(clientInfo.localProjectPath, clientInfo.serverProjectPath)
-        invoke(channel, syncFileCommand)
+        val syncFileResult = invoke(channel, syncFileCommand)
+        if (syncFileResult != 0) {
+            logger.warn("Sync file from local failed, please check your iFt client is opened.")
+            return RemoteCompileResult.failed()
+        }
+
         val compileProjectCommand = CompileProjectCommand(clientInfo.serverProjectPath)
-        invoke(channel, compileProjectCommand)
+        val compileProjectResult = invoke(channel, compileProjectCommand)
+        if (compileProjectResult != 0) {
+            logger.warn("Compile project failed, please check your iFt client is opened.")
+            return RemoteCompileResult.failed()
+        }
+
+
+        val fetchOutputCommand = FetchOutputCommand(clientInfo.remoteToLocalIftConfigName)
+        val fetchOutputResult = invoke(channel, fetchOutputCommand)
+        if (fetchOutputResult != 0) {
+            logger.warn("Fetch output failed, please check your iFt client is opened.")
+            return RemoteCompileResult.failed()
+        }
+
+        return RemoteCompileResult.success(File(""))
     }
 
     private fun invoke(channel: Channel, command: ISshCommand): Int {
