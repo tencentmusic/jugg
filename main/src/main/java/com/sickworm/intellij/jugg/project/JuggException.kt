@@ -38,6 +38,10 @@ class JuggException(msg: String): Exception(msg) {
 
         fun invokeAdbFailed2(cmd: String, e: Exception) =
             JuggException("Invoke cmd command \"$cmd\" failed, message: ${e.message}")
+
+        fun loginToRemoteFailed() =
+            JuggException("Login to remote ssh failed. Please check your login info.")
+
     }
 }
 
@@ -93,5 +97,9 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun historyNotAvailable(projectDir: File) =
             JuggInternalException("$projectDir is not a git repository, deployment history is not available")
+
+        fun notLoginYet() =
+            JuggException("Not login yet. Please Login first")
+
     }
 }

@@ -49,9 +49,11 @@ class CompileContextDb(
 
         // save module info
         val copyModuleBuilds = modules.mapValues { (moduleName, moduleInfo) ->
+            logger.debug("copy $moduleName")
             val copyModuleBuildPathFile = File(moduleBuildPathDirFile, moduleName)
             val copyModuleBuildPathInfo = ModuleBuildPathInfo(copyModuleBuildPathFile)
             moduleInfo.buildPathInfo.javaClassPath.let {
+                logger.debug("copy $moduleName ${copyModuleBuildPathInfo.javaClassPath}")
                 if (it.exists()) {
                     it.parentFile?.mkdirs()
                     it.copyRecursively(copyModuleBuildPathInfo.javaClassPath)

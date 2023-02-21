@@ -64,7 +64,7 @@ class FileChangesDetector(
             return null
         }
 
-        logger.trace("file event ${event::class.java.name} $event")
+        logger.debug("file event ${event::class.java.name} $event") // FIXME don't commit
         if (event is VFileDeleteEvent || event is VFilePropertyChangeEvent) {
             return null
         }
