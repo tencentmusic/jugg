@@ -33,7 +33,7 @@ class GradleSettingsDummyReader(private val projectDir: File) {
                 }
         """.trimIndent()
         )
-        return (result as List<File>).filter { it.exists() }
+        return (result as List<File>).filter { it.exists() }.distinct()
     }
 
 }
