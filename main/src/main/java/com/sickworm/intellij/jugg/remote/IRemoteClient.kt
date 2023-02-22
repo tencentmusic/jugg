@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.remote
 
+import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import kotlin.jvm.Throws
@@ -18,8 +19,9 @@ data class RemoteCompileClientInfo(
 ) {
 
     val localProjectPath get() = "$localToRemoteIftConfigName/$projectName"
-    val serverProjectPath get() = "~/remote/$projectName"
+    val remoteProjectPath get() = "~/remote/$projectName"
 
+    val remoteToLocalClasspathPath get() = "$remoteToLocalIftConfigName/jugg/$projectName"
 }
 
 data class RemoteCompileResult(
@@ -39,4 +41,6 @@ interface IRemoteClient {
     fun login(clientInfo: RemoteCompileClientInfo)
 
     fun compileAndFetchResult() : RemoteCompileResult
+
+    fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean
 }

@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.jcraft.jsch.*
+import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -58,14 +59,14 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
             throw JuggInternalException.notLoginYet()
         }
 
-        val syncFileCommand = SyncFileCommand(clientInfo.localProjectPath, clientInfo.serverProjectPath)
+        val syncFileCommand = SyncFileCommand(clientInfo.localProjectPath, clientInfo.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult != 0) {
             logger.warn("Sync file from local failed, please check your iFt client is opened.")
             return RemoteCompileResult.failed()
         }
 
-        val compileProjectCommand = CompileProjectCommand(clientInfo.serverProjectPath)
+        val compileProjectCommand = CompileProjectCommand(clientInfo.remoteProjectPath)
         val compileProjectResult = invoke(channel, compileProjectCommand)
         if (compileProjectResult != 0) {
             logger.warn("Compile project failed, please check your iFt client is opened.")
@@ -81,6 +82,26 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         }
 
         return RemoteCompileResult.success(File(""))
+    }
+
+    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
+        val channel = channel
+        val clientInfo = clientInfo
+        if (channel == null || clientInfo == null) {
+            throw JuggInternalException.notLoginYet()
+        }
+
+        val fetchClasspathCommand = FetchClasspathCommand(
+            clientInfo.remoteProjectPath,
+            clientInfo.remoteToLocalClasspathPath,
+            buildDirs
+        )
+        val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
+        if (fetchClasspathResult != 0) {
+            logger.warn("Fetch classpath failed, please check your iFt client is opened.")
+            return false
+        }
+        return true
     }
 
     private fun invoke(channel: Channel, command: ISshCommand): Int {

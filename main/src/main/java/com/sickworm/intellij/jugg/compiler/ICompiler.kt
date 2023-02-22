@@ -140,6 +140,7 @@ class ParsedApk(
 
 data class ModuleInfo(
     val name: String,
+    val projectRootDir: File,
     val rootDir: File,
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
@@ -153,25 +154,32 @@ data class ModuleInfo(
 )
 
 class ModuleBuildPathInfo(
-    /** build root dir */
-    val buildDir: File,
+    /** project root dir */
+    private val projectRootDir: File,
+    /** module root dir */
+    moduleRootDir: File,
 ) {
+
+    /** build root dir */
+    val buildDir: File = File(moduleRootDir, "build")
+
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/debug/classes")
     /** on gradle 3.2.1 has different java class path */
     private val javaClassPathOld get() = File(buildDir, "intermediates/javac/debug/compileDebugJavaWithJavac/classes")
     /** java class path */
     val javaClassPath get() = if (javaClassPathNew.exists()) javaClassPathNew else javaClassPathOld
-    /** on gradle 4.1.1, R.class not storage in buildClassPath */
+    /** after gradle 4.1.1, R.class not storage in buildClassPath */
     val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar")
     /** kotlin class path */
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/debug")
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath)
 
-    companion object {
-        fun fromModule(moduleRootDir: File) = ModuleBuildPathInfo(File(moduleRootDir, "build"))
+    val allClassPathRelative get() = allClassPath.map {
+        it.relativeTo(projectRootDir)
     }
+
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {

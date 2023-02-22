@@ -6,6 +6,8 @@ import groovy.lang.Closure
 import groovy.util.Eval
 import org.gradle.api.initialization.ProjectDescriptor
 import java.io.File
+import java.util.*
+import kotlin.collections.LinkedHashMap
 
 class GradleSettingsDummyReader(private val projectDir: File) {
 
@@ -13,10 +15,19 @@ class GradleSettingsDummyReader(private val projectDir: File) {
     fun readProjectDirs(): List<File> {
         val settingsContent = File(projectDir, "settings.gradle").readText()
         val stdPath = projectDir.absolutePath.replace("\\", "/")
+        val propertiesContent = Properties().also { properties ->
+            File(stdPath, "gradle.properties").inputStream().use {
+                properties.load(it)
+            }
+        }.filter { !(it.key as String).contains(".") }
+            .map { (key, value) ->
+            "def $key = \"$value\""
+        }.joinToString("\n")
         val result = Eval.me("""
                 // parsing settings.gradle
                 def delegate = new com.sickworm.intellij.jugg.mock.GradleSettingsDummyDelegate("$stdPath")
                 delegate.eval {
+                    $propertiesContent
                     $settingsContent
                     getList()
                 }
@@ -56,6 +67,10 @@ class GradleSettingsDummyDelegate(private val projectRootDir: String) {
 
     fun getList(): List<File> {
         return list.map { File(projectRootDir, it.projectDir) }
+    }
+
+    fun apply(map: LinkedHashMap<Object, Object>) {
+        // ignore
     }
 
     fun getRootProject(): ProjectDescriptor {

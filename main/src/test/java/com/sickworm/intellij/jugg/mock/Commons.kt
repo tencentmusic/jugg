@@ -74,13 +74,14 @@ val context get() = SimpleCompileContext(
 
 val mockModule = ModuleInfo(
     name = "mock_module",
+    projectRootDir = projectInfo.projectRoot,
     rootDir = buildDir,
     sourceDirs = emptyList(),
     resourceDirs = emptyList(),
     assetsDirs = emptyList(),
     compileVersion = null,
     buildToolsVersion = null,
-    buildPathInfo = ModuleBuildPathInfo(buildDir),
+    buildPathInfo = ModuleBuildPathInfo(projectInfo.projectRoot, buildDir),
     kotlinJvmTarget = "1.8", // TODO read from build.gradle
     javaSourceCompatibility = "1.8",
     javaTargetCompatibility = "1.8",

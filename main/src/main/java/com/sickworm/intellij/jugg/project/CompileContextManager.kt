@@ -228,10 +228,10 @@ class CompileContextManager(
                 .toLanguageLevel()?.toJavaVersion()?.toString()
 
             modules[module.name] = ModuleInfo(
-                module.name, baseDir, sourceDirs, resourceDirs, assetDirs,
+                module.name, baseDir, pathManager.projectDir, sourceDirs, resourceDirs, assetDirs,
                 compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
-                ModuleBuildPathInfo.fromModule(baseDir),
+                ModuleBuildPathInfo(pathManager.projectDir, baseDir),
             )
 
             logger.debug("add $module, " +

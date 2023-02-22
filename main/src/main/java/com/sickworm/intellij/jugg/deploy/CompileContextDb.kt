@@ -51,7 +51,7 @@ class CompileContextDb(
         val copyModuleBuilds = modules.mapValues { (moduleName, moduleInfo) ->
             logger.debug("copy $moduleName")
             val copyModuleBuildPathFile = File(moduleBuildPathDirFile, moduleName)
-            val copyModuleBuildPathInfo = ModuleBuildPathInfo(copyModuleBuildPathFile)
+            val copyModuleBuildPathInfo = ModuleBuildPathInfo(projectDir, copyModuleBuildPathFile)
             moduleInfo.buildPathInfo.javaClassPath.let {
                 logger.debug("copy $moduleName ${copyModuleBuildPathInfo.javaClassPath}")
                 if (it.exists()) {
@@ -119,7 +119,7 @@ class CompileContextDb(
 
         val apkInfos = ApkInfoSerializer().deserialize(apkInfoFile.readText())
         val moduleBuilds = moduleBuildPathDirFile.listFiles()?.associate {
-            it.name to ModuleBuildPathInfo(it)
+            it.name to ModuleBuildPathInfo(projectDir, it)
         }?: emptyMap()
         val thirdPartyDependencies = thirdPartiesDirFile.listFilesRecursively().map { it.path }
 
