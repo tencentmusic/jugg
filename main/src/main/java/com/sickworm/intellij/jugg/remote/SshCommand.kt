@@ -23,14 +23,14 @@ class CompileProjectCommand(
 }
 
 class FetchOutputCommand(
-    localSyncPathName: String,
+    remoteToLocalIftConfigName: String,
 ) : BaseSshCommand() {
 
     override val baseCommand: String = """\
 find_apk=${'$'}(find -name "app-universal-debug.apk" -print -quit) && \
-ft sync -s $localSyncPathName/ --put ${'$'}find_apk && \
+ft sync -s $remoteToLocalIftConfigName/ --put ${'$'}find_apk && \
 touch event.log && \
-ft sync -s $localSyncPathName/ --put event.log \
+ft sync -s $remoteToLocalIftConfigName/ --put event.log \
 """
 }
 
