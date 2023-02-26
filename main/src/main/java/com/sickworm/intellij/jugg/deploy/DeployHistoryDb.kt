@@ -67,7 +67,7 @@ class DeployHistoryDb(
 
     private fun isCrcChanged(deployHistoryData: DeployHistoryData, file: File): Boolean {
         val path = file.relativeTo(projectDir).path
-        val fileCrc = deployHistoryData.changedFiles[path]
+        val fileCrc = deployHistoryData.changedFiles?.get(path)
 
         val isOnUncommittedFileList = fileCrc != null
         if (!isOnUncommittedFileList) {
@@ -116,7 +116,7 @@ class DeployHistoryDb(
         }
 
         val newDeployHistoryData = deployHistoryData.copy(
-            changedFiles = deployHistoryData.changedFiles + newDeployedFiles,
+            changedFiles = (deployHistoryData.changedFiles ?: emptyMap()) + newDeployedFiles,
             incDeployTimes = deployHistoryData.incDeployTimes + 1,
         )
         newDeployHistoryData.save(deployHistoryFile)
@@ -155,7 +155,7 @@ data class DeployHistoryData(
      * Map of RelativeFilePath to Crc32Hash.
      * Records changed files on full compile and deploy.
      */
-    val changedFiles: Map<String, Long>,
+    val changedFiles: Map<String, Long>?,
     val version: Int = LATEST_VERSION,
 ) {
 
