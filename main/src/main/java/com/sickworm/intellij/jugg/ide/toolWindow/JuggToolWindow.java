@@ -15,11 +15,10 @@ import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.JBColor;
 import com.sickworm.intellij.jugg.JuggManager;
 import com.sickworm.intellij.jugg.deploy.JuggDeployState;
+import com.sickworm.intellij.jugg.ide.JuggInitializer;
 import com.sickworm.intellij.jugg.ide.JuggSettings;
 import com.sickworm.intellij.jugg.deploy.DeployAction;
 import com.sickworm.intellij.jugg.logger.JuggLogger;
-import com.sickworm.intellij.jugg.project.JuggPathManager;
-import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -32,7 +31,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
@@ -56,7 +54,6 @@ public class JuggToolWindow implements JuggStateListener {
   private final Object[] tableColumns = { "File", "Status" };
 
   private JuggManager juggManager;
-  private final JuggPathManager pathManager;
   private final Logger logger;
 
   private final Project project;
@@ -64,7 +61,6 @@ public class JuggToolWindow implements JuggStateListener {
   @TestOnly
   public JuggToolWindow() {
     this.juggManager = null;
-    this.pathManager = null;
     this.project = null;
     this.logger = null;
   }
@@ -73,24 +69,18 @@ public class JuggToolWindow implements JuggStateListener {
   public JuggToolWindow(Project project, ToolWindow toolWindow) {
     this.project = project;
 
-    String projectDir = project.getBasePath();
     LoggerPrinter loggerPrinter = new LoggerPrinter();
-    loggerPrinter.info("Start Jugg on " + projectDir);
-    if (projectDir == null || (!new File(projectDir).exists())) {
-      loggerPrinter.warn("Can not get project directory, exit");
-      juggManager = null;
-      pathManager = null;
-      logger = null;
-      return;
-    }
 
-    pathManager = new JuggPathManager(project, new File(projectDir));
-    JuggLogger.INSTANCE.register(project, pathManager.getLogDir());
     JuggLogger.INSTANCE.listenProjectLog(project, loggerPrinter);
     logger = JuggLogger.INSTANCE.getInstance(project, "JuggManager");
 
-    juggManager = new JuggManager(project, pathManager, this);
-    juggManager.init();
+    loggerPrinter.info("Start Jugg");
+    JuggManager juggManager = JuggInitializer.INSTANCE.getManager(project);
+    if (juggManager == null) {
+        loggerPrinter.warn("Can not get Jugg manager, exit");
+        return;
+    }
+    juggManager.setDeployStateListener(this);
 
     deployButton.addActionListener(e -> deploy());
     resetButton.addActionListener(e -> reset());
@@ -268,16 +258,11 @@ public class JuggToolWindow implements JuggStateListener {
   }
 
   private void doReset() {
-    try {
-      FileUtils.deleteDirectory(pathManager.getJuggRootDir());
-    } catch (IOException e) {
-      logger.error("Delete root directory failed", e);
+    JuggInitializer.INSTANCE.reset(project);
+    juggManager = JuggInitializer.INSTANCE.getManager(project);
+    if (juggManager != null) {
+      juggManager.setDeployStateListener(this);
     }
-    JuggLogger.INSTANCE.register(project, pathManager.getLogDir());
-    JuggLogger.INSTANCE.listenProjectLog(project, new LoggerPrinter());
-    juggManager.dispose();
-    juggManager = new JuggManager(project, pathManager, this);
-    juggManager.init();
   }
 
   private void afterReset() {

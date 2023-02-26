@@ -1,15 +1,18 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.intellij.execution.RunManager
+import com.intellij.execution.RunnerAndConfigurationSettings
+import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.compiler.*
-import java.util.concurrent.Executors
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.JuggConfigurationType
+import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
@@ -19,12 +22,13 @@ import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
+
 
 class JuggManager @TestOnly constructor(
     private val project: Project,
-    private val deployStateListener: JuggStateListener,
-    private val pathManager: JuggPathManager,
+    val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
@@ -43,16 +47,16 @@ class JuggManager @TestOnly constructor(
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager),
 ): Disposable {
 
-    constructor(project2: Project,
-                pathManager: JuggPathManager,
-                juggDeployStateListener: JuggStateListener,
-    ):
-            this(project = project2, juggDeployStateListener, pathManager)
+    constructor(
+        project2: Project,
+        pathManager: JuggPathManager,
+    ): this(project = project2, pathManager)
 
     private var compiler: JuggCompiler? = null
 
+    var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl
+
     fun init() {
-        Disposer.register(project, this)
         compileThread.submitSafe("InitProject", ::initProject)
     }
 
@@ -63,10 +67,19 @@ class JuggManager @TestOnly constructor(
             compileContextManager.initProjectInfo()
             logger.debug("Init deploy history...")
             recoverDeployContext()
+            logger.debug("Create run configuration...")
+            createRunConfiguration()
             logger.debug("Start jugg finished.")
         } finally {
             onActionUpdate()
         }
+    }
+
+    private fun createRunConfiguration() {
+        // TODO no working
+        val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
+        val settings: RunnerAndConfigurationSettings =
+            RunManager.getInstance(project).createConfiguration("jugg:app", factory)
     }
 
     private fun recoverDeployContext() {

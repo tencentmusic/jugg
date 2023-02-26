@@ -21,12 +21,23 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
         />
     </applicationListeners>
 
+    <projectListeners>
+        <listener
+                class="com.sickworm.intellij.jugg.ide.JuggProjectManagerListener"
+                topic="com.intellij.openapi.project.ProjectManagerListener"
+        />
+    </projectListeners>
+
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
                 id="Jugg"
                 icon="AllIcons.Toolwindows.ToolWindowRun"
                 anchor="bottom"
                 factoryClass="com.sickworm.intellij.jugg.ide.toolWindow.JuggToolWindowFactory"
+        />
+        <configurationType
+                id="jugg.JuggConfigurationType"
+                implementation="com.sickworm.intellij.jugg.ide.JuggConfigurationType"
         />
     </extensions>
 </idea-plugin>
