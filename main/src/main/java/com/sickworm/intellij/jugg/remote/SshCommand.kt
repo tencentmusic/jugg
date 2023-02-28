@@ -2,19 +2,42 @@ package com.sickworm.intellij.jugg.remote
 
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 
-class SyncFileCommand(
-    localProjectPath: String,
-    remoteProjectPath: String,
-) : BaseSshCommand() {
+abstract class IftSyncCommand : BaseSshCommand() {
 
-    override val baseCommand: String = """ft sync -s $localProjectPath --get $remoteProjectPath -a "-av --delete  --exclude='build/' --exclude='imagebus/log/' --exclude='imagebus/mapping/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'" """
+    /**
+     * Store the real result of command due to iFt won't give correct exit code.
+     * Command will listen to the output. e.g.:
+     * when run success -> will get "task done"
+     * when run failed -> will get something like: "set device failed: no device online"
+     */
+    private var iftResult: Int = -1
 
     override fun getInput(terminalOutputLine: String): String? {
+        if (terminalOutputLine.contains("task done")) {
+            iftResult = 0
+        }
         if (terminalOutputLine == "Login With User:") {
             return "1"
         }
         return null
     }
+
+    override fun hasFinishWithResult(terminalOutputLine: String): Int? {
+        if (super.hasFinishWithResult(terminalOutputLine) != null) {
+            // reach end, return correct exit code
+            return iftResult
+        }
+        return null
+    }
+}
+
+class SyncFileCommand(
+    localProjectPath: String,
+    remoteProjectPath: String,
+) : IftSyncCommand() {
+
+    override val baseCommand: String = """ft sync -s $localProjectPath --get $remoteProjectPath -a "-av --delete  --exclude='build/' --exclude='imagebus/log/' --exclude='imagebus/mapping/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'" """
+
 }
 
 class CompileProjectCommand(
@@ -26,7 +49,7 @@ class CompileProjectCommand(
 
 class FetchOutputCommand(
     remoteToLocalIftConfigName: String,
-) : BaseSshCommand() {
+) : IftSyncCommand() {
 
     override val baseCommand: String = """\
 find_apk=${'$'}(find -name "app-universal-debug.apk" -print -quit) && \
@@ -34,6 +57,7 @@ ft sync -s $remoteToLocalIftConfigName/ --put ${'$'}find_apk && \
 touch event.log && \
 ft sync -s $remoteToLocalIftConfigName/ --put event.log \
 """
+
 }
 
 class FetchClasspathCommand(

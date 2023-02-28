@@ -98,7 +98,7 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
         @Suppress("DialogTitleCapitalization")
         val task = object : Task.Backgroundable(project, "Running Jugg") {
             override fun run(indicator: ProgressIndicator) {
-                processHandler.notifyTextAvailable("\n\n[Jugg] Compile finished.\n", logKey)
+                processHandler.notifyTextAvailable("\n\n[Jugg] Compile started.\n", logKey)
                 indicator.text = "Jugg compiling..."
                 indicator.isIndeterminate = true
 

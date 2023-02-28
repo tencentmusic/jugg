@@ -65,7 +65,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val syncFileCommand = SyncFileCommand(clientInfo.localProjectPath, clientInfo.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult != 0) {
-            printToStreamError("Sync file from local failed, please check your iFt client is opened.")
+            printToStreamError("Sync file from local to remote failed, please check your iFt client is opened.")
             return RemoteCompileResult.failed()
         }
 
@@ -80,7 +80,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val fetchOutputCommand = FetchOutputCommand(clientInfo.remoteToLocalIftConfigName)
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
-            printToStreamError("Fetch output failed, please check your iFt client is opened.")
+            printToStreamError("Fetch output from remote to local failed, please check your iFt client is opened.")
             return RemoteCompileResult.failed()
         }
 
