@@ -82,8 +82,6 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
 class JuggRunProfileState(val project: Project) : RunProfileState {
 
-    val logKey = Key.create<String>("Jugg Terminal")
-
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
         // TODO support cancel
         val remoteClient = RemoteClient(project, project)
@@ -91,22 +89,28 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
         val processHandler = SimpleProcessHandler()
         remoteClient.terminalOutputListener = object : RemoteClient.TerminalOutputListener {
             override fun onOutput(line: String) {
-                processHandler.notifyTextAvailable(line + "\n", logKey)
+                processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDOUT)
+            }
+            override fun onOutputErr(line: String) {
+                processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDERR)
             }
         }
 
         @Suppress("DialogTitleCapitalization")
         val task = object : Task.Backgroundable(project, "Running Jugg") {
             override fun run(indicator: ProgressIndicator) {
-                processHandler.notifyTextAvailable("\n\n[Jugg] Compile started.\n", logKey)
-                indicator.text = "Jugg compiling..."
+                processHandler.notifyTextAvailable("\n\nJugg compile started.\n", ProcessOutputType.STDOUT)
+                indicator.text = "Compiling by Jugg..."
                 indicator.isIndeterminate = true
 
                 val (costTime, isSuccess) = measureTimeMillisWithResult(::doRun)
 
                 indicator.stop()
-                val result = if (isSuccess) "SUCCESS" else "FAILED"
-                processHandler.notifyTextAvailable("\n\n[Jugg] BUILD $result in ${costTime / 1000}s.\n", logKey)
+                if (isSuccess) {
+                    processHandler.notifyTextAvailable("\n\nBUILD SUCCESS in ${costTime / 1000}s.\n", ProcessOutputType.STDOUT)
+                } else {
+                    processHandler.notifyTextAvailable("\n\nBUILD FAILED in ${costTime / 1000}s.\n", ProcessOutputType.STDERR)
+                }
             }
 
             private fun doRun(): Boolean {

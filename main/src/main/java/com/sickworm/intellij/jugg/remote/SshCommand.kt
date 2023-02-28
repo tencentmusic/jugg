@@ -10,11 +10,16 @@ abstract class IftSyncCommand : BaseSshCommand() {
      * when run success -> will get "task done"
      * when run failed -> will get something like: "set device failed: no device online"
      */
-    private var iftResult: Int = -1
+    private var iftResult: Int = ERROR_NO_RESULT
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains("task done")) {
-            iftResult = 0
+            if (iftResult == ERROR_NO_RESULT) {
+                iftResult = SUCCESS
+            }
+        }
+        if (terminalOutputLine.contains("run rsync failed:") || terminalOutputLine.contains("set device failed:")) {
+            iftResult = ERROR_FAILED
         }
         if (terminalOutputLine == "Login With User:") {
             return "1"
@@ -28,6 +33,12 @@ abstract class IftSyncCommand : BaseSshCommand() {
             return iftResult
         }
         return null
+    }
+
+    companion object {
+        private const val SUCCESS = 0
+        private const val ERROR_NO_RESULT = -1000
+        private const val ERROR_FAILED = -1001
     }
 }
 
