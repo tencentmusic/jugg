@@ -312,7 +312,7 @@ class MockJugg {
 
     private fun renewManager() {
         juggManager = JuggManager(
-            project, juggStateListener,
+            project,
             pathManager = pathManager,
             fileChangesHandler = fileChangesHandler,
             fileChangesDetector = fileChangesDetector,
@@ -324,6 +324,7 @@ class MockJugg {
             deployStateManager = deployStateManager,
             deployHistoryManager = deployHistoryManager,
         )
+        juggManager.deployStateListener = juggStateListener
         juggManager.init()
     }
 }
