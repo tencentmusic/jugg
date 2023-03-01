@@ -43,4 +43,6 @@ interface IRemoteClient {
     fun compileAndFetchResult() : RemoteCompileResult
 
     fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean
+
+    fun cancelAction()
 }

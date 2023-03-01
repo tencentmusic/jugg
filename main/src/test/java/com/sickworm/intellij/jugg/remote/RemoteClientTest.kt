@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RemoteClientTest {
@@ -62,5 +63,27 @@ class RemoteClientTest {
 
         val fetchClasspathResult = remoteClient.fetchClasspathResult(modules)
         assertTrue(fetchClasspathResult)
+    }
+
+    @Test
+    fun testCancel() {
+        if (!isNeedTest) return
+
+        val remoteClient = RemoteClient(project, project)
+        remoteClient.terminalOutputListener = object : RemoteClient.TerminalOutputListener {
+            override fun onOutput(line: String) {
+                println(line)
+                if (line.contains("TaskRequests:")) {
+                    remoteClient.cancelAction()
+                }
+            }
+
+            override fun onOutputErr(line: String) {
+                System.err.println(line)
+            }
+        }
+        remoteClient.login(clientInfo)
+        val remoteCompileResult = remoteClient.compileAndFetchResult()
+        assertFalse(remoteCompileResult.isSuccess)
     }
 }

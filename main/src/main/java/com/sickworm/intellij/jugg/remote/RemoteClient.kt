@@ -114,6 +114,17 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         return true
     }
 
+    override fun cancelAction() {
+        val channel = channel
+        val clientInfo = clientInfo
+        if (channel == null || clientInfo == null) {
+            throw JuggInternalException.notLoginYet()
+        }
+        val commander = PrintStream(channel.outputStream, true)
+        commander.print(String(byteArrayOf(0x03))) // control c
+        commander.flush()
+    }
+
     private fun invoke(channel: Channel, command: ISshCommand): Int {
         printToStream("[Jugg] ${command::class.simpleName} exec start")
 
