@@ -79,7 +79,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val compileProjectCommand = CompileProjectCommand(clientInfo.remoteProjectPath)
         val compileProjectResult = invoke(channel, compileProjectCommand)
         if (compileProjectResult != 0) {
-            printToStreamError("Compile project failed, please check your iFt client is opened.")
+            printToStreamError("Compile project failed, please check the error message.")
             return RemoteCompileResult.failed()
         }
 
