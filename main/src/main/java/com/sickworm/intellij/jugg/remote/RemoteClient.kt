@@ -136,33 +136,24 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         commander.println(command.command)
         commander.flush()
 
+        val reader = channel.inputStream.bufferedReader(Charsets.UTF_8)
         val result: Int
-        val buffer = StringBuffer()
-        val bufferedInputStream = BufferedInputStream(channel.inputStream)
         while (true) {
-            buffer.setLength(0)
-            var line: String
-            while (true) {
-                val code = bufferedInputStream.read()
-                if (code == '\n'.code || code == '\r'.code || code == -1) {
-                    line = buffer.toString()
-                    break
-                } else {
-                    buffer.append(code.toChar())
+            val line = reader.readLine()
+            if (line != null) {
+                if (line.isNotEmpty()) {
+                    printToStream(line)
                 }
-            }
-            if (line.isNotEmpty()) {
-                printToStream(line)
-            }
-            val output = command.getInput(line)
-            if (output != null) {
-                commander.println(output)
-                commander.flush()
-            }
-            val currentResult = command.hasFinishWithResult(line)
-            if (currentResult != null) {
-                result = currentResult
-                break
+                val output = command.getInput(line)
+                if (output != null) {
+                    commander.println(output)
+                    commander.flush()
+                }
+                val currentResult = command.hasFinishWithResult(line)
+                if (currentResult != null) {
+                    result = currentResult
+                    break
+                }
             }
 
             if (channel.isClosed) {
