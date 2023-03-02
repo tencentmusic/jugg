@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.android.tools.idea.uibuilder.handlers.motion.editor.adapters.Annotations.NotNull
 import com.google.gson.Gson
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
@@ -19,7 +18,6 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.NotNullLazyValue
 import com.sickworm.intellij.jugg.remote.RemoteClient
 import com.sickworm.intellij.jugg.remote.RemoteCompileClientInfo
-import icons.StudioIcons
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.io.OutputStream
@@ -106,9 +104,21 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
     ) : Task.Backgroundable(project, "Running Jugg") {
 
         override fun run(indicator: ProgressIndicator) {
+            // TODO remove
+            val homeDir = System.getProperty("user.home")
+            val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
+            val clientInfo = Gson().fromJson(clientInfoFile.readText(), RemoteCompileClientInfo::class.java)
+            val remoteProjectAbsPath = clientInfo.remoteProjectPath
+
             remoteClient.terminalOutputListener = object : RemoteClient.TerminalOutputListener {
                 override fun onOutput(line: String) {
-                    processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDOUT)
+                    if (line.contains(remoteProjectAbsPath)) {
+                        val replaceToLocalProject = project.basePath!!.let { line.replace(remoteProjectAbsPath, it) }
+                        processHandler.notifyTextAvailable(replaceToLocalProject, ProcessOutputType.STDOUT)
+                    } else {
+                        processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDOUT)
+                    }
+
                     if (line.startsWith("[Jugg] SyncFileCommand exec start")) {
                         indicator.text = "Syncing file to remote..."
                     } else if (line.startsWith("[Jugg] CompileProjectCommand exec start")) {
@@ -125,7 +135,12 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
                 }
 
                 override fun onOutputErr(line: String) {
-                    processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDERR)
+                    if (line.contains(remoteProjectAbsPath)) {
+                        val replaceToLocalProject = project.basePath!!.let { line.replace(remoteProjectAbsPath, it) }
+                        processHandler.notifyTextAvailable(replaceToLocalProject, ProcessOutputType.STDERR)
+                    } else {
+                        processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDERR)
+                    }
                 }
             }
             object : ProgressIndicatorListener {
@@ -159,6 +174,7 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
         }
 
         private fun doRun(): Boolean {
+            // TODO remove
             val homeDir = System.getProperty("user.home")
             val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
             val clientInfo = Gson().fromJson(clientInfoFile.readText(), RemoteCompileClientInfo::class.java)

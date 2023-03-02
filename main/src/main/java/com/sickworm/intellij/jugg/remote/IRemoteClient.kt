@@ -18,8 +18,9 @@ data class RemoteCompileClientInfo(
     val httpProxyPort: Int? = null,
 ) {
 
-    val localProjectPath get() = "$localToRemoteIftConfigName/$projectName"
-    val remoteProjectPath get() = "~/remote/$projectName"
+    /** ift path, not local path */
+    val localProjectIftPath get() = "$localToRemoteIftConfigName/$projectName"
+    val remoteProjectPath get() = "/root/remote/$projectName"
 
     val remoteToLocalClasspathPath get() = "$remoteToLocalIftConfigName/jugg/$projectName"
 }

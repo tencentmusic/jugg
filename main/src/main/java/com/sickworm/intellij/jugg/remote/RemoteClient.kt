@@ -8,7 +8,6 @@ import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
-import java.io.BufferedInputStream
 import java.io.File
 import java.io.PrintStream
 
@@ -69,7 +68,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
             throw JuggInternalException.notLoginYet()
         }
 
-        val syncFileCommand = SyncFileCommand(clientInfo.localProjectPath, clientInfo.remoteProjectPath)
+        val syncFileCommand = SyncFileCommand(clientInfo.localProjectIftPath, clientInfo.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult != 0) {
             printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
