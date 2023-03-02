@@ -32,6 +32,11 @@ abstract class IftSyncCommand : BaseSshCommand() {
             // reach end, return correct exit code
             return iftResult
         }
+        if (terminalOutputLine.contains("rsync error:")) {
+            // canceled by user, in this case super.hasFinishWithResult will never be non-null (no idea why)
+            iftResult = ERROR_CANCELED
+            return iftResult
+        }
         return null
     }
 
@@ -39,6 +44,7 @@ abstract class IftSyncCommand : BaseSshCommand() {
         private const val SUCCESS = 0
         private const val ERROR_NO_RESULT = -1000
         private const val ERROR_FAILED = -1001
+        private const val ERROR_CANCELED = -1002
     }
 }
 
