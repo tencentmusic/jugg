@@ -81,7 +81,7 @@ class FetchClasspathCommand(
     remoteProjectPath: String,
     remoteToLocalClasspathPath: String,
     modules: List<ModuleBuildPathInfo>,
-) : BaseSshCommand() {
+) : IftSyncCommand() {
 
     private val remoteProjectClasspathDir = "build/jugg/sync/classpath"
 
@@ -106,11 +106,5 @@ done ; \
 ft sync -s $remoteToLocalClasspathPath --put $remoteProjectClasspathDir \
 """
 
-    override fun getInput(terminalOutputLine: String): String? {
-        if (terminalOutputLine == "Login With User:") {
-            return "1"
-        }
-        return null
-    }
 }
 
