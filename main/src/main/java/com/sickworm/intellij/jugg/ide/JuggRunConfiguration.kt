@@ -10,6 +10,7 @@ import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.progress.*
 import com.intellij.openapi.progress.util.ProgressIndicatorListener
@@ -49,7 +50,7 @@ class JuggConfigurationType : ConfigurationTypeBase(
     this::class.toString(),
     "Jugg",
     "Run Jugg compilation",
-    NotNullLazyValue.createValue { StudioIcons.Shell.Filetree.ANDROID_PROJECT },
+    NotNullLazyValue.createValue { AllIcons.Providers.Openedge },
 ) {
     init {
         addFactory(object : ConfigurationFactory(this) {
