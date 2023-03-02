@@ -109,6 +109,19 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
             remoteClient.terminalOutputListener = object : RemoteClient.TerminalOutputListener {
                 override fun onOutput(line: String) {
                     processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDOUT)
+                    if (line.startsWith("[Jugg] SyncFileCommand exec start")) {
+                        indicator.text = "Syncing file to remote..."
+                    } else if (line.startsWith("[Jugg] CompileProjectCommand exec start")) {
+                        indicator.text = "Compiling project..."
+                    } else if (line.startsWith("[Jugg] FetchOutputCommand exec start")) {
+                        indicator.text = "Getting apk..."
+                    } else if (line.startsWith("> Configure project ")) {
+                        val projectName = line.substring("> Configure project ".length)
+                        indicator.text = "Configured $projectName..."
+                    } else if (line.startsWith("> Task ")) {
+                        val taskName = line.substring("> Task ".length).substringBefore(" ")
+                        indicator.text = "Executed $taskName..."
+                    }
                 }
 
                 override fun onOutputErr(line: String) {
