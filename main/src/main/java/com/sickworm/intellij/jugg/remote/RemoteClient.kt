@@ -83,7 +83,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         }
 
 
-        val fetchOutputCommand = FetchOutputCommand(clientInfo.remoteToLocalIftConfigName)
+        val fetchOutputCommand = FetchOutputCommand(clientInfo.outputApkName, clientInfo.remoteToLocalIftConfigName)
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")

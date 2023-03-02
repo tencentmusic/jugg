@@ -14,6 +14,7 @@ data class RemoteCompileClientInfo(
     val localToRemoteIftConfigName: String,
     val remoteToLocalIftConfigName: String,
     val remoteToLocalSyncPath: String,
+    val outputApkName: String,
     val httpProxyIp: String? = null,
     val httpProxyPort: Int? = null,
 ) {
@@ -23,6 +24,8 @@ data class RemoteCompileClientInfo(
     val remoteProjectPath get() = "/root/remote/$projectName"
 
     val remoteToLocalClasspathPath get() = "$remoteToLocalIftConfigName/jugg/$projectName"
+
+    val outputApkLocalPath get() = "$remoteToLocalSyncPath/$outputApkName"
 }
 
 data class RemoteCompileResult(
