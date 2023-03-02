@@ -58,10 +58,11 @@ class SyncFileCommand(
 }
 
 class CompileProjectCommand(
+    compileCommand: String,
     serverProjectPath: String,
 ) : BaseSshCommand() {
 
-    override val baseCommand: String = """cd $serverProjectPath && ./gradlew :app:assembleDebug --console=plain"""
+    override val baseCommand: String = """cd $serverProjectPath && $compileCommand --console=plain"""
 }
 
 class FetchOutputCommand(
