@@ -72,14 +72,14 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val syncFileCommand = SyncFileCommand(clientInfo.localProjectPath, clientInfo.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult != 0) {
-            printToStreamError("Sync file from local to remote failed, please check your iFt client is opened.")
+            printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
             return RemoteCompileResult.failed()
         }
 
         val compileProjectCommand = CompileProjectCommand(clientInfo.remoteProjectPath)
         val compileProjectResult = invoke(channel, compileProjectCommand)
         if (compileProjectResult != 0) {
-            printToStreamError("Compile project failed, please check the error message.")
+            printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
             return RemoteCompileResult.failed()
         }
 
@@ -87,7 +87,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val fetchOutputCommand = FetchOutputCommand(clientInfo.remoteToLocalIftConfigName)
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
-            printToStreamError("Fetch output from remote to local failed, please check your iFt client is opened.")
+            printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
             return RemoteCompileResult.failed()
         }
 
@@ -108,11 +108,14 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         )
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
         if (fetchClasspathResult != 0) {
-            printToStreamError("Fetch classpath failed, please check your iFt client is opened.")
+            printToStreamErrorIfCanceled("Fetch classpath failed, please check your iFt client is opened.")
             return false
         }
         return true
     }
+
+    @Volatile
+    private var isCanceled = false
 
     override fun cancelAction() {
         val channel = channel
@@ -123,6 +126,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val commander = PrintStream(channel.outputStream, true)
         commander.print(String(byteArrayOf(0x03))) // control c
         commander.flush()
+        isCanceled = true
     }
 
     private fun invoke(channel: Channel, command: ISshCommand): Int {
@@ -189,6 +193,13 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         }
     }
 
+    private fun printToStreamErrorIfCanceled(line: String, e: Exception? = null) {
+        if (isCanceled) {
+            isCanceled = false
+            return
+        }
+        return printToStreamError(line, e)
+    }
 
     companion object {
         const val RESULT_CHANNEL_CLOSED = -1001

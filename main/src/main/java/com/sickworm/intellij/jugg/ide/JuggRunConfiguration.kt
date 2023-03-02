@@ -115,7 +115,7 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
                 }
             }
             object : ProgressIndicatorListener {
-                override fun cancelled() { remoteClient.cancelAction() }
+                override fun cancelled() { processHandler.detachProcess() }
                 override fun stopped() { }
             }.installToProgressIfPossible(indicator)
 
@@ -129,8 +129,7 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
                 doRun()
             }
 
-            indicator.stop()
-            val isCanceled = indicator.isCanceled || processHandler.isProcessTerminating
+            val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated
             if (isSuccess) {
                 processHandler.notifyTextAvailable("\n\nBUILD SUCCESS in ${costTime / 1000}s.\n", ProcessOutputType.STDOUT)
             } else if (isCanceled) {
@@ -139,7 +138,10 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
                 processHandler.notifyTextAvailable("\n\nBUILD FAILED in ${costTime / 1000}s.\n", ProcessOutputType.STDERR)
             }
 
-            processHandler.destroyProcess()
+            indicator.stop()
+            if (!processHandler.isProcessTerminated) {
+                processHandler.detachProcess()
+            }
         }
 
         private fun doRun(): Boolean {
@@ -159,10 +161,12 @@ class JuggRunProfileState(val project: Project) : RunProfileState {
         private val myAnsiEscapeDecoder = AnsiEscapeDecoder()
 
         override fun destroyProcessImpl() {
+            detachProcessImpl()
         }
 
         override fun detachProcessImpl() {
             remoteClient.cancelAction()
+            notifyProcessTerminated(0)
         }
 
         override fun detachIsDefault() = true
