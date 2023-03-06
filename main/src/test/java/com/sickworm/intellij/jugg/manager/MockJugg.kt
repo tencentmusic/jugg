@@ -14,6 +14,7 @@ import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.ValidationError
+import com.intellij.execution.DefaultExecutionResult
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
 import com.intellij.openapi.application.ApplicationInfo
@@ -32,6 +33,7 @@ import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.GradleCompileSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
@@ -186,7 +188,7 @@ class MockJugg {
         juggStateListener = mock(JuggStateListener::class.java)
 
         deployTargetManager = object: IDeployTargetManager {
-            override fun runFullBuildAndLaunch() {
+            override fun runFullBuildAndLaunch(settings: GradleCompileSettings?): DefaultExecutionResult {
                 Thread {
                     isGradleBuilding = true
                     juggManager.onActionUpdate()
@@ -200,6 +202,8 @@ class MockJugg {
                     isGradleBuilding = false
                     juggManager.onActionUpdate()
                 }.start()
+
+                return DefaultExecutionResult()
             }
 
             override fun setApksFromRecover(apks: List<ApkInfo>) {
@@ -220,6 +224,9 @@ class MockJugg {
                 }
                 AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, apkProvider)
                 return true
+            }
+
+            override fun dispose() {
             }
         }
 

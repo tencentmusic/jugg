@@ -1,19 +1,22 @@
 package com.sickworm.intellij.jugg
 
+import com.intellij.execution.DefaultExecutionResult
+import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
-import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.GradleCompileSettings
 import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -57,6 +60,7 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl
 
     fun init() {
+        Disposer.register(this, deployTargetManager)
         compileThread.submitSafe("InitProject", ::initProject)
     }
 
@@ -208,6 +212,7 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    @Deprecated("use deploy(JuggRunConfigurationSettings) instead", ReplaceWith("deploy(JuggRunConfigurationSettings)"))
     fun deployAsync(isUserClick: Boolean) {
         if (!deployStateManager.deployState.isReadyRunFullBuild) {
             if (isUserClick) {
@@ -221,23 +226,30 @@ class JuggManager @TestOnly constructor(
     }
 
     @TestOnly
+    @Deprecated("use deploy(JuggRunConfigurationSettings) instead", ReplaceWith("deploy(JuggRunConfigurationSettings)"))
     fun deploy() {
+        deploy(null)
+    }
+
+    fun deploy(settings: GradleCompileSettings?): ExecutionResult {
         if (!checkDeviceAvailable()) {
             logger.warn("No available device to run, please connect device first")
-            return
+            return DefaultExecutionResult()
         }
 
         logger.info("Start deploy, deploy state: ${deployStateManager.deployState}.")
+
+        var executionResult: ExecutionResult = DefaultExecutionResult()
         when {
             deployStateManager.deployState.isReadyDeploy -> {
                 val deployData = deployFileManager.getDeployData()
                 if (deployData.apks.isEmpty()) {
                     logger.error("Deploy failed, can not find apks.")
-                    return
+                    return DefaultExecutionResult()
                 }
                 if (deployData.isEmpty) {
                     logger.info("Deploy finished with no data to deploy.")
-                    return
+                    return DefaultExecutionResult()
                 }
 
                 logger.info("Deploy data:\n$deployData")
@@ -254,17 +266,18 @@ class JuggManager @TestOnly constructor(
             }
             deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Build, install and run apk...")
-                deployTargetManager.runFullBuildAndLaunch()
+                executionResult = deployTargetManager.runFullBuildAndLaunch(settings)
                 waitingForBuildFinished()
                 logger.info("Build, install and run apk finished.")
             }
             else -> {
                 logger.warn("Not ready to deploy.")
-                return
+                return DefaultExecutionResult()
             }
         }
 
         onActionUpdate()
+        return executionResult
     }
 
     private fun updateInfoAfterIncDeploy(deployData: JuggDeployData) {

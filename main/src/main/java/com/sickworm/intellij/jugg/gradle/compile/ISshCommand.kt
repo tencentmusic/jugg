@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.remote
+package com.sickworm.intellij.jugg.gradle.compile
 
 /**
  * Exec a command to ssh terminal

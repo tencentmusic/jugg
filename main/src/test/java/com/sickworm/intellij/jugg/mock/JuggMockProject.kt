@@ -46,6 +46,10 @@ class JuggMockProject(private val basePath: File): MockProject(null, {}) {
         return@run deploymentService
     }
 
+    override fun getName(): String {
+        return basePath.name
+    }
+
     private val debuggerManager = DebuggerManagerImpl(this)
 
     @Suppress("UNCHECKED_CAST")

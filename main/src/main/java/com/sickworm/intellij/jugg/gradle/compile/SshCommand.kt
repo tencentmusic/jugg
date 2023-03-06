@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.remote
+package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 
@@ -10,16 +10,16 @@ abstract class IftSyncCommand : BaseSshCommand() {
      * when run success -> will get "task done"
      * when run failed -> will get something like: "set device failed: no device online"
      */
-    private var iftResult: Int = ERROR_NO_RESULT
+    private var iftResult: Int = IGradleCompileClient.Error.ERROR_NO_RESULT
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains("task done")) {
-            if (iftResult == ERROR_NO_RESULT) {
-                iftResult = SUCCESS
+            if (iftResult == IGradleCompileClient.Error.ERROR_NO_RESULT) {
+                iftResult = IGradleCompileClient.Error.SUCCESS
             }
         }
         if (terminalOutputLine.contains("run rsync failed:") || terminalOutputLine.contains("set device failed:")) {
-            iftResult = ERROR_FAILED
+            iftResult = IGradleCompileClient.Error.ERROR_FAILED
         }
         if (terminalOutputLine == "Login With User:") {
             return "1"
@@ -34,18 +34,12 @@ abstract class IftSyncCommand : BaseSshCommand() {
         }
         if (terminalOutputLine.contains("rsync error:")) {
             // canceled by user, in this case super.hasFinishWithResult will never be non-null (no idea why)
-            iftResult = ERROR_CANCELED
+            iftResult = IGradleCompileClient.Error.ERROR_CANCELED
             return iftResult
         }
         return null
     }
 
-    companion object {
-        private const val SUCCESS = 0
-        private const val ERROR_NO_RESULT = -1000
-        private const val ERROR_FAILED = -1001
-        private const val ERROR_CANCELED = -1002
-    }
 }
 
 class SyncFileCommand(
@@ -59,10 +53,10 @@ class SyncFileCommand(
 
 class CompileProjectCommand(
     compileCommand: String,
-    serverProjectPath: String,
+    projectPath: String,
 ) : BaseSshCommand() {
 
-    override val baseCommand: String = """cd $serverProjectPath && $compileCommand --console=plain"""
+    override val baseCommand: String = """cd $projectPath && $compileCommand --console=plain"""
 }
 
 class FetchOutputCommand(

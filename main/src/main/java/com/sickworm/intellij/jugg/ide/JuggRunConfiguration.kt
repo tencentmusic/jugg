@@ -5,22 +5,16 @@ import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.*
-import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.progress.*
-import com.intellij.openapi.progress.util.ProgressIndicatorListener
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.NotNullLazyValue
-import com.sickworm.intellij.jugg.remote.RemoteClient
-import com.sickworm.intellij.jugg.remote.RemoteCompileClientInfo
-import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
+import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import java.io.File
-import java.io.OutputStream
 import javax.swing.JComponent
 import javax.swing.JTextField
 
@@ -40,7 +34,11 @@ class JuggRunConfiguration(
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        return JuggRunProfileState(project)
+        // TODO read from editor
+        val homeDir: String = System.getProperty("user.home")
+        val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
+        val gradleCompileSettings = Gson().fromJson(clientInfoFile.readText(), GradleCompileSettings::class.java)
+        return JuggRunProfileState(project, gradleCompileSettings)
     }
 }
 
@@ -80,141 +78,17 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
 }
 
-class JuggRunProfileState(val project: Project) : RunProfileState {
+class JuggRunProfileState(
+    private val project: Project,
+    private val gradleCompileSettings: GradleCompileSettings,
+) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
-        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
-        // TODO use JuggManager
-        // TODO support cancel
-        val remoteClient = RemoteClient(project, project)
-        val processHandler = SimpleProcessHandler(remoteClient)
+        val juggManager = JuggInitializer.getManager(project)
+            ?: // TODO error toast
+            return DefaultExecutionResult()
 
-        val task = JuggRunningTask(project, remoteClient, processHandler)
-        consoleView.attachToProcess(processHandler)
-
-        ProgressManager.getInstance().run(task)
-        return DefaultExecutionResult(consoleView, processHandler)
+        return juggManager.deploy(gradleCompileSettings)
     }
 
-    @Suppress("DialogTitleCapitalization")
-    class JuggRunningTask(
-        project: Project,
-        private val remoteClient: RemoteClient,
-        private val processHandler: ProcessHandler,
-    ) : Task.Backgroundable(project, "Running Jugg") {
-
-        override fun run(indicator: ProgressIndicator) {
-            // TODO remove
-            val homeDir = System.getProperty("user.home")
-            val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
-            val clientInfo = Gson().fromJson(clientInfoFile.readText(), RemoteCompileClientInfo::class.java)
-            val remoteProjectAbsPath = clientInfo.remoteProjectPath
-
-            remoteClient.terminalOutputListener = object : RemoteClient.TerminalOutputListener {
-                override fun onOutput(line: String) {
-                    if (line.contains(remoteProjectAbsPath)) {
-                        val replaceToLocalProject = project.basePath!!.let { line.replace(remoteProjectAbsPath, it) }
-                        processHandler.notifyTextAvailable(replaceToLocalProject, ProcessOutputType.STDOUT)
-                    } else {
-                        processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDOUT)
-                    }
-
-                    if (line.startsWith("[Jugg] SyncFileCommand exec start")) {
-                        indicator.text = "Syncing file to remote..."
-                    } else if (line.startsWith("[Jugg] CompileProjectCommand exec start")) {
-                        indicator.text = "Compiling project..."
-                    } else if (line.startsWith("[Jugg] FetchOutputCommand exec start")) {
-                        indicator.text = "Getting apk..."
-                    } else if (line.startsWith("> Configure project ")) {
-                        val projectName = line.substring("> Configure project ".length)
-                        indicator.text = "Configured $projectName..."
-                    } else if (line.startsWith("> Task ")) {
-                        val taskName = line.substring("> Task ".length).substringBefore(" ")
-                        indicator.text = "Executed $taskName..."
-                    }
-                }
-
-                override fun onOutputErr(line: String) {
-                    if (line.contains(remoteProjectAbsPath)) {
-                        val replaceToLocalProject = project.basePath!!.let { line.replace(remoteProjectAbsPath, it) }
-                        processHandler.notifyTextAvailable(replaceToLocalProject, ProcessOutputType.STDERR)
-                    } else {
-                        processHandler.notifyTextAvailable(line + "\n", ProcessOutputType.STDERR)
-                    }
-                }
-            }
-            object : ProgressIndicatorListener {
-                override fun cancelled() { processHandler.detachProcess() }
-                override fun stopped() { }
-            }.installToProgressIfPossible(indicator)
-
-            processHandler.startNotify()
-            processHandler.notifyTextAvailable("Jugg compile started.\n", ProcessOutputType.STDOUT)
-            indicator.text = "Compiling by Jugg..."
-            indicator.isIndeterminate = true
-
-
-            val (costTime, isSuccess) = measureTimeMillisWithResult {
-                doRun()
-            }
-
-            val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated
-            if (isSuccess) {
-                processHandler.notifyTextAvailable("\n\nBUILD SUCCESS in ${costTime / 1000}s.\n", ProcessOutputType.STDOUT)
-            } else if (isCanceled) {
-                processHandler.notifyTextAvailable("\n\nBUILD CANCELED in ${costTime / 1000}s.\n", ProcessOutputType.STDERR)
-            } else {
-                processHandler.notifyTextAvailable("\n\nBUILD FAILED in ${costTime / 1000}s.\n", ProcessOutputType.STDERR)
-            }
-
-            indicator.stop()
-            if (!processHandler.isProcessTerminated) {
-                processHandler.detachProcess()
-            }
-        }
-
-        private fun doRun(): Boolean {
-            // TODO remove
-            val homeDir = System.getProperty("user.home")
-            val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
-            val clientInfo = Gson().fromJson(clientInfoFile.readText(), RemoteCompileClientInfo::class.java)
-
-            remoteClient.login(clientInfo)
-            val remoteCompileResult = remoteClient.compileAndFetchResult()
-            return remoteCompileResult.isSuccess
-        }
-
-    }
-
-    private class SimpleProcessHandler(val remoteClient: RemoteClient) : ProcessHandler(), AnsiEscapeDecoder.ColoredTextAcceptor {
-
-        private val myAnsiEscapeDecoder = AnsiEscapeDecoder()
-
-        override fun destroyProcessImpl() {
-            detachProcessImpl()
-        }
-
-        override fun detachProcessImpl() {
-            remoteClient.cancelAction()
-            notifyProcessTerminated(0)
-        }
-
-        override fun detachIsDefault() = true
-
-        override fun waitFor() = true
-
-        override fun waitFor(timeoutInMilliseconds: Long) = true
-
-        override fun getProcessInput(): OutputStream? {
-            return null
-        }
-
-        override fun notifyTextAvailable(text: String, outputType: Key<*>) {
-            myAnsiEscapeDecoder.escapeText(text, outputType, this)
-        }
-
-        override fun coloredTextAvailable(text: String, attributes: Key<*>) {
-            super.notifyTextAvailable(text, attributes)
-        }
-    }
 }

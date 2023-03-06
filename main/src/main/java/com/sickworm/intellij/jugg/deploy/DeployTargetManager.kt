@@ -5,30 +5,63 @@ import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.ValidationError
-import com.intellij.execution.ExecutionException
-import com.intellij.execution.ProgramRunnerUtil
-import com.intellij.execution.RunManager
-import com.intellij.execution.RunnerAndConfigurationSettings
+import com.intellij.execution.*
 import com.intellij.execution.executors.DefaultRunExecutor
-import com.intellij.execution.runners.ExecutionEnvironmentBuilder
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileRunningTask
+import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 
 /**
  * Manage device, run config, built apk.
  */
 class DeployTargetManager(
     private val project: Project,
-): IDeployTargetManager {
+): IDeployTargetManager, Disposable {
     private val logger = JuggLogger.getInstance(project, "DeployTargetManager")
 
-    override fun runFullBuildAndLaunch() {
-        val (runConfigAndSettings, _) = getRunConfig()
-        ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
+    private val compileClientManager = CompileClientManager(project).also {
+        Disposer.register(this, it)
+    }
+
+    override fun runFullBuildAndLaunch(settings: GradleCompileSettings?): ExecutionResult {
+        return if (settings == null) {
+            // TODO remove after refactor test
+            // not launched by JuggRunConfiguration
+            val (runConfigAndSettings, _) = getRunConfig()
+            ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
+            DefaultExecutionResult()
+        } else {
+            // launched by JuggRunConfiguration, run it
+            doRunFullBuildAndLaunch(settings)
+        }
+    }
+
+    private fun doRunFullBuildAndLaunch(settings: GradleCompileSettings): ExecutionResult {
+        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+        val client = compileClientManager.getClient(settings.isRemoteCompile)
+        val processHandler = SimpleProcessHandler {
+            client.cancelAction()
+        }
+        consoleView.attachToProcess(processHandler)
+        val task = JuggGradleCompileRunningTask(project, client, settings, processHandler)
+        ProgressManager.getInstance().run(task)
+
+        if (!processHandler.isProcessTerminated) {
+            processHandler.detachProcess()
+        }
+        return DefaultExecutionResult(consoleView, processHandler)
     }
 
     private var apkProviderFromRecover: ApkProvider? = null
@@ -113,4 +146,32 @@ class DeployTargetManager(
         return runConfig to runConfig.configuration as AndroidRunConfiguration
     }
 
+    override fun dispose() {
+    }
+
+}
+
+private class CompileClientManager(private val project: Project): Disposable {
+
+    private var isCacheRemoteClient: Boolean? = null
+    private var cacheClient: IGradleCompileClient? = null
+
+    fun getClient(isRemote: Boolean): IGradleCompileClient {
+        val cacheClient = cacheClient
+        val isCacheRemoteClient = isCacheRemoteClient
+
+        return if (cacheClient != null && isCacheRemoteClient == isRemote) {
+            cacheClient
+        } else {
+            cacheClient?.dispose()
+            val newClient = if (isRemote) RemoteGradleCompileClient(project) else LocalGradleCompileClient(project)
+            Disposer.register(this, newClient)
+            this.cacheClient = newClient
+            this.isCacheRemoteClient = isRemote
+            newClient
+        }
+    }
+
+    override fun dispose() {
+    }
 }

@@ -1,41 +1,32 @@
-package com.sickworm.intellij.jugg.remote
+package com.sickworm.intellij.jugg.gradle.compile
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.ide.GradleCompileSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 import java.io.PrintStream
 
-class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Disposable {
+class RemoteGradleCompileClient(
+    project: Project,
+    private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteClient"),
+) : IGradleCompileClient {
 
     private var session: Session? = null
     private var channel: Channel? = null
-    private var clientInfo: RemoteCompileClientInfo? = null
-    private val logger = JuggLogger.getInstance(project, "RemoteClient")
+    private var gradleCompileSettings: GradleCompileSettings? = null
 
-    var terminalOutputListener: TerminalOutputListener = object : TerminalOutputListener {
-        override fun onOutput(line: String) {
-            println(line)
-        }
-        override fun onOutputErr(line: String) {
-            System.err.println(line)
-        }
-    }
+    override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
-    init {
-        Disposer.register(parent, this)
-    }
-
-    override fun login(clientInfo: RemoteCompileClientInfo) {
-        if ((this.clientInfo == clientInfo) && (session?.isConnected == true) && channel != null) {
-            printToStreamInfo("${clientInfo.ip} already login")
+    override fun login(gradleCompileSettings: GradleCompileSettings) {
+        if ((this.gradleCompileSettings == gradleCompileSettings) && (session?.isConnected == true) && channel != null) {
+            printToStreamInfo("${gradleCompileSettings.remoteClientInfo.ip} already login")
             return
         }
+        val clientInfo = gradleCompileSettings.remoteClientInfo
 
         dispose()
 
@@ -54,17 +45,19 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
 
             this.session = session
             this.channel = channel
-            this.clientInfo = clientInfo
+            this.gradleCompileSettings = gradleCompileSettings
         } catch (e: JSchException) {
             printToStreamError("RemoteClient login failed", e)
             throw JuggException.loginToRemoteFailed()
         }
     }
 
-    override fun compileAndFetchResult(): RemoteCompileResult {
+    override fun compileAndFetchResult(): GradleCompileResult {
+        isCanceled = false
         val channel = channel
-        val clientInfo = clientInfo
-        if (channel == null || clientInfo == null) {
+        val gradleCompileSettings = gradleCompileSettings
+        val clientInfo = gradleCompileSettings?.remoteClientInfo
+        if (channel == null || gradleCompileSettings == null || clientInfo == null) {
             throw JuggInternalException.notLoginYet()
         }
 
@@ -72,33 +65,36 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult != 0) {
             printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
-            return RemoteCompileResult.failed()
+            return GradleCompileResult.failed(isCanceled)
         }
 
-        val compileProjectCommand = CompileProjectCommand(clientInfo.compileCommand, clientInfo.remoteProjectPath)
+        val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, clientInfo.remoteProjectPath)
         val compileProjectResult = invoke(channel, compileProjectCommand)
         if (compileProjectResult != 0) {
             printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
-            return RemoteCompileResult.failed()
+            return GradleCompileResult.failed(isCanceled)
         }
 
 
-        val fetchOutputCommand = FetchOutputCommand(clientInfo.compileCommand, clientInfo.remoteToLocalIftConfigName)
+        val fetchOutputCommand = FetchOutputCommand(gradleCompileSettings.compileCommand, clientInfo.remoteToLocalIftConfigName)
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
-            return RemoteCompileResult.failed()
+            return GradleCompileResult.failed(isCanceled)
         }
 
-        return RemoteCompileResult.success(File(""))
+        return GradleCompileResult.success(File(""))
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
+        isCanceled = false
         val channel = channel
-        val clientInfo = clientInfo
-        if (channel == null || clientInfo == null) {
+        val gradleCompileSettings = gradleCompileSettings
+        val clientInfo = gradleCompileSettings?.remoteClientInfo
+        if (channel == null || gradleCompileSettings == null || clientInfo == null) {
             throw JuggInternalException.notLoginYet()
         }
+
 
         val fetchClasspathCommand = FetchClasspathCommand(
             clientInfo.remoteProjectPath,
@@ -117,11 +113,8 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
     private var isCanceled = false
 
     override fun cancelAction() {
-        val channel = channel
-        val clientInfo = clientInfo
-        if (channel == null || clientInfo == null) {
-            throw JuggInternalException.notLoginYet()
-        }
+        printToStreamInfo("[Jugg] user cancel")
+        val channel = channel ?: throw JuggInternalException.notLoginYet()
         val commander = PrintStream(channel.outputStream, true)
         commander.print(String(byteArrayOf(0x03))) // control c
         commander.flush()
@@ -129,7 +122,7 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
     }
 
     private fun invoke(channel: Channel, command: ISshCommand): Int {
-        printToStream("[Jugg] ${command::class.simpleName} exec start")
+        printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
         val commander = PrintStream(channel.outputStream, true)
         commander.println(command.command)
@@ -157,12 +150,12 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
 
             if (channel.isClosed) {
                 printToStream("[Jugg] exit-status: " + channel.exitStatus)
-                result = RESULT_CHANNEL_CLOSED
+                result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
                 break
             }
         }
 
-        printToStream("[Jugg] ${command::class.simpleName} exec finished with result: $result")
+        printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
         return result
     }
 
@@ -185,14 +178,9 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
 
     private fun printToStreamErrorIfCanceled(line: String, e: Exception? = null) {
         if (isCanceled) {
-            isCanceled = false
             return
         }
         return printToStreamError(line, e)
-    }
-
-    companion object {
-        const val RESULT_CHANNEL_CLOSED = -1001
     }
 
     override fun dispose() {
@@ -202,15 +190,11 @@ class RemoteClient(project: Project, parent: Disposable) : IRemoteClient, Dispos
         channel = null
     }
 
-    interface TerminalOutputListener {
-        fun onOutput(line: String)
-        fun onOutputErr(line: String)
-    }
 }
 
 
 class JschLogger(
-    private val terminalOutputListener: () -> RemoteClient.TerminalOutputListener?,
+    private val terminalOutputListener: () -> IGradleCompileClient.TerminalOutputListener?,
 ) : Logger {
 
     override fun isEnabled(level: Int): Boolean {
