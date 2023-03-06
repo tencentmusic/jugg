@@ -80,10 +80,15 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun createRunConfiguration() {
-        // TODO no working
+        val defaultName = "jugg:app"
+        val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
+        if (currentList.any { it.name == defaultName }) {
+            return
+        }
         val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
-        val settings: RunnerAndConfigurationSettings =
-            RunManager.getInstance(project).createConfiguration("jugg:app", factory)
+        val settings = RunManager.getInstance(project).createConfiguration(defaultName, factory)
+        RunManager.getInstance(project).addConfiguration(settings)
+        RunManager.getInstance(project).selectedConfiguration = settings
     }
 
     private fun recoverDeployContext() {
