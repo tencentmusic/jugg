@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import kotlin.jvm.Throws
@@ -32,7 +32,7 @@ interface IGradleCompileClient : Disposable {
     var terminalOutputListener: TerminalOutputListener
 
     @Throws(JuggException::class)
-    fun login(gradleCompileSettings: GradleCompileSettings)
+    fun login(juggGradleCompileOptions: JuggGradleCompileOptions)
 
     fun compileAndFetchResult() : GradleCompileResult
 

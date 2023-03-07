@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.project.Project
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -17,27 +17,30 @@ class RemoteGradleCompileClient(
 
     private var session: Session? = null
     private var channel: Channel? = null
-    private var gradleCompileSettings: GradleCompileSettings? = null
+    private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
-    override fun login(gradleCompileSettings: GradleCompileSettings) {
-        if ((this.gradleCompileSettings == gradleCompileSettings) && (session?.isConnected == true) && channel != null) {
-            printToStreamInfo("${gradleCompileSettings.remoteClientInfo.ip} already login")
+    override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
+        if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel != null) {
+            printToStreamInfo("${juggGradleCompileOptions.remoteSshIp} already login")
             return
         }
-        val clientInfo = gradleCompileSettings.remoteClientInfo
 
         dispose()
 
         try {
             val jsch = JSch()
             JSch.setLogger(JschLogger { terminalOutputListener })
-            val session = jsch.getSession(clientInfo.user, clientInfo.ip, clientInfo.port)
-            if (clientInfo.httpProxyIp != null && clientInfo.httpProxyPort != null) {
-                session.setProxy(ProxyHTTP(clientInfo.httpProxyIp, clientInfo.httpProxyPort))
+            val session = jsch.getSession(
+                juggGradleCompileOptions.remoteSshUser,
+                juggGradleCompileOptions.remoteSshIp,
+                juggGradleCompileOptions.remoteSshPort)
+            if (!juggGradleCompileOptions.httpProxyIp.isNullOrEmpty() &&
+                juggGradleCompileOptions.httpProxyPort != 0) {
+                session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
             }
-            session.setPassword(clientInfo.password)
+            session.setPassword(juggGradleCompileOptions.remoteSshPassword)
             session.setConfig("StrictHostKeyChecking", "no")
             session.connect()
             val channel = session.openChannel("shell")
@@ -45,7 +48,7 @@ class RemoteGradleCompileClient(
 
             this.session = session
             this.channel = channel
-            this.gradleCompileSettings = gradleCompileSettings
+            this.juggGradleCompileOptions = juggGradleCompileOptions
         } catch (e: JSchException) {
             printToStreamError("RemoteClient login failed", e)
             throw JuggException.loginToRemoteFailed()
@@ -55,20 +58,19 @@ class RemoteGradleCompileClient(
     override fun compileAndFetchResult(): GradleCompileResult {
         isCanceled = false
         val channel = channel
-        val gradleCompileSettings = gradleCompileSettings
-        val clientInfo = gradleCompileSettings?.remoteClientInfo
-        if (channel == null || gradleCompileSettings == null || clientInfo == null) {
+        val gradleCompileSettings = juggGradleCompileOptions
+        if (channel == null || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
         }
 
-        val syncFileCommand = SyncFileCommand(clientInfo.localProjectIftPath, clientInfo.remoteProjectPath)
+        val syncFileCommand = SyncFileCommand(gradleCompileSettings.localProjectIftPath, gradleCompileSettings.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult != 0) {
             printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
             return GradleCompileResult.failed(isCanceled)
         }
 
-        val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, clientInfo.remoteProjectPath)
+        val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteProjectPath)
         val compileProjectResult = invoke(channel, compileProjectCommand)
         if (compileProjectResult != 0) {
             printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
@@ -76,7 +78,7 @@ class RemoteGradleCompileClient(
         }
 
 
-        val fetchOutputCommand = FetchOutputCommand(gradleCompileSettings.compileCommand, clientInfo.remoteToLocalIftConfigName)
+        val fetchOutputCommand = FetchOutputCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteToLocalIftConfigName)
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
@@ -89,16 +91,15 @@ class RemoteGradleCompileClient(
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
         isCanceled = false
         val channel = channel
-        val gradleCompileSettings = gradleCompileSettings
-        val clientInfo = gradleCompileSettings?.remoteClientInfo
-        if (channel == null || gradleCompileSettings == null || clientInfo == null) {
+        val gradleCompileSettings = juggGradleCompileOptions
+        if (channel == null || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
         }
 
 
         val fetchClasspathCommand = FetchClasspathCommand(
-            clientInfo.remoteProjectPath,
-            clientInfo.remoteToLocalClasspathPath,
+            gradleCompileSettings.remoteProjectPath,
+            gradleCompileSettings.remoteToLocalClasspathPath,
             buildDirs
         )
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)

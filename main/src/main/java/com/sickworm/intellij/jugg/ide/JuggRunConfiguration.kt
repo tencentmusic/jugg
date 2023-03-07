@@ -1,44 +1,41 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.google.gson.Gson
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.*
-import com.intellij.execution.process.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.options.SettingsEditor
-import com.intellij.openapi.progress.*
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
-import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
-import java.io.File
 import javax.swing.JComponent
-import javax.swing.JTextField
 
 
 class JuggRunConfiguration(
     project: Project,
     factory: ConfigurationFactory,
     name: String
-) : RunConfigurationBase<Unit>(project, factory, name) {
+) : RunConfigurationBase<JuggGradleCompileOptions>(project, factory, name) {
+
+    private val options = JuggGradleCompileOptions(project.name)
+    private val editor = JuggSettingsEditor(options)
 
     override fun getType(): ConfigurationType {
         return JuggConfigurationType.getInstance()
     }
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> {
-        return JuggSettingsEditor()
+        return editor
+    }
+
+    override fun getOptions(): RunConfigurationOptions {
+        return options
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        // TODO read from editor
-        val homeDir: String = System.getProperty("user.home")
-        val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
-        val gradleCompileSettings = Gson().fromJson(clientInfoFile.readText(), GradleCompileSettings::class.java)
-        return JuggRunProfileState(project, gradleCompileSettings)
+        return JuggRunProfileState(project, state!!)
     }
 }
 
@@ -64,23 +61,49 @@ class JuggConfigurationType : ConfigurationTypeBase(
     }
 }
 
-class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
+class JuggSettingsEditor(currentOptions: JuggGradleCompileOptions) : SettingsEditor<JuggRunConfiguration>() {
+
+    init {
+        resetEditorFrom(currentOptions)
+    }
 
     override fun resetEditorFrom(s: JuggRunConfiguration) {
+        s.state?.let {
+            resetEditorFrom(it)
+        }
+    }
+
+    private fun resetEditorFrom(options: JuggGradleCompileOptions) {
+        (component as JuggRunSettingsComponent).updateUi(options)
     }
 
     override fun applyEditorTo(s: JuggRunConfiguration) {
+        val component = component as JuggRunSettingsComponent
+        s.state?.run {
+            compileCommand = component.compileCommandTextField.text
+            outputApkName = component.outputApkNameTextField.text
+            isRemoteCompile = component.enableRemoteCompileCheckBox.isSelected
+            remoteSshUser = component.userTextField.text
+            remoteSshPassword = component.passwordTextField.password.joinToString("")
+            remoteSshIp = component.ipTextField.text
+            remoteSshPort = component.portTextField.text.toInt()
+            localToRemoteIftConfigName = component.localToRemoteIftConfigNameTextField.text
+            remoteToLocalIftConfigName = component.remoteToLocalIftConfigNameTextField.text
+            remoteToLocalSyncPath = component.remoteToLocalSyncPathTextField.text
+            httpProxyIp = component.httpProxyIpTextField.text
+            httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
+        }
     }
 
     override fun createEditor(): JComponent {
-        return JTextField("nothing to do")
+        return JuggRunSettingsComponent()
     }
 
 }
 
 class JuggRunProfileState(
     private val project: Project,
-    private val gradleCompileSettings: GradleCompileSettings,
+    private val juggGradleCompileOptions: JuggGradleCompileOptions,
 ) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
@@ -88,7 +111,7 @@ class JuggRunProfileState(
             ?: // TODO error toast
             return DefaultExecutionResult()
 
-        return juggManager.deploy(gradleCompileSettings)
+        return juggManager.deploy(juggGradleCompileOptions)
     }
 
 }

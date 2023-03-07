@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
-import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
@@ -16,7 +15,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggSettings
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -236,7 +235,7 @@ class JuggManager @TestOnly constructor(
         deploy(null)
     }
 
-    fun deploy(settings: GradleCompileSettings?): ExecutionResult {
+    fun deploy(settings: JuggGradleCompileOptions?): ExecutionResult {
         if (!checkDeviceAvailable()) {
             logger.warn("No available device to run, please connect device first")
             return DefaultExecutionResult()

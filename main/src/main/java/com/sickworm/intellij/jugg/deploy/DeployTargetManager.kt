@@ -14,7 +14,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileRunningTask
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
@@ -35,7 +35,7 @@ class DeployTargetManager(
         Disposer.register(this, it)
     }
 
-    override fun runFullBuildAndLaunch(settings: GradleCompileSettings?): ExecutionResult {
+    override fun runFullBuildAndLaunch(settings: JuggGradleCompileOptions?): ExecutionResult {
         return if (settings == null) {
             // TODO remove after refactor test
             // not launched by JuggRunConfiguration
@@ -48,7 +48,7 @@ class DeployTargetManager(
         }
     }
 
-    private fun doRunFullBuildAndLaunch(settings: GradleCompileSettings): ExecutionResult {
+    private fun doRunFullBuildAndLaunch(settings: JuggGradleCompileOptions): ExecutionResult {
         val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
         val client = compileClientManager.getClient(settings.isRemoteCompile)
         val processHandler = SimpleProcessHandler {

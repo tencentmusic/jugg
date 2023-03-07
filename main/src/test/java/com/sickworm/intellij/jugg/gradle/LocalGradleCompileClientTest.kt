@@ -5,7 +5,7 @@ package com.sickworm.intellij.jugg.gradle
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.RemoteGradleCompileClientInfo
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
@@ -19,7 +19,7 @@ class LocalGradleCompileClientTest {
 
     companion object {
 
-        private lateinit var gradleCompileSettings: GradleCompileSettings
+        private lateinit var juggGradleCompileOptions: JuggGradleCompileOptions
         private lateinit var project: JuggMockProject
 
         @JvmStatic
@@ -29,7 +29,7 @@ class LocalGradleCompileClientTest {
             val pathManager = JuggPathManager(project, projectInfo.projectRoot)
             JuggLogger.register(project, pathManager.logDir)
 
-            gradleCompileSettings = GradleCompileSettings(project.name,
+            juggGradleCompileOptions = JuggGradleCompileOptions(project.name,
                 "./gradlew :app:assembleDebug",
                 "app-debug.apk",
                 false,
@@ -41,7 +41,7 @@ class LocalGradleCompileClientTest {
     @Test
     fun testCompile() {
         val localClient = LocalGradleCompileClient(project)
-        localClient.login(gradleCompileSettings)
+        localClient.login(juggGradleCompileOptions)
         val remoteCompileResult = localClient.compileAndFetchResult()
         assertTrue(remoteCompileResult.isSuccess)
     }
@@ -61,7 +61,7 @@ class LocalGradleCompileClientTest {
                 System.err.println(line)
             }
         }
-        localClient.login(gradleCompileSettings)
+        localClient.login(juggGradleCompileOptions)
         val remoteCompileResult = localClient.compileAndFetchResult()
         assertFalse(remoteCompileResult.isSuccess)
         assertTrue(remoteCompileResult.isCanceled)

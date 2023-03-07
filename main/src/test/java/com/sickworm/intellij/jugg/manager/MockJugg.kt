@@ -33,7 +33,7 @@ import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
@@ -188,7 +188,7 @@ class MockJugg {
         juggStateListener = mock(JuggStateListener::class.java)
 
         deployTargetManager = object: IDeployTargetManager {
-            override fun runFullBuildAndLaunch(settings: GradleCompileSettings?): DefaultExecutionResult {
+            override fun runFullBuildAndLaunch(settings: JuggGradleCompileOptions?): DefaultExecutionResult {
                 Thread {
                     isGradleBuilding = true
                     juggManager.onActionUpdate()

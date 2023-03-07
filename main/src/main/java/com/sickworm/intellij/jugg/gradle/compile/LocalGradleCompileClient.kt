@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.ide.GradleCompileSettings
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
@@ -15,20 +15,20 @@ class LocalGradleCompileClient(
     private val logger: Logger = JuggLogger.getInstance(project, "LocalClient"),
 ) : IGradleCompileClient {
 
-    private var gradleCompileSettings: GradleCompileSettings? = null
+    private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
     @Volatile
     private var currentRunningProcess: Process? = null
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
-    override fun login(gradleCompileSettings: GradleCompileSettings) {
+    override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         // no need to login
-        this.gradleCompileSettings = gradleCompileSettings
+        this.juggGradleCompileOptions = juggGradleCompileOptions
     }
 
     override fun compileAndFetchResult(): GradleCompileResult {
         isCanceled = false
-        val clientInfo = gradleCompileSettings ?: throw JuggInternalException.notLoginYet()
+        val clientInfo = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
 
         val compileProjectCommand = CompileProjectCommand(clientInfo.compileCommand, project.basePath!!)
         val compileProjectResult = invoke(compileProjectCommand)

@@ -14,7 +14,7 @@ import java.io.OutputStream
 class JuggGradleCompileRunningTask(
     project: Project,
     private val remoteClient: IGradleCompileClient,
-    private val gradleCompileSettings: GradleCompileSettings,
+    private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: ProcessHandler,
 ) : Task.Backgroundable(project, "Running Jugg") {
 
@@ -82,7 +82,7 @@ class JuggGradleCompileRunningTask(
     }
 
     private fun remoteCompile(): Boolean {
-        remoteClient.login(gradleCompileSettings)
+        remoteClient.login(juggGradleCompileOptions)
         val remoteCompileResult = remoteClient.compileAndFetchResult()
         return remoteCompileResult.isSuccess
     }
@@ -92,10 +92,10 @@ class JuggGradleCompileRunningTask(
     }
 
     private fun replacePathIfNeeded(line: String): String {
-        if (!gradleCompileSettings.isRemoteCompile) {
+        if (!juggGradleCompileOptions.isRemoteCompile) {
             return line
         }
-        val remoteProjectAbsPath = gradleCompileSettings.remoteClientInfo.remoteProjectPath
+        val remoteProjectAbsPath = juggGradleCompileOptions.remoteProjectPath
         val basePath = project.basePath ?: return line
         return line.replace(remoteProjectAbsPath, basePath)
     }
