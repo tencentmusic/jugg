@@ -10,6 +10,7 @@ test {
     jvmArgs '-XX:MaxPermSize=152m' // mem argument for the test JVM
 }
 
+archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 version '1.0-SNAPSHOT'
 
