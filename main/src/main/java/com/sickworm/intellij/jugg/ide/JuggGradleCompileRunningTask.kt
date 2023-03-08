@@ -10,11 +10,18 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.sickworm.intellij.jugg.aapt2.ApkReader
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
+import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import org.apache.log4j.Level
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.io.OutputStream
+import java.io.PrintWriter
+
+import java.io.StringWriter
+
+
+
 
 @Suppress("DialogTitleCapitalization")
 class JuggGradleCompileRunningTask(
@@ -65,8 +72,16 @@ class JuggGradleCompileRunningTask(
 
 
         val (costTime, result) = measureTimeMillisWithResult {
-            compileClient.login(juggGradleCompileOptions)
-            compileClient.compileAndFetchResult()
+            try {
+                compileClient.login(juggGradleCompileOptions)
+                compileClient.compileAndFetchResult()
+            } catch (e: Exception) {
+                val sw = StringWriter()
+                val pw = PrintWriter(sw)
+                e.printStackTrace(pw)
+                processHandler.notifyTextAvailable("Exception found: $sw\n", ProcessOutputType.STDERR)
+                GradleCompileResult.failed(false)
+            }
         }
 
         val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated

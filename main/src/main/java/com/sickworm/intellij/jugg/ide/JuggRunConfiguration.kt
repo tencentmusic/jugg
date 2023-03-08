@@ -53,6 +53,10 @@ class JuggConfigurationType : ConfigurationTypeBase(
             override fun getOptionsClass(): Class<out BaseState> {
                 return JuggRunConfigurationOptions::class.java
             }
+
+            override fun getId(): String {
+                return "Jugg"
+            }
         })
     }
 
