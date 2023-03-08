@@ -19,10 +19,10 @@ data class GradleCompileResult(
             compileOutputFile = File(""),
         )
 
-        fun success(outputDir: File) = GradleCompileResult(
+        fun success(outputFile: File) = GradleCompileResult(
             isSuccess = true,
             isCanceled = false,
-            compileOutputFile = outputDir,
+            compileOutputFile = outputFile,
         )
     }
 }
@@ -38,7 +38,7 @@ interface IGradleCompileClient : Disposable {
 
     fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean
 
-    fun cancelAction()
+    fun cancelAction(isByUser: Boolean)
 
     interface TerminalOutputListener {
         fun onOutput(line: String)

@@ -52,7 +52,7 @@ class DeployTargetManager(
         val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
         val client = compileClientManager.getClient(settings.isRemoteCompile)
         val processHandler = SimpleProcessHandler {
-            client.cancelAction()
+            client.cancelAction(isByUser = false)
         }
         consoleView.attachToProcess(processHandler)
         val task = JuggGradleCompileRunningTask(project, client, settings, processHandler)

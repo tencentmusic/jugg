@@ -6,7 +6,6 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.RemoteGradleCompileClientInfo
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -29,12 +28,12 @@ class LocalGradleCompileClientTest {
             val pathManager = JuggPathManager(project, projectInfo.projectRoot)
             JuggLogger.register(project, pathManager.logDir)
 
-            juggGradleCompileOptions = JuggGradleCompileOptions(project.name,
-                "./gradlew :app:assembleDebug",
-                "app-debug.apk",
-                false,
-                RemoteGradleCompileClientInfo.createEmpty(),
-            )
+            juggGradleCompileOptions = JuggGradleCompileOptions(project.name).also {
+                it.compileCommand = "./gradlew :app:assembleDebug"
+                it.outputApkName = "app-debug.apk"
+                it.isRemoteCompile = false
+            }
+
         }
     }
 
@@ -53,7 +52,7 @@ class LocalGradleCompileClientTest {
             override fun onOutput(line: String) {
                 println(line)
                 if (line.contains(":preBuild")) {
-                    localClient.cancelAction()
+                    localClient.cancelAction(true)
                 }
             }
 

@@ -113,8 +113,10 @@ class RemoteGradleCompileClient(
     @Volatile
     private var isCanceled = false
 
-    override fun cancelAction() {
-        printToStreamInfo("[Jugg] user cancel")
+    override fun cancelAction(isByUser: Boolean) {
+        if (isByUser) {
+            printToStreamInfo("[Jugg] user cancel")
+        }
         val channel = channel ?: throw JuggInternalException.notLoginYet()
         val commander = PrintStream(channel.outputStream, true)
         commander.print(String(byteArrayOf(0x03))) // control c

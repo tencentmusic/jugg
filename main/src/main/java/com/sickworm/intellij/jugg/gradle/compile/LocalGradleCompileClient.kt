@@ -48,7 +48,10 @@ class LocalGradleCompileClient(
     @Volatile
     private var isCanceled = false
 
-    override fun cancelAction() {
+    override fun cancelAction(isByUser: Boolean) {
+        if (isByUser) {
+            printToStreamInfo("[Jugg] user cancel")
+        }
         currentRunningProcess?.destroy()
         isCanceled = true
     }
