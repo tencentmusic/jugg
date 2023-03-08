@@ -235,6 +235,11 @@ class JuggManager @TestOnly constructor(
         deploy(null)
     }
 
+    // TODO remove
+    fun deployFull(settings: JuggGradleCompileOptions?): ExecutionResult {
+        return deployTargetManager.runFullBuildAndLaunch(settings)
+    }
+
     fun deploy(settings: JuggGradleCompileOptions?): ExecutionResult {
         if (!checkDeviceAvailable()) {
             logger.warn("No available device to run, please connect device first")
@@ -271,7 +276,10 @@ class JuggManager @TestOnly constructor(
             deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Build, install and run apk...")
                 executionResult = deployTargetManager.runFullBuildAndLaunch(settings)
-                waitingForBuildFinished()
+                // TODO remove after refactor test
+                if (settings == null) {
+                    waitingForBuildFinished()
+                }
                 logger.info("Build, install and run apk finished.")
             }
             else -> {

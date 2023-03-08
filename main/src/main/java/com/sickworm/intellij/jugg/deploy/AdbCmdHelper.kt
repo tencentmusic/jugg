@@ -8,6 +8,7 @@ import com.android.tools.idea.run.activity.DefaultApkActivityLocator
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggException
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 class AdbCmdHelper(
@@ -26,6 +27,29 @@ class AdbCmdHelper(
             stopApp(packageName)
         }
         execAdbShellCmd("am start -S -n $packageName/$launchedActivity")
+    }
+
+    fun installApp(apkFile: File): Pair<Boolean, String> {
+        @Suppress("INACCESSIBLE_TYPE")
+        val result: Any = adb.install(listOf(apkFile.absolutePath), listOf("-r"), true)
+        val statusField = result::class.java.getField("status")
+        statusField.isAccessible = true
+        val statusString = statusField.get(result).toString()
+
+        val reasonField = result::class.java.getField("reason")
+        reasonField.isAccessible = true
+        val reasonString: String? = reasonField.get(result) as? String
+
+        return if (statusString == "OK") {
+            Pair(true, "")
+        } else {
+            val reasonStringOrEmpty = if (reasonString != null) {
+                "($reasonString)"
+            } else {
+                ""
+            }
+            Pair(false, "$statusString$reasonStringOrEmpty")
+        }
     }
 
     fun startDefaultApp(packageName: String, apkProvider: ApkProvider, isRestart: Boolean = true) {

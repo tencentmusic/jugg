@@ -36,16 +36,17 @@ class DeployTargetManager(
     }
 
     override fun runFullBuildAndLaunch(settings: JuggGradleCompileOptions?): ExecutionResult {
-        return if (settings == null) {
+        if (settings == null) {
             // TODO remove after refactor test
             // not launched by JuggRunConfiguration
             val (runConfigAndSettings, _) = getRunConfig()
             ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
-            DefaultExecutionResult()
-        } else {
-            // launched by JuggRunConfiguration, run it
-            doRunFullBuildAndLaunch(settings)
+            return DefaultExecutionResult()
         }
+
+        // launched by JuggRunConfiguration, run it
+        val result = doRunFullBuildAndLaunch(settings)
+        return result
     }
 
     private fun doRunFullBuildAndLaunch(settings: JuggGradleCompileOptions): ExecutionResult {
@@ -55,12 +56,8 @@ class DeployTargetManager(
             client.cancelAction(isByUser = false)
         }
         consoleView.attachToProcess(processHandler)
-        val task = JuggGradleCompileRunningTask(project, client, settings, processHandler)
+        val task = JuggGradleCompileRunningTask(project, client, settings, processHandler, ::getDevice)
         ProgressManager.getInstance().run(task)
-
-        if (!processHandler.isProcessTerminated) {
-            processHandler.detachProcess()
-        }
         return DefaultExecutionResult(consoleView, processHandler)
     }
 

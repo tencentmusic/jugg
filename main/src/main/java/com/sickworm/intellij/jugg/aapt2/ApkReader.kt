@@ -1,5 +1,9 @@
 package com.sickworm.intellij.jugg.aapt2
 
+import com.android.ddmlib.IDevice
+import com.android.tools.idea.run.ApkInfo
+import com.android.tools.idea.run.ApkProvider
+import com.android.tools.idea.run.ValidationError
 import com.intellij.openapi.diagnostic.Logger
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
@@ -40,6 +44,19 @@ class ApkReader(
             eventType = xmlPullParser.next()
         }
         return packageName
+    }
+
+    fun toApkProvider(packageName: String = readPackageNameFast()): ApkProvider {
+        val apkInfo = ApkInfo(apkFile, packageName)
+        return object : ApkProvider {
+            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
+                return listOf(apkInfo).toMutableList()
+            }
+
+            override fun validate(): MutableList<ValidationError> {
+                return mutableListOf()
+            }
+        }
     }
 
     fun getRFile(outputDir: File) {

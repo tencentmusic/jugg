@@ -36,7 +36,7 @@ class RemoteGradleCompileClient(
                 juggGradleCompileOptions.remoteSshUser,
                 juggGradleCompileOptions.remoteSshIp,
                 juggGradleCompileOptions.remoteSshPort)
-            if (!juggGradleCompileOptions.httpProxyIp.isNullOrEmpty() &&
+            if (juggGradleCompileOptions.httpProxyIp.isNotEmpty() &&
                 juggGradleCompileOptions.httpProxyPort != 0) {
                 session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
             }
@@ -78,14 +78,15 @@ class RemoteGradleCompileClient(
         }
 
 
-        val fetchOutputCommand = FetchOutputCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteToLocalIftConfigName)
+        val fetchOutputCommand = FetchOutputCommand(gradleCompileSettings.outputApkName, gradleCompileSettings.remoteToLocalIftConfigName)
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
             return GradleCompileResult.failed(isCanceled)
         }
 
-        return GradleCompileResult.success(File(""))
+        val apkFile = File("${gradleCompileSettings.remoteToLocalSyncPath}/${gradleCompileSettings.outputApkName}")
+        return GradleCompileResult.success(apkFile)
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {

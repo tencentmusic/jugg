@@ -28,15 +28,42 @@ class LocalGradleCompileClient(
 
     override fun compileAndFetchResult(): GradleCompileResult {
         isCanceled = false
-        val clientInfo = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
+        val juggGradleCompileOptions = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
 
-        val compileProjectCommand = CompileProjectCommand(clientInfo.compileCommand, project.basePath!!)
+        val compileProjectCommand = CompileProjectCommand(juggGradleCompileOptions.compileCommand, project.basePath!!)
         val compileProjectResult = invoke(compileProjectCommand)
         if (compileProjectResult != 0) {
             printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
             return GradleCompileResult.failed(isCanceled)
         }
-        return GradleCompileResult.success(File(""))
+
+        // try sub dir first
+        val subDir = File(project.basePath!!, "app/build/outputs")
+        var apkFile = listFilesRecursively(subDir, juggGradleCompileOptions.outputApkName)
+        if (apkFile == null) {
+            // find in root dir
+            val rootDir = File(project.basePath!!)
+            apkFile = listFilesRecursively(rootDir, juggGradleCompileOptions.outputApkName)
+        }
+        if (apkFile == null) {
+            printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
+                    "in ${project.basePath}, please make sure your run configuration is right.")
+            return GradleCompileResult.failed(isCanceled)
+        }
+        return GradleCompileResult.success(apkFile)
+    }
+
+    private fun listFilesRecursively(baseDir: File, fileName: String): File? {
+        baseDir.listFiles()?.forEach {
+            if (it.isFile && it.name == fileName) {
+                return it
+            } else if (it.isDirectory) {
+                listFilesRecursively(it, fileName)?.let { foundFile ->
+                    return foundFile
+                }
+            }
+        }
+        return null
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
@@ -151,6 +178,7 @@ class LocalGradleCompileClient(
 
     override fun dispose() {
         currentRunningProcess?.destroy()
+        currentRunningProcess = null
     }
 
 }

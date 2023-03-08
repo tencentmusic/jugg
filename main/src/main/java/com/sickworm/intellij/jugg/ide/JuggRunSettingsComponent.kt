@@ -64,7 +64,7 @@ class JuggRunSettingsComponent : JComponent() {
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected)
     }
 
-    fun updateUi(settings: JuggGradleCompileOptions) {
+    fun updateUi(settings: JuggRunConfigurationOptions) {
         compileCommandTextField.text = settings.compileCommand
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile

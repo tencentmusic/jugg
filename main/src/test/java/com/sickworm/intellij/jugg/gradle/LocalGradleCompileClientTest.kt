@@ -6,6 +6,7 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -28,12 +29,13 @@ class LocalGradleCompileClientTest {
             val pathManager = JuggPathManager(project, projectInfo.projectRoot)
             JuggLogger.register(project, pathManager.logDir)
 
-            juggGradleCompileOptions = JuggGradleCompileOptions(project.name).also {
+
+            val options = JuggRunConfigurationOptions().also {
                 it.compileCommand = "./gradlew :app:assembleDebug"
                 it.outputApkName = "app-debug.apk"
                 it.isRemoteCompile = false
             }
-
+            juggGradleCompileOptions = JuggGradleCompileOptions.fromOptions(project.name, options)
         }
     }
 

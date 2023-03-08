@@ -7,9 +7,11 @@ import com.intellij.execution.configurations.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
+import java.io.File
 import javax.swing.JComponent
 
 
@@ -17,25 +19,22 @@ class JuggRunConfiguration(
     project: Project,
     factory: ConfigurationFactory,
     name: String
-) : RunConfigurationBase<JuggGradleCompileOptions>(project, factory, name) {
+) : RunConfigurationBase<JuggRunConfigurationOptions>(project, factory, name) {
 
-    private val options = JuggGradleCompileOptions(project.name)
-    private val editor = JuggSettingsEditor(options)
+    private val editor = JuggSettingsEditor()
 
     override fun getType(): ConfigurationType {
         return JuggConfigurationType.getInstance()
     }
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> {
+        editor.resetEditorFrom(state!!)
         return editor
     }
 
-    override fun getOptions(): RunConfigurationOptions {
-        return options
-    }
-
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        return JuggRunProfileState(project, state!!)
+        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(File(project.basePath!!).name, state!!)
+        return JuggRunProfileState(project, gradleCompileOptions)
     }
 }
 
@@ -50,6 +49,10 @@ class JuggConfigurationType : ConfigurationTypeBase(
             override fun createTemplateConfiguration(project: Project): RunConfiguration {
                 return JuggRunConfiguration(project, this, "run Jugg")
             }
+
+            override fun getOptionsClass(): Class<out BaseState> {
+                return JuggRunConfigurationOptions::class.java
+            }
         })
     }
 
@@ -61,11 +64,7 @@ class JuggConfigurationType : ConfigurationTypeBase(
     }
 }
 
-class JuggSettingsEditor(currentOptions: JuggGradleCompileOptions) : SettingsEditor<JuggRunConfiguration>() {
-
-    init {
-        resetEditorFrom(currentOptions)
-    }
+class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
     override fun resetEditorFrom(s: JuggRunConfiguration) {
         s.state?.let {
@@ -73,7 +72,7 @@ class JuggSettingsEditor(currentOptions: JuggGradleCompileOptions) : SettingsEdi
         }
     }
 
-    private fun resetEditorFrom(options: JuggGradleCompileOptions) {
+    fun resetEditorFrom(options: JuggRunConfigurationOptions) {
         (component as JuggRunSettingsComponent).updateUi(options)
     }
 
@@ -111,7 +110,8 @@ class JuggRunProfileState(
             ?: // TODO error toast
             return DefaultExecutionResult()
 
-        return juggManager.deploy(juggGradleCompileOptions)
+        // TODO use deploy
+        return juggManager.deployFull(juggGradleCompileOptions)
     }
 
 }
