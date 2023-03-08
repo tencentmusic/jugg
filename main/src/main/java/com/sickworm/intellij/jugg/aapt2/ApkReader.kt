@@ -1,8 +1,12 @@
 package com.sickworm.intellij.jugg.aapt2
 
 import com.intellij.openapi.diagnostic.Logger
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.lang.IllegalStateException
+import java.util.zip.ZipFile
 
 class ApkReader(
     private val apkFile: File,
@@ -12,6 +16,31 @@ class ApkReader(
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     private var apkResInfo: ApkResInfo? = null
+
+    /**
+     * Read package name from apk file using protobuf directly
+     */
+    fun readPackageNameFast(): String {
+        val zipApkFile = ZipFile(apkFile)
+        val androidManifestEntry = zipApkFile.getEntry("AndroidManifest.xml")
+        val androidManifestPbBytes = zipApkFile.getInputStream(androidManifestEntry).readAllBytes()
+        val xmlString = AndroidManifestParser().decompressXML(androidManifestPbBytes)
+
+        val xmlPullParserFactory = XmlPullParserFactory.newInstance()
+        val xmlPullParser = xmlPullParserFactory.newPullParser()
+        xmlPullParser.setInput(ByteArrayInputStream(xmlString.toByteArray()), null)
+
+        var eventType = xmlPullParser.eventType
+        var packageName = ""
+        while (eventType != XmlPullParser.END_DOCUMENT) {
+            if (eventType == XmlPullParser.START_TAG && xmlPullParser.name == "manifest") {
+                packageName = xmlPullParser.getAttributeValue(null, "package")
+                break
+            }
+            eventType = xmlPullParser.next()
+        }
+        return packageName
+    }
 
     fun getRFile(outputDir: File) {
         val apkResInfo = parse() ?: throw IllegalStateException("parse apk failed")

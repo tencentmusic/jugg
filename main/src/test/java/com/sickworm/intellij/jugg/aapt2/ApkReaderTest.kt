@@ -1,10 +1,7 @@
 package com.sickworm.intellij.jugg.aapt2
 
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
-import com.sickworm.intellij.jugg.mock.assetsAndroidDir
-import com.sickworm.intellij.jugg.mock.clearBuild
-import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.mock.tempCompileDir
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -56,5 +53,12 @@ class ApkReaderTest {
         assertEquals(1, files.size)
         assertEquals("R.java", files[0].name)
         assertTrue(files[0].length() > 0)
+    }
+
+    @Test
+    fun testGetPackageNameFast() {
+        val reader = ApkReader(apkFile, logger)
+        val packageName = reader.readPackageNameFast()
+        assertEquals(projectInfo.packageName, packageName)
     }
 }
