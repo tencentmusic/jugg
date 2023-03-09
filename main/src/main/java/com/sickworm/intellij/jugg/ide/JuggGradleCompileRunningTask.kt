@@ -10,8 +10,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.sickworm.intellij.jugg.aapt2.ApkReader
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
-import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.apache.log4j.Level
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
@@ -30,9 +30,25 @@ class JuggGradleCompileRunningTask(
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: ProcessHandler,
     private val deviceGetter: () -> IDevice,
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask")
 ) : Task.Backgroundable(project, "Running Jugg") {
 
+
     override fun run(indicator: ProgressIndicator) {
+        try {
+            doRun(indicator)
+        } catch (e: Throwable) {
+            val sw = StringWriter()
+            val pw = PrintWriter(sw)
+            e.printStackTrace(pw)
+            logger.error("run failed", e)
+            processHandler.notifyTextAvailable("\nCompile stop unexpected with exception: $sw\n", ProcessOutputType.STDERR)
+        } finally {
+            stop(indicator)
+        }
+    }
+
+    private fun doRun(indicator: ProgressIndicator) {
         compileClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
             override fun onOutput(line: String) {
                 val parsedOutput = parseOutput(line)
@@ -56,6 +72,7 @@ class JuggGradleCompileRunningTask(
 
             override fun onOutputErr(line: String) {
                 val parsedOutput = parseOutput(line)
+                logger.warn("onOutputErr: $line")
                 processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDERR)
                 processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
             }
@@ -72,16 +89,8 @@ class JuggGradleCompileRunningTask(
 
 
         val (costTime, result) = measureTimeMillisWithResult {
-            try {
-                compileClient.login(juggGradleCompileOptions)
-                compileClient.compileAndFetchResult()
-            } catch (e: Exception) {
-                val sw = StringWriter()
-                val pw = PrintWriter(sw)
-                e.printStackTrace(pw)
-                processHandler.notifyTextAvailable("Exception found: $sw\n", ProcessOutputType.STDERR)
-                GradleCompileResult.failed(false)
-            }
+            compileClient.login(juggGradleCompileOptions)
+            compileClient.compileAndFetchResult()
         }
 
         val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated
@@ -100,7 +109,9 @@ class JuggGradleCompileRunningTask(
                 processHandler.notifyTextAvailable("\nApp launched.\n", ProcessOutputType.STDOUT)
             }
         }
+    }
 
+    private fun stop(indicator: ProgressIndicator) {
         indicator.stop()
         if (!processHandler.isProcessTerminated) {
             processHandler.detachProcess()
@@ -108,11 +119,11 @@ class JuggGradleCompileRunningTask(
     }
 
     private fun installAndLaunch(apkFile: File): Boolean {
-        val logger = LoggerWrapper(processHandler)
+        val loggerWrapper = LoggerWrapper(processHandler, logger)
 
-        val apkReader = ApkReader(apkFile, logger)
+        val apkReader = ApkReader(apkFile, loggerWrapper)
         val packageName = apkReader.readPackageNameFast()
-        val apkProvider = ApkReader(apkFile, logger).toApkProvider(packageName)
+        val apkProvider = ApkReader(apkFile, loggerWrapper).toApkProvider(packageName)
         val device = try {
             deviceGetter.invoke()
         } catch (e: Exception) {
@@ -121,7 +132,7 @@ class JuggGradleCompileRunningTask(
         }
 
         processHandler.notifyTextAvailable("Installing APK... $apkFile\n", ProcessOutputType.STDOUT)
-        AdbCmdHelper(device, logger).let {
+        AdbCmdHelper(device, loggerWrapper).let {
             val (isSuccess, reason) = it.installApp(apkFile)
             if (!isSuccess) {
                 processHandler.notifyTextAvailable("\n\nInstall APK failed. $reason\n", ProcessOutputType.STDERR)
@@ -180,35 +191,46 @@ class SimpleProcessHandler(private val cancelAction: () -> Unit) : ProcessHandle
     }
 }
 
-private class LoggerWrapper(private val processHandler: ProcessHandler): Logger() {
+private class LoggerWrapper(private val processHandler: ProcessHandler, private val logger: Logger): Logger() {
 
     override fun isDebugEnabled(): Boolean {
         return true
     }
 
     override fun debug(message: String) {
+        logger.debug(message)
         processHandler.notifyTextAvailable(message, ProcessOutputType.STDOUT)
         processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
     }
 
     override fun debug(t: Throwable?) {
+        logger.debug(t)
     }
 
     override fun debug(message: String?, t: Throwable?) {
+        logger.debug(message, t)
     }
 
     override fun info(message: String) {
+        logger.info(message)
         processHandler.notifyTextAvailable(message, ProcessOutputType.STDOUT)
         processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
     }
 
     override fun info(message: String?, t: Throwable?) {
+        logger.info(message, t)
     }
 
-    override fun warn(message: String?, t: Throwable?) {
+    override fun warn(message: String, t: Throwable?) {
+        logger.warn(message, t)
+        processHandler.notifyTextAvailable(message, ProcessOutputType.STDERR)
+        processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
     }
 
-    override fun error(message: String?, t: Throwable?, vararg details: String?) {
+    override fun error(message: String, t: Throwable?, vararg details: String?) {
+        logger.error(message, t, *details)
+        processHandler.notifyTextAvailable(message, ProcessOutputType.STDERR)
+        processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
     }
 
     @Suppress("UnstableApiUsage")
