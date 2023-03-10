@@ -86,6 +86,7 @@ class JuggManager @TestOnly constructor(
         }
         val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
         val settings = RunManager.getInstance(project).createConfiguration(defaultName, factory)
+        settings.isActivateToolWindowBeforeRun = false
         RunManager.getInstance(project).addConfiguration(settings)
         RunManager.getInstance(project).selectedConfiguration = settings
     }
