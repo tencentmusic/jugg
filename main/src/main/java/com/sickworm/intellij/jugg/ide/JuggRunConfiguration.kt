@@ -110,10 +110,7 @@ class JuggRunProfileState(
 ) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
-        val juggManager = JuggInitializer.getManager(project)
-            ?: // TODO error toast
-            return DefaultExecutionResult()
-
+        val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
         // TODO use deploy
         return juggManager.deployFull(juggGradleCompileOptions)
     }
