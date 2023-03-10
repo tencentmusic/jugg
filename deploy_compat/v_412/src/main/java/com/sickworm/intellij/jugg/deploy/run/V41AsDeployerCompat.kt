@@ -5,9 +5,7 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.projectsystem.getModuleSystem
-import com.android.tools.idea.run.AndroidRunConfiguration
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.DeviceCount
+import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.tools.idea.run.util.DebuggerRedefiner
@@ -17,6 +15,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
+import java.io.File
 
 /**
  * Android Studio 4.1
@@ -119,5 +118,17 @@ class V41AsDeployerCompat : IAsDeployerCompat {
             logger
         )
         return swapper.optimisticSwap(packageName, pids, arch, overlayUpdate)
+    }
+
+    override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
+        return object : ApkProvider {
+            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
+                return apkInfos.toMutableList()
+            }
+
+            override fun validate(): MutableList<ValidationError> {
+                return mutableListOf()
+            }
+        }
     }
 }

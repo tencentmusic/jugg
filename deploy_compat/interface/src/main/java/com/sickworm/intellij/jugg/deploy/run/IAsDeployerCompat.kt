@@ -5,15 +5,13 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
-import com.android.tools.idea.run.AndroidRunConfiguration
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.DeviceCount
-import com.android.tools.idea.run.DeviceFutures
+import com.android.tools.idea.run.*
 import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.utils.ILogger
 import com.intellij.openapi.project.Project
 import org.apache.maven.artifact.versioning.ComparableVersion
 import org.jetbrains.android.facet.AndroidFacet
+import java.io.File
 
 /**
  * Compat for Android Studio Deployer API
@@ -50,5 +48,7 @@ interface IAsDeployerCompat {
         adb: AdbClient,
         logger: ILogger,
     ): OverlayId
+
+    fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider
 }
 

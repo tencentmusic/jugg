@@ -21,9 +21,9 @@ import org.jetbrains.android.facet.AndroidFacet
 import java.util.*
 
 /**
- * Android Studio Chipmunk
+ * Android Studio Giraffe
  */
-class ChipmunkAsDeployerCompat: IAsDeployerCompat {
+class GiraffeAsDeployerCompat: IAsDeployerCompat {
 
     private val optimisticInstallSupportFull: Map<StudioFlags.OptimisticInstallSupportLevel, EnumSet<ChangeType>>
             = ImmutableMap.of(
@@ -70,15 +70,10 @@ class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
 
         // find the first available devices
-        // TODO more elegant
-        ModuleManager.getInstance(project).modules.forEach { module ->
-            val facet = AndroidFacet.getInstance(module) ?: return@forEach
-            val deviceFutures = deployTarget.getDevices(facet) ?: return@forEach
-
-            val devices = deviceFutures.ifReady
-            if (!devices.isNullOrEmpty()) {
-                return devices
-            }
+        val deviceFutures = deployTarget.getDevices(project) ?: return null
+        val devices = deviceFutures.ifReady
+        if (!devices.isNullOrEmpty()) {
+            return devices
         }
 
         return null
@@ -167,14 +162,6 @@ class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     }
 
     override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
-        return object : ApkProvider {
-            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
-                return apkInfos.toMutableList()
-            }
-
-            override fun validate(): MutableList<ValidationError> {
-                return mutableListOf()
-            }
-        }
+        return ApkProvider { apkInfos.toMutableList() }
     }
 }

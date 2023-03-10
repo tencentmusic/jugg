@@ -6,6 +6,8 @@ import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ParsedApk
+import com.sickworm.intellij.jugg.apk.ApkParser
+import com.sickworm.intellij.jugg.apk.JuggFileInfo
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -115,7 +117,7 @@ class DeployDataGenerator(
     private fun isHotReloadClass(className: String, newClassNode: ClassNode): Boolean {
         var oldClassNode: ClassNode? = deployedClasses[className]
         if (oldClassNode == null) {
-            oldClassNode = parsedApks.firstNotNullResult {
+            oldClassNode = parsedApks.firstNotNullOfOrNull {
                 it.classes[className]
             }
         }

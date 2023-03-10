@@ -129,11 +129,12 @@ class JuggDeployTask(
         when (type) {
             JuggDeployType.INSTALL -> {
                 // default install argument has: -t -r --full --dont-kill
-                val installOnAllUsers = true
                 val options = InstallOptions.builder().setAllowDebuggable()
-                if (!installOnAllUsers && device.version.isGreaterOrEqualThan(24)) {
-                    options.setInstallOnCurrentUser()
-                }
+                // no setInstallOnCurrentUser in giraffe
+//                val installOnAllUsers = true
+//                if (!installOnAllUsers && device.version.isGreaterOrEqualThan(24)) {
+//                    options.setInstallOnCurrentUser()
+//                }
                 if (device.supportsFeature(IDevice.HardwareFeature.EMBEDDED)) {
                     options.setGrantAllPermissions()
                 }

@@ -1,14 +1,13 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.android.ddmlib.IDevice
-import com.intellij.execution.configurations.*
 import com.intellij.execution.process.*
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.*
 import com.intellij.openapi.progress.util.ProgressIndicatorListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
-import com.sickworm.intellij.jugg.aapt2.ApkReader
+import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -42,7 +41,8 @@ class JuggGradleCompileRunningTask(
             val pw = PrintWriter(sw)
             e.printStackTrace(pw)
             logger.error("run failed", e)
-            processHandler.notifyTextAvailable("\nCompile stop unexpected with exception: $sw\n", ProcessOutputType.STDERR)
+            processHandler.notifyTextAvailable("\nCompile stop unexpected with ${e::class.java}:\n$sw\n", ProcessOutputType.STDERR)
+            processHandler.notifyTextAvailable("\nCompile stop unexpected.", ProcessOutputType.STDERR)
         } finally {
             stop(indicator)
         }
@@ -122,8 +122,8 @@ class JuggGradleCompileRunningTask(
         val loggerWrapper = LoggerWrapper(processHandler, logger)
 
         val apkReader = ApkReader(apkFile, loggerWrapper)
-        val packageName = apkReader.readPackageNameFast()
-        val apkProvider = ApkReader(apkFile, loggerWrapper).toApkProvider(packageName)
+        val packageName = apkReader.getPackageName()
+        val apkProvider = apkReader.toApkProvider()
         val device = try {
             deviceGetter.invoke()
         } catch (e: Exception) {

@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.compiler.ParsedApk
-import com.sickworm.intellij.jugg.deploy.ApkParser
+import com.sickworm.intellij.jugg.apk.ApkParser
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Test
 import kotlin.test.assertEquals

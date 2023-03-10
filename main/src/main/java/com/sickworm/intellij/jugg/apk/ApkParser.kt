@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy
+package com.sickworm.intellij.jugg.apk
 
 import com.android.tools.deployer.ApkParser as ApkParserAdt
 import com.android.tools.idea.run.ApkInfo

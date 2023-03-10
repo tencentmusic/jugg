@@ -4,6 +4,7 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.idea.run.AndroidRunConfiguration
+import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.android.utils.ILogger
 import com.intellij.openapi.application.ApplicationInfo
@@ -21,6 +22,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
+            IdeVersion("Android Studio Giraffe", "IA", "223.7571.182"),
+            lazy { GiraffeAsDeployerCompat() },
+        ),
+        CompatImpl(
             IdeVersion("Android Studio Chipmunk", "IA", "212.5712.43"),
             lazy { ChipmunkAsDeployerCompat() }
         ),
@@ -34,15 +39,15 @@ object AsDeployerCompat : IAsDeployerCompat {
         val ideVersion = IdeVersion(ApplicationInfo.getInstance())
         logger.debug("IDE version: $ideVersion")
 
-        var impl: IAsDeployerCompat? = compatImplList.firstNotNullResult { compatImpl ->
+        var impl: IAsDeployerCompat? = compatImplList.firstNotNullOfOrNull { compatImpl ->
             if (compatImpl.ideVersion == ideVersion) {
                 logger.debug("Good! Fully matched deploy version of ${compatImpl.ideVersion}")
-                return@firstNotNullResult compatImpl.impl.value
+                return@firstNotNullOfOrNull compatImpl.impl.value
             } else if (compatImpl.ideVersion < ideVersion) {
                 logger.warn("Bad! IDE version higher than ${compatImpl.ideVersion}, use this for compat, good luck.")
-                return@firstNotNullResult compatImpl.impl.value
+                return@firstNotNullOfOrNull compatImpl.impl.value
             }
-            return@firstNotNullResult null
+            return@firstNotNullOfOrNull null
         }
         if (impl == null) {
             val compatImpl = compatImplList.last()
@@ -98,6 +103,10 @@ object AsDeployerCompat : IAsDeployerCompat {
         logger: ILogger
     ): OverlayId {
         return impl.optimisticSwap(installer, redefiners, packageName, argRestart, pids, arch, overlayUpdate, adb, logger)
+    }
+
+    override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
+        return impl.toApkProvider(apkInfos)
     }
 }
 

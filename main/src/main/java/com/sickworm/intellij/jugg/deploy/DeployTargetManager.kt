@@ -4,7 +4,6 @@ import com.android.ddmlib.*
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.ValidationError
 import com.intellij.execution.*
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.filters.TextConsoleBuilderFactory
@@ -64,15 +63,7 @@ class DeployTargetManager(
     private var apkProviderFromRecover: ApkProvider? = null
 
     override fun setApksFromRecover(apks: List<ApkInfo>) {
-        apkProviderFromRecover = object : ApkProvider {
-            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
-                return apks.toMutableList()
-            }
-
-            override fun validate(): MutableList<ValidationError> {
-                return mutableListOf()
-            }
-        }
+        apkProviderFromRecover = AsDeployerCompat.toApkProvider(apks)
     }
 
     override fun getApks(): List<ApkInfo> {
