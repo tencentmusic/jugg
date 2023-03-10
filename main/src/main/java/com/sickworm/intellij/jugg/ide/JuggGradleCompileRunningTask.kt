@@ -1,12 +1,17 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.android.ddmlib.IDevice
-import com.intellij.execution.process.*
+import com.intellij.execution.process.AnsiEscapeDecoder
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.*
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.util.ProgressIndicatorListener
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -16,10 +21,8 @@ import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintWriter
-
 import java.io.StringWriter
-
-
+import javax.swing.SwingUtilities
 
 
 @Suppress("DialogTitleCapitalization")
@@ -100,6 +103,7 @@ class JuggGradleCompileRunningTask(
             processHandler.notifyTextAvailable("\n\nBUILD CANCELED in ${costTime / 1000}s.\n\n", ProcessOutputType.STDERR)
         } else {
             processHandler.notifyTextAvailable("\n\nBUILD FAILED in ${costTime / 1000}s.\n\n", ProcessOutputType.STDERR)
+            failedAndActiveRunWindow()
         }
 
         if (result.isSuccess) {
@@ -107,7 +111,24 @@ class JuggGradleCompileRunningTask(
             processHandler.notifyTextAvailable("Installing and launching app...\n", ProcessOutputType.STDOUT)
             if (installAndLaunch(result.compileOutputFile)) {
                 processHandler.notifyTextAvailable("\nApp launched.\n", ProcessOutputType.STDOUT)
+            } else {
+                failedAndActiveRunWindow()
             }
+            notifyLaunched()
+        }
+    }
+
+    private fun notifyLaunched() {
+        SwingUtilities.invokeLater {
+            val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+            toolWindowManager.notifyByBalloon("Run", MessageType.INFO, "Launch succeeded")
+        }
+    }
+
+    private fun failedAndActiveRunWindow() {
+        SwingUtilities.invokeLater {
+            val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+            toolWindowManager.getToolWindow("Run")?.activate(null)
         }
     }
 
