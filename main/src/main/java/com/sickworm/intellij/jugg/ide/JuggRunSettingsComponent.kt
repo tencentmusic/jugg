@@ -68,6 +68,7 @@ class JuggRunSettingsComponent : JComponent() {
         compileCommandTextField.text = settings.compileCommand
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
+        updateRemoteUi(settings.isRemoteCompile)
         userTextField.text = settings.remoteSshUser
         passwordTextField.text = settings.remoteSshPassword
         ipTextField.text = settings.remoteSshIp
