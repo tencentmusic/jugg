@@ -4,6 +4,10 @@ plugins {
     id 'org.jetbrains.intellij'
 }
 
+buildSearchableOptions {
+    enabled = false
+}
+
 intellij {
     updateSinceUntilBuild false
     version '223.7571.182' // Android Studio Giraffe
