@@ -6,11 +6,11 @@ import com.intellij.execution.Executor
 import com.intellij.execution.configurations.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
+import com.intellij.ui.IconManager
 import java.io.File
 import javax.swing.JComponent
 
@@ -42,7 +42,7 @@ class JuggConfigurationType : ConfigurationTypeBase(
     this::class.toString(),
     "Jugg",
     "Run Jugg compilation",
-    NotNullLazyValue.createValue { AllIcons.Providers.Openedge },
+    NotNullLazyValue.createValue { IconManager.getInstance().getIcon("res/icon_run_configuration.svg", JuggConfigurationType::class.java) },
 ) {
     init {
         addFactory(object : ConfigurationFactory(this) {
