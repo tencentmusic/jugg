@@ -8,6 +8,11 @@ interface ISshCommand {
     val command: String
 
     /**
+     * call be fore invoke [command].
+     */
+    fun beforeInvokeCommand() = Unit
+
+    /**
      * @param terminalOutputLine the output ends with '\n' and without '\n' from terminal
      * @return the input to terminal, null if we won't input
      */

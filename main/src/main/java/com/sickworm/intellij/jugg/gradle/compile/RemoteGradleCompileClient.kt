@@ -128,7 +128,8 @@ class RemoteGradleCompileClient(
     private fun invoke(channel: Channel, command: ISshCommand): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
-        val commander = PrintStream(channel.outputStream, true)
+        command.beforeInvokeCommand()
+        val commander = PrintStream(channel.outputStream, false)
         commander.println(command.command)
         commander.flush()
 

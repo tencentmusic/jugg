@@ -88,7 +88,9 @@ class LocalGradleCompileClient(
 
         val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", command.command))
         currentRunningProcess = process
-        val commander = PrintStream(process.outputStream, true)
+
+        command.beforeInvokeCommand()
+        val commander = PrintStream(process.outputStream, false)
         commander.println(command.command)
         commander.flush()
 

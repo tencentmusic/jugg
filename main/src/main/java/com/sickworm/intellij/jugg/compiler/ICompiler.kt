@@ -155,9 +155,9 @@ data class ModuleInfo(
 
 class ModuleBuildPathInfo(
     /** project root dir */
-    private val projectRootDir: File,
+    val projectRootDir: File,
     /** module root dir */
-    moduleRootDir: File,
+    private val moduleRootDir: File,
 ) {
 
     /** build root dir */
@@ -176,9 +176,9 @@ class ModuleBuildPathInfo(
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath)
 
-    val allClassPathRelative get() = allClassPath.map {
-        it.relativeTo(projectRootDir)
-    }
+    val allClassPathRelative get() = allClassPath.map { it.relativeTo(moduleRootDir) }
+
+    val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 
 }
 
