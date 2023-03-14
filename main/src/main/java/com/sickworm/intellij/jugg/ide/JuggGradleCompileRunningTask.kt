@@ -4,6 +4,7 @@ import com.android.ddmlib.IDevice
 import com.intellij.execution.process.AnsiEscapeDecoder
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
+import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
@@ -38,6 +39,7 @@ class JuggGradleCompileRunningTask(
 
     override fun run(indicator: ProgressIndicator) {
         try {
+            showGreenDotOnRunToolWindow()
             doRun(indicator)
         } catch (e: Throwable) {
             val sw = StringWriter()
@@ -48,6 +50,16 @@ class JuggGradleCompileRunningTask(
             processHandler.notifyTextAvailable("\nCompile stop unexpected.", ProcessOutputType.STDERR)
         } finally {
             stop(indicator)
+        }
+    }
+
+    private fun showGreenDotOnRunToolWindow() {
+        SwingUtilities.invokeLater {
+            val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+            toolWindowManager.getToolWindow("Run")?.let {
+                val icon = ExecutionUtil.getLiveIndicator(it.icon)
+                it.setIcon(icon)
+            }
         }
     }
 
