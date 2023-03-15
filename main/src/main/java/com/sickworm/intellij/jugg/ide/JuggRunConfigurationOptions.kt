@@ -34,7 +34,7 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
     private companion object Default {
         private const val compileCommand = "./gradlew :app:assembleDebug"
-        private const val outputApkName = "app-universal-debug.apk"
+        private const val outputApkName = "app-*.apk"
         private const val isRemoteCompile = false
         private const val remoteSshUser = "root"
         private const val remoteSshPassword = ""

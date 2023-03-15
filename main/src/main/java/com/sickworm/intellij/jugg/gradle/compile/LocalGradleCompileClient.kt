@@ -39,11 +39,11 @@ class LocalGradleCompileClient(
 
         // try sub dir first
         val subDir = File(project.basePath!!, "app/build/outputs")
-        var apkFile = listFilesRecursively(subDir, juggGradleCompileOptions.outputApkName)
+        var apkFile = subDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
         if (apkFile == null) {
             // find in root dir
             val rootDir = File(project.basePath!!)
-            apkFile = listFilesRecursively(rootDir, juggGradleCompileOptions.outputApkName)
+            apkFile = rootDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
         }
         if (apkFile == null) {
             printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
@@ -51,19 +51,6 @@ class LocalGradleCompileClient(
             return GradleCompileResult.failed(isCanceled)
         }
         return GradleCompileResult.success(apkFile)
-    }
-
-    private fun listFilesRecursively(baseDir: File, fileName: String): File? {
-        baseDir.listFiles()?.forEach {
-            if (it.isFile && it.name == fileName) {
-                return it
-            } else if (it.isDirectory) {
-                listFilesRecursively(it, fileName)?.let { foundFile ->
-                    return foundFile
-                }
-            }
-        }
-        return null
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
