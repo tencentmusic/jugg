@@ -34,7 +34,7 @@ abstract class BaseSshCommand : ISshCommand {
      * add echo at last to confirm exec finished and get the result
      * '\n' to avoid control ascii code on the line start
      */
-    override val command: String get() = "$baseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
+    override val command: String get() = "export LC_CTYPE=\"zh_CN.utf8\" ; $baseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
 
     override fun hasFinishWithResult(terminalOutputLine: String): Int? {
         if (terminalOutputLine.startsWith(RESULT_ECHO) && !terminalOutputLine.endsWith("?")) {

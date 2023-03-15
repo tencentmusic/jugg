@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.PrintStream
 
@@ -42,6 +43,8 @@ class RemoteGradleCompileClient(
             }
             session.setPassword(juggGradleCompileOptions.remoteSshPassword)
             session.setConfig("StrictHostKeyChecking", "no")
+            session.setConfig("Charset", "UTF-8")
+//            session.set("LC_CTYPE", "zh_CN.UTF-8"); // 设置 LC_CTYPE 环境变量
             session.connect()
             val channel = session.openChannel("shell")
             channel.connect()
@@ -133,14 +136,24 @@ class RemoteGradleCompileClient(
         commander.println(command.command)
         commander.flush()
 
-        val reader = channel.inputStream.bufferedReader(Charsets.UTF_8)
+        val buffer = StringBuilder()
+        val bufferedInputStream = BufferedInputStream(channel.inputStream)
         val result: Int
         while (true) {
-            val line = reader.readLine()
-            if (line != null) {
-                if (line.isNotEmpty()) {
-                    printToStream(line)
+            buffer.setLength(0)
+            var line: String
+            while (true) {
+                val code = bufferedInputStream.read()
+                if (code == '\n'.code || code == '\r'.code || code == -1) {
+                    line = String(buffer.toString().toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+                    break
+                } else {
+                    buffer.append(code.toChar())
                 }
+            }
+            if (line.isNotEmpty()) {
+                printToStream(line)
+
                 val output = command.getInput(line)
                 if (output != null) {
                     commander.println(output)
