@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.deploy
 import com.android.ddmlib.*
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.ExecutionResult
-import com.intellij.openapi.Disposable
 
 /**
  * Manage device list，application state
@@ -16,9 +15,9 @@ interface IDeployTargetManager {
     fun runFullBuildAndLaunch(): ExecutionResult
 
     /**
-     * Use apks from recover history instead of reading it from gradle, which requires full build.
+     * Set apks from full build result or from recover history
      */
-    fun setApksFromRecover(apks: List<ApkInfo>)
+    fun setApks(apks: List<ApkInfo>)
 
     fun getApks(): List<ApkInfo>
 

@@ -87,6 +87,7 @@ class JuggDeployerHelper(
             val loggerWrapper = LoggerWrapper(processHandler, logger)
             val apkReader = ApkReader(apkFile, loggerWrapper)
             val apkInfo = apkReader.getApkInfo()
+            deployTargetManager.setApks(listOf(apkInfo))
             runTask(JuggDeployData.forInstall(listOf(apkInfo)), true)
         }
         ProgressManager.getInstance().run(task)

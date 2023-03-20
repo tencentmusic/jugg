@@ -28,21 +28,14 @@ class DeployTargetManager(
         return DefaultExecutionResult()
     }
 
-    private var apkProviderFromRecover: ApkProvider? = null
+    private var apks: List<ApkInfo> = emptyList()
 
-    override fun setApksFromRecover(apks: List<ApkInfo>) {
-        apkProviderFromRecover = AsDeployerCompat.toApkProvider(apks)
+    override fun setApks(apks: List<ApkInfo>) {
+        this.apks = apks
     }
 
     override fun getApks(): List<ApkInfo> {
-        return try {
-            val apkProvider = getApkProvider()
-            val device = getDevice()
-            apkProvider.getApks(device).toList()
-        } catch (e: Exception) {
-            logger.error("getApks failed", e)
-            emptyList()
-        }
+        return apks
     }
 
     override fun getDevice(): IDevice {
@@ -69,7 +62,7 @@ class DeployTargetManager(
 
     override fun restartApp(): Boolean {
         return try {
-            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), getApkProvider())
+            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks)
             true
         } catch (e: Exception) {
             logger.error("restartApp failed", e)
@@ -86,15 +79,6 @@ class DeployTargetManager(
             throw JuggException.notSupportMultiApk()
         }
         return apks.first().applicationId
-    }
-
-    private fun getApkProvider(): ApkProvider {
-        return apkProviderFromRecover ?: getGradleApkProvider()
-    }
-
-    private fun getGradleApkProvider(): ApkProvider {
-        val (_, runConfig) = getRunConfig()
-        return AsDeployerCompat.getApkProvider(project, runConfig)
     }
 
     private fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {

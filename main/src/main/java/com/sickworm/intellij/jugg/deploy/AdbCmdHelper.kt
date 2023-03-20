@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.android.ddmlib.IDevice
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
+import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
@@ -52,8 +53,8 @@ class AdbCmdHelper(
         }
     }
 
-    fun startDefaultApp(packageName: String, apkProvider: ApkProvider, isRestart: Boolean = true) {
-        val apkFile = apkProvider.getApks(device).toList().first().file
+    fun startDefaultApp(packageName: String, apks: List<ApkInfo>, isRestart: Boolean = true) {
+        val apkFile = apks.first().file
         val launchedActivity = ApkReader(apkFile, ideaLogger).getDefaultActivity()!!
         startApp(packageName, launchedActivity, isRestart)
     }

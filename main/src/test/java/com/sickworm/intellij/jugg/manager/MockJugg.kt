@@ -206,7 +206,7 @@ class MockJugg {
                 return DefaultExecutionResult()
             }
 
-            override fun setApksFromRecover(apks: List<ApkInfo>) {
+            override fun setApks(apks: List<ApkInfo>) {
             }
 
             override fun getApks(): List<ApkInfo> {
@@ -222,12 +222,10 @@ class MockJugg {
                     override fun getApks(device: IDevice) = projectInfo.apkInfos
                     override fun validate() = mutableListOf<ValidationError>()
                 }
-                AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, apkProvider)
+                AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
                 return true
             }
 
-            override fun dispose() {
-            }
         }
 
         val moduleManager = mock(ModuleManager::class.java)
