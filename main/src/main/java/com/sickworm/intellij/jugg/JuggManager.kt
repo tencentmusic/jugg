@@ -59,7 +59,7 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl
 
     fun init() {
-        Disposer.register(this, deployTargetManager)
+        Disposer.register(this, juggDeployerHelper)
         compileThread.submitSafe("InitProject", ::initProject)
     }
 
@@ -237,8 +237,8 @@ class JuggManager @TestOnly constructor(
     }
 
     // TODO remove
-    fun deployFull(settings: JuggGradleCompileOptions?): ExecutionResult {
-        return deployTargetManager.runFullBuildAndLaunch(settings)
+    fun deployFull(settings: JuggGradleCompileOptions): ExecutionResult {
+        return juggDeployerHelper.runFullBuildAndLaunch(settings)
     }
 
     fun deploy(settings: JuggGradleCompileOptions?): ExecutionResult {
@@ -276,7 +276,7 @@ class JuggManager @TestOnly constructor(
             }
             deployStateManager.deployState.isReadyRunFullBuild -> {
                 logger.info("Build, install and run apk...")
-                executionResult = deployTargetManager.runFullBuildAndLaunch(settings)
+                executionResult = deployTargetManager.runFullBuildAndLaunch()
                 // TODO remove after refactor test
                 if (settings == null) {
                     waitingForBuildFinished()

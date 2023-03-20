@@ -1,11 +1,9 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.android.tools.idea.run.ApkInfo
-import com.android.tools.idea.run.ApkProvider
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.aapt2.*
 import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -44,9 +42,8 @@ class ApkReader(
         return DefaultApkActivityLocator(logger).computeDefaultActivityFromApks(getManifest())
     }
 
-    fun toApkProvider(): ApkProvider {
-        val apkInfo = ApkInfo(apkFile, getPackageName())
-        return AsDeployerCompat.toApkProvider(listOf(apkInfo))
+    fun getApkInfo(): ApkInfo {
+        return ApkInfo(apkFile, getPackageName())
     }
 
     fun getRFile(outputDir: File) {

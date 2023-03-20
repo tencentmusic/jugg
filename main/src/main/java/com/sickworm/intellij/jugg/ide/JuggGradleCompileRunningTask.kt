@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.android.ddmlib.IDevice
 import com.intellij.execution.process.AnsiEscapeDecoder
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
@@ -13,8 +12,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.wm.ToolWindowManager
-import com.sickworm.intellij.jugg.apk.ApkReader
-import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.apache.log4j.Level
@@ -32,8 +29,8 @@ class JuggGradleCompileRunningTask(
     private val compileClient: IGradleCompileClient,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: ProcessHandler,
-    private val deviceGetter: () -> IDevice,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask")
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask"),
+    private val installAndLaunchTask: (apkFile: File) -> Unit,
 ) : Task.Backgroundable(project, "Running Jugg") {
 
 
@@ -152,29 +149,14 @@ class JuggGradleCompileRunningTask(
     }
 
     private fun installAndLaunch(apkFile: File): Boolean {
-        val loggerWrapper = LoggerWrapper(processHandler, logger)
-
-        val apkReader = ApkReader(apkFile, loggerWrapper)
-        val packageName = apkReader.getPackageName()
-        val apkProvider = apkReader.toApkProvider()
-        val device = try {
-            deviceGetter.invoke()
-        } catch (e: Exception) {
-            processHandler.notifyTextAvailable("No available device. Skip install.\n", ProcessOutputType.STDERR)
-            return false
-        }
-
         processHandler.notifyTextAvailable("Installing APK... $apkFile\n", ProcessOutputType.STDOUT)
-        AdbCmdHelper(device, loggerWrapper).let {
-            val (isSuccess, reason) = it.installApp(apkFile)
-            if (!isSuccess) {
-                processHandler.notifyTextAvailable("\n\nInstall APK failed. $reason\n", ProcessOutputType.STDERR)
-                return false
-            }
-            it.startDefaultApp(packageName, apkProvider)
+        return try {
+            installAndLaunchTask(apkFile)
+            true
+        } catch (e: Exception) {
+            processHandler.notifyTextAvailable("\n\nInstall APK failed. $e\n", ProcessOutputType.STDERR)
+            false
         }
-
-        return true
     }
 
     private fun parseOutput(line: String): String {
@@ -224,7 +206,7 @@ class SimpleProcessHandler(private val cancelAction: () -> Unit) : ProcessHandle
     }
 }
 
-private class LoggerWrapper(private val processHandler: ProcessHandler, private val logger: Logger): Logger() {
+class LoggerWrapper(private val processHandler: ProcessHandler, private val logger: Logger): Logger() {
 
     override fun isDebugEnabled(): Boolean {
         return true

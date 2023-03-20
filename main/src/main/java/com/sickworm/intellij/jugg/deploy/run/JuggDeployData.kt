@@ -63,7 +63,10 @@ data class JuggDeployData(
         builder.append("]")
         return builder.toString()
     }
-    
+
+    companion object {
+        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks, emptyList(), emptyList(), emptyList(), emptyList())
+    }
 }
 
 open class DeployItem(

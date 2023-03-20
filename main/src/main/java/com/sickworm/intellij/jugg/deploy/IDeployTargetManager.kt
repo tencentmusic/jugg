@@ -4,17 +4,16 @@ import com.android.ddmlib.*
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.ExecutionResult
 import com.intellij.openapi.Disposable
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 
 /**
  * Manage device list，application state
  */
-interface IDeployTargetManager : Disposable {
+interface IDeployTargetManager {
 
     /**
      * Click the "Run" button for current selected configuration
      */
-    fun runFullBuildAndLaunch(settings: JuggGradleCompileOptions?): ExecutionResult
+    fun runFullBuildAndLaunch(): ExecutionResult
 
     /**
      * Use apks from recover history instead of reading it from gradle, which requires full build.

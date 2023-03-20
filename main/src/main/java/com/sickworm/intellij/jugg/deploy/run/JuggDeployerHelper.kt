@@ -2,11 +2,25 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.IdeInfo
 import com.android.tools.idea.run.ConsolePrinter
+import com.intellij.execution.DefaultExecutionResult
+import com.intellij.execution.ExecutionResult
+import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
+import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileRunningTask
+import com.sickworm.intellij.jugg.ide.LoggerWrapper
+import com.sickworm.intellij.jugg.ide.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -24,7 +38,7 @@ class JuggDeployerHelper(
     private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
-) {
+) : Disposable {
 
     @TestOnly
     var installPathProvider: Computable<String> = Computable<String> {
@@ -56,6 +70,30 @@ class JuggDeployerHelper(
         if (data.isNeedRestartApp || isInstall) {
             deployTargetManager.restartApp()
         }
+    }
+
+    private val compileClientManager = CompileClientManager(project).also {
+        Disposer.register(this, it)
+    }
+
+    fun runFullBuildAndLaunch(settings: JuggGradleCompileOptions): ExecutionResult {
+        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+        val client = compileClientManager.getClient(settings.isRemoteCompile)
+        val processHandler = SimpleProcessHandler {
+            client.cancelAction(isByUser = false)
+        }
+        consoleView.attachToProcess(processHandler)
+        val task = JuggGradleCompileRunningTask(project, client, settings, processHandler) { apkFile ->
+            val loggerWrapper = LoggerWrapper(processHandler, logger)
+            val apkReader = ApkReader(apkFile, loggerWrapper)
+            val apkInfo = apkReader.getApkInfo()
+            runTask(JuggDeployData.forInstall(listOf(apkInfo)), true)
+        }
+        ProgressManager.getInstance().run(task)
+        return DefaultExecutionResult(consoleView, processHandler)
+    }
+
+    override fun dispose() {
     }
 
 }
@@ -100,5 +138,30 @@ private class CopyEmbeddedDistributionPaths {
         // IJ does not bundle some large resources from android plugin, and downloads them on demand.
         AndroidProfilerDownloader.getInstance().makeSureComponentIsInPlace()
         return AndroidProfilerDownloader.getInstance().getHostDir(path)
+    }
+}
+
+private class CompileClientManager(private val project: Project): Disposable {
+
+    private var isCacheRemoteClient: Boolean? = null
+    private var cacheClient: IGradleCompileClient? = null
+
+    fun getClient(isRemote: Boolean): IGradleCompileClient {
+        val cacheClient = cacheClient
+        val isCacheRemoteClient = isCacheRemoteClient
+
+        return if (cacheClient != null && isCacheRemoteClient == isRemote) {
+            cacheClient
+        } else {
+            cacheClient?.dispose()
+            val newClient = if (isRemote) RemoteGradleCompileClient(project) else LocalGradleCompileClient(project)
+            Disposer.register(this, newClient)
+            this.cacheClient = newClient
+            this.isCacheRemoteClient = isRemote
+            newClient
+        }
+    }
+
+    override fun dispose() {
     }
 }
