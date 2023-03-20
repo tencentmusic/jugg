@@ -16,7 +16,7 @@ fun File.findFilesRecursively(fileNameRegex: Regex): File? {
         if (it.isFile && it.name.matches(fileNameRegex)) {
             return it
         } else if (it.isDirectory) {
-            findFilesRecursively(fileNameRegex)?.let { foundFile ->
+            it.findFilesRecursively(fileNameRegex)?.let { foundFile ->
                 return foundFile
             }
         }
