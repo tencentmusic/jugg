@@ -89,7 +89,13 @@ class RemoteGradleCompileClient(
         }
 
         val apkFile = File(gradleCompileSettings.remoteToLocalSyncPath)
-            .findFilesRecursively(gradleCompileSettings.outputApkName)!!
+            .findFilesRecursively(gradleCompileSettings.outputApkName)
+        if (apkFile == null) {
+            printToStreamErrorIfCanceled("find apk name with pattern '${gradleCompileSettings.outputApkName}' " +
+                    "in ${gradleCompileSettings.remoteToLocalSyncPath} failed, " +
+                    "please check your 'Remote to local sync path' in configuration is correct.")
+            return GradleCompileResult.failed(isCanceled)
+        }
         return GradleCompileResult.success(apkFile)
     }
 
