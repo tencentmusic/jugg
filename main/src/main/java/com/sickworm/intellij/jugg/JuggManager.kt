@@ -66,7 +66,7 @@ class JuggManager @TestOnly constructor(
     private fun initProject() {
         try {
             logger.info("Reading project structure...")
-            AsDeployerCompat.init(logger)
+            AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             compileContextManager.initProjectInfo()
             logger.debug("Init deploy history...")
             recoverDeployContext()

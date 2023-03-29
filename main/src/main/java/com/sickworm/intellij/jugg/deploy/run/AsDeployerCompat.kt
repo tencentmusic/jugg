@@ -10,12 +10,49 @@ import com.android.utils.ILogger
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import kotlin.math.min
 
 object AsDeployerCompat : IAsDeployerCompat {
 
-    private lateinit var impl : IAsDeployerCompat
+    private val impl : IAsDeployerCompat = Proxy.newProxyInstance(this.javaClass.classLoader,
+        arrayOf<Class<*>>(IAsDeployerCompat::class.java), object : InvocationHandler {
+            override fun invoke(proxy: Any?, method: Method, args: Array<Any?>): Any? {
+                try {
+                    return method.invoke(priorityImpl.impl.value, *args)
+                } catch (e: InvocationTargetException) {
+                    if (e.targetException !is NoSuchMethodError) {
+                        throw e.targetException
+                    }
+
+                    logger.debug("try priorityImpl with NoSuchMethodError, try higher version impl")
+
+                    // try higher version impl
+                    compatImplList
+                        .filter { it.ideVersion > priorityImpl.ideVersion }
+                        .forEach {
+                            try {
+                                val result = method.invoke(it.impl.value, *args)
+                                logger.debug("try ${it.ideVersion.name} API success, return")
+                                return result
+                            } catch (e: InvocationTargetException) {
+                                if (e.targetException !is NoSuchMethodError) {
+                                    throw e.targetException
+                                }
+                                logger.debug("try ${it.ideVersion.name} API with NoSuchMethodError")
+                            }
+                        }
+
+                    logger.warn("try all impl failed")
+                    throw e
+                }
+            }
+        }) as IAsDeployerCompat
+
+    private lateinit var priorityImpl : CompatImpl
 
     /**
      * Must order DESC
@@ -35,27 +72,31 @@ object AsDeployerCompat : IAsDeployerCompat {
         ),
     )
 
+    private lateinit var logger: Logger
+
     fun init(logger: Logger) {
+        this.logger = logger
+
         val ideVersion = IdeVersion(ApplicationInfo.getInstance())
         logger.debug("IDE version: $ideVersion")
 
-        var impl: IAsDeployerCompat? = compatImplList.firstNotNullOfOrNull { compatImpl ->
+        var impl: CompatImpl? = compatImplList.firstNotNullOfOrNull { compatImpl ->
             if (compatImpl.ideVersion == ideVersion) {
                 logger.debug("Good! Fully matched deploy version of ${compatImpl.ideVersion}")
-                return@firstNotNullOfOrNull compatImpl.impl.value
+                return@firstNotNullOfOrNull compatImpl
             } else if (compatImpl.ideVersion < ideVersion) {
                 logger.warn("Bad! IDE version higher than ${compatImpl.ideVersion}, use this for compat, good luck.")
-                return@firstNotNullOfOrNull compatImpl.impl.value
+                return@firstNotNullOfOrNull compatImpl
             }
             return@firstNotNullOfOrNull null
         }
         if (impl == null) {
             val compatImpl = compatImplList.last()
-            impl = compatImpl.impl.value
+            impl = compatImpl
             logger.warn("Bad! Deploy version lower than ${compatImpl.ideVersion}, use this for compat, good luck.")
             V41AsDeployerCompat()
         }
-        this.impl = impl
+        this.priorityImpl = impl
     }
 
     override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
@@ -109,7 +150,6 @@ object AsDeployerCompat : IAsDeployerCompat {
         return impl.toApkProvider(apkInfos)
     }
 }
-
 
 private class CompatImpl(
     val ideVersion: IdeVersion,
