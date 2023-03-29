@@ -54,7 +54,7 @@ class AdbCmdHelper(
     }
 
     fun startDefaultApp(packageName: String, apks: List<ApkInfo>, isRestart: Boolean = true) {
-        val apkFile = apks.first().file
+        val apkFile = apks.first().files.first().apkFile
         val launchedActivity = ApkReader(apkFile, ideaLogger).getDefaultActivity()!!
         startApp(packageName, launchedActivity, isRestart)
     }

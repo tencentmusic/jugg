@@ -39,9 +39,9 @@ class CompileContextDb(
 
         // save apk info
         apkInfos.forEach {
-            val copyApkFile = File(apkDirFile, it.file.name)
+            val copyApkFile = File(apkDirFile, it.files.first().apkFile.name)
             copyApkFile.parentFile?.mkdirs()
-            it.file.copyTo(copyApkFile)
+            it.files.first().apkFile.copyTo(copyApkFile)
         }
         val copyApks = apkInfos.map { ApkInfo(it.files, it.applicationId) }
         apkInfoFile.parentFile?.mkdirs()

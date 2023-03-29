@@ -125,7 +125,7 @@ interface ICompileContext {
 
     val packageName get() = apkInfos.firstOrNull()?.applicationId
 
-    val apkFile: File? get() = apkInfos.firstOrNull()?.file
+    val apkFile: File? get() = apkInfos.firstOrNull()?.files?.first()?.apkFile
 
     val variant: String
 

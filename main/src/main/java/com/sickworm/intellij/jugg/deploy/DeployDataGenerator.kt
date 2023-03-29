@@ -78,7 +78,7 @@ class DeployDataGenerator(
                             name = path,
                             type = CompileOutput.Type.Overlay,
                             checksum = it.value.checksum,
-                            content = readFileContentFromApk(parsedApk.apkInfo.file, path)
+                            content = readFileContentFromApk(parsedApk.apkInfo.files.first().apkFile, path)
                         )
                         overlays.add(deployItem)
                     }

@@ -14,9 +14,9 @@ import java.io.File
 class ApkParser {
 
     fun parse(apkInfo: ApkInfo, isSkipCode: Boolean): ParsedApk {
-        val apkBytes = apkInfo.file.readBytes()
+        val apkBytes = apkInfo.files.first().apkFile.readBytes()
         val classes = parseCode(apkBytes, isSkipCode)
-        val overlays = parseOverlays(apkInfo.file)
+        val overlays = parseOverlays(apkInfo.files.first().apkFile)
         return ParsedApk(apkInfo, classes, overlays)
     }
 

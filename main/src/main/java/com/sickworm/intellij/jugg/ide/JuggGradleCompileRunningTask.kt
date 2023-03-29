@@ -154,6 +154,7 @@ class JuggGradleCompileRunningTask(
             installAndLaunchTask(apkFile)
             true
         } catch (e: Exception) {
+            logger.warn("installAndLaunchTask failed", e)
             processHandler.notifyTextAvailable("\n\nInstall APK failed. $e\n", ProcessOutputType.STDERR)
             false
         }

@@ -57,9 +57,7 @@ class JuggDeployerHelper(
         }
         val task = JuggDeployTask(project, installPathProvider, type, data)
 
-        // TODO ConsolePrinter
-        val consolePrinter = MockConsolePrinter(logger)
-        // TODO try ExecutionManager
+        val consolePrinter = ConsolePrinter(logger)
         val device = deployTargetManager.getDevice()
         val launchContext = LaunchContext(consolePrinter, device)
         val launchResult = task.run(launchContext)
@@ -97,17 +95,6 @@ class JuggDeployerHelper(
     override fun dispose() {
     }
 
-}
-
-class MockConsolePrinter(private val logger: Logger): ConsolePrinter {
-
-    override fun stdout(message: String) {
-        logger.info(message)
-    }
-
-    override fun stderr(message: String) {
-        logger.error(message)
-    }
 }
 
 /**

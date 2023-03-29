@@ -55,7 +55,7 @@ class CompileConsistencyTest {
         private fun initClasses(apkInfos: List<ApkInfo>) {
             assertEquals(1, apkInfos.size)
             val apkInfo = apkInfos.first()
-            val apkBytes = apkInfo.file.readBytes()
+            val apkBytes = apkInfo.files.first().file.readBytes()
             val parsedClasses = parseDexClasses(apkBytes)
             apkClasses.putAll(parsedClasses)
         }
@@ -269,7 +269,7 @@ class CompileConsistencyTest {
     }
 
     private fun compareOverlay(deployItem: DeployItem) {
-        val apk = jugg.deployTargetManager.getApks().first().file
+        val apk = jugg.deployTargetManager.getApks().first().files.first().apkFile
         val bytes = getOverlayBytesFromApk(deployItem, apk)
         OverlayComparator(bytes, deployItem.content).compare()
     }

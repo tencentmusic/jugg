@@ -187,7 +187,7 @@ class JuggDeployTask(
                     .map { file: ApkFileUnit -> file.apkFile }
                     .collect(Collectors.toList())
             } else {
-                ImmutableList.of(apkInfo.file)
+                ImmutableList.of(apkInfo.files.first().apkFile)
             }
         }
     }
@@ -247,6 +247,18 @@ class LaunchContext(
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
 }
+
+class ConsolePrinter(private val logger: Logger) {
+
+    fun stdout(message: String) {
+        logger.info(message)
+    }
+
+    fun stderr(message: String) {
+        logger.error(message)
+    }
+}
+
 
 /**
  * @see [com.android.tools.idea.run.tasks.LaunchResult]
