@@ -53,7 +53,9 @@ class JuggGradleCompileRunningTask(
     private fun showGreenDotOnRunToolWindow() {
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
-            toolWindowManager.getToolWindow("Run")?.let {
+            val runTooWindow = toolWindowManager.getToolWindow("Run") ?: return@invokeLater
+            runTooWindow.let {
+                it.isShowStripeButton = true
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
                 it.setIcon(icon)
             }
