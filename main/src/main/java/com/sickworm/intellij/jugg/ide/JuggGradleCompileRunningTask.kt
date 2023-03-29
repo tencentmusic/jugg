@@ -122,10 +122,10 @@ class JuggGradleCompileRunningTask(
             processHandler.notifyTextAvailable("Installing and launching app...\n", ProcessOutputType.STDOUT)
             if (installAndLaunch(result.compileOutputFile)) {
                 processHandler.notifyTextAvailable("\nApp launched.\n", ProcessOutputType.STDOUT)
+                notifyLaunched()
             } else {
                 failedAndActiveRunWindow()
             }
-            notifyLaunched()
         }
     }
 
