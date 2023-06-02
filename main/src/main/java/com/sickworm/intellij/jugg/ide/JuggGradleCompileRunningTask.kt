@@ -29,15 +29,21 @@ class JuggGradleCompileRunningTask(
     private val compileClient: IGradleCompileClient,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: ProcessHandler,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask"),
     private val installAndLaunchTask: (apkFile: File) -> Unit,
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg") {
 
+    var isRunning: Boolean = false
+        private set
+
+    var onFinishListener: () -> Unit = {}
 
     override fun run(indicator: ProgressIndicator) {
         try {
+            isRunning = true
             showGreenDotOnRunToolWindow()
             doRun(indicator)
+            isRunning = false
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)
@@ -47,6 +53,14 @@ class JuggGradleCompileRunningTask(
             processHandler.notifyTextAvailable("\nCompile stop unexpected.", ProcessOutputType.STDERR)
         } finally {
             stop(indicator)
+        }
+    }
+
+    fun cancel() {
+        if (!processHandler.isProcessTerminated) {
+            logger.warn("cancel")
+            processHandler.notifyTextAvailable("Try canceling process...", ProcessOutputType.STDERR)
+            processHandler.detachProcess()
         }
     }
 
@@ -148,6 +162,7 @@ class JuggGradleCompileRunningTask(
         if (!processHandler.isProcessTerminated) {
             processHandler.detachProcess()
         }
+        onFinishListener()
     }
 
     private fun installAndLaunch(apkFile: File): Boolean {

@@ -5,6 +5,8 @@ import com.android.tools.idea.run.ConsolePrinter
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
@@ -74,22 +76,53 @@ class JuggDeployerHelper(
         Disposer.register(this, it)
     }
 
+    @Volatile
+    private var currentTask: JuggGradleCompileRunningTask? = null
+    @Volatile
+    private var onFinishListener: (() -> Unit)? = null
+
     fun runFullBuildAndLaunch(settings: JuggGradleCompileOptions): ExecutionResult {
         val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
         val client = compileClientManager.getClient(settings.isRemoteCompile)
         val processHandler = SimpleProcessHandler {
             client.cancelAction(isByUser = false)
         }
-        consoleView.attachToProcess(processHandler)
-        val task = JuggGradleCompileRunningTask(project, client, settings, processHandler) { apkFile ->
+        val installTask = { apkFile: File ->
             val loggerWrapper = LoggerWrapper(processHandler, logger)
             val apkReader = ApkReader(apkFile, loggerWrapper)
             val apkInfo = apkReader.getApkInfo()
             deployTargetManager.setApks(listOf(apkInfo))
             runTask(JuggDeployData.forInstall(listOf(apkInfo)), true)
         }
-        ProgressManager.getInstance().run(task)
+
+        cancelCurrentTask {
+            onFinishListener = null
+            val task = JuggGradleCompileRunningTask(project, client, settings, processHandler, installTask)
+            logger.info("runFullBuildAndLaunch $task")
+            currentTask = task
+            task.onFinishListener = {
+                onFinishListener?.invoke()
+            }
+            consoleView.attachToProcess(processHandler)
+            ProgressManager.getInstance().run(task)
+        }
+
         return DefaultExecutionResult(consoleView, processHandler)
+    }
+
+    private fun cancelCurrentTask(onFinish: () -> Unit) {
+        val currentTask = currentTask
+        if (currentTask == null) {
+            onFinish()
+            return
+        }
+        if (!currentTask.isRunning) {
+            onFinish()
+            return
+        }
+        logger.info("cancelCurrentTask $currentTask")
+        currentTask.cancel()
+        onFinishListener = onFinish
     }
 
     override fun dispose() {
