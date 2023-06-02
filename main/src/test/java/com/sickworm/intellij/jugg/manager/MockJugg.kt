@@ -26,7 +26,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.ui.messages.MessagesService
-import com.intellij.openapi.util.Computable
 import com.intellij.pom.java.LanguageLevel
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
@@ -131,13 +130,13 @@ class MockJugg {
         if (shouldUpdateStateAsync) {
             Thread {
                 adbDeviceHelper.waitingForDeviceOfLaunchedApp(projectInfo.packageName)
-                juggManager.onActionUpdate()
+                juggManager.updateDeployState()
             }.start()
         }
 
         juggManager.deploy()
         waitingLaunchAppAndCheck()
-        juggManager.onActionUpdate()
+        juggManager.updateDeployState()
     }
 
     /**
@@ -145,7 +144,7 @@ class MockJugg {
      */
     fun dryFullCompile() {
         juggManager.initCompileAfterFullBuild()
-        juggManager.onActionUpdate()
+        juggManager.updateDeployState()
     }
 
     /**
@@ -191,7 +190,7 @@ class MockJugg {
             override fun runFullBuildAndLaunch(): DefaultExecutionResult {
                 Thread {
                     isGradleBuilding = true
-                    juggManager.onActionUpdate()
+                    juggManager.updateDeployState()
                 }.start()
 
                 GradleBuildHelper.appAssembleDebug()
@@ -200,7 +199,7 @@ class MockJugg {
 
                 Thread {
                     isGradleBuilding = false
-                    juggManager.onActionUpdate()
+                    juggManager.updateDeployState()
                 }.start()
 
                 return DefaultExecutionResult()
@@ -245,8 +244,7 @@ class MockJugg {
         fileChangesHandler = FileChangesHandler(project, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, logger)
-        juggDeployerHelper.installPathProvider = Computable<String> {
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { JuggStateListener.emptyImpl }, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
                 downloader.makeSureComponentIsInPlace()

@@ -24,6 +24,12 @@ object JuggLogger {
     }
 
     @Synchronized
+    fun stopListenProjectLog(project: Project, logger: Logger) {
+        val logHolder = ensure(project)
+        logHolder.logDispatcher.stopListenProjectLog(logger)
+    }
+
+    @Synchronized
     fun register(project: Project, logDir: File) {
         map.remove(project)
         map[project] = ProjectLogHolder(

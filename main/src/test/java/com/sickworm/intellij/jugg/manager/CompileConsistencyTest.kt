@@ -55,7 +55,7 @@ class CompileConsistencyTest {
         private fun initClasses(apkInfos: List<ApkInfo>) {
             assertEquals(1, apkInfos.size)
             val apkInfo = apkInfos.first()
-            val apkBytes = apkInfo.files.first().file.readBytes()
+            val apkBytes = apkInfo.files.first().apkFile.readBytes()
             val parsedClasses = parseDexClasses(apkBytes)
             apkClasses.putAll(parsedClasses)
         }

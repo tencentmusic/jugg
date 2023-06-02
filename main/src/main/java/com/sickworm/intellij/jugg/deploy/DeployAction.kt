@@ -41,7 +41,7 @@ class DeployAction(
             return
         }
 
-        val deployState = juggManager.onActionUpdate()
+        val deployState = juggManager.updateDeployState()
         currentText = deployState.msg
     }
 }

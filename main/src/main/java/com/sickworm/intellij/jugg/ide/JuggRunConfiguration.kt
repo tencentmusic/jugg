@@ -4,13 +4,16 @@ import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
 import com.intellij.execution.configurations.*
+import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import javax.swing.JComponent
 
@@ -111,8 +114,22 @@ class JuggRunProfileState(
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
         val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
-        // TODO use deploy
-        return juggManager.deployFull(juggGradleCompileOptions)
+        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+        val processHandler = SimpleProcessHandler()
+        consoleView.attachToProcess(processHandler)
+        loggerListener.processHandler = processHandler
+        JuggLogger.listenProjectLog(project, loggerListener)
+        processHandler.startNotify()
+
+        juggManager.cancelCurrentTask {
+            val task = juggManager.createRunningTask(juggGradleCompileOptions, processHandler)
+            ProgressManager.getInstance().run(task)
+        }
+
+        return DefaultExecutionResult(consoleView, processHandler)
     }
 
+    companion object {
+        private val loggerListener = ProcessHandlerLoggerWrapper(SimpleProcessHandler())
+    }
 }

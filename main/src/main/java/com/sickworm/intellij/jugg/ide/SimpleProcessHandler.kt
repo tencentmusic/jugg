@@ -1,0 +1,104 @@
+package com.sickworm.intellij.jugg.ide
+
+import com.intellij.execution.process.AnsiEscapeDecoder
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.process.ProcessOutputType
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.util.Key
+import org.apache.log4j.Level
+import java.io.OutputStream
+
+/**
+ * Implementation of ProcessHandler, handle detach and destroy process.
+ */
+class SimpleProcessHandler : ProcessHandler(),
+    AnsiEscapeDecoder.ColoredTextAcceptor {
+
+    private val myAnsiEscapeDecoder = AnsiEscapeDecoder()
+
+    var cancelAction: (() -> Unit)? = null
+
+    override fun destroyProcessImpl() {
+        detachProcessImpl()
+    }
+
+    override fun detachProcessImpl() {
+        cancelAction?.invoke()
+        notifyProcessTerminated(0)
+    }
+
+    override fun detachIsDefault() = true
+
+    override fun waitFor() = true
+
+    override fun waitFor(timeoutInMilliseconds: Long) = true
+
+    override fun getProcessInput(): OutputStream? {
+        return null
+    }
+
+    override fun notifyTextAvailable(text: String, outputType: Key<*>) {
+        myAnsiEscapeDecoder.escapeText(text, outputType, this)
+    }
+
+    override fun coloredTextAvailable(text: String, attributes: Key<*>) {
+        super.notifyTextAvailable(text, attributes)
+    }
+}
+
+/**
+ * Usage: Listen project log and output by ProcessHandler
+ */
+class ProcessHandlerLoggerWrapper(var processHandler: ProcessHandler): Logger() {
+
+    override fun isDebugEnabled(): Boolean {
+        return true
+    }
+
+    override fun debug(message: String) {
+    }
+
+    override fun debug(t: Throwable?) {
+    }
+
+    override fun debug(message: String, t: Throwable?) {
+    }
+
+    override fun info(message: String) {
+        processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
+    }
+
+    override fun info(message: String, t: Throwable?) {
+        processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDOUT)
+        if (t != null) {
+            processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDOUT)
+            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
+        }
+    }
+
+    override fun warn(message: String, t: Throwable?) {
+        processHandler.notifyTextAvailable("\n$message\n\n", ProcessOutputType.STDERR)
+        if (t != null) {
+            processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDERR)
+            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
+        }
+    }
+
+    override fun error(message: String, t: Throwable?, vararg details: String?) {
+        processHandler.notifyTextAvailable("\n$message\n\n", ProcessOutputType.STDERR)
+        if (t != null) {
+            processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDERR)
+            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
+        }
+        details.forEach {
+            processHandler.notifyTextAvailable(it.toString(), ProcessOutputType.STDERR)
+            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
+        }
+    }
+
+    @Suppress("UnstableApiUsage")
+    override fun setLevel(level: Level) {
+    }
+
+}
+

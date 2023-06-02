@@ -11,9 +11,17 @@ class LogDispatcher(
 
     private val loggers: MutableList<Logger> = loggersArg.toMutableList()
 
+    @Synchronized
     fun listenProjectLog(logger: Logger) {
         if (!loggers.contains(logger)) {
             loggers.add(logger)
+        }
+    }
+
+    @Synchronized
+    fun stopListenProjectLog(logger: Logger) {
+        if (loggers.contains(logger)) {
+            loggers.remove(logger)
         }
     }
 

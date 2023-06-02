@@ -147,15 +147,10 @@ class LocalGradleCompileClient(
 
     private fun printToStreamInfo(line: String) {
         logger.info(line)
-        terminalOutputListener.onOutput(line)
     }
 
     private fun printToStreamError(line: String, e: Exception? = null) {
         logger.warn(line, e)
-        terminalOutputListener.onOutputErr(line)
-        e?.let {
-            terminalOutputListener.onOutputErr(e.toString())
-        }
     }
 
     private fun printToStreamErrorIfCanceled(line: String, e: Exception? = null) {

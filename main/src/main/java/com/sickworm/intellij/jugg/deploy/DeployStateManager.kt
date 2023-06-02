@@ -10,8 +10,6 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.project.Project
 import java.lang.reflect.Field
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import java.util.concurrent.ExecutionException
 
 /**
  * Manage [JuggDeployState].
@@ -35,7 +33,7 @@ class DeployStateManager(
     /**
      * Invoke when project need to update [JuggDeployState].
      */
-    fun onActionUpdate(): JuggDeployState {
+    fun updateDeployState(): JuggDeployState {
         deployState = getNewDeployState()
         return deployState
     }
@@ -74,11 +72,6 @@ class IdeDeployStateHelper(
 ) : IIdeDeployStateHelper {
 
     override fun getIdeDeployState(): JuggDeployState {
-        val fullBuildState = detectCanFullBuild()
-        if (fullBuildState != JuggDeployState.READY) {
-            return fullBuildState
-        }
-
         val disableMessage = BaseAction.getDisableMessage(project)
         if (disableMessage != null) {
             return canNotIncrementalDeploy(disableMessage)
@@ -110,34 +103,6 @@ class IdeDeployStateHelper(
         toolTipField.isAccessible = true
         this.toolTipField = toolTipField
         return toolTipField
-    }
-
-
-    /**
-     * @see [com.android.tools.idea.run.ui.BaseAction]
-     */
-    private fun detectCanFullBuild(): JuggDeployState {
-        val configSettings = RunManager.getInstance(project).selectedConfiguration
-            ?: return canNotFullBuild(DisableMessage(
-                DisableMessage.DisableMode.DISABLED,
-                "no configuration selected",
-                "there is no configuration selected"
-            ))
-        val selectedRunConfig = configSettings.configuration
-        if (!isApplyChangesRelevant(selectedRunConfig)) {
-            return canNotFullBuild(DisableMessage(
-                DisableMessage.DisableMode.INVISIBLE, "unsupported configuration",
-                "the selected configuration is not supported"
-            ))
-        }
-        if (isExecutorStarting(project, selectedRunConfig)) {
-            return building(DisableMessage(
-                DisableMessage.DisableMode.DISABLED, "building and/or launching",
-                "the selected configuration is currently building and/or launching"
-            ))
-        }
-
-        return JuggDeployState.READY
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {
