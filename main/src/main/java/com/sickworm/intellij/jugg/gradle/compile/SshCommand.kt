@@ -62,14 +62,12 @@ class CompileProjectCommand(
 
 class FetchOutputCommand(
     outputApkName: String,
-    remoteToLocalIftConfigName: String,
+    remoteToLocalClasspathPath: String,
 ) : IftSyncCommand() {
 
     override val baseCommand: String = """\
 find_apk=${'$'}(find -name "$outputApkName" -print -quit) && \
-ft sync -s $remoteToLocalIftConfigName/ --put ${'$'}find_apk && \
-touch event.log && \
-ft sync -s $remoteToLocalIftConfigName/ --put event.log \
+ft sync -s $remoteToLocalClasspathPath/ --put ${'$'}find_apk \
 """
 
 }

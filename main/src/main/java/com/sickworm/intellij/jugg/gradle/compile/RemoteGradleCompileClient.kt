@@ -81,7 +81,10 @@ class RemoteGradleCompileClient(
         }
 
 
-        val fetchOutputCommand = FetchOutputCommand(gradleCompileSettings.outputApkName, gradleCompileSettings.remoteToLocalIftConfigName)
+        val fetchOutputCommand = FetchOutputCommand(
+            gradleCompileSettings.outputApkName,
+            gradleCompileSettings.remoteToLocalRootPath,
+        )
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
@@ -110,7 +113,7 @@ class RemoteGradleCompileClient(
 
         val fetchClasspathCommand = FetchClasspathCommand(
             gradleCompileSettings.remoteProjectPath,
-            gradleCompileSettings.remoteToLocalClasspathPath,
+            gradleCompileSettings.remoteToLocalRootPath,
             buildDirs
         )
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
