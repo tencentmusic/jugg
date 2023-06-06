@@ -185,8 +185,8 @@ class JuggManager @TestOnly constructor(
             return@task juggDeployerHelper.deploy(isInstall)
         }
         val fetchClasspathTask = task@{
-            // TODO
             // do it async
+            compileThread.submitSafe("initCompileAfterFullBuild", ::initCompileAfterFullBuild)
         }
         return JuggRunningTask(project, processHandler, compileTask, deployTask, fetchClasspathTask)
     }

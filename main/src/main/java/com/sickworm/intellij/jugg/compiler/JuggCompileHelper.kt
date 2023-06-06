@@ -49,11 +49,14 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
+        val deployState = deployStateManager.updateDeployState()
+        logger.info("Jugg deploy state: $deployState")
+
         if (!isForceInstall) {
             if (incrementalCompile()) {
                 return CompileTaskResult(isSuccess = true, isGradleCompile = false)
             } else {
-                logger.info("Not ready to incremental compile. Fallback to gradle compile.")
+                logger.info("Incremental compile not processed. Fallback to gradle compile.")
             }
         }
         val isSuccess = gradleCompile(options, processHandler, indicator)
@@ -79,7 +82,7 @@ class JuggCompilerHelper(
 
     @TestOnly
     fun incrementalCompile(): Boolean {
-        logger.info("Try incremental compile with state ${deployStateManager.deployState}.")
+        logger.info("Try incremental compile.")
         if (!deployStateManager.deployState.isReadyIncCompile) {
             return false
         }
@@ -91,7 +94,7 @@ class JuggCompilerHelper(
         // read all uncompiled files
         val uncompiledFiles = deployFileManager.getUncompiledFiles()
         if (uncompiledFiles.all { it.hasCompiledOnce }) {
-            logger.debug("All files has compiled at least once, skip compile")
+            logger.info("No files changes. Return.")
             return false
         }
 
@@ -124,7 +127,7 @@ class JuggCompilerHelper(
                 "failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
-        return true
+        return failedStates.isEmpty()
     }
 
     fun warnUp() {
