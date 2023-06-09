@@ -174,7 +174,7 @@ class JuggManager @TestOnly constructor(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
     ): JuggRunningTask {
-        val compileTask = task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
+        val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
             return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
         }
         val deployTask = task@{ isInstall: Boolean ->
