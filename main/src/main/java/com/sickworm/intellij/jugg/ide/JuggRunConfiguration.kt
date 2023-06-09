@@ -117,8 +117,6 @@ class JuggRunProfileState(
         val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
         val processHandler = SimpleProcessHandler()
         consoleView.attachToProcess(processHandler)
-        loggerListener.processHandler = processHandler
-        JuggLogger.listenProjectLog(project, loggerListener)
         processHandler.startNotify()
 
         juggManager.cancelCurrentTask {
@@ -127,9 +125,5 @@ class JuggRunProfileState(
         }
 
         return DefaultExecutionResult(consoleView, processHandler)
-    }
-
-    companion object {
-        private val loggerListener = ProcessHandlerLoggerWrapper(SimpleProcessHandler())
     }
 }

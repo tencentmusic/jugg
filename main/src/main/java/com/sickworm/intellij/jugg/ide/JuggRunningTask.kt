@@ -37,7 +37,9 @@ class JuggRunningTask(
         private set
 
     override fun run(indicator: ProgressIndicator) {
+        val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
         try {
+            JuggLogger.listenProjectLog(project, loggerListener)
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
@@ -50,6 +52,7 @@ class JuggRunningTask(
         } finally {
             stop(indicator)
             isRunning = false
+            JuggLogger.stopListenProjectLog(project, loggerListener)
         }
     }
 
