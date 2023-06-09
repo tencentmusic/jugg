@@ -73,6 +73,8 @@ data class JuggGradleCompileOptions(
 
     val remoteToLocalProjectSyncPath get() = "$remoteToLocalSyncPath/$projectNameHandleWhiteSpace"
 
+    val remoteToLocalProjectSyncClasspathPath get() = "$remoteToLocalSyncPath/$projectNameHandleWhiteSpace/$projectNameHandleWhiteSpace"
+
     companion object {
 
         fun fromOptions(

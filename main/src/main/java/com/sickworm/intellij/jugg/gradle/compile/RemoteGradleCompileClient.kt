@@ -120,7 +120,7 @@ class RemoteGradleCompileClient(
             printToStreamErrorIfCanceled("Fetch classpath failed, please check your iFt client is opened.")
             return null
         }
-        return File(gradleCompileSettings.remoteToLocalProjectIftPath)
+        return File(gradleCompileSettings.remoteToLocalProjectSyncClasspathPath)
     }
 
     @Volatile

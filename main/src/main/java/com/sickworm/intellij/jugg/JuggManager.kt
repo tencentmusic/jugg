@@ -239,7 +239,7 @@ class JuggManager @TestOnly constructor(
             // wrap local CompileContextInfo to CompileContextInfo fetched from remote
             compileContextInfo = compileContextInfo.copy(
                 moduleBuildPathInfos = compileContextInfo.moduleBuildPathInfos.mapValues {
-                    ModuleBuildPathInfo(classpathRootDir, it.value.modulePathRelative)
+                    ModuleBuildPathInfo(classpathRootDir, File(pathManager.projectDir, it.value.modulePathRelative.path))
                 }
             )
         }
