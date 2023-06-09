@@ -13,7 +13,6 @@ import java.io.PrintWriter
 import java.io.StringWriter
 
 
-@Suppress("DialogTitleCapitalization")
 class JuggGradleCompileTask(
     private val project: Project,
     private val compileClient: IGradleCompileClient,

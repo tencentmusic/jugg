@@ -53,7 +53,7 @@ class DeployContextRecoverInfo(
 /**
  * All incremental compile dependencies that we need.
  */
-class CompileContextInfo(
+data class CompileContextInfo(
     val apkInfos: List<ApkInfo>,
     val moduleBuildPathInfos: Map<String, ModuleBuildPathInfo>,
     val thirdPartyDependencies: List<String>,

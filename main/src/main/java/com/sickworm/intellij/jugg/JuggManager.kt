@@ -182,7 +182,10 @@ class JuggManager @TestOnly constructor(
         }
         val fetchClasspathTask = task@{
             // do it async
-            runTaskSafe("Init Incremental Compile", ::initIncrementalCompileAfterFullBuild)
+            fun action() {
+                initIncrementalCompileAfterFullBuild(options.isRemoteCompile)
+            }
+            runTaskSafe("Init Incremental Compile", ::action)
         }
         return JuggRunningTask(project, processHandler, compileTask, deployTask, fetchClasspathTask)
     }
@@ -207,9 +210,9 @@ class JuggManager @TestOnly constructor(
     }
 
     @TestOnly
-    fun initIncrementalCompileAfterFullBuild() {
-        logger.debug("Init compile after full build")
-        val (costTime, compileContextInfo) = measureTimeMillisWithResult {
+    fun initIncrementalCompileAfterFullBuild(isRemoteCompile: Boolean = false) {
+        logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
+        var (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
             val apkInfos = deployTargetManager.getApks()
             if (apkInfos.isEmpty()) {
                 logger.warn("Init compile failed for no apk found")
@@ -221,6 +224,25 @@ class JuggManager @TestOnly constructor(
             )
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
+
+        if (isRemoteCompile) {
+            logger.info("Fetching remote classpath...")
+            val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
+                juggCompilerHelper.fetchClasspathResult(true,
+                    compileContextInfo.moduleBuildPathInfos.values.toList())
+            }
+            logger.debug("fetchClasspathResult cost ${costTime2}ms")
+            if (classpathRootDir == null || !classpathRootDir.exists()) {
+                logger.warn("Fetch remote classpath failed, please check log for details.")
+                return
+            }
+            // wrap local CompileContextInfo to CompileContextInfo fetched from remote
+            compileContextInfo = compileContextInfo.copy(
+                moduleBuildPathInfos = compileContextInfo.moduleBuildPathInfos.mapValues {
+                    ModuleBuildPathInfo(classpathRootDir, it.value.modulePathRelative)
+                }
+            )
+        }
 
         initCompile(compileContextInfo)
     }

@@ -155,7 +155,7 @@ data class ModuleInfo(
 
 class ModuleBuildPathInfo(
     /** project root dir */
-    val projectRootDir: File,
+    private val projectRootDir: File,
     /** module root dir */
     private val moduleRootDir: File,
 ) {

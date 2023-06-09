@@ -102,14 +102,13 @@ class RemoteGradleCompileClient(
         return GradleCompileResult.success(apkFile)
     }
 
-    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
+    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
         isCanceled = false
         val channel = channel
         val gradleCompileSettings = juggGradleCompileOptions
         if (channel == null || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
         }
-
 
         val fetchClasspathCommand = FetchClasspathCommand(
             gradleCompileSettings.remoteProjectPath,
@@ -119,9 +118,9 @@ class RemoteGradleCompileClient(
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
         if (fetchClasspathResult != 0) {
             printToStreamErrorIfCanceled("Fetch classpath failed, please check your iFt client is opened.")
-            return false
+            return null
         }
-        return true
+        return File(gradleCompileSettings.remoteToLocalProjectIftPath)
     }
 
     @Volatile

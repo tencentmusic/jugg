@@ -36,7 +36,7 @@ interface IGradleCompileClient : Disposable {
 
     fun compileAndFetchResult() : GradleCompileResult
 
-    fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean
+    fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File?
 
     fun cancelAction(isByUser: Boolean)
 

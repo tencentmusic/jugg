@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.annotations.TestOnly
+import java.io.File
 
 /**
  * TODO
@@ -134,6 +135,15 @@ class JuggCompilerHelper(
     @Synchronized
     fun warnUp() {
         juggCompiler?.warnUp()
+    }
+
+    /**
+     * Fetch classpath from gradle compile client.
+     * @return classpath root dir
+     */
+    @Synchronized
+    fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>): File? {
+        return gradleCompileClientManager.getClient(isRemote).fetchClasspathResult(buildDirs)
     }
 
     override fun dispose() {

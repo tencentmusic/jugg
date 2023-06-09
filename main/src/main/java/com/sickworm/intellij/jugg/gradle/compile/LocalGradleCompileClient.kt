@@ -53,10 +53,9 @@ class LocalGradleCompileClient(
         return GradleCompileResult.success(apkFile)
     }
 
-    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): Boolean {
+    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File {
         isCanceled = false
-        // do nothing
-        return true
+        return File(project.basePath!!)
     }
 
     @Volatile
