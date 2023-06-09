@@ -18,15 +18,8 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 class DeployTargetManager(
     private val project: Project,
 ): IDeployTargetManager {
-    private val logger = JuggLogger.getInstance(project, "DeployTargetManager")
 
-    // TODO remove after refactor test
-    override fun runFullBuildAndLaunch(): ExecutionResult {
-        // not launched by JuggRunConfiguration
-        val (runConfigAndSettings, _) = getRunConfig()
-        ProgramRunnerUtil.executeConfiguration(runConfigAndSettings, DefaultRunExecutor.getRunExecutorInstance())
-        return DefaultExecutionResult()
-    }
+    private val logger = JuggLogger.getInstance(project, "DeployTargetManager")
 
     private var apks: List<ApkInfo> = emptyList()
 

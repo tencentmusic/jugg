@@ -43,6 +43,7 @@ class JuggCompilerHelper(
         Disposer.register(this, it)
     }
 
+    @Synchronized
     fun compile(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
@@ -130,6 +131,7 @@ class JuggCompilerHelper(
         return failedStates.isEmpty()
     }
 
+    @Synchronized
     fun warnUp() {
         juggCompiler?.warnUp()
     }

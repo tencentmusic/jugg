@@ -10,11 +10,6 @@ import com.intellij.execution.ExecutionResult
 interface IDeployTargetManager {
 
     /**
-     * Click the "Run" button for current selected configuration
-     */
-    fun runFullBuildAndLaunch(): ExecutionResult
-
-    /**
      * Set apks from full build result or from recover history
      */
     fun setApks(apks: List<ApkInfo>)

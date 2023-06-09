@@ -143,7 +143,7 @@ class MockJugg {
      * Just simply mark changes as full compiled. Use this we don't need an android device to run tests.
      */
     fun dryFullCompile() {
-        juggManager.initCompileAfterFullBuild()
+        juggManager.initIncrementalCompileAfterFullBuild()
         juggManager.updateDeployState()
     }
 
@@ -187,23 +187,6 @@ class MockJugg {
         juggStateListener = mock(JuggStateListener::class.java)
 
         deployTargetManager = object: IDeployTargetManager {
-            override fun runFullBuildAndLaunch(): DefaultExecutionResult {
-                Thread {
-                    isGradleBuilding = true
-                    juggManager.updateDeployState()
-                }.start()
-
-                GradleBuildHelper.appAssembleDebug()
-                juggDeployerHelper.runTask(JuggDeployData(projectInfo.apkInfos, emptyList(), emptyList(), emptyList(), emptyList()), true)
-                deployTargetManager.restartApp()
-
-                Thread {
-                    isGradleBuilding = false
-                    juggManager.updateDeployState()
-                }.start()
-
-                return DefaultExecutionResult()
-            }
 
             override fun setApks(apks: List<ApkInfo>) {
             }
@@ -320,7 +303,6 @@ class MockJugg {
             fileChangesHandler = fileChangesHandler,
             fileChangesDetector = fileChangesDetector,
             deployTargetManager = deployTargetManager,
-            compileThread = SyncExecutorService(),
             compileContextManager = compileContextManager,
             deployFileManager = deployFileManager,
             juggDeployerHelper = juggDeployerHelper,

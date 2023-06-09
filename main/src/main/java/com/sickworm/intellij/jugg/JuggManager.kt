@@ -1,18 +1,17 @@
 package com.sickworm.intellij.jugg
 
-import com.intellij.execution.DefaultExecutionResult
-import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
@@ -22,8 +21,6 @@ import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
 
@@ -31,7 +28,6 @@ class JuggManager @TestOnly constructor(
     private val project: Project,
     val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
-    private val compileThread: ExecutorService = Executors.newSingleThreadExecutor(),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
@@ -57,7 +53,7 @@ class JuggManager @TestOnly constructor(
 
     fun init() {
         Disposer.register(this, juggCompilerHelper)
-        compileThread.submitSafe("InitProject", ::initProject)
+        runTaskSafe("Init Project", ::initProject)
     }
 
     private fun initProject() {
@@ -150,7 +146,7 @@ class JuggManager @TestOnly constructor(
         })
 
         if (JuggSettings.compileOnSave) {
-            compileThread.submitSafe("Compile", ::compileChanges)
+            runTaskSafe("Compile Changes", ::compileChanges)
         }
     }
 
@@ -178,7 +174,7 @@ class JuggManager @TestOnly constructor(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
     ): JuggRunningTask {
-        val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
+        val compileTask = task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
             return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
         }
         val deployTask = task@{ isInstall: Boolean ->
@@ -186,7 +182,7 @@ class JuggManager @TestOnly constructor(
         }
         val fetchClasspathTask = task@{
             // do it async
-            compileThread.submitSafe("initCompileAfterFullBuild", ::initCompileAfterFullBuild)
+            runTaskSafe("Init Incremental Compile", ::initIncrementalCompileAfterFullBuild)
         }
         return JuggRunningTask(project, processHandler, compileTask, deployTask, fetchClasspathTask)
     }
@@ -210,17 +206,8 @@ class JuggManager @TestOnly constructor(
         TODO() // remove
     }
 
-    private fun checkDeviceAvailable(): Boolean {
-        return try {
-            deployTargetManager.getDevice()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
     @TestOnly
-    fun initCompileAfterFullBuild() {
+    fun initIncrementalCompileAfterFullBuild() {
         logger.debug("Init compile after full build")
         val (costTime, compileContextInfo) = measureTimeMillisWithResult {
             val apkInfos = deployTargetManager.getApks()
@@ -268,25 +255,38 @@ class JuggManager @TestOnly constructor(
 
     private fun warnUpCompiler() {
         logger.debug("going to warn up compiler")
-        compileThread.submitSafe("WarnUpCompiler", ::doWarnUpCompiler)
+        runTaskSafe("Warn Up Compiler", ::doWarnUpCompiler)
     }
 
     private fun doWarnUpCompiler() {
         juggCompilerHelper.warnUp()
     }
 
-    private fun ExecutorService.submitSafe(jobName: String, task: Runnable) {
-        submit {
-            try {
-                val startTime = System.currentTimeMillis()
-                logger.debug("job <$jobName> start")
-                task.run()
-                val costTime = System.currentTimeMillis() - startTime
-                logger.debug("job <$jobName> finished, cost ${costTime}ms")
-            } catch (e: Throwable) {
-                logger.error("job <$jobName> failed, try clicking reset button if error still occurred", e)
+    private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
+        val task = object : Task.Backgroundable(project, jobName) {
+            override fun run(indicator: ProgressIndicator) {
+                synchronized(this@JuggManager) {
+                    try {
+                        val startTime = System.currentTimeMillis()
+                        logger.debug("job <$jobName> start")
+                        if (isNeedShowIndicator) {
+                            indicator.text = "Jugg-$jobName..."
+                            indicator.isIndeterminate = true
+                        }
+                        action.run()
+                        val costTime = System.currentTimeMillis() - startTime
+                        logger.debug("job <$jobName> finished, cost ${costTime}ms")
+                    } catch (e: Throwable) {
+                        logger.error("job <$jobName> failed", e)
+                    } finally {
+                        if (isNeedShowIndicator) {
+                            indicator.stop()
+                        }
+                    }
+                }
             }
         }
+        ProgressManager.getInstance().run(task)
     }
 
     override fun dispose() {
