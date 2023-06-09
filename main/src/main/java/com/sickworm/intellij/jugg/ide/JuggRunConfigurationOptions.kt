@@ -69,7 +69,9 @@ data class JuggGradleCompileOptions(
     /** ift path, not local path */
     val localProjectIftPath get() = "$localToRemoteIftConfigName/$projectNameHandleWhiteSpace"
     val remoteProjectPath get() = "/root/remote/$projectNameHandleWhiteSpace"
-    val remoteToLocalRootPath get() = "$remoteToLocalIftConfigName/$projectNameHandleWhiteSpace"
+    val remoteToLocalProjectIftPath get() = "$remoteToLocalIftConfigName/$projectNameHandleWhiteSpace"
+
+    val remoteToLocalProjectSyncPath get() = "$remoteToLocalSyncPath/$projectNameHandleWhiteSpace"
 
     companion object {
 

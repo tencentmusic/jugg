@@ -83,7 +83,7 @@ class RemoteGradleCompileClient(
 
         val fetchOutputCommand = FetchOutputCommand(
             gradleCompileSettings.outputApkName,
-            gradleCompileSettings.remoteToLocalRootPath,
+            gradleCompileSettings.remoteToLocalProjectIftPath,
         )
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
@@ -91,11 +91,11 @@ class RemoteGradleCompileClient(
             return GradleCompileResult.failed(isCanceled)
         }
 
-        val apkFile = File(gradleCompileSettings.remoteToLocalSyncPath)
+        val apkFile = File(gradleCompileSettings.remoteToLocalProjectSyncPath)
             .findFilesRecursively(gradleCompileSettings.outputApkName)
         if (apkFile == null) {
             printToStreamErrorIfCanceled("find apk name with pattern '${gradleCompileSettings.outputApkName}' " +
-                    "in ${gradleCompileSettings.remoteToLocalSyncPath} failed, " +
+                    "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
             return GradleCompileResult.failed(isCanceled)
         }
@@ -113,7 +113,7 @@ class RemoteGradleCompileClient(
 
         val fetchClasspathCommand = FetchClasspathCommand(
             gradleCompileSettings.remoteProjectPath,
-            gradleCompileSettings.remoteToLocalRootPath,
+            gradleCompileSettings.remoteToLocalProjectIftPath,
             buildDirs
         )
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
