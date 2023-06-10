@@ -292,7 +292,7 @@ class JuggManager @TestOnly constructor(
                         val startTime = System.currentTimeMillis()
                         logger.debug("job <$jobName> start")
                         if (isNeedShowIndicator) {
-                            indicator.text = "Jugg-$jobName..."
+                            indicator.text = "Jugg: $jobName..."
                             indicator.isIndeterminate = true
                         }
                         action.run()
