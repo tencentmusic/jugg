@@ -6,12 +6,8 @@ import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.idea.run.*
-import com.android.tools.idea.run.editor.DeployTargetState
 import com.android.utils.ILogger
 import com.intellij.openapi.project.Project
-import org.apache.maven.artifact.versioning.ComparableVersion
-import org.jetbrains.android.facet.AndroidFacet
-import java.io.File
 
 /**
  * Compat for Android Studio Deployer API
@@ -50,5 +46,7 @@ interface IAsDeployerCompat {
     ): OverlayId
 
     fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider
+
+    fun getDisableMessage(project: Project): String?
 }
 

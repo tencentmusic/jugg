@@ -24,11 +24,11 @@ object AsDeployerCompat : IAsDeployerCompat {
                 try {
                     return method.invoke(priorityImpl.impl.value, *args)
                 } catch (e: InvocationTargetException) {
-                    if (e.targetException !is NoSuchMethodError) {
+                    if (!e.targetException.isCompatError) {
                         throw e.targetException
                     }
 
-                    logger.debug("try priorityImpl with NoSuchMethodError, try higher version impl")
+                    logger.debug("try priorityImpl with ${e.targetException::class.simpleName}, try higher version impl")
 
                     // try higher version impl
                     compatImplList
@@ -39,10 +39,10 @@ object AsDeployerCompat : IAsDeployerCompat {
                                 logger.debug("try ${it.ideVersion.name} API success, return")
                                 return result
                             } catch (e: InvocationTargetException) {
-                                if (e.targetException !is NoSuchMethodError) {
+                                if (!e.targetException.isCompatError) {
                                     throw e.targetException
                                 }
-                                logger.debug("try ${it.ideVersion.name} API with NoSuchMethodError")
+                                logger.debug("try ${it.ideVersion.name} API with ${e.targetException::class.simpleName}")
                             }
                         }
 
@@ -52,6 +52,12 @@ object AsDeployerCompat : IAsDeployerCompat {
             }
         }) as IAsDeployerCompat
 
+    private val Throwable.isCompatError: Boolean get() {
+        return this is NoSuchMethodError
+                || this is NoSuchFieldError
+                || this is NoClassDefFoundError
+    }
+
     private lateinit var priorityImpl : CompatImpl
 
     /**
@@ -59,16 +65,16 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
+            IdeVersion("Android Studio Latest", "IA", "223.8836.35"),
+            lazy { LatestAsDeployerCompat() },
+        ),
+        CompatImpl(
             IdeVersion("Android Studio Giraffe", "IA", "223.7571.182"),
             lazy { GiraffeAsDeployerCompat() },
         ),
         CompatImpl(
             IdeVersion("Android Studio Chipmunk", "IA", "212.5712.43"),
             lazy { ChipmunkAsDeployerCompat() }
-        ),
-        CompatImpl(
-            IdeVersion("Android Studio 4.1.2", "IA", "211.7442.40"),
-            lazy { V41AsDeployerCompat() },
         ),
     )
 
@@ -94,7 +100,7 @@ object AsDeployerCompat : IAsDeployerCompat {
             val compatImpl = compatImplList.last()
             impl = compatImpl
             logger.warn("Bad! Deploy version lower than ${compatImpl.ideVersion}, use this for compat, good luck.")
-            V41AsDeployerCompat()
+            ChipmunkAsDeployerCompat()
         }
         this.priorityImpl = impl
     }
@@ -148,6 +154,10 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
         return impl.toApkProvider(apkInfos)
+    }
+
+    override fun getDisableMessage(project: Project): String? {
+        return impl.getDisableMessage(project)
     }
 }
 

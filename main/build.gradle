@@ -70,9 +70,9 @@ dependencies {
     implementation 'com.jcraft:jsch:0.1.55'
 
     implementation project(':deploy_compat:interface')
-    implementation project(':deploy_compat:v_412')
     implementation project(':deploy_compat:v_chipmunk')
     implementation project(':deploy_compat:v_giraffe')
+    implementation project(':deploy_compat:v_latest_unstable')
 
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:3.3.3"

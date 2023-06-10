@@ -71,7 +71,7 @@ class JuggDeployerHelper(
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
-                logger.info("Installing APK... ${apks.firstOrNull()?.file?.absolutePath}")
+                logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
                 val deployData = JuggDeployData.forInstall(apks)
                 runTask(deployData, true)
             } else {
