@@ -285,7 +285,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
-        val task = object : Task.Backgroundable(project, jobName) {
+        object : Task.Backgroundable(project, jobName) {
             override fun run(indicator: ProgressIndicator) {
                 synchronized(this@JuggManager) {
                     try {
@@ -307,8 +307,7 @@ class JuggManager @TestOnly constructor(
                     }
                 }
             }
-        }
-        ProgressManager.getInstance().run(task)
+        }.setCancelText("Jugg: Stopping $jobName...").queue();
     }
 
     override fun dispose() {
