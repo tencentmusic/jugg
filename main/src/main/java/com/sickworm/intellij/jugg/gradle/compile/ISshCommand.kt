@@ -24,6 +24,10 @@ interface ISshCommand {
      */
     fun hasFinishWithResult(terminalOutputLine: String): Int?
 
+    /**
+     * @return should interrupt like receiving user input Username:, Pin+Token:
+     */
+    fun shouldInterrupted(currentChar: Int, buffer: StringBuilder): Int? = null
 }
 
 abstract class BaseSshCommand : ISshCommand {

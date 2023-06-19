@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import java.io.File
 
 abstract class IftSyncCommand : BaseSshCommand() {
 
@@ -41,6 +40,15 @@ abstract class IftSyncCommand : BaseSshCommand() {
         return null
     }
 
+    override fun shouldInterrupted(currentChar: Int, buffer: StringBuilder): Int? {
+        if (currentChar != ':'.code) {
+            return null
+        }
+        if (buffer.startsWith("Username:") || buffer.startsWith("Pin+Token:")) {
+            return IGradleCompileClient.Error.ERROR_NEED_LOGIN
+        }
+        return null
+    }
 }
 
 class SyncFileCommand(

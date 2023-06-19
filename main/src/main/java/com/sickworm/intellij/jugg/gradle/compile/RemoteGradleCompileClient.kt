@@ -68,7 +68,10 @@ class RemoteGradleCompileClient(
 
         val syncFileCommand = SyncFileCommand(gradleCompileSettings.localProjectIftPath, gradleCompileSettings.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
-        if (syncFileResult != 0) {
+        if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN) {
+            printToStreamErrorIfCanceled("iFt needs login, please use terminal to login with Username and Pin+Token first.")
+            return GradleCompileResult.failed(isCanceled)
+        } else if (syncFileResult != 0) {
             printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
             return GradleCompileResult.failed(isCanceled)
         }
@@ -148,7 +151,7 @@ class RemoteGradleCompileClient(
         val buffer = StringBuilder()
         val bufferedInputStream = BufferedInputStream(channel.inputStream)
         val result: Int
-        while (true) {
+        whileRoot@while (true) {
             buffer.setLength(0)
             var line: String
             while (true) {
@@ -158,6 +161,11 @@ class RemoteGradleCompileClient(
                     break
                 } else {
                     buffer.append(code.toChar())
+                }
+                val interruptCode = command.shouldInterrupted(code, buffer)
+                if (interruptCode != null) {
+                    result = interruptCode
+                    break@whileRoot
                 }
             }
             if (line.isNotEmpty()) {
