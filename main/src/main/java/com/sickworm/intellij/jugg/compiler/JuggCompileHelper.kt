@@ -23,9 +23,6 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
-/**
- * TODO
- */
 class JuggCompilerHelper(
     private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
@@ -90,7 +87,8 @@ class JuggCompilerHelper(
         }
 
         val compiler = juggCompiler?: run {
-            throw JuggInternalException.compilerNotInit()
+            logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
+            return false
         }
 
         // read all uncompiled files

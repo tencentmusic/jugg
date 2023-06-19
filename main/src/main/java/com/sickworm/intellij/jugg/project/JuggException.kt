@@ -53,9 +53,6 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun combineTaskFailed() =
             JuggInternalException("Output dir not matched when combining CompileTask.")
 
-        fun compilerNotInit() =
-            JuggInternalException("Compiler not init, which should not happened in logic.")
-
         fun compilerContextNotInit() =
             JuggInternalException("Compiler context not init, which should not happened in logic.")
 
