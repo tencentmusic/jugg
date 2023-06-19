@@ -58,14 +58,14 @@ class JuggManager @TestOnly constructor(
 
     private fun initProject() {
         try {
+            logger.info("Create run configuration...")
+            createRunConfiguration()
             logger.info("Reading project structure...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             compileContextManager.initProjectInfo()
-            logger.debug("Init deploy history...")
+            logger.info("Init deploy history...")
             recoverDeployContext()
-            logger.debug("Create run configuration...")
-            createRunConfiguration()
-            logger.debug("Start jugg finished.")
+            logger.info("Start jugg finished.")
         } finally {
             updateDeployState()
         }
