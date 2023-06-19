@@ -4,26 +4,31 @@ import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
 import org.objectweb.asm.*
+import java.util.LinkedList
 
 /**
  * A dex class structure parsed from .dex file.
  */
-class ClassNode(private val node: DexClassNode) {
+class ClassNode(node: DexClassNode, isKeepNode: Boolean = false) {
 
-    val className get() = node.className.convertSigFormatToPackage()
+    val className = node.className.convertSigFormatToPackage()
 
-    val methods: List<MethodNode> get() = node.methods?.map { MethodNode(it) }?: emptyList()
+    val methods: List<MethodNode> = node.methods?.map { MethodNode(it) }?: emptyList()
 
-    val fields: List<FieldNode> get() = node.fields?.map { FieldNode(it) }?: emptyList()
+    val fields: List<FieldNode> = node.fields?.map { FieldNode(it) }?: emptyList()
 
-    val interfaceNames: Array<String> get() = node.interfaceNames?: emptyArray()
+    val interfaceNames: List<String> = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList()
 
-    val superClass: String get() = node.superClass
+    val superClass: String = ClassStringPool[node.superClass]
+
+    val node: DexClassNode? = if (isKeepNode) node else null
 
     /**
      * dump class structure by ASM, without private methods fields and actual code
      */
     fun dumpClassStub(): ByteArray {
+        node!!
+
         val cw = ClassWriter(0)
         // class
         cw.visit(
@@ -113,9 +118,12 @@ class ClassNode(private val node: DexClassNode) {
 /**
  * A dex method structure parsed from .dex file.
  */
-class MethodNode(private val node: DexMethodNode) {
+class MethodNode(node: DexMethodNode) {
 
-    val signature get() = node.method.toString()
+    private val name = ClassStringPool[node.method.name]
+    private val desc = ClassStringPool[node.method.desc]
+
+    val signature get() = "${name}${desc}"
 
     override fun equals(other: Any?): Boolean {
         if (other !is MethodNode) {
@@ -136,9 +144,13 @@ class MethodNode(private val node: DexMethodNode) {
 /**
  * A dex field structure parsed from .dex file.
  */
-class FieldNode(private val node: DexFieldNode) {
+class FieldNode(node: DexFieldNode) {
 
-    val signature get() = "${node.access} ${node.field.owner} ${node.field.name} ${node.field.type}"
+    private val access = node.access
+    private val name = ClassStringPool[node.field.name]
+    private val type = ClassStringPool[node.field.type]
+
+    val signature get() = "$access $name $type"
 
     override fun equals(other: Any?): Boolean {
         if (other !is FieldNode) {
@@ -153,5 +165,20 @@ class FieldNode(private val node: DexFieldNode) {
 
     override fun hashCode(): Int {
         return signature.hashCode()
+    }
+}
+
+/** For save memory for same string but different instance */
+object ClassStringPool {
+
+    private val stringPool = mutableMapOf<String, String>()
+
+    operator fun get(string: String): String {
+        val cacheString = stringPool[string]
+        if (cacheString != null) {
+            return cacheString
+        }
+        stringPool[string] = string
+        return string
     }
 }

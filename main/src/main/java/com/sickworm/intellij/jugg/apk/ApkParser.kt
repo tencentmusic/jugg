@@ -22,17 +22,10 @@ class ApkParser {
 
     private fun parseCode(bytes: ByteArray, isSkipCode: Boolean): Map<String, ClassNode> {
         val reader: BaseDexFileReader = MultiDexFileReader.open(bytes)
-        val visitor = DexFileNode()
+        val visitor = DexFileNodeCollector()
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
-
-        val classes = mutableMapOf<String, ClassNode>()
-        visitor.clzs.forEach {
-            val classNode = ClassNode(it)
-            classes[classNode.className] = classNode
-        }
-
-        return classes
+        return visitor.getClasses()
     }
 
     private fun parseOverlays(apkFile: File): Map<String, JuggFileInfo> {

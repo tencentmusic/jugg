@@ -1,9 +1,11 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.apk.ApkParser
-import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.compiler.ParsedApk
+import com.sickworm.intellij.jugg.mock.GradleBuildHelper
+import com.sickworm.intellij.jugg.mock.projectInfo
 import org.junit.Test
+import java.lang.management.ManagementFactory
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -96,5 +98,43 @@ class BuildDemoApkTest {
         if (v < 1024) return "$v B"
         val z = (63 - java.lang.Long.numberOfLeadingZeros(v)) / 10
         return String.format("%.1f %sB", v.toDouble() / (1L shl z * 10), " KMGTPE"[z])
+    }
+
+    @Test
+    fun testParseApk() {
+        println("testApkStructure start")
+        System.gc()
+        JVMemorySize.printMemory()
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo, true)
+        System.gc()
+        println("testApkStructure end")
+        JVMemorySize.printMemory()
+
+        println(parsedApk)
+    }
+}
+
+
+object JVMemorySize {
+
+    fun printMemory() {
+        // 获取MemoryMXBean实例
+        val memoryMXBean = ManagementFactory.getMemoryMXBean()
+
+        // 获取堆内存使用情况
+        val heapMemoryUsage = memoryMXBean.heapMemoryUsage
+        println("Heap Memory:")
+        println("   - Initial: " + heapMemoryUsage.init / 1024 / 1024 + "MB")
+        println("   - Used: " + heapMemoryUsage.used / 1024 / 1024 + "MB")
+        println("   - Committed: " + heapMemoryUsage.committed / 1024 / 1024 + " MB")
+        println("   - Max: " + heapMemoryUsage.max / 1024 / 1024 + "MB")
+
+        // 获取非堆内存使用情况
+        val nonHeapMemoryUsage = memoryMXBean.nonHeapMemoryUsage
+        println("Non-Heap Memory:")
+        println("   - Initial: " + nonHeapMemoryUsage.init / 1024 / 1024 + "MB")
+        println("   - Used: " + nonHeapMemoryUsage.used / 1024 / 1024 + "MB")
+        println("   - Committed: " + nonHeapMemoryUsage.committed / 1024 / 1024 + "MB")
+        println("   - Max: " + nonHeapMemoryUsage.max / 1024 / 1024 + "MB")
     }
 }

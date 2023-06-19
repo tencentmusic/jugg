@@ -27,8 +27,8 @@ class ClassNodeComparator(
         // the order of these data is basically the same
 
         // compare interface
-        val addedInterfaces = newClassNode.interfaceNames.toLinkedList()
-        val deletedInterfaces = oldClassNode.interfaceNames.toLinkedList()
+        val addedInterfaces = LinkedList(newClassNode.interfaceNames)
+        val deletedInterfaces = LinkedList(oldClassNode.interfaceNames)
         removeUnion(addedInterfaces, deletedInterfaces)
 
         // compare field
@@ -70,14 +70,6 @@ class ClassNodeComparator(
                     }
                 }
             }
-        }
-
-        private fun <T> Array<out T>.toLinkedList(): LinkedList<T> {
-            val list = LinkedList<T>()
-            this.forEach {
-                list.add(it)
-            }
-            return list
         }
     }
 }
