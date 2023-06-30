@@ -8,7 +8,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
 import java.io.File
-import kotlin.io.path.relativeTo
 
 /**
  * Manage compile context build files, e.g. apk, classpath, etc.
@@ -22,7 +21,7 @@ class CompileContextDb(
     private val completeFlagFile = File(dbDir, "complete_flag")
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
-    private val thirdPartiesDirFile = File(dbDir, "third_parties")
+    private val thirdPartiesJsonFile = File(dbDir, "third_parties.json")
     private val moduleBuildPathDirFile = File(dbDir, "module_builds")
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
@@ -34,7 +33,9 @@ class CompileContextDb(
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>
     ): CompileContextInfo {
+        // remove complete flag first
         completeFlagFile.delete()
+
         dbDir.deleteRecursively()
 
         // save apk info
@@ -79,35 +80,22 @@ class CompileContextDb(
         // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
         val thirdPartyDependenciesDir = File("$projectDir/.idea/libraries")
         val thirdPartyDependencies = IntellijLibraryConfigParser(thirdPartyDependenciesDir, projectDir.absolutePath).parse()
+
+        thirdPartiesJsonFile.delete()
         if (thirdPartyDependencies.isNullOrEmpty()) {
             logger.error("No third party lib found")
+        } else {
+            val text = GsonBuilder().setPrettyPrinting().create().toJson(thirdPartyDependencies)
+            thirdPartiesJsonFile.writeText(text, Charsets.UTF_8)
         }
-        val copyThirdPartyDependencies = thirdPartyDependencies?.mapNotNull {
-            val file = File(it)
-            if (!file.exists()) {
-                return@mapNotNull null
-            }
 
-            var relativeIndex = file.path.indexOf("files-2.1") // it's a gradle cache
-            if (relativeIndex >= 0) {
-                relativeIndex += "files-2.1".length + 1
-            } else {
-                val root = file.toPath().root // remove root path. e.g. "/" in linux-like system or "D:\" in windows system
-                relativeIndex = root?.toString()?.length ?: 0
-            }
-            val relativePath = file.path.substring(relativeIndex)
-            val copyFile = File(thirdPartiesDirFile, relativePath)
-            copyFile.parentFile?.mkdirs()
-            file.copyTo(copyFile)
-            return@mapNotNull copyFile.path
-        } ?: emptyList()
-
+        // WOW! We have done!
         completeFlagFile.createNewFile()
 
         return CompileContextInfo(
             copyApks,
             copyModuleBuilds,
-            copyThirdPartyDependencies
+            thirdPartyDependencies ?: emptyList()
         )
     }
 
@@ -121,7 +109,13 @@ class CompileContextDb(
         val moduleBuilds = moduleBuildPathDirFile.listFiles()?.associate {
             it.name to ModuleBuildPathInfo(projectDir, it)
         }?: emptyMap()
-        val thirdPartyDependencies = thirdPartiesDirFile.listFilesRecursively().map { it.path }
+
+        val thirdPartyDependenciesText = thirdPartiesJsonFile.readText(Charsets.UTF_8)
+        val thirdPartyDependencies = if (thirdPartyDependenciesText.isEmpty()) {
+            emptyList()
+        } else {
+            Gson().fromJson(thirdPartyDependenciesText, List::class.java).map { it.toString() }
+        }
 
         return CompileContextInfo(apkInfos, moduleBuilds, thirdPartyDependencies)
     }
