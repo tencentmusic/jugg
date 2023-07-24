@@ -212,7 +212,33 @@ class JuggManager @TestOnly constructor(
     @TestOnly
     fun initIncrementalCompileAfterFullBuild(isRemoteCompile: Boolean = false) {
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
-        var (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
+
+        var allModules = compileContextManager.getAllModulesByModuleManager()
+        val moduleBuildPathInfos = allModules.map { it.value.buildPathInfo }
+
+        if (isRemoteCompile) {
+            logger.info("Fetching remote classpath...")
+            val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
+                juggCompilerHelper.fetchClasspathResult(true, moduleBuildPathInfos)
+            }
+            logger.debug("fetchClasspathResult cost ${costTime2}ms")
+            logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir")
+            if (classpathRootDir == null || !classpathRootDir.exists()) {
+                logger.warn("Fetch remote classpath failed, please check log for details.")
+                return
+            }
+            // wrap local CompileContextInfo to CompileContextInfo fetched from remote
+            allModules = allModules.values
+                .map {
+                    it.copy(buildPathInfo = ModuleBuildPathInfo(
+                        classpathRootDir,
+                        File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
+                    ))
+                }
+                .associateBy { it.name }
+        }
+
+        val (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
             val apkInfos = deployTargetManager.getApks()
             if (apkInfos.isEmpty()) {
                 logger.warn("Init compile failed for no apk found")
@@ -220,29 +246,11 @@ class JuggManager @TestOnly constructor(
             }
             deployHistoryManager.reInitAfterFullCompiled(
                 apkInfos,
-                compileContextManager.getAllModulesByModuleManager()
+                allModules,
             )
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
-        if (isRemoteCompile) {
-            logger.info("Fetching remote classpath...")
-            val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
-                juggCompilerHelper.fetchClasspathResult(true,
-                    compileContextInfo.moduleBuildPathInfos.values.toList())
-            }
-            logger.debug("fetchClasspathResult cost ${costTime2}ms")
-            if (classpathRootDir == null || !classpathRootDir.exists()) {
-                logger.warn("Fetch remote classpath failed, please check log for details.")
-                return
-            }
-            // wrap local CompileContextInfo to CompileContextInfo fetched from remote
-            compileContextInfo = compileContextInfo.copy(
-                moduleBuildPathInfos = compileContextInfo.moduleBuildPathInfos.mapValues {
-                    ModuleBuildPathInfo(classpathRootDir, File(pathManager.projectDir, it.value.modulePathRelative.path))
-                }
-            )
-        }
 
         initCompile(compileContextInfo)
     }

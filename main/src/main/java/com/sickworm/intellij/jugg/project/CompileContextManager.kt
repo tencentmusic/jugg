@@ -156,7 +156,7 @@ class CompileContextManager(
             val resourceDirs = mutableListOf<File>()
             val assetDirs = mutableListOf<File>()
 
-            val baseDir = module.guessModuleDirAdv()
+            val baseDir = module.guessModuleDirAdv(projectBuildModel)
             if (baseDir == null) {
                 logger.warn("ignore $module because module directory not found")
                 return@forEach

@@ -50,24 +50,26 @@ class CompileContextDb(
 
         // save module info
         val copyModuleBuilds = modules.mapValues { (moduleName, moduleInfo) ->
-            logger.debug("copy $moduleName")
             val copyModuleBuildPathFile = File(moduleBuildPathDirFile, moduleName)
             val copyModuleBuildPathInfo = ModuleBuildPathInfo(projectDir, copyModuleBuildPathFile)
+            logger.debug("copy module $moduleName, from ${moduleInfo.buildPathInfo.buildDir} to ${copyModuleBuildPathInfo.buildDir}")
             moduleInfo.buildPathInfo.javaClassPath.let {
-                logger.debug("copy $moduleName ${copyModuleBuildPathInfo.javaClassPath}")
                 if (it.exists()) {
+//                    logger.debug("copy dir $it to ${copyModuleBuildPathInfo.javaClassPath}")
                     it.parentFile?.mkdirs()
                     it.copyRecursively(copyModuleBuildPathInfo.javaClassPath)
                 }
             }
             moduleInfo.buildPathInfo.rFilePath.let {
                 if (it.exists()) {
+//                    logger.debug("copy file $it to ${copyModuleBuildPathInfo.rFilePath}")
                     it.parentFile?.mkdirs()
                     it.copyTo(copyModuleBuildPathInfo.rFilePath)
                 }
             }
             moduleInfo.buildPathInfo.kotlinClassPath.let {
                 if (it.exists()) {
+//                    logger.debug("copy dir $it to ${copyModuleBuildPathInfo.kotlinClassPath}")
                     it.parentFile?.mkdirs()
                     it.copyRecursively(copyModuleBuildPathInfo.kotlinClassPath)
                 }
@@ -158,6 +160,7 @@ class ApkInfoSerializer {
     }
 
     fun deserialize(json: String): List<ApkInfo> {
+        // TODO use public constructor to avoid Exception when structure changed
         val apkInfos = Gson().fromJson(json, Array<ApkInfo>::class.java)
         return apkInfos.map { apkInfo ->
             // resolve file absolute path not equals after deserialize
