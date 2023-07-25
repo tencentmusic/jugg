@@ -148,6 +148,11 @@ class CompileContextManager(
         logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
+        val addedModules = mutableSetOf<String>()
+        val directoryNotFoundModules = mutableSetOf<String>()
+        val ideaFolderModules = mutableSetOf<String>()
+        val notGradleModules = mutableSetOf<String>()
+        val noSourceModules = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
             val sourceDirs = mutableListOf<File>()
             val resourceDirs = mutableListOf<File>()
@@ -155,13 +160,13 @@ class CompileContextManager(
 
             val baseDir = module.guessModuleDirAdv(projectBuildModel)
             if (baseDir == null) {
-                logger.warn("ignore $module because module directory not found")
+                directoryNotFoundModules.add(module.name)
                 return@forEach
             }
 
             val relativePath = baseDir.relativeTo(pathManager.projectDir)
             if (relativePath.startsWith(".idea")) {
-                logger.debug("ignore $module because it is in .idea folder (test module)")
+                ideaFolderModules.add(module.name)
                 return@forEach
             }
 
@@ -192,7 +197,7 @@ class CompileContextManager(
             }
             val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
-                logger.debug("ignore $module because is not a gradle module")
+                notGradleModules.add(module.name)
                 return@forEach
             }
             val sourceSets = buildModel.android().sourceSets()
@@ -211,7 +216,7 @@ class CompileContextManager(
             assetDirs.addAll(assetsSets)
 
             if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() ) {
-                logger.debug("ignore $module because all source dirs are empty")
+                noSourceModules.add(module.name)
                 return@forEach
             }
 
@@ -231,12 +236,26 @@ class CompileContextManager(
                 ModuleBuildPathInfo(pathManager.projectDir, baseDir),
             )
 
-            logger.debug("add $module, " +
+            addedModules.add("add $module, " +
                     "dir: $relativePath, " +
                     "sourceDirs: $sourceDirs, " +
                     "resourceDirs: $resourceDirs, " +
                     "assetDirs: $assetDirs")
         }
+
+        if (directoryNotFoundModules.isNotEmpty()) {
+            logger.debug("ignore modules (module directory not found): ${directoryNotFoundModules.joinToString(", ")}")
+        }
+        if (ideaFolderModules.isNotEmpty()) {
+            logger.debug("ignore modules (in .idea folder): ${ideaFolderModules.joinToString(", ")}")
+        }
+        if (notGradleModules.isNotEmpty()) {
+            logger.debug("ignore modules (not gradle module): ${notGradleModules.joinToString(", ")}")
+        }
+        if (noSourceModules.isNotEmpty()) {
+            logger.debug("ignore modules (no source): ${noSourceModules.joinToString(", ")}")
+        }
+        logger.debug(addedModules.joinToString("\n"))
 
         logger.debug("total ${modules.size} modules loaded")
         return modules
