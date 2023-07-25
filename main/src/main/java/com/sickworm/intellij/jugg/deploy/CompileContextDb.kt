@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.idea.run.ApkFileUnit
 import com.android.tools.idea.run.ApkInfo
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -39,14 +38,8 @@ class CompileContextDb(
         dbDir.deleteRecursively()
 
         // save apk info
-        apkInfos.forEach {
-            val copyApkFile = File(apkDirFile, it.files.first().apkFile.name)
-            copyApkFile.parentFile?.mkdirs()
-            it.files.first().apkFile.copyTo(copyApkFile)
-        }
-        val copyApks = apkInfos.map { ApkInfo(it.files, it.applicationId) }
         apkInfoFile.parentFile?.mkdirs()
-        apkInfoFile.writeText(GsonBuilder().setPrettyPrinting().create().toJson(copyApks))
+        apkInfoFile.writeText(ApkInfoSerializer().serialize(apkInfos), Charsets.UTF_8)
 
         // save module info
         val copyModuleBuilds = modules.mapValues { (moduleName, moduleInfo) ->
@@ -95,7 +88,7 @@ class CompileContextDb(
         completeFlagFile.createNewFile()
 
         return CompileContextInfo(
-            copyApks,
+            apkInfos,
             copyModuleBuilds,
             thirdPartyDependencies ?: emptyList()
         )
@@ -150,23 +143,5 @@ class CompileContextDb(
             CompileOutput(CompileOutput.Type.Overlay, it, overlayDeployedDir)
         }
         return dexFiles + overlayFiles
-    }
-}
-
-class ApkInfoSerializer {
-
-    fun serialize(apks: List<ApkInfo>): String {
-        return GsonBuilder().setPrettyPrinting().create().toJson(apks)
-    }
-
-    fun deserialize(json: String): List<ApkInfo> {
-        // TODO use public constructor to avoid Exception when structure changed
-        val apkInfos = Gson().fromJson(json, Array<ApkInfo>::class.java)
-        return apkInfos.map { apkInfo ->
-            // resolve file absolute path not equals after deserialize
-            ApkInfo(apkInfo.files.map {
-                ApkFileUnit(it.moduleName, File(it.apkFile.path))
-            }, apkInfo.applicationId)
-        }
     }
 }
