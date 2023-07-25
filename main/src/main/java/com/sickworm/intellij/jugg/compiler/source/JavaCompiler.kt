@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.compiler.source
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler
@@ -12,7 +14,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val isNeedOutputDirEmpty = true
 
-    private val compiler: JavaCompiler = ToolProvider.getSystemJavaCompiler()
+    private val compiler: JavaCompiler = getJavaCompiler(context.logger)
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
@@ -107,5 +109,24 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         val errors: MutableList<Pair<Long, String>> = mutableListOf(),
     ) {
         val isFailed get() = errors.isNotEmpty()
+    }
+
+    companion object {
+
+        fun getJavaCompiler(logger: Logger): JavaCompiler {
+            var compiler: JavaCompiler? = ToolProvider.getSystemJavaCompiler()
+            if (compiler == null) {
+                logger.debug("get JavaCompiler failed by ToolProvider.getSystemJavaCompiler(), try use reflect")
+            }
+            try {
+                @Suppress("DEPRECATION")
+                compiler = Class.forName("com.sun.tools.javac.api.JavacTool").newInstance() as JavaCompiler
+                logger.info("get JavaCompiler by JavacTool success")
+                return compiler
+            } catch (e: Exception) {
+                logger.warn("get JavaCompiler by JavacTool failed", e)
+                throw JuggException.getJavaCompilerFailed()
+            }
+        }
     }
 }

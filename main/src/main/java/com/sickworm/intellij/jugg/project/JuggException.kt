@@ -42,6 +42,8 @@ class JuggException(msg: String): Exception(msg) {
         fun loginToRemoteFailed() =
             JuggException("Login to remote ssh failed. Please check your login info.")
 
+        fun getJavaCompilerFailed() =
+            JuggException("Get JavaCompiler failed, please check your environment.")
     }
 }
 
