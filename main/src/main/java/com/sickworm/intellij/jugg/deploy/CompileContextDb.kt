@@ -3,10 +3,12 @@ package com.sickworm.intellij.jugg.deploy
 import com.android.tools.idea.run.ApkInfo
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
 import java.io.File
+import java.lang.reflect.Type
 
 /**
  * Manage compile context build files, e.g. apk, classpath, etc.
@@ -21,7 +23,7 @@ class CompileContextDb(
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
     private val thirdPartiesJsonFile = File(dbDir, "third_parties.json")
-    private val moduleBuildPathDirFile = File(dbDir, "module_builds")
+    private val moduleBuildPathJsonFile = File(dbDir, "module_builds.json")
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
     private val overlayDeployedDir = File(deployedDir, "overlays")
@@ -42,33 +44,9 @@ class CompileContextDb(
         apkInfoFile.writeText(ApkInfoSerializer().serialize(apkInfos), Charsets.UTF_8)
 
         // save module info
-        val copyModuleBuilds = modules.mapValues { (moduleName, moduleInfo) ->
-            val copyModuleBuildPathFile = File(moduleBuildPathDirFile, moduleName)
-            val copyModuleBuildPathInfo = ModuleBuildPathInfo(projectDir, copyModuleBuildPathFile)
-            logger.debug("copy module $moduleName, from ${moduleInfo.buildPathInfo.buildDir} to ${copyModuleBuildPathInfo.buildDir}")
-            moduleInfo.buildPathInfo.javaClassPath.let {
-                if (it.exists()) {
-//                    logger.debug("copy dir $it to ${copyModuleBuildPathInfo.javaClassPath}")
-                    it.parentFile?.mkdirs()
-                    it.copyRecursively(copyModuleBuildPathInfo.javaClassPath)
-                }
-            }
-            moduleInfo.buildPathInfo.rFilePath.let {
-                if (it.exists()) {
-//                    logger.debug("copy file $it to ${copyModuleBuildPathInfo.rFilePath}")
-                    it.parentFile?.mkdirs()
-                    it.copyTo(copyModuleBuildPathInfo.rFilePath)
-                }
-            }
-            moduleInfo.buildPathInfo.kotlinClassPath.let {
-                if (it.exists()) {
-//                    logger.debug("copy dir $it to ${copyModuleBuildPathInfo.kotlinClassPath}")
-                    it.parentFile?.mkdirs()
-                    it.copyRecursively(copyModuleBuildPathInfo.kotlinClassPath)
-                }
-            }
-            return@mapValues copyModuleBuildPathInfo
-        }
+        moduleBuildPathJsonFile.delete()
+        val moduleBuildPathText = GsonBuilder().setPrettyPrinting().create().toJson(modules)
+        moduleBuildPathJsonFile.writeText(moduleBuildPathText, Charsets.UTF_8)
 
         // save third party lib info
         // TODO auto update when file changes
@@ -89,7 +67,7 @@ class CompileContextDb(
 
         return CompileContextInfo(
             apkInfos,
-            copyModuleBuilds,
+            modules.mapValues { it.value.buildPathInfo },
             thirdPartyDependencies ?: emptyList()
         )
     }
@@ -101,9 +79,13 @@ class CompileContextDb(
         }
 
         val apkInfos = ApkInfoSerializer().deserialize(apkInfoFile.readText())
-        val moduleBuilds = moduleBuildPathDirFile.listFiles()?.associate {
-            it.name to ModuleBuildPathInfo(projectDir, it)
-        }?: emptyMap()
+        val moduleBuildPathText = moduleBuildPathJsonFile.readText(Charsets.UTF_8)
+        val moduleBuilds = if (moduleBuildPathText.isEmpty()) {
+            emptyMap()
+        } else {
+            val type: Type = object : TypeToken<Map<String, ModuleBuildPathInfo>>() {}.type
+            Gson().fromJson(moduleBuildPathText, type) as Map<String, ModuleBuildPathInfo>
+        }
 
         val thirdPartyDependenciesText = thirdPartiesJsonFile.readText(Charsets.UTF_8)
         val thirdPartyDependencies = if (thirdPartyDependenciesText.isEmpty()) {
