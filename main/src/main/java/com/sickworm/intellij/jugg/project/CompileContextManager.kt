@@ -125,9 +125,6 @@ class CompileContextManager(
         val projectDeps: List<File> = compileContext.modules.values.flatMap { module ->
             module.buildPathInfo.allClassPath.filter {
                 if (it.exists()) return@filter true
-                if (it.absolutePath != module.buildPathInfo.rFilePath.absolutePath) {
-                    logger.debug("projectDeps file not exists: $it")
-                }
                 false
             }
         }
@@ -139,7 +136,7 @@ class CompileContextManager(
         logger.debug("""
             Dependencies loaded:
             libDep:$thirdPartyDependencies
-            projectDep:${projectDeps.relativePath(pathManager.projectDir)}
+            projectDep:$projectDepStrings
         """.trimIndent())
         logger.info("Dependencies loaded, " +
                 "${thirdPartyDependencies.size} library dependencies, " +
