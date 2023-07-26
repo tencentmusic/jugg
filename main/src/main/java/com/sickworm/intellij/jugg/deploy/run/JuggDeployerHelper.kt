@@ -49,7 +49,7 @@ class JuggDeployerHelper(
 
         val type = when {
             isInstall -> JuggDeployType.INSTALL
-            data.isNeedRestartApp -> JuggDeployType.HOT_FIX
+            data.isNeedRestartActivity -> JuggDeployType.HOT_FIX
             else -> JuggDeployType.HOT_RELOAD
         }
         val task = JuggDeployTask(project, installPathProvider, type, data)

@@ -32,6 +32,8 @@ data class JuggDeployData(
 
     val isNeedRestartApp get() = hotFixModifiedClasses.isNotEmpty()
 
+    val isNeedRestartActivity get() = true // for now we always restart activity
+
     override fun toString(): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData: ")

@@ -69,8 +69,8 @@ class JuggDeployer(
     }
 
     @Throws(DeployerException::class)
-    fun fullSwap(apks: List<String>, data: JuggDeployData): Result {
-        return optimisticSwap(apks, true, ImmutableMap.of(), data)
+    fun fullSwap(classFiles: List<String>, data: JuggDeployData): Result {
+        return optimisticSwap(classFiles, true, ImmutableMap.of(), data)
     }
 
     @Throws(DeployerException::class)
