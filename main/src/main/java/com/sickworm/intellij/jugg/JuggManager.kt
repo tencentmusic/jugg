@@ -292,7 +292,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
-        object : Task.Backgroundable(project, jobName) {
+        object : Task.Backgroundable(project, jobName, false) {
             override fun run(indicator: ProgressIndicator) {
                 synchronized(this@JuggManager) {
                     try {
