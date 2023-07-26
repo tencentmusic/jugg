@@ -131,6 +131,7 @@ class DeployFileManager(
     @Synchronized
     fun reset() {
         uncompiledFiles.clear()
+        compiledFiles.clear()
         stagingFiles.clear()
     }
 
