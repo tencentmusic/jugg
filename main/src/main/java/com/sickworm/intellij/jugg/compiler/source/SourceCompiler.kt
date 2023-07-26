@@ -69,7 +69,7 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
         return CompileResult(task, compileResult.details, finalOutputs)
     }
 
-    override fun warnUp() {
-        kotlinCompiler.warnUp()
+    override fun warmUp() {
+        kotlinCompiler.warmUp()
     }
 }

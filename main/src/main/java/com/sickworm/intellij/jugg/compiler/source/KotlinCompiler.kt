@@ -129,9 +129,9 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         logger.debug("kotlin compile: kotlinc ${shortOptions.joinToString(" ")}")
     }
 
-    override fun warnUp() {
-        logger.debug("start KotlinCompiler warn up")
+    override fun warmUp() {
+        logger.debug("start KotlinCompiler warm up")
         doModuleCompile(CompileTask(emptyList(), context.tempCompileDir), context.modules.values.first())
-        logger.debug("finish KotlinCompiler warn up")
+        logger.debug("finish KotlinCompiler warm up")
     }
 }

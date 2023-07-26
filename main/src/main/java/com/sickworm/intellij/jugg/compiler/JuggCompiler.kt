@@ -121,7 +121,7 @@ class JuggCompiler(
         return compileResult
     }
 
-    override fun warnUp() {
-        sourceCompiler.warnUp()
+    override fun warmUp() {
+        sourceCompiler.warmUp()
     }
 }

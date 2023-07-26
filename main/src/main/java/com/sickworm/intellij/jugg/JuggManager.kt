@@ -280,16 +280,16 @@ class JuggManager @TestOnly constructor(
 
         logger.info("Jugg init complete, start listening file changes.")
 
-        warnUpCompiler()
+        warmUpCompiler()
     }
 
-    private fun warnUpCompiler() {
-        logger.debug("going to warn up compiler")
-        runTaskSafe("Warn Up Compiler", ::doWarnUpCompiler)
+    private fun warmUpCompiler() {
+        logger.debug("going to warm up compiler")
+        runTaskSafe("Warm Up Compiler", ::doWarmUpCompiler)
     }
 
-    private fun doWarnUpCompiler() {
-        juggCompilerHelper.warnUp()
+    private fun doWarmUpCompiler() {
+        juggCompilerHelper.warmUp()
     }
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {

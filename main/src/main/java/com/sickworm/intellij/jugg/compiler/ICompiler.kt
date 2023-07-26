@@ -100,7 +100,7 @@ interface ICompiler {
 
     fun compile(task: CompileTask): CompileResult
 
-    fun warnUp() = Unit
+    fun warmUp() = Unit
 }
 
 interface ICompileContext {
