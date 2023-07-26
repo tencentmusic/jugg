@@ -210,6 +210,8 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun initIncrementalCompileAfterFullBuild(isRemoteCompile: Boolean = false) {
+        JuggLogger.resetLatestCompileLog(project)
+
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
 
         var allModules = compileContextManager.getAllModulesByModuleManager()
