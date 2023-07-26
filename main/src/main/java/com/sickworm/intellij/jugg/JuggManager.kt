@@ -5,7 +5,6 @@ import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -179,14 +178,14 @@ class JuggManager @TestOnly constructor(
         val deployTask = task@{ isInstall: Boolean ->
             return@task juggDeployerHelper.deploy(isInstall)
         }
-        val fetchClasspathTask = task@{
+        val initIncrementalCompileTask = task@{
             // do it async
             fun action() {
                 initIncrementalCompileAfterFullBuild(options.isRemoteCompile)
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
-        return JuggRunningTask(project, processHandler, compileTask, deployTask, fetchClasspathTask)
+        return JuggRunningTask(project, processHandler, compileTask, deployTask, initIncrementalCompileTask)
     }
 
     @TestOnly

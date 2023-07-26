@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.execution.process.ProcessHandler
-import com.intellij.execution.process.ProcessOutputType
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
@@ -24,7 +23,7 @@ class JuggRunningTask(
     private val processHandler: ProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
     private val deployTask: (forceInstall: Boolean) -> DeployTaskResult,
-    private val fetchClasspathTask: () -> Unit,
+    private val initIncrementalCompileTask: () -> Unit,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg") {
 
@@ -91,6 +90,9 @@ class JuggRunningTask(
         val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
         if (!deployTaskResult.isSuccess) {
             return if (canNotRetry) {
+                if (compileTaskResult.isGradleCompile) {
+                    initIncrementalCompileTask.invoke()
+                }
                 failedAndActiveRunWindow()
             } else {
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
@@ -101,7 +103,9 @@ class JuggRunningTask(
         logger.info("\nApp launched.")
         notifyLaunched()
 
-        fetchClasspathTask.invoke()
+        if (compileTaskResult.isGradleCompile) {
+            initIncrementalCompileTask.invoke()
+        }
     }
 
     private fun notifyLaunched() {
