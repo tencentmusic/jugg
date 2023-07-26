@@ -173,6 +173,7 @@ class JuggDeployerHelper(
             Thread.sleep(waitGapMillSecond * 1000L)
             waitedTimeSecond += waitGapMillSecond
             logger.info("($waitedTimeSecond/$maxWaitTimeSecond)waiting app launched...")
+            deployStateManager.updateDeployState()
             if (deployStateManager.deployState.isReadyDeploy) {
                 return true
             }
