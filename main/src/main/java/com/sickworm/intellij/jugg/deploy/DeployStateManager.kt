@@ -40,9 +40,10 @@ class DeployStateManager(
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "build.gradle changed")
         }
 
-        if (isResourceFileChanged) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "XML file changed")
-        }
+        // reopen resource file incremental compile
+//        if (isResourceFileChanged) {
+//            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "XML file changed")
+//        }
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "need full compile")

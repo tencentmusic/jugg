@@ -132,10 +132,7 @@ class JuggManager @TestOnly constructor(
         }
 
         if (realChangedFiles.find { it.type == CompileFile.Type.Resource } != null) {
-            // FIXME inc aapt not stable, close for now
-            logger.warn("Resource changed, need rebuild")
             deployStateManager.isResourceFileChanged = true
-            return
         }
 
         deployFileManager.addChangedFile(realChangedFiles)
