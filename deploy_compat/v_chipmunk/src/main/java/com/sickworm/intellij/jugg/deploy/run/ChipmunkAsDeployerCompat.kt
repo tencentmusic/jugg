@@ -7,10 +7,7 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.projectsystem.getProjectSystem
-import com.android.tools.idea.run.AndroidRunConfiguration
-import com.android.tools.idea.run.ApkInfo
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.ValidationError
+import com.android.tools.idea.run.*
 import com.android.tools.idea.run.deployable.Deployable
 import com.android.tools.idea.run.deployable.DeployableProvider
 import com.android.tools.idea.run.editor.DeployTargetContext
@@ -290,5 +287,9 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             ) // This is needed to prevent a NPE if the boolean isn't set.
         }
         return false
+    }
+
+    override fun getDeploymentService(project: Project): DeploymentService {
+        return DeploymentService.getInstance(project)
     }
 }

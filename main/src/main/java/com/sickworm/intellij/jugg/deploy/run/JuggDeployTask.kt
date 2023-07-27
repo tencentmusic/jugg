@@ -66,7 +66,7 @@ class JuggDeployTask(
         val device = launchContext.device
         val printer = launchContext.consolePrinter
         val adb = AdbClient(device, logger)
-        val service = DeploymentService.getInstance(project)
+        val service = AsDeployerCompat.getDeploymentService(project)
         val ideService = IdeService(project)
         val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
 

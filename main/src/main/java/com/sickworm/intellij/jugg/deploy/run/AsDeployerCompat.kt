@@ -6,6 +6,7 @@ import com.android.tools.deployer.*
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
+import com.android.tools.idea.run.DeploymentService
 import com.android.utils.ILogger
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
@@ -30,9 +31,9 @@ object AsDeployerCompat : IAsDeployerCompat {
 
                     logger.debug("try priorityImpl with ${e.targetException::class.simpleName}, try higher version impl")
 
-                    // try higher version impl
+                    // try other version impl
                     compatImplList
-                        .filter { it.ideVersion > priorityImpl.ideVersion }
+                        .filter { it.ideVersion != priorityImpl.ideVersion }
                         .forEach {
                             try {
                                 val result = method.invoke(it.impl.value, *args)
@@ -64,6 +65,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      * Must order DESC
      */
     private val compatImplList = listOf(
+        CompatImpl(
+            IdeVersion("Android Studio Hedgehog", "IA", "231.9225.16"),
+            lazy { HedgehogAsDeployerCompat() },
+        ),
         CompatImpl(
             IdeVersion("Android Studio Giraffe", "IA", "223.8836.35"),
             lazy { GiraffeAsDeployerCompat() },
@@ -154,6 +159,10 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun getDisableMessage(project: Project): String? {
         return impl.getDisableMessage(project)
+    }
+
+    override fun getDeploymentService(project: Project): DeploymentService {
+        return impl.getDeploymentService(project)
     }
 }
 

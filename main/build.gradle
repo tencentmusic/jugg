@@ -72,6 +72,7 @@ dependencies {
     implementation project(':deploy_compat:interface')
     implementation project(':deploy_compat:v_chipmunk')
     implementation project(':deploy_compat:v_giraffe')
+    implementation project(':deploy_compat:v_hedgehog')
 
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:3.3.3"

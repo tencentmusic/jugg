@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutionException
 /**
  * Android Studio Giraffe
  */
-class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
+open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
     override fun getDevices(project: Project): List<IDevice>? {
         val deployTargetContext = DeployTargetContext()
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
