@@ -4,14 +4,9 @@ plugins {
     id 'org.jetbrains.intellij'
 }
 
-buildSearchableOptions {
-    enabled = false
-}
-
 intellij {
-    updateSinceUntilBuild false
     version '223.7571.182' // Android Studio Giraffe
-    plugins 'android'
+//    plugins 'android' // latest use jars in libs copied from Android Studio Canary instead of plugin
 }
 
 repositories {
@@ -24,12 +19,9 @@ repositories {
 }
 
 dependencies {
-    implementation fileTree(dir: '../libs', include: ['*.jar'])
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-
     implementation project(':deploy_compat:interface')
     api project(':deploy_compat:v_chipmunk')
 }

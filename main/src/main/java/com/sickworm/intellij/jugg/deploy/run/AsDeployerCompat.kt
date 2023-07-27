@@ -65,11 +65,7 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
-            IdeVersion("Android Studio Latest", "IA", "223.8836.35"),
-            lazy { LatestAsDeployerCompat() },
-        ),
-        CompatImpl(
-            IdeVersion("Android Studio Giraffe", "IA", "223.7571.182"),
+            IdeVersion("Android Studio Giraffe", "IA", "223.8836.35"),
             lazy { GiraffeAsDeployerCompat() },
         ),
         CompatImpl(
