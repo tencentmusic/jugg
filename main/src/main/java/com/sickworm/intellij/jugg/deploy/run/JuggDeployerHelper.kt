@@ -80,6 +80,8 @@ class JuggDeployerHelper(
                         if (!recoverDeployState()) {
                             logger.info("Try recover deploy state failed.")
                             return DeployTaskResult(isSuccess = false)
+                        } else {
+                            logger.info("Try recover deploy state success.")
                         }
                     } else {
                         logger.warn("Invalid state for deploy.")
@@ -138,7 +140,7 @@ class JuggDeployerHelper(
         }
 
         logger.info("Device online, start recover and deploy.")
-        return false
+        return true
     }
 
     private fun tryDryDeploy(): Boolean {
@@ -156,7 +158,7 @@ class JuggDeployerHelper(
         logger.info("Device online, try dry deploy.")
         return try {
             val deployData = deployFileManager.getDeployData()
-            val dryDeployData = JuggDeployData(deployData.apks, emptyList(), emptyList(), emptyList(), emptyList())
+            val dryDeployData = JuggDeployData(deployData.apks, emptyList(), emptyList(), emptyList(), emptyList(), false)
             runTask(dryDeployData)
             true
         } catch (e: Exception) {
