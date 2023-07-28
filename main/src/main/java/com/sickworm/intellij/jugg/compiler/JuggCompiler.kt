@@ -81,6 +81,9 @@ class JuggCompiler(
                     }
 
                 // compile R.java
+                // FIXME:
+                // 1. find correct package name for R.java
+                // 2. handle transitive R
                 val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
                 val rJavaTask = CompileTask(
                     files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, module)),
