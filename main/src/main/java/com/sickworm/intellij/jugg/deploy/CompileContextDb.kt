@@ -83,9 +83,10 @@ class CompileContextDb(
         val moduleBuilds = if (moduleBuildPathText.isEmpty()) {
             emptyMap()
         } else {
-            val type: Type = object : TypeToken<Map<String, ModuleBuildPathInfo>>() {}.type
-            Gson().fromJson(moduleBuildPathText, type) as Map<String, ModuleBuildPathInfo>
+            val type: Type = object : TypeToken<Map<String, ModuleInfo>>() {}.type
+            Gson().fromJson(moduleBuildPathText, type) as Map<String, ModuleInfo>
         }
+        val moduleBuildPathInfos = moduleBuilds.mapValues { it.value.buildPathInfo }
 
         val thirdPartyDependenciesText = thirdPartiesJsonFile.readText(Charsets.UTF_8)
         val thirdPartyDependencies = if (thirdPartyDependenciesText.isEmpty()) {
@@ -94,7 +95,7 @@ class CompileContextDb(
             Gson().fromJson(thirdPartyDependenciesText, List::class.java).map { it.toString() }
         }
 
-        return CompileContextInfo(apkInfos, moduleBuilds, thirdPartyDependencies)
+        return CompileContextInfo(apkInfos, moduleBuildPathInfos, thirdPartyDependencies)
     }
 
     fun updateDeployedData(deployedFiles: List<CompileOutput>) {
