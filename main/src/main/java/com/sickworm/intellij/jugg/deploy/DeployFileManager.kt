@@ -40,9 +40,9 @@ class DeployFileManager(
     private var crc32 = CRC32()
 
     @Synchronized
-    fun initAndResetAfterFullCompile(apks: List<ApkInfo>) {
+    fun initAndResetAfterInstall(apks: List<ApkInfo>) {
         reset()
-        deployDataGenerator.initAfterFullCompile(apks)
+        deployDataGenerator.initAfterInstall(apks)
     }
 
     @Synchronized

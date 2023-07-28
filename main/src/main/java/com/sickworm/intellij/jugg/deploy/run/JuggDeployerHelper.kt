@@ -37,7 +37,7 @@ class JuggDeployerHelper(
 
     private val deployStateListener get() = deployStateListenerGetter.invoke()
 
-    fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
+    private fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
         if (data.apks.isEmpty()) {
             throw JuggInternalException.apkNotFound(data)
         }
@@ -59,6 +59,10 @@ class JuggDeployerHelper(
 
         if (data.isNeedRestartApp || isInstall) {
             deployTargetManager.restartApp()
+        }
+
+        if (isInstall){
+            deployFileManager.initAndResetAfterInstall(data.apks)
         }
     }
 

@@ -12,7 +12,6 @@ import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.project.JuggInternalException
-import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import java.io.File
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
@@ -139,7 +138,7 @@ class DeployDataGenerator(
      * Collect information after compiled
      */
     @Synchronized
-    fun initAfterFullCompile(apks: List<ApkInfo>) {
+    fun initAfterInstall(apks: List<ApkInfo>) {
         parsedApks = apks.map {
             ApkParser().parse(it, isSkipCode = true)
         }

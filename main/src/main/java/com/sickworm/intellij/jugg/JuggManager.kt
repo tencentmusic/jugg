@@ -262,7 +262,6 @@ class JuggManager @TestOnly constructor(
         deployFileManager.reset()
 
         val costTime = measureTimeMillis {
-            deployFileManager.initAndResetAfterFullCompile(compileContextInfo.apkInfos)
             compileContextManager.initFullBuildInfo(compileContextInfo)
             juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
         }
