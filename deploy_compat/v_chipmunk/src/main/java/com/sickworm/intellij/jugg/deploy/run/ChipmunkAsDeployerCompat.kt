@@ -185,7 +185,8 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     }
 
     override fun getDisableMessage(project: Project): String? {
-        return getToolTipField().get(doGetDisableMessage(project)) as? String
+        val disableMessage = doGetDisableMessage(project) ?: return null
+        return getToolTipField().get(disableMessage) as? String
     }
 
     private var toolTipField: Field? = null
