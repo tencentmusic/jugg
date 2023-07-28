@@ -61,8 +61,12 @@ data class JuggDeployData(
         }
         if (overlays.isNotEmpty()) {
             builder.append("overlay files:\n")
-            builder.append(overlays.toLogString())
-            builder.append("\n")
+            if (isFullOverlays) {
+                builder.append("    (total ${overlays.size} files)\n")
+            } else {
+                builder.append(overlays.toLogString())
+                builder.append("\n")
+            }
         }
         builder.append("]")
         if (isFullOverlays) {

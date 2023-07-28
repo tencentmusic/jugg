@@ -82,6 +82,7 @@ class JuggCompilerHelper(
     fun incrementalCompile(): Boolean {
         logger.info("Try incremental compile.")
         if (!deployStateManager.deployState.isReadyIncCompile) {
+            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
             return false
         }
 
