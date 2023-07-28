@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.logger
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
-import java.lang.ref.WeakReference
+import java.text.SimpleDateFormat
 import java.util.*
 import java.util.logging.*
 
@@ -17,13 +17,6 @@ class FileLogger(
 
     companion object {
 
-        private var runningFileHandlers = mutableSetOf<WeakReference<FileHandler>>()
-        private var latestCompileFileHandlers = mutableSetOf<WeakReference<FileHandler>>()
-
-        fun isLatestCompileFileHandler(handler: Handler): Boolean {
-            return latestCompileFileHandlers.any { it.get() == handler }
-        }
-
         private fun createLogger(dir: File): Logger {
             dir.mkdirs()
             return Logger.getLogger(dir.absolutePath).also {
@@ -35,31 +28,22 @@ class FileLogger(
                         (handler as? FileHandler)?.close()
                     }
                 }
-                val loggerHandler = createRunningLogHandler(dir)
-                runningFileHandlers.add(WeakReference(loggerHandler))
+                val loggerHandler = createLatestCompileLogHandler(dir)
                 it.addHandler(loggerHandler)
-
-                val loggerHandler2 = createLatestCompileLogHandler(dir, false)
-                latestCompileFileHandlers.add(WeakReference(loggerHandler2))
-                it.addHandler(loggerHandler2)
+                removeOldLogFiles(dir)
             }
         }
 
-        private fun createRunningLogHandler(dir: File): FileHandler {
-            return createFileHandler(dir, "running.log", true)
+        private fun createLatestCompileLogHandler(dir: File): FileHandler {
+            // yyyy-MM-dd_HH-mm-ss.log
+            val name = "compile_" + SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date()) + ".log"
+            return createFileHandler(dir, name)
         }
 
-        private fun createLatestCompileLogHandler(dir: File, isClearLog: Boolean): FileHandler {
-            return createFileHandler(dir, "latest_compile.log", !isClearLog)
-        }
-
-        private const val limit: Int = 10_000_000
-        private const val count: Int = 1
-
-        private fun createFileHandler(dir: File, name: String, isAppend: Boolean): FileHandler {
+        private fun createFileHandler(dir: File, name: String): FileHandler {
             val loggerHandler = FileHandler(
                 dir.absolutePath + "/" + name,
-                limit, count, isAppend)
+                0, 1, false)
             val formatter = object : SimpleFormatter() {
 
                 private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s%n"
@@ -78,18 +62,27 @@ class FileLogger(
             loggerHandler.formatter = formatter
             return loggerHandler
         }
+
+        private const val maxLogFileSize = 10
+
+        private fun removeOldLogFiles(dir: File) {
+            val files = dir.listFiles()
+            if (files != null && files.size > maxLogFileSize) {
+                files.sortBy { it.lastModified() }
+                for (i in 0 until files.size - maxLogFileSize) {
+                    files[i].delete()
+                }
+            }
+        }
     }
 
     fun resetLatestCompileLog() {
         logger.handlers.clone().forEach {
-            if (isLatestCompileFileHandler(it)) {
-                logger.removeHandler(it)
-                (it as? FileHandler)?.close()
-            }
+            logger.removeHandler(it)
+            (it as? FileHandler)?.close()
         }
-        val newHandler = createLatestCompileLogHandler(dir, true)
-        latestCompileFileHandlers.add(WeakReference(newHandler))
+        val newHandler = createLatestCompileLogHandler(dir)
         logger.addHandler(newHandler)
+        removeOldLogFiles(dir)
     }
-
 }
