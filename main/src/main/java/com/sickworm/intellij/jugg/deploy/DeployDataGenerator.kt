@@ -168,9 +168,10 @@ class DeployDataGenerator(
      */
     @Synchronized
     fun commitDeployedData(juggDeployData: JuggDeployData) {
-        juggDeployData.classes.forEach {
-            deployedClasses[it.name] = it.classNode
-        }
+        // deployedClasses cannot use to check whether a class is deployed
+//        juggDeployData.classes.forEach {
+//            deployedClasses[it.name] = it.classNode
+//        }
         juggDeployData.overlays.forEach {
             deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
         }
