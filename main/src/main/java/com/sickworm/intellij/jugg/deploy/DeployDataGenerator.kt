@@ -64,9 +64,11 @@ class DeployDataGenerator(
 
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
         val overlays = changedOverlays.toMutableList()
+        var isFullOverlays = false
         if (changedOverlays.isNotEmpty() && deployedOverlays.isEmpty()) {
             // first time deploy must do full deployment
             logger.debug("first time deploy overlay, need full deployment")
+            isFullOverlays = true
 
             val nameSet = overlays.map { it.name }.toSet()
             val costTime = measureTimeMillis {
@@ -89,7 +91,7 @@ class DeployDataGenerator(
         }
 
         val apks = parsedApks.map { it.apkInfo }
-        return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays)
+        return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays, isFullOverlays)
     }
 
     private fun readFileContentFromApk(apk: File, path: String): ByteArray {
@@ -141,6 +143,8 @@ class DeployDataGenerator(
         parsedApks = apks.map {
             ApkParser().parse(it, isSkipCode = true)
         }
+        deployedClasses.clear()
+        deployedOverlays.clear()
 
         // TODO reopen
         // close for now for better performance and compile consistency

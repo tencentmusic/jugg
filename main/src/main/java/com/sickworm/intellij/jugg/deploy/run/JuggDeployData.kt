@@ -20,8 +20,10 @@ data class JuggDeployData(
     val hotFixModifiedClasses: List<ClassDeployItem>,
     /** exists deploying classes, and compatible with JVM-TI Apply Changes */
     val hotReloadModifiedClasses: List<ClassDeployItem>,
-    /** modified files that will place into /assets or /res. TODO handle other path? */
+    /** modified files that will place into /assets or /res. */
     val overlays: List<DeployItem>,
+    /** is first time push overlays. */
+    val isFullOverlays: Boolean,
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&
@@ -63,11 +65,14 @@ data class JuggDeployData(
             builder.append("\n")
         }
         builder.append("]")
+        if (isFullOverlays) {
+            builder.append("\nIt's first time to push overlays(full push), it may takes more times to resolved.\n")
+        }
         return builder.toString()
     }
 
     companion object {
-        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks, emptyList(), emptyList(), emptyList(), emptyList())
+        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks, emptyList(), emptyList(), emptyList(), emptyList(), false)
     }
 }
 
