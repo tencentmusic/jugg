@@ -107,7 +107,12 @@ class JuggCompilerHelper(
 
         // do compile
         logger.info("Compile files: $compileFiles")
-        val compileResult = compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
+        val compileResult = try {
+            compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
+        } catch (e: Exception) {
+            logger.error("Compile unexpected error: ${e.message}", e)
+            return false
+        }
 
         // update file status
         val successFiles = compileResult.details.filter { it.isSuccess }.map { it.get() }

@@ -33,7 +33,6 @@ class ArscCompiler(
     }
 
     override fun onContextUpdate() {
-        // TODO handle reload
         if (hasLoaded) {
             return
         }
@@ -57,8 +56,7 @@ class ArscCompiler(
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
-            logger.error("aapt2 load failed, error msg: ${result.errorOutput}")
-            return false
+            logger.info("loadTable error msg (may not be fatal problem): ${result.errorOutput}")
         }
         logger.debug("onContextUpdate load res end")
         hasLoaded = true

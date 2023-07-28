@@ -99,7 +99,7 @@ class Aapt2DaemonInvoker(
                 if (line == "Done") break
                 stringBuilder.appendLine(line)
                 readLine++
-                logger.error("error: $line")
+                logger.info("error: $line")
             }
             logger.debug("aapt2 invoke finished")
             return stringBuilder.toString()

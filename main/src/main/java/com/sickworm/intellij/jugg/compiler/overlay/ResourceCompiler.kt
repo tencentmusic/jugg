@@ -20,8 +20,16 @@ class ResourceCompiler(
         }.joinToString(" ")
 
         val command = "compile -o $outputDir $filesString"
-        // TODO check result
-        aapt2Invoker.invoke(command)
+        val result = aapt2Invoker.invoke(command)
+        if (!result.isSuccess) {
+            return CompileResult(
+                task,
+                task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "aapt2 compile failed")))
+                },
+                emptyList()
+            )
+        }
 
         val detailsAndOutputs = task.files.map {
             val folderName = it.file.parentFile!!.name

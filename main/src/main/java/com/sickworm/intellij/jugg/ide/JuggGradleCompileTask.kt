@@ -19,7 +19,7 @@ class JuggGradleCompileTask(
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: SimpleProcessHandler,
     private val indicator: ProgressIndicator,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask"),
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
 ) {
 
     private val outputListener = GradleOutputParser(

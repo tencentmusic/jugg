@@ -24,7 +24,7 @@ class JuggRunningTask(
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
     private val deployTask: (forceInstall: Boolean) -> DeployTaskResult,
     private val initIncrementalCompileTask: () -> Unit,
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileRunningTask"),
+    private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg") {
 
     private val indicatorListener = object : ProgressIndicatorListener {

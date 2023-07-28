@@ -153,7 +153,7 @@ data class ModuleInfo(
     val buildPathInfo: ModuleBuildPathInfo,
 )
 
-class ModuleBuildPathInfo(
+data class ModuleBuildPathInfo(
     /** project root dir */
     private val projectRootDir: File,
     /** module root dir */
@@ -215,7 +215,8 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
         val result = splitModuleAndCompile(task)
 
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms")
+        logger.debug("${this::class.java.simpleName} compile result: $result")
+        logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms. isAllSuccess: ${result.isAllSuccess}")
         return result
     }
 
