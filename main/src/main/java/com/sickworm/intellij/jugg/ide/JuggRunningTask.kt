@@ -81,11 +81,17 @@ class JuggRunningTask(
             } else {
                 logger.warn("Compile Failed. Going to restart with fallback gradle compile.")
                 doRun(indicator, true)
+                return
             }
         }
 
         indicator.text = "Launching app..."
-        logger.info("Installing and launching app...")
+
+        if (compileTaskResult.isGradleCompile) {
+            logger.info("Installing and launching app...")
+        } else {
+            logger.info("Deploying changes by Jugg...")
+        }
 
         val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
         if (!deployTaskResult.isSuccess) {
@@ -97,21 +103,27 @@ class JuggRunningTask(
             } else {
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
                 doRun(indicator, true)
+                return
             }
         }
 
         logger.info("\nApp launched.")
-        notifyLaunched()
+        notifyLaunched(compileTaskResult.isGradleCompile)
 
         if (compileTaskResult.isGradleCompile) {
             initIncrementalCompileTask.invoke()
         }
     }
 
-    private fun notifyLaunched() {
+    private fun notifyLaunched(isGradleCompile: Boolean) {
+        val text = if (isGradleCompile) {
+            "Launch succeeded"
+        } else {
+            "Deploy changes succeeded"
+        }
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
-            toolWindowManager.notifyByBalloon("Run", MessageType.INFO, "Launch succeeded")
+            toolWindowManager.notifyByBalloon("Run", MessageType.INFO, text)
         }
     }
 
