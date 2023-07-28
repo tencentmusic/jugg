@@ -13,8 +13,8 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
+import com.sickworm.intellij.jugg.ide.ChangedFileInfo
+import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly

@@ -1,10 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.IdeInfo
-import com.android.tools.idea.run.ConsolePrinter
-import com.intellij.execution.DefaultExecutionResult
-import com.intellij.execution.ExecutionResult
-import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -13,8 +9,7 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
+import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException

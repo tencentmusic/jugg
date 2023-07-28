@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.ui;
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState;
-import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo;
+import com.sickworm.intellij.jugg.ide.ChangedFileInfo;
 import com.sickworm.intellij.jugg.ide.toolWindow.JuggToolWindow;
 
 import javax.swing.*;

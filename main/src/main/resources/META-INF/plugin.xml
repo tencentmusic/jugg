@@ -2,6 +2,7 @@
     <id>com.sickworm.intellij.jugg</id>
     <name>Jugg</name>
     <vendor email="ch.operation@gmail.com" url="https://sickworm.com">sickworm</vendor>
+    <idea-version since-build="211" until-build="" />
 
     <description><![CDATA[
 Jugg is an Android incremental deploy plugin running on Andorid Studio and Intellij Idea. Jugg has **super-fast** speed on deploying your changed code and assets, without restart App in most situations.

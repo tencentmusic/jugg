@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.diagnostic.Logger
-import org.jetbrains.plugins.gradle.util.USER_HOME
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
 import java.io.File
@@ -13,7 +12,7 @@ class IntellijLibraryConfigParser(private val configDir: File, private val proje
 
     private val parser = SAXParserFactory.newInstance().newSAXParser()
 
-    private val userHome = System.getProperty(USER_HOME)
+    private val userHome = System.getProperty("user.home")
 
     /**
      * @return library path list

@@ -15,8 +15,8 @@ import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.SimpleProcessHandler
-import com.sickworm.intellij.jugg.ide.toolWindow.ChangedFileInfo
-import com.sickworm.intellij.jugg.ide.toolWindow.JuggStateListener
+import com.sickworm.intellij.jugg.ide.ChangedFileInfo
+import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import org.jetbrains.annotations.TestOnly

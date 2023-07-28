@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide.toolWindow
+package com.sickworm.intellij.jugg.ide
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import java.io.File

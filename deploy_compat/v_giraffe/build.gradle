@@ -5,7 +5,7 @@ plugins {
 }
 
 intellij {
-    version '223.7571.182'
+    version = ide_version
 }
 
 repositories {

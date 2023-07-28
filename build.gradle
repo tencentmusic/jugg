@@ -1,5 +1,26 @@
+import org.gradle.internal.jvm.Jvm
 
 plugins {
-    id 'org.jetbrains.intellij' version '0.6.5' apply false
-    id 'org.jetbrains.kotlin.jvm' version '1.7.10' apply false
+    id 'org.jetbrains.intellij' version '1.10.1' apply false
+    id 'org.jetbrains.kotlin.jvm' version '1.9.0' apply false
 }
+
+ext {
+//    ide_version = '211.7442.40' // Android 4.1.2, deployer version 27.1.1.1
+//    ide_version = '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0
+//    ide_version = '223.7571.182' // Android Studio Giraffe
+    ide_version = '231.9225.16' // Android Studio Hedgehog
+}
+
+// Fix:
+// Entry META-INF/interface.kotlin_module is a duplicate but no duplicate handling strategy has been set. Please refer to https://docs.gradle.org/7.3.3/dsl/org.gradle.api.tasks.Copy.html#org.gradle.api.tasks.Copy:duplicatesStrategy for details.
+afterEvaluate {
+    subprojects {
+        it.tasks.withType(Jar).all {
+            duplicatesStrategy 'exclude'
+        }
+    }
+}
+
+def currentJvm = Jvm.current()
+println("JVM: $currentJvm")

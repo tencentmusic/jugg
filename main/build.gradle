@@ -14,16 +14,13 @@ archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 version '1.0-SNAPSHOT'
 
-sourceCompatibility = 11
+sourceCompatibility = 17
 
 intellij {
-    pluginName 'jugg'
-    updateSinceUntilBuild false
-
-//    version '211.7442.40' // Android 4.1.2, deployer version 27.1.1.1
-    version '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0
-//    version '223.7571.182' // Android Studio Giraffe
-    plugins 'android'
+    pluginName = 'jugg'
+    updateSinceUntilBuild = false
+    version = ide_version
+    plugins = ['android']
 }
 
 patchPluginXml.changeNotes = """
@@ -32,15 +29,15 @@ patchPluginXml.changeNotes = """
 
 runIde {
     // default 11_0_11b1341.57 and will get Access Denied
-    jbrVersion '11_0_4b520.11'
+//    jbrVersion = '11_0_4b520.11'
 //    ideDirectory '/Applications/Android Studio.app/Contents'
-//    jbrVersion '17b106.1'
+    jbrVersion = '17b106.1'
 }
 
 buildSearchableOptions {
     // default 11_0_11b1341.57 and will get Access Denied
-    jbrVersion '11_0_4b520.11'
-//    jbrVersion '17b106.1'
+//    jbrVersion = '11_0_4b520.11'
+    jbrVersion = '17b106.1'
     enabled = false
 }
 

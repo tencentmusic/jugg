@@ -5,9 +5,8 @@ plugins {
 }
 
 intellij {
-    updateSinceUntilBuild false
-    version '212.5712.43' // Android Studio Chipmunk
-    plugins 'android'
+    version = '212.5712.43' // Android Studio Chipmunk
+    plugins = ['android']
 }
 
 repositories {
