@@ -32,6 +32,7 @@ runIde {
 //    jbrVersion = '11_0_4b520.11'
 //    ideDirectory '/Applications/Android Studio.app/Contents'
     jbrVersion = '17b106.1'
+    jvmArgs = ['-Xmx8G']
 }
 
 buildSearchableOptions {

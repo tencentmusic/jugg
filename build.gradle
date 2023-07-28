@@ -6,6 +6,7 @@ plugins {
 }
 
 ext {
+    // see: https://plugins.jetbrains.com/docs/intellij/android-studio.html#android-studio-releases-listing
 //    ide_version = '211.7442.40' // Android 4.1.2, deployer version 27.1.1.1
 //    ide_version = '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0
 //    ide_version = '223.7571.182' // Android Studio Giraffe
