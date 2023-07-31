@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
+import java.net.URLDecoder
 
 class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
@@ -23,10 +24,12 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             val classLoader = this::class.java.classLoader
             kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
                 // running in IDE
-                classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
+                val filePath = classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
+                filePath.replace("%20", " ")
             } else {
                 // running in test. notion: this may cost 500+ms which will affect compile cost
-                ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
+                val filePath = ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
+                filePath.replace("%20", " ")
             }
             hasFoundKotlinAndroidExtensions = true
         }
