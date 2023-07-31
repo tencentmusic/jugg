@@ -4,6 +4,8 @@ import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.rootManager
+import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.JuggManager
 import java.io.BufferedReader
 import java.io.File
@@ -60,7 +62,17 @@ fun Process.readOutput(logger: Logger) {
 }
 
 fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File? {
-    return projectBuildModel.getModuleBuildModel(this)?.moduleRootDirectory
+    val gradleRootDir = projectBuildModel.getModuleBuildModel(this)?.moduleRootDirectory
+    if (gradleRootDir != null) {
+        return gradleRootDir
+    }
+
+    val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
+    val virtualFile = contentRoots.find { name.endsWith(it.name) }
+        ?: contentRoots.firstOrNull()
+        ?: moduleFile?.parent
+        ?: return null
+    return VfsUtil.virtualToIoFile(virtualFile)
 }
 
 fun List<File>.relativePath(baseDirPath: String) = map { it.relativeTo(File(baseDirPath)) }

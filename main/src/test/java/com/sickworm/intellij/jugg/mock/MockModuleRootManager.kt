@@ -55,7 +55,7 @@ class MockModuleRootManager(private val root: VirtualFile): ModuleRootManager() 
     }
 
     override fun getExcludeRoots(): Array<VirtualFile> {
-        TODO("Not yet implemented")
+        return emptyArray()
     }
 
     override fun getExcludeRootUrls(): Array<String> {
