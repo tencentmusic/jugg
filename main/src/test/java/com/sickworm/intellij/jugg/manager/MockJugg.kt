@@ -12,25 +12,31 @@ import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
 import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
-import com.android.tools.idea.run.ApkProvider
-import com.android.tools.idea.run.ValidationError
+import com.intellij.execution.configurations.ConfigurationType
+import com.intellij.html.embedding.HtmlEmbeddedContentSupport
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.impl.ApplicationInfoImpl
+import com.intellij.openapi.extensions.ExtensionPoint
+import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.pom.java.LanguageLevel
+import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
@@ -171,12 +177,25 @@ class MockJugg {
         juggManager.compileChanges()
     }
 
+    @Suppress("IncorrectParentDisposable", "UnstableApiUsage")
     private fun renewComponents() {
         val application = MockApplication {}
         ApplicationManager.setApplication(application) {}
         application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
         application.registerService(MessagesService::class.java, mock(MessagesService::class.java))
         application.registerService(ApplicationInfo::class.java, ApplicationInfoImpl.getShadowInstance())
+
+        val mockProgressManager = mock(ProgressManager::class.java)
+        doAnswer {
+            (it.arguments[0] as Task).run(mock(ProgressIndicator::class.java))
+        }.`when`(mockProgressManager).run(any<Task>())
+        application.registerService(ProgressManager::class.java, mockProgressManager)
+
+        val extensionPoint = ExtensionPointName.create<ConfigurationType>("com.intellij.configurationType")
+        application.extensionArea.registerExtensionPoint(extensionPoint,
+            ConfigurationType::class.java.name, ExtensionPoint.Kind.INTERFACE, application)
+        application.registerExtension(extensionPoint, JuggConfigurationType(), application)
+
 
         project = JuggMockProject(projectDir)
         pathManager = JuggPathManager(project, projectDir, buildDir)
@@ -221,6 +240,10 @@ class MockJugg {
         fileChangesHandler = FileChangesHandler(project, logger)
         fileChangesDetector = MockFileChangesDetector()
 
+        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
+        deployFileManager = DeployFileManager(logger)
+        deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
+
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { JuggStateListener.emptyImpl }, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
@@ -231,10 +254,6 @@ class MockJugg {
 
             downloader.installerFilePath.absolutePath
         }
-
-        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
-        deployFileManager = DeployFileManager(logger)
-        deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
 
         JuggLogger.listenProjectLog(project, logger)
     }

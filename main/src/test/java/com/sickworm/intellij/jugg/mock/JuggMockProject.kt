@@ -7,17 +7,25 @@ import com.android.tools.idea.run.DeploymentService
 import com.intellij.debugger.DebuggerManager
 import com.intellij.debugger.impl.DebuggerManagerImpl
 import com.intellij.execution.RunManager
+import com.intellij.execution.RunnerAndConfigurationSettings
+import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.mock.MockProject
 import com.intellij.mock.MockRunManager
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.util.NotNullLazyValue
+import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.*
+import org.mockito.kotlin.any
 import java.io.File
 import java.nio.file.Paths
 
 class JuggMockProject(private val basePath: File): MockProject(null, {}) {
 
-    private val runManager = MockRunManager()
+    private val runManager = mock(MockRunManager::class.java).also {
+        val settings = mock(RunnerAndConfigurationSettings::class.java)
+        doReturn(settings).`when`(it)
+            .createConfiguration(anyString(), any<ConfigurationFactory>())
+    }
 
     private val deploymentService = run {
         val deploymentService = mock(DeploymentService::class.java)
