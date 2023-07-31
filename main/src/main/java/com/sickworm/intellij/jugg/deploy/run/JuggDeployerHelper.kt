@@ -67,6 +67,9 @@ class JuggDeployerHelper(
     }
 
     fun deploy(isInstall: Boolean = false): DeployTaskResult {
+        val deployState = deployStateManager.updateDeployState()
+        logger.info("Jugg deploy state: $deployState")
+
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
