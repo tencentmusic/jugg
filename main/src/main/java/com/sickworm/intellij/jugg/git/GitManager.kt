@@ -56,7 +56,7 @@ class GitManager(override val rootDir: File): IGitManager {
                 .setOldTree(oldCommitTree)
                 .setNewTree(newCommitTree)
                 .call()
-            return diffResult.map { File(it.newPath) }
+            return diffResult.map { File(rootDir, it.newPath) }
         }
     }
 
