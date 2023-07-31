@@ -2,15 +2,15 @@ import org.gradle.internal.jvm.Jvm
 
 plugins {
     id 'org.jetbrains.intellij' version '1.10.1' apply false
-    id 'org.jetbrains.kotlin.jvm' version '1.9.0' apply false
+    id 'org.jetbrains.kotlin.jvm' version '1.7.22' apply false
 }
 
 ext {
     // see: https://plugins.jetbrains.com/docs/intellij/android-studio.html#android-studio-releases-listing
 //    ide_version = '211.7442.40' // Android 4.1.2, deployer version 27.1.1.1
-//    ide_version = '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0
+    ide_version = '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0
 //    ide_version = '223.7571.182' // Android Studio Giraffe
-    ide_version = '231.9225.16' // Android Studio Hedgehog
+//    ide_version = '231.9225.16' // Android Studio Hedgehog, needs Kotlin 1.9.0 and remove Kotlin Android extension plugin
 }
 
 // Fix:
