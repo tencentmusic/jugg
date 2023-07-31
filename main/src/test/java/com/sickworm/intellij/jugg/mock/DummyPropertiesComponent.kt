@@ -52,4 +52,12 @@ class DummyPropertiesComponent: PropertiesComponent() {
         throw IllegalArgumentException("not supported")
     }
 
+    override fun getList(name: String): MutableList<String>? {
+        throw IllegalArgumentException("not supported")
+    }
+
+    override fun setList(name: String, values: MutableCollection<String>?) {
+        throw IllegalArgumentException("not supported")
+    }
+
 }

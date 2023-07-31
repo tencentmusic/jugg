@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.intellij.openapi.application.PathManager
 import org.jetbrains.android.download.AndroidComponentDownloader
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.BufferedInputStream
@@ -75,6 +76,10 @@ class MockAndroidProfilerDownloader: AndroidComponentDownloader() {
 
     override fun getArtifactName(): String {
         return "android-plugin-resources"
+    }
+
+    override fun getPreInstalledPluginDir(): File {
+        return File(PathManager.getHomePath(), "hostReleaseDir");
     }
 
 }

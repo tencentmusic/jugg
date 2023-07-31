@@ -198,10 +198,6 @@ class MockJugg {
             }
 
             override fun restartApp(): Boolean {
-                val apkProvider = object : ApkProvider {
-                    override fun getApks(device: IDevice) = projectInfo.apkInfos
-                    override fun validate() = mutableListOf<ValidationError>()
-                }
                 AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
                 return true
             }
