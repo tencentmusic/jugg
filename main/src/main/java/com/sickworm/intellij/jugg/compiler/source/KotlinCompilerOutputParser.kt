@@ -129,16 +129,13 @@ class KotlinCompilerOutputParser(
         }
 
         val outputFiles = mutableListOf<File>()
-        var sourceFile: File? = null
+        val sourceFile = mutableListOf<File>()
         // first line is "output: output:", ignore
         for (i in 1 until contents.size) {
             val filePath = contents[i]
             if (filePath == "Sources:") {
-                if (i == contents.size - 2) {
-                    sourceFile = File(contents[i + 1])
-                } else {
-                    // parse message failed... maybe kotlin output message format is changed
-                    logger.warn("Failed to parse output message with Sources line not correct: $message")
+                for (j in i + 1 until contents.size) {
+                    sourceFile.add(File(contents[j]))
                 }
                 // reaches end
                 break
@@ -152,8 +149,7 @@ class KotlinCompilerOutputParser(
             }
         }
 
-        val finalSourceFile = sourceFile
-        if (finalSourceFile == null) {
+        if (sourceFile.isEmpty()) {
             logger.warn("Failed to parse output message with no source file: $message")
             return
         }
@@ -163,10 +159,12 @@ class KotlinCompilerOutputParser(
             return
         }
 
-        if (!innerOutputs.containsKey(finalSourceFile)) {
-            innerOutputs[finalSourceFile] = mutableListOf()
+        sourceFile.forEach {
+            if (!innerOutputs.containsKey(it)) {
+                innerOutputs[it] = mutableListOf()
+            }
+            innerOutputs[it]?.addAll(outputFiles)
         }
-        innerOutputs[sourceFile]?.addAll(outputFiles)
     }
 
     fun flush() {
