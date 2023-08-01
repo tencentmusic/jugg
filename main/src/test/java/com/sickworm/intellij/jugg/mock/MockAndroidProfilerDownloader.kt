@@ -78,8 +78,8 @@ class MockAndroidProfilerDownloader: AndroidComponentDownloader() {
         return "android-plugin-resources"
     }
 
-    override fun getPreInstalledPluginDir(): File {
-        return File(PathManager.getHomePath(), "hostReleaseDir");
-    }
+//    override fun getPreInstalledPluginDir(): File {
+//        return File(PathManager.getHomePath(), "hostReleaseDir");
+//    }
 
 }

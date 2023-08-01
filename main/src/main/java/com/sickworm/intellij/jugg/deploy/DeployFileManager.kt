@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
 
@@ -135,8 +136,9 @@ class DeployFileManager(
         compiledFiles.clear()
     }
 
+    @TestOnly
     @Synchronized
-    private fun reset() {
+    fun reset() {
         uncompiledFiles.clear()
         compiledFiles.clear()
         stagingFiles.clear()
