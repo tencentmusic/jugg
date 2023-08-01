@@ -50,7 +50,7 @@ class DeployDataGenerator(
         val newClasses = changedClasses.filter {
             isNewClass(it.name)
         }
-        val modifiedClasses = changedClasses - newClasses
+        val modifiedClasses = changedClasses - newClasses.toSet()
         logger.debug("newClasses: $newClasses")
 
         val hotReloadModifiedClasses = modifiedClasses.filter {
@@ -58,7 +58,7 @@ class DeployDataGenerator(
         }
         logger.debug("hotReloadModifiedClasses: $hotReloadModifiedClasses")
 
-        val hotFixModifiedClasses = modifiedClasses - hotReloadModifiedClasses
+        val hotFixModifiedClasses = modifiedClasses - hotReloadModifiedClasses.toSet()
         logger.debug("hotFixModifiedClasses: $hotFixModifiedClasses")
 
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
