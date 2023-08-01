@@ -102,9 +102,11 @@ class JuggDeployerHelper(
             DeployTaskResult(isSuccess = true)
         } catch (e: Exception) {
             if (isInstall) {
-                logger.warn("Install APK failed. Reason: ${e.message}", e)
+                logger.warn("Install APK failed. Reason: ${e.message ?: e.cause?.message}")
+                logger.debug(e)
             } else {
-                logger.warn("Deploy Changes failed. Reason: ${e.message}", e)
+                logger.warn("Deploy Changes failed. Reason: ${e.message ?: e.cause?.message}")
+                logger.debug(e)
             }
             DeployTaskResult(isSuccess = false)
         }
