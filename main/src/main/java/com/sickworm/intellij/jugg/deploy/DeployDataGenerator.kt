@@ -139,11 +139,19 @@ class DeployDataGenerator(
      */
     @Synchronized
     fun initAfterInstall(apks: List<ApkInfo>) {
-        parsedApks = apks.map {
-            ApkParser().parse(it, isSkipCode = true)
+        logger.debug("initAfterInstall parsed apk start, clasees apks: $apks")
+        val costTime = measureTimeMillis {
+            parsedApks = apks.map {
+                ApkParser().parse(it, isSkipCode = true)
+            }
+            deployedClasses.clear()
+            deployedOverlays.clear()
         }
-        deployedClasses.clear()
-        deployedOverlays.clear()
+
+        logger.debug("parsed apk finish, cost ${costTime}ms. load " +
+            "classes ${parsedApks.sumOf { it.classes.size }}}, " +
+            "overlays ${parsedApks.sumOf { it.overlayFiles.size }}},"
+        )
 
         // TODO reopen
         // close for now for better performance and compile consistency
@@ -167,6 +175,8 @@ class DeployDataGenerator(
      */
     @Synchronized
     fun commitDeployedData(juggDeployData: JuggDeployData) {
+        logger.debug("commitDeployedData: $juggDeployData")
+
         // deployedClasses cannot use to check whether a class is deployed
 //        juggDeployData.classes.forEach {
 //            deployedClasses[it.name] = it.classNode

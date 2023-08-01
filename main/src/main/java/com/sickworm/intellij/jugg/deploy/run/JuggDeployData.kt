@@ -69,9 +69,6 @@ data class JuggDeployData(
             }
         }
         builder.append("]")
-        if (isFullOverlays) {
-            builder.append("\nIt's first time to push overlays(full push), it may takes more times to resolved.\n")
-        }
         return builder.toString()
     }
 

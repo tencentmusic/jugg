@@ -92,6 +92,9 @@ class JuggDeployerHelper(
                 }
                 val deployData = deployFileManager.getDeployData()
                 logger.info("Deploying data:\n$deployData")
+                if (deployData.isFullOverlays) {
+                    logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
+                }
                 runTask(deployData, false)
 
                 deployStateListener.onDeployed(
@@ -103,9 +106,9 @@ class JuggDeployerHelper(
             DeployTaskResult(isSuccess = true)
         } catch (e: Exception) {
             if (isInstall) {
-                logger.warn("Install APK failed. Reason: ${e.message}")
+                logger.warn("Install APK failed. Reason: ${e.message}", e)
             } else {
-                logger.warn("Deploy Changes failed. Reason: ${e.message}")
+                logger.warn("Deploy Changes failed. Reason: ${e.message}", e)
             }
             DeployTaskResult(isSuccess = false)
         }
