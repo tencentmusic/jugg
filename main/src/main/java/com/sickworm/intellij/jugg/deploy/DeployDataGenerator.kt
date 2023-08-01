@@ -123,7 +123,7 @@ class DeployDataGenerator(
             }
         }
         if (oldClassNode == null) {
-            // this should not happened, because we just run [isNewClass]
+            // this should not happen, because we just run [isNewClass]
             return false
         }
 
