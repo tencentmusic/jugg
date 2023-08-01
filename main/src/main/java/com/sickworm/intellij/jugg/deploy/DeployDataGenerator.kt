@@ -138,7 +138,7 @@ class DeployDataGenerator(
      * Collect information after compiled
      */
     @Synchronized
-    fun initAfterInstall(apks: List<ApkInfo>) {
+    fun init(apks: List<ApkInfo>) {
         logger.debug("initAfterInstall parsed apk start, clasees apks: $apks")
         val costTime = measureTimeMillis {
             parsedApks = apks.map {

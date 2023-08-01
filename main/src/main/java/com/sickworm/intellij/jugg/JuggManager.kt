@@ -267,10 +267,10 @@ class JuggManager @TestOnly constructor(
 
         deployStateManager.isBuildGradleChanged = false
         deployStateManager.isResourceFileChanged = false
-        deployFileManager.reset()
 
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo)
+            deployFileManager.init(compileContextInfo.apkInfos)
             juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
         }
         logger.debug("Init compile cost ${costTime}ms")

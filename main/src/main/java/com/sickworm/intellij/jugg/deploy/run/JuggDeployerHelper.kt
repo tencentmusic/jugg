@@ -60,10 +60,6 @@ class JuggDeployerHelper(
         if (data.isNeedRestartApp || isInstall) {
             deployTargetManager.restartApp()
         }
-
-        if (isInstall){
-            deployFileManager.initAndResetAfterInstall(data.apks)
-        }
     }
 
     fun deploy(isInstall: Boolean = false): DeployTaskResult {
