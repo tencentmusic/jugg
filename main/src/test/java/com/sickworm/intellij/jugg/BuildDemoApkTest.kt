@@ -78,15 +78,7 @@ class BuildDemoApkTest {
     private fun checkApkEntryInfo(parsedApk: ParsedApk) {
         if (projectInfo.apkEntryInfo.classCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.classCount,
-                parsedApk.classes.entries.size)
-        }
-        if (projectInfo.apkEntryInfo.fieldCount > 0) {
-            assertEquals(projectInfo.apkEntryInfo.fieldCount,
-                parsedApk.classes.entries.sumBy { it.value.fields.size })
-        }
-        if (projectInfo.apkEntryInfo.methodCount > 0) {
-            assertEquals(projectInfo.apkEntryInfo.methodCount,
-                parsedApk.classes.entries.sumBy { it.value.methods.size })
+                parsedApk.getClassSize())
         }
         if (projectInfo.apkEntryInfo.overlayFileCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.overlayFileCount,

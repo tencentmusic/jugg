@@ -134,9 +134,27 @@ interface ICompileContext {
 
 class ParsedApk(
     val apkInfo: ApkInfo,
-    val classes: Map<String, ClassNode>,
+    private val classes: Map<String, ClassNode>,
     val overlayFiles: Map<String, JuggFileInfo>,
-)
+) {
+
+    fun containsClass(className: String): Boolean {
+        return getClass(className) != null
+    }
+
+    fun getClass(className: String): ClassNode? {
+        val classSigName = className.convertClassToSigFormat()
+        return classes[classSigName]
+    }
+
+    fun getClassSize(): Int {
+        return classes.size
+    }
+
+    private fun String.convertClassToSigFormat(): String {
+        return "L" + this.replace('.', '/') + ";"
+    }
+}
 
 data class ModuleInfo(
     val name: String,

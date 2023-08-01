@@ -108,7 +108,7 @@ class DeployDataGenerator(
             return false
         }
 
-        if (parsedApks.any { it.classes.containsKey(className) }) {
+        if (parsedApks.any { it.containsClass(className) }) {
             return false
         }
 
@@ -119,7 +119,7 @@ class DeployDataGenerator(
         var oldClassNode: ClassNode? = deployedClasses[className]
         if (oldClassNode == null) {
             oldClassNode = parsedApks.firstNotNullOfOrNull {
-                it.classes[className]
+                it.getClass(className)
             }
         }
         if (oldClassNode == null) {
@@ -149,7 +149,7 @@ class DeployDataGenerator(
         }
 
         logger.debug("parsed apk finish, cost ${costTime}ms. load " +
-            "classes ${parsedApks.sumOf { it.classes.size }}}, " +
+            "classes ${parsedApks.sumOf { it.getClassSize() }}}, " +
             "overlays ${parsedApks.sumOf { it.overlayFiles.size }}},"
         )
 
