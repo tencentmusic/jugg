@@ -53,6 +53,13 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun removeChangedFile(files: List<File>) {
+        files.forEach {
+            uncompiledFiles.remove(it.stdPath)
+        }
+    }
+
+    @Synchronized
     fun updateUncompiledFiles(successFiles: List<CompileFile>, failedFiles: List<CompileFile>) {
         successFiles.forEach {
             val fileKey = it.file.stdAbsPath

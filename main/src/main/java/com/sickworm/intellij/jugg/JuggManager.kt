@@ -126,6 +126,14 @@ class JuggManager @TestOnly constructor(
             return
         }
 
+        val deletedFiles = changedFiles.filter { !it.exists() }
+        if (deletedFiles.isNotEmpty()) {
+            deletedFiles.forEach {
+                logger.info("File deleted: ${it.absolutePath}")
+            }
+            deployFileManager.removeChangedFile(deletedFiles)
+        }
+
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
         if (realChangedFiles.isEmpty()) {
             return
