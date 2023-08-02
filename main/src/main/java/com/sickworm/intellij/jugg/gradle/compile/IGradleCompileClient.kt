@@ -11,12 +11,14 @@ data class GradleCompileResult(
     val isSuccess: Boolean,
     val isCanceled: Boolean,
     val compileOutputFile: File,
+    val failedReason: String? = null,
 ) {
     companion object {
-        fun failed(isCanceled: Boolean) = GradleCompileResult(
+        fun failed(isCanceled: Boolean, failedReason: String) = GradleCompileResult(
             isSuccess = false,
             isCanceled = isCanceled,
             compileOutputFile = File(""),
+            failedReason = failedReason,
         )
 
         fun success(outputFile: File) = GradleCompileResult(

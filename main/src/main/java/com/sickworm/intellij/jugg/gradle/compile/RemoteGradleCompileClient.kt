@@ -70,17 +70,17 @@ class RemoteGradleCompileClient(
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN) {
             printToStreamErrorIfCanceled("iFt needs login, please use terminal to login with Username and Pin+Token first.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
         } else if (syncFileResult != 0) {
             printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
         }
 
         val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteProjectPath)
         val compileProjectResult = invoke(channel, compileProjectCommand)
         if (compileProjectResult != 0) {
             printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, failedReason = "Compile project failed")
         }
 
 
@@ -91,7 +91,7 @@ class RemoteGradleCompileClient(
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, failedReason = "Fetch output from remote to local failed")
         }
 
         val apkFile = File(gradleCompileSettings.remoteToLocalProjectSyncPath)
@@ -100,7 +100,7 @@ class RemoteGradleCompileClient(
             printToStreamErrorIfCanceled("find apk name with pattern '${gradleCompileSettings.outputApkName}' " +
                     "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, failedReason = "find apk name")
         }
         return GradleCompileResult.success(apkFile)
     }

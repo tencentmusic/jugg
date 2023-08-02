@@ -110,7 +110,7 @@ class JuggDeployerHelper(
                 logger.warn("Deploy Changes failed. Reason: ${e.message ?: e.cause?.message}")
                 logger.debug(e)
             }
-            DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Exception: " + (e.message ?: e.cause?.message))
+            DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Exception: $e")
         }
     }
 

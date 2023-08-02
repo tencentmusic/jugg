@@ -29,6 +29,7 @@ class JuggManager @TestOnly constructor(
     private val project: Project,
     val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
+    private val juggReporter: JuggReporter = JuggReporter(project),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project),
@@ -44,8 +45,7 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, { deployStateListener }),
-    private val juggReporter: JuggReporter = JuggReporter(project),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, { deployStateListener }),
 ): Disposable {
 
     constructor(
@@ -198,8 +198,8 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun compileChanges() {
-        val isSuccess = juggCompilerHelper.incrementalCompile()
-        if (isSuccess && JuggSettings.deployOnSave) {
+        val result = juggCompilerHelper.incrementalCompile()
+        if (result.isSuccess && JuggSettings.deployOnSave) {
             deployAsync(false)
         }
     }

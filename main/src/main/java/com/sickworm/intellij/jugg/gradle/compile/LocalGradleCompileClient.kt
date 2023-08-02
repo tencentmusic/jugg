@@ -34,7 +34,7 @@ class LocalGradleCompileClient(
         val compileProjectResult = invoke(compileProjectCommand)
         if (compileProjectResult != 0) {
             printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, "Compile project failed $compileProjectResult")
         }
 
         // try sub dir first
@@ -48,7 +48,7 @@ class LocalGradleCompileClient(
         if (apkFile == null) {
             printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
                     "in ${project.basePath}, please make sure your run configuration is right.")
-            return GradleCompileResult.failed(isCanceled)
+            return GradleCompileResult.failed(isCanceled, "Can't find apk")
         }
         return GradleCompileResult.success(apkFile)
     }

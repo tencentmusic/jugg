@@ -39,7 +39,7 @@ class JuggGradleCompileTask(
             e.printStackTrace(pw)
             logger.warn("\nCompile stop unexpected with ${e::class.java}:\n$sw\n")
             logger.warn("\nCompile stop unexpected.")
-            GradleCompileResult.failed(false)
+            GradleCompileResult.failed(false, "Exception: $e")
         }
     }
 

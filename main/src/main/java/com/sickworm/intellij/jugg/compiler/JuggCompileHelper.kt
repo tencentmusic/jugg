@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileTask
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
@@ -18,12 +19,14 @@ import com.sickworm.intellij.jugg.ide.SimpleProcessHandler
 import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
 class JuggCompilerHelper(
     private val project: Project,
+    private val juggReporter: JuggReporter,
     private val deployTargetManager: IDeployTargetManager,
     private val deployStateManager: DeployStateManager,
     private val deployFileManager: DeployFileManager,
@@ -52,19 +55,25 @@ class JuggCompilerHelper(
 
         val statTime = System.currentTimeMillis()
         if (!isForceInstall) {
-            if (incrementalCompile()) {
-                return CompileTaskResult(isSuccess = true,
-                    isGradleCompile = false,
-                    costTime = System.currentTimeMillis() - statTime,
-                )
+            var incrementalResult = incrementalCompile()
+            incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
+            juggReporter.report {
+                action = "incremental_compile"
+                isSuccess = incrementalResult.isSuccess
+                costTime = incrementalResult.costTime
+                detail = incrementalResult.failedReason
+            }
+            if (incrementalResult.isSuccess) {
+                return incrementalResult
             } else {
                 logger.info("Incremental compile not processed. Fallback to gradle compile.")
             }
         }
-        val isSuccess = gradleCompile(options, processHandler, indicator)
-        return CompileTaskResult(isSuccess = isSuccess,
+        val result = gradleCompile(options, processHandler, indicator)
+        return CompileTaskResult(isSuccess = result.isSuccess,
             isGradleCompile = true,
             costTime = System.currentTimeMillis() - statTime,
+            failedReason = result.failedReason,
         )
     }
 
@@ -72,7 +81,7 @@ class JuggCompilerHelper(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
         indicator: ProgressIndicator,
-    ): Boolean {
+    ): GradleCompileResult {
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator)
         val result = task.run()
@@ -82,27 +91,27 @@ class JuggCompilerHelper(
             val apkInfo = apkReader.getApkInfo()
             deployTargetManager.setApks(listOf(apkInfo))
         }
-        return result.isSuccess
+        return result
     }
 
     @TestOnly
-    fun incrementalCompile(): Boolean {
+    fun incrementalCompile(): CompileTaskResult {
         logger.info("Try incremental compile.")
         if (!deployStateManager.deployState.isReadyIncCompile) {
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
-            return false
+            return CompileTaskResult.incrementalFailed("Deploy state not ready")
         }
 
         val compiler = juggCompiler?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
-            return false
+            return CompileTaskResult.incrementalFailed("Jugg compiler not init")
         }
 
         // read all uncompiled files
         val uncompiledFiles = deployFileManager.getUncompiledFiles()
         if (uncompiledFiles.all { it.hasCompiledOnce }) {
             logger.info("No files changes. Return.")
-            return false
+            return CompileTaskResult.incrementalFailed("No files changes")
         }
 
         val compileFiles = uncompiledFiles.map {
@@ -119,7 +128,7 @@ class JuggCompilerHelper(
             compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
-            return false
+            return CompileTaskResult.incrementalFailed("Exception: $e")
         }
 
         // update file status
@@ -139,7 +148,12 @@ class JuggCompilerHelper(
                 "failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
-        return failedStates.isEmpty()
+        val isSuccess = failedStates.isEmpty()
+        return if (isSuccess) {
+            CompileTaskResult.incrementalSuccess()
+        } else {
+            CompileTaskResult.incrementalFailed("Compile failed: $compileResult")
+        }
     }
 
     @Synchronized
@@ -189,4 +203,21 @@ data class CompileTaskResult(
     val isSuccess: Boolean,
     val isGradleCompile: Boolean,
     val costTime: Long,
-)
+    val failedReason: String? = null,
+) {
+    companion object {
+
+        fun incrementalSuccess() = CompileTaskResult(
+            isSuccess = true,
+            isGradleCompile = false,
+            costTime = 0,
+        )
+
+        fun incrementalFailed(failedReason: String) = CompileTaskResult(
+            isSuccess = false,
+            isGradleCompile = false,
+            costTime = 0,
+            failedReason = failedReason,
+        )
+    }
+}
