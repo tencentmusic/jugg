@@ -82,23 +82,32 @@ class JuggCompiler(
 
                 // compile R.java
                 // FIXME:
-                // 1. find correct package name for R.java
-                // 2. handle transitive R
-                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
-                val rJavaTask = CompileTask(
-                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, module)),
-                    outputDir = classesOutputDir,
+                // disable for now because:
+                // 1. currently aapt incremental compile not supports add ids;
+                // 2. package name for R.java not correct
+                // 3. cannot handle transitive R
+                // 4. R.class was wrongly identified as part of the internal class is hot reload hot not hot fix,
+                // resulting in failure when optimisticSwap
+//                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
+//                val rJavaTask = CompileTask(
+//                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, module)),
+//                    outputDir = classesOutputDir,
+//                )
+//                val rJavaResult = sourceCompiler.compile(rJavaTask)
+//                if (!rJavaResult.isAllSuccess) {
+//                    return@run CompileResult(
+//                        resourceCompileTask,
+//                        resourceCompileTask.files.map {
+//                            Result.failure(CompileError(it, listOf(0L to "compile R.java failed")))
+//                        },
+//                        emptyList()
+//                    )
+//                }
+                val rJavaResult = CompileResult(
+                    resourceCompileTask,
+                    emptyList(),
+                    emptyList()
                 )
-                val rJavaResult = sourceCompiler.compile(rJavaTask)
-                if (!rJavaResult.isAllSuccess) {
-                    return@run CompileResult(
-                        resourceCompileTask,
-                        resourceCompileTask.files.map {
-                            Result.failure(CompileError(it, listOf(0L to "compile R.java failed")))
-                        },
-                        emptyList()
-                    )
-                }
 
                 // successfully compiled .arsc and R.dex
                 return@run CompileResult(
