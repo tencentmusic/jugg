@@ -78,6 +78,10 @@ class JuggDeployTask(
             ideService,
             logger
         )
+        val deployType = when (type) {
+            JuggDeployType.INSTALL -> "INSTALL"
+            else -> if (data.isNeedRestartApp) "HOT_FIX" else "HOT_RELOAD"
+        }
         val idsSkippedInstall: MutableList<String> = ArrayList()
         for ((applicationId, apkFiles) in packages) {
             try {
@@ -92,7 +96,7 @@ class JuggDeployTask(
                     launchContext.launchApp = true
                 }
             } catch (e: DeployerException) {
-                logger.error(e, "%s failed: %s %s", type.description, e.message, e.details)
+                logger.error(e, "%s failed: %s %s", deployType, e.message, e.details)
                 return LaunchResult(false, e.error.ordinal, e.message)
             }
         }
@@ -100,12 +104,12 @@ class JuggDeployTask(
         val duration = stopwatch.elapsed(TimeUnit.MILLISECONDS)
         if (idsSkippedInstall.isEmpty()) {
             val content =
-                String.format("%s successfully finished in %s.", type.description, StringUtil.formatDuration(duration))
+                String.format("%s successfully finished in %s.", deployType, StringUtil.formatDuration(duration))
             printer.stdout(content)
             logger.info("%s", content)
         } else {
             val title =
-                String.format("%s successfully finished in %s.", type.description, StringUtil.formatDuration(duration))
+                String.format("%s successfully finished in %s.", deployType, StringUtil.formatDuration(duration))
             val content = type.createSkippedApkInstallMessage(
                 idsSkippedInstall,
                 idsSkippedInstall.size == packages.size
@@ -118,8 +122,8 @@ class JuggDeployTask(
 
     private fun shouldTaskLaunchApp() = when(type) {
         JuggDeployType.INSTALL -> true
-        JuggDeployType.HOT_FIX -> true
-        JuggDeployType.HOT_RELOAD -> false
+        JuggDeployType.APPLY_CHANGES_AND_RESTART -> true
+        JuggDeployType.APPLY_CHANGES -> false
     }
 
     @Throws(DeployerException::class)
@@ -154,11 +158,11 @@ class JuggDeployTask(
 
                 return deployer.install(applicationId, getPathsToInstall(files), options.build(), installMode)
             }
-            JuggDeployType.HOT_FIX -> {
+            JuggDeployType.APPLY_CHANGES_AND_RESTART -> {
                 logger.debug("Applying changes to application $applicationId...")
                 return deployer.fullSwap(getPathsToInstall(files), data)
             }
-            JuggDeployType.HOT_RELOAD -> {
+            JuggDeployType.APPLY_CHANGES -> {
                 logger.debug("Applying changes to application $applicationId...")
                 val fastRerunOnSwapFailure = false
                 val debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
@@ -201,11 +205,9 @@ class JuggDeployTask(
  */
 enum class JuggDeployType {
     INSTALL,  // install
-    HOT_FIX,  // apply changes and restart activity
-    HOT_RELOAD, // apply changes
+    APPLY_CHANGES_AND_RESTART,  // apply changes and restart activity
+    APPLY_CHANGES, // apply changes
     ;
-
-    val description: String = toString()
 
     fun createSkippedApkInstallMessage(skippedApkList: List<String>, all: Boolean): String {
         return when (this) {
@@ -217,7 +219,7 @@ enum class JuggDeployType {
                             skippedApkList.stream().collect(Collectors.joining(", "))
                 }
             }
-            HOT_FIX -> {
+            APPLY_CHANGES_AND_RESTART -> {
                 if (all) {
                     "Activity restarted. No code or resource changes detected."
                 } else {
@@ -225,7 +227,7 @@ enum class JuggDeployType {
                             skippedApkList.stream().collect(Collectors.joining(", "))
                 }
             }
-            HOT_RELOAD -> {
+            APPLY_CHANGES -> {
                 if (all) {
                     "No code changes detected."
                 } else {
