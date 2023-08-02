@@ -66,6 +66,8 @@ class JuggDeployerHelper(
         val deployState = deployStateManager.updateDeployState()
         logger.info("Jugg deploy state: $deployState")
 
+        val statTime = System.currentTimeMillis()
+        fun costTime(): Long { return System.currentTimeMillis() - statTime }
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
@@ -77,13 +79,13 @@ class JuggDeployerHelper(
                     if (deployStateManager.deployState.isReadyIncCompile) {
                         if (!recoverDeployState()) {
                             logger.info("Try recover deploy state failed.")
-                            return DeployTaskResult(isSuccess = false)
+                            return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Try recover deploy state failed.")
                         } else {
                             logger.info("Try recover deploy state success.")
                         }
                     } else {
                         logger.warn("Invalid state for deploy.")
-                        return DeployTaskResult(isSuccess = false)
+                        return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Invalid state for deploy.")
                     }
                 }
                 val deployData = deployFileManager.getDeployData()
@@ -99,7 +101,7 @@ class JuggDeployerHelper(
                 )
                 updateInfoAfterIncDeploy(deployData)
             }
-            DeployTaskResult(isSuccess = true)
+            DeployTaskResult(isSuccess = true, costTime = costTime())
         } catch (e: Exception) {
             if (isInstall) {
                 logger.warn("Install APK failed. Reason: ${e.message ?: e.cause?.message}")
@@ -108,7 +110,7 @@ class JuggDeployerHelper(
                 logger.warn("Deploy Changes failed. Reason: ${e.message ?: e.cause?.message}")
                 logger.debug(e)
             }
-            DeployTaskResult(isSuccess = false)
+            DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Exception: " + (e.message ?: e.cause?.message))
         }
     }
 
@@ -223,4 +225,6 @@ private class CopyEmbeddedDistributionPaths {
 
 data class DeployTaskResult(
     val isSuccess: Boolean,
+    val costTime: Long,
+    val failedReason: String? = null,
 )

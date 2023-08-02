@@ -50,15 +50,22 @@ class JuggCompilerHelper(
         val deployState = deployStateManager.updateDeployState()
         logger.info("Jugg deploy state: $deployState")
 
+        val statTime = System.currentTimeMillis()
         if (!isForceInstall) {
             if (incrementalCompile()) {
-                return CompileTaskResult(isSuccess = true, isGradleCompile = false)
+                return CompileTaskResult(isSuccess = true,
+                    isGradleCompile = false,
+                    costTime = System.currentTimeMillis() - statTime,
+                )
             } else {
                 logger.info("Incremental compile not processed. Fallback to gradle compile.")
             }
         }
         val isSuccess = gradleCompile(options, processHandler, indicator)
-        return CompileTaskResult(isSuccess = isSuccess, isGradleCompile = true)
+        return CompileTaskResult(isSuccess = isSuccess,
+            isGradleCompile = true,
+            costTime = System.currentTimeMillis() - statTime,
+        )
     }
 
     private fun gradleCompile(
@@ -181,4 +188,5 @@ private class GradleCompileClientManager(private val project: Project): Disposab
 data class CompileTaskResult(
     val isSuccess: Boolean,
     val isGradleCompile: Boolean,
+    val costTime: Long,
 )

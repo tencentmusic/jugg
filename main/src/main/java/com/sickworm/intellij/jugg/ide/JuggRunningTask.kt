@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
+import com.google.gson.Gson
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
@@ -12,6 +13,7 @@ import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggReporter
 import java.io.PrintWriter
 import java.io.StringWriter
 import javax.swing.SwingUtilities
@@ -20,6 +22,7 @@ import javax.swing.SwingUtilities
 @Suppress("DialogTitleCapitalization")
 class JuggRunningTask(
     project: Project,
+    private val juggReporter: JuggReporter,
     private val processHandler: ProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
     private val deployTask: (forceInstall: Boolean) -> DeployTaskResult,
@@ -39,6 +42,8 @@ class JuggRunningTask(
         val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
         try {
             JuggLogger.listenProjectLog(project, loggerListener)
+            juggReporter.onCompile()
+
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
@@ -73,8 +78,19 @@ class JuggRunningTask(
     }
 
     private fun doRun(indicator: ProgressIndicator, isForceGradleCompile: Boolean) {
+        val detailMap = mutableMapOf<String, String>()
+        detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
+
         val compileTaskResult = compileTask(indicator, isForceGradleCompile)
         val canNotRetry = isForceGradleCompile || compileTaskResult.isGradleCompile
+        detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
+        juggReporter.report {
+            action = "compile"
+            isSuccess = compileTaskResult.isSuccess
+            costTime = compileTaskResult.costTime
+            detail = Gson().toJson(detailMap)
+        }
+
         if (!compileTaskResult.isSuccess) {
             return if (canNotRetry) {
                 failedAndActiveRunWindow()
@@ -94,6 +110,14 @@ class JuggRunningTask(
         }
 
         val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
+        detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
+        juggReporter.report {
+            action = "deploy"
+            isSuccess = deployTaskResult.isSuccess
+            costTime = deployTaskResult.costTime
+            detail = Gson().toJson(detailMap)
+        }
+
         if (!deployTaskResult.isSuccess) {
             return if (canNotRetry) {
                 if (compileTaskResult.isGradleCompile) {

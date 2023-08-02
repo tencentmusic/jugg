@@ -17,12 +17,11 @@ class JuggReporterTest {
         val project = JuggMockProject(projectInfo.projectRoot)
         JuggLogger.register(project, buildDir)
         JuggLogger.listenProjectLog(project, logger)
-        JuggReporter.init(project)
         runBlocking {
-            val job1 = JuggReporter.report {
+            val job1 = JuggReporter(project).report {
                 isSuccess = true
             }
-            val job2 = JuggReporter.report {
+            val job2 = JuggReporter(project).report {
                 isSuccess = false
             }
             listOf(job1, job2).joinAll()

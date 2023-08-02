@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.apache.commons.io.FileUtils
 import java.io.File

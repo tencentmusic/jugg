@@ -15,7 +15,9 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
+import com.sickworm.intellij.jugg.logger.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -43,6 +45,7 @@ class JuggManager @TestOnly constructor(
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { deployStateListener }),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, { deployStateListener }),
+    private val juggReporter: JuggReporter = JuggReporter(project),
 ): Disposable {
 
     constructor(
@@ -190,7 +193,7 @@ class JuggManager @TestOnly constructor(
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
-        return JuggRunningTask(project, processHandler, compileTask, deployTask, initIncrementalCompileTask)
+        return JuggRunningTask(project, juggReporter, processHandler, compileTask, deployTask, initIncrementalCompileTask)
     }
 
     @TestOnly
@@ -215,6 +218,7 @@ class JuggManager @TestOnly constructor(
     @TestOnly
     fun initIncrementalCompileAfterFullBuild(isRemoteCompile: Boolean = false) {
         JuggLogger.resetLatestCompileLog(project)
+        juggReporter.afterFullCompile()
 
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
 
@@ -300,8 +304,10 @@ class JuggManager @TestOnly constructor(
         object : Task.Backgroundable(project, jobName, false) {
             override fun run(indicator: ProgressIndicator) {
                 synchronized(this@JuggManager) {
+                    val reportEventData = ReportEventData()
+                    val startTime = System.currentTimeMillis()
+
                     try {
-                        val startTime = System.currentTimeMillis()
                         logger.debug("job <$jobName> start")
                         if (isNeedShowIndicator) {
                             indicator.text = "Jugg: $jobName..."
@@ -312,11 +318,17 @@ class JuggManager @TestOnly constructor(
                         logger.debug("job <$jobName> finished, cost ${costTime}ms")
                     } catch (e: Throwable) {
                         logger.error("job <$jobName> failed", e)
+                        reportEventData.detail = e.message ?: e.cause?.message ?: ""
+                        reportEventData.isSuccess = false
                     } finally {
                         if (isNeedShowIndicator) {
                             indicator.stop()
                         }
                     }
+
+                    reportEventData.action = jobName
+                    reportEventData.costTime = System.currentTimeMillis() - startTime
+                    juggReporter.report(reportEventData)
                 }
             }
         }.setCancelText("Jugg: Stopping $jobName...").queue();
