@@ -124,12 +124,17 @@ class DeployDataGenerator(
         }
         if (oldClassNode == null) {
             // this should not happen, because we just run [isNewClass]
+            logger.warn("class $className not found, ignore.")
             return false
         }
 
         // compare class node difference
         val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
         logger.debug(result.toString())
+
+        if (!result.isSameStructure) {
+            logger.debug("class $className structure changed, need hot fix: $result")
+        }
 
         return result.isSameStructure
     }
