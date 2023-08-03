@@ -67,6 +67,9 @@ dependencies {
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.jcraft:jsch:0.1.55'
 
+    // backend
+    implementation "com.squareup.okhttp3:okhttp:4.9.1"
+
     implementation project(':deploy_compat:interface')
     implementation project(':deploy_compat:v_chipmunk')
     implementation project(':deploy_compat:v_giraffe')
