@@ -97,7 +97,7 @@ class JuggDeployTask(
                 }
             } catch (e: DeployerException) {
                 logger.error(e, "%s failed: %s %s", deployType, e.message, e.details)
-                return LaunchResult(false, e.error.ordinal, e.message)
+                return LaunchResult(false, e.error.ordinal, e.message + " " +  e.details)
             }
         }
         stopwatch.stop()

@@ -16,7 +16,7 @@ class JuggException(msg: String): Exception(msg) {
             JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk")
 
         fun applyChangesFailed(launchResult: LaunchResult) =
-            JuggException("Apply changes failed, cause: ${launchResult.errorId}, ${launchResult.consoleError}")
+            JuggException("Apply changes failed, errorId: ${launchResult.errorId}, reason: ${launchResult.consoleError}")
 
         fun buildToolsNotFound(details: String) =
             JuggException("Can not found build tools, can not compile. details: $details")
