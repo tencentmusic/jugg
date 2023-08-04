@@ -44,6 +44,7 @@ class KotlinCompileTest {
             mockModule,
             dependencyPaths = listOf(androidJar.absolutePath)
                     + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
+                    + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
                     + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
         )
         ),

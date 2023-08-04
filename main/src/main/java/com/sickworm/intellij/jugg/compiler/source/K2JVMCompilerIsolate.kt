@@ -57,7 +57,7 @@ class K2JVMCompilerIsolate(private val logger: Logger) {
 
         private val requiredLibraries = listOf(
             "annotations-13.0.jar", // as plugin
-            "annotations-19.0.0.jar", // in test
+            "annotations-23.0.0.jar", // in test
             "kotlin-compiler-embeddable-1.7.22.jar",
             "trove4j-1.0.20200330.jar",
             "kotlin-reflect-1.7.22.jar",
