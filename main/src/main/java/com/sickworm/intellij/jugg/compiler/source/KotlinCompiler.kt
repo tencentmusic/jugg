@@ -64,6 +64,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-Xallow-no-source-files",
             "-Xreport-output-files",
             // resolve "class is not abstract and does not implement abstract member"
+            // resolve "reference not found" when invoke new java methods that haven't been compiled
             "-Xjava-source-roots=${module.sourceDirs.joinToString(",")}",
             // we have to set output dir to kotlin compiled class path to resolve
             // 'xxx' is a public API property declared in different module

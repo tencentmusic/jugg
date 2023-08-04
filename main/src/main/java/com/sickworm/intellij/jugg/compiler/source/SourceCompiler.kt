@@ -19,20 +19,22 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
         context.tempCompileDir.clearDir()
         var compileResult = CompileResult(task.copy(outputDir = context.tempCompileDir), emptyList(), emptyList())
 
-        val javaCompileTask = CompileTask(
-            files = task.files.filter { it.type == CompileFile.Type.Java },
-            outputDir = File(context.tempCompileDir, "java")
-        )
-        if (javaCompileTask.isNeedCompile) {
-            compileResult += javaCompiler.compile(javaCompileTask)
-        }
-
+        // Kotlin must go first because in the cross-reference case, Java depends on Kotlin compile output
+        // while Kotlin don't (kotlin can use -Xjava-source-roots argument)
         val kotlinCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Kotlin },
             outputDir = File(context.tempCompileDir, "kotlin")
         )
         if (kotlinCompileTask.isNeedCompile) {
             compileResult += kotlinCompiler.compile(kotlinCompileTask)
+        }
+
+        val javaCompileTask = CompileTask(
+            files = task.files.filter { it.type == CompileFile.Type.Java },
+            outputDir = File(context.tempCompileDir, "java")
+        )
+        if (javaCompileTask.isNeedCompile) {
+            compileResult += javaCompiler.compile(javaCompileTask)
         }
 
         if (!compileResult.isAllSuccess) {
