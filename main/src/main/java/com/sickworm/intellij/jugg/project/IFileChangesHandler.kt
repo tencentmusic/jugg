@@ -17,6 +17,8 @@ interface IFileChangesHandler {
     fun filter(file: List<File>): List<ChangedFile>
 
     fun checkBuildGradleChanged(files: List<File>): Boolean
+
+    fun checkAndroidManifestChanged(files: List<File>): Boolean
 }
 
 data class ChangedFile(

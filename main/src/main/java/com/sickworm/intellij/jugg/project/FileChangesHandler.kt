@@ -102,4 +102,16 @@ class FileChangesHandler(
         }
         return isBuildGradleChanged
     }
+
+    override fun checkAndroidManifestChanged(files: List<File>): Boolean {
+        var isAndroidManifestChanged = false
+        files.forEach {
+            val isAndroidManifest = it.name == "AndroidManifest.xml"
+            if (isAndroidManifest) {
+                logger.info("Detect AndroidManifest.xml changed: $it")
+                isAndroidManifestChanged = true
+            }
+        }
+        return isAndroidManifestChanged
+    }
 }

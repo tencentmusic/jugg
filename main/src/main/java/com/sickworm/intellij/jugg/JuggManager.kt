@@ -127,6 +127,12 @@ class JuggManager @TestOnly constructor(
             return
         }
 
+        if (fileChangesHandler.checkAndroidManifestChanged(changedFiles)) {
+            deployStateManager.isManifestChanged = true
+            logger.warn("AndroidManifest.xml changed, need rebuild")
+            return
+        }
+
         val deletedFiles = changedFiles.filter { !it.exists() }
         if (deletedFiles.isNotEmpty()) {
             deletedFiles.forEach {
@@ -138,10 +144,6 @@ class JuggManager @TestOnly constructor(
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
         if (realChangedFiles.isEmpty()) {
             return
-        }
-
-        if (realChangedFiles.find { it.type == CompileFile.Type.Resource } != null) {
-            deployStateManager.isResourceFileChanged = true
         }
 
         deployFileManager.addChangedFile(realChangedFiles)
@@ -268,7 +270,7 @@ class JuggManager @TestOnly constructor(
         logger.info("Init compile...")
 
         deployStateManager.isBuildGradleChanged = false
-        deployStateManager.isResourceFileChanged = false
+        deployStateManager.isManifestChanged = false
 
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo)

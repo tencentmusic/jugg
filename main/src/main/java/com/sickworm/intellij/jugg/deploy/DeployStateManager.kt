@@ -23,7 +23,7 @@ class DeployStateManager(
 
     var isBuildGradleChanged = false
 
-    var isResourceFileChanged = false
+    var isManifestChanged = false
 
     /**
      * Invoke when project need to update [JuggDeployState].
@@ -57,11 +57,9 @@ class DeployStateManager(
         if (isBuildGradleChanged) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "build.gradle changed")
         }
-
-        // reopen resource file incremental compile
-//        if (isResourceFileChanged) {
-//            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "XML file changed")
-//        }
+        if (isManifestChanged) {
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "AndroidManifest.xml changed")
+        }
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "need full compile")
