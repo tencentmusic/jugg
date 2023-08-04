@@ -50,9 +50,6 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
-        val deployState = deployStateManager.updateDeployState()
-        logger.info("Jugg deploy state: $deployState")
-
         val statTime = System.currentTimeMillis()
         if (!isForceInstall) {
             var incrementalResult = incrementalCompile()

@@ -116,9 +116,7 @@ class JuggManager @TestOnly constructor(
             return deployState
         }
 
-        logger.debug("deploy state changed: $oldDeployState -> $deployState")
         deployStateListener.onDeployStateUpdate(deployState)
-
         return deployState
     }
 
