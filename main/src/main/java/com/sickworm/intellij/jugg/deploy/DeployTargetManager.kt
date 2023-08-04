@@ -24,7 +24,7 @@ class DeployTargetManager(
     private var apks: List<ApkInfo> = emptyList()
 
     override fun setApks(apks: List<ApkInfo>) {
-        logger.info("setApks: ${apks.map { it.files.firstOrNull()?.apkFile?.absolutePath }}")
+        logger.debug("setApks: ${apks.map { it.files.firstOrNull()?.apkFile?.absolutePath }}")
         this.apks = apks
     }
 
