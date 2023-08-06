@@ -144,7 +144,7 @@ class DeployDataGenerator(
      */
     @Synchronized
     fun init(apks: List<ApkInfo>) {
-        logger.debug("initAfterInstall parsed apk start, clasees apks: $apks")
+        logger.debug("initAfterInstall parsed apk start, apks: $apks")
         val costTime = measureTimeMillis {
             parsedApks = apks.map {
                 ApkParser().parse(it, isSkipCode = true)
