@@ -135,5 +135,6 @@ class JuggCompiler(
 
     override fun warmUp() {
         sourceCompiler.warmUp()
+        resourceOverlayCompiler.warmUp()
     }
 }

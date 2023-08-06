@@ -62,7 +62,9 @@ class JuggDeployerHelper(
         }
     }
 
-    fun deploy(isInstall: Boolean = false): DeployTaskResult {
+    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false): DeployTaskResult {
+        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp")
+
         val deployState = deployStateManager.updateDeployState()
         logger.info("Jugg deploy state: $deployState")
 
@@ -88,7 +90,7 @@ class JuggDeployerHelper(
                         return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Invalid state for deploy.")
                     }
                 }
-                val deployData = deployFileManager.getDeployData()
+                val deployData = deployFileManager.getDeployData(isWarmUp)
                 logger.info("Deploying data:\n$deployData")
                 if (deployData.isFullOverlays) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")

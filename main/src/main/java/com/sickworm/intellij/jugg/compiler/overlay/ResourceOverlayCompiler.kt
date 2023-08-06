@@ -60,4 +60,8 @@ class ResourceOverlayCompiler(
             arscResult.outputs
         )
     }
+
+    override fun warmUp() {
+        arscCompiler.warmUp()
+    }
 }

@@ -107,9 +107,9 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getDeployData(): JuggDeployData {
+    fun getDeployData(isWarmUp: Boolean = false): JuggDeployData {
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
-        return deployDataGenerator.buildDeployData(deployItems)
+        return deployDataGenerator.buildDeployData(deployItems, isWarmUp)
     }
 
     private fun CompileOutput.toDeployItem(): DeployItem {

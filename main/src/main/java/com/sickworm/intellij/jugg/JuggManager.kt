@@ -19,6 +19,9 @@ import com.sickworm.intellij.jugg.logger.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
@@ -288,16 +291,23 @@ class JuggManager @TestOnly constructor(
 
         logger.info("Jugg init complete, start listening file changes.")
 
-        warmUpCompiler()
+        warmUpCompile()
     }
 
-    private fun warmUpCompiler() {
+    private fun warmUpCompile() {
         logger.debug("going to warm up compiler")
-        runTaskSafe("Warm Up Compiler", ::doWarmUpCompiler)
+        runTaskSafe("Warm Up Compile", ::doWarmUpCompile)
     }
 
-    private fun doWarmUpCompiler() {
-        juggCompilerHelper.warmUp()
+    private fun doWarmUpCompile() {
+        runBlocking {
+            launch(Dispatchers.IO) {
+                juggCompilerHelper.warmUp()
+            }
+            launch(Dispatchers.IO) {
+                juggDeployerHelper.deploy(isInstall = false, isWarmUp = true)
+            }
+        }
     }
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
