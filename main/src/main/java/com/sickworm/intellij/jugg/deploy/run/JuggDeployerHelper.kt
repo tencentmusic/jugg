@@ -37,6 +37,7 @@ class JuggDeployerHelper(
 
     private val deployStateListener get() = deployStateListenerGetter.invoke()
 
+    @Synchronized
     private fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
         if (data.apks.isEmpty()) {
             throw JuggInternalException.apkNotFound(data)
