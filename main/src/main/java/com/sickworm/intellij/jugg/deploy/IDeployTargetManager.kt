@@ -19,4 +19,12 @@ interface IDeployTargetManager {
     fun getDevice(): IDevice
 
     fun restartApp(): Boolean
+
+    val hasDevice: Boolean
+        get() = try {
+            getDevice()
+            true
+        } catch (e: Exception) {
+            false
+        }
 }

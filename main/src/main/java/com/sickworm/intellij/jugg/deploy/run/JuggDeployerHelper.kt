@@ -78,6 +78,15 @@ class JuggDeployerHelper(
                 val deployData = JuggDeployData.forInstall(apks)
                 runTask(deployData, true)
             } else {
+                if (!deployTargetManager.hasDevice) {
+                    logger.info("No device connected, stop deploy.")
+                    return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "no device connected")
+                }
+                if (isWarmUp && !deployStateManager.deployState.isReadyDeploy) {
+                    logger.info("device not ready to warm up.")
+                    return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
+                }
+
                 if (!deployStateManager.deployState.isReadyDeploy) {
                     if (deployStateManager.deployState.isReadyIncCompile) {
                         if (!recoverDeployState()) {
