@@ -23,28 +23,14 @@ class ArscCompiler(
         return apks.size == 1 && (context.apkFile?.exists() == true) && context.androidJar.exists()
     }
 
-    override fun checkContextCanCompile(task: CompileTask) {
-        if (!canCompile) {
-            throw JuggInternalException.contextInvalidToCompileArsc()
-        }
-        if (!hasLoaded) {
-            loadTable()
-        }
-    }
-
-    override fun onContextUpdate() {
-        if (hasLoaded) {
-            return
-        }
-        loadTable()
-    }
-
     private fun loadTable(): Boolean {
         if (!canCompile) {
+            logger.warn("loadTable failed, context can not compile now")
             return false
         }
 
         logger.debug("onContextUpdate load res start")
+        val startTime = System.currentTimeMillis()
         val command = """
             |inclink
             |--load
@@ -58,12 +44,20 @@ class ArscCompiler(
         if (!result.isSuccess) {
             logger.info("loadTable error msg (may not be fatal problem): ${result.errorOutput}")
         }
-        logger.debug("onContextUpdate load res end")
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("onContextUpdate load res end, cost ${costTime}ms")
         hasLoaded = true
         return true
     }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        if (!canCompile) {
+            throw JuggInternalException.contextInvalidToCompileArsc()
+        }
+        if (!hasLoaded) {
+            loadTable()
+        }
+
         val flatFiles = task.files.map { it.file }
         val result = incLinkCompile(flatFiles, task.outputDir)
 
@@ -110,6 +104,12 @@ class ArscCompiler(
             CompileOutput(CompileOutput.Type.Overlay, it, overlayDir)
         }
         return rFiles + overlays
+    }
+
+    override fun warmUp() {
+        if (!hasLoaded) {
+            loadTable()
+        }
     }
 }
 
