@@ -10,7 +10,7 @@ import java.io.File
 import java.util.zip.CRC32
 
 /**
- * Manage compile context build files, e.g. apk, classpath, etc.
+ * Record deploy history, persist records for recovery the next time the project is opened.
  */
 class DeployHistoryDb(
     private val projectDir: File,

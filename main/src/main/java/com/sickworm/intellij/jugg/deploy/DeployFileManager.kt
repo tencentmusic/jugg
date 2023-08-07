@@ -41,9 +41,10 @@ class DeployFileManager(
     private var crc32 = CRC32()
 
     @Synchronized
-    fun init(apks: List<ApkInfo>) {
+    fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput> ) {
         reset()
-        deployDataGenerator.init(apks)
+        val deployItems = deployedFiles.map { it.toDeployItem() }
+        deployDataGenerator.init(apks, deployItems)
     }
 
     @Synchronized

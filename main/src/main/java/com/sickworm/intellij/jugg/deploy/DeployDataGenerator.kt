@@ -140,10 +140,11 @@ class DeployDataGenerator(
     }
 
     /**
-     * Collect information after compiled
+     * 1. Collect information after compiled
+     * 2. add deployed items to [deployedClasses] and [deployedOverlays] (invokes when recover on project opened)
      */
     @Synchronized
-    fun init(apks: List<ApkInfo>) {
+    fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>) {
         logger.debug("initAfterInstall parsed apk start, apks: $apks")
         val costTime = measureTimeMillis {
             parsedApks = apks.map {
@@ -153,9 +154,19 @@ class DeployDataGenerator(
             deployedOverlays.clear()
         }
 
-        logger.debug("parsed apk finish, cost ${costTime}ms. load " +
+        deployedItems.forEach {
+            if (it is ClassDeployItem) {
+                deployedClasses[it.name] = it.classNode
+            } else {
+                deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
+            }
+        }
+
+        logger.debug("init finish, cost ${costTime}ms. load " +
             "classes ${parsedApks.sumOf { it.getClassSize() }}}, " +
-            "overlays ${parsedApks.sumOf { it.overlayFiles.size }}},"
+            "overlays ${parsedApks.sumOf { it.overlayFiles.size }}}," +
+            "deployedClasses ${deployedClasses.size}," +
+            "deployedOverlays ${deployedOverlays.size}"
         )
 
         // TODO reopen
