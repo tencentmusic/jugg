@@ -73,6 +73,7 @@ class DeployHistoryManager(
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>,
     ): CompileContextInfo {
+        logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}, modules: ${modules.size}")
         deployHistoryDb.deleteHistory()
         val compileContextInfo = compileContextDb.copyFullCompileOutput(apkInfos, modules)
         deployHistoryDb.resetHistoryAfterFullCompiled()
@@ -82,6 +83,7 @@ class DeployHistoryManager(
 
     @Synchronized
     override fun updateHistoryOnAfterDeployed(sourceFiles: List<ChangedFile>, deployedFiles: List<CompileOutput>) {
+        logger.debug("updateHistoryOnAfterDeployed, sourceFiles: ${sourceFiles.size}, deployedFiles: ${deployedFiles.size}")
         compileContextDb.updateDeployedData(deployedFiles)
         deployHistoryDb.updateHistory(sourceFiles)
     }

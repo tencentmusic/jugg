@@ -42,7 +42,8 @@ class JuggManager @TestOnly constructor(
         JuggLogger.getInstance(project, "DeployHistoryManager")
     ),
     private val deployFileManager: DeployFileManager = DeployFileManager(
-        JuggLogger.getInstance(project, "DeployDataManager")
+        JuggLogger.getInstance(project, "DeployDataManager"),
+        pathManager.tmpDir,
     ),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
@@ -291,27 +292,30 @@ class JuggManager @TestOnly constructor(
 
         logger.info("Jugg init complete, start listening file changes.")
 
-        warmUpCompile()
+        runTaskSafe("Warm Up Compile", {
+            val isNeedWarmUpDeploy = deployedFiles.all { it.type != CompileOutput.Type.Overlay }
+            warmUpCompile(isNeedWarmUpDeploy)
+        })
     }
 
-    private fun warmUpCompile() {
-        logger.debug("going to warm up compiler")
-        runTaskSafe("Warm Up Compile", ::doWarmUpCompile)
-    }
 
-    private fun doWarmUpCompile() {
+    private fun warmUpCompile(isNeedWarmUpDeploy: Boolean) {
         runBlocking {
             launch(Dispatchers.IO) {
                 juggCompilerHelper.warmUp()
             }
-            launch(Dispatchers.IO) {
-                val result = juggDeployerHelper.deploy(isInstall = false, isWarmUp = true)
-                juggReporter.report {
-                    action = "warm_up_deploy"
-                    isSuccess = result.isSuccess
-                    costTime = result.costTime
-                    detail = result.failedReason
+            if (isNeedWarmUpDeploy) {
+                launch(Dispatchers.IO) {
+                    val result = juggDeployerHelper.deploy(isInstall = false, isWarmUp = true)
+                    juggReporter.report {
+                        action = "warm_up_deploy"
+                        isSuccess = result.isSuccess
+                        costTime = result.costTime
+                        detail = result.failedReason
+                    }
                 }
+            } else {
+                logger.debug("already warm up deploy, skip.")
             }
         }
     }

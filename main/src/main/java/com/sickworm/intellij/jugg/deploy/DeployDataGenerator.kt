@@ -32,7 +32,7 @@ class DeployDataGenerator(
      * Build [JuggDeployData] according to deployment history.
      */
     @Synchronized
-    fun buildDeployData(items: Collection<DeployItem>, isWarmUp: Boolean): JuggDeployData {
+    fun buildDeployData(items: Collection<DeployItem>): JuggDeployData {
         val changedClasses = items
             .filter {
                 it.type == CompileOutput.Type.Dex
@@ -64,7 +64,7 @@ class DeployDataGenerator(
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
         val overlays = changedOverlays.toMutableList()
         var isFullOverlays = false
-        if (isWarmUp || (changedOverlays.isNotEmpty() && deployedOverlays.isEmpty())) {
+        if (changedOverlays.isNotEmpty() && deployedOverlays.isEmpty()) {
             // first time deploy must do full deployment
             logger.debug("first time deploy overlay, need full deployment")
             isFullOverlays = true

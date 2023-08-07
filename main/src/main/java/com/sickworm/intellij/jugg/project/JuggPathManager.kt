@@ -17,4 +17,5 @@ class JuggPathManager(
     val compileRootDir = File(juggRootDir, "build")
     val historyDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
+    val tmpDir = File(juggRootDir, "tmp").also { it.mkdirs() }
 }

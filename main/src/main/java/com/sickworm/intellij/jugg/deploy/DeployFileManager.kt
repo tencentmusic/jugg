@@ -16,6 +16,7 @@ import java.util.zip.CRC32
  */
 class DeployFileManager(
     private val logger: Logger,
+    private val tmpDir: File,
 ) {
 
     /**
@@ -109,6 +110,10 @@ class DeployFileManager(
 
     @Synchronized
     fun getDeployData(isWarmUp: Boolean = false): JuggDeployData {
+        if (isWarmUp) {
+            // add fake overlay to trigger full deployment
+            addJuggWarmUpOverlay()
+        }
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
         return deployDataGenerator.buildDeployData(deployItems, isWarmUp)
     }
@@ -128,6 +133,17 @@ class DeployFileManager(
             relativeFile.stdPath
         }
         return DeployItem(name, type, crc, bytes)
+    }
+
+    private fun addJuggWarmUpOverlay(): DeployItem {
+        val file = File(tmpDir, "jugg_warm_up_overlay")
+        if (!file.exists()) {
+            file.createNewFile()
+            file.writeText("jugg_warm_up_overlay", Charsets.UTF_8)
+        }
+        val compileOutput = CompileOutput(CompileOutput.Type.Overlay, file, file.parentFile)
+        addDeployFiles(listOf(compileOutput))
+        return compileOutput.toDeployItem()
     }
 
     @Synchronized
