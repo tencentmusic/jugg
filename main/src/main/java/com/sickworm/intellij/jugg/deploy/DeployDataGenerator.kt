@@ -32,7 +32,7 @@ class DeployDataGenerator(
      * Build [JuggDeployData] according to deployment history.
      */
     @Synchronized
-    fun buildDeployData(items: Collection<DeployItem>): JuggDeployData {
+    fun buildDeployData(items: Collection<DeployItem>, isWarmUp: Boolean): JuggDeployData {
         val changedClasses = items
             .filter {
                 it.type == CompileOutput.Type.Dex
@@ -90,7 +90,7 @@ class DeployDataGenerator(
         }
 
         val apks = parsedApks.map { it.apkInfo }
-        return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays, isFullOverlays)
+        return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays, isFullOverlays, isWarmUp)
     }
 
     private fun readFileContentFromApk(apk: File, path: String): ByteArray {

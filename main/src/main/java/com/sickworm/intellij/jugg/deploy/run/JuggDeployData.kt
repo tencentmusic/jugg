@@ -24,6 +24,8 @@ data class JuggDeployData(
     val overlays: List<DeployItem>,
     /** is first time push overlays. */
     val isFullOverlays: Boolean,
+    /** is for warm up. */
+    private val isWarmUp: Boolean,
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&
@@ -34,7 +36,7 @@ data class JuggDeployData(
 
     val isNeedRestartApp get() = hotFixModifiedClasses.isNotEmpty()
 
-    val isNeedRestartActivity get() = true // for now we always restart activity
+    val isNeedRestartActivity get() = !isWarmUp // for now, we always restart activity excepts warm up action
 
     override fun toString(): String {
         val builder = StringBuilder()
@@ -73,7 +75,10 @@ data class JuggDeployData(
     }
 
     companion object {
-        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks, emptyList(), emptyList(), emptyList(), emptyList(), false)
+        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks, emptyList(), emptyList(), emptyList(), emptyList(),
+            isFullOverlays = false,
+            isWarmUp = false
+        )
     }
 }
 

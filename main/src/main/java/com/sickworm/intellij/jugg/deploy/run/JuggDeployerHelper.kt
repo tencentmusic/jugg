@@ -175,7 +175,7 @@ class JuggDeployerHelper(
         logger.info("Device online, try dry deploy.")
         return try {
             val deployData = deployFileManager.getDeployData()
-            val dryDeployData = JuggDeployData(deployData.apks, emptyList(), emptyList(), emptyList(), emptyList(), false)
+            val dryDeployData = JuggDeployData.forInstall(deployData.apks)
             runTask(dryDeployData)
             true
         } catch (e: Exception) {
