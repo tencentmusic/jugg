@@ -111,6 +111,7 @@ class JuggRunningTask(
 
         val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
+        detailMap["deploy_type"] = deployTaskResult.deployType ?: ""
         juggReporter.report {
             action = "deploy"
             isSuccess = deployTaskResult.isSuccess

@@ -38,16 +38,11 @@ class JuggDeployerHelper(
     private val deployStateListener get() = deployStateListenerGetter.invoke()
 
     @Synchronized
-    private fun runTask(data: JuggDeployData, isInstall: Boolean = false) {
+    private fun runTask(data: JuggDeployData, type: JuggDeployType) {
         if (data.apks.isEmpty()) {
             throw JuggInternalException.apkNotFound(data)
         }
 
-        val type = when {
-            isInstall -> JuggDeployType.INSTALL
-            data.isNeedRestartActivity -> JuggDeployType.APPLY_CHANGES_AND_RESTART
-            else -> JuggDeployType.APPLY_CHANGES
-        }
         val task = JuggDeployTask(project, installPathProvider, type, data)
 
         val consolePrinter = ConsolePrinter(logger)
@@ -58,7 +53,7 @@ class JuggDeployerHelper(
             throw JuggException.applyChangesFailed(launchResult)
         }
 
-        if (data.isNeedRestartApp || isInstall) {
+        if (data.isNeedRestartApp || type == JuggDeployType.INSTALL) {
             deployTargetManager.restartApp()
         }
     }
@@ -71,12 +66,15 @@ class JuggDeployerHelper(
 
         val statTime = System.currentTimeMillis()
         fun costTime(): Long { return System.currentTimeMillis() - statTime }
+
+        val type: JuggDeployType
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
                 logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
                 val deployData = JuggDeployData.forInstall(apks)
-                runTask(deployData, true)
+                type = JuggDeployType.INSTALL
+                runTask(deployData, JuggDeployType.INSTALL)
             } else {
                 if (!deployTargetManager.hasDevice) {
                     logger.info("No device connected, stop deploy.")
@@ -101,11 +99,16 @@ class JuggDeployerHelper(
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp)
+                type = if (deployData.isNeedRestartApp) {
+                    JuggDeployType.APPLY_CHANGES_AND_RESTART
+                } else {
+                    JuggDeployType.APPLY_CHANGES
+                }
                 logger.info("Deploying data:\n$deployData")
                 if (deployData.isFullOverlays) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
-                runTask(deployData, false)
+                runTask(deployData, type)
 
                 deployStateListener.onDeployed(
                     false,
@@ -113,7 +116,7 @@ class JuggDeployerHelper(
                 )
                 updateInfoAfterIncDeploy(deployData)
             }
-            DeployTaskResult(isSuccess = true, costTime = costTime())
+            DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = type.toString())
         } catch (e: Exception) {
             if (isInstall) {
                 logger.warn("Install APK failed. Reason: ${e.message ?: e.cause?.message}")
@@ -149,7 +152,7 @@ class JuggDeployerHelper(
 
         // recover deploy state for device
         val deployData = deployFileManager.getDeployData()
-        runTask(deployData, true)
+        runTask(deployData, JuggDeployType.INSTALL)
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
             logger.warn("Recovery failed for app not launched.")
@@ -176,7 +179,7 @@ class JuggDeployerHelper(
         return try {
             val deployData = deployFileManager.getDeployData()
             val dryDeployData = JuggDeployData.forInstall(deployData.apks)
-            runTask(dryDeployData)
+            runTask(dryDeployData, JuggDeployType.INSTALL)
             true
         } catch (e: Exception) {
             logger.debug("Dry deploy failed, reason: ${e.message}")
@@ -238,5 +241,6 @@ private class CopyEmbeddedDistributionPaths {
 data class DeployTaskResult(
     val isSuccess: Boolean,
     val costTime: Long,
+    val deployType: String? = null,
     val failedReason: String? = null,
 )
