@@ -101,12 +101,12 @@ class JuggRunningTask(
             }
         }
 
-        indicator.text = "Launching app..."
-
         if (compileTaskResult.isGradleCompile) {
-            logger.info("Installing and launching app...")
+            logger.info("Launching app...")
+            indicator.text = "Launching app..."
         } else {
-            logger.info("Deploying changes by Jugg...")
+            logger.info("Deploying changes...")
+            indicator.text = "Deploying changes..."
         }
 
         val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
