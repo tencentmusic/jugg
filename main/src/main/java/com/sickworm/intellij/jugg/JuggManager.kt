@@ -305,7 +305,13 @@ class JuggManager @TestOnly constructor(
                 juggCompilerHelper.warmUp()
             }
             launch(Dispatchers.IO) {
-                juggDeployerHelper.deploy(isInstall = false, isWarmUp = true)
+                val result = juggDeployerHelper.deploy(isInstall = false, isWarmUp = true)
+                juggReporter.report {
+                    action = "warm_up_deploy"
+                    isSuccess = result.isSuccess
+                    costTime = result.costTime
+                    detail = result.failedReason
+                }
             }
         }
     }
