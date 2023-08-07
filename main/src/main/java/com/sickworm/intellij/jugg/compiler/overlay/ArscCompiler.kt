@@ -29,7 +29,7 @@ class ArscCompiler(
             return false
         }
 
-        logger.debug("onContextUpdate load res start")
+        logger.debug("aapt2 loadTable start")
         val startTime = System.currentTimeMillis()
         val command = """
             |inclink
@@ -45,7 +45,7 @@ class ArscCompiler(
             logger.info("loadTable error msg (may not be fatal problem): ${result.errorOutput}")
         }
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("onContextUpdate load res end, cost ${costTime}ms")
+        logger.debug("aapt2 loadTable end, cost ${costTime}ms")
         hasLoaded = true
         return true
     }
