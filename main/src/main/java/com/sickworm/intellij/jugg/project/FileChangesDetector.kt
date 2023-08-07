@@ -18,7 +18,8 @@ import java.nio.file.Paths
  * Listen file changes in project
  */
 class FileChangesDetector(
-    private val project: Project
+    private val project: Project,
+    private val projectDir: File,
 ) :
     IFileChangesDetector,
     Disposable
@@ -78,7 +79,13 @@ class FileChangesDetector(
         if (virtualFile == null) {
             return null
         }
-        return VfsUtil.virtualToIoFile(virtualFile)
+
+        val file = VfsUtil.virtualToIoFile(virtualFile)
+        val isMyProjectFile = file.absolutePath.startsWith(projectDir.absolutePath)
+        if (!isMyProjectFile) {
+            return null
+        }
+        return file
     }
 
     override fun dispose() {
