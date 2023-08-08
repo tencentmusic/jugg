@@ -229,18 +229,15 @@ class CompileContextManager(
             val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
 
-            modules[module.name] = ModuleInfo(
+            val moduleInfo = ModuleInfo(
                 module.name, baseDir, pathManager.projectDir, sourceDirs, resourceDirs, assetDirs,
                 compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
                 ModuleBuildPathInfo(pathManager.projectDir, baseDir),
             )
 
-            addedModules.add("add $module, " +
-                    "dir: $relativePath, " +
-                    "sourceDirs: $sourceDirs, " +
-                    "resourceDirs: $resourceDirs, " +
-                    "assetDirs: $assetDirs")
+            modules[module.name] = moduleInfo
+            addedModules.add("add $moduleInfo")
         }
 
         if (directoryNotFoundModules.isNotEmpty()) {
