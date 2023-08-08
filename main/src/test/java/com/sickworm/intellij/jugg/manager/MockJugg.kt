@@ -221,6 +221,9 @@ class MockJugg {
                 return true
             }
 
+            override fun isAppForeground(): Boolean {
+                return AdbCmdHelper(getDevice(), logger).isAppForeground(projectInfo.packageName)
+            }
         }
 
         val moduleManager = mock(ModuleManager::class.java)

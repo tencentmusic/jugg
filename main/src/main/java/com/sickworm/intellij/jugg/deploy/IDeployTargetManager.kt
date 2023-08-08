@@ -20,6 +20,8 @@ interface IDeployTargetManager {
 
     fun restartApp(): Boolean
 
+    fun isAppForeground(): Boolean
+
     val hasDevice: Boolean
         get() = try {
             getDevice()

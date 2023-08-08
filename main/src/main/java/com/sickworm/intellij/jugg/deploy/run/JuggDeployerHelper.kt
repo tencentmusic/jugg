@@ -58,7 +58,7 @@ class JuggDeployerHelper(
         }
     }
 
-    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false): DeployTaskResult {
+    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, canRetry: Boolean = true): DeployTaskResult {
         logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp")
 
         val deployState = deployStateManager.updateDeployState()
@@ -118,13 +118,36 @@ class JuggDeployerHelper(
             }
             DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = type.toString())
         } catch (e: Exception) {
+            val reason = e.message ?: e.cause?.message ?: "null"
+            if (reason.contains("MISSING_AGENT_RESPONSES")) {
+                val isAppForeground = deployTargetManager.isAppForeground()
+                logger.debug("got MISSING_AGENT_RESPONSES, canRetry: $canRetry, isWarmUp: $isWarmUp, isAppForeground: $isAppForeground")
+                if (canRetry && !isWarmUp) {
+                    if (!isAppForeground) {
+                        logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
+                        if (!recoverDeployState()) {
+                            logger.info("Try recover deploy state failed after missing agent responses.")
+                            return DeployTaskResult(isSuccess = false, costTime = costTime(),
+                                failedReason = "Try recover deploy state failed after missing agent responses.")
+                        } else {
+                            logger.info("Try recover deploy state success after missing agent responses.")
+                        }
+                    } else {
+                        logger.info("Deploy agent no response, but App is in foreground, try again.")
+                    }
+                    val result = deploy(isInstall, isWarmUp = false, canRetry = false)
+                    return result.copy(costTime = costTime())
+                }
+            }
+
             if (isInstall) {
-                logger.warn("Install APK failed. Reason: ${e.message ?: e.cause?.message}")
+                logger.warn("Install APK failed. Reason: $reason")
                 logger.debug(e)
             } else {
-                logger.warn("Deploy Changes failed. Reason: ${e.message ?: e.cause?.message}")
+                logger.warn("Deploy Changes failed. Reason: $reason")
                 logger.debug(e)
             }
+
             DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Exception: $e")
         }
     }
@@ -141,7 +164,7 @@ class JuggDeployerHelper(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      */
     private fun recoverDeployState(): Boolean {
-        logger.info("Recover deploy state from history.")
+        logger.info("App not ready to deploy, recover deploy state from history.")
 
         // dry deploy first, if success, no need to reinstall and recover
         if (tryDryDeploy()) {
@@ -151,23 +174,31 @@ class JuggDeployerHelper(
         logger.info("Need reinstall app.")
 
         // recover deploy state for device
-        val deployData = deployFileManager.getDeployData()
+        val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
         runTask(deployData, JuggDeployType.INSTALL)
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
             logger.warn("Recovery failed for app not launched.")
             return false
         }
+        val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
+        if (deployContextRecoverInfo == null) {
+            logger.warn("No deploy recover info found.")
+            return false
+        }
+        deployFileManager.addDeployFiles(deployContextRecoverInfo.deployedFiles)
 
-        logger.info("Device online, start recover and deploy.")
+        logger.info("Device online, continue deploy.")
         return true
     }
 
-    private fun tryDryDeploy(): Boolean {
-        logger.info("Start app directly.")
-        if (!deployTargetManager.restartApp()) {
-            logger.debug("Try start app failed")
-            return false
+    private fun tryDryDeploy(canRetry: Boolean = true, needStartApp: Boolean = true): Boolean {
+        if (needStartApp) {
+            logger.info("Start app and waiting app deployable.")
+            if (!deployTargetManager.restartApp()) {
+                logger.debug("Try start app failed")
+                return false
+            }
         }
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
@@ -177,12 +208,20 @@ class JuggDeployerHelper(
 
         logger.info("Device online, try dry deploy.")
         return try {
-            val deployData = deployFileManager.getDeployData()
-            val dryDeployData = JuggDeployData.forInstall(deployData.apks)
-            runTask(dryDeployData, JuggDeployType.INSTALL)
+            val dryDeployData = JuggDeployData.forInstall(deployTargetManager.getApks())
+            runTask(dryDeployData, JuggDeployType.APPLY_CHANGES)
             true
         } catch (e: Exception) {
-            logger.debug("Dry deploy failed, reason: ${e.message}")
+            val reason = e.message ?: e.cause?.message ?: "null"
+            if (reason.contains("MISSING_AGENT_RESPONSES")) {
+                val isAppForeground = deployTargetManager.isAppForeground()
+                logger.debug("got MISSING_AGENT_RESPONSES, canRetry: $canRetry, isAppForeground: $isAppForeground")
+                if (canRetry && isAppForeground) {
+                    logger.info("Deploy agent no response, but App is in foreground, try dry deploy again.")
+                    return tryDryDeploy(canRetry = false, needStartApp = false)
+                }
+            }
+            logger.debug("Dry deploy failed, reason: $reason")
             false
         }
     }

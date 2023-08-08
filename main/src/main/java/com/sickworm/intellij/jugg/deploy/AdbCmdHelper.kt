@@ -63,15 +63,30 @@ class AdbCmdHelper(
         execAdbShellCmd("am force-stop $packageName")
     }
 
+    fun isAppForeground(packageName: String): Boolean {
+        val result = execAdbShellCmd("dumpsys activity recents")
+        result.lines().forEach {
+            if (it.contains("Recent #0")) {
+                return it.contains(packageName)
+            }
+        }
+        return false
+    }
+
     private fun execAdbShellCmd(cmd: String): String {
         try {
-            logger.info("adb in: adb shell $cmd")
+            logger.info("%s", "adb in: adb shell $cmd")
             val response = adb.shell(
                 cmd.split(" ").toTypedArray(),
                 null, 5L, TimeUnit.MINUTES)
             if (response.isNotEmpty()) {
                 val extraMsg = String(response, Charsets.UTF_8).trim { it <= ' ' }
-                logger.info("adb out: $extraMsg")
+                val logMsg = if (extraMsg.length > 200) {
+                    extraMsg.substringBefore('\n') + "...(additional lines ${extraMsg.lines().size - 1})"
+                } else {
+                    extraMsg
+                }
+                logger.info("%s", "adb out: $logMsg")
                 return extraMsg
             }
             return ""

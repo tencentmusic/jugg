@@ -64,6 +64,15 @@ class DeployTargetManager(
         }
     }
 
+    override fun isAppForeground(): Boolean {
+        return try {
+            AdbCmdHelper(getDevice(), logger).isAppForeground(getPackageName())
+        } catch (e: Exception) {
+            logger.error("isAppForeground failed", e)
+            false
+        }
+    }
+
     private fun getPackageName(): String {
         val apks = getApks()
         if (apks.isEmpty()) {
