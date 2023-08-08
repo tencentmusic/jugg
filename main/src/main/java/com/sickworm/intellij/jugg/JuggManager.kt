@@ -306,7 +306,7 @@ class JuggManager @TestOnly constructor(
             }
             if (isNeedWarmUpDeploy) {
                 launch(Dispatchers.IO) {
-                    val result = juggDeployerHelper.deploy(isInstall = false, isWarmUp = true)
+                    val result = juggDeployerHelper.deploy(isInstall = false, isWarmUp = true, canRetry = false)
                     juggReporter.report {
                         action = "warm_up_deploy"
                         isSuccess = result.isSuccess

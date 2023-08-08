@@ -119,18 +119,30 @@ class JuggDeployerHelper(
             DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = type.toString())
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
-            if (reason.contains("MISSING_AGENT_RESPONSES")) {
+            if (canRetry) {
+                val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
+                val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
                 val isAppForeground = deployTargetManager.isAppForeground()
-                logger.debug("got MISSING_AGENT_RESPONSES, canRetry: $canRetry, isWarmUp: $isWarmUp, isAppForeground: $isAppForeground")
-                if (canRetry && !isWarmUp) {
-                    if (!isAppForeground) {
-                        logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
+                logger.debug("got $reason, isAppForeground: $isAppForeground")
+                if (isMissingAgentResponses || isOverlayIdNotCorrect) {
+                    val isNeedRecover = when {
+                        isMissingAgentResponses && !isAppForeground-> {
+                            logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
+                            true
+                        }
+                        isOverlayIdNotCorrect -> {
+                            logger.info("Deploy history mismatch with device, try recover deploy state.")
+                            true
+                        }
+                        else -> false
+                    }
+                    if (isNeedRecover) {
                         if (!recoverDeployState()) {
-                            logger.info("Try recover deploy state failed after missing agent responses.")
+                            logger.info("Try recover deploy state failed on retry.")
                             return DeployTaskResult(isSuccess = false, costTime = costTime(),
-                                failedReason = "Try recover deploy state failed after missing agent responses.")
+                                failedReason = "Try recover deploy state failed on retry.")
                         } else {
-                            logger.info("Try recover deploy state success after missing agent responses.")
+                            logger.info("Try recover deploy state success on retry.")
                         }
                     } else {
                         logger.info("Deploy agent no response, but App is in foreground, try again.")
