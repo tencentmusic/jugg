@@ -122,7 +122,7 @@ class JuggDeployTask(
 
     private fun shouldTaskLaunchApp() = when(type) {
         JuggDeployType.INSTALL -> true
-        JuggDeployType.APPLY_CHANGES_AND_RESTART -> true
+        JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> true
         JuggDeployType.APPLY_CHANGES -> false
     }
 
@@ -158,7 +158,7 @@ class JuggDeployTask(
 
                 return deployer.install(applicationId, getPathsToInstall(files), options.build(), installMode)
             }
-            JuggDeployType.APPLY_CHANGES_AND_RESTART -> {
+            JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")
                 return deployer.fullSwap(getPathsToInstall(files), data)
             }
@@ -205,7 +205,7 @@ class JuggDeployTask(
  */
 enum class JuggDeployType {
     INSTALL,  // install
-    APPLY_CHANGES_AND_RESTART,  // apply changes and restart activity
+    APPLY_CHANGES_AND_RESTART_ACTIVITY,  // apply changes and restart activity
     APPLY_CHANGES, // apply changes
     ;
 
@@ -219,7 +219,7 @@ enum class JuggDeployType {
                             skippedApkList.stream().collect(Collectors.joining(", "))
                 }
             }
-            APPLY_CHANGES_AND_RESTART -> {
+            APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 if (all) {
                     "Activity restarted. No code or resource changes detected."
                 } else {

@@ -54,7 +54,10 @@ class JuggDeployerHelper(
         }
 
         if (data.isNeedRestartApp || type == JuggDeployType.INSTALL) {
+            logger.debug("Restarting app...")
             deployTargetManager.restartApp()
+        } else {
+            logger.debug("No need to restart app.")
         }
     }
 
@@ -99,8 +102,8 @@ class JuggDeployerHelper(
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp)
-                type = if (deployData.isNeedRestartApp) {
-                    JuggDeployType.APPLY_CHANGES_AND_RESTART
+                type = if (deployData.isNeedRestartActivity) {
+                    JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY
                 } else {
                     JuggDeployType.APPLY_CHANGES
                 }
