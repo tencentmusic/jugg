@@ -81,7 +81,7 @@ class FileChangesDetector(
         }
 
         val file = VfsUtil.virtualToIoFile(virtualFile)
-        val isMyProjectFile = file.absolutePath.startsWith(projectDir.absolutePath)
+        val isMyProjectFile = file.absolutePath.startsWith(projectDir.absolutePath + File.separator)
         if (!isMyProjectFile) {
             return null
         }
