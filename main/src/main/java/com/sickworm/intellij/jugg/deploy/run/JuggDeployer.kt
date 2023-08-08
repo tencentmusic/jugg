@@ -89,8 +89,8 @@ class JuggDeployer(
         val arch = adb.getArch(pids)
 
         // Get the list of files from the installed app assuming deployment cache is correct.
-        val speculativeDump = deployCache[deviceSerial, packageName]
-        logger.info("before deploy, overlay id: ${speculativeDump.overlayId.sha}, is base install: ${speculativeDump.overlayId.isBaseInstall}")
+        val speculativeDump: DeploymentCacheDatabase.Entry? = deployCache[deviceSerial, packageName]
+        logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}, is base install: ${speculativeDump?.overlayId?.isBaseInstall}")
 
         // On an on-host verification of the dump first.
         val dumper = ApplicationDumper(installer)
