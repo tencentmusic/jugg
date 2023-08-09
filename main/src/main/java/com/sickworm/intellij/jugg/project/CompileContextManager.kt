@@ -35,6 +35,7 @@ import kotlin.system.measureTimeMillis
 class CompileContextManager(
     private val project: Project,
     private val pathManager: JuggPathManager,
+    @Suppress("MissingRecentApi") // false positive error message
     private val moduleManager: ModuleManager = ModuleManager.getInstance(project), // mock
     private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
     private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock,
@@ -170,20 +171,21 @@ class CompileContextManager(
                 return@forEach
             }
 
-            val moduleManager = ModuleRootManager.getInstance(module)
-            val subSourceRoots = moduleManager.getSourceRoots(
+            val moduleRootManager = ModuleRootManager.getInstance(module)
+
+            val subSourceRoots = moduleRootManager.getSourceRoots(
                 setOf(
                     JavaSourceRootType.SOURCE,
                     org.jetbrains.kotlin.config.SourceKotlinRootType
                 ))
                 .filter { file ->
                     // ignore source in excludeRoots, etc. build
-                    moduleManager.excludeRoots.all { !file.path.startsWith(it.path) }
+                    moduleRootManager.excludeRoots.all { !file.path.startsWith(it.path) }
                 }
                 .map { it.toIoFile() }
             sourceDirs.addAll(subSourceRoots)
 
-            val subResourceRoots = moduleManager.getSourceRoots(
+            val subResourceRoots = moduleRootManager.getSourceRoots(
                 setOf(
                     JavaResourceRootType.RESOURCE,
                     org.jetbrains.kotlin.config.ResourceKotlinRootType
