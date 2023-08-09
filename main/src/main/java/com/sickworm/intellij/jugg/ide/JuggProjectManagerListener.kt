@@ -6,10 +6,14 @@ import com.intellij.openapi.project.ProjectManagerListener
 class JuggProjectManagerListener : ProjectManagerListener {
 
     override fun projectOpened(project: Project) {
-        JuggInitializer.init(project)
+        // do nothing
     }
 
     override fun projectClosed(project: Project) {
+        // no callback in runIde
+    }
+
+    override fun projectClosing(project: Project) {
         JuggInitializer.release(project)
     }
 }

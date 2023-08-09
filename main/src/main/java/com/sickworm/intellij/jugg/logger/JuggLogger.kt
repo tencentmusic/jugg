@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.logger
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.ide.bashPathOrDefault
 import java.io.File
 
 object JuggLogger {
@@ -29,25 +29,26 @@ object JuggLogger {
 
     @Synchronized
     fun register(project: Project, logDir: File) {
-        map.remove(project)
-        map[project] = ProjectLogHolder(
+        map.remove(project.bashPathOrDefault)
+        map[project.bashPathOrDefault] = ProjectLogHolder(
             FileLogger(logDir),
             LogDispatcher(),
         )
+    }
 
-        Disposer.register(project) {
-            map.remove(project)
-        }
+    fun unregister(project: Project) {
+        map[project.bashPathOrDefault]?.dispose()
+        map.remove(project.bashPathOrDefault)
     }
 
     fun resetLatestCompileLog(project: Project) {
-        map[project]?.fileLogger?.resetLatestCompileLog()
+        map[project.bashPathOrDefault]?.fileLogger?.resetLatestCompileLog()
     }
 
-    private val map = mutableMapOf<Project, ProjectLogHolder>()
+    private val map = mutableMapOf<String, ProjectLogHolder>()
 
     private fun ensure(project: Project): ProjectLogHolder {
-        map[project]?.let {
+        map[project.bashPathOrDefault]?.let {
             return it
         }
         throw IllegalAccessException("project [$project] not registered")
@@ -56,7 +57,13 @@ object JuggLogger {
     private class ProjectLogHolder(
         val fileLogger: FileLogger,
         val logDispatcher: LogDispatcher,
-    )
+    ) {
+
+        fun dispose() {
+            fileLogger.dispose()
+            logDispatcher.dispose()
+        }
+    }
 
 }
 

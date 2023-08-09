@@ -62,6 +62,14 @@ class JuggManager @TestOnly constructor(
         runTaskSafe("Init Project", ::initProject)
     }
 
+    fun refreshProjectInfo() {
+        runTaskSafe("Refresh Project Info", {
+            compileContextManager.initCompileContext()
+            juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
+            warmUpCompile(false)
+        })
+    }
+
     private fun initProject() {
         try {
             logger.info("Create run configuration...")
@@ -295,14 +303,17 @@ class JuggManager @TestOnly constructor(
 
         logger.info("Jugg init complete, start listening file changes.")
 
+        val isNeedWarmUpDeploy = deployedFiles.all { it.type != CompileOutput.Type.Overlay }
+        warmUpCompile(isNeedWarmUpDeploy)
+    }
+
+    private fun warmUpCompile(isNeedWarmUpDeploy: Boolean) {
         runTaskSafe("Warm Up Compile", {
-            val isNeedWarmUpDeploy = deployedFiles.all { it.type != CompileOutput.Type.Overlay }
-            warmUpCompile(isNeedWarmUpDeploy)
+            doWarmUpCompile(isNeedWarmUpDeploy)
         })
     }
 
-
-    private fun warmUpCompile(isNeedWarmUpDeploy: Boolean) {
+    private fun doWarmUpCompile(isNeedWarmUpDeploy: Boolean) {
         runBlocking {
             launch(Dispatchers.IO) {
                 juggCompilerHelper.warmUp()

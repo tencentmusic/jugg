@@ -27,6 +27,15 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
                 class="com.sickworm.intellij.jugg.ide.JuggProjectManagerListener"
                 topic="com.intellij.openapi.project.ProjectManagerListener"
         />
+        <!-- won't call back after Android Studio Giraffe -->
+        <listener
+                class="com.sickworm.intellij.jugg.ide.JuggGradleSyncListener"
+                topic="com.android.tools.idea.gradle.project.sync.GradleSyncListener"
+        />
+        <listener
+                class="com.sickworm.intellij.jugg.ide.JuggGradleSyncWithRootListener"
+                topic="com.android.tools.idea.gradle.project.sync.GradleSyncListenerWithRoot"
+        />
     </projectListeners>
 
     <extensions defaultExtensionNs="com.intellij">

@@ -5,7 +5,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.apache.commons.io.FileUtils
 import java.io.File
@@ -13,12 +12,29 @@ import java.io.IOException
 
 object JuggInitializer {
 
-    private val instanceSet = mutableMapOf<Project, JuggManager>()
+    private val instanceSet = mutableMapOf<String, JuggManager>()
 
     private val logger = Logger.getInstance("JuggInitializer")
 
-    fun init(project: Project) {
+    private fun tryGetProjectLogger(project: Project) = try {
+        JuggLogger.getInstance(project, "JuggInitializer")
+    } catch (e: Exception) {
+        null
+    }
 
+
+    @Synchronized
+    fun initOrRefresh(project: Project) {
+        val juggManager = instanceSet[project.basePath]
+        if (juggManager != null) {
+            juggManager.refreshProjectInfo()
+            return
+        }
+        init(project)
+    }
+
+    @Synchronized
+    fun init(project: Project) {
         val projectDir: String? = project.basePath
         if (projectDir == null || !File(projectDir).exists()) {
             logger.error("Can not get Jugg project dir, exit")
@@ -29,12 +45,14 @@ object JuggInitializer {
         JuggLogger.register(project, pathManager.logDir)
 
         val juggManager = JuggManager(project, pathManager)
+        tryGetProjectLogger(project)?.info("init $juggManager")
         juggManager.init()
-        instanceSet[project] = juggManager
+        instanceSet[projectDir] = juggManager
     }
 
+    @Synchronized
     fun reset(project: Project) {
-        val oldJuggManager = instanceSet[project]?: return
+        val oldJuggManager = instanceSet[project.basePath]?: return
         val pathManager = oldJuggManager.pathManager
         try {
             FileUtils.deleteDirectory(pathManager.juggRootDir)
@@ -44,17 +62,23 @@ object JuggInitializer {
         Disposer.dispose(oldJuggManager)
 
         JuggLogger.register(project, pathManager.logDir)
-        instanceSet[project] = JuggManager(project, pathManager)
-        instanceSet[project]?.init()
+        instanceSet[project.bashPathOrDefault] = JuggManager(project, pathManager)
+        instanceSet[project.bashPathOrDefault]?.init()
     }
 
+    @Synchronized
     fun release(project: Project) {
-        val juggManager = instanceSet[project] ?: return
+        val juggManager = instanceSet.remove(project.bashPathOrDefault)
+        tryGetProjectLogger(project)?.info("release $juggManager")
+
+        juggManager ?: return
         Disposer.dispose(juggManager)
-        instanceSet.remove(project)
+        JuggLogger.unregister(project)
     }
 
     fun getManager(project: Project): JuggManager? {
-        return instanceSet[project]
+        return instanceSet[project.bashPathOrDefault]
     }
 }
+
+val Project.bashPathOrDefault get() = basePath ?: "null"

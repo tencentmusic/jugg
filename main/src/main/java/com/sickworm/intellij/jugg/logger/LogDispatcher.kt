@@ -25,6 +25,11 @@ class LogDispatcher(
         }
     }
 
+    @Synchronized
+    fun dispose() {
+        loggers.clear()
+    }
+
     override fun isTraceEnabled(): Boolean {
         return false
     }

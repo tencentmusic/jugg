@@ -85,4 +85,11 @@ class FileLogger(
         logger.addHandler(newHandler)
         removeOldLogFiles(dir)
     }
+
+    fun dispose() {
+        logger.handlers.clone().forEach {
+            logger.removeHandler(it)
+            (it as? FileHandler)?.close()
+        }
+    }
 }
