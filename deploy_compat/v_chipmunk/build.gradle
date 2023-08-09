@@ -5,8 +5,7 @@ plugins {
 }
 
 intellij {
-    version = '212.5712.43' // Android Studio Chipmunk
-    plugins = ['android']
+    version = ide_version
 }
 
 repositories {
@@ -19,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    implementation fileTree(dir: '../libs', include: ['*.jar'])
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
 
