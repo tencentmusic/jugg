@@ -192,7 +192,12 @@ data class ModuleBuildPathInfo(
     /** kotlin class path */
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/debug")
 
-    val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath)
+    /** java classpath for java library */
+    private val javaClassPathForJavaLibrary get() = File(buildDir, "classes/java/main")
+    /** kotlin classpath for java library */
+    private val kotlinClassPathForJavaLibrary get() = File(buildDir, "classes/kotlin/main")
+
+    val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary)
 
     val allClassPathRelative get() = allClassPath.map { it.relativeTo(moduleRootDir) }
 
