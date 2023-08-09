@@ -30,7 +30,7 @@ data class CompileFile(
     val file: File,
     val baseDir: File,
     val module: ModuleInfo,
-    val dependencyPaths: List<String> = emptyList()
+    val dependencyPaths: List<String> = emptyList() // extra dependency paths, default use module's dependencies in CompileContext
 ) {
 
     override fun toString(): String {
@@ -129,6 +129,33 @@ interface ICompileContext {
 
     val variant: String
 
+    fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
+        val androidJar = androidJar.path
+        val projectDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
+            val dependencyModuleInfo = modules[it.moduleName] ?: run {
+                logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
+                return@flatMap emptyList()
+            }
+            dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
+                file.exists()
+            }.map { file ->
+                file.absolutePath
+            }
+        }
+        val libraryDependency = moduleInfo.libraryDependencies.map {
+            it.file.absolutePath
+        }
+        val dependencies = mutableListOf(androidJar)
+        dependencies.addAll(projectDependencies)
+        dependencies.addAll(libraryDependency)
+
+        task.files.forEach {
+            dependencies.addAll(it.dependencyPaths)
+        }
+
+        return dependencies
+    }
+
     fun listenUpdate(listener: OnContextUpdate)
 }
 
@@ -169,6 +196,15 @@ data class ModuleInfo(
     val javaSourceCompatibility: String?,
     val javaTargetCompatibility: String?,
     val buildPathInfo: ModuleBuildPathInfo,
+    val moduleDependencies: List<ModuleDependency>,
+    val libraryDependencies: List<LibraryDependency>,
+)
+data class ModuleDependency(
+    val moduleName: String,
+)
+
+data class LibraryDependency(
+    val file: File,
 )
 
 data class ModuleBuildPathInfo(

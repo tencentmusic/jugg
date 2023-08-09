@@ -49,10 +49,11 @@ class CompileContextDb(
         moduleBuildPathJsonFile.writeText(moduleBuildPathText, Charsets.UTF_8)
 
         // save third party lib info
-        // TODO auto update when file changes
-        // TODO try Class.forName("com.android.tools.idea.AndroidProjectModelUtils").declaredMethods[3].invoke(Class.forName("com.android.tools.idea.AndroidProjectModelUtils"), project)
+        // deprecated, won't use this for compile now
         val thirdPartyDependenciesDir = File("$projectDir/.idea/libraries")
-        val thirdPartyDependencies = IntellijLibraryConfigParser(thirdPartyDependenciesDir, projectDir.absolutePath).parse()
+        val thirdPartyDependencies = IntellijLibraryConfigParser(thirdPartyDependenciesDir, projectDir.absolutePath)
+            .parse()
+            ?.sorted()
 
         thirdPartiesJsonFile.delete()
         if (thirdPartyDependencies.isNullOrEmpty()) {

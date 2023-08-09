@@ -64,7 +64,7 @@ class JuggManager @TestOnly constructor(
 
     fun refreshProjectInfo() {
         runTaskSafe("Refresh Project Info", {
-            compileContextManager.initCompileContext()
+            compileContextManager.refreshCompileContext()
             juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
             warmUpCompile(false)
         })

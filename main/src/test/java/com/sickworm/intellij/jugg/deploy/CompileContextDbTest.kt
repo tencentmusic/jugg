@@ -11,7 +11,7 @@ class CompileContextDbTest {
     fun testReInitAfterFullCompiled() {
         val db = CompileContextDb(buildDir, projectInfo.projectRoot, logger)
         val jugg = MockJugg()
-        jugg.compileContextManager.initProjectInfo()
+        jugg.compileContextManager.initCompileContext()
         val costTime = measureTimeMillis {
             db.copyFullCompileOutput(projectInfo.apkInfos, jugg.compileContextManager.compileContext.modules)
         }

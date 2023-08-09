@@ -10,11 +10,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.roots.ModuleRootManager
-import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
-import com.sickworm.intellij.jugg.compiler.guessModuleDirAdv
-import com.sickworm.intellij.jugg.compiler.relativePath
+import com.intellij.openapi.roots.*
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -45,41 +42,51 @@ class CompileContextManager(
     val stagingDir = File(pathManager.compileRootDir, "staging")
     private val tempCompileDir = File(pathManager.compileRootDir, "compiled")
 
-    /**
-     * contains all dependencies in an Android project.
-     * TODO more efficient
-     */
-    var dependencies = listOf<String>()
-        private set
-
-    /** Init after [initProjectInfo] */
+    /** Init after [initCompileContext] */
     val compileContext: BaseCompileContext
         get() {
             return compileContextInside?: throw JuggInternalException.compilerContextNotInit()
         }
 
-    /** Init after [initProjectInfo] */
+    /** Init after [initCompileContext] */
     private var compileContextInside: BaseCompileContext? = null
 
-    fun initProjectInfo() {
-        val costTime = measureTimeMillis {
-            val modules = getAllModulesByModuleManager()
-            initContext(modules)
+    private var compileContextInfo: CompileContextInfo? = null
+
+    fun refreshCompileContext() {
+        val compileContextInfo = compileContextInfo
+        if (compileContextInfo == null) {
+            logger.info("compileContextInfo is null, which means not full build yet. Skip refreshCompileContext")
+            return
         }
-        logger.debug("initProjectInfo cost ${costTime}ms")
+        initFullBuildInfo(compileContextInfo)
     }
 
     fun initFullBuildInfo(compileContextInfo: CompileContextInfo) {
-        // need re init project info after full compile
-        initProjectInfo()
+        initCompileContext()
 
-        val startTime = System.currentTimeMillis()
-        updateProjectDependencies(compileContextInfo)
-        val endTime = System.currentTimeMillis()
-        logger.debug("initFullBuildInfo cost ${endTime - startTime}ms")
+        this.compileContextInfo = compileContextInfo
+        val copyModules = compileContext.modules.map { (name, module) ->
+            val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
+            if (newBuildPathInfo != null) {
+                name to module.copy(buildPathInfo = newBuildPathInfo)
+            } else {
+                // module that without build path. e.g. root project
+                name to module
+            }
+        }.toMap()
+        compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
-    private fun initContext(modules: Map<String, ModuleInfo>) {
+    private fun initCompileContext() {
+        val costTime = measureTimeMillis {
+            val modules = getAllModulesByModuleManager()
+            initCompileContext(modules)
+        }
+        logger.debug("initCompileContext cost ${costTime}ms")
+    }
+
+    private fun initCompileContext(modules: Map<String, ModuleInfo>) {
         logger.debug("Start initContext")
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
@@ -107,44 +114,6 @@ class CompileContextManager(
         compileContextInside = context
     }
 
-    private fun updateProjectDependencies(compileContextInfo: CompileContextInfo) {
-        logger.debug("updateProjectDependencies")
-
-        val copyModules = compileContext.modules.map { (name, module) ->
-            val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
-            if (newBuildPathInfo != null) {
-                name to module.copy(buildPathInfo = newBuildPathInfo)
-            } else {
-                // module that without build path. e.g. root project
-                name to module
-            }
-        }.toMap()
-        compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
-
-        val thirdPartyDependencies = compileContextInfo.thirdPartyDependencies
-
-        val projectDeps: List<File> = compileContext.modules.values.flatMap { module ->
-            module.buildPathInfo.allClassPath.filter {
-                if (it.exists()) return@filter true
-                false
-            }
-        }
-        val projectDepStrings = projectDeps.map { it.path }
-
-        val androidDep = compileContext.androidJar.path
-        dependencies = projectDepStrings + androidDep + thirdPartyDependencies
-
-        logger.debug("""
-            Dependencies loaded:
-            libDep:$thirdPartyDependencies
-            projectDep:$projectDepStrings
-        """.trimIndent())
-        logger.info("Dependencies loaded, " +
-                "${thirdPartyDependencies.size} library dependencies, " +
-                "${projectDeps.size} project dependencies."
-        )
-    }
-
     fun getAllModulesByModuleManager(): Map<String, ModuleInfo> {
         logger.debug("Start init module roots")
 
@@ -154,6 +123,7 @@ class CompileContextManager(
         val ideaFolderModules = mutableSetOf<String>()
         val notGradleModules = mutableSetOf<String>()
         val noSourceModules = mutableSetOf<String>()
+        val fullLibraryDependencies = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
             val sourceDirs = mutableListOf<File>()
             val resourceDirs = mutableListOf<File>()
@@ -173,6 +143,7 @@ class CompileContextManager(
 
             val moduleRootManager = ModuleRootManager.getInstance(module)
 
+            // find source roots
             val subSourceRoots = moduleRootManager.getSourceRoots(
                 setOf(
                     JavaSourceRootType.SOURCE,
@@ -222,6 +193,23 @@ class CompileContextManager(
                 return@forEach
             }
 
+            // find dependencies
+            val moduleDependencies = mutableListOf<ModuleDependency>()
+            val libraryDependencies = mutableListOf<LibraryDependency>()
+            moduleRootManager.orderEntries.forEach {
+                when (it) {
+                    is ModuleOrderEntry -> {
+                        moduleDependencies.add(ModuleDependency(it.moduleName))
+                    }
+                    is LibraryOrderEntry -> {
+                        it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
+                            libraryDependencies.add(LibraryDependency(file.toIoFile()))
+                            fullLibraryDependencies.add(file.toIoFile().absolutePath)
+                        }
+                    }
+                }
+            }
+
             val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
             val compileVersion: String? = buildModel.android().compileSdkVersion().readString(buildModel)
             val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
@@ -236,6 +224,8 @@ class CompileContextManager(
                 compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
                 ModuleBuildPathInfo(pathManager.projectDir, baseDir),
+                moduleDependencies,
+                libraryDependencies,
             )
 
             modules[module.name] = moduleInfo

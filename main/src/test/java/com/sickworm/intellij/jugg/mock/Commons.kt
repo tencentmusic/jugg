@@ -85,6 +85,8 @@ val mockModule = ModuleInfo(
     kotlinJvmTarget = "1.8", // TODO read from build.gradle
     javaSourceCompatibility = "1.8",
     javaTargetCompatibility = "1.8",
+    moduleDependencies = emptyList(),
+    libraryDependencies = emptyList(),
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>

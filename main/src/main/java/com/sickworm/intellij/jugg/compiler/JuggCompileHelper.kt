@@ -114,7 +114,7 @@ class JuggCompilerHelper(
         }
 
         val compileFiles = uncompiledFiles.map {
-            CompileFile(it.type, it.file, it.baseDir, it.module, dependencyPaths = compileContextManager.dependencies)
+            CompileFile(it.type, it.file, it.baseDir, it.module)
         }
 
         deployStateListener.onFileStatesUpdate(compileFiles.map {

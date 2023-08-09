@@ -18,7 +18,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     private var kotlinAndroidExtensionsPath: String? = null
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
+        val dependencies = context.getModuleDependencies(module, task)
 
         if (!hasFoundKotlinAndroidExtensions) {
             val classLoader = this::class.java.classLoader
