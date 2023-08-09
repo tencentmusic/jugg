@@ -96,6 +96,9 @@ class JuggManager @TestOnly constructor(
         if (deployContextRecoverInfo == null) {
             logger.debug("Can not recover from deploy history, please run gradle compile first")
             return
+        } else {
+            logger.debug("Recover deploy context from history successfully:")
+            logger.debug("$deployContextRecoverInfo")
         }
 
         // step 1: recover compile context

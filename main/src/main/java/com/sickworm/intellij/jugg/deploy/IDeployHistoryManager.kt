@@ -44,7 +44,7 @@ interface IDeployHistoryManager {
 /**
  * All things we need to recover incremental compile.
  */
-class DeployContextRecoverInfo(
+data class DeployContextRecoverInfo(
     val changedFiles: List<File>,
     val compileContextInfo: CompileContextInfo,
     val deployedFiles: List<CompileOutput>,
@@ -57,4 +57,19 @@ data class CompileContextInfo(
     val apkInfos: List<ApkInfo>,
     val moduleBuildPathInfos: Map<String, ModuleBuildPathInfo>,
     val thirdPartyDependencies: List<String>,
-)
+) {
+
+    override fun toString(): String {
+        val projectRootDir = moduleBuildPathInfos.values.firstOrNull()?.projectRootDir ?: File("")
+        return "CompileContextInfo(" +
+                "apkInfos=${apkInfos.map { it.getDescription() }}, " +
+                "projectRootDir=$projectRootDir, " +
+                "moduleBuildPathInfos=${moduleBuildPathInfos.mapValues { it.value.moduleRootDir.relativeToOrSelf(projectRootDir) }}, " +
+                "thirdPartyDependencies=$thirdPartyDependencies" +
+                ")"
+    }
+
+    private fun ApkInfo.getDescription(): String {
+        return "ApkInfo(applicationId=$applicationId, files=${files.map { "Module: ${it.moduleName}, File: ${it.apkFile}" }})"
+    }
+}
