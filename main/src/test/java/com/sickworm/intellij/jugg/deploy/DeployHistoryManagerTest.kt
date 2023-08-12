@@ -44,8 +44,8 @@ class DeployHistoryManagerTest {
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
         val jugg = MockJugg()
-        jugg.compileContextManager.initCompileContext()
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, jugg.compileContextManager.compileContext.modules)
+        val modules = jugg.compileContextManager.getAllModulesByModuleManager()
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, modules)
         assertTrue(historyManager.hasBeenFullCompiled)
         val recoverInfo1 = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo1)
@@ -110,8 +110,8 @@ class DeployHistoryManagerTest {
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
         val jugg = MockJugg()
-        jugg.compileContextManager.initCompileContext()
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, jugg.compileContextManager.compileContext.modules)
+        val modules = jugg.compileContextManager.getAllModulesByModuleManager()
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, modules)
 
         val deployedFile = File(buildDir, "com/A.dex").let {
             it.parentFile.mkdirs()
