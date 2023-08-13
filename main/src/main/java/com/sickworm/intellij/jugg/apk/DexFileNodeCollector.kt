@@ -5,9 +5,10 @@ import com.googlecode.d2j.visitors.DexClassVisitor
 import com.googlecode.d2j.visitors.DexFileVisitor
 import com.sickworm.intellij.jugg.compiler.ClassNode
 
-class DexFileNodeCollector : DexFileVisitor() {
+class DexFileNodeCollector(
+    private var classes: MutableMap<String, ClassNode> = mutableMapOf(),
+) : DexFileVisitor() {
 
-    private var classes = mutableMapOf<String, ClassNode>()
 
     override fun visit(
         accessFlags: Int,

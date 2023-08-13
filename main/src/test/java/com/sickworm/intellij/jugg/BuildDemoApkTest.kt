@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.apk.ApkParser
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.projectInfo
+import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.junit.Test
 import java.lang.management.ManagementFactory
 import kotlin.test.assertEquals
@@ -97,9 +98,11 @@ class BuildDemoApkTest {
         println("testApkStructure start")
         System.gc()
         JVMemorySize.printMemory()
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo, true)
+        val (costTime, parsedApk) = measureTimeMillisWithResult {
+            ApkParser().parse(projectInfo.apkInfo, true)
+        }
         System.gc()
-        println("testApkStructure end")
+        println("testApkStructure end, cost ${costTime}ms")
         JVMemorySize.printMemory()
 
         println(parsedApk)

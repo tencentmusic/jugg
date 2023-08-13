@@ -5,24 +5,45 @@ import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.node.DexFileNode
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
-import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ParsedApk
+import kotlinx.coroutines.*
 import java.io.File
+import java.util.concurrent.Semaphore
+import java.util.zip.ZipFile
 
 /** Used to parse everything I need in Apk */
-class ApkParser {
+class ApkParser: CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun parse(apkInfo: ApkInfo, isSkipCode: Boolean): ParsedApk {
-        val apkBytes = apkInfo.files.first().apkFile.readBytes()
-        val classes = parseCode(apkBytes, isSkipCode)
+        val apkFile = apkInfo.files.first().apkFile
+        val classes = mutableMapOf<String, ClassNode>()
+        val jobs = mutableListOf<Job>()
+
+        val concurrencyLimit = Runtime.getRuntime().availableProcessors()
+        ZipFile(apkFile).use { zipFile ->
+            zipFile.entries().asIterator().forEach {
+                val entryName = it.name
+                if (entryName.startsWith("classes") && entryName.endsWith(".dex")) {
+                    val job = launch(Dispatchers.IO.limitedParallelism(concurrencyLimit)) {
+                        val dexBytes = zipFile.getInputStream(it).readBytes()
+                        parseCode(dexBytes, isSkipCode, classes)
+                    }
+                    jobs.add(job)
+                }
+            }
+            runBlocking {
+                jobs.joinAll()
+            }
+        }
         val overlays = parseOverlays(apkInfo.files.first().apkFile)
         return ParsedApk(apkInfo, classes, overlays)
     }
 
-    private fun parseCode(bytes: ByteArray, isSkipCode: Boolean): Map<String, ClassNode> {
-        val reader: BaseDexFileReader = MultiDexFileReader.open(bytes)
-        val visitor = DexFileNodeCollector()
+    private fun parseCode(bytes: ByteArray, isSkipCode: Boolean, map: MutableMap<String, ClassNode> = mutableMapOf()): Map<String, ClassNode> {
+        val reader: BaseDexFileReader = DexFileReader(bytes)
+        val visitor = DexFileNodeCollector(map)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
         return visitor.getClasses()
