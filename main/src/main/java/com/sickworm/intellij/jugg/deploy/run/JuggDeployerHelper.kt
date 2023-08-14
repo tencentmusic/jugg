@@ -139,18 +139,19 @@ class JuggDeployerHelper(
                         }
                         else -> false
                     }
-                    if (isNeedRecover) {
+                    val result: DeployTaskResult = if (isNeedRecover) {
                         if (!recoverDeployState()) {
                             logger.info("Try recover deploy state failed on retry.")
-                            return DeployTaskResult(isSuccess = false, costTime = costTime(),
+                            DeployTaskResult(isSuccess = false, costTime = costTime(),
                                 failedReason = "Try recover deploy state failed on retry.")
                         } else {
                             logger.info("Try recover deploy state success on retry.")
+                            deploy(isInstall, isWarmUp = false, canRetry = true)
                         }
                     } else {
                         logger.info("Deploy agent no response, but App is in foreground, try again.")
+                        deploy(isInstall, isWarmUp = false, canRetry = false)
                     }
-                    val result = deploy(isInstall, isWarmUp = false, canRetry = false)
                     return result.copy(costTime = costTime())
                 }
             }
