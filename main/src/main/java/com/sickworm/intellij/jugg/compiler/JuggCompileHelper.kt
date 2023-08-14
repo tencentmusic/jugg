@@ -122,9 +122,7 @@ class JuggCompilerHelper(
         })
 
         // do compile
-        val compileFilesMap = compileFiles.groupBy { it.module }
-        val compileFilesContent = compileFilesMap.entries.joinToString("\n") { "${it.key}: ${it.value}" }
-        logger.info("Compile files:\n${compileFilesContent}")
+        logger.info("Compile files:\n${compileFiles.desc()}")
         val compileResult = try {
             compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
         } catch (e: Exception) {

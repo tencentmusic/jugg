@@ -47,6 +47,40 @@ data class CompileFile(
     }
 }
 
+fun List<CompileFile>.desc(): String {
+    val compileFilesMap = this.groupBy {
+        val splits = it.module.name.split('.')
+        return@groupBy when (splits.size) {
+            3 -> splits[1]
+            2 -> splits[0]
+            else -> it.module.name
+        }
+    }
+    return compileFilesMap.entries.joinToString("\n") { entry ->
+        val value = entry.value
+            .groupBy {
+                val type = when (it.type) {
+                    CompileFile.Type.Java -> "source"
+                    CompileFile.Type.Kotlin -> "source"
+                    CompileFile.Type.Class -> "class"
+                    CompileFile.Type.Asset -> "asset"
+                    CompileFile.Type.Resource -> "resource"
+                    CompileFile.Type.Flat -> "flat"
+                }
+                return@groupBy type
+            }
+            .mapValues {
+                it.value.map { file ->
+                    file.file.name
+                }
+            }
+        val valueContent = value.entries.joinToString("\n    ", prefix = "    ") {
+            "${it.key}: ${it.value}"
+        }
+        return@joinToString "${entry.key}: [\n$valueContent\n]"
+    }
+}
+
 data class CompileOutput(
     val type: Type,
     val file: File,
