@@ -216,6 +216,11 @@ class MockJugg {
                 return this@MockJugg.getDevice()
             }
 
+            override fun startApp(): Boolean {
+                AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
+                return true
+            }
+
             override fun restartApp(): Boolean {
                 AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
                 return true

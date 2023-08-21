@@ -56,8 +56,11 @@ class JuggDeployerHelper(
         if (data.isNeedRestartApp || type == JuggDeployType.INSTALL) {
             logger.debug("Restarting app...")
             deployTargetManager.restartApp()
+        } else if (!deployTargetManager.isAppForeground()) {
+            logger.debug("Starting app...")
+            deployTargetManager.startApp()
         } else {
-            logger.debug("No need to restart app.")
+            logger.debug("App foreground, no need to restart app.")
         }
     }
 

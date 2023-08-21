@@ -54,9 +54,19 @@ class DeployTargetManager(
         }
     }
 
+    override fun startApp(): Boolean {
+        return try {
+            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks, isRestart = false)
+            true
+        } catch (e: Exception) {
+            logger.error("restartApp failed", e)
+            false
+        }
+    }
+
     override fun restartApp(): Boolean {
         return try {
-            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks)
+            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks, isRestart = true)
             true
         } catch (e: Exception) {
             logger.error("restartApp failed", e)

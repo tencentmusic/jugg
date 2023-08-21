@@ -18,6 +18,8 @@ interface IDeployTargetManager {
 
     fun getDevice(): IDevice
 
+    fun startApp(): Boolean
+
     fun restartApp(): Boolean
 
     fun isAppForeground(): Boolean
