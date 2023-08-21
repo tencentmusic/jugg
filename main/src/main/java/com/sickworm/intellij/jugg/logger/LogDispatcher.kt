@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.logger
 
 import com.intellij.openapi.diagnostic.Logger
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Dispatch log to [loggers].
@@ -9,7 +10,7 @@ class LogDispatcher(
     loggersArg: List<Logger> = emptyList()
 ): Logger() {
 
-    private val loggers: MutableList<Logger> = loggersArg.toMutableList()
+    private val loggers: CopyOnWriteArrayList<Logger> = CopyOnWriteArrayList(loggersArg.toMutableList())
 
     @Synchronized
     fun listenProjectLog(logger: Logger) {

@@ -172,28 +172,29 @@ class JuggManager @TestOnly constructor(
 
     @Volatile
     private var currentTask: JuggRunningTask? = null
-    @Volatile
-    private var onFinishListener: (() -> Unit)? = null
 
     fun cancelCurrentTask(onFinish: () -> Unit) {
         val currentTask = currentTask
         if (currentTask == null) {
+            logger.debug("Current task is null")
             onFinish()
             return
         }
         if (!currentTask.isRunning) {
+            logger.debug("Current task is not running")
             onFinish()
             return
         }
-        logger.info("cancelCurrentTask $currentTask")
-        currentTask.cancel()
-        onFinishListener = onFinish
+        logger.warn("Canceling task...")
+        currentTask.cancel(onFinish)
     }
 
     fun createRunningTask(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
     ): JuggRunningTask {
+        logger.debug("Create running task: $options")
+
         val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
             return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
         }
@@ -207,7 +208,9 @@ class JuggManager @TestOnly constructor(
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
-        return JuggRunningTask(project, juggReporter, processHandler, compileTask, deployTask, initIncrementalCompileTask)
+        val task = JuggRunningTask(project, juggReporter, processHandler, compileTask, deployTask, initIncrementalCompileTask)
+        currentTask = task
+        return task
     }
 
     @TestOnly

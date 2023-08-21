@@ -164,12 +164,23 @@ class JuggRunningTask(
         if (!processHandler.isProcessTerminated) {
             processHandler.detachProcess()
         }
+        if (onFinishListener != null) {
+            onFinishListener?.invoke()
+            onFinishListener = null
+        }
     }
 
-    fun cancel() {
-        if (!processHandler.isProcessTerminated) {
-            logger.warn("Try canceling process...")
+    @Volatile
+    private var onFinishListener: (() -> Unit)? = null
+
+    fun cancel(onFinishListener: () -> Unit) {
+        if (isRunning) {
+            this.onFinishListener = onFinishListener
+            logger.debug("Try canceling process...")
             processHandler.detachProcess()
+        } else {
+            logger.debug("Process already terminated.")
+            onFinishListener.invoke()
         }
     }
 }
