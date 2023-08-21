@@ -163,9 +163,9 @@ class DeployDataGenerator(
         }
 
         logger.debug("init finish, cost ${costTime}ms. load " +
-            "classes ${parsedApks.sumOf { it.getClassSize() }}}, " +
-            "overlays ${parsedApks.sumOf { it.overlayFiles.size }}}," +
-            "deployedClasses ${deployedClasses.size}," +
+            "classes ${parsedApks.sumOf { it.getClassSize() }}, " +
+            "overlays ${parsedApks.sumOf { it.overlayFiles.size }}, " +
+            "deployedClasses ${deployedClasses.size}, " +
             "deployedOverlays ${deployedOverlays.size}"
         )
 
