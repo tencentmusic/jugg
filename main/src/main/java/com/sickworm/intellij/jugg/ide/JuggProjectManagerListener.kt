@@ -6,7 +6,7 @@ import com.intellij.openapi.project.ProjectManagerListener
 class JuggProjectManagerListener : ProjectManagerListener {
 
     override fun projectOpened(project: Project) {
-        // do nothing
+        JuggInitializer.init(project)
     }
 
     override fun projectClosed(project: Project) {

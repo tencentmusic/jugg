@@ -59,29 +59,29 @@ class JuggManager @TestOnly constructor(
 
     fun init() {
         Disposer.register(this, juggCompilerHelper)
-        runTaskSafe("Init Project", ::initProject)
-    }
-
-    fun refreshProjectInfo() {
-        runTaskSafe("Refresh Project Info", {
-            compileContextManager.refreshCompileContext()
-            juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
-            warmUpCompile(false)
-        })
-    }
-
-    private fun initProject() {
-        try {
+        runTaskSafe("Init Jugg", {
             logger.info("Create run configuration...")
             createRunConfiguration()
             logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            logger.info("Init deploy history...")
-            recoverDeployContext()
             logger.info("Start jugg finished.")
-        } finally {
-            updateDeployState()
-        }
+        })
+    }
+
+    fun initProjectInfo() {
+        runTaskSafe("Init Project Info", {
+            if (!deployStateManager.deployState.isReadyIncCompile) {
+                logger.debug("Deploy state is not ready inc compile")
+                recoverDeployContext()
+            } else {
+                logger.debug("Deploy state is ready inc compile")
+                val isSuccess = compileContextManager.refreshCompileContext()
+                if (isSuccess) {
+                    juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
+                    warmUpCompile(false)
+                }
+            }
+        })
     }
 
     private fun createRunConfiguration() {

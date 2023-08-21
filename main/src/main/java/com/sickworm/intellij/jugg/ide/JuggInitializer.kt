@@ -6,9 +6,7 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import org.apache.commons.io.FileUtils
 import java.io.File
-import java.io.IOException
 
 object JuggInitializer {
 
@@ -27,7 +25,7 @@ object JuggInitializer {
     fun initOrRefresh(project: Project) {
         val juggManager = instanceSet[project.basePath]
         if (juggManager != null) {
-            juggManager.refreshProjectInfo()
+            juggManager.initProjectInfo()
             return
         }
         init(project)
@@ -48,22 +46,6 @@ object JuggInitializer {
         tryGetProjectLogger(project)?.info("init $juggManager")
         juggManager.init()
         instanceSet[projectDir] = juggManager
-    }
-
-    @Synchronized
-    fun reset(project: Project) {
-        val oldJuggManager = instanceSet[project.basePath]?: return
-        val pathManager = oldJuggManager.pathManager
-        try {
-            FileUtils.deleteDirectory(pathManager.juggRootDir)
-        } catch (e: IOException) {
-            logger.error("Delete root directory failed", e)
-        }
-        Disposer.dispose(oldJuggManager)
-
-        JuggLogger.register(project, pathManager.logDir)
-        instanceSet[project.bashPathOrDefault] = JuggManager(project, pathManager)
-        instanceSet[project.bashPathOrDefault]?.init()
     }
 
     @Synchronized

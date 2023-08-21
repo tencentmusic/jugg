@@ -53,13 +53,14 @@ class CompileContextManager(
 
     private var compileContextInfo: CompileContextInfo? = null
 
-    fun refreshCompileContext() {
+    fun refreshCompileContext(): Boolean {
         val compileContextInfo = compileContextInfo
         if (compileContextInfo == null) {
             logger.info("compileContextInfo is null, which means not full build yet. Skip refreshCompileContext")
-            return
+            return false
         }
         initFullBuildInfo(compileContextInfo)
+        return true
     }
 
     fun initFullBuildInfo(compileContextInfo: CompileContextInfo) {
