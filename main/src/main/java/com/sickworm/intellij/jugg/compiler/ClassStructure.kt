@@ -9,7 +9,11 @@ import java.util.LinkedList
 /**
  * A dex class structure parsed from .dex file.
  */
-class ClassNode(node: DexClassNode, isKeepNode: Boolean = false) {
+class ClassNode(val dexFileName: String, node: DexClassNode, isKeepNode: Boolean = false) {
+
+    companion object {
+        const val JUGG_DEPLOYED_DEX_FILE_NAME = "jugg_deployed.dex" // virtual dex file name, not really exists
+    }
 
     val className = node.className.convertSigFormatToPackage()
 

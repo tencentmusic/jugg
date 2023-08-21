@@ -6,7 +6,8 @@ import com.googlecode.d2j.visitors.DexFileVisitor
 import com.sickworm.intellij.jugg.compiler.ClassNode
 
 class DexFileNodeCollector(
-    private var classes: MutableMap<String, ClassNode> = mutableMapOf(),
+    private val dexFileName: String,
+    private val classes: MutableMap<String, ClassNode> = mutableMapOf(),
 ) : DexFileVisitor() {
 
 
@@ -19,7 +20,7 @@ class DexFileNodeCollector(
         val cn = DexClassNode(accessFlags, className, superClass, interfaceNames)
         return object : DexClassVisitor(cn) {
             override fun visitEnd() {
-                classes[cn.className] = ClassNode(cn)
+                classes[cn.className] = ClassNode(dexFileName, cn)
             }
         }
     }

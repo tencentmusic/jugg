@@ -170,9 +170,17 @@ interface ICompileContext {
 
 class ParsedApk(
     val apkInfo: ApkInfo,
-    private val classes: Map<String, ClassNode>,
+    val classes: Map<String, ClassNode>,
+    val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
 ) {
+
+    val apkInfoKey: String by lazy {
+        apkInfo.files
+            .joinToString(";") {
+                it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
+            }
+    }
 
     fun containsClass(className: String): Boolean {
         return getClass(className) != null
