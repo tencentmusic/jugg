@@ -59,6 +59,7 @@ class DeployFileManager(
     fun removeChangedFile(files: List<File>) {
         files.forEach {
             uncompiledFiles.remove(it.stdPath)
+            compiledFiles.remove(it.stdPath)
         }
     }
 
@@ -102,8 +103,8 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun addDeployFiles(compiledFiles: List<CompileOutput>) {
-        compiledFiles.forEach {
+    fun addDeployFiles(compileOutputFiles: List<CompileOutput>) {
+        compileOutputFiles.forEach {
             stagingFiles[it.file.stdAbsPath] = it
         }
     }

@@ -1,14 +1,14 @@
 package com.sickworm.intellij.jugg.project
 
+import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
-import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.openapi.vfs.newvfs.events.VFileCopyEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
@@ -55,38 +55,42 @@ class FileChangesDetector(
     }
 
     private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
-        val changedFiles = events.mapNotNull(::toFile)
+        val changedFiles = events.flatMap { toFiles(it) }
         if (changedFiles.isEmpty()) return
         listener?.onFileChanges(changedFiles)
     }
 
-    private fun toFile(event: VFileEvent?): File? {
+    private fun toFiles(event: VFileEvent?): List<File> {
         if (event == null) {
-            return null
+            return emptyList()
         }
 
-//        logger.debug("file event ${event::class.java.name} $event")
-        if (event is VFilePropertyChangeEvent) {
-            return null
+        val files: List<File> = when (event) {
+
+            is VFileMoveEvent -> {
+                listOf(File(event.oldPath), File(event.newPath))
+            }
+
+            is VFilePropertyChangeEvent -> {
+                if (event.propertyName == VirtualFile.PROP_NAME) {
+                    listOf(File(event.oldPath), File(event.newPath))
+                } else {
+                    emptyList()
+                }
+            }
+
+            else -> {
+                listOf(File(event.path))
+            }
         }
 
-        val virtualFile = if (event is VFileCopyEvent) {
-            VirtualFileManager.getInstance().findFileByNioPath(Paths.get(event.path))
-        } else {
-            event.file
+        return files.filter {
+            it.absolutePath.startsWith(projectDir.absolutePath + File.separator)
         }
-
-        if (virtualFile == null) {
-            return null
-        }
-
-        val file = VfsUtil.virtualToIoFile(virtualFile)
-        val isMyProjectFile = file.absolutePath.startsWith(projectDir.absolutePath + File.separator)
-        if (!isMyProjectFile) {
-            return null
-        }
-        return file
     }
+
+    private val String.virtualFile: VirtualFile?
+        get() = VirtualFileManager.getInstance().findFileByNioPath(Paths.get(this))
 
     override fun dispose() {
         logger.debug("${project.basePath} dispose")
