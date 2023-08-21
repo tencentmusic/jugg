@@ -44,8 +44,11 @@ abstract class IftSyncCommand : BaseSshCommand() {
         if (currentChar != ':'.code) {
             return null
         }
-        if (buffer.startsWith("Username:") || buffer.startsWith("Pin+Token:")) {
-            return IGradleCompileClient.Error.ERROR_NEED_LOGIN
+        if (buffer.startsWith("Username:")) {
+            return IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER
+        }
+        if (buffer.startsWith("Pin+Token:")) {
+            return IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD
         }
         return null
     }

@@ -64,6 +64,7 @@ interface IGradleCompileClient : Disposable {
         const val ERROR_FAILED = -1001
         const val ERROR_CANCELED = -1002
         const val RESULT_CHANNEL_CLOSED = -1003
-        const val ERROR_NEED_LOGIN = -1004
+        const val ERROR_NEED_LOGIN_IFT_USER = -1004
+        const val ERROR_NEED_LOGIN_IFT_PASSWORD = -1005
     }
 }

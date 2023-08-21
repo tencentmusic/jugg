@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
@@ -68,8 +69,9 @@ class RemoteGradleCompileClient(
 
         val syncFileCommand = SyncFileCommand(gradleCompileSettings.localProjectIftPath, gradleCompileSettings.remoteProjectPath)
         val syncFileResult = invoke(channel, syncFileCommand)
-        if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN) {
-            printToStreamErrorIfCanceled("iFt needs login, please use terminal to login with Username and Pin+Token first.")
+        if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
+            syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
+            printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
             return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
         } else if (syncFileResult != 0) {
             printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
@@ -151,6 +153,7 @@ class RemoteGradleCompileClient(
         val buffer = StringBuilder()
         val bufferedInputStream = BufferedInputStream(channel.inputStream)
         val result: Int
+        var lastInterruptCode: Int = IGradleCompileClient.Error.SUCCESS // avoid popup dialog on every chat entered
         whileRoot@while (true) {
             buffer.setLength(0)
             var line: String
@@ -163,9 +166,26 @@ class RemoteGradleCompileClient(
                     buffer.append(code.toChar())
                 }
                 val interruptCode = command.shouldInterrupted(code, buffer)
-                if (interruptCode != null) {
-                    result = interruptCode
-                    break@whileRoot
+                if (interruptCode != null && lastInterruptCode != interruptCode) {
+                    if (interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
+                        interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
+                        lastInterruptCode = interruptCode
+                        var output: String? = null
+                        ApplicationManager.getApplication().invokeAndWait {
+                            val content = "iFt ${buffer.toString().replace(":", "")}"
+                            output = UserAndPasswordInputDialog(content).showAndGetResult()
+                        }
+                        if (output == null) {
+                            // user canceled
+                            result = interruptCode
+                            break@whileRoot
+                        }
+                        commander.println(output)
+                        commander.flush()
+                    } else {
+                        result = interruptCode
+                        break@whileRoot
+                    }
                 }
             }
             if (line.isNotEmpty()) {
