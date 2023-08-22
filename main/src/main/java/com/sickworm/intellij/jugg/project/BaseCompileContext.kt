@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.OnContextUpdate
@@ -22,6 +23,59 @@ data class BaseCompileContext(
     override val variant: String = "debug" // TODO more elegant?
 
     private val listeners = mutableListOf<OnContextUpdate>()
+
+    // currently Jugg only keep the final R.jar which is in the application module, for better copying speed in remote compile mode
+    private val finalRFiles: List<String> by lazy {
+        return@lazy modules.mapNotNull { module ->
+            val rFile = module.value.buildPathInfo.rFilePath
+            if (rFile.exists()) {
+                rFile.absolutePath
+            } else {
+                null
+            }
+        }
+    }
+
+    override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
+        val androidJar = androidJar.path
+
+        val classpathDependencies = moduleInfo.buildPathInfo.allClassPath.filter { file ->
+            file.exists()
+        }.map { file ->
+            file.absolutePath
+        }
+
+        val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
+            val dependencyModuleInfo = modules[it.moduleName] ?: run {
+                logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
+                return@flatMap emptyList()
+            }
+            dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
+                file.exists()
+            }.map { file ->
+                file.absolutePath
+            }
+        }
+        val libraryDependency = moduleInfo.libraryDependencies.map {
+            it.file.absolutePath
+        }
+
+        if (finalRFiles.isEmpty()) {
+            logger.warn("No R.jar found in project, compile may fail.")
+        }
+
+        val dependencies = mutableListOf(androidJar)
+        dependencies.addAll(finalRFiles)
+        dependencies.addAll(classpathDependencies)
+        dependencies.addAll(moduleDependencies)
+        dependencies.addAll(libraryDependency)
+
+        task.files.forEach {
+            dependencies.addAll(it.dependencyPaths)
+        }
+
+        return dependencies
+    }
 
     override fun listenUpdate(listener: OnContextUpdate) {
         synchronized(listeners) {

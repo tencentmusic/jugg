@@ -2,10 +2,7 @@ package com.sickworm.intellij.jugg.mock
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.ParsedApk
-import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
-import com.sickworm.intellij.jugg.compiler.OnContextUpdate
+import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
 
 class SimpleCompileContext(
@@ -20,6 +17,10 @@ class SimpleCompileContext(
     override val minApi: Int,
     override val projectDir: File,
 ) : ICompileContext {
+
+    override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
+        return emptyList()
+    }
 
     override fun listenUpdate(listener: OnContextUpdate) {
     }

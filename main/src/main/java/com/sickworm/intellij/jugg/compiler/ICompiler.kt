@@ -163,32 +163,7 @@ interface ICompileContext {
 
     val variant: String
 
-    fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
-        val androidJar = androidJar.path
-        val projectDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
-            val dependencyModuleInfo = modules[it.moduleName] ?: run {
-                logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
-                return@flatMap emptyList()
-            }
-            dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
-                file.exists()
-            }.map { file ->
-                file.absolutePath
-            }
-        }
-        val libraryDependency = moduleInfo.libraryDependencies.map {
-            it.file.absolutePath
-        }
-        val dependencies = mutableListOf(androidJar)
-        dependencies.addAll(projectDependencies)
-        dependencies.addAll(libraryDependency)
-
-        task.files.forEach {
-            dependencies.addAll(it.dependencyPaths)
-        }
-
-        return dependencies
-    }
+    fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun listenUpdate(listener: OnContextUpdate)
 }

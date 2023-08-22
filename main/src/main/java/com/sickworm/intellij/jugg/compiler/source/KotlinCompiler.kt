@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
-import java.net.URLDecoder
 
 class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
