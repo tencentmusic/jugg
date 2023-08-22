@@ -81,10 +81,11 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     private lateinit var logger: Logger
 
+    val ideVersion = IdeVersion(ApplicationInfo.getInstance())
+
     fun init(logger: Logger) {
         this.logger = logger
 
-        val ideVersion = IdeVersion(ApplicationInfo.getInstance())
         logger.debug("IDE version: $ideVersion")
 
         var impl: CompatImpl? = compatImplList.firstNotNullOfOrNull { compatImpl ->
@@ -170,8 +171,7 @@ private class CompatImpl(
     val ideVersion: IdeVersion,
     val impl: Lazy<IAsDeployerCompat>,
 )
-
-private class IdeVersion(
+class IdeVersion(
     /**
      * e.g.
      * Android Studio Chipmunk | 2021.2.1 Patch 1
