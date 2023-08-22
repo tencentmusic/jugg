@@ -316,8 +316,8 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
     private fun splitModuleAndCompile(task: CompileTask): CompileResult {
         // split by module
         val fileGroups = task.files.groupBy { it.module }
-        val moduleCompileOrder = getModuleCompileOrders(fileGroups.keys)
-        logger.debug("going to compile modules with order: $moduleCompileOrder")
+        val moduleCompileOrder = ModuleCompileOrderUtils.getModuleCompileOrders(fileGroups.keys)
+        logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
 
         val results = moduleCompileOrder.map {
             val files = fileGroups[it] ?: emptyList()
@@ -327,45 +327,6 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
             return CompileResult(task, emptyList(), emptyList())
         }
         return results.reduce { acc, compileResult -> acc + compileResult }
-    }
-
-    /**
-     * get module compile order by DAG
-     */
-    private fun getModuleCompileOrders(modules: Set<ModuleInfo>): List<ModuleInfo> {
-        val moduleMap = modules.associateBy { it.name }
-        val indegreeMap = mutableMapOf<String, Int>()
-
-        // Initialize indegree information
-        modules.forEach { moduleInfo ->
-            indegreeMap[moduleInfo.name] = moduleInfo.moduleDependencies.size
-        }
-
-        val queue = ArrayDeque<ModuleInfo>()
-        val compileOrder = mutableListOf<ModuleInfo>()
-
-        // Add modules with indegree 0 to the queue
-        indegreeMap.forEach { (moduleName, indegree) ->
-            if (indegree == 0) {
-                queue.add(moduleMap[moduleName]!!)
-            }
-        }
-
-        // Start topological sorting
-        while (queue.isNotEmpty()) {
-            val moduleInfo = queue.removeFirst()
-            compileOrder.add(moduleInfo)
-
-            moduleInfo.moduleDependencies.forEach { dependency ->
-                val newIndegree = indegreeMap[dependency.moduleName]!! - 1
-                indegreeMap[dependency.moduleName] = newIndegree
-                if (newIndegree == 0) {
-                    queue.add(moduleMap[dependency.moduleName]!!)
-                }
-            }
-        }
-
-        return compileOrder
     }
 
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
