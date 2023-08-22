@@ -9,24 +9,29 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.ParsedApk
 import kotlinx.coroutines.*
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.zip.ZipFile
 
 /** Used to parse everything I need in Apk */
-class ApkParser: CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
-    @OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
+class ApkParser: CoroutineScope by CoroutineScope(
+    Dispatchers.IO.limitedParallelism(
+        Runtime.getRuntime().availableProcessors() / 2
+    )
+) {
+
     fun parse(apkInfo: ApkInfo, isSkipCode: Boolean): ParsedApk {
         val apkFile = apkInfo.files.first().apkFile
-        val classes = mutableMapOf<String, ClassNode>()
+        val classes = ConcurrentHashMap<String, ClassNode>()
         val jobs = mutableListOf<Job>()
 
-        val concurrencyLimit = Runtime.getRuntime().availableProcessors()
         ZipFile(apkFile).use { zipFile ->
             zipFile.entries().asIterator().forEach {
                 val entryName = it.name
                 if (entryName.startsWith("classes") && entryName.endsWith(".dex")) {
-                    val job = launch(Dispatchers.IO.limitedParallelism(concurrencyLimit)) {
+                    val job = launch {
                         val dexBytes = zipFile.getInputStream(it).readBytes()
                         parseCode(dexBytes, isSkipCode, classes)
                     }
