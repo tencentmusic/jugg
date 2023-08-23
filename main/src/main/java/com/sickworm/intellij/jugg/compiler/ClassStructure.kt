@@ -9,23 +9,43 @@ import java.util.LinkedList
 /**
  * A dex class structure parsed from .dex file.
  */
-class ClassNode(val dexFileName: String, node: DexClassNode, isKeepNode: Boolean = false) {
+class ClassNode(
+    val dexFileName: String,
+    val className: String,
+    val methods: List<MethodNode>,
+    val fields: List<FieldNode>,
+    val interfaceNames: List<String>,
+    val superClass: String,
+    val node: DexClassNode?
+) {
+
+    constructor(dexFileName: String, node: DexClassNode, isKeepNode: Boolean = false): this(
+        dexFileName = dexFileName,
+        className = node.className.convertSigFormatToPackage(),
+        methods = node.methods?.map { MethodNode(it) }?: emptyList(),
+        fields = node.fields?.map { FieldNode(it) }?: emptyList(),
+        interfaceNames = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList(),
+        superClass = ClassStringPool[node.superClass],
+        node = if (isKeepNode) node else null
+    )
 
     companion object {
         const val JUGG_DEPLOYED_DEX_FILE_NAME = "jugg_deployed.dex" // virtual dex file name, not really exists
+
+        // e.g. Landroid/support/v4/os/ResultReceiver$1;
+        // ->
+        // android.support.v4.os.ResultReceiver$1
+        private fun String.convertSigFormatToPackage(): String {
+            return this.convertSigFormatToNormal().replace('/', '.')
+        }
+
+        // e.g. Landroid/support/v4/os/ResultReceiver$1;
+        // ->
+        // android/support/v4/os/ResultReceiver$1
+        private fun String.convertSigFormatToNormal(): String {
+            return this.substring(1, this.length - 1)
+        }
     }
-
-    val className = node.className.convertSigFormatToPackage()
-
-    val methods: List<MethodNode> = node.methods?.map { MethodNode(it) }?: emptyList()
-
-    val fields: List<FieldNode> = node.fields?.map { FieldNode(it) }?: emptyList()
-
-    val interfaceNames: List<String> = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList()
-
-    val superClass: String = ClassStringPool[node.superClass]
-
-    val node: DexClassNode? = if (isKeepNode) node else null
 
     /**
      * dump class structure by ASM, without private methods fields and actual code
@@ -103,29 +123,23 @@ class ClassNode(val dexFileName: String, node: DexClassNode, isKeepNode: Boolean
         cw.visitEnd()
         return cw.toByteArray()
     }
-
-    // e.g. Landroid/support/v4/os/ResultReceiver$1;
-    // ->
-    // android.support.v4.os.ResultReceiver$1
-    private fun String.convertSigFormatToPackage(): String {
-        return this.convertSigFormatToNormal().replace('/', '.')
-    }
-
-    // e.g. Landroid/support/v4/os/ResultReceiver$1;
-    // ->
-    // android/support/v4/os/ResultReceiver$1
-    private fun String.convertSigFormatToNormal(): String {
-        return this.substring(1, this.length - 1)
-    }
 }
 
 /**
  * A dex method structure parsed from .dex file.
  */
-class MethodNode(node: DexMethodNode) {
+class MethodNode(
+    name: String,
+    desc: String,
+) {
 
-    private val name = ClassStringPool[node.method.name]
-    private val desc = ClassStringPool[node.method.desc]
+    constructor(node: DexMethodNode): this(
+        name = node.method.name,
+        desc = node.method.desc
+    )
+
+    val name = ClassStringPool[name]
+    val desc = ClassStringPool[desc]
 
     val signature get() = "${name}${desc}"
 
@@ -148,11 +162,18 @@ class MethodNode(node: DexMethodNode) {
 /**
  * A dex field structure parsed from .dex file.
  */
-class FieldNode(node: DexFieldNode) {
+class FieldNode(access: Int, name: String, type: String) {
 
-    private val access = node.access
-    private val name = ClassStringPool[node.field.name]
-    private val type = ClassStringPool[node.field.type]
+    constructor(node: DexFieldNode): this(
+        access = node.access,
+        name = node.field.name,
+        type = node.field.type
+    )
+
+    @Suppress("CanBePrimaryConstructorProperty")
+    val access = access
+    val name = ClassStringPool[name]
+    val type = ClassStringPool[type]
 
     val signature get() = "$access $name $type"
 

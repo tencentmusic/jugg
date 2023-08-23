@@ -20,7 +20,8 @@ class DexFileNodeCollector(
         val cn = DexClassNode(accessFlags, className, superClass, interfaceNames)
         return object : DexClassVisitor(cn) {
             override fun visitEnd() {
-                classes[cn.className] = ClassNode(dexFileName, cn)
+                val classNode = ClassNode(dexFileName, cn)
+                classes[classNode.className] = classNode
             }
         }
     }

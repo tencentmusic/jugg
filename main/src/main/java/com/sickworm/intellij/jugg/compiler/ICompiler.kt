@@ -168,6 +168,12 @@ interface ICompileContext {
     fun listenUpdate(listener: OnContextUpdate)
 }
 
+val ApkInfo.apkInfoKey: String
+    get() = files
+        .joinToString(";") {
+            it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
+        }
+
 class ParsedApk(
     val apkInfo: ApkInfo,
     val classes: Map<String, ClassNode>,
@@ -175,28 +181,16 @@ class ParsedApk(
     val overlayFiles: Map<String, JuggFileInfo>,
 ) {
 
-    val apkInfoKey: String by lazy {
-        apkInfo.files
-            .joinToString(";") {
-                it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
-            }
-    }
-
     fun containsClass(className: String): Boolean {
         return getClass(className) != null
     }
 
     fun getClass(className: String): ClassNode? {
-        val classSigName = className.convertClassToSigFormat()
-        return classes[classSigName]
+        return classes[className]
     }
 
     fun getClassSize(): Int {
         return classes.size
-    }
-
-    private fun String.convertClassToSigFormat(): String {
-        return "L" + this.replace('.', '/') + ";"
     }
 }
 
