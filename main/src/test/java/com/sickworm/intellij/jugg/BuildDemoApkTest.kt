@@ -71,7 +71,7 @@ class BuildDemoApkTest {
             return
         }
         println("testApkStructure start")
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo, true)
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
         checkApkEntryInfo(parsedApk)
         println("testApkStructure end")
     }
@@ -99,7 +99,7 @@ class BuildDemoApkTest {
         System.gc()
         JVMemorySize.printMemory()
         val (costTime, parsedApk) = measureTimeMillisWithResult {
-            ApkParser().parse(projectInfo.apkInfo, true)
+            ApkParser().parse(projectInfo.apkInfo)
         }
         System.gc()
         println("testApkStructure end, cost ${costTime}ms")

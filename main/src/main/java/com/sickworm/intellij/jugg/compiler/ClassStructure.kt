@@ -1,10 +1,12 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.googlecode.d2j.Field
+import com.googlecode.d2j.Method
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
 import org.objectweb.asm.*
-import java.util.LinkedList
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A dex class structure parsed from .dex file.
@@ -16,17 +18,17 @@ class ClassNode(
     val fields: List<FieldNode>,
     val interfaceNames: List<String>,
     val superClass: String,
-    val node: DexClassNode?
+    val source: String?,
 ) {
 
-    constructor(dexFileName: String, node: DexClassNode, isKeepNode: Boolean = false): this(
+    constructor(dexFileName: String, node: DexClassNode): this(
         dexFileName = dexFileName,
-        className = node.className.convertSigFormatToPackage(),
+        className = node.className,
         methods = node.methods?.map { MethodNode(it) }?: emptyList(),
         fields = node.fields?.map { FieldNode(it) }?: emptyList(),
         interfaceNames = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList(),
         superClass = ClassStringPool[node.superClass],
-        node = if (isKeepNode) node else null
+        source = node.source,
     )
 
     companion object {
@@ -47,107 +49,49 @@ class ClassNode(
         }
     }
 
-    /**
-     * dump class structure by ASM, without private methods fields and actual code
-     */
-    fun dumpClassStub(): ByteArray {
-        node!!
-
-        val cw = ClassWriter(0)
-        // class
-        cw.visit(
-            Opcodes.V1_7, // Java 7
-            node.access,
-            node.className.convertSigFormatToNormal(),
-            null,
-            superClass.convertSigFormatToNormal(),
-            node.interfaceNames.map { it.convertSigFormatToNormal() }.toTypedArray()
-        )
-        cw.visitSource(node.source, null)
-
-        // fields
-        node.fields?.forEach {
-            if (it.access and Opcodes.ACC_PRIVATE != 0) {
-                return@forEach
-            }
-            cw.visitField(it.access, it.field.name, it.field.type, null, it.cst)
-        }
-
-        // methods
-        node.methods?.forEach {
-            if (it.access and Opcodes.ACC_PRIVATE != 0) {
-                return@forEach
-            }
-            val mv = cw.visitMethod(
-                it.access,
-                it.method.name,
-                it.method.desc,
-                null,
-                null
-            )
-            when (it.method.returnType) {
-                "V" -> {
-                    mv.visitInsn(Opcodes.RETURN)
-                    mv.visitMaxs(0, 1)
-                }
-                "I", "Z" -> {
-                    mv.visitInsn(Opcodes.ICONST_0)
-                    mv.visitInsn(Opcodes.IRETURN)
-                    mv.visitMaxs(1, 1)
-                }
-                "F" -> {
-                    mv.visitInsn(Opcodes.FCONST_0)
-                    mv.visitInsn(Opcodes.FRETURN)
-                    mv.visitMaxs(1, 1)
-                }
-                "L" -> {
-                    mv.visitInsn(Opcodes.LCONST_0)
-                    mv.visitInsn(Opcodes.LRETURN)
-                    mv.visitMaxs(2, 1)
-                }
-                "D" -> {
-                    mv.visitInsn(Opcodes.DCONST_0)
-                    mv.visitInsn(Opcodes.DRETURN)
-                    mv.visitMaxs(2, 1)
-                }
-                else -> {
-                    // object
-                    mv.visitInsn(Opcodes.ACONST_NULL)
-                    mv.visitInsn(Opcodes.ARETURN)
-                    mv.visitMaxs(1, 1)
-                }
-            }
-            mv.visitEnd()
-        }
-
-        cw.visitEnd()
-        return cw.toByteArray()
-    }
 }
 
 /**
  * A dex method structure parsed from .dex file.
  */
 class MethodNode(
+    owner: String,
     name: String,
     desc: String,
 ) {
 
     constructor(node: DexMethodNode): this(
+        owner = node.method.owner,
         name = node.method.name,
         desc = node.method.desc
     )
 
+    constructor(method: Method): this(
+        owner = method.owner,
+        name = method.name,
+        desc = method.desc
+    )
+
+    val owner = ClassStringPool[owner]
     val name = ClassStringPool[name]
     val desc = ClassStringPool[desc]
 
-    val signature get() = "${name}${desc}"
+    private val signature get() = "${owner}.${name}${desc}"
 
     override fun equals(other: Any?): Boolean {
         if (other !is MethodNode) {
             return false
         }
-        return signature == other.signature
+        if (other.owner != owner) {
+            return false
+        }
+        if (other.name != name) {
+            return false
+        }
+        if (other.desc != desc) {
+            return false
+        }
+        return true
     }
 
     override fun toString(): String {
@@ -155,33 +99,54 @@ class MethodNode(
     }
 
     override fun hashCode(): Int {
-        return signature.hashCode()
+        return owner.hashCode() + name.hashCode() + desc.hashCode()
     }
 }
 
 /**
  * A dex field structure parsed from .dex file.
  */
-class FieldNode(access: Int, name: String, type: String) {
+class FieldNode(owner: String, access: Int, name: String, type: String) {
 
     constructor(node: DexFieldNode): this(
+        owner = node.field.owner,
         access = node.access,
         name = node.field.name,
         type = node.field.type
     )
 
+    constructor(field: Field): this(
+        owner = field.owner,
+        access = MISS_ACCESS,
+        name = field.name,
+        type = field.type
+    )
+
+    val owner = ClassStringPool[owner]
     @Suppress("CanBePrimaryConstructorProperty")
     val access = access
     val name = ClassStringPool[name]
     val type = ClassStringPool[type]
 
-    val signature get() = "$access $name $type"
+    private val signature get() = "$access $owner.$name $type"
 
     override fun equals(other: Any?): Boolean {
         if (other !is FieldNode) {
             return false
         }
-        return signature == other.signature
+        if (other.owner != owner) {
+            return false
+        }
+        if (other.access != access) {
+            return false
+        }
+        if (other.name != name) {
+            return false
+        }
+        if (other.type != type) {
+            return false
+        }
+        return true
     }
 
     override fun toString(): String {
@@ -189,14 +154,18 @@ class FieldNode(access: Int, name: String, type: String) {
     }
 
     override fun hashCode(): Int {
-        return signature.hashCode()
+        return owner.hashCode() + access + name.hashCode() + type.hashCode()
+    }
+
+    companion object {
+        const val MISS_ACCESS = -1
     }
 }
 
 /** For save memory for same string but different instance */
 object ClassStringPool {
 
-    private val stringPool = mutableMapOf<String, String>()
+    private var stringPool = ConcurrentHashMap<String, String>()
 
     operator fun get(string: String): String {
         val cacheString = stringPool[string]
@@ -205,5 +174,9 @@ object ClassStringPool {
         }
         stringPool[string] = string
         return string
+    }
+
+    fun clear() {
+        stringPool = ConcurrentHashMap()
     }
 }

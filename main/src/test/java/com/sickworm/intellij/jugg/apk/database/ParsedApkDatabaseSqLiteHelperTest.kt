@@ -33,7 +33,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
         helper.init()
         assertTrue(dbFile.exists())
 
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo, true)
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
         val costTime = measureTimeMillis {
             helper.saveParsedApk(parsedApk)
         }

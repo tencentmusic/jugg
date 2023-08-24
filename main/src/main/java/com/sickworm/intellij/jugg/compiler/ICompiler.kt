@@ -169,28 +169,37 @@ interface ICompileContext {
 }
 
 val ApkInfo.apkInfoKey: String
-    get() = files
-        .joinToString(";") {
-            it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
-        }
+    get() = "ApkInfo:[" +
+            files.joinToString(";") {
+                it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
+            } + "]"
 
 class ParsedApk(
     val apkInfo: ApkInfo,
     val classes: Map<String, ClassNode>,
     val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
+    val methodRefs: Map<MethodNode, List<String>>,
+    val fieldRefs: Map<FieldNode, List<String>>,
 ) {
 
     fun containsClass(className: String): Boolean {
-        return getClass(className) != null
+        val classSigName = className.convertClassToSigFormat()
+        return getClass(classSigName) != null
     }
 
     fun getClass(className: String): ClassNode? {
-        return classes[className]
+        val classSigName = className.convertClassToSigFormat()
+        return classes[classSigName]
     }
+
 
     fun getClassSize(): Int {
         return classes.size
+    }
+
+    private fun String.convertClassToSigFormat(): String {
+        return "L" + this.replace('.', '/') + ";"
     }
 }
 

@@ -1,13 +1,25 @@
 package com.sickworm.intellij.jugg.apk
 
+import com.googlecode.d2j.Field
+import com.googlecode.d2j.Method
 import com.googlecode.d2j.node.DexClassNode
+import com.googlecode.d2j.reader.Op
 import com.googlecode.d2j.visitors.DexClassVisitor
+import com.googlecode.d2j.visitors.DexCodeVisitor
 import com.googlecode.d2j.visitors.DexFileVisitor
+import com.googlecode.d2j.visitors.DexMethodVisitor
 import com.sickworm.intellij.jugg.compiler.ClassNode
+import com.sickworm.intellij.jugg.compiler.FieldNode
+import com.sickworm.intellij.jugg.compiler.MethodNode
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+
 
 class DexFileNodeCollector(
     private val dexFileName: String,
-    private val classes: MutableMap<String, ClassNode> = mutableMapOf(),
+    private val classes: ConcurrentHashMap<String, ClassNode>,
+    private val methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
+    private val fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
 ) : DexFileVisitor() {
 
 
@@ -18,7 +30,95 @@ class DexFileNodeCollector(
         interfaceNames: Array<String>
     ): DexClassVisitor {
         val cn = DexClassNode(accessFlags, className, superClass, interfaceNames)
+        val classOuterClassPrefix = className.substringBefore('$')
+        val classInnerClassPrefix = "$className$"
+
         return object : DexClassVisitor(cn) {
+
+            override fun visitMethod(accessFlags: Int, method: Method?): DexMethodVisitor {
+                super.visitMethod(accessFlags, method)
+                return object : DexMethodVisitor() {
+                    override fun visitCode(): DexCodeVisitor {
+                        return object : DexCodeVisitor() {
+                            override fun visitFieldStmt(op: Op?, a: Int, b: Int, field: Field?) {
+                                if (field == null) {
+                                    return
+                                }
+                                val owner = field.owner
+                                if (className == owner) {
+                                    return
+                                }
+                                if (owner.startsWith(classOuterClassPrefix)) {
+                                    return
+                                }
+                                if (owner.startsWith(classInnerClassPrefix)) {
+                                    return
+                                }
+                                if (owner.startsWith("Ljava/")) {
+                                    return
+                                }
+                                if (owner.startsWith("Landroid")) {
+                                    if (owner.startsWith("Landroid/")) {
+                                        return
+                                    }
+                                    if (owner.startsWith("Landroidx/")) {
+                                        return
+                                    }
+                                }
+                                if (owner.startsWith("Lkotlin")) {
+                                    if (owner.startsWith("Lkotlin/")) {
+                                        return
+                                    }
+                                    if (owner.startsWith("Lkotlinx/")) {
+                                        return
+                                    }
+                                }
+                                fieldRefs.getOrPut(FieldNode(field)) { Collections.synchronizedList(ArrayList()) }
+                                    .add(className)
+                            }
+
+                            override fun visitMethodStmt(op: Op?, args: IntArray?, method: Method?) {
+                                if (method == null) {
+                                    return
+                                }
+                                val owner = method.owner
+                                if (className == owner) {
+                                    return
+                                }
+                                if (owner.startsWith(classOuterClassPrefix)) {
+                                    return
+                                }
+                                if (owner.startsWith(classInnerClassPrefix)) {
+                                    return
+                                }
+                                if (owner.startsWith("Ljava/")) {
+                                    return
+                                }
+                                if (owner.startsWith("Landroid")) {
+                                    if (owner.startsWith("Landroid/")) {
+                                        return
+                                    }
+                                    if (owner.startsWith("Landroidx/")) {
+                                        return
+                                    }
+                                }
+                                if (owner.startsWith("Lkotlin")) {
+                                    if (owner.startsWith("Lkotlin/")) {
+                                        return
+                                    }
+                                    if (owner.startsWith("Lkotlinx/")) {
+                                        return
+                                    }
+                                }
+
+                                methodRefs.getOrPut(MethodNode(method)) { Collections.synchronizedList(ArrayList()) }
+                                    .add(className)
+                            }
+                        }
+                    }
+                }
+            }
+
             override fun visitEnd() {
                 val classNode = ClassNode(dexFileName, cn)
                 classes[classNode.className] = classNode
