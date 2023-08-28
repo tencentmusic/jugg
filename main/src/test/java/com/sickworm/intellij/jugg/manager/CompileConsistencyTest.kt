@@ -229,9 +229,9 @@ class CompileConsistencyTest {
         }
 
         val deployItems = listOf(
-            deployData.hotFixModifiedClasses,
-            deployData.hotReloadModifiedClasses,
-            deployData.newClasses,
+            deployData.hotFixModifiedClasses.map { it.deployItem },
+            deployData.hotReloadModifiedClasses.map { it.deployItem },
+            deployData.newClasses.map { it.deployItem },
             deployData.overlays
         ).flatten()
         deployItems.forEach {

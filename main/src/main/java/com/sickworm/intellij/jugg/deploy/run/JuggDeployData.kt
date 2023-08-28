@@ -48,17 +48,17 @@ data class JuggDeployData(
         builder.append("[\n")
         if (newClasses.isNotEmpty()) {
             builder.append("new classes:\n")
-            builder.append(newClasses.toLogString())
+            builder.append(newClasses.toClassLogString())
             builder.append("\n")
         }
         if (hotFixModifiedClasses.isNotEmpty()) {
             builder.append("hot fix modified classes:\n")
-            builder.append(hotFixModifiedClasses.toLogString())
+            builder.append(hotFixModifiedClasses.toClassLogString())
             builder.append("\n")
         }
         if (hotReloadModifiedClasses.isNotEmpty()) {
             builder.append("hot reload modified classes:\n")
-            builder.append(hotReloadModifiedClasses.toLogString())
+            builder.append(hotReloadModifiedClasses.toClassLogString())
             builder.append("\n")
         }
         if (overlays.isNotEmpty()) {
@@ -89,10 +89,6 @@ open class DeployItem(
     val content: ByteArray,
 ) {
 
-    fun toIncompleteDexClass(): DexClass {
-        return DexClass(name, checksum, content, null)
-    }
-
     fun toIncompleteOverlay(apk: Apk): Pair<ApkEntry, ByteString> {
         val apkEntry = ApkEntry(name, checksum, apk)
         val byteString = ByteString.copyFrom(content)
@@ -101,9 +97,18 @@ open class DeployItem(
 }
 
 class ClassDeployItem(
-    deployItem: DeployItem,
+    val deployItem: DeployItem,
     val classNode: ClassNode
-): DeployItem(deployItem.name, deployItem.type, deployItem.checksum, deployItem.content) {
+) {
+
+    val name: String get() = deployItem.name
+    val type: CompileOutput.Type get() = deployItem.type
+    val checksum: Long get() = deployItem.checksum
+    val content: ByteArray get() = deployItem.content
+
+    fun toIncompleteDexClass(): DexClass {
+        return DexClass(name, checksum, content, null)
+    }
 
     override fun toString(): String {
         return name
@@ -111,5 +116,9 @@ class ClassDeployItem(
 }
 
 fun Collection<DeployItem>.toLogString(): String {
+    return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
+}
+
+fun Collection<ClassDeployItem>.toClassLogString(): String {
     return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
 }

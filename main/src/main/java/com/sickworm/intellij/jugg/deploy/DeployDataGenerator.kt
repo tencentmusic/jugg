@@ -23,7 +23,6 @@ class DeployDataGenerator(
     private val logger: Logger,
 ) {
 
-    // TODO persist?
     private var parsedApks: List<ParsedApk> = emptyList()
     private var deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private var deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
@@ -155,8 +154,8 @@ class DeployDataGenerator(
         }
 
         deployedItems.forEach {
-            if (it is ClassDeployItem) {
-                deployedClasses[it.name] = it.classNode
+            if (it.type == CompileOutput.Type.Dex) {
+                deployedClasses[it.name] = ApkParser().parseDex(it.content).first().value
             } else {
                 deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
             }
