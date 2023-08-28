@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import org.jetbrains.annotations.TestOnly

@@ -1,8 +1,7 @@
-package com.sickworm.intellij.jugg.apk.database
+package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.apk.JuggFileInfo
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
 import java.sql.Connection

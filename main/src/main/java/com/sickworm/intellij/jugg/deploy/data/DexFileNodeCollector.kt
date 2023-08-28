@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.apk
+package com.sickworm.intellij.jugg.deploy.data
 
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method

@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.apk.ApkParser
-import com.sickworm.intellij.jugg.compiler.ParsedApk
+import com.sickworm.intellij.jugg.deploy.data.ApkParser
+import com.sickworm.intellij.jugg.deploy.data.ParsedApk
 import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.projectInfo
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult

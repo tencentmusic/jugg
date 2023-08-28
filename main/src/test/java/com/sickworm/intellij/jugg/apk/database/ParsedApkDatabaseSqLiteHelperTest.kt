@@ -1,7 +1,8 @@
 package com.sickworm.intellij.jugg.apk.database
 
-import com.sickworm.intellij.jugg.apk.ApkParser
-import com.sickworm.intellij.jugg.compiler.ParsedApk
+import com.sickworm.intellij.jugg.deploy.data.ApkParser
+import com.sickworm.intellij.jugg.deploy.data.ParsedApk
+import com.sickworm.intellij.jugg.deploy.data.ParsedApkDatabaseSqLiteHelper
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo

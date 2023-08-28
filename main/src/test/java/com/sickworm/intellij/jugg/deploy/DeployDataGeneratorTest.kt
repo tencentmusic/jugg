@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo

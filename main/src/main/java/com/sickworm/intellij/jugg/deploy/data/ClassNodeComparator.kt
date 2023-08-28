@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.deploy
+package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
