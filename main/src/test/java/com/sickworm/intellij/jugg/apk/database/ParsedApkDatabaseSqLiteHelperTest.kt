@@ -9,6 +9,7 @@ import junit.framework.TestCase.assertTrue
 import org.junit.Test
 import java.io.File
 import kotlin.system.measureTimeMillis
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -51,9 +52,11 @@ class ParsedApkDatabaseSqLiteHelperTest {
             parsedApk.dexFiles.size + parsedApk.overlayFiles.size,
             parsedApk.classes.size,
             parsedApk.classes.values.sumOf { it.methods.size },
-            parsedApk.classes.values.sumOf { it.fields.size }
+            parsedApk.classes.values.sumOf { it.fields.size },
+            parsedApk.methodRefs.values.sumOf { it.size },
+            parsedApk.fieldRefs.values.sumOf { it.size },
         )
-        listOf("apk_info", "entry_info", "class_info", "method_info", "field_info").forEachIndexed { index, it ->
+        listOf("apk_info", "entry_info", "class_info", "method_info", "field_info", "method_refs", "field_refs").forEachIndexed { index, it ->
             val size = helper.getSize(it)
             println("Table $it has $size")
             assertEquals(apkInfoKeys[index], size, "Table $it not match")
@@ -63,17 +66,17 @@ class ParsedApkDatabaseSqLiteHelperTest {
 
     private fun testGetParsedApk(helper: ParsedApkDatabaseSqLiteHelper, parsedApk: ParsedApk) {
         val startTime = System.currentTimeMillis()
-        val parsedApk2 = helper.getParsedApk(parsedApk.apkInfo)
+        val parsedApkFromDb = helper.getParsedApk(parsedApk.apkInfo)
         val endTime = System.currentTimeMillis()
         println("Get parsed apk cost ${endTime - startTime} ms")
 
-        assertNotNull(parsedApk2)
-        assertEquals(parsedApk.apkInfo, parsedApk2.apkInfo)
-        assertEquals(parsedApk.dexFiles.size, parsedApk2.dexFiles.size)
-        assertEquals(parsedApk.overlayFiles.size, parsedApk2.overlayFiles.size)
-        assertEquals(parsedApk.classes.size, parsedApk2.classes.size)
+        assertNotNull(parsedApkFromDb)
+        assertEquals(parsedApk.apkInfo, parsedApkFromDb.apkInfo)
+        assertEquals(parsedApk.dexFiles.size, parsedApkFromDb.dexFiles.size)
+        assertEquals(parsedApk.overlayFiles.size, parsedApkFromDb.overlayFiles.size)
+        assertEquals(parsedApk.classes.size, parsedApkFromDb.classes.size)
         parsedApk.classes.forEach { (className, classNode) ->
-            val classNode2 = parsedApk2.classes[className]
+            val classNode2 = parsedApkFromDb.classes[className]
             assertNotNull(classNode2)
             assertEquals(classNode.methods.size, classNode2.methods.size)
             assertEquals(classNode.fields.size, classNode2.fields.size)
@@ -91,6 +94,20 @@ class ParsedApkDatabaseSqLiteHelperTest {
                 assertEquals(fieldNode.name, fieldNode2.name)
                 assertEquals(fieldNode.type, fieldNode2.type)
             }
+        }
+
+        assertEquals(parsedApk.methodRefs.size, parsedApkFromDb.methodRefs.size)
+        parsedApk.methodRefs.forEach { (methodNode, classRefs) ->
+            val classRefs2 = parsedApkFromDb.methodRefs[methodNode]!!
+            assertNotNull(classRefs2)
+            assertContentEquals(classRefs, classRefs2)
+        }
+
+        assertEquals(parsedApk.fieldRefs.size, parsedApkFromDb.fieldRefs.size)
+        parsedApk.fieldRefs.forEach { (fieldNode, classRefs) ->
+            val classRefs2 = parsedApkFromDb.fieldRefs[fieldNode]!!
+            assertNotNull(classRefs2)
+            assertContentEquals(classRefs, classRefs2)
         }
     }
 

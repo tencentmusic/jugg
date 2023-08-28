@@ -32,6 +32,7 @@ class DexFileNodeCollector(
         val cn = DexClassNode(accessFlags, className, superClass, interfaceNames)
         val classOuterClassPrefix = className.substringBefore('$')
         val classInnerClassPrefix = "$className$"
+        val classNewArray = "[$className"
 
         return object : DexClassVisitor(cn) {
 
@@ -89,6 +90,9 @@ class DexFileNodeCollector(
                                     return
                                 }
                                 if (owner.startsWith(classInnerClassPrefix)) {
+                                    return
+                                }
+                                if (owner.startsWith(classNewArray)) {
                                     return
                                 }
                                 if (owner.startsWith("Ljava/")) {

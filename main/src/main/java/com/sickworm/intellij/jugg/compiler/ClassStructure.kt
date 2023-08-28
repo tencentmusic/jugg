@@ -56,23 +56,28 @@ class ClassNode(
  */
 class MethodNode(
     owner: String,
+    access: Int,
     name: String,
     desc: String,
 ) {
 
     constructor(node: DexMethodNode): this(
         owner = node.method.owner,
+        access = node.access,
         name = node.method.name,
         desc = node.method.desc
     )
 
     constructor(method: Method): this(
         owner = method.owner,
+        access = MISS_ACCESS,
         name = method.name,
         desc = method.desc
     )
 
     val owner = ClassStringPool[owner]
+    @Suppress("CanBePrimaryConstructorProperty")
+    val access = access
     val name = ClassStringPool[name]
     val desc = ClassStringPool[desc]
 
@@ -83,6 +88,9 @@ class MethodNode(
             return false
         }
         if (other.owner != owner) {
+            return false
+        }
+        if (other.access != access) {
             return false
         }
         if (other.name != name) {
@@ -99,7 +107,11 @@ class MethodNode(
     }
 
     override fun hashCode(): Int {
-        return owner.hashCode() + name.hashCode() + desc.hashCode()
+        return owner.hashCode() + access + name.hashCode() + desc.hashCode()
+    }
+
+    companion object {
+        const val MISS_ACCESS = -1
     }
 }
 

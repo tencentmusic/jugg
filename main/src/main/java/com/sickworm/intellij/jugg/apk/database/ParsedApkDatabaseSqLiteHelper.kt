@@ -37,6 +37,7 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                 );
                 CREATE TABLE IF NOT EXISTS method_info (
                     class_id INTEGER NOT NULL,
+                    access INTEGER NOT NULL,
                     name TEXT NOT NULL,
                     desc TEXT NOT NULL
                 );
@@ -45,6 +46,18 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                     access INTEGER NOT NULL,
                     name TEXT NOT NULL,
                     type TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS method_refs (
+                    class_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    desc TEXT NOT NULL,
+                    ref_class_id INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS field_refs (
+                    class_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    ref_class_id INTEGER NOT NULL
                 );
             """.trimIndent()
 
@@ -94,28 +107,41 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
             preparedStatement.executeBatch()
         }
 
+        val dbClassNodeMap = mutableMapOf<String, DbClassNode>()
+        parsedApk.classes.values.forEachIndexed { index, it ->
+            dbClassNodeMap[it.className] = DbClassNode(
+                dexFileName = it.dexFileName,
+                className = it.className,
+                classId = index,
+                interfaceNames = it.interfaceNames,
+                superClass = it.superClass,
+                source = it.source,
+            )
+        }
+
         insertSQL = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, id) VALUES(?, ?, ?, ?, ?, ?);"
         connection.prepareStatement(insertSQL).use { preparedStatement ->
-
-            parsedApk.classes.values.forEachIndexed { index, it ->
+            dbClassNodeMap.values.forEach {
                 preparedStatement.setString(1, it.className)
                 preparedStatement.setString(2, it.interfaceNames.joinToString(" "))
                 preparedStatement.setString(3, it.superClass)
                 preparedStatement.setString(4, it.source)
                 preparedStatement.setString(5, it.dexFileName)
-                preparedStatement.setInt(6, index)
+                preparedStatement.setInt(6, it.classId)
                 preparedStatement.addBatch()
             }
             preparedStatement.executeBatch()
         }
 
-        insertSQL = "INSERT INTO method_info(class_id, name, desc) VALUES(?, ?, ?);"
+        insertSQL = "INSERT INTO method_info(class_id, access, name, desc) VALUES(?, ?, ?, ?);"
         connection.prepareStatement(insertSQL).use { preparedStatement ->
-            parsedApk.classes.values.forEachIndexed { index, classNode ->
+            dbClassNodeMap.values.forEach { dbClassNode ->
+                val classNode = parsedApk.classes[dbClassNode.className]!!
                 classNode.methods.forEach {
-                    preparedStatement.setInt(1, index)
-                    preparedStatement.setString(2, it.name)
-                    preparedStatement.setString(3, it.desc)
+                    preparedStatement.setInt(1, dbClassNode.classId)
+                    preparedStatement.setInt(2, it.access)
+                    preparedStatement.setString(3, it.name)
+                    preparedStatement.setString(4, it.desc)
                     preparedStatement.addBatch()
                 }
             }
@@ -124,12 +150,47 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
 
         insertSQL = "INSERT INTO field_info(class_id, access, name, type) VALUES(?, ?, ?, ?);"
         connection.prepareStatement(insertSQL).use { preparedStatement ->
-            parsedApk.classes.values.forEachIndexed { index, classNode ->
+            dbClassNodeMap.values.forEach { dbClassNode ->
+                val classNode = parsedApk.classes[dbClassNode.className]!!
                 classNode.fields.forEach {
-                    preparedStatement.setInt(1, index)
+                    preparedStatement.setInt(1, dbClassNode.classId)
                     preparedStatement.setInt(2, it.access)
                     preparedStatement.setString(3, it.name)
                     preparedStatement.setString(4, it.type)
+                    preparedStatement.addBatch()
+                }
+            }
+            preparedStatement.executeBatch()
+        }
+
+        insertSQL = "INSERT INTO method_refs(class_id, name, desc, ref_class_id) VALUES(?, ?, ?, ?);"
+        connection.prepareStatement(insertSQL).use { preparedStatement ->
+            parsedApk.methodRefs.forEach { (methodNode, refClasses) ->
+                val dbClassNode = dbClassNodeMap[methodNode.owner]
+                    ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
+                    return@forEach
+                refClasses.forEach {
+                    preparedStatement.setInt(1, dbClassNode.classId)
+                    preparedStatement.setString(2, methodNode.name)
+                    preparedStatement.setString(3, methodNode.desc)
+                    preparedStatement.setInt(4, dbClassNodeMap[it]!!.classId)
+                    preparedStatement.addBatch()
+                }
+            }
+            preparedStatement.executeBatch()
+        }
+
+        insertSQL = "INSERT INTO field_refs(class_id, name, type, ref_class_id) VALUES(?, ?, ?, ?);"
+        connection.prepareStatement(insertSQL).use { preparedStatement ->
+            parsedApk.fieldRefs.forEach { (fieldNode, refClassIds) ->
+                val dbClassNode = dbClassNodeMap[fieldNode.owner]
+                    ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
+                    return@forEach
+                refClassIds.forEach {
+                    preparedStatement.setInt(1, dbClassNode.classId)
+                    preparedStatement.setString(2, fieldNode.name)
+                    preparedStatement.setString(3, fieldNode.type)
+                    preparedStatement.setInt(4, dbClassNodeMap[it]!!.classId)
                     preparedStatement.addBatch()
                 }
             }
@@ -171,7 +232,7 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                 }
             }
 
-            val dbClasses = mutableListOf<DbClassNode>()
+            val dbClasses = mutableMapOf<Int, DbClassNode>()
             val selectClassSQL = "SELECT * FROM class_info;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
@@ -183,7 +244,7 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                     val dexFileName = resultSet.getString(5)
                     val id = resultSet.getInt(6)
                     val classNode = DbClassNode(dexFileName, className, id, interfaceNames, superName, source)
-                    dbClasses.add(classNode)
+                    dbClasses[id] = classNode
                 }
             }
 
@@ -193,9 +254,11 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                 val resultSet: ResultSet = statement.executeQuery(selectMethodSQL)
                 while (resultSet.next()) {
                     val classId = resultSet.getInt(1)
-                    val methodName = resultSet.getString(2)
-                    val methodDesc = resultSet.getString(3)
-                    classMethods.getOrPut(classId) { mutableListOf() }.add(MethodNode("", methodName, methodDesc))
+                    val methodAccess = resultSet.getInt(2)
+                    val methodName = resultSet.getString(3)
+                    val methodDesc = resultSet.getString(4)
+                    val className = dbClasses[classId]?.className ?: continue
+                    classMethods.getOrPut(classId) { mutableListOf() }.add(MethodNode(className, methodAccess, methodName, methodDesc))
                 }
             }
 
@@ -208,30 +271,53 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                     val access = resultSet.getInt(2)
                     val fieldName = resultSet.getString(3)
                     val fieldType = resultSet.getString(4)
-                    classFields.getOrPut(classId) { mutableListOf() }.add(FieldNode("", access, fieldName, fieldType))
+                    val className = dbClasses[classId]?.className ?: continue
+                    classFields.getOrPut(classId) { mutableListOf() }.add(FieldNode(className, access, fieldName, fieldType))
                 }
             }
 
 
             val classes = mutableMapOf<String, ClassNode>()
-            dbClasses.forEach {
+            dbClasses.values.forEach {
                 val methods = classMethods[it.classId] ?: emptyList()
                 val fields = classFields[it.classId] ?: emptyList()
                 classes[it.className] = ClassNode(it.dexFileName, it.className, methods, fields, it.interfaceNames, it.superClass, it.source)
             }
 
-            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, emptyMap(), emptyMap())
+            val methodRefs = mutableMapOf<MethodNode, MutableList<String>>()
+            val selectMethodRefSQL = "SELECT * FROM method_refs;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(selectMethodRefSQL)
+                while (resultSet.next()) {
+                    val classId = resultSet.getInt(1)
+                    val methodName = resultSet.getString(2)
+                    val methodDesc = resultSet.getString(3)
+                    val refClassId = resultSet.getInt(4)
+                    val className = dbClasses[classId]?.className ?: continue
+                    val refClassName = dbClasses[refClassId]?.className ?: continue
+                    val methodNode = MethodNode(className, MethodNode.MISS_ACCESS, methodName, methodDesc)
+                    methodRefs.getOrPut(methodNode) { mutableListOf() }.add(refClassName)
+                }
+            }
+
+            val fieldRefs = mutableMapOf<FieldNode, MutableList<String>>()
+            val selectFieldRefSQL = "SELECT * FROM field_refs;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(selectFieldRefSQL)
+                while (resultSet.next()) {
+                    val classId = resultSet.getInt(1)
+                    val fieldName = resultSet.getString(2)
+                    val fieldType = resultSet.getString(3)
+                    val refClassId = resultSet.getInt(4)
+                    val className = dbClasses[classId]?.className ?: continue
+                    val refClassName = dbClasses[refClassId]?.className ?: continue
+                    val fieldNode = FieldNode(className, FieldNode.MISS_ACCESS, fieldName, fieldType)
+                    fieldRefs.getOrPut(fieldNode) { mutableListOf() }.add(refClassName)
+                }
+            }
+
+            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs)
         }
-    }
-
-    @Synchronized
-    fun insertMethodReferences() {
-
-    }
-
-    @Synchronized
-    fun insertFileNamePaths(file: List<File>) {
-
     }
 
     @Synchronized
