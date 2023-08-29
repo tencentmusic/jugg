@@ -43,7 +43,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             }
         }
         ClassStringPool.clear()
-        val (dexFiles, overlays) = parseOverlays(apkInfo.files.first().apkFile)
+        val apkOverlays = parseOverlays(apkInfo)
 
         val finalMethodRefs = methodRefs.filter {
             // The class of the method is not exists in the apk. Maybe in the android.jar. Filter it.
@@ -53,7 +53,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             // The class of the field is not exists in the apk. Maybe in the android.jar. Filter it.
             classes.containsKey(it.key.owner)
         }
-        return ParsedApk(apkInfo, classes, dexFiles, overlays, finalMethodRefs, finalFieldRefs)
+        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, finalMethodRefs, finalFieldRefs)
     }
 
     private fun parseCode(dexFileName: String, bytes: ByteArray,
@@ -68,9 +68,18 @@ class ApkParser: CoroutineScope by CoroutineScope(
         return visitor.getClasses()
     }
 
-    private fun parseOverlays(apkFile: File): Pair<Map<String, JuggFileInfo>, Map<String, JuggFileInfo>> {
+    fun parseOverlays(apkInfo: ApkInfo): ApkOverlays {
         val dexFiles = mutableMapOf<String, JuggFileInfo>()
         val overlayFiles = mutableMapOf<String, JuggFileInfo>()
+        apkInfo.files.forEach {
+            parseOverlays(it.apkFile, dexFiles, overlayFiles)
+        }
+        return ApkOverlays(apkInfo, dexFiles, overlayFiles)
+    }
+
+    private fun parseOverlays(apkFile: File,
+                      dexFiles: MutableMap<String, JuggFileInfo>,
+                      overlayFiles: MutableMap<String, JuggFileInfo>) {
         val apk = ApkParserAdt().parsePaths(listOf(apkFile.absolutePath)).first()
         for (entry in apk.apkEntries.values) {
             if (entry.name.endsWith(".dex")) {
@@ -79,8 +88,6 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             }
         }
-
-        return dexFiles to overlayFiles
     }
 
     fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
@@ -100,4 +107,10 @@ class ApkParser: CoroutineScope by CoroutineScope(
 data class JuggFileInfo(
     val name: String,
     val checksum: Long
+)
+
+data class ApkOverlays(
+    val apkInfo: ApkInfo,
+    val dexFiles: Map<String, JuggFileInfo>,
+    val overlayFiles: Map<String, JuggFileInfo>,
 )

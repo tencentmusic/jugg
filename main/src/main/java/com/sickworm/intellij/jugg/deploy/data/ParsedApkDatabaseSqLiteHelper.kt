@@ -12,8 +12,13 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
+    private var hasInit = false
+
     @Synchronized
     fun init() {
+        if (hasInit) {
+            return
+        }
         // Create a new database connection
         DriverManager.getConnection(url).use { connection ->
             // Create a new table
@@ -65,6 +70,7 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
             }
         }
 
+        hasInit = true
         logger.debug("Init database success.")
     }
 
@@ -74,6 +80,7 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
             connection.autoCommit = false
             try {
                 doInsertApkInfo(connection, parsedApk)
+                connection.commit()
                 logger.debug("Insert apk info success.")
             } catch (e: Exception) {
                 connection.rollback()
@@ -82,7 +89,87 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
         }
     }
 
+    @Synchronized
+    fun diffApk(apkOverlays: ApkOverlays): ParsedApkDiffResult {
+
+        DriverManager.getConnection(url).use { connection ->
+            val apkInfoKeys = mutableListOf<String>()
+            val selectApkSQL = "SELECT * FROM apk_info;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(selectApkSQL)
+                while (resultSet.next()) {
+                    val key = resultSet.getString("key")
+                    apkInfoKeys.add(key)
+                }
+            }
+
+            if (apkInfoKeys.contains(apkOverlays.apkInfo.apkInfoKey)) {
+                return ParsedApkDiffResult(updatedApkInfos = 0)
+            }
+
+            val selectEntrySQL = "SELECT * FROM entry_info;"
+            val dbDexFiles = mutableMapOf<String, JuggFileInfo>()
+            val dbOverlayFiles = mutableMapOf<String, JuggFileInfo>()
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(selectEntrySQL)
+                while (resultSet.next()) {
+                    val name = resultSet.getString("name")
+                    val checksum = resultSet.getLong("checksum")
+                    val isDex = resultSet.getBoolean("is_dex")
+                    if (isDex) {
+                        dbDexFiles[name] = JuggFileInfo(name, checksum)
+                    } else {
+                        dbOverlayFiles[name] = JuggFileInfo(name, checksum)
+                    }
+                }
+            }
+
+            val addedOverlayFiles = mutableListOf<String>()
+            val removedOverlayFiles = mutableListOf<String>()
+            val updatedOverlayFiles = mutableListOf<String>()
+            apkOverlays.overlayFiles.forEach { (name, fileInfo) ->
+                if (!dbOverlayFiles.containsKey(name)) {
+                    addedOverlayFiles.add(fileInfo.name)
+                } else if (dbOverlayFiles[name]!!.checksum != fileInfo.checksum) {
+                    updatedOverlayFiles.add(fileInfo.name)
+                }
+            }
+            dbOverlayFiles.forEach { (name, fileInfo) ->
+                if (!apkOverlays.overlayFiles.containsKey(name)) {
+                    removedOverlayFiles.add(fileInfo.name)
+                }
+            }
+
+            val addedDexFiles = mutableListOf<String>()
+            val removedDexFiles = mutableListOf<String>()
+            val updatedDexFiles = mutableListOf<String>()
+            apkOverlays.dexFiles.forEach { (name, fileInfo) ->
+                if (!dbDexFiles.containsKey(name)) {
+                    addedDexFiles.add(fileInfo.name)
+                } else if (dbDexFiles[name]!!.checksum != fileInfo.checksum) {
+                    updatedDexFiles.add(fileInfo.name)
+                }
+            }
+            dbDexFiles.forEach { (name, fileInfo) ->
+                if (!apkOverlays.dexFiles.containsKey(name)) {
+                    removedDexFiles.add(fileInfo.name)
+                }
+            }
+
+            return ParsedApkDiffResult(
+                updatedApkInfos = 1,
+                addedOverlayFiles = addedOverlayFiles,
+                removedOverlayFiles = removedOverlayFiles,
+                updatedOverlayFiles = updatedOverlayFiles,
+                addedDexFiles = addedDexFiles,
+                removedDexFiles = removedDexFiles,
+                updatedDexFiles = updatedDexFiles,
+            )
+        }
+    }
+
     private fun doInsertApkInfo(connection: Connection, parsedApk: ParsedApk) {
+
         var insertSQL = "INSERT INTO apk_info(key) VALUES(?);"
         connection.prepareStatement(insertSQL).use { preparedStatement ->
             preparedStatement.setString(1, parsedApk.apkInfo.apkInfoKey)
@@ -195,8 +282,6 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
             }
             preparedStatement.executeBatch()
         }
-
-        connection.commit()
     }
 
     @Synchronized
@@ -316,6 +401,81 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
             }
 
             return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs)
+        }
+    }
+
+    @Synchronized
+    fun getOverlayInfos(): List<JuggFileInfo> {
+        val selectSQL = "SELECT * FROM entry_info WHERE is_dex = false;"
+        val overlayInfos = mutableListOf<JuggFileInfo>()
+        DriverManager.getConnection(url).use { connection ->
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(selectSQL)
+                while (resultSet.next()) {
+                    val overlayInfo = JuggFileInfo(
+                        resultSet.getString("name"),
+                        resultSet.getLong("checksum"),
+                    )
+                    overlayInfos.add(overlayInfo)
+                }
+            }
+        }
+        return overlayInfos
+    }
+
+    @Synchronized
+    fun getClassNodes(classNames: List<String>): Map<String, ClassNode> {
+        DriverManager.getConnection(url).use { connection ->
+            connection.createStatement().use { statement ->
+                val classNamesString = classNames.joinToString(",") { "'$it'" }
+                val selectClassSQL = "SELECT * FROM class_info WHERE class_name IN ($classNamesString);"
+                val dbClasses = mutableMapOf<Int, DbClassNode>()
+                var resultSet: ResultSet = statement.executeQuery(selectClassSQL)
+                while (resultSet.next()) {
+                    val className = resultSet.getString(1)
+                    val interfaceNames = resultSet.getString(2).split(" ").toList()
+                    val superName = resultSet.getString(3)
+                    val source = resultSet.getString(4)
+                    val dexFileName = resultSet.getString(5)
+                    val id = resultSet.getInt(6)
+                    val classNode = DbClassNode(dexFileName, className, id, interfaceNames, superName, source)
+                    dbClasses[id] = classNode
+                }
+                val classIds = dbClasses.keys.joinToString(",")
+
+                val classMethods = mutableMapOf<Int, MutableList<MethodNode>>()
+                val selectMethodSQL = "SELECT * FROM method_info WHERE class_id IN ($classIds);"
+                resultSet = statement.executeQuery(selectMethodSQL)
+                while (resultSet.next()) {
+                    val classId = resultSet.getInt(1)
+                    val methodAccess = resultSet.getInt(2)
+                    val methodName = resultSet.getString(3)
+                    val methodDesc = resultSet.getString(4)
+                    val className = dbClasses[classId]?.className ?: continue
+                    classMethods.getOrPut(classId) { mutableListOf() }.add(MethodNode(className, methodAccess, methodName, methodDesc))
+                }
+
+                val classFields = mutableMapOf<Int, MutableList<FieldNode>>()
+                val selectFieldSQL = "SELECT * FROM field_info WHERE class_id IN ($classIds);"
+                resultSet = statement.executeQuery(selectFieldSQL)
+                while (resultSet.next()) {
+                    val classId = resultSet.getInt(1)
+                    val access = resultSet.getInt(2)
+                    val fieldName = resultSet.getString(3)
+                    val fieldType = resultSet.getString(4)
+                    val className = dbClasses[classId]?.className ?: continue
+                    classFields.getOrPut(classId) { mutableListOf() }.add(FieldNode(className, access, fieldName, fieldType))
+                }
+
+                val classes = mutableMapOf<String, ClassNode>()
+                dbClasses.values.forEach {
+                    val methods = classMethods[it.classId] ?: emptyList()
+                    val fields = classFields[it.classId] ?: emptyList()
+                    classes[it.className] = ClassNode(it.dexFileName, it.className, methods, fields, it.interfaceNames, it.superClass, it.source)
+                }
+
+                return classes
+            }
         }
     }
 

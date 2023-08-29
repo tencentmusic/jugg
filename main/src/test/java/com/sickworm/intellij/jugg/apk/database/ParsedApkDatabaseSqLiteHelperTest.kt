@@ -1,8 +1,7 @@
 package com.sickworm.intellij.jugg.apk.database
 
-import com.sickworm.intellij.jugg.deploy.data.ApkParser
-import com.sickworm.intellij.jugg.deploy.data.ParsedApk
-import com.sickworm.intellij.jugg.deploy.data.ParsedApkDatabaseSqLiteHelper
+import com.jetbrains.rd.util.first
+import com.sickworm.intellij.jugg.deploy.data.*
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
@@ -10,6 +9,7 @@ import junit.framework.TestCase.assertTrue
 import org.junit.Test
 import java.io.File
 import kotlin.system.measureTimeMillis
+import kotlin.test.BeforeTest
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -20,7 +20,6 @@ class ParsedApkDatabaseSqLiteHelperTest {
 
     @Test
     fun testCreateDataBase() {
-        deleteDatabase()
         val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
 
         helper.init()
@@ -29,7 +28,6 @@ class ParsedApkDatabaseSqLiteHelperTest {
 
     @Test
     fun testInsertApkInfos() {
-        deleteDatabase()
         val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
 
         helper.init()
@@ -112,7 +110,70 @@ class ParsedApkDatabaseSqLiteHelperTest {
         }
     }
 
-    private fun deleteDatabase() {
+    @Test
+    fun testUpdateApkInfos() {
+        val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
+        helper.init()
+        val parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkInfo)
+        helper.saveParsedApk(parsedApk)
+
+        val parsedApkDiffResult = ParsedApkDiffResult()
+
+        var apkOverlays = ApkParser().parseOverlays(projectInfo.apkInfo)
+        var result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult, result)
+
+        projectInfo.apkInfo.files.first().apkFile.setLastModified(System.currentTimeMillis())
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1), result)
+
+        val originApkOverlays = apkOverlays
+        val addDexFiles = mapOf(
+            "test.dex" to JuggFileInfo("test.dex", 1)
+        )
+        apkOverlays = originApkOverlays.copy(dexFiles = originApkOverlays.dexFiles + addDexFiles)
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, addedDexFiles = addDexFiles.keys.toList()), result)
+
+        val removedDexFiles = mapOf(
+            originApkOverlays.dexFiles.first().key to originApkOverlays.dexFiles.first().value
+        )
+        apkOverlays = originApkOverlays.copy(dexFiles = originApkOverlays.dexFiles - removedDexFiles.keys)
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, removedDexFiles = removedDexFiles.keys.toList()), result)
+
+        val updatedDexFiles = mapOf(
+            originApkOverlays.dexFiles.first().key to JuggFileInfo(originApkOverlays.dexFiles.first().key, 2)
+        )
+        apkOverlays = originApkOverlays.copy(dexFiles = originApkOverlays.dexFiles + updatedDexFiles)
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, updatedDexFiles = updatedDexFiles.keys.toList()), result)
+
+        val addOverlayFiles = mapOf(
+            "test.dat" to JuggFileInfo("test.dat", 1)
+        )
+        apkOverlays = originApkOverlays.copy(overlayFiles = originApkOverlays.overlayFiles + addOverlayFiles)
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, addedOverlayFiles = addOverlayFiles.keys.toList()), result)
+
+        val deletedOverlayFiles = mapOf(
+            originApkOverlays.overlayFiles.first().key to originApkOverlays.overlayFiles.first().value
+        )
+        apkOverlays = originApkOverlays.copy(overlayFiles = originApkOverlays.overlayFiles - deletedOverlayFiles.keys)
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, removedOverlayFiles = deletedOverlayFiles.keys.toList()), result)
+
+        val updatedOverlayFiles = mapOf(
+            originApkOverlays.overlayFiles.first().key to JuggFileInfo(originApkOverlays.overlayFiles.first().key, 2)
+        )
+        apkOverlays = originApkOverlays.copy(overlayFiles = originApkOverlays.overlayFiles + updatedOverlayFiles)
+        result = helper.diffApk(apkOverlays)
+        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, updatedOverlayFiles = updatedOverlayFiles.keys.toList()), result)
+
+    }
+
+    @BeforeTest
+    fun deleteDatabase() {
         if (dbFile.exists()) {
             dbFile.delete()
         }
