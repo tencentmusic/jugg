@@ -29,43 +29,55 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
                     key TEXT NOT NULL PRIMARY KEY,
                     next_class_id INTEGER NOT NULL
                 );
+                
                 CREATE TABLE IF NOT EXISTS entry_info (
                     name TEXT NOT NULL PRIMARY KEY,
                     checksum INTEGER NOT NULL,
                     is_dex BOOL NOT NULL
                 );
+                
                 CREATE TABLE IF NOT EXISTS class_info (
-                    name TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL,
                     interface_names TEXT NOT NULL,
                     super_name TEXT NOT NULL,
                     source TEXT,
                     entry_info_name TEXT NOT NULL,
-                    id INTEGER NOT NULL
+                    id INTEGER NOT NULL PRIMARY KEY
                 );
+                
                 CREATE TABLE IF NOT EXISTS method_info (
                     class_id INTEGER NOT NULL,
                     access INTEGER NOT NULL,
                     name TEXT NOT NULL,
                     desc TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS method_info_class_id_index ON method_info(class_id);
+                
                 CREATE TABLE IF NOT EXISTS field_info (
                     class_id INTEGER NOT NULL,
                     access INTEGER NOT NULL,
                     name TEXT NOT NULL,
                     type TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS field_info_class_id_index ON field_info(class_id);
+                
                 CREATE TABLE IF NOT EXISTS method_refs (
                     class_id INTEGER NOT NULL,
                     name TEXT NOT NULL,
                     desc TEXT NOT NULL,
                     ref_class_id INTEGER NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS method_refs_class_id_index ON method_refs(class_id);
+                CREATE INDEX IF NOT EXISTS method_refs_ref_class_id_index ON method_refs(ref_class_id);
+                
                 CREATE TABLE IF NOT EXISTS field_refs (
                     class_id INTEGER NOT NULL,
                     name TEXT NOT NULL,
                     type TEXT NOT NULL,
                     ref_class_id INTEGER NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS field_refs_class_id_index ON field_refs(class_id);
+                CREATE INDEX IF NOT EXISTS field_refs_ref_class_id_index ON field_refs(ref_class_id);
             """.trimIndent()
 
             connection.createStatement().use { statement ->
