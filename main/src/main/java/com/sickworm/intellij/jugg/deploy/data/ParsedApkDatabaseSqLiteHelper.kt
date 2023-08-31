@@ -10,7 +10,7 @@ import java.sql.ResultSet
 import kotlin.math.max
 
 
-class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
+class ParsedApkDatabaseSqLiteHelper(private val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
@@ -21,6 +21,8 @@ class ParsedApkDatabaseSqLiteHelper(dbFile: File, private val logger: Logger) {
         if (hasInit) {
             return
         }
+        dbFile.parentFile?.mkdirs()
+
         // Create a new database connection
         DriverManager.getConnection(url).use { connection ->
             // Create a new table

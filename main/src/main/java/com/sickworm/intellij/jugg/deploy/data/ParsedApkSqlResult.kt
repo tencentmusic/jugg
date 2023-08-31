@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.compiler.apkInfoKey
 
 
 data class ParsedApkDiffResult(
@@ -16,6 +17,14 @@ data class ParsedApkDiffResult(
     val removedDexFiles: Map<String, JuggFileInfo> = emptyMap(),
     val updatedDexFiles: Map<String, JuggFileInfo> = emptyMap(),
 ) {
+
+    override fun toString(): String {
+        return "ParsedApkDiffResult(apkInfo=${apkInfo.apkInfoKey}, updatedApkInfos=$updatedApkInfos, " +
+                "addedOverlayFiles=${addedOverlayFiles.size}, removedOverlayFiles=${removedOverlayFiles.size}, " +
+                "updatedOverlayFiles=${updatedOverlayFiles.size}, addedDexFiles=${addedDexFiles.size}, " +
+                "removedDexFiles=${removedDexFiles.size}, updatedDexFiles=${updatedDexFiles.size}" +
+                ")"
+    }
 
     val includeEntries: ApkEntries get() {
         return ApkEntries(
@@ -36,6 +45,11 @@ data class ParsedApkUpdateResult(
     val removedClasses: List<String>,
     val updatedClasses: List<String>,
 ) {
+
+    override fun toString(): String {
+        return "ParsedApkUpdateResult(isSuccess=$isSuccess, errorMessage=$errorMessage, diffResult=$diffResult, " +
+                "addedClasses=${addedClasses.size}, removedClasses=${removedClasses.size}, updatedClasses=${updatedClasses.size})"
+    }
 
     companion object {
 
