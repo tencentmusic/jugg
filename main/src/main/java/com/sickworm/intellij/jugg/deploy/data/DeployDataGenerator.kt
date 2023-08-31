@@ -10,7 +10,6 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
-import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 
 /**
@@ -18,9 +17,10 @@ import kotlin.system.measureTimeMillis
  */
 class DeployDataGenerator(
     private val logger: Logger,
+    databaseDir: File,
 ) {
 
-    private var parsedApks: List<ParsedApk> = emptyList()
+    private var parsedApkDatabase: IParsedApkDatabase = ParsedApkDatabase(File(databaseDir, "apk"), logger)
     private var deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private var deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 
@@ -43,14 +43,15 @@ class DeployDataGenerator(
                 ClassDeployItem(it, dexClassNode)
             }
 
+        val oldClassNodes = parsedApkDatabase.getClassNodes(changedClasses.map { it.name })
         val newClasses = changedClasses.filter {
-            isNewClass(it.name)
+            isNewClass(it.name, oldClassNodes)
         }
         val modifiedClasses = changedClasses - newClasses.toSet()
         logger.debug("newClasses: $newClasses")
 
         val hotReloadModifiedClasses = modifiedClasses.filter {
-            isHotReloadClass(it.name, it.classNode)
+            isHotReloadClass(it.name, it.classNode, oldClassNodes)
         }
         logger.debug("hotReloadModifiedClasses: $hotReloadModifiedClasses")
 
@@ -58,65 +59,38 @@ class DeployDataGenerator(
         logger.debug("hotFixModifiedClasses: $hotFixModifiedClasses")
 
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
-        val overlays = changedOverlays.toMutableList()
+        var overlays = changedOverlays
         var isFullOverlays = false
         if (changedOverlays.isNotEmpty() && deployedOverlays.isEmpty()) {
             // first time deploy must do full deployment
             logger.debug("first time deploy overlay, need full deployment")
             isFullOverlays = true
-
-            val nameSet = overlays.map { it.name }.toSet()
             val costTime = measureTimeMillis {
-                parsedApks.forEach { parsedApk ->
-                    parsedApk.overlayFiles.forEach loop@{
-                        val path = it.value.name
-                        if (nameSet.contains(path)) return@loop
-                        val deployItem = DeployItem(
-                            name = path,
-                            type = CompileOutput.Type.Overlay,
-                            checksum = it.value.checksum,
-                            content = readFileContentFromApk(parsedApk.apkInfo.files.first().apkFile, path)
-                        )
-                        overlays.add(deployItem)
-                    }
-                }
+                overlays = parsedApkDatabase.getFullOverlays(overlays)
             }
 
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
-        val apks = parsedApks.map { it.apkInfo }
+        val apks = parsedApkDatabase.getApkInfos()
         return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays, isFullOverlays, isWarmUp)
-    }
-
-    private fun readFileContentFromApk(apk: File, path: String): ByteArray {
-        val zipFile = ZipFile(apk)
-        val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
-        val inputStream = zipFile.getInputStream(entry)
-        return inputStream.readAllBytes()
     }
 
     /**
      * check whether the class has deployment before
      */
-    private fun isNewClass(className: String): Boolean {
+    private fun isNewClass(className: String, oldClassNodes: Map<String, ClassNode>): Boolean {
         if (deployedClasses.containsKey(className)) {
             return false
         }
 
-        if (parsedApks.any { it.containsClass(className) }) {
-            return false
-        }
-
-        return true
+        return oldClassNodes.containsKey(className)
     }
 
-    private fun isHotReloadClass(className: String, newClassNode: ClassNode): Boolean {
+    private fun isHotReloadClass(className: String, newClassNode: ClassNode, oldClassNodes: Map<String, ClassNode>): Boolean {
         var oldClassNode: ClassNode? = deployedClasses[className]
         if (oldClassNode == null) {
-            oldClassNode = parsedApks.firstNotNullOfOrNull {
-                it.getClass(className)
-            }
+            oldClassNode = oldClassNodes[className]
         }
         if (oldClassNode == null) {
             // this should not happen, because we just run [isNewClass]
@@ -142,13 +116,9 @@ class DeployDataGenerator(
     @Synchronized
     fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>) {
         logger.debug("initAfterInstall parsed apk start, apks: $apks")
-        val costTime = measureTimeMillis {
-            parsedApks = apks.map {
-                ApkParser().parse(it)
-            }
-            deployedClasses.clear()
-            deployedOverlays.clear()
-        }
+        parsedApkDatabase.init(apks)
+        deployedClasses.clear()
+        deployedOverlays.clear()
 
         deployedItems.forEach {
             if (it.type == CompileOutput.Type.Dex) {
@@ -157,29 +127,6 @@ class DeployDataGenerator(
                 deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
             }
         }
-
-        logger.debug("init finish, cost ${costTime}ms. load " +
-            "classes ${parsedApks.sumOf { it.getClassSize() }}, " +
-            "overlays ${parsedApks.sumOf { it.overlayFiles.size }}, " +
-            "deployedClasses ${deployedClasses.size}, " +
-            "deployedOverlays ${deployedOverlays.size}"
-        )
-
-        // TODO reopen
-        // close for now for better performance and compile consistency
-//        // something wrong with this... use build class path for now
-//        parsedApks.forEach { apk ->
-//            apk.classes.values.forEach { classNode ->
-//                val bytes = classNode.dumpClassStub()
-//                val outputPath = classNode.className.replace('.', '/') + ".class"
-//                val outputFile = File(fullBuildClassPathDir, outputPath)
-//                if (outputFile.exists()) {
-//                    outputFile.delete()
-//                }
-//                outputFile.parentFile?.mkdirs()
-//                outputFile.writeBytes(bytes)
-//            }
-//        }
     }
 
     /**

@@ -18,6 +18,7 @@ import java.util.zip.CRC32
 class DeployFileManager(
     private val logger: Logger,
     private val tmpDir: File,
+    databaseDir: File,
 ) {
 
     /**
@@ -38,7 +39,7 @@ class DeployFileManager(
     /**
      * build [JuggDeployData]
      */
-    private val deployDataGenerator = DeployDataGenerator(logger)
+    private val deployDataGenerator = DeployDataGenerator(logger, databaseDir)
 
     private var crc32 = CRC32()
 

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
 import org.junit.Test
@@ -13,7 +14,7 @@ class DeployDataGeneratorTest {
 
     @Test
     fun testOverlayContents() {
-        val generator = DeployDataGenerator(logger)
+        val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
         val overlayDeployItem = DeployItem("test_overlay", CompileOutput.Type.Overlay, 0, byteArrayOf())
         val data = generator.buildDeployData(listOf(overlayDeployItem), false)

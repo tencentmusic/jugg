@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.apk.database
 
+import com.android.tools.idea.run.ApkInfo
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.deploy.data.*
 import com.sickworm.intellij.jugg.mock.buildDir
@@ -33,9 +34,12 @@ class ParsedApkDatabaseSqLiteHelperTest {
         helper.init()
         assertTrue(dbFile.exists())
 
+        val apkOverlays = ApkParser().parseEntries(projectInfo.apkInfo)
+        val diffResult = helper.diffApk(apkOverlays)
         val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+
         val costTime = measureTimeMillis {
-            helper.saveParsedApk(parsedApk)
+            helper.saveParsedApk(parsedApk, diffResult)
         }
         val apkInfoKeys = helper.getApkInfoKeys()
         println("Insert ${apkInfoKeys.firstOrNull()} cost $costTime ms")
@@ -114,63 +118,149 @@ class ParsedApkDatabaseSqLiteHelperTest {
     fun testUpdateApkInfos() {
         val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
         helper.init()
-        val parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkInfo)
-        helper.saveParsedApk(parsedApk)
-
-        val parsedApkDiffResult = ParsedApkDiffResult()
-
-        var apkOverlays = ApkParser().parseOverlays(projectInfo.apkInfo)
-        var result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult, result)
-
-        projectInfo.apkInfo.files.first().apkFile.setLastModified(System.currentTimeMillis())
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1), result)
-
-        val originApkOverlays = apkOverlays
-        val addDexFiles = mapOf(
-            "test.dex" to JuggFileInfo("test.dex", 1)
+        var apkEntries = ApkParser().parseEntries(projectInfo.apkInfo)
+        val originApkEntries = apkEntries
+        val emptyDiffResult = ParsedApkDiffResult(apkEntries.apkInfo)
+        var diffResult = helper.diffApk(apkEntries)
+        assertEquals(
+            emptyDiffResult.copy(updatedApkInfos = 1, addedDexFiles = apkEntries.dexFiles, addedOverlayFiles = apkEntries.overlayFiles),
+            diffResult
         )
-        apkOverlays = originApkOverlays.copy(dexFiles = originApkOverlays.dexFiles + addDexFiles)
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, addedDexFiles = addDexFiles.keys.toList()), result)
+        var parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkInfo, diffResult.includeEntries)
+        var finalParsedApk = parsedApk
+        var updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(
+            ParsedApkUpdateResult.success(diffResult).copy(addedClasses = parsedApk.classes.map { it.value.className }.toList()),
+            updateResult
+        )
 
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult, diffResult)
+
+        projectInfo.apkInfo.refreshApkInfoKey()
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
+
+        // removeDexFiles
+        logger.info("removeDexFiles")
+        val firstDex = originApkEntries.dexFiles.first()
+        projectInfo.apkInfo.refreshApkInfoKey()
         val removedDexFiles = mapOf(
-            originApkOverlays.dexFiles.first().key to originApkOverlays.dexFiles.first().value
+            firstDex.key to firstDex.value
         )
-        apkOverlays = originApkOverlays.copy(dexFiles = originApkOverlays.dexFiles - removedDexFiles.keys)
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, removedDexFiles = removedDexFiles.keys.toList()), result)
+        apkEntries = apkEntries.copy(dexFiles = apkEntries.dexFiles - removedDexFiles.keys)
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, removedDexFiles = removedDexFiles), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertTrue(updateResult.removedClasses.isNotEmpty())
 
+        // addDexFiles
+        logger.info("addDexFiles")
+        projectInfo.apkInfo.refreshApkInfoKey()
+        val addDexFiles = mapOf(
+            firstDex.key to firstDex.value
+        )
+        apkEntries = apkEntries.copy(dexFiles = apkEntries.dexFiles + addDexFiles)
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, addedDexFiles = addDexFiles), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult).copy(addedClasses = parsedApk.classes.map { it.value.className}), updateResult)
+
+        // updateDexFiles
+        logger.info("updateDexFiles")
+        projectInfo.apkInfo.refreshApkInfoKey()
         val updatedDexFiles = mapOf(
-            originApkOverlays.dexFiles.first().key to JuggFileInfo(originApkOverlays.dexFiles.first().key, 2)
+            firstDex.key to firstDex.value.copy(checksum = 1)
         )
-        apkOverlays = originApkOverlays.copy(dexFiles = originApkOverlays.dexFiles + updatedDexFiles)
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, updatedDexFiles = updatedDexFiles.keys.toList()), result)
-
-        val addOverlayFiles = mapOf(
-            "test.dat" to JuggFileInfo("test.dat", 1)
+        apkEntries = apkEntries.copy(dexFiles = apkEntries.dexFiles + updatedDexFiles)
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, updatedDexFiles = updatedDexFiles), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult).copy(updatedClasses = parsedApk.classes.map { it.value.className }), updateResult)
+        finalParsedApk = ParsedApk(
+            finalParsedApk.apkInfo,
+            finalParsedApk.classes,
+            finalParsedApk.dexFiles + updatedDexFiles,
+            finalParsedApk.overlayFiles,
+            finalParsedApk.methodRefs,
+            finalParsedApk.fieldRefs
         )
-        apkOverlays = originApkOverlays.copy(overlayFiles = originApkOverlays.overlayFiles + addOverlayFiles)
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, addedOverlayFiles = addOverlayFiles.keys.toList()), result)
 
+        // removeOverlayFiles
+        logger.info("removeOverlayFiles")
+        val firstOverlayFile = originApkEntries.overlayFiles.first()
+        projectInfo.apkInfo.refreshApkInfoKey()
         val deletedOverlayFiles = mapOf(
-            originApkOverlays.overlayFiles.first().key to originApkOverlays.overlayFiles.first().value
+            firstOverlayFile.key to firstOverlayFile.value
         )
-        apkOverlays = originApkOverlays.copy(overlayFiles = originApkOverlays.overlayFiles - deletedOverlayFiles.keys)
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, removedOverlayFiles = deletedOverlayFiles.keys.toList()), result)
+        apkEntries = apkEntries.copy(overlayFiles = apkEntries.overlayFiles - deletedOverlayFiles.keys)
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, removedOverlayFiles = deletedOverlayFiles), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
 
+        // addOverlayFiles
+        logger.info("addOverlayFiles")
+        projectInfo.apkInfo.refreshApkInfoKey()
+        val addOverlayFiles = mapOf(
+            firstOverlayFile.key to firstOverlayFile.value
+        )
+        apkEntries = apkEntries.copy(overlayFiles = apkEntries.overlayFiles + addOverlayFiles)
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, addedOverlayFiles = addOverlayFiles), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
+
+        // updateOverlayFiles
+        logger.info("updateOverlayFiles")
+        projectInfo.apkInfo.refreshApkInfoKey()
         val updatedOverlayFiles = mapOf(
-            originApkOverlays.overlayFiles.first().key to JuggFileInfo(originApkOverlays.overlayFiles.first().key, 2)
+            firstOverlayFile.key to firstOverlayFile.value.copy(checksum = 1)
         )
-        apkOverlays = originApkOverlays.copy(overlayFiles = originApkOverlays.overlayFiles + updatedOverlayFiles)
-        result = helper.diffApk(apkOverlays)
-        assertEquals(parsedApkDiffResult.copy(updatedApkInfos = 1, updatedOverlayFiles = updatedOverlayFiles.keys.toList()), result)
+        apkEntries = apkEntries.copy(overlayFiles = apkEntries.overlayFiles + updatedOverlayFiles)
+        diffResult = helper.diffApk(apkEntries)
+        assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, updatedOverlayFiles = updatedOverlayFiles), diffResult)
+        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        updateResult = helper.saveParsedApk(parsedApk, diffResult)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
+        finalParsedApk = ParsedApk(
+            finalParsedApk.apkInfo,
+            finalParsedApk.classes,
+            finalParsedApk.dexFiles,
+            finalParsedApk.overlayFiles + updatedOverlayFiles,
+            finalParsedApk.methodRefs,
+            finalParsedApk.fieldRefs
+        )
 
+        testGetTableSize(helper, finalParsedApk)
+        testGetParsedApk(helper, finalParsedApk)
     }
+
+    private fun ApkInfo.refreshApkInfoKey() {
+        files.first().apkFile.also {
+            it.setLastModified(it.lastModified() + 1)
+        }
+    }
+
+    private fun assertUpdateResultEquals(expected: ParsedApkUpdateResult, actual: ParsedApkUpdateResult) {
+        assertEquals(expected.isSuccess, actual.isSuccess, "Error: ${actual.errorMessage}")
+        assertEquals(expected.diffResult, actual.diffResult)
+        assertEquals(expected.addedClasses.size, actual.addedClasses.size)
+        assertEquals(expected.addedClasses.sorted(), actual.addedClasses.sorted())
+        assertEquals(expected.updatedClasses.sorted(), actual.updatedClasses.sorted())
+        assertEquals(expected.updatedClasses.size, actual.updatedClasses.size)
+        assertEquals(expected.removedClasses.sorted(), actual.removedClasses.sorted())
+        assertEquals(expected.removedClasses.size, actual.removedClasses.size)
+    }
+
 
     @BeforeTest
     fun deleteDatabase() {

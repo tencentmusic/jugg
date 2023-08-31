@@ -249,7 +249,7 @@ class MockJugg {
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
-        deployFileManager = DeployFileManager(logger, pathManager.tmpDir)
+        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir)
         deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
 
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { JuggStateListener.emptyImpl }, logger) {

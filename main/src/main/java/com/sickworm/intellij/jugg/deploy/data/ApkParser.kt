@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.deployer.ApkParser as ApkParserAdt
 import com.android.tools.idea.run.ApkInfo
-import com.googlecode.d2j.node.DexFileNode
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
 import com.sickworm.intellij.jugg.compiler.*
@@ -20,30 +19,40 @@ class ApkParser: CoroutineScope by CoroutineScope(
     )
 ) {
 
-    fun parse(apkInfo: ApkInfo): ParsedApk {
-        val apkFile = apkInfo.files.first().apkFile
+    fun parse(apkInfo: ApkInfo, includeEntries: ApkEntries? = null): ParsedApk {
+        val parsedApks = apkInfo.files.map {
+            val apkFile = it.apkFile
+            parse(apkInfo, apkFile, includeEntries)
+        }
+        if (parsedApks.isEmpty()) {
+            return ParsedApk(apkInfo, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+        }
+        if (parsedApks.size == 1) {
+            return parsedApks[0]
+        }
+        val dexFiles = mutableMapOf<String, JuggFileInfo>()
+        val overlayFiles = mutableMapOf<String, JuggFileInfo>()
+        val classes = mutableMapOf<String, ClassNode>()
+        val methodRefs = mutableMapOf<MethodNode, List<String>>()
+        val fieldRefs = mutableMapOf<FieldNode, List<String>>()
+        parsedApks.forEach {
+            classes.putAll(it.classes)
+            dexFiles.putAll(it.dexFiles)
+            overlayFiles.putAll(it.overlayFiles)
+            methodRefs.putAll(it.methodRefs)
+            fieldRefs.putAll(it.fieldRefs)
+        }
+        return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs)
+
+    }
+
+    private fun parse(apkInfo: ApkInfo, apkFile: File, includeEntries: ApkEntries?): ParsedApk {
         val classes = ConcurrentHashMap<String, ClassNode>()
         val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
         val fieldRefs = ConcurrentHashMap<FieldNode, MutableList<String>>()
-        val jobs = mutableListOf<Job>()
+        parseDex(apkFile, classes, methodRefs, fieldRefs, includeEntries)
 
-        ZipFile(apkFile).use { zipFile ->
-            zipFile.entries().asIterator().forEach {
-                val entryName = it.name
-                if (entryName.startsWith("classes") && entryName.endsWith(".dex")) {
-                    val job = launch {
-                        val dexBytes = zipFile.getInputStream(it).readBytes()
-                        parseCode(entryName, dexBytes, classes, methodRefs, fieldRefs, false)
-                    }
-                    jobs.add(job)
-                }
-            }
-            runBlocking {
-                jobs.joinAll()
-            }
-        }
-        ClassStringPool.clear()
-        val apkOverlays = parseOverlays(apkInfo)
+        val apkOverlays = includeEntries ?: parseEntries(apkInfo)
 
         val finalMethodRefs = methodRefs.filter {
             // The class of the method is not exists in the apk. Maybe in the android.jar. Filter it.
@@ -56,11 +65,61 @@ class ApkParser: CoroutineScope by CoroutineScope(
         return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, finalMethodRefs, finalFieldRefs)
     }
 
-    private fun parseCode(dexFileName: String, bytes: ByteArray,
-                          classes: ConcurrentHashMap<String, ClassNode>,
-                          methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
-                          fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
-                          @Suppress("SameParameterValue") isSkipCode: Boolean): Map<String, ClassNode> {
+    fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
+        return parseDex(
+            ClassNode.JUGG_DEPLOYED_DEX_FILE_NAME,
+            dexByteCode,
+            ConcurrentHashMap(),
+            ConcurrentHashMap(),
+            ConcurrentHashMap(),
+            false,
+        )
+    }
+
+    private fun parseDex(apkFile: File,
+                 classes: ConcurrentHashMap<String, ClassNode>,
+                 methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
+                 fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
+                 includeEntries: ApkEntries?,
+    ) {
+
+        var includeEntriesSet: MutableSet<String>? = null
+        if (includeEntries != null) {
+            includeEntriesSet = mutableSetOf()
+            includeEntries.dexFiles.forEach {
+                includeEntriesSet.add(it.key)
+            }
+            includeEntries.overlayFiles.forEach {
+                includeEntriesSet.add(it.key)
+            }
+        }
+
+        val jobs = mutableListOf<Job>()
+        ZipFile(apkFile).use { zipFile ->
+            zipFile.entries().asIterator().forEach {
+                val entryName = it.name
+                if (includeEntriesSet != null && !includeEntriesSet.contains(entryName)) {
+                    return@forEach
+                }
+                if (entryName.startsWith("classes") && entryName.endsWith(".dex")) {
+                    val job = launch {
+                        val dexBytes = zipFile.getInputStream(it).readBytes()
+                        parseDex(entryName, dexBytes, classes, methodRefs, fieldRefs, false)
+                    }
+                    jobs.add(job)
+                }
+            }
+            runBlocking {
+                jobs.joinAll()
+            }
+        }
+    }
+
+    private fun parseDex(dexFileName: String, bytes: ByteArray,
+                         classes: ConcurrentHashMap<String, ClassNode>,
+                         methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
+                         fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
+                         @Suppress("SameParameterValue") isSkipCode: Boolean): Map<String, ClassNode> {
         val reader: BaseDexFileReader = DexFileReader(bytes)
         val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
@@ -68,39 +127,26 @@ class ApkParser: CoroutineScope by CoroutineScope(
         return visitor.getClasses()
     }
 
-    fun parseOverlays(apkInfo: ApkInfo): ApkOverlays {
+    fun parseEntries(apkInfo: ApkInfo): ApkEntries {
         val dexFiles = mutableMapOf<String, JuggFileInfo>()
         val overlayFiles = mutableMapOf<String, JuggFileInfo>()
         apkInfo.files.forEach {
-            parseOverlays(it.apkFile, dexFiles, overlayFiles)
+            parseEntries(it.apkFile, dexFiles, overlayFiles)
         }
-        return ApkOverlays(apkInfo, dexFiles, overlayFiles)
+        return ApkEntries(apkInfo, dexFiles, overlayFiles)
     }
 
-    private fun parseOverlays(apkFile: File,
-                      dexFiles: MutableMap<String, JuggFileInfo>,
-                      overlayFiles: MutableMap<String, JuggFileInfo>) {
+    private fun parseEntries(apkFile: File,
+                             dexFiles: MutableMap<String, JuggFileInfo>,
+                             overlayFiles: MutableMap<String, JuggFileInfo>) {
         val apk = ApkParserAdt().parsePaths(listOf(apkFile.absolutePath)).first()
         for (entry in apk.apkEntries.values) {
-            if (entry.name.endsWith(".dex")) {
+            if (entry.name.startsWith("classes") && entry.name.endsWith(".dex")) {
                 dexFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             } else {
                 overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             }
         }
-    }
-
-    fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
-        val reader: BaseDexFileReader = DexFileReader(dexByteCode)
-        val visitor = DexFileNode()
-        reader.accept(visitor, DexFileReader.SKIP_CODE)
-
-        val classes = mutableMapOf<String, ClassNode>()
-        visitor.clzs.forEach {
-            val classNode = ClassNode(ClassNode.JUGG_DEPLOYED_DEX_FILE_NAME, it)
-            classes[classNode.className] = classNode
-        }
-        return classes
     }
 }
 
@@ -109,7 +155,7 @@ data class JuggFileInfo(
     val checksum: Long
 )
 
-data class ApkOverlays(
+data class ApkEntries(
     val apkInfo: ApkInfo,
     val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,

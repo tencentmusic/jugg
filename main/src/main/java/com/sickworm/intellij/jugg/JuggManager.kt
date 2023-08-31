@@ -44,6 +44,7 @@ class JuggManager @TestOnly constructor(
     private val deployFileManager: DeployFileManager = DeployFileManager(
         JuggLogger.getInstance(project, "DeployDataManager"),
         pathManager.tmpDir,
+        pathManager.historyDir,
     ),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
