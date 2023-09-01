@@ -7,6 +7,7 @@ import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
+import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 
 /**
  * Final data that going to deploy to the device.
@@ -22,6 +23,8 @@ data class JuggDeployData(
     val hotReloadModifiedClasses: List<ClassDeployItem>,
     /** modified files that will place into /assets or /res. */
     val overlays: List<DeployItem>,
+    /** parsed class nodes and method & field references. */
+    val parsedDex: ParsedDex,
     /** is first time push overlays. */
     val isFullOverlays: Boolean,
     /** is for warm up. */
@@ -31,8 +34,6 @@ data class JuggDeployData(
             hotFixModifiedClasses.isEmpty() &&
             hotReloadModifiedClasses.isEmpty() &&
             overlays.isEmpty()
-
-    val classes get() = newClasses + hotFixModifiedClasses + hotReloadModifiedClasses
 
     val isNeedRestartApp get() = hotFixModifiedClasses.isNotEmpty()
 
@@ -75,7 +76,8 @@ data class JuggDeployData(
     }
 
     companion object {
-        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks, emptyList(), emptyList(), emptyList(), emptyList(),
+        fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks,
+            emptyList(), emptyList(), emptyList(), emptyList(), ParsedDex.EMPTY,
             isFullOverlays = false,
             isWarmUp = false
         )

@@ -2,13 +2,10 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 import kotlin.system.measureTimeMillis
 
@@ -20,30 +17,17 @@ class DeployDataGenerator(
     databaseDir: File,
 ) {
 
-    private var parsedApkDatabase: IParsedApkDatabase = ParsedApkDatabase(File(databaseDir, "apk"), logger)
-    private var deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
-    private var deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
+    private var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger)
 
     /**
      * Build [JuggDeployData] according to deployment history.
      */
     @Synchronized
-    fun buildDeployData(items: Collection<DeployItem>, isWarmUp: Boolean): JuggDeployData {
-        val changedClasses = items
-            .filter {
-                it.type == CompileOutput.Type.Dex
-            }
-            .map {
-                val dexClassNodes = ApkParser().parseDex(it.content)
-                if (dexClassNodes.size != 1) {
-                    // it must be only one class in one dex
-                    throw JuggInternalException.dexFileNotContainsOnlyOneClass(dexClassNodes.size)
-                }
-                val dexClassNode = dexClassNodes.first().value
-                ClassDeployItem(it, dexClassNode)
-            }
+    fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean): JuggDeployData {
+        val parsedDex = ApkParser().parseDex(items)
+        val changedClasses = parsedDex.classDeployItems
 
-        val oldClassNodes = parsedApkDatabase.getClassNodes(changedClasses.map { it.name })
+        val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.map { it.name })
         val newClasses = changedClasses.filter {
             isNewClass(it.name, oldClassNodes)
         }
@@ -61,37 +45,34 @@ class DeployDataGenerator(
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
         var overlays = changedOverlays
         var isFullOverlays = false
-        if (changedOverlays.isNotEmpty() && deployedOverlays.isEmpty()) {
+        if (changedOverlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore()) {
             // first time deploy must do full deployment
             logger.debug("first time deploy overlay, need full deployment")
             isFullOverlays = true
             val costTime = measureTimeMillis {
-                overlays = parsedApkDatabase.getFullOverlays(overlays)
+                overlays = deployDataDatabase.getFullOverlays(overlays)
             }
 
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
-        val apks = parsedApkDatabase.getApkInfos()
-        return JuggDeployData(apks, newClasses, hotFixModifiedClasses, hotReloadModifiedClasses, overlays, isFullOverlays, isWarmUp)
+        val apks = deployDataDatabase.getApkInfos()
+        return JuggDeployData(apks,
+            newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
+            overlays, parsedDex,
+            isFullOverlays, isWarmUp,
+        )
     }
 
     /**
      * check whether the class has deployment before
      */
     private fun isNewClass(className: String, oldClassNodes: Map<String, ClassNode>): Boolean {
-        if (deployedClasses.containsKey(className)) {
-            return false
-        }
-
         return oldClassNodes.containsKey(className)
     }
 
     private fun isHotReloadClass(className: String, newClassNode: ClassNode, oldClassNodes: Map<String, ClassNode>): Boolean {
-        var oldClassNode: ClassNode? = deployedClasses[className]
-        if (oldClassNode == null) {
-            oldClassNode = oldClassNodes[className]
-        }
+        val oldClassNode: ClassNode? = oldClassNodes[className]
         if (oldClassNode == null) {
             // this should not happen, because we just run [isNewClass]
             logger.warn("class $className not found, ignore.")
@@ -109,24 +90,9 @@ class DeployDataGenerator(
         return result.isSameStructure
     }
 
-    /**
-     * 1. Collect information after compiled
-     * 2. add deployed items to [deployedClasses] and [deployedOverlays] (invokes when recover on project opened)
-     */
     @Synchronized
     fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>) {
-        logger.debug("initAfterInstall parsed apk start, apks: $apks")
-        parsedApkDatabase.init(apks)
-        deployedClasses.clear()
-        deployedOverlays.clear()
-
-        deployedItems.forEach {
-            if (it.type == CompileOutput.Type.Dex) {
-                deployedClasses[it.name] = ApkParser().parseDex(it.content).first().value
-            } else {
-                deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
-            }
-        }
+        deployDataDatabase.init(apks, deployedItems)
     }
 
     /**
@@ -134,11 +100,6 @@ class DeployDataGenerator(
      */
     @Synchronized
     fun commitDeployedData(juggDeployData: JuggDeployData) {
-        juggDeployData.classes.forEach {
-            deployedClasses[it.name] = it.classNode
-        }
-        juggDeployData.overlays.forEach {
-            deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
-        }
+        deployDataDatabase.commitDeployedData(juggDeployData)
     }
 }

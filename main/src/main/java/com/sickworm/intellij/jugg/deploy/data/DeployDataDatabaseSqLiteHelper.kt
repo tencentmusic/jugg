@@ -10,7 +10,7 @@ import java.sql.ResultSet
 import kotlin.math.max
 
 
-class ParsedApkDatabaseSqLiteHelper(private val dbFile: File, private val logger: Logger) {
+class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 

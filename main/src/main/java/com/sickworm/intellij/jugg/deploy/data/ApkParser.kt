@@ -4,7 +4,11 @@ import com.android.tools.deployer.ApkParser as ApkParserAdt
 import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
+import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
+import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -56,15 +60,26 @@ class ApkParser: CoroutineScope by CoroutineScope(
         return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs)
     }
 
-    fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
-        return parseDex(
-            ClassNode.JUGG_DEPLOYED_DEX_FILE_NAME,
-            dexByteCode,
-            ConcurrentHashMap(),
-            ConcurrentHashMap(),
-            ConcurrentHashMap(),
-            false,
-        )
+    fun parseDex(deployItems: List<DeployItem>): ParsedDex {
+        val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
+        val fieldRefs = ConcurrentHashMap<FieldNode, MutableList<String>>()
+        val classDeployItem = deployItems.map {
+            val classes = ConcurrentHashMap<String, ClassNode>()
+            parseDex(
+                ClassNode.JUGG_DEPLOYED_DEX_FILE_NAME,
+                it.content,
+                classes,
+                methodRefs,
+                fieldRefs,
+                false,
+            )
+            if (classes.size != 1) {
+                // it must be only one class in one dex
+                throw JuggInternalException.dexFileNotContainsOnlyOneClass(classes.size)
+            }
+            ClassDeployItem(it, classes.first().value)
+        }
+        return ParsedDex(classDeployItem, methodRefs, fieldRefs)
     }
 
     private fun parseDex(apkFile: File,
@@ -151,3 +166,13 @@ data class ApkEntries(
     val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
 )
+
+data class ParsedDex(
+    val classDeployItems: List<ClassDeployItem>,
+    val methodRefs: Map<MethodNode, MutableList<String>>,
+    val fieldRefs: Map<FieldNode, MutableList<String>>,
+) {
+    companion object {
+        val EMPTY = ParsedDex(emptyList(), emptyMap(), emptyMap())
+    }
+}

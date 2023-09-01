@@ -15,13 +15,13 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
-class ParsedApkDatabaseSqLiteHelperTest {
+class DeployDataDatabaseSqLiteHelperTest {
 
     private val dbFile = File(buildDir, "test.db")
 
     @Test
     fun testCreateDataBase() {
-        val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
 
         helper.init()
         assertTrue(dbFile.exists())
@@ -29,7 +29,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
 
     @Test
     fun testInsertApkInfos() {
-        val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
 
         helper.init()
         assertTrue(dbFile.exists())
@@ -49,7 +49,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
         testGetParsedApk(helper, parsedApk)
     }
 
-    private fun testGetTableSize(helper: ParsedApkDatabaseSqLiteHelper, parsedApk: ParsedApk) {
+    private fun testGetTableSize(helper: DeployDataDatabaseSqLiteHelper, parsedApk: ParsedApk) {
         val apkInfoKeys = listOf(
             1,
             parsedApk.dexFiles.size + parsedApk.overlayFiles.size,
@@ -67,7 +67,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
         println("DB size is ${dbFile.length() / 1024 / 1024}MB")
     }
 
-    private fun testGetParsedApk(helper: ParsedApkDatabaseSqLiteHelper, parsedApk: ParsedApk) {
+    private fun testGetParsedApk(helper: DeployDataDatabaseSqLiteHelper, parsedApk: ParsedApk) {
         val startTime = System.currentTimeMillis()
         val parsedApkFromDb = helper.getParsedApk(parsedApk.apkInfo)
         val endTime = System.currentTimeMillis()
@@ -116,7 +116,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
 
     @Test
     fun testUpdateApkInfos() {
-        val helper = ParsedApkDatabaseSqLiteHelper(dbFile, logger)
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
         helper.init()
         var apkEntries = ApkParser().parseEntries(projectInfo.apkInfo)
         val originApkEntries = apkEntries
