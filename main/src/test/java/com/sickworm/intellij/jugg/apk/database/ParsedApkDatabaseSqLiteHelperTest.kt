@@ -36,7 +36,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
 
         val apkOverlays = ApkParser().parseEntries(projectInfo.apkInfo)
         val diffResult = helper.diffApk(apkOverlays)
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo).filterNotExistsClassesRef()
 
         val costTime = measureTimeMillis {
             helper.saveParsedApk(parsedApk, diffResult)
@@ -126,7 +126,7 @@ class ParsedApkDatabaseSqLiteHelperTest {
             emptyDiffResult.copy(updatedApkInfos = 1, addedDexFiles = apkEntries.dexFiles, addedOverlayFiles = apkEntries.overlayFiles),
             diffResult
         )
-        var parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkInfo, diffResult.includeEntries)
+        var parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkInfo, diffResult.includeEntries).filterNotExistsClassesRef()
         var finalParsedApk = parsedApk
         var updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(
@@ -267,5 +267,16 @@ class ParsedApkDatabaseSqLiteHelperTest {
         if (dbFile.exists()) {
             dbFile.delete()
         }
+    }
+
+    private fun ParsedApk.filterNotExistsClassesRef(): ParsedApk {
+        return ParsedApk(
+            apkInfo,
+            classes,
+            dexFiles,
+            overlayFiles,
+            methodRefs.filter { classes.containsKey(it.key.owner) },
+            fieldRefs.filter { classes.containsKey(it.key.owner) },
+        )
     }
 }

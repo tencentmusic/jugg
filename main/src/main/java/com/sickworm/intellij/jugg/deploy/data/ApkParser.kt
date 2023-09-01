@@ -53,16 +53,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
         parseDex(apkFile, classes, methodRefs, fieldRefs, includeEntries)
 
         val apkOverlays = includeEntries ?: parseEntries(apkInfo)
-
-        val finalMethodRefs = methodRefs.filter {
-            // The class of the method is not exists in the apk. Maybe in the android.jar. Filter it.
-            classes.containsKey(it.key.owner)
-        }
-        val finalFieldRefs = fieldRefs.filter {
-            // The class of the field is not exists in the apk. Maybe in the android.jar. Filter it.
-            classes.containsKey(it.key.owner)
-        }
-        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, finalMethodRefs, finalFieldRefs)
+        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs)
     }
 
     fun parseDex(dexByteCode: ByteArray): Map<String, ClassNode> {
