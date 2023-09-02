@@ -83,10 +83,12 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return updateResults
     }
 
+    @Synchronized
     override fun commitDeployedData(juggDeployData: JuggDeployData) {
         incDeployedDatabase.commitDeployedData(juggDeployData)
     }
 
+    @Synchronized
     override fun isDeployedOverlaysBefore(): Boolean {
         return incDeployedDatabase.isDeployedOverlaysBefore()
     }
@@ -138,6 +140,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return classNodes
     }
 
+    @Synchronized
     override fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
         val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs)
         val effectClassNodesMap = incrementalEffectClassNodes.toMutableMap()
