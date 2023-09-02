@@ -760,12 +760,19 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         return -1
     }
 
+    @Synchronized
+    fun recreateDatabase() {
+        dbFile.delete()
+        hasInit = false
+        init()
+    }
+
     private inline fun <T, R> T.runWithTimeCost(name: String, block: T.() -> R): R {
         val startTime = System.currentTimeMillis()
         val result = block()
         val endTime = System.currentTimeMillis()
         val costTime = endTime - startTime
-        if (costTime > 10) {
+        if (costTime > 100) {
             logger.debug("SQLite run $name cost ${endTime - startTime}ms")
         }
         return result

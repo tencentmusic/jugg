@@ -56,7 +56,15 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             helper.init()
             val apkOverlays = ApkParser().parseEntries(it)
             val diffResult = helper.diffApk(apkOverlays)
-            val diffParsedApk = ApkParser().parse(it, diffResult.includeEntries)
+            var includeEntries = diffResult.includeEntries
+            val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
+            if (allChangedDexFileSize >= apkOverlays.dexFiles.size * 0.3) {
+                // If removed dex files is more than 30%, it's better to full update the apk for better database update performance.
+                logger.info("${it.applicationId} database dex files changed too much, re-parse the apk.")
+                includeEntries = apkOverlays
+                helper.recreateDatabase()
+            }
+            val diffParsedApk = ApkParser().parse(it, includeEntries)
             val updateResult = helper.saveParsedApk(diffParsedApk, diffResult)
             updateResults.add(updateResult)
             if (updateResult.isSuccess) {
