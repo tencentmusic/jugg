@@ -37,7 +37,14 @@ class DeployDataGeneratorTest {
     fun testHotModified() {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
-        val data = generator.buildDeployData(abcParsedDexMock, emptyList())
+        var data = generator.buildDeployData(abcParsedDexMock, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(1, data.hotReloadModifiedClasses.size)
+        assertEquals(0, data.hotFixModifiedClasses.size)
+        assertEquals(0, data.effectedSourceFileNames.size)
+
+        generator.commitDeployedData(data)
+        data = generator.buildDeployData(abcParsedDexMock, emptyList())
         assertEquals(0, data.newClasses.size)
         assertEquals(1, data.hotReloadModifiedClasses.size)
         assertEquals(0, data.hotFixModifiedClasses.size)
@@ -51,7 +58,23 @@ class DeployDataGeneratorTest {
 
         val newMethod = MethodNode(abdClassNode.className, DexConstants.ACC_PUBLIC, "aNewMethod", "()V")
         val addMethodParsedDex = abcParsedDexMock.updateMethods(abdClassNode.methods + newMethod)
-        val data = generator.buildDeployData(addMethodParsedDex, emptyList())
+        var data = generator.buildDeployData(addMethodParsedDex, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(0, data.hotReloadModifiedClasses.size)
+        assertEquals(1, data.hotFixModifiedClasses.size)
+        assertEquals(0, data.effectedSourceFileNames.size)
+
+        generator.commitDeployedData(data)
+        data = generator.buildDeployData(addMethodParsedDex, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(1, data.hotReloadModifiedClasses.size)
+        assertEquals(0, data.hotFixModifiedClasses.size)
+        assertEquals(0, data.effectedSourceFileNames.size)
+
+        generator.commitDeployedData(data)
+        val newMethod2 = MethodNode(abdClassNode.className, DexConstants.ACC_PUBLIC, "aNewMethod2", "()V")
+        val addMethodParsedDex2 = addMethodParsedDex.updateMethods(abdClassNode.methods + newMethod2)
+        data = generator.buildDeployData(addMethodParsedDex2, emptyList())
         assertEquals(0, data.newClasses.size)
         assertEquals(0, data.hotReloadModifiedClasses.size)
         assertEquals(1, data.hotFixModifiedClasses.size)
@@ -63,9 +86,30 @@ class DeployDataGeneratorTest {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
 
-        val newMethods = abdClassNode.methods.filter { it.name != "haha" }
-        val addMethodParsedDex = abcParsedDexMock.updateMethods(newMethods)
-        val data = generator.buildDeployData(addMethodParsedDex, emptyList())
+        val modifiedMethods = abdClassNode.methods.map {
+            if (it.name == "haha") {
+                MethodNode(it.owner, DexConstants.ACC_PRIVATE, it.name, it.desc)
+            } else {
+                it
+            }
+        }
+        val removeMethodParsedDex = abcParsedDexMock.updateMethods(modifiedMethods)
+        var data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(0, data.hotReloadModifiedClasses.size)
+        assertEquals(1, data.hotFixModifiedClasses.size)
+        assertEquals(1, data.effectedSourceFileNames.size)
+        assertEquals("MainActivity2.java", data.effectedSourceFileNames[0])
+
+        generator.commitDeployedData(data)
+        data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(1, data.hotReloadModifiedClasses.size)
+        assertEquals(0, data.hotFixModifiedClasses.size)
+        assertEquals(0, data.effectedSourceFileNames.size)
+
+        val newRemoveMethodParsedDex = abcParsedDexMock.updateMethods(abdClassNode.methods)
+        data = generator.buildDeployData(newRemoveMethodParsedDex, emptyList())
         assertEquals(0, data.newClasses.size)
         assertEquals(0, data.hotReloadModifiedClasses.size)
         assertEquals(1, data.hotFixModifiedClasses.size)

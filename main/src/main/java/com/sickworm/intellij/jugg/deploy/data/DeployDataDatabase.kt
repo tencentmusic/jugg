@@ -167,7 +167,7 @@ class IncrementalDeployDataDatabase {
         val dexDeployItems = deployedItems.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(dexDeployItems)
         parsedDex.classDeployItems.forEach {
-            deployedClasses[it.name] = it.classNode
+            deployedClasses[it.sigName] = it.classNode
         }
         parsedDex.methodRefs.forEach {
             methodRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
@@ -184,7 +184,7 @@ class IncrementalDeployDataDatabase {
 
     fun commitDeployedData(juggDeployData: JuggDeployData) {
         juggDeployData.parsedDex.classDeployItems.forEach {
-            deployedClasses[it.name] = it.classNode
+            deployedClasses[it.sigName] = it.classNode
         }
         juggDeployData.parsedDex.methodRefs.forEach {
             methodRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
