@@ -46,6 +46,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     override fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>): List<ParsedApkUpdateResult> {
         logger.debug("initAfterInstall parsed apk start, apks: $apks, deployedItems: ${deployedItems.size}")
 
+        classNodeDbCache.clear()
         this.apks = apks
         val startTime = System.currentTimeMillis()
         database.clear()
@@ -85,6 +86,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun commitDeployedData(juggDeployData: JuggDeployData) {
+        classNodeDbCache.clear()
         incDeployedDatabase.commitDeployedData(juggDeployData)
     }
 
@@ -124,6 +126,8 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return apks
     }
 
+    private var classNodeDbCache = mutableMapOf<String, ClassNode>()
+
     @Synchronized
     override fun getClassNodes(classNames: List<String>): Map<String, ClassNode> {
         val classNodes = mutableMapOf<String, ClassNode>()
@@ -131,10 +135,23 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val incClassNodes = incDeployedDatabase.getClassNodes(classNames)
         classNodes.putAll(incClassNodes)
 
-        val remainClassNodes = classNames.filter { !classNodes.containsKey(it) }
+        val remainClassNodes = mutableListOf<String>()
+        classNames.forEach {
+            if (classNodes.containsKey(it)) {
+                return@forEach
+            }
+            val cache = classNodeDbCache[it]
+            if (cache != null) {
+                classNodes[it] = cache
+                return@forEach
+            }
+            remainClassNodes.add(it)
+        }
+
         database.values.forEach {
             val nodes = it.getClassNodes(remainClassNodes)
             classNodes.putAll(nodes)
+            classNodeDbCache.putAll(nodes)
         }
 
         return classNodes
