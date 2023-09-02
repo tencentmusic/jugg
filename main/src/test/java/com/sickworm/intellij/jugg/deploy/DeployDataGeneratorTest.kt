@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.googlecode.d2j.DexConstants
+import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.MethodNode
 import com.sickworm.intellij.jugg.deploy.data.ApkParser
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
@@ -17,18 +20,7 @@ import kotlin.test.assertTrue
 class DeployDataGeneratorTest {
 
     private val abcParsedDexMock: ParsedDex = getAdbParsedDex()
-
-    private fun getAdbParsedDex(): ParsedDex {
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
-        val className = "com.example.myapplication.ABC"
-        val classNode = parsedApk.classes[className.convertClassToSigFormat()]!!
-        val deployItem = DeployItem(className, CompileOutput.Type.Dex, 0, byteArrayOf())
-        return ParsedDex(
-            listOf(ClassDeployItem(deployItem, classNode)),
-            emptyMap(),
-            emptyMap(),
-        )
-    }
+    private val abdClassNode get() = abcParsedDexMock.classDeployItems[0].classNode
 
     @Test
     fun testOverlayContents() {
@@ -50,5 +42,67 @@ class DeployDataGeneratorTest {
         assertEquals(1, data.hotReloadModifiedClasses.size)
         assertEquals(0, data.hotFixModifiedClasses.size)
         assertEquals(0, data.effectedSourceFileNames.size)
+    }
+
+    @Test
+    fun testHotFix() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val newMethod = MethodNode(abdClassNode.className, DexConstants.ACC_PUBLIC, "aNewMethod", "()V")
+        val addMethodParsedDex = abcParsedDexMock.updateMethods(abdClassNode.methods + newMethod)
+        val data = generator.buildDeployData(addMethodParsedDex, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(0, data.hotReloadModifiedClasses.size)
+        assertEquals(1, data.hotFixModifiedClasses.size)
+        assertEquals(0, data.effectedSourceFileNames.size)
+    }
+
+    @Test
+    fun testEffectSource() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val newMethods = abdClassNode.methods.filter { it.name != "haha" }
+        val addMethodParsedDex = abcParsedDexMock.updateMethods(newMethods)
+        val data = generator.buildDeployData(addMethodParsedDex, emptyList())
+        assertEquals(0, data.newClasses.size)
+        assertEquals(0, data.hotReloadModifiedClasses.size)
+        assertEquals(1, data.hotFixModifiedClasses.size)
+        assertEquals(1, data.effectedSourceFileNames.size)
+        assertEquals("MainActivity2.java", data.effectedSourceFileNames[0])
+    }
+
+    private fun getAdbParsedDex(): ParsedDex {
+        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+        val className = "com.example.myapplication.ABC"
+        val classNode = parsedApk.classes[className.convertClassToSigFormat()]!!
+        val deployItem = DeployItem(className, CompileOutput.Type.Dex, 0, byteArrayOf())
+        return ParsedDex(
+            listOf(ClassDeployItem(deployItem, classNode)),
+            emptyMap(),
+            emptyMap(),
+        )
+    }
+
+    private fun ParsedDex.updateMethods(methods: List<MethodNode>): ParsedDex {
+        val oldClassNode = this.classDeployItems[0]
+        val newClassNode = ClassDeployItem(
+            oldClassNode.deployItem,
+            ClassNode(
+                oldClassNode.classNode.dexFileName,
+                oldClassNode.classNode.className,
+                methods,
+                oldClassNode.classNode.fields,
+                oldClassNode.classNode.interfaceNames,
+                oldClassNode.classNode.superClass,
+                oldClassNode.classNode.source,
+            )
+        )
+        return ParsedDex(
+            listOf(newClassNode),
+            emptyMap(),
+            emptyMap(),
+        )
     }
 }

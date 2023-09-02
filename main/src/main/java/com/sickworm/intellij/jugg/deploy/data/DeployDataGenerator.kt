@@ -66,9 +66,6 @@ class DeployDataGenerator(
             changedMethodRef.addAll(result.deletedMethods)
             changedFieldRef.addAll(result.deletedFields)
         }
-        logger.debug("newClasses: $newClasses")
-        logger.debug("hotReloadModifiedClasses: $hotReloadModifiedClasses")
-        logger.debug("hotFixModifiedClasses: $hotFixModifiedClasses")
 
         var overlays = changedOverlays
         var isFullOverlays = false
@@ -79,7 +76,6 @@ class DeployDataGenerator(
             val costTime = measureTimeMillis {
                 overlays = deployDataDatabase.getFullOverlays(overlays)
             }
-
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 

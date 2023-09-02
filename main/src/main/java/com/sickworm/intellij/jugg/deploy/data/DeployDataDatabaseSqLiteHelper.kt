@@ -674,7 +674,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 changedFieldRefs.forEach { classNameList.add(it.owner) }
                 val classNamesString = classNameList.joinToString(",") { "'$it'" }
 
-                val sql = "SELECT name, id FROM class_info WHERE id IN ($classNamesString);"
+                val sql = "SELECT name, id FROM class_info WHERE name IN ($classNamesString);"
                 connection.createStatement().use { statement ->
                     val resultSet: ResultSet = statement.executeQuery(sql)
                     while (resultSet.next()) {
