@@ -18,8 +18,10 @@ class ClassNode(
     val fields: List<FieldNode>,
     val interfaceNames: List<String>,
     val superClass: String,
-    val source: String?,
+    sourceArg: String?,
 ) {
+
+    val source: String = sourceArg ?: NO_SOURCE
 
     constructor(dexFileName: String, node: DexClassNode): this(
         dexFileName = dexFileName,
@@ -28,11 +30,12 @@ class ClassNode(
         fields = node.fields?.map { FieldNode(it) }?: emptyList(),
         interfaceNames = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList(),
         superClass = ClassStringPool[node.superClass],
-        source = node.source,
+        sourceArg = node.source,
     )
 
     companion object {
         const val JUGG_DEPLOYED_DEX_FILE_NAME = "jugg_deployed.dex" // virtual dex file name, not really exists
+        const val NO_SOURCE = "no_source"
 
         // e.g. Landroid/support/v4/os/ResultReceiver$1;
         // ->

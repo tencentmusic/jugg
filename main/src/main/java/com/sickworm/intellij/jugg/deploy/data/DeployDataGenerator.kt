@@ -4,6 +4,9 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
+import com.sickworm.intellij.jugg.compiler.FieldNode
+import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import java.io.File
@@ -24,22 +27,48 @@ class DeployDataGenerator(
      */
     @Synchronized
     fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean): JuggDeployData {
-        val parsedDex = ApkParser().parseDex(items)
+        val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
+        val parsedDex = ApkParser().parseDex(changedDex)
         val changedClasses = parsedDex.classDeployItems
 
         val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.map { it.name })
-        val newClasses = changedClasses.filter {
-            isNewClass(it.name, oldClassNodes)
+        val newClasses = mutableListOf<ClassDeployItem>()
+        val hotReloadModifiedClasses = mutableListOf<ClassDeployItem>()
+        val hotFixModifiedClasses = mutableListOf<ClassDeployItem>()
+        val changedMethodRef = mutableListOf<MethodNode>()
+        val changedFieldRef = mutableListOf<FieldNode>()
+        changedClasses.forEach {
+            val className = it.name
+            val isNewClass = oldClassNodes.containsKey(className)
+            if (!isNewClass) {
+                newClasses.add(it)
+                return@forEach
+            }
+            val oldClassNode: ClassNode? = oldClassNodes[it.name]
+            if (oldClassNode == null) {
+                // this should not happen, because we just run [isNewClass]
+                logger.warn("class $className not found, ignore.")
+                return@forEach
+            }
+
+            // compare class node difference
+            val newClassNode = it.classNode
+            val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
+            logger.debug(result.toString())
+            if (result.isSameStructure) {
+                // same structure, hot reload
+                hotReloadModifiedClasses.add(it)
+            } else {
+                // different structure, hot fix
+                logger.debug("class $className structure changed, need hot fix: $result")
+                hotFixModifiedClasses.add(it)
+            }
+
+            changedMethodRef.addAll(result.deletedMethods)
+            changedFieldRef.addAll(result.deletedFields)
         }
-        val modifiedClasses = changedClasses - newClasses.toSet()
         logger.debug("newClasses: $newClasses")
-
-        val hotReloadModifiedClasses = modifiedClasses.filter {
-            isHotReloadClass(it.name, it.classNode, oldClassNodes)
-        }
         logger.debug("hotReloadModifiedClasses: $hotReloadModifiedClasses")
-
-        val hotFixModifiedClasses = modifiedClasses - hotReloadModifiedClasses.toSet()
         logger.debug("hotFixModifiedClasses: $hotFixModifiedClasses")
 
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
@@ -56,38 +85,20 @@ class DeployDataGenerator(
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
+        val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef)
+        if (effectedSourceAndClassNodes.isNotEmpty()) {
+            logger.debug("found effected source and classes: $effectedSourceAndClassNodes")
+        }
+
         val apks = deployDataDatabase.getApkInfos()
-        return JuggDeployData(apks,
+        val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
+            effectedSourceAndClassNodes.keys.toList(),
             overlays, parsedDex,
             isFullOverlays, isWarmUp,
         )
-    }
-
-    /**
-     * check whether the class has deployment before
-     */
-    private fun isNewClass(className: String, oldClassNodes: Map<String, ClassNode>): Boolean {
-        return oldClassNodes.containsKey(className)
-    }
-
-    private fun isHotReloadClass(className: String, newClassNode: ClassNode, oldClassNodes: Map<String, ClassNode>): Boolean {
-        val oldClassNode: ClassNode? = oldClassNodes[className]
-        if (oldClassNode == null) {
-            // this should not happen, because we just run [isNewClass]
-            logger.warn("class $className not found, ignore.")
-            return false
-        }
-
-        // compare class node difference
-        val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
-        logger.debug(result.toString())
-
-        if (!result.isSameStructure) {
-            logger.debug("class $className structure changed, need hot fix: $result")
-        }
-
-        return result.isSameStructure
+        logger.debug("juggDeployData: $juggDeployData")
+        return juggDeployData
     }
 
     @Synchronized

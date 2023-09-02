@@ -21,6 +21,8 @@ data class JuggDeployData(
     val hotFixModifiedClasses: List<ClassDeployItem>,
     /** exists deploying classes, and compatible with JVM-TI Apply Changes */
     val hotReloadModifiedClasses: List<ClassDeployItem>,
+    /** effected source files names(from source flag in .dex file) that need to be recompiled. */
+    val effectedSourceFileNames: List<String>,
     /** modified files that will place into /assets or /res. */
     val overlays: List<DeployItem>,
     /** parsed class nodes and method & field references. */
@@ -77,9 +79,10 @@ data class JuggDeployData(
 
     companion object {
         fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks,
-            emptyList(), emptyList(), emptyList(), emptyList(), ParsedDex.EMPTY,
+            emptyList(), emptyList(), emptyList(),
+            emptyList(), emptyList(), ParsedDex.EMPTY,
             isFullOverlays = false,
-            isWarmUp = false
+            isWarmUp = false,
         )
     }
 }

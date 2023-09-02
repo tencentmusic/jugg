@@ -29,6 +29,11 @@ interface IDeployDataDatabase {
     fun getApkInfos(): List<ApkInfo>
 
     fun getClassNodes(classNames: List<String>): Map<String, ClassNode>
+
+    /**
+     * @return Map<source file name, List<class name>>
+     */
+    fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>>
 }
 
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
@@ -124,6 +129,20 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
         return classNodes
     }
+
+    override fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+        val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs)
+        val effectClassNodesMap = incrementalEffectClassNodes.toMutableMap()
+        database.values.forEach { helper ->
+            val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs)
+            apkEffectClassNodesMap.forEach addNode@{
+                // use incremental first
+                effectClassNodesMap.putIfAbsent(it.key, it.value)
+            }
+        }
+
+        return effectClassNodesMap
+    }
 }
 
 class IncrementalDeployDataDatabase {
@@ -131,8 +150,8 @@ class IncrementalDeployDataDatabase {
     private val deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private val deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 
-    private val methodRefs: MutableMap<MethodNode, MutableList<String>> = mutableMapOf()
-    private val fieldRefs: MutableMap<FieldNode, MutableList<String>> = mutableMapOf()
+    private val methodRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
+    private val fieldRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
 
     fun init(deployedItems: List<DeployItem>) {
         deployedClasses.clear()
@@ -142,8 +161,12 @@ class IncrementalDeployDataDatabase {
         parsedDex.classDeployItems.forEach {
             deployedClasses[it.name] = it.classNode
         }
-        methodRefs.putAll(parsedDex.methodRefs)
-        fieldRefs.putAll(parsedDex.fieldRefs)
+        parsedDex.methodRefs.forEach {
+            methodRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+        }
+        parsedDex.fieldRefs.forEach {
+            fieldRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+        }
 
         val overlayDeployItems = deployedItems.filter { it.type != CompileOutput.Type.Dex }
         overlayDeployItems.forEach {
@@ -155,8 +178,13 @@ class IncrementalDeployDataDatabase {
         juggDeployData.parsedDex.classDeployItems.forEach {
             deployedClasses[it.name] = it.classNode
         }
-        methodRefs.putAll(juggDeployData.parsedDex.methodRefs)
-        fieldRefs.putAll(juggDeployData.parsedDex.fieldRefs)
+        juggDeployData.parsedDex.methodRefs.forEach {
+            methodRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+        }
+        juggDeployData.parsedDex.fieldRefs.forEach {
+            fieldRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
+        }
+
         juggDeployData.overlays.forEach {
             deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
         }
@@ -170,4 +198,27 @@ class IncrementalDeployDataDatabase {
         return deployedClasses.filterKeys { classNames.contains(it) }
     }
 
+    fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+        val effectClassNodesMap = mutableMapOf<String, List<String>>()
+        changedMethodRefs.forEach {
+            methodRefs[it.matchKey]?.forEach { className ->
+                deployedClasses[className]?.let { classNode ->
+                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }
+                }
+            }
+        }
+        changedFieldRefs.forEach {
+            fieldRefs[it.matchKey]?.forEach { className ->
+                deployedClasses[className]?.let { classNode ->
+                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }
+                }
+            }
+        }
+
+        return effectClassNodesMap
+    }
+
+    private val MethodNode.matchKey get() = "${owner}.${name}${desc}"
+
+    private val FieldNode.matchKey get() = "${owner}.${name}"
 }

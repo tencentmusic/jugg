@@ -658,6 +658,79 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
+    fun getEffectedClassNodes(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+        DriverManager.getConnection(url).use { connection ->
+
+            val dbClassNodeMap = mutableMapOf<String, Int>()
+            runWithTimeCost("doGetClassIds") {
+                val classNameList = mutableListOf<String>()
+                changedMethodRefs.forEach { classNameList.add(it.owner) }
+                changedFieldRefs.forEach { classNameList.add(it.owner) }
+                val classNamesString = classNameList.joinToString(",") { "'$it'" }
+
+                val sql = "SELECT name, id FROM class_info WHERE id IN ($classNamesString);"
+                connection.createStatement().use { statement ->
+                    val resultSet: ResultSet = statement.executeQuery(sql)
+                    while (resultSet.next()) {
+                        val className = resultSet.getString(1)
+                        val classId = resultSet.getInt(2)
+                        dbClassNodeMap[className] = classId
+                    }
+                }
+            }
+
+            val refClassIds = mutableSetOf<Int>()
+            runWithTimeCost("doGetRefClassIds") {
+                if (changedMethodRefs.isNotEmpty()) {
+                    val methodClassIdsString = changedMethodRefs.joinToString(" OR ") {
+                        "(class_id=${dbClassNodeMap[it.owner] ?: -1} AND name='${it.name}' AND desc='${it.desc}')"
+                    }
+                    val sql = "SELECT ref_class_id FROM method_refs WHERE $methodClassIdsString;"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQuery(sql)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            refClassIds.add(classId)
+                        }
+                    }
+                }
+
+                if (changedFieldRefs.isNotEmpty()) {
+                    val fieldClassIdsString = changedFieldRefs.joinToString(" OR ") {
+                        "(class_id=${dbClassNodeMap[it.owner] ?: -1} AND name='${it.name}' AND type='${it.type}')"
+                    }
+                    val sql2 = "SELECT ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQuery(sql2)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            refClassIds.add(classId)
+                        }
+                    }
+                }
+            }
+            if (refClassIds.isEmpty()) {
+                return emptyMap()
+            }
+
+            val effectedClassNodes = mutableMapOf<String, MutableList<String>>()
+            runWithTimeCost("doGetClassNodes") {
+                val refClassIdsString = refClassIds.joinToString(",")
+                val sql = "SELECT name, source FROM class_info WHERE id IN ($refClassIdsString);"
+                connection.createStatement().use { statement ->
+                    val resultSet: ResultSet = statement.executeQuery(sql)
+                    while (resultSet.next()) {
+                        val className = resultSet.getString(1)
+                        val source = resultSet.getString(2)
+                        effectedClassNodes.getOrPut(source) { mutableListOf() }.add(className)
+                    }
+                }
+            }
+            return effectedClassNodes
+        }
+    }
+
+    @Synchronized
     fun getApkInfoKeys(): List<String> {
         val selectSQL = "SELECT * FROM apk_info;"
         val keys = mutableListOf<String>()
