@@ -80,9 +80,6 @@ class DeployDataGenerator(
         }
 
         val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef)
-        if (effectedSourceAndClassNodes.isNotEmpty()) {
-            logger.debug("found effected source and classes: $effectedSourceAndClassNodes")
-        }
 
         val apks = deployDataDatabase.getApkInfos()
         val juggDeployData = JuggDeployData(apks,

@@ -142,6 +142,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+        if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty()) {
+            return emptyMap()
+        }
+
         val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs)
         val effectClassNodesMap = incrementalEffectClassNodes.toMutableMap()
         database.values.forEach { helper ->
