@@ -79,7 +79,7 @@ class BuildDemoApkTest {
     private fun checkApkEntryInfo(parsedApk: ParsedApk) {
         if (projectInfo.apkEntryInfo.classCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.classCount,
-                parsedApk.getClassSize())
+                parsedApk.classes.size)
         }
         if (projectInfo.apkEntryInfo.overlayFileCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.overlayFileCount,

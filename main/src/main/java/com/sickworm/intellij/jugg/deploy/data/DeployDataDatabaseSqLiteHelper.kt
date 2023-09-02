@@ -606,12 +606,18 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
                 val classNamesString = classNames.joinToString(",") { "'$it'" }
-                val selectClassSQL = "SELECT * FROM class_info WHERE class_name IN ($classNamesString);"
+                val selectClassSQL = "SELECT * FROM class_info WHERE name IN ($classNamesString);"
                 val dbClasses = mutableMapOf<Int, DbClassNode>()
                 var resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
-                    val interfaceNames = resultSet.getString(2).split(" ").toList()
+                    val interfaceNames = resultSet.getString(2).let {
+                        if (it.isEmpty()) {
+                            emptyList()
+                        } else {
+                            it.split(" ").toList()
+                        }
+                    }
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)

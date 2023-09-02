@@ -111,6 +111,8 @@ class ClassDeployItem(
     val checksum: Long get() = deployItem.checksum
     val content: ByteArray get() = deployItem.content
 
+    val sigName get() = classNode.className
+
     fun toIncompleteDexClass(): DexClass {
         return DexClass(name, checksum, content, null)
     }

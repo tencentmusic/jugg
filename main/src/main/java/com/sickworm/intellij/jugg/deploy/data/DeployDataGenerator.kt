@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.MethodNode
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import org.jetbrains.annotations.TestOnly
 import java.io.File
 import kotlin.system.measureTimeMillis
 
@@ -25,29 +26,27 @@ class DeployDataGenerator(
     /**
      * Build [JuggDeployData] according to deployment history.
      */
-    @Synchronized
-    fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean): JuggDeployData {
+    fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean = false): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
-        val changedClasses = parsedDex.classDeployItems
+        val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
+        return buildDeployData(parsedDex, changedOverlays, isWarmUp)
+    }
 
-        val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.map { it.name })
+    @TestOnly
+    fun buildDeployData(parsedDex: ParsedDex, changedOverlays: List<DeployItem>, isWarmUp: Boolean = false): JuggDeployData {
+        val changedClasses = parsedDex.classDeployItems
+        val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.map { it.sigName })
         val newClasses = mutableListOf<ClassDeployItem>()
         val hotReloadModifiedClasses = mutableListOf<ClassDeployItem>()
         val hotFixModifiedClasses = mutableListOf<ClassDeployItem>()
         val changedMethodRef = mutableListOf<MethodNode>()
         val changedFieldRef = mutableListOf<FieldNode>()
         changedClasses.forEach {
-            val className = it.name
-            val isNewClass = oldClassNodes.containsKey(className)
-            if (!isNewClass) {
-                newClasses.add(it)
-                return@forEach
-            }
-            val oldClassNode: ClassNode? = oldClassNodes[it.name]
+            val className = it.sigName
+            val oldClassNode: ClassNode? = oldClassNodes[className]
             if (oldClassNode == null) {
-                // this should not happen, because we just run [isNewClass]
-                logger.warn("class $className not found, ignore.")
+                newClasses.add(it)
                 return@forEach
             }
 
@@ -71,7 +70,6 @@ class DeployDataGenerator(
         logger.debug("hotReloadModifiedClasses: $hotReloadModifiedClasses")
         logger.debug("hotFixModifiedClasses: $hotFixModifiedClasses")
 
-        val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
         var overlays = changedOverlays
         var isFullOverlays = false
         if (changedOverlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore()) {
@@ -113,4 +111,8 @@ class DeployDataGenerator(
     fun commitDeployedData(juggDeployData: JuggDeployData) {
         deployDataDatabase.commitDeployedData(juggDeployData)
     }
+}
+
+fun String.convertClassToSigFormat(): String {
+    return "L" + this.replace('.', '/') + ";"
 }

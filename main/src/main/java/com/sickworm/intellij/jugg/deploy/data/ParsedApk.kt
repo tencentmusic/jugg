@@ -5,6 +5,10 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
 
+/**
+ * Apk parsed result.
+ * Notice: class name in here is in the form of "Lcom/example/MainActivity;".
+ */
 class ParsedApk(
     val apkInfo: ApkInfo,
     val classes: Map<String, ClassNode>,
@@ -12,24 +16,4 @@ class ParsedApk(
     val overlayFiles: Map<String, JuggFileInfo>,
     val methodRefs: Map<MethodNode, List<String>>,
     val fieldRefs: Map<FieldNode, List<String>>,
-) {
-
-    fun containsClass(className: String): Boolean {
-        val classSigName = className.convertClassToSigFormat()
-        return getClass(classSigName) != null
-    }
-
-    fun getClass(className: String): ClassNode? {
-        val classSigName = className.convertClassToSigFormat()
-        return classes[classSigName]
-    }
-
-
-    fun getClassSize(): Int {
-        return classes.size
-    }
-
-    private fun String.convertClassToSigFormat(): String {
-        return "L" + this.replace('.', '/') + ";"
-    }
-}
+)
