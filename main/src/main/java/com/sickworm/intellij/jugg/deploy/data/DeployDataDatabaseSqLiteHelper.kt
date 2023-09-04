@@ -22,6 +22,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             return
         }
         dbFile.parentFile?.mkdirs()
+        SqLiteDriverLoader.load(logger)
 
         // Create a new database connection
         DriverManager.getConnection(url).use { connection ->

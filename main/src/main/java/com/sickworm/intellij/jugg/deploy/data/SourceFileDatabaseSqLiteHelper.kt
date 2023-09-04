@@ -16,6 +16,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
         if (hasInit) {
             return
         }
+        SqLiteDriverLoader.load(logger)
         dbFile.parentFile?.mkdirs()
 
         // Create a new database connection
