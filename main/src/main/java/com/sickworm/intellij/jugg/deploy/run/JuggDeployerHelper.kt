@@ -129,7 +129,7 @@ class JuggDeployerHelper(
                 val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
                 val isAppForeground = deployTargetManager.isAppForeground()
-                logger.debug("got $reason, isAppForeground: $isAppForeground")
+                logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
                 if (isMissingAgentResponses || isOverlayIdNotCorrect) {
                     val isNeedRecover = when {
                         isMissingAgentResponses && !isAppForeground-> {

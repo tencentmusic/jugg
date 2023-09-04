@@ -44,7 +44,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>): List<ParsedApkUpdateResult> {
-        logger.debug("initAfterInstall parsed apk start, apks: $apks, deployedItems: ${deployedItems.size}")
+        logger.debug("initAfterInstall parsed apk start, apks: ${apks.size}, deployedItems: ${deployedItems.size}")
 
         classNodeDbCache.clear()
         this.apks = apks

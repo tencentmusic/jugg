@@ -54,6 +54,14 @@ class DeployTargetManager(
         }
     }
 
+    private fun getDeviceSafe(): IDevice? {
+        return try {
+            getDevice()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     override fun startApp(): Boolean {
         return try {
             AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks, isRestart = false)
@@ -75,8 +83,9 @@ class DeployTargetManager(
     }
 
     override fun isAppForeground(): Boolean {
+        val device = getDeviceSafe() ?: return false
         return try {
-            AdbCmdHelper(getDevice(), logger).isAppForeground(getPackageName())
+            AdbCmdHelper(device, logger).isAppForeground(getPackageName())
         } catch (e: Exception) {
             logger.error("isAppForeground failed", e)
             false

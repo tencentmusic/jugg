@@ -154,7 +154,7 @@ class JuggCompilerHelper(
             val effectedSourceFiles = deployFileManager.getEffectedSourceFiles()
             val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
             if (changedFiles.isNotEmpty()) {
-                logger.info("Compile success, but found effected source files, continue compile. Files :\n${effectedSourceFiles.map { it.name }}")
+                logger.info("Compile success, but found effected source files, continue compile. Files: ${effectedSourceFiles.map { it.name }}")
                 deployFileManager.addChangedFile(changedFiles)
                 return incrementalCompile()
             }
