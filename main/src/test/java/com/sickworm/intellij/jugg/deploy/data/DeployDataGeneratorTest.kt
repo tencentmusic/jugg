@@ -1,13 +1,9 @@
-package com.sickworm.intellij.jugg.deploy
+package com.sickworm.intellij.jugg.deploy.data
 
 import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.MethodNode
-import com.sickworm.intellij.jugg.deploy.data.ApkParser
-import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
-import com.sickworm.intellij.jugg.deploy.data.ParsedDex
-import com.sickworm.intellij.jugg.deploy.data.convertClassToSigFormat
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.mock.buildDir

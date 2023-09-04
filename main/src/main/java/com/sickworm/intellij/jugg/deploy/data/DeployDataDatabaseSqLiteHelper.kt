@@ -88,7 +88,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         }
 
         hasInit = true
-        logger.debug("Init database success.")
+        logger.debug("Init database ${dbFile.name} success.")
     }
 
     @Synchronized
