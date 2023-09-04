@@ -69,13 +69,16 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    fun initProjectInfo() {
+    fun initProjectInfo(isNeedReloadProjectInfo: Boolean) {
         runTaskSafe("Init Project Info", {
             if (!deployStateManager.deployState.isReadyIncCompile) {
                 logger.debug("Deploy state is not ready inc compile")
-                recoverDeployContext()
+                recoverDeployContext(isNeedReloadProjectInfo)
             } else {
-                logger.debug("Deploy state is ready inc compile")
+                logger.debug("Deploy state is ready inc compile, isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
+                if (!isNeedReloadProjectInfo) {
+                    return@runTaskSafe
+                }
                 val isSuccess = compileContextManager.refreshCompileContext()
                 if (isSuccess) {
                     val sourceDirs = compileContextManager.compileContext.modules.values.flatMap {
@@ -102,7 +105,7 @@ class JuggManager @TestOnly constructor(
         RunManager.getInstance(project).selectedConfiguration = settings
     }
 
-    private fun recoverDeployContext() {
+    private fun recoverDeployContext(isNeedReloadProjectInfo: Boolean) {
         logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
@@ -115,7 +118,7 @@ class JuggManager @TestOnly constructor(
         }
 
         // step 1: recover compile context
-        initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles)
+        initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles, isNeedReloadProjectInfo)
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
@@ -280,20 +283,21 @@ class JuggManager @TestOnly constructor(
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
 
-        initCompile(compileContextInfo, emptyList())
+        initCompile(compileContextInfo, emptyList(), false)
     }
 
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
-        deployedFiles: List<CompileOutput>
+        deployedFiles: List<CompileOutput>,
+        isNeedReloadProjectInfo: Boolean,
     ) {
-        logger.info("Init compile...")
+        logger.info("Init compile... isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
 
         deployStateManager.isBuildGradleChanged = false
         deployStateManager.isManifestChanged = false
 
         val costTime = measureTimeMillis {
-            compileContextManager.initFullBuildInfo(compileContextInfo)
+            compileContextManager.initFullBuildInfo(compileContextInfo, isNeedReloadProjectInfo)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles)
             val sourceDirs = compileContextManager.compileContext.modules.values.flatMap {
                 it.sourceDirs

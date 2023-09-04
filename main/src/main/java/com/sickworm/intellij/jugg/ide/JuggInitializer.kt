@@ -22,10 +22,10 @@ object JuggInitializer {
 
 
     @Synchronized
-    fun initOrRefresh(project: Project) {
+    fun initOrRefresh(project: Project, isNeedReloadProjectInfo: Boolean = true) {
         val juggManager = instanceSet[project.basePath]
         if (juggManager != null) {
-            juggManager.initProjectInfo()
+            juggManager.initProjectInfo(isNeedReloadProjectInfo)
             return
         }
         init(project)

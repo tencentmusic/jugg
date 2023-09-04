@@ -35,7 +35,7 @@ class JuggGradleSyncListener : GradleSyncListener {
     override fun syncSkipped(project: Project) {
         JuggGradleSyncWithRootListener.isEnabled = false
         ideaLogger.info("syncSkipped $project")
-        JuggInitializer.initOrRefresh(project)
+        JuggInitializer.initOrRefresh(project, isNeedReloadProjectInfo = false)
         tryGetProjectLogger(project)?.info("syncSkipped")
     }
 

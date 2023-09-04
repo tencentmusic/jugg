@@ -41,6 +41,8 @@ class CompileContextManager(
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
     private val tempCompileDir = File(pathManager.compileRootDir, "compiled")
+    private val projectInfoJsonFile = File(pathManager.historyDir, "project_infos.db/project_infos.json")
+    private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger)
 
     /** Init after [initCompileContext] */
     val compileContext: BaseCompileContext
@@ -59,12 +61,12 @@ class CompileContextManager(
             logger.info("compileContextInfo is null, which means not full build yet. Skip refreshCompileContext")
             return false
         }
-        initFullBuildInfo(compileContextInfo)
+        initFullBuildInfo(compileContextInfo, true)
         return true
     }
 
-    fun initFullBuildInfo(compileContextInfo: CompileContextInfo) {
-        initCompileContext()
+    fun initFullBuildInfo(compileContextInfo: CompileContextInfo, isNeedReloadProjectInfo: Boolean) {
+        initCompileContext(isNeedReloadProjectInfo)
 
         this.compileContextInfo = compileContextInfo
         val copyModules = compileContext.modules.map { (name, module) ->
@@ -79,9 +81,20 @@ class CompileContextManager(
         compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
-    private fun initCompileContext() {
+    private fun initCompileContext(isNeedReloadProjectInfo: Boolean) {
         val costTime = measureTimeMillis {
-            val modules = getAllModulesByModuleManager()
+            var modules: Map<String, ModuleInfo>? = null
+            if (!isNeedReloadProjectInfo) {
+                val cacheModules = projectInfoSerializer.load()
+                logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
+                if (cacheModules != null) {
+                    modules = cacheModules
+                }
+            }
+            if (modules == null) {
+                modules = getAllModulesByModuleManager()
+                projectInfoSerializer.save(modules)
+            }
             initCompileContext(modules)
         }
         logger.debug("initCompileContext cost ${costTime}ms")
