@@ -61,9 +61,9 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
 
             val sourceDirsSet = sourceDirs.toSet()
-            val deleteDirs = currentSourceDirs - sourceDirsSet
             val addDirs = sourceDirsSet - currentSourceDirs
-            logger.debug("currentSourceDirs: ${currentSourceDirs.size}, deleteDirs: ${deleteDirs.size}, addDirs: ${addDirs.size}")
+            val deleteDirs = currentSourceDirs - sourceDirsSet
+            logger.debug("currentSourceDirs: ${currentSourceDirs.size}, addDirs: ${addDirs.size}, deleteDirs: ${deleteDirs.size}")
 
             runWithTimeCost("doDeleteSourceDirs") {
                 val deleteSQL = "DELETE FROM source_dirs WHERE path = ?"
@@ -76,33 +76,54 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            runWithTimeCost("doInsertSourceDirs") {
-                val insertSQL = "INSERT INTO source_dirs(path) VALUES(?)"
-                connection.prepareStatement(insertSQL).use { statement ->
-                    addDirs.forEach { dir ->
-                        statement.setString(1, dir.absolutePath)
-                        statement.addBatch()
+            if (addDirs.isNotEmpty()) {
+                runWithTimeCost("doInsertSourceDirs") {
+                    val insertSQL = "INSERT INTO source_dirs(path) VALUES(?)"
+                    connection.prepareStatement(insertSQL).use { statement ->
+                        addDirs.forEach { dir ->
+                            statement.setString(1, dir.absolutePath)
+                            statement.addBatch()
+                        }
+                        statement.executeBatch()
                     }
-                    statement.executeBatch()
+                }
+
+                val newFiles = runWithTimeCost("doGetNewFiles") {
+                    addDirs.flatMap {
+                        it.listFilesRecursively()
+                    }
+                }
+                logger.debug("newFiles: ${newFiles.size}")
+
+                runWithTimeCost("doInsertFiles") {
+                    val insertSQL = "INSERT INTO file_infos(path, name) VALUES(?, ?)"
+                    connection.prepareStatement(insertSQL).use { statement ->
+                        newFiles.forEach { file ->
+                            statement.setString(1, file.absolutePath)
+                            statement.setString(2, file.name)
+                            statement.addBatch()
+                        }
+                        statement.executeBatch()
+                    }
                 }
             }
 
-            val newFiles = runWithTimeCost("doGetNewFiles") {
-                addDirs.flatMap {
-                    it.listFilesRecursively()
-                }
-            }
-            logger.debug("newFiles: ${newFiles.size}")
-
-            runWithTimeCost("doInsertFiles") {
-                val insertSQL = "INSERT INTO file_infos(path, name) VALUES(?, ?)"
-                connection.prepareStatement(insertSQL).use { statement ->
-                    newFiles.forEach { file ->
-                        statement.setString(1, file.absolutePath)
-                        statement.setString(2, file.name)
-                        statement.addBatch()
+            if (deleteDirs.isNotEmpty()) {
+                val deleteFiles = runWithTimeCost("doGetDeleteFiles") {
+                    deleteDirs.flatMap {
+                        it.listFilesRecursively()
                     }
-                    statement.executeBatch()
+                }
+                logger.debug("deleteFiles: ${deleteFiles.size}")
+                runWithTimeCost("doDeleteFiles") {
+                    val deleteSQL = "DELETE FROM file_infos WHERE path = ?"
+                    connection.prepareStatement(deleteSQL).use { statement ->
+                        deleteFiles.forEach { file ->
+                            statement.setString(1, file.absolutePath)
+                            statement.addBatch()
+                        }
+                        statement.executeBatch()
+                    }
                 }
             }
 
