@@ -126,9 +126,9 @@ class CompileContextManager(
         val noSourceModules = mutableSetOf<String>()
         val fullLibraryDependencies = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
-            val sourceDirs = mutableListOf<File>()
-            val resourceDirs = mutableListOf<File>()
-            val assetDirs = mutableListOf<File>()
+            val sourceDirs = mutableSetOf<File>()
+            val resourceDirs = mutableSetOf<File>()
+            val assetDirs = mutableSetOf<File>()
 
             val baseDir = module.guessModuleDirAdv(projectBuildModel)
             if (baseDir == null) {
@@ -154,7 +154,13 @@ class CompileContextManager(
                     // ignore source in excludeRoots, etc. build
                     moduleRootManager.excludeRoots.all { !file.path.startsWith(it.path) }
                 }
-                .map { it.toIoFile() }
+                .map {
+                    it.toIoFile()
+                }
+                .filter {
+                    val relativeFile = it.relativeToOrNull(baseDir) ?: return@filter true
+                    return@filter !relativeFile.path.startsWith("build/") // exclude generated source
+                }
             sourceDirs.addAll(subSourceRoots)
 
             val subResourceRoots = moduleRootManager.getSourceRoots(
@@ -174,20 +180,6 @@ class CompileContextManager(
                 notGradleModules.add(module.name)
                 return@forEach
             }
-            val sourceSets = buildModel.android().sourceSets()
-
-            val javaSets: List<File> = sourceSets
-                .map { it.java() }
-                .flatMap { it.getFileList(baseDir) }
-            sourceDirs.addAll(javaSets)
-            val resSets: List<File> = sourceSets
-                .map { it.res() }
-                .flatMap { it.getFileList(baseDir) }
-            resourceDirs.addAll(resSets)
-            val assetsSets: List<File> = sourceSets
-                .map { it.assets() }
-                .flatMap { it.getFileList(baseDir) }
-            assetDirs.addAll(assetsSets)
 
             if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() ) {
                 noSourceModules.add(module.name)
@@ -221,7 +213,8 @@ class CompileContextManager(
                 .toLanguageLevel()?.toJavaVersion()?.toString()
 
             val moduleInfo = ModuleInfo(
-                module.name, baseDir, pathManager.projectDir, sourceDirs, resourceDirs, assetDirs,
+                module.name, baseDir, pathManager.projectDir,
+                sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
                 compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
                 ModuleBuildPathInfo(pathManager.projectDir, baseDir),
