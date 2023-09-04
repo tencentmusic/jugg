@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
@@ -31,6 +32,7 @@ class JuggCompilerHelper(
     private val deployStateManager: DeployStateManager,
     private val deployFileManager: DeployFileManager,
     private val compileContextManager: CompileContextManager,
+    private val fileChangesHandler: IFileChangesHandler,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
@@ -148,6 +150,16 @@ class JuggCompilerHelper(
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
         val isSuccess = failedStates.isEmpty()
+        if (isSuccess) {
+            val effectedSourceFiles = deployFileManager.getEffectedSourceFiles()
+            val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
+            if (changedFiles.isNotEmpty()) {
+                logger.info("Compile success, but found effected source files, continue compile. Files :\n${effectedSourceFiles.map { it.name }}")
+                deployFileManager.addChangedFile(changedFiles)
+                return incrementalCompile()
+            }
+        }
+
         return if (isSuccess) {
             CompileTaskResult.incrementalSuccess()
         } else {

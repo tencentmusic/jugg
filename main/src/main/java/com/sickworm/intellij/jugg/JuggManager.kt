@@ -50,7 +50,7 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, { deployStateListener }),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, fileChangesHandler, { deployStateListener }),
 ): Disposable {
 
     constructor(
@@ -78,6 +78,10 @@ class JuggManager @TestOnly constructor(
                 logger.debug("Deploy state is ready inc compile")
                 val isSuccess = compileContextManager.refreshCompileContext()
                 if (isSuccess) {
+                    val sourceDirs = compileContextManager.compileContext.modules.values.flatMap {
+                        it.sourceDirs
+                    }
+                    deployFileManager.updateSourceDirs(sourceDirs)
                     juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
                     warmUpCompile(false)
                 }
@@ -150,9 +154,6 @@ class JuggManager @TestOnly constructor(
 
         val deletedFiles = changedFiles.filter { !it.exists() }
         if (deletedFiles.isNotEmpty()) {
-            deletedFiles.forEach {
-                logger.debug("File deleted: ${it.absolutePath}")
-            }
             deployFileManager.removeChangedFile(deletedFiles)
         }
 
@@ -294,6 +295,10 @@ class JuggManager @TestOnly constructor(
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles)
+            val sourceDirs = compileContextManager.compileContext.modules.values.flatMap {
+                it.sourceDirs
+            }
+            deployFileManager.updateSourceDirs(sourceDirs)
             juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
         }
         logger.debug("Init compile cost ${costTime}ms")

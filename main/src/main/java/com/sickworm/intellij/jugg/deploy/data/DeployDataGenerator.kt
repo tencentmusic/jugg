@@ -35,6 +35,8 @@ class DeployDataGenerator(
 
     @TestOnly
     fun buildDeployData(parsedDex: ParsedDex, changedOverlays: List<DeployItem>, isWarmUp: Boolean = false): JuggDeployData {
+        val startTime = System.currentTimeMillis()
+
         val changedClasses = parsedDex.classDeployItems
         val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.map { it.sigName })
         val newClasses = mutableListOf<ClassDeployItem>()
@@ -88,7 +90,9 @@ class DeployDataGenerator(
             overlays, parsedDex,
             isFullOverlays, isWarmUp,
         )
-        logger.debug("juggDeployData: $juggDeployData")
+
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("buildDeployData finish, cost ${costTime}ms. juggDeployData: $juggDeployData")
         return juggDeployData
     }
 

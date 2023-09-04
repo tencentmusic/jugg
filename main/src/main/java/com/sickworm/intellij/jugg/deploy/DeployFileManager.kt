@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
+import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import org.jetbrains.annotations.TestOnly
@@ -41,10 +42,15 @@ class DeployFileManager(
      */
     private val deployDataGenerator = DeployDataGenerator(logger, databaseDir)
 
+    /**
+     * get source file by source file name in dex file
+     */
+    private val sourceFileManager = SourceFileManager(logger, databaseDir)
+
     private var crc32 = CRC32()
 
     @Synchronized
-    fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput> ) {
+    fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>) {
         reset()
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
@@ -52,17 +58,24 @@ class DeployFileManager(
 
     @Synchronized
     fun addChangedFile(files: List<ChangedFile>) {
-        files.forEach {
+        logger.debug("add changed files: $files")
+        val newFiles = files.filter {
+            uncompiledFiles.containsKey(it.file.stdPath).not()
+        }
+        newFiles.forEach {
             uncompiledFiles[it.file.stdPath] = it
         }
+        sourceFileManager.updateFiles(newFiles.map { it.file }, emptyList())
     }
 
     @Synchronized
     fun removeChangedFile(files: List<File>) {
+        logger.debug("remove changed files: $files")
         files.forEach {
             uncompiledFiles.remove(it.stdPath)
             compiledFiles.remove(it.stdPath)
         }
+        sourceFileManager.updateFiles(emptyList(), files)
     }
 
     @Synchronized
@@ -162,6 +175,47 @@ class DeployFileManager(
         uncompiledFiles.clear()
         compiledFiles.clear()
         stagingFiles.clear()
+    }
+
+    @Synchronized
+    fun updateSourceDirs(sourceFileDirs: List<File>) {
+        sourceFileManager.init(sourceFileDirs)
+    }
+
+    /**
+     * Get source files that effected by [compiledFiles].
+     * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
+     */
+    @Synchronized
+    fun getEffectedSourceFiles(): List<File> {
+        val deployItems = stagingFiles.values
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.toDeployItem() }
+        val juggDeployData = deployDataGenerator.buildDeployData(deployItems)
+        val effectedSourceFiles = juggDeployData.effectedSourceFileNames
+        if (effectedSourceFiles.isEmpty()) {
+            logger.debug("getEffectedSourceFiles: no effected source files")
+            return emptyList()
+        }
+
+        val sourceFiles = sourceFileManager.getFiles(effectedSourceFiles)
+        if (sourceFiles.size < effectedSourceFiles.size) {
+            val missingFiles = sourceFiles.filter {
+                it.name !in effectedSourceFiles
+            }
+            logger.warn("getEffectedSourceFiles: source files size is less than effected source files size. " +
+                "missing source files: $missingFiles")
+        }
+
+        val unCompiledFiles = sourceFiles.filter { it.stdPath !in compiledFiles }
+        if (unCompiledFiles.isEmpty()) {
+            logger.debug("getEffectedSourceFiles: no uncompiled source files")
+            return emptyList()
+        }
+
+        logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $unCompiledFiles")
+
+        return sourceFiles
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
