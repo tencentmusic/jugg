@@ -65,6 +65,10 @@ class JuggRunningTask(
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
+                if (!it.isVisible) {
+                    it.activate(null)
+                    it.hide()
+                }
                 it.setIcon(icon)
             }
         }
