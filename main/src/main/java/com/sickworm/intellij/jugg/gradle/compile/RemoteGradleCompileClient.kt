@@ -150,7 +150,7 @@ class RemoteGradleCompileClient(
 
         command.beforeInvokeCommand()
         val commander = PrintStream(channel.outputStream, false)
-        commander.println(command.command)
+        commander.println(command.getCommend(isNeedSetChineseLanguage = true))
         commander.flush()
 
         val buffer = StringBuilder()

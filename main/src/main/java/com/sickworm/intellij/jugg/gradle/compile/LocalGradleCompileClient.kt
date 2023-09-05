@@ -72,13 +72,11 @@ class LocalGradleCompileClient(
     private fun invoke(command: ISshCommand): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
-        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", command.command))
+        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", command.getCommend(isNeedSetChineseLanguage = false)))
         currentRunningProcess = process
 
         command.beforeInvokeCommand()
         val commander = PrintStream(process.outputStream, false)
-        commander.println(command.command)
-        commander.flush()
 
         val errorPrintThread = object : Thread() {
             override fun run() {
