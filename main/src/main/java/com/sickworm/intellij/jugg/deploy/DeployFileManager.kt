@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
@@ -70,14 +71,24 @@ class DeployFileManager(
 
     @Synchronized
     fun removeChangedFile(files: List<File>) {
-        files.forEach {
-            if (uncompiledFiles.containsKey(it.stdPath)) {
-                logger.debug("remove changed files: $files")
-                uncompiledFiles.remove(it.stdPath)
+        files.forEach { file ->
+            uncompiledFiles.forEach { (stdPath, changedFile) ->
+                if (stdPath == file.stdPath) {
+                    logger.debug("remove changed file: $file")
+                    uncompiledFiles.remove(stdPath)
+                } else if (changedFile.file.isChild(file)) {
+                    logger.debug("remove changed file for dir deleted: ${changedFile.file}")
+                    uncompiledFiles.remove(stdPath)
+                }
             }
-            if (compiledFiles.containsKey(it.stdPath)) {
-                logger.debug("remove compiled files: $files")
-                compiledFiles.remove(it.stdPath)
+            compiledFiles.forEach { (stdPath, changedFile) ->
+                if (stdPath == file.stdPath) {
+                    logger.debug("remove compiled file: $file")
+                    compiledFiles.remove(stdPath)
+                } else if (changedFile.file.isChild(file)) {
+                    logger.debug("remove compiled file for dir deleted: ${changedFile.file}")
+                    compiledFiles.remove(stdPath)
+                }
             }
         }
         sourceFileManager.updateFiles(emptyList(), files)

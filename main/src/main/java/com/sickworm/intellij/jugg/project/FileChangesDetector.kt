@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -10,6 +9,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.nio.file.Paths
@@ -85,7 +85,7 @@ class FileChangesDetector(
         }
 
         return files.filter {
-            it.absolutePath.startsWith(projectDir.absolutePath + File.separator)
+            it.isChild(projectDir)
         }
     }
 

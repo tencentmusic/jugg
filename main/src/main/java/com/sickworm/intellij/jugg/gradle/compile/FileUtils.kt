@@ -23,3 +23,7 @@ fun File.findFilesRecursively(fileNameRegex: Regex): File? {
     }
     return null
 }
+
+fun File.isChild(parent: File): Boolean {
+    return this.absolutePath.startsWith(parent.absolutePath + File.separator)
+}
