@@ -82,7 +82,6 @@ class JuggRunningTask(
         detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
 
         val compileTaskResult = compileTask(indicator, isForceGradleCompile)
-        val canNotRetry = isForceGradleCompile || compileTaskResult.isGradleCompile
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         juggReporter.report {
             action = "compile"
@@ -92,13 +91,8 @@ class JuggRunningTask(
         }
 
         if (!compileTaskResult.isSuccess) {
-            return if (canNotRetry) {
-                failedAndActiveRunWindow()
-            } else {
-                logger.warn("Compile Failed. Going to restart with fallback gradle compile.")
-                doRun(indicator, true)
-                return
-            }
+            failedAndActiveRunWindow()
+            return
         }
 
         if (compileTaskResult.isGradleCompile) {
@@ -119,16 +113,14 @@ class JuggRunningTask(
             detail = Gson().toJson(detailMap)
         }
 
+        val canNotRetry = compileTaskResult.isGradleCompile
         if (!deployTaskResult.isSuccess) {
             return if (canNotRetry) {
-                if (compileTaskResult.isGradleCompile) {
-                    initIncrementalCompileTask.invoke()
-                }
+                initIncrementalCompileTask.invoke()
                 failedAndActiveRunWindow()
             } else {
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
                 doRun(indicator, true)
-                return
             }
         }
 

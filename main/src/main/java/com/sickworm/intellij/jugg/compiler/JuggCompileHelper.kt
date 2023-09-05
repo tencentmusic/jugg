@@ -53,7 +53,16 @@ class JuggCompilerHelper(
         isForceInstall: Boolean,
     ): CompileTaskResult {
         val statTime = System.currentTimeMillis()
-        if (!isForceInstall) {
+
+        var isGradleCompile = isForceInstall
+        val uncompiledFiles = deployFileManager.getUncompiledFiles()
+        val isNotFileChanges = uncompiledFiles.all { it.hasCompiledOnce }
+        if (!isGradleCompile && isNotFileChanges) {
+            logger.info("No files changes. Fall back to gradle compile.")
+            isGradleCompile = true
+        }
+
+        if (!isGradleCompile) {
             var incrementalResult = incrementalCompile()
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
             juggReporter.report {
@@ -62,12 +71,13 @@ class JuggCompilerHelper(
                 costTime = incrementalResult.costTime
                 detail = incrementalResult.failedReason
             }
-            if (incrementalResult.isSuccess) {
-                return incrementalResult
-            } else {
-                logger.info("Incremental compile not processed. Fallback to gradle compile.")
+            if (!incrementalResult.isSuccess) {
+                logger.warn("\nFound incremental compile error. Please see logs for details.")
+                logger.warn("Run again directly will fall back to gradle compile.\n")
             }
+            return incrementalResult
         }
+
         val result = gradleCompile(options, processHandler, indicator)
         return CompileTaskResult(isSuccess = result.isSuccess,
             isGradleCompile = true,
@@ -145,7 +155,7 @@ class JuggCompilerHelper(
         val failedStates = compileResult.failedFiles.map {
             ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
-        logger.info("Compile finished, success: ${compileResult.successFiles.size}, " +
+        logger.debug("Compile finished, success: ${compileResult.successFiles.size}, " +
                 "failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 

@@ -49,7 +49,7 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
         logCompileCommand(module, options, compileItems)
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
         if (!javaTask.call()) {
-            logger.warn("javaTask call failed!")
+            logger.debug("javaTask call failed!")
         }
 
         // check result

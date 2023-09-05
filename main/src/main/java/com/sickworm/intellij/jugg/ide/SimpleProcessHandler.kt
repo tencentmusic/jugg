@@ -77,7 +77,7 @@ class ProcessHandlerLoggerWrapper(var processHandler: ProcessHandler): Logger() 
     }
 
     override fun warn(message: String, t: Throwable?) {
-        processHandler.notifyTextAvailable("\n$message\n\n", ProcessOutputType.STDERR)
+        processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDERR)
         if (t != null) {
             processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDERR)
             processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
@@ -85,7 +85,7 @@ class ProcessHandlerLoggerWrapper(var processHandler: ProcessHandler): Logger() 
     }
 
     override fun error(message: String, t: Throwable?, vararg details: String?) {
-        processHandler.notifyTextAvailable("\n$message\n\n", ProcessOutputType.STDERR)
+        processHandler.notifyTextAvailable("$message\n", ProcessOutputType.STDERR)
         if (t != null) {
             processHandler.notifyTextAvailable(t.toString(), ProcessOutputType.STDERR)
             processHandler.notifyTextAvailable("\n", ProcessOutputType.STDERR)
