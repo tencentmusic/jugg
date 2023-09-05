@@ -1,4 +1,6 @@
-<idea-plugin>
+<idea-plugin
+    require-restart="true"
+>
     <id>com.sickworm.intellij.jugg</id>
     <name>Jugg</name>
     <vendor email="ch.operation@gmail.com" url="https://sickworm.com">sickworm</vendor>
