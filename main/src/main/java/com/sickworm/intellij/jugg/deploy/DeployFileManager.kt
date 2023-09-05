@@ -59,21 +59,26 @@ class DeployFileManager(
     @Synchronized
     fun addChangedFile(files: List<ChangedFile>) {
         logger.debug("add changed files: $files")
+        files.forEach {
+            uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
+        }
         val newFiles = files.filter {
             uncompiledFiles.containsKey(it.file.stdPath).not()
-        }
-        newFiles.forEach {
-            uncompiledFiles[it.file.stdPath] = it
         }
         sourceFileManager.updateFiles(newFiles.map { it.file }, emptyList())
     }
 
     @Synchronized
     fun removeChangedFile(files: List<File>) {
-        logger.debug("remove changed files: $files")
         files.forEach {
-            uncompiledFiles.remove(it.stdPath)
-            compiledFiles.remove(it.stdPath)
+            if (uncompiledFiles.containsKey(it.stdPath)) {
+                logger.debug("remove changed files: $files")
+                uncompiledFiles.remove(it.stdPath)
+            }
+            if (compiledFiles.containsKey(it.stdPath)) {
+                logger.debug("remove compiled files: $files")
+                compiledFiles.remove(it.stdPath)
+            }
         }
         sourceFileManager.updateFiles(emptyList(), files)
     }
