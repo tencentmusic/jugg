@@ -1,14 +1,11 @@
 package com.sickworm.intellij.jugg.project
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.compiler.ModuleDependency
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import java.io.File
-import java.lang.reflect.Type
 
 
 class ProjectInfoSerializer(private val dataFile: File, private val logger: Logger) {
@@ -26,31 +23,6 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: Logg
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("Save project info to ${dataFile.absolutePath} cost $costTime ms")
-    }
-
-    @Synchronized
-    fun loadJson(): Map<String, ModuleInfo>? {
-        if (!dataFile.exists()) {
-            return null
-        }
-        if (memoryCache != null) {
-            logger.debug("Load project info from memory cache")
-            return memoryCache
-        }
-        @Suppress("LiftReturnOrAssignment")
-        try {
-            val startTime = System.currentTimeMillis()
-            val jsonString = dataFile.readText()
-            val type: Type = object : TypeToken<Map<String, ModuleInfo>>() {}.type
-            val modules: Map<String, ModuleInfo> = Gson().fromJson(jsonString, type)
-            val costTime = System.currentTimeMillis() - startTime
-            logger.debug("Load project info to ${dataFile.absolutePath} cost $costTime ms")
-            memoryCache = modules
-            return modules
-        } catch (e: Exception) {
-            logger.warn("Failed to load project info from ${dataFile.absolutePath}", e)
-            return null
-        }
     }
 
     @Synchronized

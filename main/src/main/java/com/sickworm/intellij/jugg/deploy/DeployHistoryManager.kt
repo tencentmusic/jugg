@@ -48,9 +48,20 @@ class DeployHistoryManager(
             return null
         }
 
+        val startTime = System.currentTimeMillis()
         val changedFiles = deployHistoryDb.getChangedFilesSinceLastFullCompiled()
+        val changedFilesTime = System.currentTimeMillis()
+
         val compileContextInfo = compileContextDb.getCompileBuildPathInfoFromDb()
+        val compileContextInfoTime = System.currentTimeMillis()
+
         val deployedFiles = compileContextDb.getDeployedData()
+        val deployedFilesTime = System.currentTimeMillis()
+
+        logger.debug("tryGetContextRecoverInfoFromDb, " +
+                "changedFiles: ${changedFiles?.size}, cost: ${changedFilesTime - startTime}ms; " +
+                "compileContextInfo: ${compileContextInfo?.moduleBuildPathInfos?.size}, cost: ${compileContextInfoTime - changedFilesTime}ms; " +
+                "deployedFiles: ${deployedFiles?.size},  cost: ${deployedFilesTime - compileContextInfoTime}ms.")
 
         if (changedFiles == null) {
             logger.debug("getChangedFilesSinceLastFullCompiled failed, return null")
@@ -75,7 +86,7 @@ class DeployHistoryManager(
     ): CompileContextInfo {
         logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}, modules: ${modules.size}")
         deployHistoryDb.deleteHistory()
-        val compileContextInfo = compileContextDb.copyFullCompileOutput(apkInfos, modules)
+        val compileContextInfo = compileContextDb.saveCompileContext(apkInfos, modules)
         deployHistoryDb.resetHistoryAfterFullCompiled()
         hasBeenFullCompiledRuntime = true
         return compileContextInfo

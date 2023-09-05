@@ -56,7 +56,6 @@ data class DeployContextRecoverInfo(
 data class CompileContextInfo(
     val apkInfos: List<ApkInfo>,
     val moduleBuildPathInfos: Map<String, ModuleBuildPathInfo>,
-    val thirdPartyDependencies: List<String>,
 ) {
 
     override fun toString(): String {
@@ -64,8 +63,7 @@ data class CompileContextInfo(
         return "CompileContextInfo(" +
                 "apkInfos=${apkInfos.map { it.getDescription() }}, " +
                 "projectRootDir=$projectRootDir, " +
-                "moduleBuildPathInfos=${moduleBuildPathInfos.mapValues { it.value.moduleRootDir.relativeToOrSelf(projectRootDir) }}, " +
-                "thirdPartyDependencies=$thirdPartyDependencies" +
+                "moduleBuildPathInfos=${moduleBuildPathInfos.mapValues { it.value.moduleRootDir.relativeToOrSelf(projectRootDir) }}" +
                 ")"
     }
 

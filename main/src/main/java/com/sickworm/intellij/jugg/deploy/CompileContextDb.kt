@@ -1,14 +1,10 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.idea.run.ApkInfo
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import java.io.File
-import java.lang.reflect.Type
 
 /**
  * Manage compile context build files, e.g. apk, classpath, etc.
@@ -22,15 +18,14 @@ class CompileContextDb(
     private val completeFlagFile = File(dbDir, "complete_flag")
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
-    private val thirdPartiesJsonFile = File(dbDir, "third_parties.json")
-    private val moduleBuildPathJsonFile = File(dbDir, "module_builds.json")
+    private val moduleBuildPathDatFile = File(dbDir, "module_builds.dat")
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
     private val overlayDeployedDir = File(deployedDir, "overlays")
 
     val hasBeenFullCompiled: Boolean get() = completeFlagFile.exists()
 
-    fun copyFullCompileOutput(
+    fun saveCompileContext(
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>
     ): CompileContextInfo {
@@ -44,24 +39,7 @@ class CompileContextDb(
         apkInfoFile.writeText(ApkInfoSerializer().serialize(apkInfos), Charsets.UTF_8)
 
         // save module info
-        moduleBuildPathJsonFile.delete()
-        val moduleBuildPathText = GsonBuilder().setPrettyPrinting().create().toJson(modules)
-        moduleBuildPathJsonFile.writeText(moduleBuildPathText, Charsets.UTF_8)
-
-        // save third party lib info
-        // deprecated, won't use this for compile now
-        val thirdPartyDependenciesDir = File("$projectDir/.idea/libraries")
-        val thirdPartyDependencies = IntellijLibraryConfigParser(thirdPartyDependenciesDir, projectDir.absolutePath)
-            .parse()
-            ?.sorted()
-
-        thirdPartiesJsonFile.delete()
-        if (thirdPartyDependencies.isNullOrEmpty()) {
-            logger.error("No third party lib found")
-        } else {
-            val text = GsonBuilder().setPrettyPrinting().create().toJson(thirdPartyDependencies)
-            thirdPartiesJsonFile.writeText(text, Charsets.UTF_8)
-        }
+        ProjectInfoSerializer(moduleBuildPathDatFile, logger).save(modules)
 
         // WOW! We have done!
         completeFlagFile.createNewFile()
@@ -69,7 +47,6 @@ class CompileContextDb(
         return CompileContextInfo(
             apkInfos,
             modules.mapValues { it.value.buildPathInfo },
-            thirdPartyDependencies ?: emptyList()
         )
     }
 
@@ -80,23 +57,20 @@ class CompileContextDb(
         }
 
         val apkInfos = ApkInfoSerializer().deserialize(apkInfoFile.readText())
-        val moduleBuildPathText = moduleBuildPathJsonFile.readText(Charsets.UTF_8)
-        val moduleBuilds = if (moduleBuildPathText.isEmpty()) {
-            emptyMap()
-        } else {
-            val type: Type = object : TypeToken<Map<String, ModuleInfo>>() {}.type
-            Gson().fromJson(moduleBuildPathText, type) as Map<String, ModuleInfo>
+        if (apkInfos.isEmpty()) {
+            logger.warn("Failed to load apk info from db")
+            completeFlagFile.delete()
+            return null
+        }
+        val moduleBuilds = ProjectInfoSerializer(moduleBuildPathDatFile, logger).load()
+        if (moduleBuilds.isNullOrEmpty()) {
+            logger.warn("Failed to load module build path info from db")
+            completeFlagFile.delete()
+            return null
         }
         val moduleBuildPathInfos = moduleBuilds.mapValues { it.value.buildPathInfo }
 
-        val thirdPartyDependenciesText = thirdPartiesJsonFile.readText(Charsets.UTF_8)
-        val thirdPartyDependencies = if (thirdPartyDependenciesText.isEmpty()) {
-            emptyList()
-        } else {
-            Gson().fromJson(thirdPartyDependenciesText, List::class.java).map { it.toString() }
-        }
-
-        return CompileContextInfo(apkInfos, moduleBuildPathInfos, thirdPartyDependencies)
+        return CompileContextInfo(apkInfos, moduleBuildPathInfos)
     }
 
     fun updateDeployedData(deployedFiles: List<CompileOutput>) {
