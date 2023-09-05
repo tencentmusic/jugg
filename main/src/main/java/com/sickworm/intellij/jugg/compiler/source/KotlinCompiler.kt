@@ -133,8 +133,12 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     }
 
     override fun warmUp() {
-        logger.debug("start KotlinCompiler warm up")
+        val startTime = System.currentTimeMillis()
+        val selectModule = context.modules.values.maxBy {
+            it.moduleDependencies.size + it.libraryDependencies.size
+        }
+        logger.debug("start KotlinCompiler warm up, selectModule: ${selectModule.name}")
         doModuleCompile(CompileTask(emptyList(), context.tempCompileDir), context.modules.values.first())
-        logger.debug("finish KotlinCompiler warm up")
+        logger.debug("finish KotlinCompiler warm up, cost: ${System.currentTimeMillis() - startTime}ms")
     }
 }
