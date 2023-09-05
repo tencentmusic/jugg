@@ -58,7 +58,7 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
             "-jvm-target", module.kotlinJvmTarget ?: "1.8",
             "-no-stdlib",
             "-no-reflect",
-            "-module-name", "${module.name}_${context.variant}",
+            "-module-name", "${module.simpleName}_${context.variant}",
             "-Xfriend-paths=${kotlinClassPath.absolutePath}",
             "-Xallow-no-source-files",
             "-Xreport-output-files",

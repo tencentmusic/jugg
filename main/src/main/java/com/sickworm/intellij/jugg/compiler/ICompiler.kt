@@ -48,12 +48,7 @@ data class CompileFile(
 
 fun List<CompileFile>.desc(): String {
     val compileFilesMap = this.groupBy {
-        val splits = it.module.name.split('.')
-        return@groupBy when (splits.size) {
-            3 -> splits[1]
-            2 -> splits[0]
-            else -> it.module.name
-        }
+        it.module.simpleName
     }
     return compileFilesMap.entries.joinToString("\n") { entry ->
         val value = entry.value
@@ -188,7 +183,20 @@ data class ModuleInfo(
     val buildPathInfo: ModuleBuildPathInfo,
     val moduleDependencies: List<ModuleDependency>,
     val libraryDependencies: List<LibraryDependency>,
-)
+) {
+
+    // e.g. name = example.lib_common.main
+    // simpleName = lib_common
+    val simpleName: String get() {
+        val splits = name.split('.')
+        return when (splits.size) {
+            0 -> name
+            1 -> name
+            else -> splits[splits.size - 2]
+        }
+    }
+}
+
 data class ModuleDependency(
     val moduleName: String,
 )
