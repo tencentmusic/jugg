@@ -58,6 +58,13 @@ object JuggInitializer {
         JuggLogger.unregister(project)
     }
 
+    @Synchronized
+    fun releaseAll() {
+        instanceSet.values.forEach {
+            release(it.project)
+        }
+    }
+
     fun getManager(project: Project): JuggManager? {
         return instanceSet[project.bashPathOrDefault]
     }

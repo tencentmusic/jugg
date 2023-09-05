@@ -29,7 +29,7 @@ import kotlin.system.measureTimeMillis
 
 
 class JuggManager @TestOnly constructor(
-    private val project: Project,
+    val project: Project,
     val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val juggReporter: JuggReporter = JuggReporter(project),
