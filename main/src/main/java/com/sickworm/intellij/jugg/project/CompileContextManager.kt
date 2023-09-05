@@ -83,18 +83,7 @@ class CompileContextManager(
 
     private fun initCompileContext(isNeedReloadProjectInfo: Boolean) {
         val costTime = measureTimeMillis {
-            var modules: Map<String, ModuleInfo>? = null
-            if (!isNeedReloadProjectInfo) {
-                val cacheModules = projectInfoSerializer.load()
-                logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
-                if (cacheModules != null) {
-                    modules = cacheModules
-                }
-            }
-            if (modules == null) {
-                modules = getAllModulesByModuleManager()
-                projectInfoSerializer.save(modules)
-            }
+            val modules = getAllModulesByModuleManager(isNeedReloadProjectInfo)
             initCompileContext(modules)
         }
         logger.debug("initCompileContext cost ${costTime}ms")
@@ -128,7 +117,23 @@ class CompileContextManager(
         compileContextInside = context
     }
 
-    fun getAllModulesByModuleManager(): Map<String, ModuleInfo> {
+    fun getAllModulesByModuleManager(isNeedReloadProjectInfo: Boolean): Map<String, ModuleInfo> {
+        var modules: Map<String, ModuleInfo>? = null
+        if (!isNeedReloadProjectInfo) {
+            val cacheModules = projectInfoSerializer.load()
+            logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
+            if (cacheModules != null) {
+                modules = cacheModules
+            }
+        }
+        if (modules == null) {
+            modules = doGetAllModulesByModuleManager()
+            projectInfoSerializer.save(modules)
+        }
+        return modules
+    }
+
+    private fun doGetAllModulesByModuleManager(): Map<String, ModuleInfo> {
         logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()

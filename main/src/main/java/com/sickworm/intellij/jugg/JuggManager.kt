@@ -244,7 +244,7 @@ class JuggManager @TestOnly constructor(
 
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
 
-        var allModules = compileContextManager.getAllModulesByModuleManager()
+        var allModules = compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
         val moduleBuildPathInfos = allModules.map { it.value.buildPathInfo }
 
         if (isRemoteCompile) {
