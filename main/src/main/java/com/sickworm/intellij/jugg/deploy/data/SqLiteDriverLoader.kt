@@ -6,6 +6,7 @@ object SqLiteDriverLoader {
 
     private var isLoaded = false
 
+    @Synchronized
     fun load(logger: Logger) {
         if (isLoaded) {
             return

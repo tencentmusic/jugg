@@ -11,8 +11,12 @@ class SourceFileManager(private val logger: Logger, dbDir: File) {
     @Synchronized
     fun init(sourceDirs: List<File>) {
         val startTime = System.currentTimeMillis()
-        database.init()
-        database.updateSourceDirs(sourceDirs)
+        try {
+            database.init()
+            database.updateSourceDirs(sourceDirs)
+        } catch (e: Exception) {
+            logger.warn("init error", e)
+        }
         val costTime = System.currentTimeMillis() - startTime
         if (costTime >= 100) {
             logger.debug("source file db init cost ${costTime}ms")
@@ -22,7 +26,11 @@ class SourceFileManager(private val logger: Logger, dbDir: File) {
     @Synchronized
     fun updateFiles(addFiles: List<File>, deleteFiles: List<File>) {
         val startTime = System.currentTimeMillis()
-        database.updateFiles(addFiles, deleteFiles)
+        try {
+            database.updateFiles(addFiles, deleteFiles)
+        } catch (e: Exception) {
+            logger.warn("updateFiles error", e)
+        }
         val costTime = System.currentTimeMillis() - startTime
         if (costTime >= 100) {
             logger.debug("updateFiles cost ${costTime}ms")
@@ -31,12 +39,17 @@ class SourceFileManager(private val logger: Logger, dbDir: File) {
 
     @Synchronized
     fun getFiles(classNames: List<String>): List<File> {
-        val startTime = System.currentTimeMillis()
-        val files = database.getFiles(classNames)
-        val costTime = System.currentTimeMillis() - startTime
-        if (costTime >= 100) {
-            logger.debug("getFiles cost ${costTime}ms")
+        return try {
+            val startTime = System.currentTimeMillis()
+            val files = database.getFiles(classNames)
+            val costTime = System.currentTimeMillis() - startTime
+            if (costTime >= 100) {
+                logger.debug("getFiles cost ${costTime}ms")
+            }
+            files
+        } catch (e: Exception) {
+            logger.warn("getFiles error", e)
+            emptyList()
         }
-        return files
     }
 }

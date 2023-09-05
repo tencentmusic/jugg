@@ -36,6 +36,13 @@ object JuggLogger {
         )
     }
 
+    @Synchronized
+    fun recreateLogFileIfDeleted(project: Project) {
+        val projectLogHolder = map[project.bashPathOrDefault] ?: return
+        projectLogHolder.fileLogger.recreateIfDeleted()
+        return
+    }
+
     fun unregister(project: Project) {
         map[project.bashPathOrDefault]?.dispose()
         map.remove(project.bashPathOrDefault)

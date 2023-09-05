@@ -21,7 +21,7 @@ import javax.swing.SwingUtilities
 
 @Suppress("DialogTitleCapitalization")
 class JuggRunningTask(
-    project: Project,
+    private val project: Project,
     private val juggReporter: JuggReporter,
     private val processHandler: ProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
@@ -41,6 +41,7 @@ class JuggRunningTask(
     override fun run(indicator: ProgressIndicator) {
         val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
         try {
+            JuggLogger.recreateLogFileIfDeleted(project)
             JuggLogger.listenProjectLog(project, loggerListener)
             juggReporter.onCompile()
 

@@ -12,12 +12,30 @@ import java.util.logging.*
  */
 class FileLogger(
     val dir: File,
-    val logger: Logger = createLogger(dir),
+    private var patternName: String = createPatternName(),
+    val logger: Logger = createLogger(dir, patternName),
     ) {
+
+    fun recreateIfDeleted() {
+        if (!dir.exists()) {
+            dir.mkdirs()
+            resetLatestCompileLog()
+            return
+        }
+        // assume that the log file is single
+        val logFile = File(dir, patternName)
+        if (!logFile.exists()) {
+            resetLatestCompileLog()
+        }
+    }
 
     companion object {
 
-        private fun createLogger(dir: File): Logger {
+        private fun createPatternName(): String {
+            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date()) + ".log"
+        }
+
+        private fun createLogger(dir: File, patterName: String): Logger {
             dir.mkdirs()
             return Logger.getLogger(dir.absolutePath).also {
                 it.useParentHandlers = false
@@ -28,17 +46,13 @@ class FileLogger(
                         (handler as? FileHandler)?.close()
                     }
                 }
-                val loggerHandler = createLatestCompileLogHandler(dir)
+                // yyyy-MM-dd_HH-mm-ss.log
+                val loggerHandler = createFileHandler(dir, patterName)
                 it.addHandler(loggerHandler)
                 removeOldLogFiles(dir)
             }
         }
 
-        private fun createLatestCompileLogHandler(dir: File): FileHandler {
-            // yyyy-MM-dd_HH-mm-ss.log
-            val name = "compile_" + SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date()) + ".log"
-            return createFileHandler(dir, name)
-        }
 
         private fun createFileHandler(dir: File, name: String): FileHandler {
             val loggerHandler = FileHandler(
@@ -81,7 +95,8 @@ class FileLogger(
             logger.removeHandler(it)
             (it as? FileHandler)?.close()
         }
-        val newHandler = createLatestCompileLogHandler(dir)
+        patternName = createPatternName()
+        val newHandler = createFileHandler(dir, patternName)
         logger.addHandler(newHandler)
         removeOldLogFiles(dir)
     }

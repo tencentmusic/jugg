@@ -53,16 +53,7 @@ class JuggCompilerHelper(
         isForceInstall: Boolean,
     ): CompileTaskResult {
         val statTime = System.currentTimeMillis()
-
-        var isGradleCompile = isForceInstall
-        val uncompiledFiles = deployFileManager.getUncompiledFiles()
-        val isNotFileChanges = uncompiledFiles.all { it.hasCompiledOnce }
-        if (!isGradleCompile && isNotFileChanges) {
-            logger.info("No files changes. Fall back to gradle compile.")
-            isGradleCompile = true
-        }
-
-        if (!isGradleCompile) {
+        if (!isForceInstall) {
             var incrementalResult = incrementalCompile()
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
             juggReporter.report {
@@ -71,16 +62,19 @@ class JuggCompilerHelper(
                 costTime = incrementalResult.costTime
                 detail = incrementalResult.failedReason
             }
-            if (!incrementalResult.isSuccess) {
+            if (incrementalResult.isSuccess) {
+                return incrementalResult
+            } else if (!incrementalResult.isCanFallback) {
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
+                return incrementalResult
             }
-            return incrementalResult
         }
 
         val result = gradleCompile(options, processHandler, indicator)
         return CompileTaskResult(isSuccess = result.isSuccess,
             isGradleCompile = true,
+            isCanFallback = false,
             costTime = System.currentTimeMillis() - statTime,
             failedReason = result.failedReason,
         )
@@ -110,19 +104,19 @@ class JuggCompilerHelper(
 
         if (!deployStateManager.deployState.isReadyIncCompile) {
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
-            return CompileTaskResult.incrementalFailed("Deploy state not ready $deployState")
+            return CompileTaskResult.incrementalFailed(true, "Deploy state not ready $deployState")
         }
 
         val compiler = juggCompiler?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
-            return CompileTaskResult.incrementalFailed("Jugg compiler not init")
+            return CompileTaskResult.incrementalFailed(true, "Jugg compiler not init")
         }
 
         // read all uncompiled files
         val uncompiledFiles = deployFileManager.getUncompiledFiles()
         if (uncompiledFiles.all { it.hasCompiledOnce }) {
             logger.info("No files changes. Return.")
-            return CompileTaskResult.incrementalFailed("No files changes")
+            return CompileTaskResult.incrementalFailed(true, "No files changes")
         }
 
         val compileFiles = uncompiledFiles.map {
@@ -139,7 +133,7 @@ class JuggCompilerHelper(
             compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
-            return CompileTaskResult.incrementalFailed("Exception: $e")
+            return CompileTaskResult.incrementalFailed(true, "Exception: $e")
         }
 
         // update file status
@@ -173,7 +167,7 @@ class JuggCompilerHelper(
         return if (isSuccess) {
             CompileTaskResult.incrementalSuccess()
         } else {
-            CompileTaskResult.incrementalFailed("Compile failed: $compileResult")
+            CompileTaskResult.incrementalFailed(false, "Compile failed: $compileResult")
         }
     }
 
@@ -223,6 +217,7 @@ private class GradleCompileClientManager(private val project: Project): Disposab
 data class CompileTaskResult(
     val isSuccess: Boolean,
     val isGradleCompile: Boolean,
+    val isCanFallback: Boolean,
     val costTime: Long,
     val failedReason: String? = null,
 ) {
@@ -231,12 +226,14 @@ data class CompileTaskResult(
         fun incrementalSuccess() = CompileTaskResult(
             isSuccess = true,
             isGradleCompile = false,
+            isCanFallback = false,
             costTime = 0,
         )
 
-        fun incrementalFailed(failedReason: String) = CompileTaskResult(
+        fun incrementalFailed(isCanFallback: Boolean, failedReason: String) = CompileTaskResult(
             isSuccess = false,
             isGradleCompile = false,
+            isCanFallback,
             costTime = 0,
             failedReason = failedReason,
         )

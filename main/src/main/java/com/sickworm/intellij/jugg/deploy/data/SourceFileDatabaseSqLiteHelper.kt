@@ -14,7 +14,11 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
     @Synchronized
     fun init() {
         if (hasInit) {
-            return
+            if (dbFile.exists()) {
+                return
+            } else {
+                hasInit = false
+            }
         }
         SqLiteDriverLoader.load(logger)
         dbFile.parentFile?.mkdirs()
