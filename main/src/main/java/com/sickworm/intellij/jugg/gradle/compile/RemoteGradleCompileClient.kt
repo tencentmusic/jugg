@@ -135,7 +135,10 @@ class RemoteGradleCompileClient(
         if (isByUser) {
             printToStreamInfo("[Jugg] user cancel")
         }
-        val channel = channel ?: throw JuggInternalException.notLoginYet()
+        val channel = channel ?: run {
+            logger.debug("cancelAction but not login, exit")
+            return
+        }
         val commander = PrintStream(channel.outputStream, true)
         commander.print(String(byteArrayOf(0x03))) // control c
         commander.flush()

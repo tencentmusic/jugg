@@ -46,7 +46,11 @@ class JuggGradleCompileTask(
     private fun doRun(): GradleCompileResult {
         compileClient.terminalOutputListener = outputListener
         processHandler.cancelAction = {
-            compileClient.cancelAction(isByUser = false)
+            try {
+                compileClient.cancelAction(isByUser = false)
+            } catch (e: Exception) {
+                logger.warn("Cancel compile failed with ${e::class.java}", e)
+            }
         }
 
         logger.info("\nJugg gradle compile started.\n")
