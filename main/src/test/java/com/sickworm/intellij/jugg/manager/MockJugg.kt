@@ -245,7 +245,7 @@ class MockJugg {
         compileContextManager = CompileContextManager(project, pathManager,
             moduleManager, projectJdkTable, projectBuildModel, logger)
 
-        fileChangesHandler = FileChangesHandler(project, logger)
+        fileChangesHandler = FileChangesHandler(project, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
