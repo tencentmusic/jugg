@@ -141,13 +141,18 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getDeployData(isWarmUp: Boolean = false): JuggDeployData {
+    fun getDeployData(isWarmUp: Boolean = false, isFallbackAllHotFix: Boolean = false): JuggDeployData {
         if (isWarmUp) {
             // add fake overlay to trigger full deployment
             addJuggWarmUpOverlay()
         }
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
-        return deployDataGenerator.buildDeployData(deployItems, isWarmUp)
+        val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp)
+        return if (isFallbackAllHotFix) {
+            deployData.copy(hotFixModifiedClasses = deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses, hotReloadModifiedClasses = emptyList())
+        } else {
+            deployData
+        }
     }
 
     private fun CompileOutput.toDeployItem(): DeployItem {
@@ -223,7 +228,7 @@ class DeployFileManager(
                 "missing source files: $missingFiles")
         }
 
-        val unCompiledFiles = sourceFiles.filter { it.stdPath !in compiledFiles }
+        val unCompiledFiles = sourceFiles.filter { !compiledFiles.containsKey(it.stdPath) }
         if (unCompiledFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no uncompiled source files")
             return emptyList()
@@ -231,7 +236,7 @@ class DeployFileManager(
 
         logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $unCompiledFiles")
 
-        return sourceFiles
+        return unCompiledFiles
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')

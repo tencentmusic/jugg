@@ -64,8 +64,8 @@ class JuggDeployerHelper(
         }
     }
 
-    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, canRetry: Boolean = true): DeployTaskResult {
-        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp")
+    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, canRetry: Boolean = true, isFallbackAllHotFix: Boolean = false): DeployTaskResult {
+        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $isFallbackAllHotFix")
 
         val deployState = deployStateManager.updateDeployState()
         logger.info("Jugg deploy state: $deployState")
@@ -104,7 +104,7 @@ class JuggDeployerHelper(
                         return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Invalid state for deploy.")
                     }
                 }
-                val deployData = deployFileManager.getDeployData(isWarmUp)
+                val deployData = deployFileManager.getDeployData(isWarmUp, isFallbackAllHotFix)
                 type = if (deployData.isNeedRestartActivity) {
                     JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY
                 } else {
@@ -125,7 +125,15 @@ class JuggDeployerHelper(
             DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = type.toString())
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
-            if (canRetry) {
+            if (canRetry && !isInstall) {
+                val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
+                if (isUnmodifiableClass) {
+                    // e.g. change default method implementation of an interface class.
+                    // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
+                    logger.info("Deploy got error: JVMTI_ERROR_UNMODIFIABLE_CLASS, will fallback to HOT_FIX.")
+                    return deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = false, isFallbackAllHotFix = true)
+                }
+
                 val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
                 val isAppForeground = deployTargetManager.isAppForeground()
@@ -149,11 +157,11 @@ class JuggDeployerHelper(
                                 failedReason = "Try recover deploy state failed on retry.")
                         } else {
                             logger.info("Try recover deploy state success on retry.")
-                            deploy(isInstall, isWarmUp = false, canRetry = true)
+                            deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = true)
                         }
                     } else {
                         logger.info("Deploy agent no response, but App is in foreground, try again.")
-                        deploy(isInstall, isWarmUp = false, canRetry = false)
+                        deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = false)
                     }
                     return result.copy(costTime = costTime())
                 }

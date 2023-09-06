@@ -84,7 +84,7 @@ class MethodNode(
     val name = ClassStringPool[name]
     val desc = ClassStringPool[desc]
 
-    private val signature get() = "${owner}.${name}${desc}"
+    private val signature get() = "$access ${owner}.${name}${desc}"
 
     override fun equals(other: Any?): Boolean {
         if (other !is MethodNode) {
@@ -143,7 +143,7 @@ class FieldNode(owner: String, access: Int, name: String, type: String) {
     val name = ClassStringPool[name]
     val type = ClassStringPool[type]
 
-    private val signature get() = "$access $owner.$name $type"
+    private val signature get() = "$access $type $owner.$name"
 
     override fun equals(other: Any?): Boolean {
         if (other !is FieldNode) {
