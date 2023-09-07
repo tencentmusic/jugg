@@ -82,7 +82,13 @@ class DeployDataGenerator(
         }
 
         val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef)
+        if (effectedSourceAndClassNodes.isNotEmpty()) {
+            logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
+        }
         val interfacesWithDesugaredDefaultMethod = deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(changedClasses.map { it.classNode })
+        if (interfacesWithDesugaredDefaultMethod.isNotEmpty()) {
+            logger.debug("interfaces with desugared default method: $interfacesWithDesugaredDefaultMethod")
+        }
 
         val apks = deployDataDatabase.getApkInfos()
         val juggDeployData = JuggDeployData(apks,
@@ -93,7 +99,7 @@ class DeployDataGenerator(
         )
 
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("buildDeployData finish, cost ${costTime}ms. juggDeployData: $juggDeployData")
+        logger.debug("buildDeployData finish, cost ${costTime}ms.")
         return juggDeployData
     }
 
