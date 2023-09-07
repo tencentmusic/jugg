@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.relativePath
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -54,13 +55,7 @@ class FileChangesHandler(
             return null
         }
 
-        if (compileContext == null) {
-            logger.warn("compileContext not set to FileChangesManager, this should not happened")
-            return null
-        }
-
-        val modules = compileContext?.modules?.values?: emptyList()
-        modules.forEach { module ->
+        getModules().forEach { module ->
             val baseSourceDir = module.sourceDirs.find {
                 file.path.startsWith(it.path)
             }
@@ -95,11 +90,25 @@ class FileChangesHandler(
 
     override fun checkBuildGradleChanged(files: List<File>): Boolean {
         var isBuildGradleChanged = false
-        files.forEach {
-            val isGradleFile = it.name.endsWith(".gradle") || it.name.endsWith(".gradle.kts")
-            if (isGradleFile) {
-                logger.info("Detect gradle file changed: $it")
+        files.forEach { file ->
+            val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
+            if (!isGradleFile) {
+                return@forEach
+            }
+
+            val projectRootDir = getProjectRootDir()
+            if (projectRootDir != null && file.isChild(projectRootDir)) {
+                logger.info("Detect gradle file changed: $file")
                 isBuildGradleChanged = true
+                return@forEach
+            }
+            getModules().forEach inner@{ module ->
+                val moduleRootDir = module.rootDir
+                if (file.isChild(moduleRootDir)) {
+                    logger.info("Detect gradle file changed: $file")
+                    isBuildGradleChanged = true
+                    return@forEach
+                }
             }
         }
         return isBuildGradleChanged
@@ -107,14 +116,44 @@ class FileChangesHandler(
 
     override fun checkAndroidManifestChanged(files: List<File>): Boolean {
         var isAndroidManifestChanged = false
-        files.forEach {
-            val isAndroidManifest = it.name == "AndroidManifest.xml"
-            val isInJuggDir = it.isChild(juggRootDir)
-            if (isAndroidManifest && !isInJuggDir) {
-                logger.info("Detect AndroidManifest.xml changed: $it")
+        files.forEach { file ->
+            val isAndroidManifest = file.name == "AndroidManifest.xml"
+            if (!isAndroidManifest) {
+                return@forEach
+            }
+            val isInJuggDir = file.isChild(juggRootDir)
+            if (isInJuggDir) {
+                return@forEach
+            }
+
+            val projectRootDir = getProjectRootDir()
+            if (projectRootDir != null && file.isChild(projectRootDir)) {
+                logger.info("Detect AndroidManifest.xml changed: $file")
                 isAndroidManifestChanged = true
+                return@forEach
+            }
+            getModules().forEach inner@{ module ->
+                val moduleRootDir = module.rootDir
+                if (file.isChild(moduleRootDir)) {
+                    logger.info("Detect build.gradle changed: $file")
+                    isAndroidManifestChanged = true
+                    return@forEach
+                }
             }
         }
         return isAndroidManifestChanged
+    }
+
+    private fun getProjectRootDir(): File? {
+        return getModules().firstOrNull()?.projectRootDir
+    }
+
+    private fun getModules(): Collection<ModuleInfo> {
+        if (compileContext == null) {
+            logger.warn("getModules compileContext not set to FileChangesManager, this should not happened")
+            return emptyList()
+        }
+
+        return compileContext?.modules?.values?: emptyList()
     }
 }

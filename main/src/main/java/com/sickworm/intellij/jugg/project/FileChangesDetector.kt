@@ -84,9 +84,7 @@ class FileChangesDetector(
             }
         }
 
-        return files.filter {
-            it.isChild(projectDir)
-        }
+        return files
     }
 
     private val String.virtualFile: VirtualFile?
