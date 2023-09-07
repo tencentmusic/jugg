@@ -141,6 +141,7 @@ class CompileContextManager(
         val directoryNotFoundModules = mutableSetOf<String>()
         val ideaFolderModules = mutableSetOf<String>()
         val notGradleModules = mutableSetOf<String>()
+        val testModules = mutableSetOf<String>()
         val noSourceModules = mutableSetOf<String>()
         val fullLibraryDependencies = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
@@ -157,6 +158,11 @@ class CompileContextManager(
             val relativePath = baseDir.relativeTo(pathManager.projectDir)
             if (relativePath.startsWith(".idea")) {
                 ideaFolderModules.add(module.name)
+                return@forEach
+            }
+
+            if (module.name.endsWith(".test") || module.name.endsWith(".androidTest") || module.name.endsWith(".unitTest")) {
+                testModules.add(module.name)
                 return@forEach
             }
 
@@ -193,16 +199,6 @@ class CompileContextManager(
                     assetDirs.add(it.toIoFile())
                 }
             }
-            val buildModel = projectBuildModel.getModuleBuildModel(module)
-            if (buildModel == null) {
-                notGradleModules.add(module.name)
-                return@forEach
-            }
-
-            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() ) {
-                noSourceModules.add(module.name)
-                return@forEach
-            }
 
             // find dependencies
             val moduleDependencies = mutableListOf<ModuleDependency>()
@@ -219,6 +215,17 @@ class CompileContextManager(
                         }
                     }
                 }
+            }
+
+            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty() && libraryDependencies.isEmpty()) {
+                noSourceModules.add(module.name)
+                return@forEach
+            }
+
+            val buildModel = projectBuildModel.getModuleBuildModel(module)
+            if (buildModel == null) {
+                notGradleModules.add(module.name)
+                return@forEach
             }
 
             val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
@@ -254,7 +261,10 @@ class CompileContextManager(
             logger.debug("ignore modules (not gradle module): ${notGradleModules.joinToString(", ")}")
         }
         if (noSourceModules.isNotEmpty()) {
-            logger.debug("ignore modules (no source): ${noSourceModules.joinToString(", ")}")
+            logger.debug("ignore modules (no source module): ${noSourceModules.joinToString(", ")}")
+        }
+        if (testModules.isNotEmpty()) {
+            logger.debug("ignore modules (test module): ${testModules.joinToString(", ")}")
         }
         logger.debug(addedModules.joinToString("\n"))
 
