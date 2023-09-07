@@ -74,8 +74,8 @@ val context get() = SimpleCompileContext(
 
 val mockModule = ModuleInfo(
     name = "mock_module",
-    projectRootDir = projectInfo.projectRoot,
-    rootDir = buildDir,
+    moduleRootDir = projectInfo.projectRoot,
+    projectRootDir = buildDir,
     sourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/java")),
     resourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/res")),
     assetsDirs = listOf(File(projectInfo.projectRoot, "app/src/main/assets")),

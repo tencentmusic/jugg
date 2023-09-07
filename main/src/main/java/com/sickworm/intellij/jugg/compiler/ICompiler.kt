@@ -170,8 +170,8 @@ val ApkInfo.apkInfoKey: String
 
 data class ModuleInfo(
     val name: String,
+    val moduleRootDir: File,
     val projectRootDir: File,
-    val rootDir: File,
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,

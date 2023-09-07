@@ -103,7 +103,7 @@ class FileChangesHandler(
                 return@forEach
             }
             getModules().forEach inner@{ module ->
-                val moduleRootDir = module.rootDir
+                val moduleRootDir = module.projectRootDir
                 if (file.isChild(moduleRootDir)) {
                     logger.info("Detect gradle file changed: $file")
                     isBuildGradleChanged = true
@@ -133,7 +133,7 @@ class FileChangesHandler(
                 return@forEach
             }
             getModules().forEach inner@{ module ->
-                val moduleRootDir = module.rootDir
+                val moduleRootDir = module.projectRootDir
                 if (file.isChild(moduleRootDir)) {
                     logger.info("Detect build.gradle changed: $file")
                     isAndroidManifestChanged = true

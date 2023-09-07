@@ -84,8 +84,8 @@ private class ProjectInfoSerialize(
             val moduleInfos = modules.values.map {
                 ModuleInfoSerialize(
                     name = stringMap.getOrPut(it.name) { index++ },
-                    projectRootDir = stringMap.getOrPut(it.projectRootDir.absolutePath) { index++ },
-                    rootDir = stringMap.getOrPut(it.rootDir.absolutePath) { index++ },
+                    projectRootDir = stringMap.getOrPut(it.moduleRootDir.absolutePath) { index++ },
+                    rootDir = stringMap.getOrPut(it.projectRootDir.absolutePath) { index++ },
                     sourceDirs = it.sourceDirs.map { dir -> stringMap.getOrPut(dir.absolutePath) { index++ } },
                     resourceDirs = it.resourceDirs.map { dir -> stringMap.getOrPut(dir.absolutePath) { index++ } },
                     assetsDirs = it.assetsDirs.map { dir -> stringMap.getOrPut(dir.absolutePath) { index++ } },
@@ -136,8 +136,8 @@ private class ProjectInfoSerialize(
                 val parts = it.split(";")
                 val moduleInfo = ModuleInfo(
                     name = stringMap[parts[0]]!!,
-                    projectRootDir = File(stringMap[parts[1]]!!),
-                    rootDir = File(stringMap[parts[2]]!!),
+                    moduleRootDir = File(stringMap[parts[1]]!!),
+                    projectRootDir = File(stringMap[parts[2]]!!),
                     sourceDirs = if (parts[3].isEmpty()) emptyList() else parts[3].split(",").map { dir -> File(stringMap[dir]!!) },
                     resourceDirs = if (parts[4].isEmpty()) emptyList() else parts[4].split(",").map { dir -> File(stringMap[dir]!!) },
                     assetsDirs = if (parts[5].isEmpty()) emptyList() else parts[5].split(",").map { dir -> File(stringMap[dir]!!) },
