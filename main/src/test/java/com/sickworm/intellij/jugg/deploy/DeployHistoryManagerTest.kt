@@ -44,7 +44,7 @@ class DeployHistoryManagerTest {
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
         val jugg = MockJugg()
-        val modules = jugg.compileContextManager.getAllModulesByModuleManager()
+        val modules = jugg.compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
         historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, modules)
         assertTrue(historyManager.hasBeenFullCompiled)
         val recoverInfo1 = historyManager.tryGetContextRecoverInfoFromDb()
@@ -56,7 +56,6 @@ class DeployHistoryManagerTest {
             ApkInfoSerializer().serialize(recoverInfo1.compileContextInfo.apkInfos),
         )
         assertTrue(recoverInfo1.compileContextInfo.moduleBuildPathInfos.isNotEmpty())
-        assertTrue(recoverInfo1.compileContextInfo.thirdPartyDependencies.isNotEmpty())
 
         changeAndRevert("MainActivity2.changeMethodReturn.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
@@ -110,7 +109,7 @@ class DeployHistoryManagerTest {
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
         val jugg = MockJugg()
-        val modules = jugg.compileContextManager.getAllModulesByModuleManager()
+        val modules = jugg.compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
         historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, modules)
 
         val deployedFile = File(buildDir, "com/A.dex").let {

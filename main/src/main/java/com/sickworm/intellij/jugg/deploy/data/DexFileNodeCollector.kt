@@ -11,6 +11,7 @@ import com.googlecode.d2j.visitors.DexMethodVisitor
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.deploy.isOfficialClass
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -55,24 +56,8 @@ class DexFileNodeCollector(
                                 if (owner.startsWith(classInnerClassPrefix)) {
                                     return
                                 }
-                                if (owner.startsWith("Ljava/")) {
+                                if (owner.isOfficialClass) {
                                     return
-                                }
-                                if (owner.startsWith("Landroid")) {
-                                    if (owner.startsWith("Landroid/")) {
-                                        return
-                                    }
-                                    if (owner.startsWith("Landroidx/")) {
-                                        return
-                                    }
-                                }
-                                if (owner.startsWith("Lkotlin")) {
-                                    if (owner.startsWith("Lkotlin/")) {
-                                        return
-                                    }
-                                    if (owner.startsWith("Lkotlinx/")) {
-                                        return
-                                    }
                                 }
                                 fieldRefs.getOrPut(FieldNode(field)) { Collections.synchronizedList(ArrayList()) }
                                     .add(className)
@@ -95,24 +80,8 @@ class DexFileNodeCollector(
                                 if (owner.startsWith(classNewArray)) {
                                     return
                                 }
-                                if (owner.startsWith("Ljava/")) {
+                                if (owner.isOfficialClass) {
                                     return
-                                }
-                                if (owner.startsWith("Landroid")) {
-                                    if (owner.startsWith("Landroid/")) {
-                                        return
-                                    }
-                                    if (owner.startsWith("Landroidx/")) {
-                                        return
-                                    }
-                                }
-                                if (owner.startsWith("Lkotlin")) {
-                                    if (owner.startsWith("Lkotlin/")) {
-                                        return
-                                    }
-                                    if (owner.startsWith("Lkotlinx/")) {
-                                        return
-                                    }
                                 }
 
                                 methodRefs.getOrPut(MethodNode(method)) { Collections.synchronizedList(ArrayList()) }

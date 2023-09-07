@@ -82,11 +82,12 @@ class DeployDataGenerator(
         }
 
         val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef)
+        val interfacesWithDesugaredDefaultMethod = deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(changedClasses.map { it.classNode })
 
         val apks = deployDataDatabase.getApkInfos()
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
-            effectedSourceAndClassNodes.keys.toList(),
+            effectedSourceAndClassNodes.keys.toList() + interfacesWithDesugaredDefaultMethod,
             overlays, parsedDex,
             isFullOverlays, isWarmUp,
         )
@@ -108,8 +109,4 @@ class DeployDataGenerator(
     fun commitDeployedData(juggDeployData: JuggDeployData) {
         deployDataDatabase.commitDeployedData(juggDeployData)
     }
-}
-
-fun String.convertClassToSigFormat(): String {
-    return "L" + this.replace('.', '/') + ";"
 }

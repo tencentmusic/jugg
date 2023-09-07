@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
+import com.sickworm.intellij.jugg.deploy.isOfficialClass
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -289,7 +291,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             connection.prepareStatement(sql).use { preparedStatement ->
                 parsedApk.classes.values.forEach {
                     preparedStatement.setString(1, it.className)
-                    preparedStatement.setString(2, it.interfaceNames.joinToString(" "))
+                    preparedStatement.setString(2, it.interfaceNames.toInterfaceString())
                     preparedStatement.setString(3, it.superClass)
                     preparedStatement.setString(4, it.source)
                     preparedStatement.setString(5, it.dexFileName)
@@ -505,7 +507,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
-                    val interfaceNames = resultSet.getString(2).split(" ").toList()
+                    val interfaceNames = resultSet.getString(2).toInterfaceList()
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)
@@ -616,13 +618,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 var resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
-                    val interfaceNames = resultSet.getString(2).let {
-                        if (it.isEmpty()) {
-                            emptyList()
-                        } else {
-                            it.split(" ").toList()
-                        }
-                    }
+                    val interfaceNames = resultSet.getString(2).toInterfaceList()
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)
@@ -742,6 +738,57 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
+    fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String> {
+        val checkedClasses = mutableSetOf<String>()
+
+        val result = mutableListOf<String>()
+
+        var toCheckInterfaces: List<String> = classNodes
+            .flatMap {
+                listOf(it.superClass) + it.interfaceNames
+            }.filter {
+                !it.isOfficialClass
+            }
+
+        runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
+            DriverManager.getConnection(url).use { connection ->
+                connection.createStatement().use { statement ->
+
+                    while (toCheckInterfaces.isNotEmpty()) {
+                        // find interfaces with desugared default method class which has suffix of "$-CC;"
+                        val defaultInterfaces = toCheckInterfaces.map { it.desugarDefaultInterfaceName }
+                        val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
+                        val sql = "SELECT source FROM class_info WHERE name IN ($defaultInterfacesString);"
+                        val resultSet: ResultSet = statement.executeQuery(sql)
+                        while (resultSet.next()) {
+                            val source = resultSet.getString(1)
+                            result.add(source)
+                        }
+                        checkedClasses.addAll(toCheckInterfaces)
+
+                        // find classes' super class and interfaces
+                        val toCheckInterfacesString = toCheckInterfaces.joinToString(",") { "'$it'" }
+                        val sql2 = "SELECT super_name, interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
+                        val newToCheckInterfaces = mutableSetOf<String>()
+                        val resultSet2: ResultSet = statement.executeQuery(sql2)
+                        while (resultSet2.next()) {
+                            val superClassName = resultSet.getString(1)
+                            val superInterfaceNames = resultSet.getString(2).toInterfaceList()
+                            newToCheckInterfaces.add(superClassName)
+                            newToCheckInterfaces.addAll(superInterfaceNames)
+                        }
+                        toCheckInterfaces = newToCheckInterfaces.filter {
+                            !checkedClasses.contains(it) && !it.isOfficialClass
+                        }
+                    }
+                }
+            }
+        }
+
+        return result
+    }
+
+    @Synchronized
     fun getApkInfoKeys(): List<String> {
         val selectSQL = "SELECT * FROM apk_info;"
         val keys = mutableListOf<String>()
@@ -787,6 +834,18 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             logger.debug("SQLite run $name cost ${endTime - startTime}ms")
         }
         return result
+    }
+
+    private fun String.toInterfaceList(): List<String> {
+        return if (isEmpty()) {
+            emptyList()
+        } else {
+            split(" ").toList()
+        }
+    }
+
+    private fun List<String>.toInterfaceString(): String {
+        return joinToString(" ")
     }
 }
 

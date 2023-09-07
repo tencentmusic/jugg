@@ -4,12 +4,16 @@ import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.mock.buildDir
+import com.sickworm.intellij.jugg.mock.clearBuild
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
+import org.junit.Before
 import org.junit.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -17,6 +21,11 @@ class DeployDataGeneratorTest {
 
     private val abcParsedDexMock: ParsedDex = getAdbParsedDex()
     private val abdClassNode get() = abcParsedDexMock.classDeployItems[0].classNode
+
+    @Before
+    fun assemble() {
+        clearBuild()
+    }
 
     @Test
     fun testOverlayContents() {
@@ -113,10 +122,26 @@ class DeployDataGeneratorTest {
         assertEquals("MainActivity2.java", data.effectedSourceFileNames[0])
     }
 
-    private fun getAdbParsedDex(): ParsedDex {
+    @Test
+    fun testFixDefaultMethod() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+        var parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1")
+        var deployData = generator.buildDeployData(parsedDex, emptyList())
+        assertContentEquals(listOf("DefaultInterface.java"), deployData.effectedSourceFileNames)
+
+        parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass2")
+        deployData = generator.buildDeployData(parsedDex, emptyList())
+        assertContentEquals(listOf("DefaultInterface.java"), deployData.effectedSourceFileNames)
+
+        parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3")
+        deployData = generator.buildDeployData(parsedDex, emptyList())
+        assertContentEquals(listOf("ImplementBaseInterface3.java", "DefaultInterface.java"), deployData.effectedSourceFileNames)
+    }
+
+    private fun getAdbParsedDex(className: String = "com.example.myapplication.ABC"): ParsedDex {
         val parsedApk = ApkParser().parse(projectInfo.apkInfo)
-        val className = "com.example.myapplication.ABC"
-        val classNode = parsedApk.classes[className.convertClassToSigFormat()]!!
+        val classNode = parsedApk.classes[className.classSigName]!!
         val deployItem = DeployItem(className, CompileOutput.Type.Dex, 0, byteArrayOf())
         return ParsedDex(
             listOf(ClassDeployItem(deployItem, classNode)),

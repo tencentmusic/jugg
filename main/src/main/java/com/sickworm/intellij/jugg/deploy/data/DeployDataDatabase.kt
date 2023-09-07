@@ -34,6 +34,8 @@ interface IDeployDataDatabase {
      * @return Map<source file name, List<class name>>
      */
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>>
+
+    fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String>
 }
 
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
@@ -174,6 +176,17 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         }
 
         return effectClassNodesMap
+    }
+
+    @Synchronized
+    override fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String> {
+        // we don't need to check deployed class node because we already handle it
+        val incrementalClassNodes = incDeployedDatabase.getClassNodes(classNodes.map { it.className })
+        val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
+
+        return database.values.flatMap {
+            it.findInterfacesWithDesugaredDefaultMethod(apkClassNodes)
+        }
     }
 }
 
