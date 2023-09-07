@@ -49,7 +49,7 @@ class JuggManager @TestOnly constructor(
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),
-    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, { deployStateListener }),
+    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggReporter, { deployStateListener }),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, fileChangesHandler, { deployStateListener }),
 ): Disposable {
 

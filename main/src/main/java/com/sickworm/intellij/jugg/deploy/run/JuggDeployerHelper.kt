@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.android.download.AndroidProfilerDownloader
@@ -28,6 +29,7 @@ class JuggDeployerHelper(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployStateManager: DeployStateManager,
+    private val juggReporter: JuggReporter,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
     private var installPathProvider: Computable<String> = Computable<String> {
@@ -126,11 +128,22 @@ class JuggDeployerHelper(
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
             if (canRetry && !isInstall) {
+                juggReporter.report {
+                    action = "incremental_deploy_retry_start"
+                    detail = reason
+                }
+
+                // e.g. change default method implementation of an interface class.
+                // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
                 val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
-                if (isUnmodifiableClass) {
-                    // e.g. change default method implementation of an interface class.
-                    // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
-                    logger.info("Deploy got error: JVMTI_ERROR_UNMODIFIABLE_CLASS, will fallback to HOT_FIX.")
+                // something wrong with DeployDataGenerator... fall back too
+                val isRequiresAppRestart = reason.contains("require an app restart")
+                if (isUnmodifiableClass || isRequiresAppRestart) {
+                    logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
+                    juggReporter.report {
+                        action = "incremental_deploy_retry"
+                        detail = reason
+                    }
                     return deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = false, isFallbackAllHotFix = true)
                 }
 
@@ -157,10 +170,18 @@ class JuggDeployerHelper(
                                 failedReason = "Try recover deploy state failed on retry.")
                         } else {
                             logger.info("Try recover deploy state success on retry.")
+                            juggReporter.report {
+                                action = "incremental_deploy_retry"
+                                detail = reason
+                            }
                             deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = true)
                         }
                     } else {
                         logger.info("Deploy agent no response, but App is in foreground, try again.")
+                        juggReporter.report {
+                            action = "incremental_deploy_retry"
+                            detail = reason
+                        }
                         deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = false)
                     }
                     return result.copy(costTime = costTime())
