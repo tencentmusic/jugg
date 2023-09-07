@@ -60,11 +60,11 @@ class DeployFileManager(
     @Synchronized
     fun addChangedFile(files: List<ChangedFile>) {
         logger.debug("add changed files: $files")
-        files.forEach {
-            uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
-        }
         val newFiles = files.filter {
             uncompiledFiles.containsKey(it.file.stdPath).not()
+        }
+        files.forEach {
+            uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
         }
         sourceFileManager.updateFiles(newFiles.map { it.file }, emptyList())
     }
@@ -221,8 +221,8 @@ class DeployFileManager(
 
         val sourceFiles = sourceFileManager.getFiles(effectedSourceFiles)
         if (sourceFiles.size < effectedSourceFiles.size) {
-            val missingFiles = sourceFiles.filter {
-                it.name !in effectedSourceFiles
+            val missingFiles = effectedSourceFiles.filter { fileName ->
+                !sourceFiles.any { it.name == fileName }
             }
             logger.warn("getEffectedSourceFiles: source files size is less than effected source files size. " +
                 "missing source files: $missingFiles")
