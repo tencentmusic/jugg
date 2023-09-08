@@ -57,6 +57,7 @@ class JuggRunningTask(
         } finally {
             stop(indicator)
             isRunning = false
+            isFirstTimeRun = false
             JuggLogger.stopListenProjectLog(project, loggerListener)
         }
     }
@@ -66,9 +67,8 @@ class JuggRunningTask(
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                if (!it.isVisible) {
+                if (isFirstTimeRun) {
                     it.activate(null)
-                    it.hide()
                 }
                 it.setIcon(icon)
             }
@@ -179,5 +179,10 @@ class JuggRunningTask(
             logger.debug("Process already terminated.")
             onFinishListener.invoke()
         }
+    }
+
+    companion object {
+        var isFirstTimeRun = true
+            private set
     }
 }
