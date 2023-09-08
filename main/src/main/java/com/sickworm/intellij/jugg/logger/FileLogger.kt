@@ -3,9 +3,12 @@ package com.sickworm.intellij.jugg.logger
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
+import java.nio.file.Files
+import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.logging.*
+
 
 /**
  * Logger Logs to jugg/log
@@ -30,6 +33,8 @@ class FileLogger(
     }
 
     companion object {
+
+        private const val LATEST_LOG_NAME = "compile_latest.log"
 
         private fun createPatternName(): String {
             return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date()) + ".log"
@@ -74,6 +79,14 @@ class FileLogger(
                 }
             }
             loggerHandler.formatter = formatter
+
+            // link file to compile_latest.log
+            val latestLogFile = File(dir, LATEST_LOG_NAME)
+            if (latestLogFile.exists()) {
+                latestLogFile.delete()
+            }
+            Files.createSymbolicLink(Path.of(dir.absolutePath, LATEST_LOG_NAME), Path.of(dir.absolutePath, name))
+
             return loggerHandler
         }
 
