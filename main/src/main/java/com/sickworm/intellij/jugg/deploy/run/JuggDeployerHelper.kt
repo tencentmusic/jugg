@@ -113,7 +113,8 @@ class JuggDeployerHelper(
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp, isFallbackAllHotFix)
-                logger.info("Deploying data:\n$deployData")
+                logger.debug("Deploying data:\n$deployData")
+                logger.info("Deploying data:\n${deployData.toDescString()}")
                 if (deployData.isFullOverlays) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }

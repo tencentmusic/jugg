@@ -8,6 +8,8 @@ import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
+import com.sickworm.intellij.jugg.deploy.outerClassName
+import org.jetbrains.kotlin.utils.addToStdlib.indexOfOrNull
 
 /**
  * Final data that going to deploy to the device.
@@ -50,9 +52,9 @@ data class JuggDeployData(
         else -> DeployType.HOT_RELOAD
     }
 
-    override fun toString(): String {
+    private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
-        builder.append("JuggDeployData($deployType): ")
+        builder.append("JuggDeployData ($deployType): ")
         if (isEmpty) {
             builder.append("[nothing to deploy]")
             return builder.toString()
@@ -60,18 +62,24 @@ data class JuggDeployData(
         builder.append("[\n")
         if (newClasses.isNotEmpty()) {
             builder.append("new classes:\n")
-            builder.append(newClasses.toClassLogString())
+            builder.append(newClasses.toClassLogString(isFull))
             builder.append("\n")
         }
         if (hotFixModifiedClasses.isNotEmpty()) {
-            builder.append("hot fix modified classes:\n")
-            builder.append(hotFixModifiedClasses.toClassLogString())
-            builder.append("\n")
+            val classString = hotFixModifiedClasses.toClassLogString(isFull, includeNodes = hotReloadModifiedClasses)
+            if (classString.isNotEmpty()) {
+                builder.append("hot fix modified classes:\n")
+                builder.append(classString)
+                builder.append("\n")
+            }
         }
         if (hotReloadModifiedClasses.isNotEmpty()) {
-            builder.append("hot reload modified classes:\n")
-            builder.append(hotReloadModifiedClasses.toClassLogString())
-            builder.append("\n")
+            val classString = hotReloadModifiedClasses.toClassLogString(isFull, excludeNodes = hotFixModifiedClasses)
+            if (classString.isNotEmpty()) {
+                builder.append("hot reload modified classes:\n")
+                builder.append(classString)
+                builder.append("\n")
+            }
         }
         if (overlays.isNotEmpty()) {
             builder.append("overlay files:\n")
@@ -89,6 +97,14 @@ data class JuggDeployData(
         }
         builder.append("]")
         return builder.toString()
+    }
+
+    fun toDescString(): String {
+        return toString(false)
+    }
+
+    override fun toString(): String {
+        return toString(true)
     }
 
     companion object {
@@ -156,6 +172,31 @@ fun Collection<DeployItem>.toLogString(): String {
     return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
 }
 
-fun Collection<ClassDeployItem>.toClassLogString(): String {
-    return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
+fun Collection<ClassDeployItem>.toClassLogString(isFull: Boolean,
+                                                 excludeNodes: List<ClassDeployItem> = emptyList(),
+                                                 includeNodes: List<ClassDeployItem> = emptyList()): String {
+    if (isFull) {
+        return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
+    } else {
+        val classMap = LinkedHashMap<String, MutableList<String>>()
+        val excludeSet = excludeNodes.map { it.name.outerClassName }.toSet()
+        forEach {
+            val outerClassName = it.name.outerClassName
+            if (excludeSet.contains(outerClassName)) return@forEach
+            classMap.getOrPut(outerClassName) { mutableListOf() }.add(it.name)
+        }
+        includeNodes.forEach {
+            val outerClassName = it.name.outerClassName
+            classMap[outerClassName]?.add(it.name)
+        }
+
+        if (classMap.isEmpty()) return ""
+        return classMap.entries.joinToString(separator = "\n    ", prefix = "    ") { (outerClassName, classNames) ->
+            if (classNames.size <= 1) {
+                outerClassName
+            } else {
+                "$outerClassName (with ${classNames.size - 1} inner classes)"
+            }
+        }
+    }
 }

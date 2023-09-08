@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
+import org.jetbrains.kotlin.utils.addToStdlib.indexOfOrNull
+
 
 inline val String.isOfficialClass: Boolean
     get() {
@@ -46,7 +48,8 @@ inline val String.desugarDefaultInterfaceName: String
     }
 
 
-inline val String.interfaceNameFromDesugar: String
+inline val String.outerClassName: String
     get() {
-        return substring(0, length - desugarDefaultInterfaceSuffix.length) + ";"
+        val endIndex = indexOfOrNull('$') ?: length
+        return substring(0, endIndex)
     }
