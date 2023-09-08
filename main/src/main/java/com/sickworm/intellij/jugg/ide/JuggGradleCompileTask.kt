@@ -62,7 +62,7 @@ class JuggGradleCompileTask(
 
         val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated
         if (result.isSuccess) {
-            logger.info("\nBUILD SUCCESS in ${costTime / 1000}s.\n")
+            logger.info("\nBUILD SUCCESSFUL in ${costTime / 1000}s.\n")
         } else if (isCanceled) {
             logger.warn("BUILD CANCELED in ${costTime / 1000}s.\n")
         } else {

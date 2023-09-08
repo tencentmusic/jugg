@@ -12,6 +12,8 @@ import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
+import com.sickworm.intellij.jugg.deploy.run.AndroidDeployType
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
 import java.io.PrintWriter
@@ -57,7 +59,7 @@ class JuggRunningTask(
         } finally {
             stop(indicator)
             isRunning = false
-            isFirstTimeRun = false
+            setHasRun(project)
             JuggLogger.stopListenProjectLog(project, loggerListener)
         }
     }
@@ -67,7 +69,7 @@ class JuggRunningTask(
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                if (isFirstTimeRun) {
+                if (isFirstTimeRun(project)) {
                     it.activate(null)
                 }
                 it.setIcon(icon)
@@ -110,7 +112,7 @@ class JuggRunningTask(
 
         val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
-        detailMap["deploy_type"] = deployTaskResult.deployType ?: ""
+        detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         juggReporter.report {
             action = "deploy"
             isSuccess = deployTaskResult.isSuccess
@@ -129,7 +131,18 @@ class JuggRunningTask(
             }
         }
 
-        logger.info("\nApp launched.")
+        val totalTime = compileTaskResult.costTime + deployTaskResult.costTime
+        when (deployTaskResult.deployType) {
+            JuggDeployData.DeployType.INSTALL -> {
+                logger.info("\nGradle BUILD_AND_INSTALL SUCCESSFUL in ${totalTime / 1000}s.")
+                logger.info("App launched.")
+            }
+            else -> {
+                logger.info("\nJugg ${deployTaskResult.deployType?.name} SUCCESSFUL in ${totalTime / 1000}s.")
+                logger.info("App deployed.")
+            }
+        }
+
         notifyLaunched(compileTaskResult.isGradleCompile)
 
         if (compileTaskResult.isGradleCompile) {
@@ -182,7 +195,16 @@ class JuggRunningTask(
     }
 
     companion object {
-        var isFirstTimeRun = true
-            private set
+        private var isFirstTimeRun = mutableMapOf<String, Boolean>()
+
+        fun isFirstTimeRun(project: Project): Boolean {
+            val key = project.name
+            return isFirstTimeRun.getOrPut(key) { true }
+        }
+
+        fun setHasRun(project: Project) {
+            val key = project.name
+            this.isFirstTimeRun[key] = false
+        }
     }
 }

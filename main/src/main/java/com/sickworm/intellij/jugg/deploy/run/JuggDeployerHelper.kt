@@ -40,12 +40,19 @@ class JuggDeployerHelper(
     private val deployStateListener get() = deployStateListenerGetter.invoke()
 
     @Synchronized
-    private fun runTask(data: JuggDeployData, type: JuggDeployType) {
+    private fun runTask(data: JuggDeployData) {
         if (data.apks.isEmpty()) {
             throw JuggInternalException.apkNotFound(data)
         }
+        val androidDeployType = if (data.isInstall) {
+            AndroidDeployType.INSTALL
+        } else if (data.isNeedRestartActivity) {
+            AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY
+        } else {
+            AndroidDeployType.APPLY_CHANGES
+        }
 
-        val task = JuggDeployTask(project, installPathProvider, type, data)
+        val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
 
         val consolePrinter = ConsolePrinter(logger)
         val device = deployTargetManager.getDevice()
@@ -55,7 +62,7 @@ class JuggDeployerHelper(
             throw JuggException.applyChangesFailed(launchResult)
         }
 
-        if (data.isNeedRestartApp || type == JuggDeployType.INSTALL) {
+        if (data.isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
             deployTargetManager.restartApp()
         } else if (!deployTargetManager.isAppForeground()) {
@@ -75,14 +82,13 @@ class JuggDeployerHelper(
         val statTime = System.currentTimeMillis()
         fun costTime(): Long { return System.currentTimeMillis() - statTime }
 
-        val type: JuggDeployType
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
                 logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
                 val deployData = JuggDeployData.forInstall(apks)
-                type = JuggDeployType.INSTALL
-                runTask(deployData, JuggDeployType.INSTALL)
+                runTask(deployData)
+                DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
             } else {
                 if (!deployTargetManager.hasDevice) {
                     logger.info("No device connected, stop deploy.")
@@ -107,24 +113,20 @@ class JuggDeployerHelper(
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp, isFallbackAllHotFix)
-                type = if (deployData.isNeedRestartActivity) {
-                    JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY
-                } else {
-                    JuggDeployType.APPLY_CHANGES
-                }
                 logger.info("Deploying data:\n$deployData")
                 if (deployData.isFullOverlays) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
-                runTask(deployData, type)
+                runTask(deployData)
 
                 deployStateListener.onDeployed(
                     false,
                     deployFileManager.getCompiledFiles().map { it.file },
                 )
                 updateInfoAfterIncDeploy(deployData)
+
+                DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
             }
-            DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = type.toString())
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
             if (canRetry && !isInstall) {
@@ -223,7 +225,7 @@ class JuggDeployerHelper(
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
-        runTask(deployData, JuggDeployType.INSTALL)
+        runTask(deployData)
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
             logger.warn("Recovery failed for app not launched.")
@@ -256,8 +258,8 @@ class JuggDeployerHelper(
 
         logger.info("Device online, try dry deploy.")
         return try {
-            val dryDeployData = JuggDeployData.forInstall(deployTargetManager.getApks())
-            runTask(dryDeployData, JuggDeployType.APPLY_CHANGES)
+            val dryDeployData = JuggDeployData.forDryDeploy(deployTargetManager.getApks())
+            runTask(dryDeployData)
             true
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
@@ -328,6 +330,6 @@ private class CopyEmbeddedDistributionPaths {
 data class DeployTaskResult(
     val isSuccess: Boolean,
     val costTime: Long,
-    val deployType: String? = null,
+    val deployType: JuggDeployData.DeployType? = null,
     val failedReason: String? = null,
 )

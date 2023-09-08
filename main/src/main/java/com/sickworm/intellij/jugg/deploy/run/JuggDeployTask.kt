@@ -46,7 +46,7 @@ import java.util.stream.Collectors
 class JuggDeployTask(
     private val project: Project,
     private val installPathProvider: Computable<String>,
-    private val type: JuggDeployType,
+    private val type: AndroidDeployType,
     private val data: JuggDeployData,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask")
 ) {
@@ -70,6 +70,7 @@ class JuggDeployTask(
         val ideService = IdeService(project)
         val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
 
+        val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
             adb,
             service.deploymentCacheDatabase,
@@ -78,10 +79,6 @@ class JuggDeployTask(
             ideService,
             logger
         )
-        val deployType = when (type) {
-            JuggDeployType.INSTALL -> "INSTALL"
-            else -> if (data.isNeedRestartApp) "HOT_FIX" else "HOT_RELOAD"
-        }
         val idsSkippedInstall: MutableList<String> = ArrayList()
         for ((applicationId, apkFiles) in packages) {
             try {
@@ -121,9 +118,9 @@ class JuggDeployTask(
     }
 
     private fun shouldTaskLaunchApp() = when(type) {
-        JuggDeployType.INSTALL -> true
-        JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> true
-        JuggDeployType.APPLY_CHANGES -> false
+        AndroidDeployType.INSTALL -> true
+        AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> true
+        AndroidDeployType.APPLY_CHANGES -> false
     }
 
     @Throws(DeployerException::class)
@@ -131,7 +128,7 @@ class JuggDeployTask(
         device: IDevice, deployer: JuggDeployer, applicationId: String, files: List<File>
     ): JuggDeployer.Result {
         when (type) {
-            JuggDeployType.INSTALL -> {
+            AndroidDeployType.INSTALL -> {
                 // default install argument has: -t -r --full --dont-kill
                 val options = InstallOptions.builder().setAllowDebuggable()
                 // no setInstallOnCurrentUser in giraffe
@@ -158,11 +155,11 @@ class JuggDeployTask(
 
                 return deployer.install(applicationId, getPathsToInstall(files), options.build(), installMode)
             }
-            JuggDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
+            AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY -> {
                 logger.debug("Applying changes to application $applicationId...")
                 return deployer.fullSwap(getPathsToInstall(files), data)
             }
-            JuggDeployType.APPLY_CHANGES -> {
+            AndroidDeployType.APPLY_CHANGES -> {
                 logger.debug("Applying changes to application $applicationId...")
                 val fastRerunOnSwapFailure = false
                 val debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
@@ -203,7 +200,7 @@ class JuggDeployTask(
  * @see com.android.tools.idea.run.tasks.ApplyChangesTask
  * @see com.android.tools.idea.run.tasks.ApplyCodeChangesTask
  */
-enum class JuggDeployType {
+enum class AndroidDeployType {
     INSTALL,  // install
     APPLY_CHANGES_AND_RESTART_ACTIVITY,  // apply changes and restart activity
     APPLY_CHANGES, // apply changes
@@ -253,7 +250,7 @@ class LaunchContext(
 class ConsolePrinter(private val logger: Logger) {
 
     fun stdout(message: String) {
-        logger.info(message)
+        logger.debug(message)
     }
 
     fun stderr(message: String) {

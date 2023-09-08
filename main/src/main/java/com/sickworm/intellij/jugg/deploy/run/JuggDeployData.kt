@@ -31,6 +31,8 @@ data class JuggDeployData(
     val isFullOverlays: Boolean,
     /** is for warm up. */
     private val isWarmUp: Boolean,
+    /** just install the apks only */
+    val isInstall: Boolean = false,
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&
@@ -41,9 +43,16 @@ data class JuggDeployData(
 
     val isNeedRestartActivity get() = !isWarmUp // for now, we always restart activity excepts warm up action
 
+    val deployType: DeployType = when {
+        isInstall -> DeployType.INSTALL
+        isWarmUp -> DeployType.WARM_UP
+        isNeedRestartApp -> DeployType.HOT_FIX
+        else -> DeployType.HOT_RELOAD
+    }
+
     override fun toString(): String {
         val builder = StringBuilder()
-        builder.append("JuggDeployData: ")
+        builder.append("JuggDeployData($deployType): ")
         if (isEmpty) {
             builder.append("[nothing to deploy]")
             return builder.toString()
@@ -88,7 +97,23 @@ data class JuggDeployData(
             emptyList(), emptyList(), ParsedDex.EMPTY,
             isFullOverlays = false,
             isWarmUp = false,
+            isInstall = true,
         )
+
+        fun forDryDeploy(apks: List<ApkInfo>) = JuggDeployData(apks,
+            emptyList(), emptyList(), emptyList(),
+            emptyList(), emptyList(), ParsedDex.EMPTY,
+            isFullOverlays = false,
+            isWarmUp = false,
+            isInstall = false,
+        )
+    }
+
+    enum class DeployType {
+        INSTALL,
+        HOT_FIX,
+        HOT_RELOAD,
+        WARM_UP,
     }
 }
 
