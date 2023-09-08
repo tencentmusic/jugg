@@ -4,7 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
-import com.sickworm.intellij.jugg.deploy.isOfficialClass
+import com.sickworm.intellij.jugg.deploy.isOfficialClassExceptAndroidX
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -747,7 +747,9 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             .flatMap {
                 listOf(it.superClass) + it.interfaceNames
             }.filter {
-                !it.isOfficialClass
+                // don't filter android X classes because they may use default method.
+                // e.g. Landroidx/room/migration/AutoMigrationSpec
+                !it.isOfficialClassExceptAndroidX
             }
 
         runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
@@ -778,7 +780,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                             newToCheckInterfaces.addAll(superInterfaceNames)
                         }
                         toCheckInterfaces = newToCheckInterfaces.filter {
-                            !checkedClasses.contains(it) && !it.isOfficialClass
+                            !checkedClasses.contains(it) && !it.isOfficialClassExceptAndroidX
                         }
                     }
                 }

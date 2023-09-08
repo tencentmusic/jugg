@@ -25,6 +25,14 @@ inline val String.isOfficialClass: Boolean
         return false
     }
 
+inline val String.isOfficialClassExceptAndroidX: Boolean
+    get() {
+        if (startsWith("Landroidx/")) {
+            return false
+        }
+        return isOfficialClass
+    }
+
 inline val String.classSigName: String
     get() {
         return "L" + this.replace('.', '/') + ";"
