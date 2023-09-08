@@ -143,9 +143,13 @@ class DeployFileManager(
     @Synchronized
     fun getDeployData(isWarmUp: Boolean = false, isFallbackAllHotFix: Boolean = false): JuggDeployData {
         if (isWarmUp) {
-            // add fake overlay to trigger full deployment
+            // add fake overlay to trigger full overlay deployment
             addJuggWarmUpOverlay()
+        } else {
+            // remove it to avoid full overlay deployment
+            removeJuggWarmUpOverlay()
         }
+
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
         val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp)
         return if (isFallbackAllHotFix) {
@@ -172,15 +176,19 @@ class DeployFileManager(
         return DeployItem(name, type, crc, bytes)
     }
 
-    private fun addJuggWarmUpOverlay(): DeployItem {
+    private fun addJuggWarmUpOverlay() {
         val file = File(tmpDir, "jugg_warm_up_overlay")
         if (!file.exists()) {
             file.createNewFile()
             file.writeText("jugg_warm_up_overlay", Charsets.UTF_8)
         }
         val compileOutput = CompileOutput(CompileOutput.Type.Overlay, file, file.parentFile)
-        addDeployFiles(listOf(compileOutput))
-        return compileOutput.toDeployItem()
+        stagingFiles[compileOutput.file.stdAbsPath] = compileOutput
+    }
+
+    private fun removeJuggWarmUpOverlay() {
+        val file = File(tmpDir, "jugg_warm_up_overlay")
+        stagingFiles.remove(file.stdAbsPath)
     }
 
     @Synchronized
