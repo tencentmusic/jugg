@@ -65,7 +65,9 @@ class DeployDataGenerator(
                 hotFixModifiedClasses.add(it)
             }
 
-            changedMethodRef.addAll(result.deletedMethods)
+            // we don't care about abstract, because it won't affect class bytecode.
+            // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
+            changedMethodRef.addAll(result.deletedMethodsExceptAbstract)
             changedFieldRef.addAll(result.deletedFields)
         }
 

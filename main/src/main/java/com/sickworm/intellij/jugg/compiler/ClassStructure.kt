@@ -1,11 +1,11 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.googlecode.d2j.DexConstants
 import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.node.DexFieldNode
 import com.googlecode.d2j.node.DexMethodNode
-import org.objectweb.asm.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -85,6 +85,15 @@ class MethodNode(
     val desc = ClassStringPool[desc]
 
     private val signature get() = "$access ${owner}.${name}${desc}"
+
+    fun isEqualsExceptAbstract(method: MethodNode): Boolean {
+        val accessWithoutAbstract = access and DexConstants.ACC_ABSTRACT.inv()
+        val otherAccessWithoutAbstract = method.access and DexConstants.ACC_ABSTRACT.inv()
+        return this.owner == method.owner
+                && accessWithoutAbstract == otherAccessWithoutAbstract
+                && this.name == method.name
+                && this.desc == method.desc
+    }
 
     override fun equals(other: Any?): Boolean {
         if (other !is MethodNode) {

@@ -41,6 +41,10 @@ class ClassNodeComparator(
         val deletedMethods = LinkedList(oldClassNode.methods)
         removeUnion(addedMethods, deletedMethods)
 
+        val addedMethodsExceptAbstract = LinkedList(newClassNode.methods)
+        val deletedMethodsExceptAbstract = LinkedList(oldClassNode.methods)
+        removeUnionExceptAbstract(addedMethodsExceptAbstract, deletedMethodsExceptAbstract)
+
         return ClassNodeDiffResult(
             oldClassNode.className,
             modifiedParentClass,
@@ -50,6 +54,8 @@ class ClassNodeComparator(
             deletedFields,
             addedMethods,
             deletedMethods,
+            addedMethodsExceptAbstract,
+            deletedMethodsExceptAbstract,
         )
     }
 
@@ -64,6 +70,19 @@ class ClassNodeComparator(
                 while (iterator.hasNext()) {
                     val newInterface = iterator.next()
                     val oldInterface = list2.find { it == newInterface }
+                    if (oldInterface != null) {
+                        iterator.remove()
+                        list2.remove(oldInterface)
+                    }
+                }
+            }
+        }
+
+        private fun removeUnionExceptAbstract(list1: LinkedList<MethodNode>, list2: LinkedList<MethodNode>) {
+            list1.iterator().let { iterator ->
+                while (iterator.hasNext()) {
+                    val newInterface = iterator.next()
+                    val oldInterface = list2.find { it.isEqualsExceptAbstract(newInterface) }
                     if (oldInterface != null) {
                         iterator.remove()
                         list2.remove(oldInterface)
@@ -87,6 +106,9 @@ class ClassNodeDiffResult(
 
     val addedMethods: List<MethodNode>,
     val deletedMethods: List<MethodNode>,
+
+    val addedMethodsExceptAbstract: List<MethodNode>,
+    val deletedMethodsExceptAbstract: List<MethodNode>,
 ) {
 
     val isSameStructure
