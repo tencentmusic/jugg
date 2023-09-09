@@ -152,7 +152,7 @@ class JuggCompilerHelper(
             ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("Compile finished in ${costTime / 1000}s, " +
+        logger.info("Compile finished in ${costTime / 1000}s, " +
                 "success: ${compileResult.successFiles.size}, " +
                 "failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)

@@ -92,10 +92,17 @@ data class JuggDeployData(
                 builder.append("\n")
             }
         }
-        if (effectedSourceFileNames.isNotEmpty()) {
-            builder.append("effected source files:\n    ")
-            builder.append(effectedSourceFileNames.toString())
-            builder.append("\n")
+        if (isFull) {
+            if (effectedSourceFileNames.isNotEmpty()) {
+                builder.append("effected source files:\n    ")
+                builder.append(effectedSourceFileNames.toString())
+                builder.append("\n")
+            }
+            if (desugaredInterfacesWithDefaultMethods.isNotEmpty()) {
+                builder.append("desugared interfaces with default methods:\n    ")
+                builder.append(desugaredInterfacesWithDefaultMethods.toString())
+                builder.append("\n")
+            }
         }
         builder.append("]")
         return builder.toString()

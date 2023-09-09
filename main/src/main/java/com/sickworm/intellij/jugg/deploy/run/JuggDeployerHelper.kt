@@ -113,7 +113,7 @@ class JuggDeployerHelper(
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp, isFallbackAllHotFix)
-                logger.debug("Deploying data:\n$deployData")
+                logger.debug("Deploying data(debug):\n$deployData")
                 logger.info("Deploying data:\n${deployData.toDescString()}")
                 if (deployData.isFullOverlays) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
@@ -131,6 +131,9 @@ class JuggDeployerHelper(
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
             if (canRetry && !isInstall) {
+                val isAppForeground = deployTargetManager.isAppForeground()
+                logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
+
                 juggReporter.report {
                     action = "incremental_deploy_retry_start"
                     detail = reason
@@ -152,8 +155,6 @@ class JuggDeployerHelper(
 
                 val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
-                val isAppForeground = deployTargetManager.isAppForeground()
-                logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
                 if (isMissingAgentResponses || isOverlayIdNotCorrect) {
                     val isNeedRecover = when {
                         isMissingAgentResponses && !isAppForeground-> {
