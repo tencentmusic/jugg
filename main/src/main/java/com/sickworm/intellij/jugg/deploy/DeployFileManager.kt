@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -13,6 +14,7 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
+import java.util.zip.ZipFile
 
 /**
  * Manage runtime deploy file status and provides [JuggDeployData]
@@ -49,6 +51,8 @@ class DeployFileManager(
     private val sourceFileManager = SourceFileManager(logger, databaseDir)
 
     private var crc32 = CRC32()
+
+    private var moduleInfos: Map<String, ModuleInfo> = mutableMapOf()
 
     @Synchronized
     fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>) {
@@ -207,21 +211,36 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun updateSourceDirs(sourceFileDirs: List<File>) {
-        sourceFileManager.init(sourceFileDirs)
+    fun updateModuleInfos(moduleInfos: Map<String, ModuleInfo>) {
+        this.moduleInfos = moduleInfos
+        val sourceDirs = moduleInfos.values.flatMap {
+            it.sourceDirs
+        }
+        sourceFileManager.init(sourceDirs)
+    }
+
+    @Synchronized
+    fun getRecompileFiles(): RecompileFiles {
+        val deployItems = stagingFiles.values
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.toDeployItem() }
+        val juggDeployData = deployDataGenerator.buildDeployData(deployItems)
+
+        val startTime = System.currentTimeMillis()
+        val recompileFiles = RecompileFiles(
+            getEffectedSourceFiles(juggDeployData.effectedSourceFileNames),
+            getDesugarInterfaceWithDefaultMethodFiles(juggDeployData.desugaredInterfacesWithDefaultMethods)
+        )
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("find recompile files cost: $costTime ms")
+        return recompileFiles
     }
 
     /**
      * Get source files that effected by [compiledFiles].
      * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
      */
-    @Synchronized
-    fun getEffectedSourceFiles(): List<File> {
-        val deployItems = stagingFiles.values
-            .filter { it.type == CompileOutput.Type.Dex }
-            .map { it.toDeployItem() }
-        val juggDeployData = deployDataGenerator.buildDeployData(deployItems)
-        val effectedSourceFiles = juggDeployData.effectedSourceFileNames
+    private fun getEffectedSourceFiles(effectedSourceFiles: List<String>): List<File> {
         if (effectedSourceFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no effected source files")
             return emptyList()
@@ -232,23 +251,110 @@ class DeployFileManager(
             val missingFiles = effectedSourceFiles.filter { fileName ->
                 !sourceFiles.any { it.name == fileName }
             }
-            logger.warn("getEffectedSourceFiles: source files size is less than effected source files size. " +
-                "missing source files: $missingFiles")
+            logger.warn("missing source files: $missingFiles")
         }
 
-        val unCompiledFiles = sourceFiles.filter { !compiledFiles.containsKey(it.stdPath) }
-        if (unCompiledFiles.isEmpty()) {
+        val unCompiledEffectedFiles = sourceFiles.filter { !compiledFiles.containsKey(it.stdPath) }
+        if (unCompiledEffectedFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no uncompiled source files")
             return emptyList()
         }
 
-        logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $unCompiledFiles")
+        logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $unCompiledEffectedFiles")
 
-        return unCompiledFiles
+        return unCompiledEffectedFiles
+    }
+
+    private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>): List<ChangedFile> {
+        if (interfaceNames.isEmpty()) {
+            logger.debug("getDesugarInterfaceWithDefaultMethodFiles: no desugar interface with default method files")
+            return emptyList()
+        }
+
+        val startTime = System.currentTimeMillis()
+        val interfaceRelativePaths = interfaceNames.map {
+            it.classNameToPath
+        }.toMutableList()
+        logger.debug("getDesugarInterfaceWithDefaultMethodFiles: interfaceRelativePaths $interfaceRelativePaths")
+
+        val redexClassesFiles = mutableListOf<ChangedFile>()
+        moduleInfos.values.forEach moduleLoop@{ moduleInfo ->
+            moduleInfo.buildPathInfo.allClassPath.forEach {  classPath ->
+                if (!classPath.isDirectory) {
+                    return@forEach
+                }
+                val iterator = interfaceRelativePaths.iterator()
+                while (iterator.hasNext()) {
+                    val relativePath = iterator.next()
+                    val destFile = File(classPath, relativePath)
+                    if (destFile.exists()) {
+                        logger.debug("found desugared class file: $destFile")
+                        iterator.remove()
+                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.juggRedexModule)
+                        redexClassesFiles.add(changedFile)
+                    }
+                }
+            }
+        }
+        if (interfaceRelativePaths.isEmpty()) {
+            val costTime = System.currentTimeMillis() - startTime
+            logger.debug("find desugared class files cost: $costTime ms")
+            return redexClassesFiles
+        }
+
+        val libraryFiles = mutableSetOf<File>()
+        moduleInfos.values.forEach { moduleInfo ->
+            moduleInfo.libraryDependencies.forEach {
+                libraryFiles.add(it.file)
+            }
+        }
+        logger.debug("getDesugarInterfaceWithDefaultMethodFiles: libraryPaths ${libraryFiles.size}")
+
+        libraryFiles.forEach libraryLoop@{ libraryFile ->
+            val iterator = interfaceRelativePaths.iterator()
+            while (iterator.hasNext()) {
+                val relativePath = iterator.next()
+                try {
+                    if (!libraryFile.exists()) {
+                        continue
+                    }
+
+                    ZipFile(libraryFile).use { zipFile ->
+                        val entry = zipFile.getEntry(relativePath)
+                        if (entry != null) {
+                            logger.debug("found desugared class file in library ${libraryFile.absolutePath}/${relativePath}")
+                            val destFile = File(tmpDir, relativePath)
+                            destFile.parentFile?.mkdirs()
+                            zipFile.getInputStream(entry).use { inputStream ->
+                                destFile.outputStream().use { outputStream ->
+                                    inputStream.copyTo(outputStream)
+                                }
+                                iterator.remove()
+                                val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.juggRedexModule)
+                                redexClassesFiles.add(changedFile)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.warn("getDesugarInterfaceWithDefaultMethodFiles: failed to find desugared class file in library ${libraryFile.absolutePath}/${relativePath}, error: ${e.message}")
+                }
+            }
+        }
+
+        if (interfaceRelativePaths.isNotEmpty()) {
+            logger.warn("failed to find desugar class files: $interfaceRelativePaths")
+        }
+
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("find desugared class files cost: $costTime ms")
+        return redexClassesFiles
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
     private val File.stdPath get() = path.replace(File.separatorChar, '/')
 }
 
-class StagingFile(val file: File, val type: CompileOutput.Type)
+class RecompileFiles(
+    val effectedSourceFiles: List<File>,
+    val redexClasses: List<ChangedFile>,
+)

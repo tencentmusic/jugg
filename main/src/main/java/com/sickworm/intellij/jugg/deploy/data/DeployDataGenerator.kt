@@ -93,7 +93,8 @@ class DeployDataGenerator(
         val apks = deployDataDatabase.getApkInfos()
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
-            effectedSourceAndClassNodes.keys.toList() + interfacesWithDesugaredDefaultMethod,
+            effectedSourceAndClassNodes.keys.toList(),
+            interfacesWithDesugaredDefaultMethod,
             overlays, parsedDex,
             isFullOverlays, isWarmUp,
         )

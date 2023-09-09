@@ -3,14 +3,13 @@ package com.sickworm.intellij.jugg.compiler.source
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import java.io.File
 
 class DexCompiler(
     context: ICompileContext
 ): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Class)
-
-    override val isNeedOutputDirEmpty: Boolean = true
 
     private val dexFileMaker = DexFileMaker()
 
@@ -20,15 +19,28 @@ class DexCompiler(
         val files = task.files.map { it.file }
 
         try {
-            dexFileMaker.dex(task.outputDir, files, dependencies, context.androidJar, context.minApi)
-            val dexFiles = task.outputDir.listFilesRecursively()
+            val tempOutput = context.tempCompileDir
+            tempOutput.clearDir()
+            dexFileMaker.dex(tempOutput, files, dependencies, context.androidJar, context.minApi)
+            val dexFiles = tempOutput.listFilesRecursively()
             val details: List<Result<CompileFile, CompileError>> = task.files.map {
                 Result.success(it)
             }
             val outputs: List<CompileOutput> = dexFiles.map {
-                CompileOutput(CompileOutput.Type.Dex, it, task.outputDir)
+                CompileOutput(CompileOutput.Type.Dex, it, tempOutput)
             }
-            return CompileResult(task, details, outputs)
+
+            val finalOutputs = outputs.map {
+                val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
+                outputFile.parentFile.mkdirs()
+                if (outputFile.exists()) {
+                    outputFile.delete()
+                }
+                it.file.renameTo(outputFile)
+                CompileOutput(CompileOutput.Type.Dex, outputFile, task.outputDir)
+            }
+
+            return CompileResult(task, details, finalOutputs)
         } catch (e: Exception) {
             logger.error(e)
             val details:List<Result<CompileFile, CompileError>> = task.files.map {

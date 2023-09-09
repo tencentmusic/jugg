@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import org.jetbrains.annotations.TestOnly
@@ -129,6 +130,7 @@ class JuggCompilerHelper(
 
         // do compile
         logger.info("Compile files:\n${compileFiles.desc()}")
+        val startTime = System.currentTimeMillis()
         val compileResult = try {
             compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
         } catch (e: Exception) {
@@ -149,17 +151,30 @@ class JuggCompilerHelper(
         val failedStates = compileResult.failedFiles.map {
             ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
-        logger.debug("Compile finished, success: ${compileResult.successFiles.size}, " +
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("Compile finished in ${costTime / 1000}s, " +
+                "success: ${compileResult.successFiles.size}, " +
                 "failure: ${compileResult.failedFiles.size}.")
         deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val effectedSourceFiles = deployFileManager.getEffectedSourceFiles()
-            val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
-            if (changedFiles.isNotEmpty()) {
+            val recompileFiles = deployFileManager.getRecompileFiles()
+            val effectedSourceFiles = recompileFiles.effectedSourceFiles
+            if (effectedSourceFiles.isNotEmpty()) {
                 logger.info("Compile success, but found effected source files, continue compile. Files: ${effectedSourceFiles.map { it.name }}")
+                val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
                 deployFileManager.addChangedFile(changedFiles)
+            }
+
+            val redexClasses = recompileFiles.redexClasses
+            if (redexClasses.isNotEmpty()) {
+                logger.info("Compile success, but found classes that need to be redexed, continue compile. Classes: ${redexClasses.map { it.file.name }}")
+                deployFileManager.addChangedFile(redexClasses)
+                return incrementalCompile()
+            }
+
+            if (deployFileManager.getUncompiledFiles().isNotEmpty()) {
                 return incrementalCompile()
             }
         }

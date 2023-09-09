@@ -128,15 +128,15 @@ class DeployDataGeneratorTest {
         generator.init(projectInfo.apkInfos, emptyList())
         var parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1")
         var deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("DefaultInterface.java"), deployData.effectedSourceFileNames)
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
 
         parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass2")
         deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("DefaultInterface.java"), deployData.effectedSourceFileNames)
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
 
         parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3")
         deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("ImplementBaseInterface3.java", "DefaultInterface.java"), deployData.effectedSourceFileNames)
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;", "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
     }
 
     private fun getAdbParsedDex(className: String = "com.example.myapplication.ABC"): ParsedDex {

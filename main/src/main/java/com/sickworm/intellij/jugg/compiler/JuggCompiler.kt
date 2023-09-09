@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
+import com.sickworm.intellij.jugg.compiler.source.DexCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import java.io.File
 
@@ -13,7 +14,8 @@ class JuggCompiler(
         CompileFile.Type.Java,
         CompileFile.Type.Kotlin,
         CompileFile.Type.Asset,
-        CompileFile.Type.Resource
+        CompileFile.Type.Resource,
+        CompileFile.Type.Class,
     )
 
     private val assetOverlayCompiler = AssetOverlayCompiler(context)
@@ -24,6 +26,10 @@ class JuggCompiler(
 
     private val sourceCompiler = SourceCompiler(
         context.subContext("classes"))
+
+    private val dexCompiler = DexCompiler(
+        context.subContext("tmp_dex")
+    )
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         var compileResult = CompileResult(task, emptyList(), emptyList())
@@ -128,6 +134,17 @@ class JuggCompiler(
         )
         if (sourceCompileTask.isNeedCompile) {
             compileResult += sourceCompiler.compile(sourceCompileTask)
+        }
+
+        // compile .class
+        val dexCompileTask = CompileTask(
+            files = task.files.filter {
+                it.type == CompileFile.Type.Class
+            },
+            outputDir = classesOutputDir
+        )
+        if (dexCompileTask.isNeedCompile) {
+            compileResult += dexCompiler.compile(dexCompileTask)
         }
 
         return compileResult

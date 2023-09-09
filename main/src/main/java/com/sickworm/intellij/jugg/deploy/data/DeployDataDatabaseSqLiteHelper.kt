@@ -4,6 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
+import com.sickworm.intellij.jugg.deploy.interfaceNameFromDesugaredDefaultMethodClass
 import com.sickworm.intellij.jugg.deploy.isOfficialClassExceptAndroidX
 import java.io.File
 import java.sql.Connection
@@ -748,7 +749,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 listOf(it.superClass) + it.interfaceNames
             }.filter {
                 // don't filter android X classes because they may use default method.
-                // e.g. Landroidx/room/migration/AutoMigrationSpec
+                // e.g. Landroidx/lifecycle/DefaultLifecycleObserver;
                 !it.isOfficialClassExceptAndroidX
             }
 
@@ -760,11 +761,12 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         // find interfaces with desugared default method class which has suffix of "$-CC;"
                         val defaultInterfaces = toCheckInterfaces.map { it.desugarDefaultInterfaceName }
                         val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
-                        val sql = "SELECT source FROM class_info WHERE name IN ($defaultInterfacesString);"
+                        val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
                         val resultSet: ResultSet = statement.executeQuery(sql)
                         while (resultSet.next()) {
-                            val source = resultSet.getString(1)
-                            result.add(source)
+                            val name = resultSet.getString(1)
+                            val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
+                            result.add(interfaceName)
                         }
                         checkedClasses.addAll(toCheckInterfaces)
 

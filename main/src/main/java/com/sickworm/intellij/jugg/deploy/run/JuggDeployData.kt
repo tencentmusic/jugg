@@ -25,6 +25,8 @@ data class JuggDeployData(
     val hotReloadModifiedClasses: List<ClassDeployItem>,
     /** effected source files names(from source flag in .dex file) that need to be recompiled. */
     val effectedSourceFileNames: List<String>,
+    /** desugared interfaces with default methods that need to be redexed.  */
+    val desugaredInterfacesWithDefaultMethods: List<String>,
     /** modified files that will place into /assets or /res. */
     val overlays: List<DeployItem>,
     /** parsed class nodes and method & field references. */
@@ -110,7 +112,7 @@ data class JuggDeployData(
     companion object {
         fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks,
             emptyList(), emptyList(), emptyList(),
-            emptyList(), emptyList(), ParsedDex.EMPTY,
+            emptyList(), emptyList(), emptyList(), ParsedDex.EMPTY,
             isFullOverlays = false,
             isWarmUp = false,
             isInstall = true,
@@ -118,7 +120,7 @@ data class JuggDeployData(
 
         fun forDryDeploy(apks: List<ApkInfo>) = JuggDeployData(apks,
             emptyList(), emptyList(), emptyList(),
-            emptyList(), emptyList(), ParsedDex.EMPTY,
+            emptyList(), emptyList(), emptyList(),ParsedDex.EMPTY,
             isFullOverlays = false,
             isWarmUp = false,
             isInstall = false,

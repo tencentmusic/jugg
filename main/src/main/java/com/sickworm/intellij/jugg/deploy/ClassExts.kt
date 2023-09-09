@@ -48,8 +48,22 @@ inline val String.desugarDefaultInterfaceName: String
     }
 
 
+inline val String.interfaceNameFromDesugaredDefaultMethodClass: String
+    get() {
+        return substring(0, length - desugarDefaultInterfaceSuffix.length) + ";"
+    }
+
 inline val String.outerClassName: String
     get() {
         val endIndex = indexOfOrNull('$') ?: length
         return substring(0, endIndex)
+    }
+
+inline val String.classNameToPath: String
+    get() {
+        return if (startsWith("L")) {
+            substring(1, length - 1) + ".class"
+        } else {
+            replace('.', '/') + ".class"
+        }
     }

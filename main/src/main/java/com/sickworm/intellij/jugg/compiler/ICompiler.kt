@@ -14,7 +14,7 @@ data class CompileTask(
 
     operator fun plus(task: CompileTask): CompileTask {
         if (!outputDir.isParentOf(task.outputDir)) {
-            throw JuggInternalException.combineTaskFailed()
+            throw JuggInternalException.combineTaskFailed(outputDir, task.outputDir)
         }
         return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir)
     }
@@ -195,6 +195,26 @@ data class ModuleInfo(
             else -> splits[splits.size - 2]
         }
     }
+
+    companion object {
+        // a virtual module used for redex files
+        val juggRedexModule = ModuleInfo(
+            name = "jugg_redex",
+            moduleRootDir = File(""),
+            projectRootDir = File(""),
+            sourceDirs = emptyList(),
+            resourceDirs = emptyList(),
+            assetsDirs = emptyList(),
+            compileVersion = null,
+            buildToolsVersion = null,
+            kotlinJvmTarget = null,
+            javaSourceCompatibility = null,
+            javaTargetCompatibility = null,
+            buildPathInfo = ModuleBuildPathInfo(File(""), File("")),
+            moduleDependencies = emptyList(),
+            libraryDependencies = emptyList(),
+        )
+    }
 }
 
 data class ModuleDependency(
@@ -281,7 +301,9 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
         // split by module
         val fileGroups = task.files.groupBy { it.module }
         val moduleCompileOrder = ModuleCompileOrderUtils.getModuleCompileOrders(fileGroups.keys)
-        logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
+        if (moduleCompileOrder.size > 1) {
+            logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
+        }
 
         val results = moduleCompileOrder.map {
             val files = fileGroups[it] ?: emptyList()

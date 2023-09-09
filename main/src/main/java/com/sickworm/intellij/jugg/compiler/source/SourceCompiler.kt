@@ -9,15 +9,15 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Java, CompileFile.Type.Kotlin)
 
-    private val javaCompiler = JavaCompiler(context)
+    private val javaCompiler = JavaCompiler(context.subContext("tmp_java"))
 
-    private val kotlinCompiler = KotlinCompiler(context)
+    private val kotlinCompiler = KotlinCompiler(context.subContext("tmp_kotlin"))
 
-    private val dexCompiler = DexCompiler(context)
+    private val dexCompiler = DexCompiler(context.subContext("tmp_dex"))
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         context.tempCompileDir.clearDir()
-        var compileResult = CompileResult(task.copy(outputDir = context.tempCompileDir), emptyList(), emptyList())
+        var classCompileResult = CompileResult(task.copy(outputDir = context.tempCompileDir), emptyList(), emptyList())
 
         // Kotlin must go first because in the cross-reference case, Java depends on Kotlin compile output
         // while Kotlin don't (kotlin can use -Xjava-source-roots argument)
@@ -26,7 +26,7 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             outputDir = File(context.tempCompileDir, "kotlin")
         )
         if (kotlinCompileTask.isNeedCompile) {
-            compileResult += kotlinCompiler.compile(kotlinCompileTask)
+            classCompileResult += kotlinCompiler.compile(kotlinCompileTask)
         }
 
         val javaCompileTask = CompileTask(
@@ -34,41 +34,29 @@ class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
             outputDir = File(context.tempCompileDir, "java")
         )
         if (javaCompileTask.isNeedCompile) {
-            compileResult += javaCompiler.compile(javaCompileTask)
-        }
-
-        if (!compileResult.isAllSuccess) {
-            // TODO handle successfully compiled files
-            return CompileResult(task, compileResult.details, emptyList())
+            classCompileResult += javaCompiler.compile(javaCompileTask)
         }
 
         // dex .class
-        val classFiles = compileResult.outputs.filter {
+        val classFiles = classCompileResult.outputs.filter {
             it.type == CompileOutput.Type.Class
         }
         val dependencies = (javaCompileTask.files + kotlinCompileTask.files).flatMap { it.dependencyPaths }
         val compileClassFiles = classFiles.map {
             CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module, dependencyPaths = dependencies)
         }
-        val dexOutputDir = File(context.tempCompileDir, "dex")
-        val dexTask = CompileTask(compileClassFiles, dexOutputDir)
-        val dexResult = dexCompiler.compile(dexTask)
-        if (!dexResult.isAllSuccess) {
-            return dexResult
-        }
-
-        // move dex files to output dir
-        val finalOutputs = dexResult.outputs.map {
-            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
-            outputFile.parentFile.mkdirs()
-            if (outputFile.exists()) {
-                outputFile.delete()
+        val dexTask = CompileTask(compileClassFiles, task.outputDir)
+        val dexCompileResult = dexCompiler.compile(dexTask)
+        if (!dexCompileResult.isAllSuccess) {
+            // mark all failed
+            val successDetails = classCompileResult.details.filter { it.isSuccess }
+            val failedDetails = classCompileResult.details.filter { !it.isSuccess }
+            val failedDexDetails = successDetails.map {
+                Result.failure<CompileFile, CompileError>(CompileError(it.file, listOf(-1L to "Dex compile failed")))
             }
-            it.file.renameTo(outputFile)
-            CompileOutput(CompileOutput.Type.Dex, outputFile, task.outputDir)
+            return CompileResult(task, failedDexDetails + failedDetails, emptyList())
         }
-
-        return CompileResult(task, compileResult.details, finalOutputs)
+        return CompileResult(task, classCompileResult.details, dexCompileResult.outputs)
     }
 
     override fun warmUp() {
