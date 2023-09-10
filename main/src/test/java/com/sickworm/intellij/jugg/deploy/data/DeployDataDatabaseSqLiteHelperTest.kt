@@ -53,12 +53,10 @@ class DeployDataDatabaseSqLiteHelperTest {
             1,
             parsedApk.dexFiles.size + parsedApk.overlayFiles.size,
             parsedApk.classes.size,
-            parsedApk.classes.values.sumOf { it.methods.size },
-            parsedApk.classes.values.sumOf { it.fields.size },
             parsedApk.methodRefs.values.sumOf { it.size },
             parsedApk.fieldRefs.values.sumOf { it.size },
         )
-        listOf("apk_info", "entry_info", "class_info", "method_info", "field_info", "method_refs", "field_refs").forEachIndexed { index, it ->
+        listOf("apk_info", "entry_info", "class_info", "method_refs", "field_refs").forEachIndexed { index, it ->
             val size = helper.getSize(it)
             println("Table $it has $size")
             assertEquals(apkInfoKeys[index], size, "Table $it not match")

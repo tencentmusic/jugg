@@ -1,3 +1,5 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
@@ -42,7 +44,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val resultSet: ResultSet = statement.executeQuery(readVersionSQL)
                 if (resultSet.next()) {
                     val version = resultSet.getInt(1)
-                    logger.debug("Current database version: $version")
+                    logger.debug("Current database version: ${if (version == 0) "not set" else "$version"}")
                     if (version > 0 && version != VERSION) {
                         logger.debug("Database version is not match, expect: ${VERSION}, actual: ${version}. recreate database.")
                         connection.close()
@@ -73,24 +75,11 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     super_name TEXT NOT NULL,
                     source TEXT,
                     entry_info_name TEXT NOT NULL,
+                    methods TEXT NOT NULL,
+                    fields TEXT NOT NULL,
                     id INTEGER NOT NULL PRIMARY KEY
                 );
-                
-                CREATE TABLE IF NOT EXISTS method_info (
-                    class_id INTEGER NOT NULL,
-                    access INTEGER NOT NULL,
-                    name TEXT NOT NULL,
-                    desc TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS method_info_class_id_index ON method_info(class_id);
-                
-                CREATE TABLE IF NOT EXISTS field_info (
-                    class_id INTEGER NOT NULL,
-                    access INTEGER NOT NULL,
-                    name TEXT NOT NULL,
-                    type TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS field_info_class_id_index ON field_info(class_id);
+                CREATE INDEX IF NOT EXISTS class_info_name_index ON class_info(name);
                 
                 CREATE TABLE IF NOT EXISTS method_refs (
                     class_id INTEGER NOT NULL,
@@ -267,24 +256,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 preparedStatement.executeBatch()
             }
 
-            val deleteMethodSql = "DELETE FROM method_info WHERE class_id=?;"
-            connection.prepareStatement(deleteMethodSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
-                }
-                preparedStatement.executeBatch()
-            }
-
-            val deleteFieldSql = "DELETE FROM field_info WHERE class_id=?;"
-            connection.prepareStatement(deleteFieldSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
-                }
-                preparedStatement.executeBatch()
-            }
-
             val deleteMethodRefSql = "DELETE FROM method_refs WHERE class_id=? OR ref_class_id=?;"
             connection.prepareStatement(deleteMethodRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
@@ -311,7 +282,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         }
 
         runWithTimeCost("doInsertClassInfo") {
-            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, id) VALUES(?, ?, ?, ?, ?, ?);"
+            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
                 parsedApk.classes.values.forEach {
                     preparedStatement.setString(1, it.className)
@@ -319,42 +290,12 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     preparedStatement.setString(3, it.superClass)
                     preparedStatement.setString(4, it.source)
                     preparedStatement.setString(5, it.dexFileName)
+                    preparedStatement.setString(6, it.methods.toMethodString())
+                    preparedStatement.setString(7, it.fields.toFieldString())
                     val classId = nextClassId++
-                    preparedStatement.setInt(6, classId)
+                    preparedStatement.setInt(8, classId)
                     preparedStatement.addBatch()
                     dbClassNodeMap[it.className] = classId
-                }
-                preparedStatement.executeBatch()
-            }
-        }
-
-        runWithTimeCost("doInsertMethodInfo") {
-            val sql = "INSERT INTO method_info(class_id, access, name, desc) VALUES(?, ?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.classes.values.forEach { classNode ->
-                    classNode.methods.forEach {
-                        preparedStatement.setInt(1, dbClassNodeMap[classNode.className]!!)
-                        preparedStatement.setInt(2, it.access)
-                        preparedStatement.setString(3, it.name)
-                        preparedStatement.setString(4, it.desc)
-                        preparedStatement.addBatch()
-                    }
-                }
-                preparedStatement.executeBatch()
-            }
-        }
-        
-        runWithTimeCost("doInsertFieldInfo") {
-            val sql = "INSERT INTO field_info(class_id, access, name, type) VALUES(?, ?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.classes.values.forEach { classNode ->
-                    classNode.fields.forEach {
-                        preparedStatement.setInt(1, dbClassNodeMap[classNode.className]!!)
-                        preparedStatement.setInt(2, it.access)
-                        preparedStatement.setString(3, it.name)
-                        preparedStatement.setString(4, it.type)
-                        preparedStatement.addBatch()
-                    }
                 }
                 preparedStatement.executeBatch()
             }
@@ -525,7 +466,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            val dbClasses = mutableMapOf<Int, DbClassNode>()
+            val dbClasses = mutableMapOf<Int, ClassNode>()
+            val classes = mutableMapOf<String, ClassNode>()
             val selectClassSQL = "SELECT * FROM class_info;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
@@ -535,46 +477,13 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)
-                    val id = resultSet.getInt(6)
-                    val classNode = DbClassNode(dexFileName, className, id, interfaceNames, superName, source)
+                    val methodInfos = resultSet.getString(6).toMethodList(className)
+                    val fieldInfos = resultSet.getString(7).toFieldList(className)
+                    val id = resultSet.getInt(8)
+                    val classNode = ClassNode(dexFileName, className, methodInfos, fieldInfos, interfaceNames, superName, source)
                     dbClasses[id] = classNode
+                    classes[className] = classNode
                 }
-            }
-
-            val classMethods = mutableMapOf<Int, MutableList<MethodNode>>()
-            val selectMethodSQL = "SELECT * FROM method_info;"
-            connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectMethodSQL)
-                while (resultSet.next()) {
-                    val classId = resultSet.getInt(1)
-                    val methodAccess = resultSet.getInt(2)
-                    val methodName = resultSet.getString(3)
-                    val methodDesc = resultSet.getString(4)
-                    val className = dbClasses[classId]?.className ?: continue
-                    classMethods.getOrPut(classId) { mutableListOf() }.add(MethodNode(className, methodAccess, methodName, methodDesc))
-                }
-            }
-
-            val classFields = mutableMapOf<Int, MutableList<FieldNode>>()
-            val selectFieldSQL = "SELECT * FROM field_info;"
-            connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectFieldSQL)
-                while (resultSet.next()) {
-                    val classId = resultSet.getInt(1)
-                    val access = resultSet.getInt(2)
-                    val fieldName = resultSet.getString(3)
-                    val fieldType = resultSet.getString(4)
-                    val className = dbClasses[classId]?.className ?: continue
-                    classFields.getOrPut(classId) { mutableListOf() }.add(FieldNode(className, access, fieldName, fieldType))
-                }
-            }
-
-
-            val classes = mutableMapOf<String, ClassNode>()
-            dbClasses.values.forEach {
-                val methods = classMethods[it.classId] ?: emptyList()
-                val fields = classFields[it.classId] ?: emptyList()
-                classes[it.className] = ClassNode(it.dexFileName, it.className, methods, fields, it.interfaceNames, it.superClass, it.source)
             }
 
             val methodRefs = mutableMapOf<MethodNode, MutableList<String>>()
@@ -637,50 +546,19 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
                 val classNamesString = classNames.joinToString(",") { "'$it'" }
-                val selectClassSQL = "SELECT * FROM class_info WHERE name IN ($classNamesString);"
-                val dbClasses = mutableMapOf<Int, DbClassNode>()
-                var resultSet: ResultSet = statement.executeQuery(selectClassSQL)
+                val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, methods, fields FROM class_info WHERE name IN ($classNamesString);"
+                val classes = mutableMapOf<String, ClassNode>()
+                val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
                     val interfaceNames = resultSet.getString(2).toInterfaceList()
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)
-                    val id = resultSet.getInt(6)
-                    val classNode = DbClassNode(dexFileName, className, id, interfaceNames, superName, source)
-                    dbClasses[id] = classNode
-                }
-                val classIds = dbClasses.keys.joinToString(",")
-
-                val classMethods = mutableMapOf<Int, MutableList<MethodNode>>()
-                val selectMethodSQL = "SELECT * FROM method_info WHERE class_id IN ($classIds);"
-                resultSet = statement.executeQuery(selectMethodSQL)
-                while (resultSet.next()) {
-                    val classId = resultSet.getInt(1)
-                    val methodAccess = resultSet.getInt(2)
-                    val methodName = resultSet.getString(3)
-                    val methodDesc = resultSet.getString(4)
-                    val className = dbClasses[classId]?.className ?: continue
-                    classMethods.getOrPut(classId) { mutableListOf() }.add(MethodNode(className, methodAccess, methodName, methodDesc))
-                }
-
-                val classFields = mutableMapOf<Int, MutableList<FieldNode>>()
-                val selectFieldSQL = "SELECT * FROM field_info WHERE class_id IN ($classIds);"
-                resultSet = statement.executeQuery(selectFieldSQL)
-                while (resultSet.next()) {
-                    val classId = resultSet.getInt(1)
-                    val access = resultSet.getInt(2)
-                    val fieldName = resultSet.getString(3)
-                    val fieldType = resultSet.getString(4)
-                    val className = dbClasses[classId]?.className ?: continue
-                    classFields.getOrPut(classId) { mutableListOf() }.add(FieldNode(className, access, fieldName, fieldType))
-                }
-
-                val classes = mutableMapOf<String, ClassNode>()
-                dbClasses.values.forEach {
-                    val methods = classMethods[it.classId] ?: emptyList()
-                    val fields = classFields[it.classId] ?: emptyList()
-                    classes[it.className] = ClassNode(it.dexFileName, it.className, methods, fields, it.interfaceNames, it.superClass, it.source)
+                    val methodInfos = resultSet.getString(6).toMethodList(className)
+                    val fieldInfos = resultSet.getString(7).toFieldList(className)
+                    val classNode = ClassNode(dexFileName, className, methodInfos, fieldInfos, interfaceNames, superName, source)
+                    classes[className] = classNode
                 }
 
                 return classes
@@ -863,7 +741,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         return result
     }
 
-    private fun String.toInterfaceList(): List<String> {
+    private inline fun String.toInterfaceList(): List<String> {
         return if (isEmpty()) {
             emptyList()
         } else {
@@ -871,16 +749,42 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         }
     }
 
-    private fun List<String>.toInterfaceString(): String {
+    private inline fun List<String>.toInterfaceString(): String {
         return joinToString(" ")
     }
-}
 
-private class DbClassNode(
-    val dexFileName: String,
-    val className: String,
-    val classId: Int,
-    val interfaceNames: List<String>,
-    val superClass: String,
-    val source: String?,
-)
+
+    private inline fun String.toMethodList(owner: String): List<MethodNode> {
+        return if (isEmpty()) {
+            emptyList()
+        } else {
+            split("\n").map {
+                val parts = it.split(" ")
+                MethodNode(owner, parts[0].toInt(), parts[1], parts[2])
+            }
+        }
+    }
+
+    private inline fun List<MethodNode>.toMethodString(): String {
+        return joinToString("\n") {
+            "${it.access} ${it.name} ${it.desc}"
+        }
+    }
+
+    private inline fun String.toFieldList(owner: String): List<FieldNode> {
+        return if (isEmpty()) {
+            emptyList()
+        } else {
+            split("\n").map {
+                val parts = it.split(" ")
+                FieldNode(owner, parts[0].toInt(), parts[1], parts[2])
+            }
+        }
+    }
+
+    private inline fun List<FieldNode>.toFieldString(): String {
+        return joinToString("\n") {
+            "${it.access} ${it.name} ${it.type}"
+        }
+    }
+}
