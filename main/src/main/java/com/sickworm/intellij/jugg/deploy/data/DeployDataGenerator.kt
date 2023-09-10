@@ -83,7 +83,8 @@ class DeployDataGenerator(
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
-        val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef)
+        val includeClassNames = changedClasses.map { it.sigName }.toSet()
+        val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(includeClassNames, changedMethodRef, changedFieldRef)
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }

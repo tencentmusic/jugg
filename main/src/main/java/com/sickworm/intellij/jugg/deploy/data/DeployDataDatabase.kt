@@ -33,7 +33,7 @@ interface IDeployDataDatabase {
     /**
      * @return Map<source file name, List<class name>>
      */
-    fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>>
+    fun getEffectedSourceAndClass(includeClassNames: Set<String>, changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>>
 
     fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String>
 }
@@ -160,7 +160,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+    override fun getEffectedSourceAndClass(includeClassNames: Set<String>, changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
         if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty()) {
             return emptyMap()
         }
@@ -172,6 +172,19 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             apkEffectClassNodesMap.forEach addNode@{
                 // use incremental first
                 effectClassNodesMap.putIfAbsent(it.key, it.value)
+            }
+        }
+
+        // filter class names that already included
+        effectClassNodesMap.keys.forEach { source ->
+            val filteredClassNodes = effectClassNodesMap[source]!!.filter {
+                !includeClassNames.contains(it)
+            }
+            effectClassNodesMap[source] = filteredClassNodes
+        }
+        effectClassNodesMap.iterator().forEach { it ->
+            if (it.value.isEmpty()) {
+                effectClassNodesMap.remove(it.key)
             }
         }
 
