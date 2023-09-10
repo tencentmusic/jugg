@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 import java.util.zip.ZipFile
@@ -55,7 +56,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val updateResults = mutableListOf<ParsedApkUpdateResult>()
         apks.forEach {
             val dbFile = File(dbDir, it.applicationId + ".db")
-            val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
+            val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger.getInstance("DeployDataDatabaseSqLiteHelper"))
             helper.init()
             val apkOverlays = ApkParser().parseEntries(it)
             val diffResult = helper.diffApk(apkOverlays)

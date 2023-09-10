@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.logger.getInstance
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
@@ -43,12 +44,12 @@ class DeployFileManager(
     /**
      * build [JuggDeployData]
      */
-    private val deployDataGenerator = DeployDataGenerator(logger, databaseDir)
+    private val deployDataGenerator = DeployDataGenerator(logger.getInstance("DeployDataGenerator"), databaseDir)
 
     /**
      * get source file by source file name in dex file
      */
-    private val sourceFileManager = SourceFileManager(logger, databaseDir)
+    private val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)
 
     private var crc32 = CRC32()
 

@@ -7,6 +7,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Dispatch log to [loggers].
  */
 class LogDispatcher(
+    val instanceKey: String,
     loggersArg: List<Logger> = emptyList()
 ): Logger() {
 

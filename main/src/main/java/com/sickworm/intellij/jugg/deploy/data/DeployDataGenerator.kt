@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.MethodNode
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.logger.getInstance
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -21,7 +22,7 @@ class DeployDataGenerator(
     databaseDir: File,
 ) {
 
-    private var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger)
+    private var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
 
     /**
      * Build [JuggDeployData] according to deployment history.

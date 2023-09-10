@@ -1,12 +1,13 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.logger.getInstance
 import java.io.File
 import java.sql.DriverManager
 
 class SourceFileManager(private val logger: Logger, dbDir: File) {
 
-    private val database = SourceFileDatabaseSqLiteHelper(File(dbDir, "source_files.db"), logger)
+    private val database = SourceFileDatabaseSqLiteHelper(File(dbDir, "source_files.db"), logger.getInstance("SourceFileDatabaseSqLiteHelper"))
 
     @Synchronized
     fun init(sourceDirs: List<File>) {
