@@ -12,7 +12,6 @@ import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
-import com.sickworm.intellij.jugg.deploy.run.AndroidDeployType
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
@@ -120,9 +119,8 @@ class JuggRunningTask(
             detail = Gson().toJson(detailMap)
         }
 
-        val canNotRetry = compileTaskResult.isGradleCompile
         if (!deployTaskResult.isSuccess) {
-            return if (canNotRetry) {
+            return if (!deployTaskResult.isCanFallback) {
                 initIncrementalCompileTask.invoke()
                 failedAndActiveRunWindow()
             } else {

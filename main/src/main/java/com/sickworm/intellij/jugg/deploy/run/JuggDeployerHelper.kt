@@ -91,11 +91,11 @@ class JuggDeployerHelper(
                 DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
             } else {
                 if (!deployTargetManager.hasDevice) {
-                    logger.info("No device connected, stop deploy.")
+                    logger.warn("\nNo device connected, please check device is connected.")
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "no device connected")
                 }
                 if (isWarmUp && !deployStateManager.deployState.isReadyDeploy) {
-                    logger.info("device not ready to warm up.")
+                    logger.info("Device not ready to warm up.")
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
                 }
 
@@ -103,13 +103,13 @@ class JuggDeployerHelper(
                     if (deployStateManager.deployState.isReadyIncCompile) {
                         if (!recoverDeployState()) {
                             logger.info("Try recover deploy state failed.")
-                            return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Try recover deploy state failed.")
+                            return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Try recover deploy state failed.")
                         } else {
                             logger.info("Try recover deploy state success.")
                         }
                     } else {
                         logger.warn("Invalid state for deploy.")
-                        return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Invalid state for deploy.")
+                        return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Invalid state for deploy.")
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp, isFallbackAllHotFix)
@@ -200,7 +200,7 @@ class JuggDeployerHelper(
                 logger.debug(e)
             }
 
-            DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "Exception: $e")
+            DeployTaskResult(isSuccess = false, isCanFallback = !isInstall, costTime = costTime(), failedReason = "Exception: $e")
         }
     }
 
@@ -332,6 +332,7 @@ private class CopyEmbeddedDistributionPaths {
 data class DeployTaskResult(
     val isSuccess: Boolean,
     val costTime: Long,
+    val isCanFallback: Boolean = false,
     val deployType: JuggDeployData.DeployType? = null,
     val failedReason: String? = null,
 )
