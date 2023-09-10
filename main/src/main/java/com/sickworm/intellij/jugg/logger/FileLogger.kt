@@ -90,6 +90,7 @@ class FileLogger(
                 }
                 val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
                 Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
+                latestLogFile.delete()
             }
             Files.createSymbolicLink(latestLogFile.toPath(), Path.of(dir.absolutePath, name))
 
