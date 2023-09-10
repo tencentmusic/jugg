@@ -35,6 +35,7 @@ class FileLogger(
     companion object {
 
         private const val LATEST_LOG_NAME = "compile_latest.log"
+        private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
 
         private fun createPatternName(): String {
             return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date()) + ".log"
@@ -83,9 +84,15 @@ class FileLogger(
             // link file to compile_latest.log
             val latestLogFile = File(dir, LATEST_LOG_NAME)
             if (latestLogFile.exists()) {
+                val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
+                if (lastLatestLogFile.exists()) {
+                    lastLatestLogFile.delete()
+                }
+                val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
+                Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
                 latestLogFile.delete()
             }
-            Files.createSymbolicLink(Path.of(dir.absolutePath, LATEST_LOG_NAME), Path.of(dir.absolutePath, name))
+            Files.createSymbolicLink(latestLogFile.toPath(), Path.of(dir.absolutePath, name))
 
             return loggerHandler
         }
