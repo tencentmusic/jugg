@@ -58,7 +58,7 @@ class JuggRunningTask(
         } finally {
             stop(indicator)
             isRunning = false
-            setHasRun(project)
+            setHasRun(project, true)
             JuggLogger.stopListenProjectLog(project, loggerListener)
         }
     }
@@ -196,13 +196,13 @@ class JuggRunningTask(
         private var isFirstTimeRun = mutableMapOf<String, Boolean>()
 
         fun isFirstTimeRun(project: Project): Boolean {
-            val key = project.name
+            val key = project.bashPathOrDefault
             return isFirstTimeRun.getOrPut(key) { true }
         }
 
-        fun setHasRun(project: Project) {
-            val key = project.name
-            this.isFirstTimeRun[key] = false
+        fun setHasRun(project: Project, isRun: Boolean) {
+            val key = project.bashPathOrDefault
+            this.isFirstTimeRun[key] = !isRun
         }
     }
 }
