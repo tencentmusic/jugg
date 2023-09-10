@@ -81,7 +81,7 @@ class FileLogger(
             }
             loggerHandler.formatter = formatter
 
-            // link file to compile_latest.log
+            // link file to compile_latest.log and compile_latest-1.log
             val latestLogFile = File(dir, LATEST_LOG_NAME)
             if (latestLogFile.exists()) {
                 val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
@@ -90,20 +90,26 @@ class FileLogger(
                 }
                 val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
                 Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
-                latestLogFile.delete()
             }
             Files.createSymbolicLink(latestLogFile.toPath(), Path.of(dir.absolutePath, name))
 
             return loggerHandler
         }
 
-        private const val maxLogFileSize = 10
+        private const val MAX_LOG_FILE_AMOUNT = 10
 
         private fun removeOldLogFiles(dir: File) {
             val files = dir.listFiles()
-            if (files != null && files.size > maxLogFileSize) {
+            var maxFileAmount = MAX_LOG_FILE_AMOUNT
+            if (File(dir, LATEST_LOG_NAME).exists()) {
+                maxFileAmount += 1
+            }
+            if (File(dir, LAST_LATEST_LOG_NAME).exists()) {
+                maxFileAmount += 1
+            }
+            if (files != null && files.size > maxFileAmount) {
                 files.sortBy { it.lastModified() }
-                for (i in 0 until files.size - maxLogFileSize) {
+                for (i in 0 until files.size - maxFileAmount) {
                     files[i].delete()
                 }
             }
