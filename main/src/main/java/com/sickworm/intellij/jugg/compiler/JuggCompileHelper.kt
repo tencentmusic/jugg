@@ -160,7 +160,7 @@ class JuggCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val recompileFiles = deployFileManager.getRecompileFiles()
+            val recompileFiles = deployFileManager.getRecompileFiles(uncompiledFiles)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
             if (effectedSourceFiles.isNotEmpty()) {
                 logger.info("Compile success, but found effected source files, continue compile. Files: ${effectedSourceFiles.map { it.name }}")

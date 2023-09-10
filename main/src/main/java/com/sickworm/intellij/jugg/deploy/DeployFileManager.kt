@@ -221,7 +221,7 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getRecompileFiles(): RecompileFiles {
+    fun getRecompileFiles(compiledFilesThisTime: List<ChangedFile>): RecompileFiles {
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
@@ -229,7 +229,7 @@ class DeployFileManager(
 
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
-            getEffectedSourceFiles(juggDeployData.effectedSourceFileNames),
+            getEffectedSourceFiles(juggDeployData.effectedSourceFileNames, compiledFilesThisTime),
             getDesugarInterfaceWithDefaultMethodFiles(juggDeployData.desugaredInterfacesWithDefaultMethods)
         )
         val costTime = System.currentTimeMillis() - startTime
@@ -241,7 +241,7 @@ class DeployFileManager(
      * Get source files that effected by [compiledFiles].
      * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
      */
-    private fun getEffectedSourceFiles(effectedSourceFiles: List<String>): List<File> {
+    private fun getEffectedSourceFiles(effectedSourceFiles: List<String>, compiledFilesThisTime: List<ChangedFile>): List<File> {
         if (effectedSourceFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no effected source files")
             return emptyList()
@@ -255,7 +255,8 @@ class DeployFileManager(
             logger.warn("missing source files: $missingFiles")
         }
 
-        val unCompiledEffectedFiles = sourceFiles.filter { !compiledFiles.containsKey(it.stdPath) }
+        val compiledFilesThisTimeSet = compiledFilesThisTime.map { it.file.stdPath }.toSet()
+        val unCompiledEffectedFiles = sourceFiles.filter { !compiledFilesThisTimeSet.contains(it.stdPath) }
         if (unCompiledEffectedFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no uncompiled source files")
             return emptyList()
