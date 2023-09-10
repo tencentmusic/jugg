@@ -10,14 +10,10 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileTask
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.SimpleProcessHandler
-import com.sickworm.intellij.jugg.ide.ChangedFileInfo
-import com.sickworm.intellij.jugg.ide.JuggStateListener
+import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -116,8 +112,13 @@ class JuggCompilerHelper(
         // read all uncompiled files
         val uncompiledFiles = deployFileManager.getUncompiledFiles()
         if (uncompiledFiles.all { it.hasCompiledOnce }) {
-            logger.info("No files changes. Return.")
-            return CompileTaskResult.incrementalFailed(true, "No files changes")
+            return if (JuggRunningTask.isFirstTimeRun(project)) {
+                logger.info("First time run, try start app directly.")
+                CompileTaskResult.incrementalSuccess()
+            } else {
+                logger.info("No files changes. will fallback to gradle compile.")
+                CompileTaskResult.incrementalFailed(true, "No files changes")
+            }
         }
 
         val compileFiles = uncompiledFiles.map {
