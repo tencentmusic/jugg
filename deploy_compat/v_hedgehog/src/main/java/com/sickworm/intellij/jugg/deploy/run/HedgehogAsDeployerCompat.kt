@@ -51,32 +51,28 @@ class HedgehogAsDeployerCompat: GiraffeAsDeployerCompat() {
             ?: return BaseAction.DisableMessage(BaseAction.DisableMessage.DisableMode.DISABLED, "unsupported execution target", "unsupported execution target")
 
         val devices = selectedExecutionTarget.runningDevices
-        return if (devices.isEmpty()) {
-            BaseAction.DisableMessage(
+        if (devices.isEmpty()) {
+            return BaseAction.DisableMessage(
                 BaseAction.DisableMessage.DisableMode.DISABLED,
                 "devices not connected",
                 "the selected devices are not connected"
             )
-        } else if (devices.stream().anyMatch { d: IDevice ->
-                d.state == IDevice.DeviceState.UNAUTHORIZED
-            }) {
+        }
+
+        val firstDevice = devices.first()
+        return if (firstDevice.state == IDevice.DeviceState.UNAUTHORIZED) {
             BaseAction.DisableMessage(
                 BaseAction.DisableMessage.DisableMode.DISABLED,
                 "device not authorized",
                 "the selected device is not authorized"
             )
-        } else if (devices.stream().anyMatch { d: IDevice ->
-                !d.version.isGreaterOrEqualThan(26)
-            }) {
+        } else if (!firstDevice.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
             BaseAction.DisableMessage(
                 BaseAction.DisableMessage.DisableMode.DISABLED,
                 "incompatible device API level",
-                "its API level is lower than 26"
+                "its API level is lower than ${IAsDeployerCompat.MIN_DEVICE_API}"
             )
-        } else if (devices.stream().allMatch { d: IDevice ->
-                DeploymentApplicationService.instance.findClient(d, packageName)
-                    .isEmpty()
-            }) {
+        } else if (DeploymentApplicationService.instance.findClient(firstDevice, packageName).isEmpty()) {
             BaseAction.DisableMessage(
                 BaseAction.DisableMessage.DisableMode.DISABLED,
                 "app not detected",

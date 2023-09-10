@@ -117,10 +117,10 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
                     "its API level is currently unknown"
                 )
             }
-            if (versionFuture.get().apiLevel < AbstractDeployTask.MIN_API_VERSION) {
+            if (versionFuture.get().apiLevel < IAsDeployerCompat.MIN_DEVICE_API) {
                 return BaseAction.DisableMessage(
                     BaseAction.DisableMessage.DisableMode.DISABLED, "incompatible device API level",
-                    "its API level is lower than 26"
+                    "its API level is lower than ${IAsDeployerCompat.MIN_DEVICE_API}"
                 )
             }
             if (deployable.searchClientsForPackage().isEmpty()) {

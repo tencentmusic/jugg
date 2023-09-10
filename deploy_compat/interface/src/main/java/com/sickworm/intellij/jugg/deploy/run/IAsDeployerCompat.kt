@@ -50,5 +50,9 @@ interface IAsDeployerCompat {
     fun getDisableMessage(project: Project): String?
 
     fun getDeploymentService(project: Project): DeploymentService
+
+    companion object {
+        const val MIN_DEVICE_API = 30
+    }
 }
 
