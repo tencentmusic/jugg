@@ -19,6 +19,10 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     private var hasInit = false
 
+    companion object {
+        private const val VERSION = 1
+    }
+
     @Synchronized
     fun init() {
         if (hasInit) {
@@ -33,6 +37,23 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
         // Create a new database connection
         DriverManager.getConnection(url).use { connection ->
+            val readVersionSQL = "PRAGMA schema_version;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(readVersionSQL)
+                if (resultSet.next()) {
+                    val version = resultSet.getInt(1)
+                    logger.debug("Current database version: $version")
+                    if (version > 0 && version != VERSION) {
+                        logger.debug("Database version is not match, expect: ${VERSION}, actual: ${version}. recreate database.")
+                        connection.close()
+                        statement.close()
+                        recreateDatabase()
+                        init()
+                        return
+                    }
+                }
+            }
+
             // Create a new table
             val createTableSQL = """
                 CREATE TABLE IF NOT EXISTS apk_info (
@@ -88,6 +109,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 );
                 CREATE INDEX IF NOT EXISTS field_refs_class_id_index ON field_refs(class_id);
                 CREATE INDEX IF NOT EXISTS field_refs_ref_class_id_index ON field_refs(ref_class_id);
+                
+                PRAGMA schema_version = $VERSION;
             """.trimIndent()
 
             connection.createStatement().use { statement ->
