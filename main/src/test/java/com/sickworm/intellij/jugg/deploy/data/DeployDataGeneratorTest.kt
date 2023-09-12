@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 
 class DeployDataGeneratorTest {
 
-    private val abcParsedDexMock: ParsedDex = getAdbParsedDex()
+    private val abcParsedDexMock: ParsedDex get() = getAdbParsedDex()
     private val abdClassNode get() = abcParsedDexMock.classDeployItems[0].classNode
 
     @Before
