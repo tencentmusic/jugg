@@ -18,6 +18,17 @@ data class ParsedApkDiffResult(
     val updatedDexFiles: Map<String, JuggFileInfo> = emptyMap(),
 ) {
 
+    constructor(apkEntries: ApkEntries) : this(
+        apkInfo = apkEntries.apkInfo,
+        updatedApkInfos = 1,
+        addedOverlayFiles = apkEntries.overlayFiles,
+        removedOverlayFiles = emptyMap(),
+        updatedOverlayFiles = emptyMap(),
+        addedDexFiles = apkEntries.dexFiles,
+        removedDexFiles = emptyMap(),
+        updatedDexFiles = emptyMap(),
+    )
+
     override fun toString(): String {
         return "ParsedApkDiffResult(apkInfo=${apkInfo.apkInfoKey}, updatedApkInfos=$updatedApkInfos, " +
                 "addedOverlayFiles=${addedOverlayFiles.size}, removedOverlayFiles=${removedOverlayFiles.size}, " +
