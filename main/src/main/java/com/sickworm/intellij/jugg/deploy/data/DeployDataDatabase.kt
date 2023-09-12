@@ -184,9 +184,12 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             }
             effectClassNodesMap[source] = filteredClassNodes
         }
-        effectClassNodesMap.iterator().forEach { it ->
-            if (it.value.isEmpty()) {
-                effectClassNodesMap.remove(it.key)
+
+        effectClassNodesMap.iterator().let { iterator ->
+            iterator.forEach {
+                if (it.value.isEmpty()) {
+                    iterator.remove()
+                }
             }
         }
 
