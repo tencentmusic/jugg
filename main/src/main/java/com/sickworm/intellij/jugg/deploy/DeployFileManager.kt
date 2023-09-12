@@ -77,22 +77,26 @@ class DeployFileManager(
     @Synchronized
     fun removeChangedFile(files: List<File>) {
         files.forEach { file ->
-            uncompiledFiles.forEach { (stdPath, changedFile) ->
-                if (stdPath == file.stdPath) {
-                    logger.debug("remove changed file: $file")
-                    uncompiledFiles.remove(stdPath)
-                } else if (changedFile.file.isChild(file)) {
-                    logger.debug("remove changed file for dir deleted: ${changedFile.file}")
-                    uncompiledFiles.remove(stdPath)
+            uncompiledFiles.iterator().let { iterator ->
+                iterator.forEach { (stdPath, changedFile) ->
+                    if (stdPath == file.stdPath) {
+                        logger.debug("remove changed file: $file")
+                        iterator.remove()
+                    } else if (changedFile.file.isChild(file)) {
+                        logger.debug("remove changed file for dir deleted: ${changedFile.file}")
+                        iterator.remove()
+                    }
                 }
             }
-            compiledFiles.forEach { (stdPath, changedFile) ->
-                if (stdPath == file.stdPath) {
-                    logger.debug("remove compiled file: $file")
-                    compiledFiles.remove(stdPath)
-                } else if (changedFile.file.isChild(file)) {
-                    logger.debug("remove compiled file for dir deleted: ${changedFile.file}")
-                    compiledFiles.remove(stdPath)
+            compiledFiles.iterator().let { iterator ->
+                iterator.forEach { (stdPath, changedFile) ->
+                    if (stdPath == file.stdPath) {
+                        logger.debug("remove compiled file: $file")
+                        iterator.remove()
+                    } else if (changedFile.file.isChild(file)) {
+                        logger.debug("remove compiled file for dir deleted: ${changedFile.file}")
+                        iterator.remove()
+                    }
                 }
             }
         }
