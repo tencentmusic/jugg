@@ -143,7 +143,7 @@ class JuggDeployerHelper(
                 // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
                 val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
                 // something wrong with DeployDataGenerator... fall back too
-                val isRequiresAppRestart = reason.contains("require an app restart")
+                val isRequiresAppRestart = reason.contains("app restart")
                 if (isUnmodifiableClass || isRequiresAppRestart) {
                     logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
                     juggReporter.report {
