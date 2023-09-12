@@ -268,6 +268,7 @@ class JuggManager @TestOnly constructor(
         }
 
         val (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
+            pathManager.compileRootDir.clearDir()
             val apkInfos = deployTargetManager.getApks()
             if (apkInfos.isEmpty()) {
                 logger.warn("Init compile failed for no apk found")
@@ -277,6 +278,7 @@ class JuggManager @TestOnly constructor(
                 apkInfos,
                 allModules,
             )
+
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
