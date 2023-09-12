@@ -38,8 +38,15 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
         val packageName = context.packageName
         val kotlinClassPath = module.buildPathInfo.kotlinClassPath.absoluteFile
-        // TODO read flavor from sourceSets
-        val flavor = "main"
+
+        var flavor = "main"
+        val splits = module.name.split(".")
+        if (splits.size == 3) {
+            flavor = splits[2]
+        } else {
+            logger.warn("module name \"${module.name}\" is not valid, use default flavor name: $flavor")
+        }
+
         val resourcePaths: List<String> = task.files.flatMap {
             it.module.resourceDirs.map { file ->
                 file.absolutePath
