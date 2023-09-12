@@ -19,24 +19,32 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = context.getModuleDependencies(module, task)
 
-        if (!hasFoundKotlinAndroidExtensions) {
-            val classLoader = this::class.java.classLoader
-            kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
-                // running in IDE
-                val filePath = classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
-                filePath.replace("%20", " ")
-            } else {
-                // running in test. notion: this may cost 500+ms which will affect compile cost
-                val filePath = ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
-                filePath.replace("%20", " ")
+        val analyzeResult = analyzeSource(task.files.map { it.file })
+        logger.debug("analyzeSource result: $analyzeResult")
+
+        if (analyzeResult.isNeedKotlinAndroidExtensions) {
+            if (!hasFoundKotlinAndroidExtensions) {
+                val classLoader = this::class.java.classLoader
+                kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
+                    // running in IDE
+                    val filePath = classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
+                    filePath.replace("%20", " ")
+                } else {
+                    // running in test. notion: this may cost 500+ms which will affect compile cost
+                    val filePath = ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
+                    filePath.replace("%20", " ")
+                }
+                hasFoundKotlinAndroidExtensions = true
             }
-            hasFoundKotlinAndroidExtensions = true
-        }
-        if (kotlinAndroidExtensionsPath == null) {
-            logger.warn("kotlinAndroidExtensionsPath not found in classpath")
+            if (kotlinAndroidExtensionsPath == null) {
+                logger.warn("kotlinAndroidExtensionsPath not found in classpath, can not proceed kotlin android extensions.")
+                val details: List<Result<CompileFile, CompileError>> = task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "kotlinAndroidExtensionsPath not found in classpath")))
+                }
+                return CompileResult(task, details, emptyList())
+            }
         }
 
-        val packageName = context.packageName
         val kotlinClassPath = module.buildPathInfo.kotlinClassPath.absoluteFile
 
         var flavor = "main"
@@ -52,13 +60,18 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
                 file.absolutePath
             }
         }
-        val variantArgs: List<String> = resourcePaths.flatMap { resourcePath ->
-            listOf("-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}")
+
+        val extensionArgs = if (analyzeResult.isNeedKotlinAndroidExtensions) {
+            val variantArgs: List<String> = resourcePaths.flatMap { resourcePath ->
+                listOf("-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}")
+            }
+            listOf(
+                "-Xplugin=$kotlinAndroidExtensionsPath",
+                "-P", "plugin:org.jetbrains.kotlin.android:package=${analyzeResult.rPackageName}",
+            ) + variantArgs
+        } else {
+            emptyList()
         }
-        val extensionArgs = listOf(
-            "-Xplugin=$kotlinAndroidExtensionsPath",
-            "-P", "plugin:org.jetbrains.kotlin.android:package=${packageName}",
-        ) + variantArgs
 
         val compileArgs = listOf(
             "-verbose",
@@ -139,6 +152,35 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         logger.debug("kotlin compile: kotlinc ${shortOptions.joinToString(" ")}")
     }
 
+    private fun analyzeSource(files: List<File>): KotlinSourceAnalyzeResult {
+        val startTime = System.currentTimeMillis()
+        var isNeedKotlinAndroidExtensions = false
+        var rPackageName = "null"
+        files.forEach root@{ file ->
+            file.readLines().forEach {
+                if (!it.startsWith("import")) {
+                    return@forEach
+                }
+                if (it.startsWith("import kotlinx.android.synthetic.")) {
+                    logger.debug("find kotlinx.android.synthetic in $file")
+                    isNeedKotlinAndroidExtensions = true
+                }
+                if (it.endsWith(".R")) {
+                    val packageName = it.substringAfter("import ").substringBefore(".R")
+                    logger.debug("find R in $file, packageName: $packageName")
+                    rPackageName = packageName
+                }
+                if (isNeedKotlinAndroidExtensions && rPackageName != "null") {
+                    return@root
+                }
+            }
+        }
+
+        val costTime = System.currentTimeMillis() - startTime
+        logger.debug("analyze kotlin source cost: $costTime ms")
+        return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName)
+    }
+
     override fun warmUp() {
         val startTime = System.currentTimeMillis()
         val selectModule = context.modules.values.maxBy {
@@ -149,3 +191,8 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
         logger.debug("finish KotlinCompiler warm up, cost: ${System.currentTimeMillis() - startTime}ms")
     }
 }
+
+private data class KotlinSourceAnalyzeResult(
+    val isNeedKotlinAndroidExtensions: Boolean,
+    val rPackageName: String,
+)
