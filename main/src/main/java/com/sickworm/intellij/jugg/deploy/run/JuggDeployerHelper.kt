@@ -39,8 +39,12 @@ class JuggDeployerHelper(
 
     private val deployStateListener get() = deployStateListenerGetter.invoke()
 
-    @Synchronized
-    private fun runTask(data: JuggDeployData) {
+    private var isRunning = false
+
+    private fun runTask(data: JuggDeployData) = synchronized(runTasklock) {
+        logger.debug("runTask start, isRunning: $isRunning")
+        isRunning = true
+
         if (data.apks.isEmpty()) {
             throw JuggInternalException.apkNotFound(data)
         }
@@ -71,6 +75,9 @@ class JuggDeployerHelper(
         } else {
             logger.debug("App foreground, no need to restart app.")
         }
+
+        logger.debug("runTask end")
+        isRunning = false
     }
 
     fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, canRetry: Boolean = true, isFallbackAllHotFix: Boolean = false): DeployTaskResult {
@@ -294,6 +301,10 @@ class JuggDeployerHelper(
 
         logger.warn("App not launched, please check the app is started and adb is not occupied by other process")
         return false
+    }
+
+    companion object {
+        private val runTasklock = Object()
     }
 }
 
