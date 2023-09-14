@@ -22,7 +22,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 1
+        private const val VERSION = 2
     }
 
     @Synchronized
@@ -70,14 +70,14 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 );
                 
                 CREATE TABLE IF NOT EXISTS class_info (
+                    id INTEGER NOT NULL PRIMARY KEY,
                     name TEXT NOT NULL,
-                    interface_names TEXT NOT NULL,
-                    super_name TEXT NOT NULL,
-                    source TEXT,
                     entry_info_name TEXT NOT NULL,
+                    source TEXT,
+                    super_name TEXT NOT NULL,
+                    interface_names TEXT NOT NULL,
                     methods TEXT NOT NULL,
-                    fields TEXT NOT NULL,
-                    id INTEGER NOT NULL PRIMARY KEY
+                    fields TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS class_info_name_index ON class_info(name);
                 
@@ -468,7 +468,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             val dbClasses = mutableMapOf<Int, ClassNode>()
             val classes = mutableMapOf<String, ClassNode>()
-            val selectClassSQL = "SELECT * FROM class_info;"
+            val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, methods, fields FROM class_info;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
