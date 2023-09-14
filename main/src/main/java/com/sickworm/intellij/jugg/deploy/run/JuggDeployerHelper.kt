@@ -230,7 +230,7 @@ class JuggDeployerHelper(
             logger.info("Deploy state matched, no need reinstall app.")
             return true
         }
-        logger.info("Need reinstall app.")
+        logger.info("Going to reinstall app.")
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
