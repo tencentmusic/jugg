@@ -121,7 +121,9 @@ class JuggRunningTask(
 
         if (!deployTaskResult.isSuccess) {
             return if (!deployTaskResult.isCanFallback) {
-                initIncrementalCompileTask.invoke()
+                if (compileTaskResult.isGradleCompile) {
+                    initIncrementalCompileTask.invoke()
+                }
                 failedAndActiveRunWindow()
             } else {
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
