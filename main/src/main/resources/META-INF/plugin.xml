@@ -52,5 +52,8 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
                 id="jugg.JuggConfigurationType"
                 implementation="com.sickworm.intellij.jugg.ide.JuggConfigurationType"
         />
+        <notificationGroup id="Jugg Notification Group"
+                           displayType="BALLOON"
+                           key="notification.group.name"/>
     </extensions>
 </idea-plugin>

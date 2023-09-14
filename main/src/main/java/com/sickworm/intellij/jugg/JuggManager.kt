@@ -87,6 +87,13 @@ class JuggManager @TestOnly constructor(
                     warmUpCompile(false)
                 }
             }
+
+            logger.debug("Checking updates...")
+            val versionData = juggReporter.checkUpdate()
+            logger.debug("Check update result: $versionData")
+            if (versionData.isNeedUpgrade) {
+                JuggUpgradeNotification(project).show(versionData.downloadUrl)
+            }
         })
     }
 
