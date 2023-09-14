@@ -63,7 +63,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             var diffResult = helper.diffApk(apkOverlays)
             var includeEntries = diffResult.includeEntries
             val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
-            if (allChangedDexFileSize >= apkOverlays.dexFiles.size * 0.2) {
+            if (allChangedDexFileSize >= 3 && allChangedDexFileSize >= apkEntries.dexFiles.size * 0.2) {
                 // If removed dex files is more than 20%, it's better to full update the apk for better database update performance.
                 logger.info("${it.applicationId} database dex files changed too much (${allChangedDexFileSize}/${apkOverlays.dexFiles.size}), re-parse the apk.")
                 includeEntries = apkOverlays
