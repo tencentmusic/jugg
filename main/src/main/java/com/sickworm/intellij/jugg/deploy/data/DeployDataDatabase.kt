@@ -273,18 +273,18 @@ class IncrementalDeployDataDatabase {
     }
 
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
-        val effectClassNodesMap = mutableMapOf<String, List<String>>()
+        val effectClassNodesMap = mutableMapOf<String, MutableList<String>>()
         changedMethodRefs.forEach {
             methodRefs[it.matchKey]?.forEach { className ->
                 deployedClasses[className]?.let { classNode ->
-                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }
+                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
                 }
             }
         }
         changedFieldRefs.forEach {
             fieldRefs[it.matchKey]?.forEach { className ->
                 deployedClasses[className]?.let { classNode ->
-                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }
+                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
                 }
             }
         }
