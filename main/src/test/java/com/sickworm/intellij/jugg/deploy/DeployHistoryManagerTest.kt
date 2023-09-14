@@ -133,7 +133,7 @@ class DeployHistoryManagerTest {
         val deployedFile2 = File(buildDir, "drawable/B.xml").let {
             it.parentFile.mkdirs()
             it.createNewFile()
-            CompileOutput(CompileOutput.Type.Overlay, it, buildDir)
+            CompileOutput(CompileOutput.Type.Res, it, buildDir)
         }
         val storageFile2 = File(storageDir, "compile_context.db/deployed/overlays/drawable/B.xml")
         assertFalse(storageFile2.exists())

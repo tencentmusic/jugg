@@ -46,7 +46,7 @@ class AssetCompileTest {
     private fun assertCompileResultAssets(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = {
             val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir)
-            listOf(CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir))
+            listOf(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
         }
         assertCompileResult(task, result, mapper)
     }

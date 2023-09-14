@@ -30,7 +30,7 @@ class DeployDataGenerator(
     fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean = false): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
-        val changedOverlays = items.filter { it.type == CompileOutput.Type.Overlay }
+        val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         return buildDeployData(parsedDex, changedOverlays, isWarmUp)
     }
 
@@ -73,13 +73,12 @@ class DeployDataGenerator(
         }
 
         var overlays = changedOverlays
-        var isFullOverlays = false
-        if (changedOverlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore()) {
+        val isFullRes = isWarmUp || (overlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore())
+        if (isFullRes) {
             // first time deploy must do full deployment
             logger.debug("first time deploy overlay, need full deployment")
-            isFullOverlays = true
             val costTime = measureTimeMillis {
-                overlays = deployDataDatabase.getFullOverlays(overlays)
+                overlays = deployDataDatabase.addFullRes(overlays)
             }
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
@@ -100,7 +99,7 @@ class DeployDataGenerator(
             effectedSourceAndClassNodes.keys.toList(),
             interfacesWithDesugaredDefaultMethod,
             overlays, parsedDex,
-            isFullOverlays, isWarmUp,
+            isFullRes, isWarmUp,
         )
 
         val costTime = System.currentTimeMillis() - startTime

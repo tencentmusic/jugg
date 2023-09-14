@@ -9,7 +9,6 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.outerClassName
-import org.jetbrains.kotlin.utils.addToStdlib.indexOfOrNull
 
 /**
  * Final data that going to deploy to the device.
@@ -31,8 +30,8 @@ data class JuggDeployData(
     val overlays: List<DeployItem>,
     /** parsed class nodes and method & field references. */
     val parsedDex: ParsedDex,
-    /** is first time push overlays. */
-    val isFullOverlays: Boolean,
+    /** is first time push res. */
+    val isFullRes: Boolean,
     /** is for warm up. */
     private val isWarmUp: Boolean,
     /** just install the apks only */
@@ -85,7 +84,7 @@ data class JuggDeployData(
         }
         if (overlays.isNotEmpty()) {
             builder.append("overlay files:\n")
-            if (isFullOverlays) {
+            if (isFullRes) {
                 builder.append("    (total ${overlays.size} files)\n")
             } else {
                 builder.append(overlays.toLogString())
@@ -120,7 +119,7 @@ data class JuggDeployData(
         fun forInstall(apks: List<ApkInfo>) = JuggDeployData(apks,
             emptyList(), emptyList(), emptyList(),
             emptyList(), emptyList(), emptyList(), ParsedDex.EMPTY,
-            isFullOverlays = false,
+            isFullRes = false,
             isWarmUp = false,
             isInstall = true,
         )
@@ -128,7 +127,7 @@ data class JuggDeployData(
         fun forDryDeploy(apks: List<ApkInfo>) = JuggDeployData(apks,
             emptyList(), emptyList(), emptyList(),
             emptyList(), emptyList(), emptyList(),ParsedDex.EMPTY,
-            isFullOverlays = false,
+            isFullRes = false,
             isWarmUp = false,
             isInstall = false,
         )

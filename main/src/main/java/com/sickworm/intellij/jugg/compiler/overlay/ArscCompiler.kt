@@ -101,7 +101,7 @@ class ArscCompiler(
             CompileOutput(CompileOutput.Type.Java, it, rFileDir)
         }
         val overlays = overlayDir.listFilesRecursively().map {
-            CompileOutput(CompileOutput.Type.Overlay, it, overlayDir)
+            CompileOutput(CompileOutput.Type.Res, it, overlayDir)
         }
         return rFiles + overlays
     }

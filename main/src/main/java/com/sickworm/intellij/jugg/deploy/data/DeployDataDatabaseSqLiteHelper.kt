@@ -23,6 +23,11 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     companion object {
         private const val VERSION = 2
+
+        private const val ENTRY_TYPE_OTHER = 0
+        private const val ENTRY_TYPE_DEX = 1
+        private const val ENTRY_TYPE_RES = 2
+        private const val ENTRY_TYPE_ASSETS = 3
     }
 
     @Synchronized
@@ -66,7 +71,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 CREATE TABLE IF NOT EXISTS entry_info (
                     name TEXT NOT NULL PRIMARY KEY,
                     checksum INTEGER NOT NULL,
-                    is_dex BOOL NOT NULL
+                    type INTEGER NOT NULL
                 );
                 
                 CREATE TABLE IF NOT EXISTS class_info (
@@ -186,18 +191,24 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 return@runWithTimeCost
             }
 
-            val sql = "INSERT INTO entry_info(name, checksum, is_dex) VALUES(?, ?, ?);"
+            val sql = "INSERT INTO entry_info(name, checksum, type) VALUES(?, ?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
                 addedDexFiles.values.forEach {
                     preparedStatement.setString(1, it.name)
                     preparedStatement.setLong(2, it.checksum)
-                    preparedStatement.setBoolean(3, true)
+                    preparedStatement.setInt(3, ENTRY_TYPE_DEX)
                     preparedStatement.addBatch()
                 }
                 addedOverlayFiles.values.forEach {
                     preparedStatement.setString(1, it.name)
                     preparedStatement.setLong(2, it.checksum)
-                    preparedStatement.setBoolean(3, false)
+                    if (it.isRes) {
+                        preparedStatement.setInt(3, ENTRY_TYPE_RES)
+                    } else if (it.isAsset) {
+                        preparedStatement.setInt(3, ENTRY_TYPE_ASSETS)
+                    } else {
+                        preparedStatement.setInt(3, ENTRY_TYPE_OTHER)
+                    }
                     preparedStatement.addBatch()
                 }
                 preparedStatement.executeBatch()
@@ -372,7 +383,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 return ParsedApkDiffResult(apkEntries.apkInfo, updatedApkInfos = 0)
             }
 
-            val selectEntrySQL = "SELECT * FROM entry_info;"
+            val selectEntrySQL = "SELECT name, checksum, type FROM entry_info;"
             val dbDexFiles = mutableMapOf<String, JuggFileInfo>()
             val dbOverlayFiles = mutableMapOf<String, JuggFileInfo>()
             connection.createStatement().use { statement ->
@@ -380,8 +391,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 while (resultSet.next()) {
                     val name = resultSet.getString("name")
                     val checksum = resultSet.getLong("checksum")
-                    val isDex = resultSet.getBoolean("is_dex")
-                    if (isDex) {
+                    val type = resultSet.getInt("type")
+                    if (type == ENTRY_TYPE_DEX) {
                         dbDexFiles[name] = JuggFileInfo(name, checksum)
                     } else {
                         dbOverlayFiles[name] = JuggFileInfo(name, checksum)
@@ -451,14 +462,14 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val dexFiles = mutableMapOf<String, JuggFileInfo>()
             val overlayFiles = mutableMapOf<String, JuggFileInfo>()
 
-            val selectSQL = "SELECT * FROM entry_info;"
+            val selectSQL = "SELECT name, checksum, type FROM entry_info;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(selectSQL)
                 while (resultSet.next()) {
                     val fileName = resultSet.getString(1)
                     val checksum = resultSet.getLong(2)
-                    val isDex = resultSet.getBoolean(3)
-                    if (isDex) {
+                    val type = resultSet.getInt(3)
+                    if (type == ENTRY_TYPE_DEX) {
                         dexFiles[fileName] = JuggFileInfo(fileName, checksum)
                     } else {
                         overlayFiles[fileName] = JuggFileInfo(fileName, checksum)
@@ -523,22 +534,22 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun getOverlayInfos(): List<JuggFileInfo> {
-        val selectSQL = "SELECT * FROM entry_info WHERE is_dex = false;"
-        val overlayInfos = mutableListOf<JuggFileInfo>()
+    fun getResInfos(): List<JuggFileInfo> {
+        val selectSQL = "SELECT name, checksum FROM entry_info WHERE type = $ENTRY_TYPE_RES;"
+        val resInfos = mutableListOf<JuggFileInfo>()
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(selectSQL)
                 while (resultSet.next()) {
-                    val overlayInfo = JuggFileInfo(
-                        resultSet.getString("name"),
-                        resultSet.getLong("checksum"),
+                    val resInfo = JuggFileInfo(
+                        resultSet.getString(1),
+                        resultSet.getLong(2),
                     )
-                    overlayInfos.add(overlayInfo)
+                    resInfos.add(resInfo)
                 }
             }
         }
-        return overlayInfos
+        return resInfos
     }
 
     @Synchronized

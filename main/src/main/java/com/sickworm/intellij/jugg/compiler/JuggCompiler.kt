@@ -75,7 +75,7 @@ class JuggCompiler(
 
                 // move overlays to output directory
                 val overlays = resourceResult.outputs
-                    .filter { it.type == CompileOutput.Type.Overlay }
+                    .filter { it.type == CompileOutput.Type.Res }
                     .map {
                         val outputFile = it.file.changeBaseDir(it.baseDir, overlayOutputDir)
                         outputFile.parentFile.mkdirs()
@@ -83,7 +83,7 @@ class JuggCompiler(
                             outputFile.delete()
                         }
                         it.file.renameTo(outputFile)
-                        CompileOutput(CompileOutput.Type.Overlay, outputFile, overlayOutputDir)
+                        CompileOutput(CompileOutput.Type.Res, outputFile, overlayOutputDir)
                     }
 
                 // compile R.java

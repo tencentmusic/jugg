@@ -147,9 +147,9 @@ class ApkParser: CoroutineScope by CoroutineScope(
                              overlayFiles: MutableMap<String, JuggFileInfo>) {
         val apk = ApkParserAdt().parsePaths(listOf(apkFile.absolutePath)).first()
         for (entry in apk.apkEntries.values) {
-            if (entry.name.startsWith("classes") && entry.name.endsWith(".dex")) {
+            if (entry.name.isDexEntry) {
                 dexFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
-            } else {
+            } else if (entry.name.isResEntry || entry.name.isAssetEntry) {
                 overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
             }
         }
@@ -159,7 +159,17 @@ class ApkParser: CoroutineScope by CoroutineScope(
 data class JuggFileInfo(
     val name: String,
     val checksum: Long
-)
+) {
+    val isDex: Boolean get() = name.isDexEntry
+
+    val isRes: Boolean get() = name.isResEntry
+
+    val isAsset: Boolean get() = name.isAssetEntry
+}
+
+val String.isDexEntry get() = this.startsWith("classes") && this.endsWith(".dex")
+val String.isResEntry get() = this.startsWith("res/") || this == "resources.arsc"
+val String.isAssetEntry get() = this.startsWith("assets/")
 
 data class ApkEntries(
     val apkInfo: ApkInfo,

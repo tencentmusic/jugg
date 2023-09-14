@@ -122,12 +122,12 @@ class JuggCompileTest {
             } else if (it.type == CompileFile.Type.Asset) {
                 val outputBaseDir = File(task.outputDir, "overlays")
                 val outputFile = it.file.changeBaseDir(it.baseDir, File(outputBaseDir, "assets"))
-                listOf(CompileOutput(CompileOutput.Type.Overlay, outputFile, outputBaseDir))
+                listOf(CompileOutput(CompileOutput.Type.Asset, outputFile, outputBaseDir))
             } else if (it.type == CompileFile.Type.Resource) {
                 val outputBaseDir = File(task.outputDir, "overlays")
                 val outputFile = it.file.changeBaseDir(it.baseDir, File(outputBaseDir, "res"))
                 val flatOutput = CompileOutput(
-                    CompileOutput.Type.Overlay,
+                    CompileOutput.Type.Res,
                     outputFile,
                     outputBaseDir
                 )
@@ -146,7 +146,7 @@ class JuggCompileTest {
                 // resources.arsc
                 val overlayBaseDir = File(task.outputDir, "overlays")
                 val arscFile = File(overlayBaseDir, ARSC_FILE_NAME)
-                val arscOutput = CompileOutput(CompileOutput.Type.Overlay, arscFile, overlayBaseDir)
+                val arscOutput = CompileOutput(CompileOutput.Type.Res, arscFile, overlayBaseDir)
 
 
                 listOf<CompileOutput>() + flatOutput + arscOutput + dexOutputs

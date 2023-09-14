@@ -250,7 +250,7 @@ class CompileConsistencyTest {
             CompileOutput.Type.Dex -> {
                 compareClassNode(deployItem)
             }
-            CompileOutput.Type.Overlay -> {
+            CompileOutput.Type.Res, CompileOutput.Type.Asset -> {
                 compareOverlay(deployItem)
             }
             else -> {

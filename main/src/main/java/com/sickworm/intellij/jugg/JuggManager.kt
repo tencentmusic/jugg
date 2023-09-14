@@ -283,13 +283,14 @@ class JuggManager @TestOnly constructor(
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
 
-        initCompile(compileContextInfo, emptyList(), false)
+        initCompile(compileContextInfo, emptyList(), false, isNeedWarmUpDeploy = true)
     }
 
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
         isNeedReloadProjectInfo: Boolean,
+        isNeedWarmUpDeploy: Boolean = false,
     ) {
         logger.info("Init compile... isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
 
@@ -313,7 +314,6 @@ class JuggManager @TestOnly constructor(
 
         logger.info("Jugg init complete, start listening file changes.")
 
-        val isNeedWarmUpDeploy = deployedFiles.all { it.type != CompileOutput.Type.Overlay }
         warmUpCompile(isNeedWarmUpDeploy)
     }
 

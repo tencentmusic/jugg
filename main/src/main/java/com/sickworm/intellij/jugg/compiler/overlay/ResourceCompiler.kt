@@ -37,7 +37,7 @@ class ResourceCompiler(
             else it.file.extension
             val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
             val outputFile = File(task.outputDir, fileName)
-            val output = CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir)
+            val output = CompileOutput(CompileOutput.Type.Res, outputFile, task.outputDir)
             val detail: Result<CompileFile, CompileError> =
                 if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(it)

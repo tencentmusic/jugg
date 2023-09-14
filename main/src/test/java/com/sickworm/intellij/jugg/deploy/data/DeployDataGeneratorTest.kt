@@ -31,10 +31,9 @@ class DeployDataGeneratorTest {
     fun testOverlayContents() {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
-        val overlayDeployItem = DeployItem("test_overlay", CompileOutput.Type.Overlay, 0, byteArrayOf())
-        val data = generator.buildDeployData(listOf(overlayDeployItem), false)
-        assertEquals(475, data.overlays.size)
-        assertTrue(data.isFullOverlays)
+        val data = generator.buildDeployData(emptyList(), true)
+        assertEquals(431, data.overlays.size)
+        assertTrue(data.isFullRes)
         logger.debug(data.toString())
     }
 

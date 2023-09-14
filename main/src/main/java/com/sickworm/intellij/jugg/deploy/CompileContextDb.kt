@@ -21,7 +21,8 @@ class CompileContextDb(
     private val moduleBuildPathDatFile = File(dbDir, "module_builds.dat")
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
-    private val overlayDeployedDir = File(deployedDir, "overlays")
+    private val resDeployedDir = File(deployedDir, "res")
+    private val assetDeployedDir = File(deployedDir, "asset")
 
     val hasBeenFullCompiled: Boolean get() = completeFlagFile.exists()
 
@@ -79,8 +80,11 @@ class CompileContextDb(
                 CompileOutput.Type.Dex -> {
                     it.file.copyToBaseDir(it.baseDir, dexDeployedDir)
                 }
-                CompileOutput.Type.Overlay -> {
-                    it.file.copyToBaseDir(it.baseDir, overlayDeployedDir)
+                CompileOutput.Type.Res -> {
+                    it.file.copyToBaseDir(it.baseDir, resDeployedDir)
+                }
+                CompileOutput.Type.Asset -> {
+                    it.file.copyToBaseDir(it.baseDir, assetDeployedDir)
                 }
                 else -> {
                     logger.warn("Unknown output type: ${it.type} for file: ${it.file}")
@@ -97,8 +101,11 @@ class CompileContextDb(
         val dexFiles = dexDeployedDir.listFilesRecursively().map {
             CompileOutput(CompileOutput.Type.Dex, it, dexDeployedDir)
         }
-        val overlayFiles = overlayDeployedDir.listFilesRecursively().map {
-            CompileOutput(CompileOutput.Type.Overlay, it, overlayDeployedDir)
+        val overlayFiles = resDeployedDir.listFilesRecursively().map {
+            CompileOutput(CompileOutput.Type.Res, it, resDeployedDir)
+        }
+        val assetFiles = assetDeployedDir.listFilesRecursively().map {
+            CompileOutput(CompileOutput.Type.Asset, it, assetDeployedDir)
         }
         return dexFiles + overlayFiles
     }

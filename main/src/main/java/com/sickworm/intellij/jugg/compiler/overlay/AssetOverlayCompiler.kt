@@ -21,7 +21,7 @@ class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
 
             try {
                 val outputFile = it.file.copyToBaseDir(it.baseDir, task.outputDir)
-                outputs.add(CompileOutput(CompileOutput.Type.Overlay, outputFile, task.outputDir))
+                outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
                 details.add(Result.success(it))
             } catch (e: Exception) {
                 val errorMessage = "copy file ${it.file.absolutePath} to ${task.outputDir} failed, e: $e"

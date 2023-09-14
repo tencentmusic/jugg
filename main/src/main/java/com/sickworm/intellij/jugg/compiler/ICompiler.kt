@@ -86,7 +86,8 @@ data class CompileOutput(
     enum class Type {
         Class,
         Dex,
-        Overlay,
+        Res,
+        Asset,
         Java;
     }
 }

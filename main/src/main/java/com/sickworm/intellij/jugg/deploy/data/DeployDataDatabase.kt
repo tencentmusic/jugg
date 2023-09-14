@@ -25,7 +25,7 @@ interface IDeployDataDatabase {
 
     fun isDeployedOverlaysBefore(): Boolean
 
-    fun getFullOverlays(changedOverlays: List<DeployItem>): List<DeployItem>
+    fun addFullRes(changedOverlays: List<DeployItem>): List<DeployItem>
 
     fun getApkInfos(): List<ApkInfo>
 
@@ -58,16 +58,16 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             val dbFile = File(dbDir, it.applicationId + ".db")
             val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger.getInstance("DeployDataDatabaseSqLiteHelper"))
             helper.init()
-            val apkOverlays = ApkParser().parseEntries(it)
-            logger.debug("${it.applicationId} apkOverlays, dexFiles: ${apkOverlays.dexFiles.size}, overlayFiles: ${apkOverlays.overlayFiles.size}")
-            var diffResult = helper.diffApk(apkOverlays)
+            val apkEntries = ApkParser().parseEntries(it)
+            logger.debug("${it.applicationId} apkEntries, dexFiles: ${apkEntries.dexFiles.size}, overlayFiles: ${apkEntries.overlayFiles.size}")
+            var diffResult = helper.diffApk(apkEntries)
             var includeEntries = diffResult.includeEntries
             val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
             if (allChangedDexFileSize >= 3 && allChangedDexFileSize >= apkEntries.dexFiles.size * 0.2) {
                 // If removed dex files is more than 20%, it's better to full update the apk for better database update performance.
-                logger.info("${it.applicationId} database dex files changed too much (${allChangedDexFileSize}/${apkOverlays.dexFiles.size}), re-parse the apk.")
-                includeEntries = apkOverlays
-                diffResult = ParsedApkDiffResult(apkOverlays)
+                logger.info("${it.applicationId} database dex files changed too much (${allChangedDexFileSize}/${apkEntries.dexFiles.size}), re-parse the apk.")
+                includeEntries = apkEntries
+                diffResult = ParsedApkDiffResult(apkEntries)
                 helper.recreateDatabase()
             }
             val diffParsedApk = ApkParser().parse(it, includeEntries)
@@ -101,16 +101,16 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun getFullOverlays(changedOverlays: List<DeployItem>): List<DeployItem> {
+    override fun addFullRes(changedOverlays: List<DeployItem>): List<DeployItem> {
         val nameSet = changedOverlays.map { it.name }.toSet()
         val overlays = mutableListOf<DeployItem>()
         overlays.addAll(changedOverlays)
-        val overlayInfos = database.values.flatMap { it.getOverlayInfos() }
+        val overlayInfos = database.values.flatMap { it.getResInfos() }
         overlayInfos.forEach {
             if (nameSet.contains(it.name)) return@forEach
             val deployItem = DeployItem(
                 name = it.name,
-                type = CompileOutput.Type.Overlay,
+                type = CompileOutput.Type.Res,
                 checksum = it.checksum,
                 content = readFileContentFromApk(apks.first().files.first().apkFile, it.name)
             )

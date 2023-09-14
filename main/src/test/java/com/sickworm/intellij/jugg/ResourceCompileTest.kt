@@ -54,7 +54,7 @@ class ResourceCompileTest {
         assertTrue(result.isAllSuccess)
         assertEquals(result.outputs.size, files.size)
         result.outputs.forEach {
-            assertEquals(it.type, CompileOutput.Type.Overlay)
+            assertEquals(it.type, CompileOutput.Type.Res)
             assertTrue(it.file.exists())
             assertTrue(it.file.length() > 0)
         }
@@ -97,7 +97,7 @@ class ResourceCompileTest {
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
         assertEquals(1, rFiles.size)
 
-        val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Overlay }
+        val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Res }
         assertEquals(exceptOverlayOutputSize, resFiles.size) // TODO more logical
 
         val arscFile = resFiles.filter { it.relativeFile.path == ARSC_FILE_NAME }
