@@ -69,6 +69,9 @@ class JuggCompilerHelper(
         }
 
         val result = gradleCompile(options, processHandler, indicator)
+        if (result.isSuccess) {
+            JuggSettings.updateDefaultSettings(options)
+        }
         return CompileTaskResult(isSuccess = result.isSuccess,
             isGradleCompile = true,
             isCanFallback = false,

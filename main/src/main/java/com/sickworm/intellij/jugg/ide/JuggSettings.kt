@@ -1,3 +1,5 @@
+@file:Suppress("ConstPropertyName")
+
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.ide.util.PropertiesComponent
@@ -15,8 +17,36 @@ object JuggSettings {
 
     var restartActivity: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    // default compile settings
+    const val defaultCompileCommand = "./gradlew :app:assembleDebug"
+    const val defaultOutputApkName = "app-*.apk"
+    var defaultIsRemoteCompile: Boolean by propertiesComponent.delegate(defaultValue = false)
+    var defaultRemoteSshUser: String by propertiesComponent.delegate(defaultValue = "root")
+    var defaultRemoteSshPassword: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultRemoteSshIp: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultRemoteSshPort: Int by propertiesComponent.delegate(defaultValue = 36000)
+    var defaultRemoteToLocalSyncPath: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultLocalToRemoteIftConfigName: String by propertiesComponent.delegate(defaultValue = "remote")
+    var defaultRemoteToLocalIftConfigName: String by propertiesComponent.delegate(defaultValue = "local")
+    var defaultHttpProxyIp: String by propertiesComponent.delegate(defaultValue = "127.0.0.1")
+    var defaultHttpProxyPort: Int by propertiesComponent.delegate(defaultValue = 12639)
+
     /** don't support change minApi dynamically */
     const val minApi = 30 // Android 11
+
+
+    fun updateDefaultSettings(options: JuggGradleCompileOptions) {
+        defaultIsRemoteCompile = options.isRemoteCompile
+        defaultRemoteSshUser = options.remoteSshUser
+        defaultRemoteSshPassword = options.remoteSshPassword
+        defaultRemoteSshIp = options.remoteSshIp
+        defaultRemoteSshPort = options.remoteSshPort
+        defaultRemoteToLocalSyncPath = options.remoteToLocalSyncPath
+        defaultLocalToRemoteIftConfigName = options.localToRemoteIftConfigName
+        defaultRemoteToLocalIftConfigName = options.remoteToLocalIftConfigName
+        defaultHttpProxyIp = options.httpProxyIp
+        defaultHttpProxyPort = options.httpProxyPort
+    }
 }
 
 /**
