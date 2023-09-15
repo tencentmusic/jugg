@@ -90,7 +90,7 @@ private class PropertiesDelegate(
             java.lang.Integer::class.java, Int::class.java -> propertiesComponent.setValue(name, i as Int, (defaultValue as? Int?: 0))
             java.lang.Float::class.java, Float::class.java -> propertiesComponent.setValue(name, i as Float, (defaultValue as? Float?: 0f))
             java.lang.Boolean::class.java, Boolean::class.java -> propertiesComponent.setValue(name, i as Boolean, (defaultValue as? Boolean?: false))
-            String::class.java -> propertiesComponent.setValue(name, (defaultValue as? String?: ""))
+            String::class.java -> propertiesComponent.setValue(name, i as String, (defaultValue as? String?: ""))
             else -> throw IllegalArgumentException("PropertiesDelegate not support class $clazz")
         }
     }
