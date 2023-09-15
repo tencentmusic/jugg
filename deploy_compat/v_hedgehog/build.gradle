@@ -4,6 +4,10 @@ plugins {
     id 'org.jetbrains.intellij'
 }
 
+buildSearchableOptions {
+    enabled = false
+}
+
 intellij {
     // it's ok to use a older version of the IDE plugin, because we don't use any new features
     // use different versions of IDE plugin, will make code searching become too slow
