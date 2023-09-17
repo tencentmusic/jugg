@@ -84,7 +84,7 @@ class JuggDeployerHelper(
         logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $isFallbackAllHotFix")
 
         val deployState = deployStateManager.updateDeployState()
-        logger.info("Jugg deploy state: $deployState")
+        logger.debug("Jugg deploy state: $deployState")
 
         val statTime = System.currentTimeMillis()
         fun costTime(): Long { return System.currentTimeMillis() - statTime }

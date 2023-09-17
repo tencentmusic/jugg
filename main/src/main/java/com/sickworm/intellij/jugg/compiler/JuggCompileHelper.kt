@@ -100,7 +100,7 @@ class JuggCompilerHelper(
     @TestOnly
     fun incrementalCompile(): CompileTaskResult {
         val deployState = deployStateManager.updateDeployState()
-        logger.info("Try incremental compile. Current state: $deployState")
+        logger.debug("Try incremental compile. Current state: $deployState")
 
         if (!deployStateManager.deployState.isReadyIncCompile) {
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
