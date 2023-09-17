@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg
 
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
@@ -183,7 +185,7 @@ class JuggManager @TestOnly constructor(
     @Volatile
     private var currentTask: JuggRunningTask? = null
 
-    fun cancelCurrentTask(onFinish: () -> Unit) {
+    fun cancelCurrentTask(processHandler: ProcessHandler, onFinish: () -> Unit) {
         val currentTask = currentTask
         if (currentTask == null) {
             logger.debug("Current task is null")
@@ -196,6 +198,7 @@ class JuggManager @TestOnly constructor(
             return
         }
         logger.warn("Canceling task...")
+        processHandler.notifyTextAvailable("Waiting last task finishing... \n\n", ProcessOutputType.STDOUT)
         currentTask.cancel(onFinish)
     }
 

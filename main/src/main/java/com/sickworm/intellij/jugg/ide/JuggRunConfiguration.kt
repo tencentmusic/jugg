@@ -119,7 +119,7 @@ class JuggRunProfileState(
         consoleView.attachToProcess(processHandler)
         processHandler.startNotify()
 
-        juggManager.cancelCurrentTask {
+        juggManager.cancelCurrentTask(processHandler) {
             val task = juggManager.createRunningTask(juggGradleCompileOptions, processHandler)
             ProgressManager.getInstance().run(task)
         }
