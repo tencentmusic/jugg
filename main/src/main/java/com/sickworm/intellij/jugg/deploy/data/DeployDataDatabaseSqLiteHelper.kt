@@ -22,7 +22,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 2
+        private const val VERSION = 3
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -103,6 +103,13 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 );
                 CREATE INDEX IF NOT EXISTS field_refs_class_id_index ON field_refs(class_id);
                 CREATE INDEX IF NOT EXISTS field_refs_ref_class_id_index ON field_refs(ref_class_id);
+                
+                CREATE TABLE IF NOT EXISTS subclass_refs (
+                    class_id INTEGER NOT NULL,
+                    ref_class_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS subclass_refs_class_id_index ON subclass_refs(class_id);
+                CREATE INDEX IF NOT EXISTS subclass_refs_ref_class_id_index ON subclass_refs(ref_class_id);
                 
                 PRAGMA schema_version = $VERSION;
             """.trimIndent()
@@ -286,6 +293,16 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
                 preparedStatement.executeBatch()
             }
+
+            val deleteSubclassRefSql = "DELETE FROM subclass_refs WHERE class_id=? OR ref_class_id=?;"
+            connection.prepareStatement(deleteSubclassRefSql).use { preparedStatement ->
+                dbDeleteClasses.values.forEach {
+                    preparedStatement.setInt(1, it)
+                    preparedStatement.setInt(2, it)
+                    preparedStatement.addBatch()
+                }
+                preparedStatement.executeBatch()
+            }
         }
 
         val addedClasses = parsedApk.classes.keys.filter {
@@ -350,7 +367,24 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
         }
 
-        runWithTimeCost("dpUpdateNextClassId") {
+        runWithTimeCost("doInsertSubclassRef") {
+            val sql = "INSERT INTO subclass_refs(class_id, ref_class_id) VALUES(?, ?);"
+            connection.prepareStatement(sql).use { preparedStatement ->
+                parsedApk.subclassRefs.forEach { (className, refClassName) ->
+                    val dbClassNode = dbClassNodeMap[className]
+                        ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
+                        return@forEach
+                    refClassName.forEach {
+                        preparedStatement.setInt(1, dbClassNode)
+                        preparedStatement.setInt(2, dbClassNodeMap[it]!!)
+                        preparedStatement.addBatch()
+                    }
+                }
+                preparedStatement.executeBatch()
+            }
+        }
+
+        runWithTimeCost("doUpdateNextClassId") {
             val sql = "UPDATE apk_info SET next_class_id=?;"
             connection.prepareStatement(sql).use { preparedStatement ->
                 preparedStatement.setInt(1, nextClassId)
@@ -529,7 +563,20 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs)
+            val subclassRefs = mutableMapOf<String, MutableList<String>>()
+            val selectSubclassRefSQL = "SELECT * FROM subclass_refs;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(selectSubclassRefSQL)
+                while (resultSet.next()) {
+                    val classId = resultSet.getInt(1)
+                    val refClassId = resultSet.getInt(2)
+                    val className = dbClasses[classId]?.className ?: continue
+                    val refClassName = dbClasses[refClassId]?.className ?: continue
+                    subclassRefs.getOrPut(className) { mutableListOf() }.add(refClassName)
+                }
+            }
+
+            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
         }
     }
 
@@ -600,10 +647,71 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
 
             val refClassIds = mutableSetOf<Int>()
+
+            // changedMethodRefs and changedMethodRefs of subclasses
+            val changedMethodRefsWithSubclasses: MutableList<MethodNodeDb> = changedMethodRefs.mapNotNull {
+                val classId = dbClassNodeMap[it.owner] ?: return@mapNotNull null
+                MethodNodeDb(classId, it.name, it.desc)
+            }.toMutableList()
+
+            runWithTimeCost("doGetSubClassIds") {
+                var currentSuperClassIds = changedMethodRefsWithSubclasses
+                    .map { it.classId }
+                    .toSet()
+
+                while (currentSuperClassIds.isNotEmpty()) {
+                    val superClassIdsString = currentSuperClassIds.joinToString(",") {
+                        "$it"
+                    }
+                    val sql = "SELECT class_id, ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
+                    val newSubclassMethodNode = mutableListOf<MethodNodeDb>()
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQuery(sql)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            val refClassId = resultSet.getInt(2)
+                            changedMethodRefsWithSubclasses
+                                .filter { it.classId == classId }
+                                .forEach { superClassMethodNode ->
+                                    val subclassMethodNode = MethodNodeDb(refClassId, superClassMethodNode.name, superClassMethodNode.desc)
+                                    newSubclassMethodNode.add(subclassMethodNode)
+                                    changedMethodRefsWithSubclasses.add(subclassMethodNode)
+                                    refClassIds.add(subclassMethodNode.classId)
+                                }
+                        }
+                    }
+
+                    val newSubclassIdsString = newSubclassMethodNode.map { it.classId }
+                        .toSet().joinToString(",")
+                    val sql2 = "SELECT id, name, methods FROM class_info WHERE id IN ($newSubclassIdsString);"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQuery(sql2)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            val className = resultSet.getString(2)
+                            val methods = resultSet.getString(3).toMethodList(className)
+
+                            // filter out methods that are rewrite by subclass
+                            newSubclassMethodNode.filter {
+                                it.classId == classId
+                            }.forEach { methodNodeDb ->
+                                val isOverride = methods.any { it.name == methodNodeDb.name && it.desc == methodNodeDb.desc }
+                                if (isOverride) {
+                                    newSubclassMethodNode.remove(methodNodeDb)
+                                }
+                            }
+                        }
+                    }
+
+                    currentSuperClassIds = newSubclassMethodNode.map { it.classId }.toSet()
+                }
+            }
+
+
             runWithTimeCost("doGetRefClassIds") {
-                if (changedMethodRefs.isNotEmpty()) {
-                    val methodClassIdsString = changedMethodRefs.joinToString(" OR ") {
-                        "(class_id=${dbClassNodeMap[it.owner] ?: -1} AND name='${it.name}' AND desc='${it.desc}')"
+                if (changedMethodRefsWithSubclasses.isNotEmpty()) {
+                    val methodClassIdsString = changedMethodRefsWithSubclasses.joinToString(" OR ") {
+                        "(class_id=${it.classId} AND name='${it.name}' AND desc='${it.desc}')"
                     }
                     val sql = "SELECT ref_class_id FROM method_refs WHERE $methodClassIdsString;"
                     connection.createStatement().use { statement ->
@@ -615,9 +723,12 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
 
+                val fieldClassIds = changedFieldRefs.filter {
+                    dbClassNodeMap.containsKey(it.owner)
+                }
                 if (changedFieldRefs.isNotEmpty()) {
-                    val fieldClassIdsString = changedFieldRefs.joinToString(" OR ") {
-                        "(class_id=${dbClassNodeMap[it.owner] ?: -1} AND name='${it.name}' AND type='${it.type}')"
+                    val fieldClassIdsString = fieldClassIds.joinToString(" OR ") {
+                        "(class_id=${dbClassNodeMap[it.owner]!!} AND name='${it.name}' AND type='${it.type}')"
                     }
                     val sql2 = "SELECT ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
                     connection.createStatement().use { statement ->
@@ -799,3 +910,9 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         }
     }
 }
+
+private data class MethodNodeDb(
+    val classId: Int,
+    val name: String,
+    val desc: String
+)

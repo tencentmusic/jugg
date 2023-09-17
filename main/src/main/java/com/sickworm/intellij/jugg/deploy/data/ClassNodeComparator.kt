@@ -41,9 +41,9 @@ class ClassNodeComparator(
         val deletedMethods = LinkedList(oldClassNode.methods)
         removeUnion(addedMethods, deletedMethods)
 
-        val addedMethodsExceptAbstract = LinkedList(newClassNode.methods)
-        val deletedMethodsExceptAbstract = LinkedList(oldClassNode.methods)
-        removeUnionExceptAbstract(addedMethodsExceptAbstract, deletedMethodsExceptAbstract)
+        val addedEffectedMethods = LinkedList(newClassNode.methods)
+        val deletedEffectedMethods = LinkedList(oldClassNode.methods)
+        removeUnionExceptEffected(addedEffectedMethods, deletedEffectedMethods)
 
         return ClassNodeDiffResult(
             oldClassNode.className,
@@ -54,8 +54,7 @@ class ClassNodeComparator(
             deletedFields,
             addedMethods,
             deletedMethods,
-            addedMethodsExceptAbstract,
-            deletedMethodsExceptAbstract,
+            deletedEffectedMethods,
         )
     }
 
@@ -78,11 +77,11 @@ class ClassNodeComparator(
             }
         }
 
-        private fun removeUnionExceptAbstract(list1: LinkedList<MethodNode>, list2: LinkedList<MethodNode>) {
+        private fun removeUnionExceptEffected(list1: LinkedList<MethodNode>, list2: LinkedList<MethodNode>) {
             list1.iterator().let { iterator ->
                 while (iterator.hasNext()) {
                     val newInterface = iterator.next()
-                    val oldInterface = list2.find { it.isEqualsExceptAbstract(newInterface) }
+                    val oldInterface = list2.find { it.isEffectedChanged(newInterface) }
                     if (oldInterface != null) {
                         iterator.remove()
                         list2.remove(oldInterface)
@@ -107,8 +106,7 @@ class ClassNodeDiffResult(
     val addedMethods: List<MethodNode>,
     val deletedMethods: List<MethodNode>,
 
-    val addedMethodsExceptAbstract: List<MethodNode>,
-    val deletedMethodsExceptAbstract: List<MethodNode>,
+    val effectMethods: List<MethodNode>,
 ) {
 
     val isSameStructure

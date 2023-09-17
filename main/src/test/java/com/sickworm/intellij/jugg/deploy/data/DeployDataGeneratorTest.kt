@@ -19,7 +19,10 @@ import kotlin.test.assertTrue
 
 class DeployDataGeneratorTest {
 
-    private val abcParsedDexMock: ParsedDex get() = getAdbParsedDex()
+
+    private val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+
+    private val abcParsedDexMock: ParsedDex get() = getParsedDex()
     private val abdClassNode get() = abcParsedDexMock.classDeployItems[0].classNode
 
     @Before
@@ -122,28 +125,51 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun testEffectSourceBySubclasses() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.subclass.RootClass")
+        val classNode = parsedDex.classDeployItems[0].classNode
+        val removedMethods = classNode.methods.filter { it.name != "func1" }
+        val removeMethodParsedDex = parsedDex.updateMethods(removedMethods)
+        val effectedSources = listOf("SubClass1.java", "SubClass2.java", "SubSubClass2.java", "SubClass3.java", "SubClass4.java", "InvokeClass.java")
+
+        var data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+        generator.commitDeployedData(data)
+
+        val fullParsedDex = parsedApk.toParsedDex
+        data = generator.buildDeployData(fullParsedDex, emptyList())
+        generator.commitDeployedData(data)
+
+        data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+    }
+
+    @Test
     fun testFixDefaultMethod() {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
-        var parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1")
+        var parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1")
         var deployData = generator.buildDeployData(parsedDex, emptyList())
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
 
-        parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass2")
+        parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass2")
         deployData = generator.buildDeployData(parsedDex, emptyList())
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
 
-        parsedDex = getAdbParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3")
+        parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3")
         deployData = generator.buildDeployData(parsedDex, emptyList())
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;", "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
     }
 
-    private fun getAdbParsedDex(className: String = "com.example.myapplication.ABC"): ParsedDex {
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+    private fun getParsedDex(className: String = "com.example.myapplication.ABC"): ParsedDex {
         val classNode = parsedApk.classes[className.classSigName]!!
         val deployItem = DeployItem(className, CompileOutput.Type.Dex, 0, byteArrayOf())
         return ParsedDex(
             listOf(ClassDeployItem(deployItem, classNode)),
+            emptyMap(),
             emptyMap(),
             emptyMap(),
         )
@@ -167,6 +193,22 @@ class DeployDataGeneratorTest {
             listOf(newClassNode),
             emptyMap(),
             emptyMap(),
+            emptyMap(),
         )
     }
+
+    private val ParsedApk.toParsedDex: ParsedDex
+        get() {
+            return ParsedDex(
+                classDeployItems = parsedApk.classes.values.map {
+                    ClassDeployItem(
+                        DeployItem(it.className, CompileOutput.Type.Dex, 0, byteArrayOf()),
+                        it,
+                    )
+                },
+                methodRefs = parsedApk.methodRefs,
+                fieldRefs = parsedApk.fieldRefs,
+                subclassRefs = parsedApk.subclassRefs,
+            )
+        }
 }

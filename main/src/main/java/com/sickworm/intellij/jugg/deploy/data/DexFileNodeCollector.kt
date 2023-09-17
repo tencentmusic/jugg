@@ -21,6 +21,7 @@ class DexFileNodeCollector(
     private val classes: ConcurrentHashMap<String, ClassNode>,
     private val methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
     private val fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
+    private val subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
 ) : DexFileVisitor() {
 
 
@@ -95,6 +96,17 @@ class DexFileNodeCollector(
             override fun visitEnd() {
                 val classNode = ClassNode(dexFileName, cn)
                 classes[classNode.className] = classNode
+
+                if (!superClass.isOfficialClass) {
+                    subclassRefs.getOrPut(superClass) { Collections.synchronizedList(ArrayList()) }
+                        .add(className)
+                }
+                classNode.interfaceNames.forEach {
+                    if (!it.isOfficialClass) {
+                        subclassRefs.getOrPut(it) { Collections.synchronizedList(ArrayList()) }
+                            .add(className)
+                    }
+                }
             }
         }
     }

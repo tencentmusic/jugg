@@ -86,9 +86,9 @@ class MethodNode(
 
     private val signature get() = "$access ${owner}.${name}${desc}"
 
-    fun isEqualsExceptAbstract(method: MethodNode): Boolean {
-        val accessWithoutAbstract = access and DexConstants.ACC_ABSTRACT.inv()
-        val otherAccessWithoutAbstract = method.access and DexConstants.ACC_ABSTRACT.inv()
+    fun isEffectedChanged(method: MethodNode): Boolean {
+        val accessWithoutAbstract = access and DexConstants.ACC_ABSTRACT.inv() and DexConstants.ACC_PRIVATE.inv()
+        val otherAccessWithoutAbstract = method.access and DexConstants.ACC_ABSTRACT.inv() and DexConstants.ACC_PRIVATE.inv()
         return this.owner == method.owner
                 && accessWithoutAbstract == otherAccessWithoutAbstract
                 && this.name == method.name

@@ -186,7 +186,8 @@ class DeployDataDatabaseSqLiteHelperTest {
             finalParsedApk.dexFiles + updatedDexFiles,
             finalParsedApk.overlayFiles,
             finalParsedApk.methodRefs,
-            finalParsedApk.fieldRefs
+            finalParsedApk.fieldRefs,
+            finalParsedApk.subclassRefs,
         )
 
         // removeOverlayFiles
@@ -234,7 +235,8 @@ class DeployDataDatabaseSqLiteHelperTest {
             finalParsedApk.dexFiles,
             finalParsedApk.overlayFiles + updatedOverlayFiles,
             finalParsedApk.methodRefs,
-            finalParsedApk.fieldRefs
+            finalParsedApk.fieldRefs,
+            finalParsedApk.subclassRefs,
         )
 
         testGetTableSize(helper, finalParsedApk)
@@ -274,6 +276,7 @@ class DeployDataDatabaseSqLiteHelperTest {
             overlayFiles,
             methodRefs.filter { classes.containsKey(it.key.owner) },
             fieldRefs.filter { classes.containsKey(it.key.owner) },
+            subclassRefs.filter { classes.containsKey(it.key) },
         )
     }
 }

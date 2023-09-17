@@ -34,7 +34,10 @@ interface IDeployDataDatabase {
     /**
      * @return Map<source file name, List<class name>>
      */
-    fun getEffectedSourceAndClass(includeClassNames: Set<String>, changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>>
+    fun getEffectedSourceAndClass(includeClassNames: Set<String>,
+                                  changedMethodRefs: List<MethodNode>,
+                                  changedFieldRefs: List<FieldNode>,
+                                  ): Map<String, List<String>>
 
     fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String>
 }
@@ -43,7 +46,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     private var apks = listOf<ApkInfo>()
     private val database: MutableMap<String, DeployDataDatabaseSqLiteHelper> = mutableMapOf()
-    private val incDeployedDatabase = IncrementalDeployDataDatabase()
+    private val incDeployedDatabase = IncrementalDeployDataDatabase(logger.getInstance("IncrementalDeployDataDatabase"))
 
     @Synchronized
     override fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>): List<ParsedApkUpdateResult> {
@@ -163,7 +166,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun getEffectedSourceAndClass(includeClassNames: Set<String>, changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+    override fun getEffectedSourceAndClass(includeClassNames: Set<String>,
+                                           changedMethodRefs: List<MethodNode>,
+                                           changedFieldRefs: List<FieldNode>,
+    ): Map<String, List<String>> {
         if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty()) {
             return emptyMap()
         }
@@ -219,13 +225,14 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 }
 
-class IncrementalDeployDataDatabase {
+class IncrementalDeployDataDatabase(private val logger: Logger) {
 
     private val deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private val deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 
     private val methodRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
     private val fieldRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
+    private val subclassRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
 
     fun init(deployedItems: List<DeployItem>) {
         deployedClasses.clear()
@@ -258,6 +265,9 @@ class IncrementalDeployDataDatabase {
         juggDeployData.parsedDex.fieldRefs.forEach {
             fieldRefs.getOrPut(it.key.matchKey) { mutableListOf() }.addAll(it.value)
         }
+        juggDeployData.parsedDex.subclassRefs.forEach {
+            subclassRefs.getOrPut(it.key) { mutableListOf() }.addAll(it.value)
+        }
 
         juggDeployData.overlays.forEach {
             deployedOverlays[it.name] = JuggFileInfo(it.name, it.checksum)
@@ -274,9 +284,42 @@ class IncrementalDeployDataDatabase {
 
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
         val effectClassNodesMap = mutableMapOf<String, MutableList<String>>()
-        changedMethodRefs.forEach {
+
+        // changedMethodRefs and changedMethodRefs of subclasses
+        val changedMethodRefsWithSubclasses = changedMethodRefs.toMutableList()
+
+        var classesToCheckSubclasses = changedMethodRefs.map { it.owner }.toSet()
+        while (classesToCheckSubclasses.isNotEmpty()) {
+            val newToCheck = mutableSetOf<String>()
+            classesToCheckSubclasses.forEach { superClassName ->
+                subclassRefs[superClassName]?.forEach { subclassName ->
+                    deployedClasses[subclassName]?.let { subclassNode ->
+                        changedMethodRefsWithSubclasses.filter {
+                            it.owner == superClassName
+                        }.forEach { methodNode ->
+                            val subclassMethodNode = MethodNode(subclassNode.className, methodNode.access, methodNode.name, methodNode.desc)
+                            changedMethodRefsWithSubclasses.add(subclassMethodNode)
+                            logger.debug("found subclass method node $subclassMethodNode by $superClassName")
+
+                            val isSubclassContainsMethod = subclassNode.methods.any {
+                                it.name == methodNode.name && it.desc == methodNode.desc
+                            }
+                            if (isSubclassContainsMethod) {
+                                logger.debug("subclass $subclassName already contains method $superClassName, won't check it's subclasses")
+                            } else {
+                                newToCheck.add(subclassNode.className)
+                            }
+                        }
+                    }
+                }
+            }
+            classesToCheckSubclasses = newToCheck
+        }
+
+        changedMethodRefsWithSubclasses.forEach {
             methodRefs[it.matchKey]?.forEach { className ->
                 deployedClasses[className]?.let { classNode ->
+                    logger.debug("found effected source ${classNode.source} in class ${classNode.className}, ref method ${it.matchKey}")
                     effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
                 }
             }
@@ -284,6 +327,7 @@ class IncrementalDeployDataDatabase {
         changedFieldRefs.forEach {
             fieldRefs[it.matchKey]?.forEach { className ->
                 deployedClasses[className]?.let { classNode ->
+                    logger.debug("found effected source ${classNode.source} in class ${classNode.className}, ref field ${it.matchKey}")
                     effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
                 }
             }
