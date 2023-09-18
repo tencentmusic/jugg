@@ -104,15 +104,25 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
         // resolve kotlin extension function unresolved reference
         val merger = KmModuleMergerForCompilation(kotlinClassPath)
-        merger.loadAndMerge()
+        try {
+            merger.loadAndMerge()
+        } catch (e: Exception) {
+            logger.debug("loadAndMerge .kotlin_module failed", e)
+            logger.warn("Load and merge .kotlin_module failed, it may cause compile time error. Detail: ${e.message}")
+        }
 
         val outputParser = KotlinCompilerOutputParser(task.files, logger)
         val exitCode = kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
-        merger.loadAndMerge()
-        merger.save()
+        try {
+            merger.loadAndMerge()
+            merger.save()
+        } catch (e: Exception) {
+            logger.debug("loadAndMerge .kotlin_module after compile failed", e)
+            logger.warn("Load and merge .kotlin_module after compile failed, it may cause compile time error later. Detail: ${e.message}")
+        }
 
         if (exitCode != ExitCode.OK) {
             return CompileResult(task, outputParser.results, emptyList())

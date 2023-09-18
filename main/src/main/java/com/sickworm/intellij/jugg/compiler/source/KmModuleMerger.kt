@@ -49,17 +49,12 @@ class KmModuleMerger {
      * merge kotlin module metadata into [kmModule]
      */
     fun merge(kmModuleFile: File) {
-        try {
-            if (!kmModuleFile.exists()) {
-                throw JuggInternalException.kotlinModuleFailed("file not exists: $kmModuleFile")
-            }
-            val bytes = kmModuleFile.readBytes()
-            val metadata = KotlinModuleMetadata.read(bytes)!!
-            val kmModule = metadata.toKmModule()
-            this.kmModule.merge(kmModule)
-        } catch (e: Exception) {
-            throw JuggInternalException.kotlinModuleFailed("exception: $e")
-        }
+        val bytes = kmModuleFile.readBytes()
+        val metadata = KotlinModuleMetadata.read(bytes)
+            ?: // kotlin_module isEmpty, ignore
+            return
+        val kmModule = metadata.toKmModule()
+        this.kmModule.merge(kmModule)
     }
 
     /**
