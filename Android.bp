@@ -1,0 +1,224 @@
+//
+// Copyright (C) 2017 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+toolSources = [
+    "cmd/Command.cpp",
+    "cmd/Compile.cpp",
+    "cmd/Convert.cpp",
+    "cmd/Diff.cpp",
+    "cmd/Dump.cpp",
+    "cmd/Link.cpp",
+    "cmd/Optimize.cpp",
+    "cmd/Util.cpp",
+]
+
+cc_defaults {
+    name: "aapt2_defaults",
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-parameter",
+    ],
+    cppflags: [
+        "-Wno-missing-field-initializers",
+        "-fno-exceptions",
+        "-fno-rtti",
+    ],
+    target: {
+        windows: {
+            enabled: true,
+            cflags: ["-Wno-maybe-uninitialized"],
+            ldflags: ["-static"],
+        },
+        darwin: {
+            cflags: ["-D_DARWIN_UNLIMITED_STREAMS"],
+        },
+    },
+    static_libs: [
+        "libandroidfw",
+        "libutils",
+        "liblog",
+        "libcutils",
+        "libexpat",
+        "libziparchive",
+        "libpng",
+        "libbase",
+        "libprotobuf-cpp-full",
+        "libz",
+        "libbuildversion",
+        "libidmap2_policies",
+    ],
+    stl: "libc++_static",
+    group_static_libs: true,
+}
+
+// ==========================================================
+// NOTE: Do not add any shared libraries.
+// AAPT2 is built to run on many environments
+// that may not have the required dependencies.
+// ==========================================================
+
+// ==========================================================
+// Build the host static library: aapt2
+// ==========================================================
+cc_library_host_static {
+    name: "libaapt2",
+    srcs: [
+        "compile/IdAssigner.cpp",
+        "compile/InlineXmlFormatParser.cpp",
+        "compile/NinePatch.cpp",
+        "compile/Png.cpp",
+        "compile/PngChunkFilter.cpp",
+        "compile/PngCrunch.cpp",
+        "compile/PseudolocaleGenerator.cpp",
+        "compile/Pseudolocalizer.cpp",
+        "compile/XmlIdCollector.cpp",
+        "configuration/ConfigurationParser.cpp",
+        "dump/DumpManifest.cpp",
+        "filter/AbiFilter.cpp",
+        "filter/ConfigFilter.cpp",
+        "format/Archive.cpp",
+        "format/Container.cpp",
+        "format/binary/BinaryResourceParser.cpp",
+        "format/binary/ResChunkPullParser.cpp",
+        "format/binary/TableFlattener.cpp",
+        "format/binary/XmlFlattener.cpp",
+        "format/proto/ProtoDeserialize.cpp",
+        "format/proto/ProtoSerialize.cpp",
+        "io/BigBufferStream.cpp",
+        "io/File.cpp",
+        "io/FileStream.cpp",
+        "io/FileSystem.cpp",
+        "io/StringStream.cpp",
+        "io/Util.cpp",
+        "io/ZipArchive.cpp",
+        "link/AutoVersioner.cpp",
+        "link/ManifestFixer.cpp",
+        "link/NoDefaultResourceRemover.cpp",
+        "link/ProductFilter.cpp",
+        "link/PrivateAttributeMover.cpp",
+        "link/ReferenceLinker.cpp",
+        "link/ResourceExcluder.cpp",
+        "link/TableMerger.cpp",
+        "link/XmlCompatVersioner.cpp",
+        "link/XmlNamespaceRemover.cpp",
+        "link/XmlReferenceLinker.cpp",
+        "optimize/MultiApkGenerator.cpp",
+        "optimize/ResourceDeduper.cpp",
+        "optimize/ResourceFilter.cpp",
+        "optimize/ResourcePathShortener.cpp",
+        "optimize/VersionCollapser.cpp",
+        "process/SymbolTable.cpp",
+        "split/TableSplitter.cpp",
+        "text/Printer.cpp",
+        "text/Unicode.cpp",
+        "text/Utf8Iterator.cpp",
+        "util/BigBuffer.cpp",
+        "util/Files.cpp",
+        "util/Util.cpp",
+        "Debug.cpp",
+        "DominatorTree.cpp",
+        "java/AnnotationProcessor.cpp",
+        "java/ClassDefinition.cpp",
+        "java/JavaClassGenerator.cpp",
+        "java/ManifestClassGenerator.cpp",
+        "java/ProguardRules.cpp",
+        "LoadedApk.cpp",
+        "Resource.cpp",
+        "ResourceParser.cpp",
+        "ResourceTable.cpp",
+        "ResourceUtils.cpp",
+        "ResourceValues.cpp",
+        "SdkConstants.cpp",
+        "StringPool.cpp",
+        "trace/TraceBuffer.cpp",
+        "xml/XmlActionExecutor.cpp",
+        "xml/XmlDom.cpp",
+        "xml/XmlPullParser.cpp",
+        "xml/XmlUtil.cpp",
+        "Configuration.proto",
+        "Resources.proto",
+        "ResourcesInternal.proto",
+    ],
+    proto: {
+        export_proto_headers: true,
+    },
+    defaults: ["aapt2_defaults"],
+}
+
+// ==========================================================
+// Build the host shared library: aapt2_jni
+// ==========================================================
+cc_library_host_shared {
+    name: "libaapt2_jni",
+    srcs: toolSources + ["jni/aapt2_jni.cpp"],
+    static_libs: ["libaapt2"],
+    defaults: ["aapt2_defaults"],
+}
+
+// ==========================================================
+// Build the host tests: aapt2_tests
+// ==========================================================
+cc_test_host {
+    name: "aapt2_tests",
+    srcs: [
+        "test/Builders.cpp",
+        "test/Common.cpp",
+        "test/Fixture.cpp",
+        "**/*_test.cpp",
+    ] + toolSources,
+    static_libs: [
+        "libaapt2",
+        "libgmock",
+    ],
+    defaults: ["aapt2_defaults"],
+    data: [
+         "integration-tests/CompileTest/**/*",
+         "integration-tests/CommandTests/**/*",
+         "integration-tests/ConvertTest/**/*"
+    ],
+}
+
+// ==========================================================
+// Build the host executable: aapt2
+// ==========================================================
+cc_binary_host {
+    name: "aapt2",
+    srcs: ["Main.cpp"] + toolSources,
+    use_version_lib: true,
+    static_libs: ["libaapt2"],
+    defaults: ["aapt2_defaults"],
+}
+
+// ==========================================================
+// Dist the protos
+// ==========================================================
+genrule {
+    name: "aapt2-protos",
+    tools: [":soong_zip"],
+    srcs: [
+        "Configuration.proto",
+        "ResourcesInternal.proto",
+        "Resources.proto",
+    ],
+    out: ["aapt2-protos.zip"],
+    cmd: "mkdir $(genDir)/protos && " +
+        "cp $(in) $(genDir)/protos && " +
+        "$(location :soong_zip) -o $(out) -C $(genDir)/protos -D $(genDir)/protos",
+    dist: {
+        targets: ["sdk_repo"],
+    },
+}
