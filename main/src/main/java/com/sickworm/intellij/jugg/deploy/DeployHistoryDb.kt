@@ -136,6 +136,12 @@ class DeployHistoryDb(
     }
 
     private val File.crc32: Long get() {
+        if (!exists()) {
+            return -1L
+        }
+        if (isDirectory) {
+            return -2L
+        }
         return crc32Digest.run {
             reset()
             update(readBytes())
