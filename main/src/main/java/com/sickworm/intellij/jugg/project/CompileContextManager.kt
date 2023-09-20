@@ -193,10 +193,19 @@ class CompileContextManager(
                     org.jetbrains.kotlin.config.ResourceKotlinRootType
                 ))
             subResourceRoots.forEach {
+                val file = it.toIoFile()
                 if (it.name == "res") {
-                    resourceDirs.add(it.toIoFile())
+                    resourceDirs.add(file)
                 } else if (it.name == "assets") {
-                    assetDirs.add(it.toIoFile())
+                    assetDirs.add(file)
+                } else {
+                    val isResDir = file.guessIsResDir()
+                    logger.warn("${module.name} unknown resource dir: ${file}, guess isResDir: $isResDir")
+                    if (isResDir) {
+                        resourceDirs.add(file)
+                    } else {
+                        assetDirs.add(file)
+                    }
                 }
             }
 
@@ -270,6 +279,11 @@ class CompileContextManager(
 
         logger.debug("total ${modules.size} modules loaded")
         return modules
+    }
+
+    private fun File.guessIsResDir(): Boolean {
+        val files = listFiles() ?: return false
+        return files.any { it.name == "drawable" || it.name == "layout" || it.name == "values" }
     }
 
     private fun getAndroidSdkRootDir(): File? {
