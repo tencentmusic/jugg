@@ -156,8 +156,6 @@ interface ICompileContext {
 
     val apkFile: File? get() = apkInfos.firstOrNull()?.files?.first()?.apkFile
 
-    val variant: String
-
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun listenUpdate(listener: OnContextUpdate)
@@ -176,6 +174,7 @@ data class ModuleInfo(
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
+    val buildVariant: String,
     val compileVersion: String?,
     val buildToolsVersion: String?,
     val kotlinJvmTarget: String?,
@@ -198,6 +197,9 @@ data class ModuleInfo(
     }
 
     companion object {
+
+        const val DEFAULT_BUILD_VARIANT = "debug"
+
         // a virtual module used for redex files
         val juggRedexModule = ModuleInfo(
             name = "jugg_redex",
@@ -206,6 +208,7 @@ data class ModuleInfo(
             sourceDirs = emptyList(),
             resourceDirs = emptyList(),
             assetsDirs = emptyList(),
+            buildVariant = DEFAULT_BUILD_VARIANT,
             compileVersion = null,
             buildToolsVersion = null,
             kotlinJvmTarget = null,

@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
@@ -119,13 +120,13 @@ class CompileContextManager(
 
     fun getAllModulesByModuleManager(isNeedReloadProjectInfo: Boolean): Map<String, ModuleInfo> {
         var modules: Map<String, ModuleInfo>? = null
-        if (!isNeedReloadProjectInfo) {
-            val cacheModules = projectInfoSerializer.load()
-            logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
-            if (cacheModules != null) {
-                modules = cacheModules
-            }
-        }
+//        if (!isNeedReloadProjectInfo) {
+//            val cacheModules = projectInfoSerializer.load()
+//            logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
+//            if (cacheModules != null) {
+//                modules = cacheModules
+//            }
+//        }
         if (modules == null) {
             modules = doGetAllModulesByModuleManager()
             projectInfoSerializer.save(modules)
@@ -246,10 +247,15 @@ class CompileContextManager(
             val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
 
+            var buildVariant = AndroidFacet.getInstance(module)?.properties?.SELECTED_BUILD_VARIANT
+            if (buildVariant.isNullOrEmpty()) {
+                buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT
+            }
+
             val moduleInfo = ModuleInfo(
                 module.name, baseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
-                compileVersion, buildToolsVersion,
+                buildVariant, compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
                 ModuleBuildPathInfo(pathManager.projectDir, baseDir),
                 moduleDependencies,

@@ -67,7 +67,6 @@ val context get() = SimpleCompileContext(
     androidJar = androidJar,
     modules = emptyMap(),
     apkInfos = projectInfo.apkInfos,
-    variant = "debug",
     minApi = JuggSettings.minApi,
     projectDir = projectInfo.projectRoot
 )
@@ -79,6 +78,7 @@ val mockModule = ModuleInfo(
     sourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/java")),
     resourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/res")),
     assetsDirs = listOf(File(projectInfo.projectRoot, "app/src/main/assets")),
+    buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
     compileVersion = null,
     buildToolsVersion = null,
     buildPathInfo = ModuleBuildPathInfo(projectInfo.projectRoot, buildDir),

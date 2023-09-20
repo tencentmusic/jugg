@@ -76,7 +76,7 @@ private class ProjectInfoSerialize(
 
     companion object {
 
-        private const val SERIALIZE_VERSION: String = "1"
+        private const val SERIALIZE_VERSION: String = "2"
 
         fun create(modules: Map<String, ModuleInfo>): ProjectInfoSerialize {
             val stringMap = mutableMapOf<String, Int>()
@@ -104,6 +104,7 @@ private class ProjectInfoSerialize(
                     libraryDependencies = it.libraryDependencies.map { libraryDependency ->
                         stringMap.getOrPut(libraryDependency.file.absolutePath) { index++ }
                     },
+                    buildVariant = stringMap.getOrPut(it.buildVariant) { index++ },
                 )
             }
 
@@ -141,21 +142,22 @@ private class ProjectInfoSerialize(
                     sourceDirs = if (parts[3].isEmpty()) emptyList() else parts[3].split(",").map { dir -> File(stringMap[dir]!!) },
                     resourceDirs = if (parts[4].isEmpty()) emptyList() else parts[4].split(",").map { dir -> File(stringMap[dir]!!) },
                     assetsDirs = if (parts[5].isEmpty()) emptyList() else parts[5].split(",").map { dir -> File(stringMap[dir]!!) },
-                    compileVersion = stringMap[parts[6]]!!.nullIfNull(),
-                    buildToolsVersion = stringMap[parts[7]]!!.nullIfNull(),
-                    kotlinJvmTarget = stringMap[parts[8]]!!.nullIfNull(),
-                    javaSourceCompatibility = stringMap[parts[9]]!!.nullIfNull(),
-                    javaTargetCompatibility = stringMap[parts[10]]!!.nullIfNull(),
+                    buildVariant = stringMap[parts[6]]!!,
+                    compileVersion = stringMap[parts[7]]!!.nullIfNull(),
+                    buildToolsVersion = stringMap[parts[8]]!!.nullIfNull(),
+                    kotlinJvmTarget = stringMap[parts[9]]!!.nullIfNull(),
+                    javaSourceCompatibility = stringMap[parts[10]]!!.nullIfNull(),
+                    javaTargetCompatibility = stringMap[parts[11]]!!.nullIfNull(),
                     buildPathInfo = ModuleBuildPathInfo(
-                        File(stringMap[parts[11]]!!),
-                        File(stringMap[parts[12]]!!)
+                        File(stringMap[parts[12]]!!),
+                        File(stringMap[parts[13]]!!)
                     ),
-                    moduleDependencies = if (parts[13].isEmpty()) emptyList() else parts[13].split(",").map { moduleDependency ->
+                    moduleDependencies = if (parts[14].isEmpty()) emptyList() else parts[14].split(",").map { moduleDependency ->
                         ModuleDependency(
                             moduleName = stringMap[moduleDependency]!!
                         )
                     },
-                    libraryDependencies = if (parts[14].isEmpty()) emptyList() else parts[14].split(",").map { libraryDependency ->
+                    libraryDependencies = if (parts[15].isEmpty()) emptyList() else parts[15].split(",").map { libraryDependency ->
                         LibraryDependency(
                             file = File(stringMap[libraryDependency]!!)
                         )
@@ -178,6 +180,7 @@ private class ModuleInfoSerialize(
     val sourceDirs: List<StringIndex>,
     val resourceDirs: List<StringIndex>,
     val assetsDirs: List<StringIndex>,
+    val buildVariant: StringIndex,
     val compileVersion: StringIndex,
     val buildToolsVersion: StringIndex,
     val kotlinJvmTarget: StringIndex,
@@ -195,6 +198,7 @@ private class ModuleInfoSerialize(
         stringBuilder.append(sourceDirs.joinToString(",")).append(";")
         stringBuilder.append(resourceDirs.joinToString(",")).append(";")
         stringBuilder.append(assetsDirs.joinToString(",")).append(";")
+        stringBuilder.append(buildVariant).append(";")
         stringBuilder.append(compileVersion).append(";")
         stringBuilder.append(buildToolsVersion).append(";")
         stringBuilder.append(kotlinJvmTarget).append(";")

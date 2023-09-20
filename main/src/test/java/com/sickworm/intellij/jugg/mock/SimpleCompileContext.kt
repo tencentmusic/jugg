@@ -13,7 +13,6 @@ class SimpleCompileContext(
     override val androidJar: File,
     override val modules: Map<String, ModuleInfo>,
     override val apkInfos: List<ApkInfo>,
-    override val variant: String,
     override val minApi: Int,
     override val projectDir: File,
 ) : ICompileContext {

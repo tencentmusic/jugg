@@ -20,7 +20,6 @@ data class BaseCompileContext(
 
     override val androidJar: File get() = getSuggestedPlatform(modules)
     override val androidBuildTools: File get() = getSuggestedBuildTools(modules)
-    override val variant: String = "debug" // TODO more elegant?
 
     private val listeners = mutableListOf<OnContextUpdate>()
 
