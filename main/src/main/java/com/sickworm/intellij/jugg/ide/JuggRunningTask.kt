@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -24,6 +25,7 @@ import javax.swing.SwingUtilities
 class JuggRunningTask(
     private val project: Project,
     private val juggReporter: JuggReporter,
+    private val deployTargetManager: IDeployTargetManager,
     private val processHandler: ProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
     private val deployTask: (forceInstall: Boolean) -> DeployTaskResult,
@@ -58,7 +60,7 @@ class JuggRunningTask(
         } finally {
             stop(indicator)
             isRunning = false
-            setHasRun(project, true)
+            setHasRun(project, deployTargetManager.getDeviceOrNull()?.name)
             JuggLogger.stopListenProjectLog(project, loggerListener)
         }
     }
@@ -195,16 +197,27 @@ class JuggRunningTask(
     }
 
     companion object {
-        private var isFirstTimeRun = mutableMapOf<String, Boolean>()
+        private var isFirstTimeRun = mutableMapOf<String, String?>()
 
-        fun isFirstTimeRun(project: Project): Boolean {
+        fun isFirstTimeRun(project: Project, runningDevice: String? = null): Boolean {
             val key = project.bashPathOrDefault
-            return isFirstTimeRun.getOrPut(key) { true }
+            if (runningDevice == null) {
+                // don't check device
+                return !isFirstTimeRun.containsKey(key)
+            }
+
+            val lastRunningDevice = isFirstTimeRun[key]
+            return lastRunningDevice != runningDevice
         }
 
-        fun setHasRun(project: Project, isRun: Boolean) {
+        fun setHasRun(project: Project, runningDevice: String?) {
             val key = project.bashPathOrDefault
-            this.isFirstTimeRun[key] = !isRun
+            this.isFirstTimeRun[key] = runningDevice
+        }
+
+        fun resetHasRun(project: Project) {
+            val key = project.bashPathOrDefault
+            isFirstTimeRun.remove(key)
         }
     }
 }

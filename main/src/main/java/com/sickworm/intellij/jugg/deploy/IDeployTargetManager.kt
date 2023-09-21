@@ -31,4 +31,12 @@ interface IDeployTargetManager {
         } catch (e: Exception) {
             false
         }
+
+    fun getDeviceOrNull(): IDevice? {
+        return try {
+            getDevice()
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

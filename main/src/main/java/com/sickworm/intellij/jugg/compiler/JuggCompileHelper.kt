@@ -115,7 +115,8 @@ class JuggCompilerHelper(
         // read all uncompiled files
         val uncompiledFiles = deployFileManager.getUncompiledFiles()
         if (uncompiledFiles.all { it.hasCompiledOnce }) {
-            return if (JuggRunningTask.isFirstTimeRun(project)) {
+            val deviceName = deployTargetManager.getDeviceOrNull()?.name
+            return if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
                 logger.info("First time run, try start app directly.")
                 CompileTaskResult.incrementalSuccess()
             } else {

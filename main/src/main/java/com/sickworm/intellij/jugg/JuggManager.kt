@@ -67,7 +67,7 @@ class JuggManager @TestOnly constructor(
             createRunConfiguration()
             logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            JuggRunningTask.setHasRun(project, false)
+            JuggRunningTask.resetHasRun(project)
             logger.info("Start jugg finished.")
         })
     }
@@ -221,7 +221,8 @@ class JuggManager @TestOnly constructor(
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
-        val task = JuggRunningTask(project, juggReporter, processHandler, compileTask, deployTask, initIncrementalCompileTask)
+        val task = JuggRunningTask(project, juggReporter, deployTargetManager,
+            processHandler, compileTask, deployTask, initIncrementalCompileTask)
         currentTask = task
         return task
     }
