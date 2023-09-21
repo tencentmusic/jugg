@@ -726,7 +726,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val fieldClassIds = changedFieldRefs.filter {
                     dbClassNodeMap.containsKey(it.owner)
                 }
-                if (changedFieldRefs.isNotEmpty()) {
+                if (fieldClassIds.isNotEmpty()) {
                     val fieldClassIdsString = fieldClassIds.joinToString(" OR ") {
                         "(class_id=${dbClassNodeMap[it.owner]!!} AND name='${it.name}' AND type='${it.type}')"
                     }
