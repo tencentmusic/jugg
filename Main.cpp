@@ -40,6 +40,7 @@
 #include "trace/TraceBuffer.h"
 #include "util/Files.h"
 #include "util/Util.h"
+#include "cmd/IncLink.h"
 
 using ::android::StringPiece;
 using ::android::base::StringPrintf;
@@ -72,6 +73,7 @@ class MainCommand : public Command {
     AddOptionalSubcommand(util::make_unique<OptimizeCommand>());
     AddOptionalSubcommand(util::make_unique<ConvertCommand>());
     AddOptionalSubcommand(util::make_unique<VersionCommand>());
+    AddOptionalSubcommand(util::make_unique<IncLinkCommand>(diagnostics));
   }
 
   int Action(const std::vector<std::string>& args) override {

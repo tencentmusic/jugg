@@ -76,6 +76,8 @@ class TableMerger {
   // Merges a compiled file that belongs to this same or empty package.
   bool MergeFile(const ResourceFile& fileDesc, bool overlay, io::IFile* file);
 
+  bool IsMergedFile(FileReference* file);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(TableMerger);
 
@@ -84,6 +86,8 @@ class TableMerger {
   TableMergerOptions options_;
   ResourceTablePackage* master_package_;
   std::set<std::string> merged_packages_;
+
+  std::vector<std::string> merged_path_of_values_;
 
   bool MergeImpl(const Source& src, ResourceTable* src_table, bool overlay, bool allow_new);
 

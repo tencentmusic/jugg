@@ -84,6 +84,10 @@ class LinkContext : public IAaptContext {
       : diagnostics_(diagnostics), name_mangler_({}), symbols_(&name_mangler_) {
   }
 
+  void updateContextOnInc(LinkContext* context) {
+    diagnostics_ = context->diagnostics_;
+  }
+
   PackageType GetPackageType() override {
     return package_type_;
   }
@@ -1130,6 +1134,10 @@ class Linker {
   }
 
   bool GenerateJavaClasses() {
+    return GenerateJavaClasses(&final_table_);
+  }
+
+  bool GenerateJavaClasses(ResourceTable* table) {
     TRACE_CALL();
     // The set of packages whose R class to call in the main classes onResourcesLoaded callback.
     std::vector<std::string> packages_to_callback;
@@ -1162,7 +1170,7 @@ class Linker {
       // to the original package, and private and public symbols to the private package.
       JavaClassGeneratorOptions options = template_options;
       options.types = JavaClassGeneratorOptions::SymbolTypes::kPublicPrivate;
-      if (!WriteJavaFile(&final_table_, actual_package, options_.private_symbols.value(),
+      if (!WriteJavaFile(table, actual_package, options_.private_symbols.value(),
                          options)) {
         return false;
       }
@@ -1175,7 +1183,7 @@ class Linker {
 
       JavaClassGeneratorOptions options = template_options;
       options.types = JavaClassGeneratorOptions::SymbolTypes::kAll;
-      if (!WriteJavaFile(&final_table_, actual_package, extra_package, options)) {
+      if (!WriteJavaFile(table, actual_package, extra_package, options)) {
         return false;
       }
     }
@@ -1187,7 +1195,7 @@ class Linker {
 
       JavaClassGeneratorOptions options = template_options;
       options.types = JavaClassGeneratorOptions::SymbolTypes::kAll;
-      if (!WriteJavaFile(&final_table_, package, package, options)) {
+      if (!WriteJavaFile(table, package, package, options)) {
         return false;
       }
     }
@@ -1205,7 +1213,7 @@ class Linker {
           std::move(packages_to_callback);
     }
 
-    if (!WriteJavaFile(&final_table_, actual_package, output_package, options,
+    if (!WriteJavaFile(table, actual_package, output_package, options,
                        options_.generate_text_symbols_path)) {
       return false;
     }
@@ -2138,7 +2146,9 @@ class Linker {
     return 0;
   }
 
- private:
+ // enlarge range for IncLinker
+ // private:
+ protected:
   LinkOptions options_;
   LinkContext* context_;
   ResourceTable final_table_;

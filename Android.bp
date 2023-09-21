@@ -29,16 +29,16 @@ toolSources = [
     "cmd/Convert.cpp",
     "cmd/Diff.cpp",
     "cmd/Dump.cpp",
-    "cmd/Link.cpp",
     "cmd/Optimize.cpp",
     "cmd/Util.cpp",
+    "cmd/IncLink.cpp",
 ]
 
 cc_defaults {
     name: "aapt2_defaults",
     cflags: [
         "-Wall",
-        "-Werror",
+        "-Wno-error",
         "-Wno-unused-parameter",
     ],
     cppflags: [
