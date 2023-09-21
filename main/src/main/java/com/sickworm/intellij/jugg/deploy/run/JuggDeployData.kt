@@ -44,7 +44,8 @@ data class JuggDeployData(
 
     val isNeedRestartApp get() = hotFixModifiedClasses.isNotEmpty()
 
-    val isNeedRestartActivity get() = !isWarmUp // for now, we always restart activity excepts warm up action
+    // for now, we always restart activity excepts warm up and restart app
+    val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp
 
     val deployType: DeployType = when {
         isInstall -> DeployType.INSTALL
