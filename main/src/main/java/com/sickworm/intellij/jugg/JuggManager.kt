@@ -102,7 +102,7 @@ class JuggManager @TestOnly constructor(
     private fun createRunConfiguration() {
         val defaultName = "jugg:app"
         val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
-        if (currentList.any { it.name == defaultName }) {
+        if (currentList.isNotEmpty()) {
             return
         }
         val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
