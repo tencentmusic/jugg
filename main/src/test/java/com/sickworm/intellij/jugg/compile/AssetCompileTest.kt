@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.compile
 
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler

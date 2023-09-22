@@ -1,7 +1,7 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.compile
 
+import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.source.KotlinCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*

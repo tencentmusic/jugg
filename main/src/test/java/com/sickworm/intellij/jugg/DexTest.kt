@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.compile.JavaCompileTest
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
