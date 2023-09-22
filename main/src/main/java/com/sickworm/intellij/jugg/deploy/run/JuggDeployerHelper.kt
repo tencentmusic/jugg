@@ -137,7 +137,7 @@ class JuggDeployerHelper(
             }
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
-            val canRetry = retryReason == null || retryReason != reason
+            val canRetry = (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
             if (canRetry && !isInstall) {
                 val isAppForeground = deployTargetManager.isAppForeground()
                 logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
@@ -306,6 +306,8 @@ class JuggDeployerHelper(
 
     companion object {
         private val runTasklock = Object()
+
+        const val DO_NOT_RETRY = "DO_NOT_RETRY"
     }
 }
 
