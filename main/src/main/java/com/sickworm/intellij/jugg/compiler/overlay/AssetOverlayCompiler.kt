@@ -3,6 +3,10 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 
+/**
+ * Compile asset file to deployable files.
+ * For now just copy the file to output directory.
+ */
 class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)

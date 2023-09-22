@@ -4,6 +4,19 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 
+/**
+ * Compile res file to deployable files.
+ *
+ * e.g.
+ * input:
+ * activity_main.xml
+ *
+ * output:
+ * activity_main.xml (compiled)
+ * resources.arsc
+ * AndroidManifest.xml
+ * R.java
+ */
 class ResourceOverlayCompiler(
     context: ICompileContext
 ): BaseCompiler(context) {

@@ -6,6 +6,19 @@ import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
+/**
+ * Compile res .flat files to deployable files
+ *
+ * e.g.
+ * input:
+ * activity_main.xml.flat
+ *
+ * output:
+ * activity_main.xml (compiled)
+ * resources.arsc
+ * AndroidManifest.xml
+ * R.java
+ */
 class ArscCompiler(
     context: ICompileContext
 ): BaseCompiler(context) {

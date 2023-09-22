@@ -5,6 +5,16 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
 
+/**
+ * Compile res files to .flat files
+ *
+ * e.g.
+ * input:
+ * activity_main.xml
+ *
+ * output:
+ * activity_main.xml.flat
+ */
 class ResourceCompiler(
     context: ICompileContext
 ): BaseCompiler(context) {
