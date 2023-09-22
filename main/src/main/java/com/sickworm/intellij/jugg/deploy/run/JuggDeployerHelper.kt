@@ -41,7 +41,7 @@ class JuggDeployerHelper(
 
     private var isRunning = false
 
-    private fun runTask(data: JuggDeployData) = synchronized(runTasklock) {
+    private fun runTask(data: JuggDeployData) = synchronized(runTaskLock) {
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
 
@@ -305,7 +305,7 @@ class JuggDeployerHelper(
     }
 
     companion object {
-        private val runTasklock = Object()
+        private val runTaskLock = Object()
 
         const val DO_NOT_RETRY = "DO_NOT_RETRY"
     }
