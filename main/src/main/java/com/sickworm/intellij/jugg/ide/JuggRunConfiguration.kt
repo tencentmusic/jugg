@@ -60,6 +60,10 @@ class JuggConfigurationType : ConfigurationTypeBase(
             override fun getId(): String {
                 return "Jugg"
             }
+
+            override fun isEditableInDumbMode(): Boolean {
+                return true
+            }
         })
     }
 
