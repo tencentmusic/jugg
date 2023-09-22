@@ -80,7 +80,7 @@ class JuggDeployerHelper(
         isRunning = false
     }
 
-    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, canRetry: Boolean = true, isFallbackAllHotFix: Boolean = false): DeployTaskResult {
+    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, retryReason: String? = null, isFallbackAllHotFix: Boolean = false): DeployTaskResult {
         logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $isFallbackAllHotFix")
 
         val deployState = deployStateManager.updateDeployState()
@@ -137,6 +137,7 @@ class JuggDeployerHelper(
             }
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
+            val canRetry = retryReason == null || retryReason != reason
             if (canRetry && !isInstall) {
                 val isAppForeground = deployTargetManager.isAppForeground()
                 logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
@@ -157,7 +158,7 @@ class JuggDeployerHelper(
                         action = "incremental_deploy_retry"
                         detail = reason
                     }
-                    return deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = false, isFallbackAllHotFix = true)
+                    return deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true)
                 }
 
                 val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
@@ -182,10 +183,10 @@ class JuggDeployerHelper(
                         } else {
                             logger.info("Try recover deploy state success on retry.")
                             juggReporter.report {
-                                action = "incremental_deploy_retry"
+                                action = "incremental_deploy_retry_after_recover"
                                 detail = reason
                             }
-                            deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = true)
+                            deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason)
                         }
                     } else {
                         logger.info("Deploy agent no response, but App is in foreground, try again.")
@@ -193,7 +194,7 @@ class JuggDeployerHelper(
                             action = "incremental_deploy_retry"
                             detail = reason
                         }
-                        deploy(isInstall = false, isWarmUp = isWarmUp, canRetry = false)
+                        deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason)
                     }
                     return result.copy(costTime = costTime())
                 }
