@@ -20,6 +20,7 @@ class Aapt2DaemonInvoker(
 
     @Synchronized
     private fun init() {
+        logger.debug("start aapt2 daemon")
         val process = Runtime.getRuntime().exec("$aapt2 daemon")
         val output = readOutput(process!!.inputStream, 1)
         if (output != "Ready\n") {
@@ -30,7 +31,7 @@ class Aapt2DaemonInvoker(
     }
 
     fun invoke(params: String): Aapt2Result {
-        if (process == null) {
+        if (process?.isAlive != true) {
             init()
         }
         logger.debug("aapt2 command: aapt2 $params")
