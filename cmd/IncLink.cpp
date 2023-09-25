@@ -285,11 +285,9 @@ class IncLinker: private Linker {
 
           for (const auto& config_value : entry->values) {
             FileReference* file_ref = ValueCast<FileReference>(config_value->value.get());
-            if (file_ref) {
-              // filter config_value from input_files only
-              if (!table_merger_->IsMergedFile(file_ref)) {
-                continue;
-              }
+            // filter config_value from input_files only
+            if (!table_merger_->IsMergedFile(file_ref)) {
+              continue;
             }
 
             ResourceConfigValue* new_value =

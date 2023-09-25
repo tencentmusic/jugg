@@ -347,7 +347,7 @@ bool TableMerger::MergeFile(const ResourceFile& file_desc, bool overlay, io::IFi
   file_ref->type = file_desc.type;
   file_ref->file = file;
 
-  merged_path_of_values_.push_back(path);
+  merged_path_of_values_.push_back(file_ref->GetSource().path);
 
   ResourceTablePackage* pkg = table.CreatePackage(file_desc.name.package, 0x0);
   pkg->FindOrCreateType(file_desc.name.type)
@@ -362,8 +362,7 @@ bool TableMerger::IsMergedFile(FileReference* file_ref) {
   if (!file_ref) {
     return false;
   }
-  const std::string& path = *file_ref->path;
-  return std::find(merged_path_of_values_.begin(), merged_path_of_values_.end(), path) != merged_path_of_values_.end();
+  return std::find(merged_path_of_values_.begin(), merged_path_of_values_.end(), file_ref->GetSource().path) != merged_path_of_values_.end();
 }
 
 }  // namespace aapt
