@@ -40,6 +40,8 @@ cc_defaults {
         "-Wall",
         "-Wno-error",
         "-Wno-unused-parameter",
+//        "-O0",
+//        "-gdwarf-4",
     ],
     cppflags: [
         "-Wno-missing-field-initializers",

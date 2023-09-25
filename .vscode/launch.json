@@ -1,0 +1,38 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "lldb 启动",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/Volumes/android/out/host/darwin-x86/bin/aapt2",
+            "args": ["-h"],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+
+        {
+            "name": "lldb daemon",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/Volumes/android/out/host/darwin-x86/bin/aapt2",
+            "args": ["daemon"],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "text": "settings set target.input-path /Volumes/android/test_cmd.txt"
+                }
+            ]
+        }
+    ]
+}
