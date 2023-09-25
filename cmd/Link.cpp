@@ -1134,10 +1134,6 @@ class Linker {
   }
 
   bool GenerateJavaClasses() {
-    return GenerateJavaClasses(&final_table_);
-  }
-
-  bool GenerateJavaClasses(ResourceTable* table) {
     TRACE_CALL();
     // The set of packages whose R class to call in the main classes onResourcesLoaded callback.
     std::vector<std::string> packages_to_callback;
@@ -1170,7 +1166,7 @@ class Linker {
       // to the original package, and private and public symbols to the private package.
       JavaClassGeneratorOptions options = template_options;
       options.types = JavaClassGeneratorOptions::SymbolTypes::kPublicPrivate;
-      if (!WriteJavaFile(table, actual_package, options_.private_symbols.value(),
+      if (!WriteJavaFile(&final_table_, actual_package, options_.private_symbols.value(),
                          options)) {
         return false;
       }
@@ -1183,7 +1179,7 @@ class Linker {
 
       JavaClassGeneratorOptions options = template_options;
       options.types = JavaClassGeneratorOptions::SymbolTypes::kAll;
-      if (!WriteJavaFile(table, actual_package, extra_package, options)) {
+      if (!WriteJavaFile(&final_table_, actual_package, extra_package, options)) {
         return false;
       }
     }
@@ -1195,7 +1191,7 @@ class Linker {
 
       JavaClassGeneratorOptions options = template_options;
       options.types = JavaClassGeneratorOptions::SymbolTypes::kAll;
-      if (!WriteJavaFile(table, package, package, options)) {
+      if (!WriteJavaFile(&final_table_, package, package, options)) {
         return false;
       }
     }
@@ -1213,7 +1209,7 @@ class Linker {
           std::move(packages_to_callback);
     }
 
-    if (!WriteJavaFile(table, actual_package, output_package, options,
+    if (!WriteJavaFile(&final_table_, actual_package, output_package, options,
                        options_.generate_text_symbols_path)) {
       return false;
     }

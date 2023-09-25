@@ -28,34 +28,6 @@ class IncLinker: private Linker {
     context_->updateContextOnInc(context);
   }
 
-  bool IncMergeExportedSymbols(const Source& source,
-                            const std::vector<SourcedResourceName>& exported_symbols,
-                            ResourceTable* final_table) {
-    TRACE_CALL();
-    // Add the exports of this file to the table.
-    for (const SourcedResourceName& exported_symbol : exported_symbols) {
-      ResourceName res_name = exported_symbol.name;
-      if (res_name.package.empty()) {
-        res_name.package = context_->GetCompilationPackage();
-      }
-
-      Maybe<ResourceName> mangled_name = context_->GetNameMangler()->MangleName(res_name);
-      if (mangled_name) {
-        res_name = mangled_name.value();
-      }
-
-      std::unique_ptr<Id> id = util::make_unique<Id>();
-      id->SetSource(source.WithLine(exported_symbol.line));
-      bool result =
-          final_table->AddResourceMangled(res_name, ConfigDescription::DefaultConfig(),
-                                          std::string(), std::move(id), context_->GetDiagnostics());
-      if (!result) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   int LoadFromApk(const std::vector<std::string>& input_files) {
     // load table from .apk
     if (input_files.size() == 0) {
@@ -69,7 +41,8 @@ class IncLinker: private Linker {
       return 1;
     }
 
-    apk_ = LoadedApk::LoadApkFromPath(input_files[0], context_->GetDiagnostics());
+    // load table and manifest from apk
+    std::unique_ptr<LoadedApk> apk_ = LoadedApk::LoadApkFromPath(input_files[0], context_->GetDiagnostics());
     if (!apk_) {
       context_->GetDiagnostics()->Error(
           DiagMessage() << "load apk failed");
@@ -77,8 +50,32 @@ class IncLinker: private Linker {
     }
 
 
-    std::unique_ptr<xml::XmlResource> manifest_xml = apk_->GetManifest()->Clone();
-    ResourceTable* final_table = apk_->GetResourceTable();
+    // init compile context
+    manifest_xml_ = apk_->GetManifest()->Clone();
+
+    ResourceTable* apk_table = apk_->GetResourceTable();
+    for (const auto& pkg : apk_table->packages) {
+      ResourceTablePackage* new_pkg = final_table_.CreatePackage(pkg->name, pkg->id);
+      for (const auto& type : pkg->types) {
+        ResourceTableType* new_type = new_pkg->FindOrCreateType(type->type);
+        new_type->id = type->id;
+        new_type->visibility_level = type->visibility_level;
+
+        for (const auto& entry : type->entries) {
+          ResourceEntry* new_entry = new_type->FindOrCreateEntry(entry->name);
+          new_entry->id = entry->id;
+          new_entry->visibility = entry->visibility;
+          new_entry->allow_new = entry->allow_new;
+          new_entry->overlayable_item = entry->overlayable_item;
+
+          for (const auto& config_value : entry->values) {
+            ResourceConfigValue* new_value =
+                new_entry->FindOrCreateValue(config_value->config, config_value->product);
+            new_value->value.reset(config_value->value->Clone(&final_table_.string_pool));
+          }
+        }
+      }
+    }
 
 
 
@@ -87,7 +84,7 @@ class IncLinker: private Linker {
 
     // First extract the Package name without modifying it (via --rename-manifest-package).
     if (Maybe<AppInfo> maybe_app_info =
-            ExtractAppInfoFromBinaryManifest(*manifest_xml.get(), context_->GetDiagnostics())) {
+            ExtractAppInfoFromBinaryManifest(*manifest_xml_.get(), context_->GetDiagnostics())) {
       const AppInfo& app_info = maybe_app_info.value();
       context_->SetCompilationPackage(app_info.package);
     }
@@ -109,12 +106,12 @@ class IncLinker: private Linker {
     }
     
     ManifestFixer manifest_fixer(options_.manifest_fixer_options);
-    if (!manifest_fixer.Consume(context_, manifest_xml.get())) {
+    if (!manifest_fixer.Consume(context_, manifest_xml_.get())) {
       return 1;
     }
 
     Maybe<AppInfo> maybe_app_info =
-        ExtractAppInfoFromBinaryManifest(*manifest_xml.get(), context_->GetDiagnostics());
+        ExtractAppInfoFromBinaryManifest(*manifest_xml_.get(), context_->GetDiagnostics());
     if (!maybe_app_info) {
       return 1;
     }
@@ -148,18 +145,18 @@ class IncLinker: private Linker {
     // in res/**/*.
     {
       XmlIdCollector collector;
-      if (!collector.Consume(context_, manifest_xml.get())) {
+      if (!collector.Consume(context_, manifest_xml_.get())) {
         return false;
       }
 
-      if (!IncMergeExportedSymbols(manifest_xml->file.source, manifest_xml->file.exported_symbols, final_table)) {
+      if (!MergeExportedSymbols(manifest_xml_->file.source, manifest_xml_->file.exported_symbols)) {
         return false;
       }
     }
 
     // Add our table to the symbol table.
     context_->GetExternalSymbols()->PrependSource(
-        util::make_unique<ResourceTableSymbolSource>(final_table));
+        util::make_unique<ResourceTableSymbolSource>(&final_table_));
 
     // Workaround for pre-O runtime that would treat negative resource IDs
     // (any ID with a package ID > 7f) as invalid. Intercept any ID (PPTTEEEE) with PP > 0x7f
@@ -177,7 +174,7 @@ class IncLinker: private Linker {
     // Before we process anything, remove the resources whose default values don't exist.
     // We want to force any references to these to fail the build.
     if (!options_.no_resource_removal) {
-      if (!NoDefaultResourceRemover{}.Consume(context_, final_table)) {
+      if (!NoDefaultResourceRemover{}.Consume(context_, &final_table_)) {
         context_->GetDiagnostics()->Error(DiagMessage()
                                           << "failed removing resources with no defaults");
         return 1;
@@ -189,16 +186,14 @@ class IncLinker: private Linker {
 
   int IncLinkAdv(const std::vector<std::string>& input_files) {
     proguard::KeepSet proguard_main_dex_keep_set;
-    ResourceTable* final_table = apk_->GetResourceTable();
-    std::unique_ptr<xml::XmlResource> manifest_xml_ptr = apk_->GetManifest()->Clone();
-    xml::XmlResource* manifest_xml = manifest_xml_ptr.get();
 
     TableMergerOptions table_merger_options;
     table_merger_options.auto_add_overlay = true;
     table_merger_options.override_styles_instead_of_overlaying =
         options_.override_styles_instead_of_overlaying;
     table_merger_options.strict_visibility = options_.strict_visibility;
-    table_merger_ = util::make_unique<TableMerger>(context_, final_table, table_merger_options);
+    table_merger_ = util::make_unique<TableMerger>(context_, &final_table_, table_merger_options);
+
 
     for (const std::string& input : input_files) {
       if (!MergePath(input, true)) {
@@ -208,14 +203,14 @@ class IncLinker: private Linker {
     }
 
     ReferenceLinker linker;
-    if (!options_.merge_only && !linker.Consume(context_, final_table)) {
+    if (!options_.merge_only && !linker.Consume(context_, &final_table_)) {
       context_->GetDiagnostics()->Error(DiagMessage() << "failed linking references");
       return 1;
     }
 
     // Assign IDs if we are building a regular app.
     IdAssigner id_assigner(&options_.stable_id_map);
-    if (!id_assigner.Consume(context_, final_table)) {
+    if (!id_assigner.Consume(context_, &final_table_)) {
       context_->GetDiagnostics()->Error(DiagMessage() << "failed assigning IDs");
       return 1;
     }
@@ -233,23 +228,23 @@ class IncLinker: private Linker {
     //   // AndroidManifest.xml has no resource name, but the CallSite is built from the name
     //   // (aka, which package the AndroidManifest.xml is coming from).
     //   // So we give it a package name so it can see local resources.
-    //   manifest_xml->file.name.package = context_->GetCompilationPackage();
+    //   manifest_xml_->file.name.package = context_->GetCompilationPackage();
 
     //   XmlReferenceLinker manifest_linker;
-    //   if (options_.merge_only || manifest_linker.Consume(context_, manifest_xml)) {
+    //   if (options_.merge_only || manifest_linker.Consume(context_, manifest_xml_)) {
     //     if (options_.generate_proguard_rules_path &&
-    //         !proguard::CollectProguardRulesForManifest(manifest_xml, &proguard_keep_set_)) {
+    //         !proguard::CollectProguardRulesForManifest(manifest_xml_, &proguard_keep_set_)) {
     //       error = true;
     //     }
 
     //     if (options_.generate_main_dex_proguard_rules_path &&
-    //         !proguard::CollectProguardRulesForManifest(manifest_xml,
+    //         !proguard::CollectProguardRulesForManifest(manifest_xml_,
     //                                                    &proguard_main_dex_keep_set, true)) {
     //       error = true;
     //     }
 
     //     if (options_.generate_java_class_path) {
-    //       if (!WriteManifestJavaFile(manifest_xml)) {
+    //       if (!WriteManifestJavaFile(manifest_xml_)) {
     //         error = true;
     //       }
     //     }
@@ -258,7 +253,7 @@ class IncLinker: private Linker {
     //       // PackageParser will fail if URIs are removed from
     //       // AndroidManifest.xml.
     //       XmlNamespaceRemover namespace_remover(true /* keepUris */);
-    //       if (!namespace_remover.Consume(context_, manifest_xml)) {
+    //       if (!namespace_remover.Consume(context_, manifest_xml_)) {
     //         error = true;
     //       }
     //     }
@@ -274,7 +269,7 @@ class IncLinker: private Linker {
 
     // filter table with input_files
     std::unique_ptr<ResourceTable> output_table = util::make_unique<ResourceTable>();
-    for (const auto& pkg : final_table->packages) {
+    for (const auto& pkg : final_table_.packages) {
       ResourceTablePackage* new_pkg = output_table->CreatePackage(pkg->name, pkg->id);
       for (const auto& type : pkg->types) {
         ResourceTableType* new_type = new_pkg->FindOrCreateType(type->type);
@@ -305,7 +300,7 @@ class IncLinker: private Linker {
       }
     }
 
-    if (!WriteApk(archive_writer.get(), &proguard_keep_set_, manifest_xml, output_table.get())) {
+    if (!WriteApk(archive_writer.get(), &proguard_keep_set_, manifest_xml_.get(), output_table.get())) {
       return 1;
     }
 
@@ -314,7 +309,7 @@ class IncLinker: private Linker {
     }
 
     if (options_.generate_java_class_path || options_.generate_text_symbols_path) {
-      if (!GenerateJavaClasses(final_table)) {
+      if (!GenerateJavaClasses()) {
         return 1;
       }
     }
@@ -331,8 +326,6 @@ class IncLinker: private Linker {
   }
 
   private:
-    std::unique_ptr<LoadedApk> apk_;
-
     std::unique_ptr<xml::XmlResource> manifest_xml_;
     proguard::KeepSet proguard_keep_set_;
 };
