@@ -206,7 +206,7 @@ Maybe<std::string> GetFullyQualifiedClassName(const StringPiece& package,
 }
 
 const char* GetToolName() {
-  static const char* const sToolName = "Android Asset Packaging Tool (aapt)";
+  static const char* const sToolName = "Android Asset Packaging Tool (aapt) - Incremental Version for Jugg";
   return sToolName;
 }
 
@@ -215,7 +215,7 @@ std::string GetToolFingerprint() {
   static const char* const sMajorVersion = "2";
 
   // Update minor version whenever a feature or flag is added.
-  static const char* const sMinorVersion = "19";
+  static const char* const sMinorVersion = "19.1";
 
   // The build id of aapt2 binary.
   static const std::string sBuildId = android::build::GetBuildNumber();
