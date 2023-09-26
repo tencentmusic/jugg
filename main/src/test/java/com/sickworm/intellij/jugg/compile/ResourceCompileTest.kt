@@ -14,12 +14,7 @@ import kotlin.test.assertTrue
 
 class ResourceCompileTest {
 
-    val flatFiles = assetsFlatDir.listFilesRecursively()
-        .filter {
-            // TODO figure out why this shit has error: '' is incompatible with attribute id (attr) reference.
-            // but it's ok for now because it's not a project xml, it's from other library
-            !it.name.endsWith("notification_template_custom_big.xml.flat")
-        }
+    private val flatFiles = assetsFlatDir.listFilesRecursively()
         .map {
             CompileFile(CompileFile.Type.Flat, it, assetsFlatDir, mockModule)
         }
@@ -68,7 +63,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 443)
+        checkArscResult(task, result, 428)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -88,6 +83,59 @@ class ResourceCompileTest {
 
         val result = resourceOverlayCompiler.compile(task)
         checkArscResult(task, result, 8)
+    }
+
+    @Test
+    fun compileAddIdsLayout() {
+        val task = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource,
+                    File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_main.xml"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/res"),
+                    mockModule),
+            ),
+            stagingDir
+        )
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context)
+
+        val result = resourceOverlayCompiler.compile(task)
+
+        checkArscResult(task, result, 3)
+
+        val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
+        assertTrue(rFiles.first().file.readText().contains("button999"))
+    }
+
+    @Test
+    fun compileAddValues() {
+        val task = CompileTask(
+            listOf("attrs.xml", "arrays.xml", "colors.xml", "ids.xml", "strings.xml", "styles.xml").map {
+                CompileFile(CompileFile.Type.Resource,
+                    File(assetsAndroidModifySourceDir, "app/src/main/res/values/$it"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/res"),
+                    mockModule)
+            },
+            stagingDir
+        )
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context)
+
+        val result = resourceOverlayCompiler.compile(task)
+
+        checkArscResult(task, result, 2)
+
+        val containsIds = task.files.flatMap { file ->
+            file.file.readLines().mapNotNull {
+                // matches name="$1"
+                Regex("name=\"([^\"]+)\"").find(it)?.groupValues?.get(1)
+            }
+        }
+        println(containsIds)
+
+        val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
+        val rFileText = rFiles.first().file.readText()
+        containsIds.forEach {
+            assertTrue(rFileText.contains(it))
+        }
     }
 
     private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int) {

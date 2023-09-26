@@ -8,7 +8,7 @@ import java.io.*
 import java.util.*
 
 /**
- * invoke aapt2 with custom build
+ * invoke aapt2-inclink with custom build
  */
 class Aapt2DaemonInvoker(
     private val logger: Logger,
@@ -34,7 +34,7 @@ class Aapt2DaemonInvoker(
         if (process?.isAlive != true) {
             init()
         }
-        logger.debug("aapt2 command: aapt2 $params")
+        logger.debug("aapt2 daemon command: $params")
         val process = process!!
         process.outputStream.write("${params.replace(" ", "\n")}\n\n".toByteArray()) // double \n for commands end
         process.outputStream.flush()
@@ -109,11 +109,10 @@ class Aapt2DaemonInvoker(
 
     companion object {
         fun getEmbeddedAapt2(): File {
-            // TODO change to getResources
             if (!isMac) {
-//                throw IllegalStateException("embedded aapt2 not support windows nor linux yet")
+                throw IllegalStateException("aapt2-inclink not support windows nor linux yet")
             }
-            return copyResource("/tools/darwin/aapt2")
+            return copyResource("/tools/darwin/aapt2-inclink-2.19.1")
         }
     }
 }

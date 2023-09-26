@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">My Application</string>
+    <string name="test_add_string_value">test_add_string_value</string>
+</resources>

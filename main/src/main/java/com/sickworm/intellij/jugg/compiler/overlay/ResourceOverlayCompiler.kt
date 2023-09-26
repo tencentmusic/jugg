@@ -28,10 +28,6 @@ class ResourceOverlayCompiler(
     private val arscCompiler = ArscCompiler(context)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        // TODO resolve, maybe inc link is already supported
-        if (task.files.any { it.file.isResourceValueFile }) {
-            throw JuggInternalException.resValuesNotSupported()
-        }
 
         // compile to .flat
         val resourceTask = CompileTask(

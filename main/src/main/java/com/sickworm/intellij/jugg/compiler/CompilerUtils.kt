@@ -81,11 +81,13 @@ fun List<File>.relativePath(baseDirPath: File) = map { it.relativeTo(baseDirPath
 
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")
+    // location in test: main/build/idea-sandbox/system-test/jugg
     val storePath = File(storeRootDir, resourcePath)
     if (storePath.exists()) {
         return storePath
     }
     storePath.parentFile.mkdirs()
+    storePath.parentFile.clearDir()
     JuggManager::class.java.getResource(resourcePath)!!.openStream().use { ins ->
         storePath.outputStream().use { ous ->
             ins.copyTo(ous)
@@ -94,8 +96,6 @@ fun copyResource(resourcePath: String): File {
     storePath.setExecutable(true)
     return storePath
 }
-
-val File.isResourceValueFile get() = parent.endsWith("values")
 
 private val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
 val isWindows = osName.contains("win")

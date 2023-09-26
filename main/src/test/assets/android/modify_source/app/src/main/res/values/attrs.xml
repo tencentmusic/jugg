@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr format="string" name="test_add_attr_value"/>
+    <attr format="string" name="test_add_styleable_value_attr2"/>
+
+    <declare-styleable name="test_add_styleable_value">
+        <attr name="test_add_styleable_value_attr1" format="boolean"/>
+        <attr name="test_add_styleable_value_attr2" />
+        <attr name="test_add_styleable_value_attr3" format="reference"/>
+        <attr name="test_add_styleable_value_attr4" format="dimension">
+            <flag name="test_add_styleable_value_flag1" value="1" />
+            <flag name="test_add_styleable_value_flag2" value="2" />
+            <flag name="test_add_styleable_value_flag3" value="4" />
+            <flag name="test_add_styleable_value_flag4" value="8" />
+        </attr>
+    </declare-styleable>
+</resources>

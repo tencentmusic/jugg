@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.manager.utils
 
-import com.sickworm.intellij.jugg.compiler.isResourceValueFile
 import java.io.File
 import java.io.IOException
 import java.nio.file.FileVisitResult
@@ -31,10 +30,6 @@ object ListFiles {
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 val fileName = file.fileName.toString()
                 if (fileName.startsWith(".")) {
-                    return FileVisitResult.CONTINUE
-                }
-                // TODO remove, see [JuggInternalException.resValuesNotSupported}
-                if (file.toFile().isResourceValueFile) {
                     return FileVisitResult.CONTINUE
                 }
 

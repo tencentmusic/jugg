@@ -70,9 +70,6 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun compileOutputDirNotEmpty() =
             JuggInternalException("CompileTask.outputDir is not empty directory, abort. We need empty outputDir to determine output files.")
 
-        fun resValuesNotSupported() =
-            JuggInternalException("Currently Jugg don't support deploy values/*.xml.")
-
         fun startAapt2DaemonFailed() =
             JuggInternalException("Start aapt2 damon failed.")
 
