@@ -335,7 +335,7 @@ class ResourceFileFlattener {
   ResourceFileFlattener(const ResourceFileFlattenerOptions& options, IAaptContext* context,
                         proguard::KeepSet* keep_set);
 
-  bool Flatten(ResourceTable* table, IArchiveWriter* archive_writer);
+  bool Flatten(ResourceTable* table, IArchiveWriter* archive_writer, TableMerger* table_merger);
 
  private:
   struct FileOperation {
@@ -503,7 +503,7 @@ static auto kDrawableVersions = std::map<std::string, ApiVersion>{
     { "adaptive-icon" , SDK_O },
 };
 
-bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archive_writer) {
+bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archive_writer, TableMerger* table_merger) {
   TRACE_CALL();
   bool error = false;
   std::map<std::pair<ConfigDescription, StringPiece>, FileOperation> config_sorted_files;
@@ -526,6 +526,9 @@ bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archiv
 
           FileReference* file_ref = ValueCast<FileReference>(config_value->value.get());
           if (!file_ref) {
+            continue;
+          }
+          if (!table_merger->IsMergedFile(file_ref)) {
             continue;
           }
 
@@ -1693,7 +1696,7 @@ class Linker {
     file_flattener_options.do_not_fail_on_missing_resources = options_.merge_only;
 
     ResourceFileFlattener file_flattener(file_flattener_options, context_, keep_set);
-    if (!file_flattener.Flatten(table, writer)) {
+    if (!file_flattener.Flatten(table, writer, table_merger_.get())) {
       context_->GetDiagnostics()->Error(DiagMessage() << "failed linking file resources");
       return false;
     }

@@ -267,38 +267,7 @@ class IncLinker: private Linker {
     //   return 1;
     // }
 
-    // filter table with input_files
-    std::unique_ptr<ResourceTable> output_table = util::make_unique<ResourceTable>();
-    for (const auto& pkg : final_table_.packages) {
-      ResourceTablePackage* new_pkg = output_table->CreatePackage(pkg->name, pkg->id);
-      for (const auto& type : pkg->types) {
-        ResourceTableType* new_type = new_pkg->FindOrCreateType(type->type);
-        new_type->id = type->id;
-        new_type->visibility_level = type->visibility_level;
-
-        for (const auto& entry : type->entries) {
-          ResourceEntry* new_entry = new_type->FindOrCreateEntry(entry->name);
-          new_entry->id = entry->id;
-          new_entry->visibility = entry->visibility;
-          new_entry->allow_new = entry->allow_new;
-          new_entry->overlayable_item = entry->overlayable_item;
-
-          for (const auto& config_value : entry->values) {
-            FileReference* file_ref = ValueCast<FileReference>(config_value->value.get());
-            // filter config_value from input_files only
-            if (!table_merger_->IsMergedFile(file_ref)) {
-              continue;
-            }
-
-            ResourceConfigValue* new_value =
-                new_entry->FindOrCreateValue(config_value->config, config_value->product);
-            new_value->value.reset(config_value->value->Clone(&output_table->string_pool));
-          }
-        }
-      }
-    }
-
-    if (!WriteApk(archive_writer.get(), &proguard_keep_set_, manifest_xml_.get(), output_table.get())) {
+    if (!WriteApk(archive_writer.get(), &proguard_keep_set_, manifest_xml_.get(), &final_table_)) {
       return 1;
     }
 
