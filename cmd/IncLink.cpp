@@ -202,18 +202,19 @@ class IncLinker: private Linker {
       }
     }
 
-    ReferenceLinker linker;
-    if (!options_.merge_only && !linker.Consume(context_, &final_table_)) {
-      context_->GetDiagnostics()->Error(DiagMessage() << "failed linking references");
-      return 1;
-    }
-
     // Assign IDs if we are building a regular app.
     IdAssigner id_assigner(&options_.stable_id_map);
     if (!id_assigner.Consume(context_, &final_table_)) {
       context_->GetDiagnostics()->Error(DiagMessage() << "failed assigning IDs");
       return 1;
     }
+
+    ReferenceLinker linker;
+    if (!options_.merge_only && !linker.Consume(context_, &final_table_)) {
+      context_->GetDiagnostics()->Error(DiagMessage() << "failed linking references");
+      return 1;
+    }
+
 
     // Start writing the base APK.
     std::unique_ptr<IArchiveWriter> archive_writer = MakeArchiveWriter(options_.output_path);
