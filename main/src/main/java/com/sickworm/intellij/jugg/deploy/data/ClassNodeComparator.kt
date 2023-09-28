@@ -118,9 +118,16 @@ class ClassNodeDiffResult(
                 addedMethods.isEmpty() &&
                 deletedMethods.isEmpty()
 
+    val isCanHotReload
+        get() = modifiedParentClass.isEmpty() &&
+                addedInterfaces.isEmpty() &&
+                deletedInterfaces.isEmpty() &&
+                deletedFields.isEmpty() &&
+                deletedMethods.isEmpty()
+
     override fun toString(): String {
         val builder = StringBuilder()
-        builder.append("class $className isSameStructure: $isSameStructure")
+        builder.append("class $className isSameStructure: $isSameStructure, isCanHotReload: $isCanHotReload")
         if (!isSameStructure) {
             builder.append(", diff result: ")
         }

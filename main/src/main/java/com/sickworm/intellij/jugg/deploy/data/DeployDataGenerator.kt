@@ -56,8 +56,8 @@ class DeployDataGenerator(
             // compare class node difference
             val newClassNode = it.classNode
             val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
-            if (result.isSameStructure) {
-                // same structure, hot reload
+            if (result.isCanHotReload) {
+                // no breaking changes, hot reload
                 logger.debug("class $className structure not changed: $result")
                 hotReloadModifiedClasses.add(it)
             } else {
