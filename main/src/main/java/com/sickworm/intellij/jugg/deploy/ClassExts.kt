@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import org.jetbrains.kotlin.utils.addToStdlib.indexOfOrNull
+import java.io.File
 
 
 inline val String.isOfficialClass: Boolean
@@ -66,4 +67,9 @@ inline val String.classNameToPath: String
         } else {
             replace('.', '/') + ".class"
         }
+    }
+
+inline val String.packageNameToPath: String
+    get() {
+        return replace('.', File.separatorChar) + File.separatorChar
     }

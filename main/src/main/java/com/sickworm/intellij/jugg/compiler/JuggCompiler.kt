@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
+import com.sickworm.intellij.jugg.compiler.overlay.RDexForSubmoduleCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import java.io.File
 
@@ -31,7 +32,11 @@ class JuggCompiler(
         context.subContext("tmp_dex")
     )
 
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+    private val rDexForSubmoduleCompiler = RDexForSubmoduleCompiler(
+        context.subContext("tmp_rfile")
+    )
+
+    override fun doCompile(task: CompileTask): CompileResult {
         var compileResult = CompileResult(task, emptyList(), emptyList())
         val overlayOutputDir = File(task.outputDir, "overlays")
         val classesOutputDir = File(task.outputDir, "classes")
@@ -61,6 +66,7 @@ class JuggCompiler(
             },
             outputDir = task.outputDir
         )
+        var rJavaResultOutputs: List<CompileOutput> = emptyList()
         if (resourceCompileTask.isNeedCompile) {
             // compile .arsc and R file
             val finalResult = run {
@@ -86,44 +92,59 @@ class JuggCompiler(
                         CompileOutput(CompileOutput.Type.Res, outputFile, overlayOutputDir)
                     }
 
-                // compile R.java
-                // FIXME:
-                // disable for now because:
-                // 1. currently aapt incremental compile not supports add ids;
-                // 2. package name for R.java not correct
-                // 3. cannot handle transitive R
-                // 4. R.class was wrongly identified as part of the internal class is hot reload hot not hot fix,
-                // resulting in failure when optimisticSwap
-//                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }!!
-//                val rJavaTask = CompileTask(
-//                    files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, module)),
-//                    outputDir = classesOutputDir,
-//                )
-//                val rJavaResult = sourceCompiler.compile(rJavaTask)
-//                if (!rJavaResult.isAllSuccess) {
-//                    return@run CompileResult(
-//                        resourceCompileTask,
-//                        resourceCompileTask.files.map {
-//                            Result.failure(CompileError(it, listOf(0L to "compile R.java failed")))
-//                        },
-//                        emptyList()
-//                    )
-//                }
-                val rJavaResult = CompileResult(
-                    resourceCompileTask,
-                    emptyList(),
-                    emptyList()
-                )
+                // compile R.java, it will only be one file
+                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }
+                if (rJavaFile != null) {
+                    val rJavaTask = CompileTask(
+                        files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, ModuleInfo.virtualModule)),
+                        outputDir = classesOutputDir,
+                    )
+                    val rJavaResult = sourceCompiler.compile(rJavaTask)
+                    if (!rJavaResult.isAllSuccess) {
+                        return@run CompileResult(
+                            resourceCompileTask,
+                            resourceCompileTask.files.map {
+                                Result.failure(CompileError(it, listOf(0L to "compile R.java failed")))
+                            },
+                            emptyList()
+                        )
+                    } else {
+                        rJavaResultOutputs = rJavaResult.outputs
+                    }
+                }
 
                 // successfully compiled .arsc and R.dex
                 return@run CompileResult(
                     resourceCompileTask,
                     details = resourceResult.details,
-                    outputs = rJavaResult.outputs + overlays
+                    outputs = rJavaResultOutputs + overlays,
                 )
             }
             compileResult += finalResult
         }
+
+        // build R.dex for all compiling module if needed
+        val allModules = task.files.map { it.module }.distinct()
+        val rDexResult = rDexForSubmoduleCompiler.compile(
+            CompileTask(
+                files = allModules.flatMap { module ->
+                    rJavaResultOutputs.map {
+                        CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, module)
+                    }
+                },
+                outputDir = classesOutputDir,
+            )
+        )
+        if (!rDexResult.isAllSuccess) {
+            return CompileResult(
+                task,
+                task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "compile R.dex failed")))
+                },
+                emptyList()
+            )
+        }
+        compileResult += rDexResult.copy(task = task) // remove R.dex from compile files
 
         // compile source
         val sourceCompileTask = CompileTask(
@@ -148,6 +169,11 @@ class JuggCompiler(
         }
 
         return compileResult
+    }
+
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        // no need to implement
+        return CompileResult(task, emptyList(), emptyList())
     }
 
     override fun warmUp() {

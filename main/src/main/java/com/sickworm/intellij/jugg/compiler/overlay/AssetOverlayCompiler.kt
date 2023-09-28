@@ -11,7 +11,7 @@ class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)
 
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+    override fun doCompile(task: CompileTask): CompileResult {
         // just copy
         val outputs = mutableListOf<CompileOutput>()
         val details = mutableListOf<Result<CompileFile, CompileError>>()
@@ -35,5 +35,10 @@ class AssetOverlayCompiler(context: ICompileContext): BaseCompiler(context) {
             }
         }
         return CompileResult(task, details, outputs)
+    }
+
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        // no need to implement
+        return CompileResult(task, emptyList(), emptyList())
     }
 }

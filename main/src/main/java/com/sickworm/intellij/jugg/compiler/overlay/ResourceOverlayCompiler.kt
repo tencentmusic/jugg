@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 
@@ -27,8 +26,7 @@ class ResourceOverlayCompiler(
 
     private val arscCompiler = ArscCompiler(context)
 
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-
+    override fun doCompile(task: CompileTask): CompileResult {
         // compile to .flat
         val resourceTask = CompileTask(
             task.files,
@@ -48,7 +46,7 @@ class ResourceOverlayCompiler(
         // build .arsc
         val arscTask = CompileTask(
             resourceResult.outputs.map {
-                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, module)
+                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, ModuleInfo.virtualModule)
             },
             task.outputDir
         )
@@ -68,6 +66,11 @@ class ResourceOverlayCompiler(
             resourceResult.details,
             arscResult.outputs
         )
+    }
+
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        // no need to implement
+        return CompileResult(task, emptyList(), emptyList())
     }
 
     override fun warmUp() {

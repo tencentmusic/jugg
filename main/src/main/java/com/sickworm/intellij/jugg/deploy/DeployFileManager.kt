@@ -109,7 +109,8 @@ class DeployFileManager(
             val fileKey = it.file.stdAbsPath
             val changedFile = uncompiledFiles[fileKey]
             if (changedFile == null) {
-                logger.warn("try to update file compile status, but it's not in uncompiled list. File: $it")
+                // e.g. R.java
+                logger.debug("try to update file compile status, but it's not in uncompiled list. File: $it")
                 return@forEach
             }
             changedFile.compiledTimes++
@@ -120,7 +121,8 @@ class DeployFileManager(
             val fileKey = it.file.stdAbsPath
             val changedFile = uncompiledFiles[fileKey]
             if (changedFile == null) {
-                logger.warn("try to update file compile status, but it's not in uncompiled list. File: $it")
+                // e.g. R.java
+                logger.debug("try to update file compile status, but it's not in uncompiled list. File: $it")
                 return@forEach
             }
             changedFile.compiledTimes++
@@ -273,7 +275,7 @@ class DeployFileManager(
                     if (destFile.exists()) {
                         logger.debug("found desugared class file: $destFile")
                         iterator.remove()
-                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.juggRedexModule)
+                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.virtualModule)
                         redexClassesFiles.add(changedFile)
                     }
                 }
@@ -313,7 +315,7 @@ class DeployFileManager(
                                     inputStream.copyTo(outputStream)
                                 }
                                 iterator.remove()
-                                val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.juggRedexModule)
+                                val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.virtualModule)
                                 redexClassesFiles.add(changedFile)
                             }
                         }

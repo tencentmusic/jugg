@@ -42,7 +42,8 @@ data class CompileFile(
         Class,
         Asset,
         Resource,
-        Flat;
+        Flat,
+        Dex;
     }
 }
 
@@ -60,6 +61,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.Asset -> "asset"
                     CompileFile.Type.Resource -> "resource"
                     CompileFile.Type.Flat -> "flat"
+                    CompileFile.Type.Dex -> "dex"
                 }
                 return@groupBy type
             }
@@ -201,9 +203,9 @@ data class ModuleInfo(
 
         const val DEFAULT_BUILD_VARIANT = "debug"
 
-        // a virtual module used for redex files
-        val juggRedexModule = ModuleInfo(
-            name = "jugg_redex",
+        // a virtual module used for redex files, compile R file, etc.
+        val virtualModule = ModuleInfo(
+            name = "virtual_module",
             moduleRootDir = File(""),
             projectRootDir = File(""),
             sourceDirs = emptyList(),
@@ -295,12 +297,16 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
             task.outputDir.mkdirs()
         }
 
-        val result = splitModuleAndCompile(task)
+        val result = doCompile(task)
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("${this::class.java.simpleName} compile result: $result")
         logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms. isAllSuccess: ${result.isAllSuccess}")
         return result
+    }
+
+    open fun doCompile(task: CompileTask): CompileResult {
+        return splitModuleAndCompile(task)
     }
 
     private fun splitModuleAndCompile(task: CompileTask): CompileResult {

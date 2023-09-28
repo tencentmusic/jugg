@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.CRC32
 import java.util.zip.ZipFile
 
 /** Used to parse everything I need in Apk */
@@ -87,6 +88,24 @@ class ApkParser: CoroutineScope by CoroutineScope(
         return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs)
     }
 
+    fun parseDexFiles(dexFiles: List<File>): ParsedDex {
+        val deployItems = dexFiles.map {
+            val content = it.readBytes()
+            val crc = CRC32().run {
+                reset()
+                update(content)
+                value
+            }
+            DeployItem(
+                it.name,
+                CompileOutput.Type.Dex,
+                crc,
+                content,
+            )
+        }
+        return parseDex(deployItems)
+    }
+
     private fun parseDex(apkFile: File,
                  classes: ConcurrentHashMap<String, ClassNode>,
                  methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
@@ -132,12 +151,11 @@ class ApkParser: CoroutineScope by CoroutineScope(
                          methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
                          fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
                          subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
-                         @Suppress("SameParameterValue") isSkipCode: Boolean): Map<String, ClassNode> {
+                         @Suppress("SameParameterValue") isSkipCode: Boolean) {
         val reader: BaseDexFileReader = DexFileReader(bytes)
         val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
-        return visitor.getClasses()
     }
 
     fun parseEntries(apkInfo: ApkInfo): ApkEntries {

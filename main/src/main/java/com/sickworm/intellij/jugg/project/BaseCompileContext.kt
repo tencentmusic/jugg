@@ -64,10 +64,10 @@ data class BaseCompileContext(
         }
 
         val dependencies = mutableListOf(androidJar)
-        dependencies.addAll(finalRFiles)
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)
+        dependencies.addAll(finalRFiles) // place to the last, to let R file compiled into classpathDependencies go first
 
         task.files.forEach {
             dependencies.addAll(it.dependencyPaths)
