@@ -78,6 +78,7 @@ val mockModule = ModuleInfo(
     sourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/java")),
     resourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/res")),
     assetsDirs = listOf(File(projectInfo.projectRoot, "app/src/main/assets")),
+    manifestFile = File(projectInfo.projectRoot, "app/src/main/AndroidManifest.xml"),
     buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
     compileVersion = null,
     buildToolsVersion = null,

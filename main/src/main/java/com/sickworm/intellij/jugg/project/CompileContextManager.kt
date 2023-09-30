@@ -247,14 +247,22 @@ class CompileContextManager(
             val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
 
-            var buildVariant = AndroidFacet.getInstance(module)?.properties?.SELECTED_BUILD_VARIANT
+            val androidFacet = AndroidFacet.getInstance(module)
+            var buildVariant = androidFacet?.properties?.SELECTED_BUILD_VARIANT
             if (buildVariant.isNullOrEmpty()) {
                 buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT
+            }
+
+            var manifestFile: File? = null
+            val manifestProperties = androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
+            if (manifestProperties != null) {
+                manifestFile = File(baseDir, manifestProperties)
             }
 
             val moduleInfo = ModuleInfo(
                 module.name, baseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
+                manifestFile,
                 buildVariant, compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
                 ModuleBuildPathInfo(pathManager.projectDir, baseDir),
