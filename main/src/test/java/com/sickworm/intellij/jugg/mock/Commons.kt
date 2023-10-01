@@ -65,24 +65,29 @@ val context get() = SimpleCompileContext(
     androidHome = androidHome,
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
-    modules = emptyMap(),
+    modules = mapOf(mockModule.name to mockModule),
     apkInfos = projectInfo.apkInfos,
     minApi = JuggSettings.minApi,
     projectDir = projectInfo.projectRoot
 )
 
+private val appModuleDir = File(projectInfo.projectRoot, "app")
+
 val mockModule = ModuleInfo(
     name = "mock_module",
-    moduleRootDir = projectInfo.projectRoot,
-    projectRootDir = buildDir,
-    sourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/java")),
-    resourceDirs = listOf(File(projectInfo.projectRoot, "app/src/main/res")),
-    assetsDirs = listOf(File(projectInfo.projectRoot, "app/src/main/assets")),
-    manifestFile = File(projectInfo.projectRoot, "app/src/main/AndroidManifest.xml"),
+    moduleRootDir = appModuleDir,
+    projectRootDir = projectInfo.projectRoot,
+    sourceDirs = listOf(File(appModuleDir, "src/main/java")),
+    resourceDirs = listOf(File(appModuleDir, "src/main/res")),
+    assetsDirs = listOf(File(appModuleDir, "src/main/assets")),
+    manifestFile = File(appModuleDir, "src/main/AndroidManifest.xml"),
     buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
     compileVersion = null,
     buildToolsVersion = null,
-    buildPathInfo = ModuleBuildPathInfo(projectInfo.projectRoot, buildDir),
+    buildPathInfo = ModuleBuildPathInfo(
+        projectInfo.projectRoot,
+        appModuleDir,
+    ),
     kotlinJvmTarget = "1.8",
     javaSourceCompatibility = "1.8",
     javaTargetCompatibility = "1.8",
