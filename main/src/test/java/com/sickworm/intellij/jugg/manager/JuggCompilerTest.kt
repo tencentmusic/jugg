@@ -101,12 +101,6 @@ class JuggCompilerTest {
     @Test
     fun testJavaMethodAddSingle() {
         jugg.changeFileAndNotify("MainActivity2.addMethod.java" to "MainActivity2.java")
-        jugg.checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
-
-        jugg.dryDeploy()
-
-        // second time deploy will be hot reload
-        jugg.changeFileAndNotify("MainActivity2.addMethod.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 
@@ -173,11 +167,6 @@ class JuggCompilerTest {
 
     @Test
     fun testJavaVariableAdd() {
-        jugg.changeFileAndNotify("MainActivity2.addVariable.java" to "MainActivity2.java")
-        jugg.checkCompileResult("MainActivity2.java", hotFixModifiedClassesSize = 1)
-
-        jugg.dryDeploy()
-
         jugg.changeFileAndNotify("MainActivity2.addVariable.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }

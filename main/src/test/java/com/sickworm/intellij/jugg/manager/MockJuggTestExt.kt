@@ -12,7 +12,8 @@ fun MockJugg.changeFileAndNotify(vararg fileNamePairs: Pair<String, String>, dir
 
     val currentSize = deployFileManager.getCompiledFiles().size
     changeAndRevert(*fileNamePairs, directory = directory) {
-        fileChangesDetector.notifyFileChanges(it) // will do compile
+        fileChangesDetector.notifyFileChanges(it)
+        juggManager.compileChanges()
     }
     assertEquals(currentSize + fileNamePairs.size, deployFileManager.getCompiledFiles().size)
 }

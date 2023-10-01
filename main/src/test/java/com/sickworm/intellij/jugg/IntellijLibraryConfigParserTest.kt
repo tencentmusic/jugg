@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.intellijLibraryDir
 import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
@@ -25,10 +24,6 @@ class IntellijLibraryConfigParserTest {
     }
 
     fun loadLibraryConfigInTest(): List<String>? {
-        val result = IntellijLibraryConfigParser(intellijLibraryDir, assetsAndroidDir.absolutePath).parse()
-        return result?.map {
-            // TODO test compatible
-            if (isWindows) it else it.replace("D:/Android", "/Users/wormchen")
-        }
+        return IntellijLibraryConfigParser(intellijLibraryDir, assetsAndroidDir.absolutePath).parse()
     }
 }

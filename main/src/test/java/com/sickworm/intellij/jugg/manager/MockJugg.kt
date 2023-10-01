@@ -13,6 +13,7 @@ import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.configurations.ConfigurationType
+import com.intellij.facet.FacetManager
 import com.intellij.html.embedding.HtmlEmbeddedContentSupport
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
@@ -301,6 +302,7 @@ class MockJugg {
         val manager = MockModuleRootManager(virtualFile)
         val module = mock(Module::class.java)
         doReturn(manager).`when`(module).getComponent(ModuleRootManager::class.java)
+        doReturn(mock(FacetManager::class.java)).`when`(module).getComponent(FacetManager::class.java)
         doReturn(virtualFile).`when`(module).moduleFile
         doReturn(virtualFile.name).`when`(module).name
 
