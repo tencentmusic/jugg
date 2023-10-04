@@ -4,5 +4,5 @@ class Aapt2Result(
     val output: String,
     val errorOutput: String,
 ) {
-    val isSuccess: Boolean get() = errorOutput.isEmpty()
+    val isSuccess: Boolean get() = !errorOutput.contains("error: ")
 }

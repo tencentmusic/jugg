@@ -22,8 +22,8 @@ class Aapt2DaemonInvoker(
     private fun init() {
         logger.debug("start aapt2 daemon")
         val process = Runtime.getRuntime().exec("$aapt2 daemon")
-        val output = readOutput(process!!.inputStream, 1)
-        if (output != "Ready\n") {
+        val output = readLine(process!!.inputStream)
+        if (output != "Ready") {
             throw JuggInternalException.startAapt2DaemonFailed()
         }
         this.process = process
@@ -42,17 +42,14 @@ class Aapt2DaemonInvoker(
         return outputReader!!.read()
     }
 
-    // TODO remove
-    private fun readOutput(stream: InputStream, limitLine: Int = Int.MAX_VALUE): String {
-        val stringBuilder = StringBuilder()
+    private fun readLine(stream: InputStream): String {
         val sc = Scanner(stream)
 
-        var readLine = 0
-        while ((readLine++ < limitLine) && sc.hasNextLine()) {
-            val line = sc.nextLine()
-            stringBuilder.appendLine(line)
+        return if (sc.hasNextLine()) {
+            sc.nextLine()
+        } else {
+            "error_no_next_line"
         }
-        return stringBuilder.toString()
     }
 
     private class OutputReader(
@@ -98,9 +95,13 @@ class Aapt2DaemonInvoker(
             while (sc.hasNextLine()) {
                 val line = sc.nextLine()
                 if (line == "Done") break
+                if (line.contains("warn: multiple substitutions specified in non-positional format")) {
+                    // ignore
+                    continue
+                }
                 stringBuilder.appendLine(line)
                 readLine++
-                logger.info("error: $line")
+                logger.info("stderr output: $line")
             }
             logger.debug("aapt2 invoke finished")
             return stringBuilder.toString()

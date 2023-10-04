@@ -36,10 +36,8 @@ class ResourceOverlayCompiler(
         if (!resourceResult.isAllSuccess) {
             return CompileResult(
                 task,
-                task.files.map {
-                    Result.failure(CompileError(it, listOf(0L to "aapt2 compile failed")))
-                },
-                emptyList()
+                resourceResult.details,
+                resourceResult.outputs,
             )
         }
 

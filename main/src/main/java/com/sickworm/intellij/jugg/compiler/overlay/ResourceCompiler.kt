@@ -29,7 +29,8 @@ class ResourceCompiler(
             it.file.absolutePath
         }.joinToString(" ")
 
-        val command = "compile -o $outputDir $filesString"
+        // --legacy is required for: multiple substitutions specified in non-positional format; did you mean to add the formatted="false" attribute?.
+        val command = "compile --legacy -o $outputDir $filesString"
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
             return CompileResult(
