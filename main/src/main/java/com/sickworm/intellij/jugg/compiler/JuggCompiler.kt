@@ -76,7 +76,8 @@ class JuggCompiler(
                 val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
                 val resourceResult = resourceOverlayCompiler.compile(tempResourceCompileTask)
                 if (!resourceResult.isAllSuccess) {
-                    return@run resourceResult
+                    // avoid JuggInternalException.combineTaskFailed
+                    return@run resourceResult.copy(task = tempResourceCompileTask.copy(outputDir = task.outputDir))
                 }
 
                 // move overlays to output directory
