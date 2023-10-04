@@ -73,3 +73,18 @@ inline val String.packageNameToPath: String
     get() {
         return replace('.', File.separatorChar) + File.separatorChar
     }
+
+
+// e.g. Landroid/support/v4/os/ResultReceiver$1;
+// ->
+// android.support.v4.os.ResultReceiver$1
+inline val String.sigFormatToPackage get(): String {
+    return this.asmSigFormat.replace('/', '.')
+}
+
+// e.g. Landroid/support/v4/os/ResultReceiver$1;
+// ->
+// android/support/v4/os/ResultReceiver$1
+inline val String.asmSigFormat get(): String {
+    return this.substring(1, this.length - 1)
+}

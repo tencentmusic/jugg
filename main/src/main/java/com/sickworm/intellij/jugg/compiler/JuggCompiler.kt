@@ -125,14 +125,11 @@ class JuggCompiler(
         }
 
         // build R.dex for all compiling module if needed
-        val allModules = task.files.map { it.module }.distinct()
         val rDexResult = rDexForSubmoduleCompiler.compile(
             CompileTask(
-                files = allModules.flatMap { module ->
-                    rJavaResultOutputs.map {
-                        CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, module)
-                    }
-                },
+                files = rJavaResultOutputs.map {
+                    CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, ModuleInfo.virtualModule)
+                } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
                 outputDir = classesOutputDir,
             )
         )

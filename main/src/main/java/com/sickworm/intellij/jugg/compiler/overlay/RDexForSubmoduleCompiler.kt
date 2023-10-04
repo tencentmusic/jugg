@@ -12,23 +12,27 @@ import java.io.File
 class RDexForSubmoduleCompiler(context: ICompileContext) : BaseCompiler(context) {
 
     override val supportedTypes: List<CompileFile.Type>
-        get() = listOf(CompileFile.Type.Dex)
+        get() = listOf(CompileFile.Type.Dex, CompileFile.Type.Java, CompileFile.Type.Kotlin)
 
     // we don't persist generated modules, it's ok to generate once for each module
     private var generatedModules = mutableSetOf<String>()
 
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+    override fun doCompile(task: CompileTask): CompileResult {
         // if input has files, which means R file is update. we need to generate all R.dex for all module
         // if input has no files, we only generate R.dex once
-        val isRFileUpdated = task.files.isNotEmpty()
+        val isRFileUpdated = task.files.any { it.type == CompileFile.Type.Dex }
         if (isRFileUpdated) {
+            logger.debug("R file has update, going to regenerate R.dex for all modules")
             generatedModules.clear()
         }
+        return super.doCompile(task)
+    }
 
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val rDexOutputDir = File(task.outputDir, context.packageName!!.packageNameToPath)
         val rDexOutputFile = File(rDexOutputDir, "R.dex")
-        val isNeedGenerate = isRFileUpdated || (!generatedModules.contains(module.name) && rDexOutputFile.exists())
-        if (!isNeedGenerate) {
+        val isNeedGenerate = rDexOutputFile.exists() && !generatedModules.contains(module.name)
+                if (!isNeedGenerate) {
             logger.debug("Module ${module.name} has no R file update, skip generate R.dex")
             return CompileResult(task, emptyList(), emptyList())
         }
@@ -54,19 +58,19 @@ class RDexForSubmoduleCompiler(context: ICompileContext) : BaseCompiler(context)
         }
 
         val destRDexFiles = run convertDexFiles@{
-            val sourceRDexFiles = rDexOutputDir.listFiles()
+            val sourceRDexFiles = rDexOutputDir.listFiles()?.filter { it.isFile && it.extension == "dex" }
             if (sourceRDexFiles.isNullOrEmpty()) {
                 logger.debug("Module ${module.name} has no R.dex files in $rDexOutputDir, skip generate R.dex")
                 return CompileResult(task, emptyList(), emptyList())
             }
             logger.debug("going to generate R.dex for module ${module.name}, package name is $packageName, source R.dex files are $sourceRDexFiles")
 
-            @Suppress("RECEIVER_NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
             sourceRDexFiles.map { sourceFile ->
-                val destFile = DexPackageRenamer(sourceFile, packageName).generate(rDexOutputDir)
+                val classPathDir = module.buildPathInfo.javaClassPath
+                val (destDexFile, _) = DexPackageRenamer(sourceFile, packageName).generate(task.outputDir, classPathDir)
                 CompileOutput(
                     CompileOutput.Type.Dex,
-                    destFile,
+                    destDexFile,
                     task.outputDir,
                 )
             }
