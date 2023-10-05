@@ -279,6 +279,8 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
 
     open val isNeedOutputDirEmpty: Boolean = false
 
+    open val isNeedPrintProgress: Boolean = false
+
     val logger get() = context.logger
 
     init {
@@ -301,6 +303,18 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("${this::class.java.simpleName} compile result: $result")
+        if (isNeedPrintProgress && task.files.isNotEmpty()) {
+            val content = if (supportedTypes == listOf(CompileFile.Type.Class)) {
+                "${task.files.size} .class files to .dex"
+            } else {
+                "[" + task.files.joinToString(", ") { it.file.name } + "]"
+            }
+            if (result.isAllSuccess) {
+                logger.info("Compile $content finished, cost ${costTime}ms.")
+            } else {
+                logger.warn("Compile $content failed, cost ${costTime}ms.")
+            }
+        }
         logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms. isAllSuccess: ${result.isAllSuccess}")
         return result
     }

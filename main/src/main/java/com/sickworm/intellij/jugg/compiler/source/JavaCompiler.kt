@@ -14,6 +14,8 @@ class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val isNeedOutputDirEmpty = true
 
+    override val isNeedPrintProgress: Boolean = true
+
     private val compiler: JavaCompiler = getJavaCompiler(context.logger)
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 

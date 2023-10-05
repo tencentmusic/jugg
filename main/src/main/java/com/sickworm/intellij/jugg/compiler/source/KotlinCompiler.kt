@@ -11,6 +11,8 @@ class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
 
     override val isNeedOutputDirEmpty = false
 
+    override val isNeedPrintProgress: Boolean = true
+
     private val kotlinCompile = K2JVMCompilerIsolate(logger)
 
     private var hasFoundKotlinAndroidExtensions: Boolean = false

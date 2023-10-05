@@ -11,6 +11,8 @@ class DexCompiler(
 
     override val supportedTypes = listOf(CompileFile.Type.Class)
 
+    override val isNeedPrintProgress: Boolean = true
+
     private val dexFileMaker = DexFileMaker()
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {

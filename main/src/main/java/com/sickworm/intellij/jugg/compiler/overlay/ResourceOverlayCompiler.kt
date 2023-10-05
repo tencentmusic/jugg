@@ -22,6 +22,8 @@ class ResourceOverlayCompiler(
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
+    override val isNeedPrintProgress: Boolean = true
+
     private val resourceCompiler = ResourceCompiler(context)
 
     private val arscCompiler = ArscCompiler(context)
