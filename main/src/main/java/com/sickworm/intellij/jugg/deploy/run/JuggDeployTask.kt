@@ -18,6 +18,7 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.IDevice
 import com.android.sdklib.AndroidVersion
 import com.android.tools.deployer.AdbClient
+import com.android.tools.deployer.ClassRedefiner
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.DeployerException
 import com.android.tools.deployer.InstallOptions
@@ -162,9 +163,16 @@ class JuggDeployTask(
             AndroidDeployType.APPLY_CHANGES -> {
                 logger.debug("Applying changes to application $applicationId...")
                 val fastRerunOnSwapFailure = false
-                val debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
-                    project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()
-                )
+
+                var debuggerRedefiners = emptyMap<Int, ClassRedefiner>()
+                if (!data.isNeedRestartApp) {
+                    // reduce chance of error "R+ Device should have FULL debugger swap support" on some devices
+                    // which is occurred in: com.android.tools.deployer.OptimisticApkSwapper.optimisticSwap.
+                    // because we don't need debuggerRedefiners on restart case
+                    debuggerRedefiners = AsDeployerCompat.makeDebuggerRedefiners(
+                        project, device, fastRerunOnSwapFailure && deployer.supportsNewPipeline()
+                    )
+                }
                 return deployer.codeSwap(getPathsToInstall(files), debuggerRedefiners, data)
             }
         }

@@ -152,7 +152,9 @@ class JuggDeployerHelper(
                 val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
                 // something wrong with DeployDataGenerator... fall back too
                 val isRequiresAppRestart = reason.contains("app restart")
-                if (isUnmodifiableClass || isRequiresAppRestart) {
+                // seems like a bug of some devices e.g. OPPO Reno.
+                val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
+                if (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError) {
                     logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
                     juggReporter.report {
                         action = "incremental_deploy_retry"
