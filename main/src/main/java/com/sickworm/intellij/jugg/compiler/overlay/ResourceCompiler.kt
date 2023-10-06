@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
@@ -16,8 +17,9 @@ import java.io.File
  * activity_main.xml.flat
  */
 class ResourceCompiler(
-    context: ICompileContext
-): BaseCompiler(context) {
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 

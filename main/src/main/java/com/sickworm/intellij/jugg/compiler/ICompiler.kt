@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.android.tools.idea.run.ApkInfo
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
@@ -126,7 +128,7 @@ data class CompileError(
     val errorMessages get() = errors.joinToString("\n") { it.second }
 }
 
-interface ICompiler {
+interface ICompiler: Disposable {
     val supportedTypes: List<CompileFile.Type>
 
     fun compile(task: CompileTask): CompileResult
@@ -275,7 +277,7 @@ fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
     }
 }
 
-abstract class BaseCompiler(val context: ICompileContext): ICompiler {
+abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): ICompiler {
 
     open val isNeedOutputDirEmpty: Boolean = false
 
@@ -285,6 +287,8 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
 
     init {
         context.listenUpdate(::onContextUpdate)
+        @Suppress("LeakingThis")
+        Disposer.register(parent, this)
     }
 
     override fun compile(task: CompileTask): CompileResult {
@@ -344,6 +348,8 @@ abstract class BaseCompiler(val context: ICompileContext): ICompiler {
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
 
     open fun onContextUpdate() = Unit
+
+    override fun dispose() = Unit
 
     private fun checkTypesCanCompile(task: CompileTask) {
         val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }

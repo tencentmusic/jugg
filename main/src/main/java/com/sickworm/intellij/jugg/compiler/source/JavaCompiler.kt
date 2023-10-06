@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.source
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
@@ -9,7 +10,11 @@ import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler
 
-class JavaCompiler(context: ICompileContext): BaseCompiler(context) {
+class JavaCompiler(
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
+
     override val supportedTypes = listOf(CompileFile.Type.Java)
 
     override val isNeedOutputDirEmpty = true

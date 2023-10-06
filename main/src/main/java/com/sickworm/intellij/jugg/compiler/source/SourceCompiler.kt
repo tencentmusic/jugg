@@ -1,19 +1,23 @@
 package com.sickworm.intellij.jugg.compiler.source
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
 
-class SourceCompiler(context: ICompileContext): BaseCompiler(context) {
+class SourceCompiler(
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Java, CompileFile.Type.Kotlin)
 
-    private val javaCompiler = JavaCompiler(context.subContext("tmp_java"))
+    private val javaCompiler = JavaCompiler(context.subContext("tmp_java"), this)
 
-    private val kotlinCompiler = KotlinCompiler(context.subContext("tmp_kotlin"))
+    private val kotlinCompiler = KotlinCompiler(context.subContext("tmp_kotlin"), this)
 
-    private val dexCompiler = DexCompiler(context.subContext("tmp_dex"))
+    private val dexCompiler = DexCompiler(context.subContext("tmp_dex"), this)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         context.tempCompileDir.clearDir()

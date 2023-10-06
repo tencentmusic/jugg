@@ -42,6 +42,11 @@ class Aapt2DaemonInvoker(
         return outputReader!!.read()
     }
 
+    fun release() {
+        logger.debug("exit aapt2 daemon")
+        process?.destroy()
+    }
+
     private fun readLine(stream: InputStream): String {
         val sc = Scanner(stream)
 

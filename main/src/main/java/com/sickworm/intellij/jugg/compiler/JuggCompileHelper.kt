@@ -35,6 +35,10 @@ class JuggCompilerHelper(
 ): Disposable {
 
     var juggCompiler: JuggCompiler? = null
+        set(value) {
+            field?.dispose()
+            field = value
+        }
 
     private val deployStateListener get() = deployStateListenerGetter.invoke()
 
@@ -206,6 +210,8 @@ class JuggCompilerHelper(
     }
 
     override fun dispose() {
+        juggCompiler?.dispose()
+        juggCompiler = null
     }
 }
 

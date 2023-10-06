@@ -85,7 +85,7 @@ class JuggManager @TestOnly constructor(
                 val isSuccess = compileContextManager.refreshCompileContext()
                 if (isSuccess) {
                     deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
-                    juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
+                    juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
                     warmUpCompile(false)
                 }
             }
@@ -318,7 +318,7 @@ class JuggManager @TestOnly constructor(
             compileContextManager.initFullBuildInfo(compileContextInfo, isNeedReloadProjectInfo)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles)
             deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
-            juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext)
+            juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
         }
         logger.debug("Init compile cost ${costTime}ms")
 

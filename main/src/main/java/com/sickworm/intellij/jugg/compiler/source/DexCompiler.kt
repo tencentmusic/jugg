@@ -1,13 +1,15 @@
 package com.sickworm.intellij.jugg.compiler.source
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import java.io.File
 
 class DexCompiler(
-    context: ICompileContext
-): BaseCompiler(context) {
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes = listOf(CompileFile.Type.Class)
 

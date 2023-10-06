@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.packageNameToPath
 import java.io.File
@@ -9,7 +10,10 @@ import java.io.File
  * In Jugg, we only generate one final R.dex for main module, for other submodules, we generate
  * R.dex for each module.
  */
-class RDexForSubmoduleCompiler(context: ICompileContext) : BaseCompiler(context) {
+class RDexForSubmoduleCompiler(
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type>
         get() = listOf(CompileFile.Type.Dex, CompileFile.Type.Java, CompileFile.Type.Kotlin)

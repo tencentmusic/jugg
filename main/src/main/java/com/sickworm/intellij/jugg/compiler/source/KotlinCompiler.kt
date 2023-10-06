@@ -1,12 +1,17 @@
 package com.sickworm.intellij.jugg.compiler.source
 
+import com.intellij.openapi.Disposable
 import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
 
-class KotlinCompiler(context: ICompileContext): BaseCompiler(context) {
+class KotlinCompiler(
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
+
     override val supportedTypes = listOf(CompileFile.Type.Kotlin)
 
     override val isNeedOutputDirEmpty = false

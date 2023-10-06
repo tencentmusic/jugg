@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 
@@ -17,16 +18,17 @@ import com.sickworm.intellij.jugg.compiler.*
  * R.java
  */
 class ResourceOverlayCompiler(
-    context: ICompileContext
-): BaseCompiler(context) {
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     override val isNeedPrintProgress: Boolean = true
 
-    private val resourceCompiler = ResourceCompiler(context)
+    private val resourceCompiler = ResourceCompiler(context, this)
 
-    private val arscCompiler = ArscCompiler(context)
+    private val arscCompiler = ArscCompiler(context, this)
 
     override fun doCompile(task: CompileTask): CompileResult {
         // compile to .flat

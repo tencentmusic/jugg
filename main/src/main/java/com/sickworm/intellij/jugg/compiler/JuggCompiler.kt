@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.overlay.AssetOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
@@ -8,8 +9,9 @@ import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import java.io.File
 
 class JuggCompiler(
-    context: ICompileContext
-): BaseCompiler(context) {
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
         CompileFile.Type.Java,
@@ -19,21 +21,26 @@ class JuggCompiler(
         CompileFile.Type.Class,
     )
 
-    private val assetOverlayCompiler = AssetOverlayCompiler(context)
+    private val assetOverlayCompiler = AssetOverlayCompiler(context, this)
 
     private val resourceOverlayCompiler = ResourceOverlayCompiler(
-        context.subContext("overlays")
+        context.subContext("overlays"),
+        this,
     )
 
     private val sourceCompiler = SourceCompiler(
-        context.subContext("classes"))
+        context.subContext("classes"),
+        this,
+    )
 
     private val dexCompiler = DexCompiler(
-        context.subContext("tmp_dex")
+        context.subContext("tmp_dex"),
+        this,
     )
 
     private val rDexForSubmoduleCompiler = RDexForSubmoduleCompiler(
-        context.subContext("tmp_rfile")
+        context.subContext("tmp_rfile"),
+        this,
     )
 
     override fun doCompile(task: CompileTask): CompileResult {

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
@@ -20,8 +21,9 @@ import java.io.File
  * R.java
  */
 class ArscCompiler(
-    context: ICompileContext
-): BaseCompiler(context) {
+    context: ICompileContext,
+    parent: Disposable,
+): BaseCompiler(context, parent) {
 
     override val supportedTypes = listOf(CompileFile.Type.Flat)
 
@@ -123,6 +125,10 @@ class ArscCompiler(
         if (!hasLoaded) {
             loadTable()
         }
+    }
+
+    override fun dispose() {
+        aapt2Invoker.release()
     }
 }
 
