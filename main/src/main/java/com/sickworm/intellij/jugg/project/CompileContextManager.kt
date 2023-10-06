@@ -13,6 +13,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.*
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
@@ -33,6 +34,7 @@ import kotlin.system.measureTimeMillis
 class CompileContextManager(
     private val project: Project,
     private val pathManager: JuggPathManager,
+    private val deployFileManager: DeployFileManager,
     @Suppress("MissingRecentApi") // false positive error message
     private val moduleManager: ModuleManager = ModuleManager.getInstance(project), // mock
     private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
@@ -108,6 +110,7 @@ class CompileContextManager(
             modules = modules,
             minApi = JuggSettings.minApi,
             projectDir = pathManager.projectDir,
+            deployFileManager = deployFileManager,
         )
         logger.debug("""
             context loaded:

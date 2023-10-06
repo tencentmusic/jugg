@@ -2,10 +2,8 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.CompileTask
-import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
-import com.sickworm.intellij.jugg.compiler.OnContextUpdate
+import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import java.io.File
 
 data class BaseCompileContext(
@@ -16,10 +14,13 @@ data class BaseCompileContext(
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val minApi: Int,
     override val projectDir: File,
+    private val deployFileManager: DeployFileManager,
 ): ICompileContext {
 
     override val androidJar: File get() = getSuggestedPlatform(modules)
     override val androidBuildTools: File get() = getSuggestedBuildTools(modules)
+
+    override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
     private val listeners = mutableListOf<OnContextUpdate>()
 

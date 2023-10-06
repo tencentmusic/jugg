@@ -15,6 +15,7 @@ class SimpleCompileContext(
     override val apkInfos: List<ApkInfo>,
     override val minApi: Int,
     override val projectDir: File,
+    override val deployedFiles: List<CompileOutput>,
 ) : ICompileContext {
 
     private val finalRFiles: List<String> by lazy {

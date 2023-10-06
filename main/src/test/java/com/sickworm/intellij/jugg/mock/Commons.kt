@@ -68,7 +68,8 @@ val context get() = SimpleCompileContext(
     modules = mapOf(mockModule.name to mockModule),
     apkInfos = projectInfo.apkInfos,
     minApi = JuggSettings.minApi,
-    projectDir = projectInfo.projectRoot
+    projectDir = projectInfo.projectRoot,
+    deployedFiles = emptyList(),
 )
 
 private val appModuleDir = File(projectInfo.projectRoot, "app")

@@ -104,6 +104,11 @@ class Aapt2DaemonInvoker(
                     // ignore
                     continue
                 }
+                if (line.contains("but no such path exists")) {
+                    // outputs when loadTable using an apk with only manifest and arsc
+                    // ignore
+                    continue
+                }
                 stringBuilder.appendLine(line)
                 readLine++
 

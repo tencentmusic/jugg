@@ -6,6 +6,8 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Compile res .flat files to deployable files
@@ -46,19 +48,41 @@ class ArscCompiler(
 
         logger.debug("aapt2 loadTable start")
         val startTime = System.currentTimeMillis()
+
+        val deployedManifestFile = context.deployedFiles.find { it.relativeFile.path == "AndroidManifest.xml" }
+        val deployedArsc = context.deployedFiles.find { it.relativeFile.path == ARSC_FILE_NAME }
+        val isNeedLoadLatestResApk = deployedManifestFile != null && deployedArsc != null
+        logger.debug("isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedManifestFile: $deployedManifestFile, deployedArsc: $deployedArsc")
+        if (deployedArsc != null && deployedManifestFile == null) {
+            logger.warn("loadTable deployedManifestFile not found, but deployedArsc found, may be fatal problem")
+            return false
+        }
+
+        var resApkFile: File = context.apkFile!!
+        if (isNeedLoadLatestResApk) {
+            val latestResApkFile = File(context.tempCompileDir, "res.apk")
+            // zip deployedManifestFile and deployedArsc to res.apk
+            zipFiles(listOf(deployedManifestFile!!.file, deployedArsc!!.file), latestResApkFile)
+            resApkFile = latestResApkFile
+        }
+
         val command = """
             |inclink
             |--load
             |-o no_need_output_path_on_load
             |-I ${context.androidJar}
             |--manifest no_need_manifest_on_load
-            |${context.apkFile}
+            |${resApkFile}
         """.trimMargin().replace("\n", " ")
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
             logger.info("loadTable error msg (may not be fatal problem): ${result.errorOutput}")
         }
+        if (isNeedLoadLatestResApk) {
+            resApkFile.delete()
+        }
+
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("aapt2 loadTable end, cost ${costTime}ms")
         hasLoaded = true
@@ -129,6 +153,22 @@ class ArscCompiler(
 
     override fun dispose() {
         aapt2Invoker.release()
+    }
+
+    private fun zipFiles(files: List<File>, zipFile: File) {
+        zipFile.parentFile?.mkdirs()
+        if (zipFile.exists()) {
+            zipFile.delete()
+        }
+        // zip using java.util.zip
+        val zipOutputStream = ZipOutputStream(zipFile.outputStream())
+        files.forEach {
+            val zipEntry = ZipEntry(it.name)
+            zipOutputStream.putNextEntry(zipEntry)
+            zipOutputStream.write(it.readBytes())
+            zipOutputStream.closeEntry()
+        }
+        zipOutputStream.close()
     }
 }
 

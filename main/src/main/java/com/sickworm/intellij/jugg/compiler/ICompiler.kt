@@ -156,6 +156,8 @@ interface ICompileContext {
     val minApi: Int
     /** project root directory, for log print */
     val projectDir: File
+    /** all deployed files */
+    val deployedFiles: List<CompileOutput>
 
     val packageName get() = apkInfos.firstOrNull()?.applicationId
 

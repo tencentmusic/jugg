@@ -42,6 +42,11 @@ class DeployFileManager(
     private var stagingFiles = mutableMapOf<String, CompileOutput>()
 
     /**
+     * Deployed files. All operation must be thread-safe
+     */
+    private val deployedFiles = mutableMapOf<String, CompileOutput>()
+
+    /**
      * build [JuggDeployData]
      */
     private val deployDataGenerator = DeployDataGenerator(logger.getInstance("DeployDataGenerator"), databaseDir)
@@ -60,6 +65,11 @@ class DeployFileManager(
         reset(resetFilesBeforeTimeMill)
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
+
+        this.deployedFiles.clear()
+        deployedFiles.forEach {
+            this.deployedFiles[it.file.stdAbsPath] = it
+        }
     }
 
     @Synchronized
@@ -162,6 +172,11 @@ class DeployFileManager(
         }
     }
 
+    @Synchronized
+    fun getDeployedFiles(): List<CompileOutput> {
+        return deployedFiles.values.toList()
+    }
+
     private fun CompileOutput.toDeployItem(): DeployItem {
         val bytes = file.readBytes()
         val crc = crc32.run {
@@ -184,6 +199,7 @@ class DeployFileManager(
         deployDataGenerator.commitDeployedData(juggDeployData)
         stagingFiles.clear()
         compiledFiles.clear()
+        deployedFiles.putAll(stagingFiles)
     }
 
     @TestOnly
