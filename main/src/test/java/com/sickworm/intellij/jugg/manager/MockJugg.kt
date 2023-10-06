@@ -149,7 +149,7 @@ class MockJugg {
      * Just simply mark changes as full compiled. Use this we don't need an android device to run tests.
      */
     fun dryFullCompile() {
-        juggManager.initIncrementalCompileAfterFullBuild()
+        juggManager.initIncrementalCompileAfterFullBuild(System.currentTimeMillis())
         juggManager.updateDeployState()
     }
 

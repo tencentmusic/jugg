@@ -214,6 +214,7 @@ class JuggManager @TestOnly constructor(
     ): JuggRunningTask {
         logger.debug("Create running task: $options")
 
+        val startCompileTime = System.currentTimeMillis()
         val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
             return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
         }
@@ -223,7 +224,7 @@ class JuggManager @TestOnly constructor(
         val initIncrementalCompileTask = task@{
             // do it async
             fun action() {
-                initIncrementalCompileAfterFullBuild(options.isRemoteCompile)
+                initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
@@ -253,7 +254,7 @@ class JuggManager @TestOnly constructor(
     }
 
     @TestOnly
-    fun initIncrementalCompileAfterFullBuild(isRemoteCompile: Boolean = false) {
+    fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, isRemoteCompile: Boolean = false) {
         JuggLogger.resetLatestCompileLog(project)
         juggReporter.afterFullCompile()
 
@@ -300,7 +301,10 @@ class JuggManager @TestOnly constructor(
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
 
-        initCompile(compileContextInfo, emptyList(), false, isNeedWarmUpDeploy = true)
+        initCompile(compileContextInfo, emptyList(), false,
+            isNeedWarmUpDeploy = true,
+            startCompileTime = startCompileTime,
+        )
     }
 
     private fun initCompile(
@@ -308,6 +312,7 @@ class JuggManager @TestOnly constructor(
         deployedFiles: List<CompileOutput>,
         isNeedReloadProjectInfo: Boolean,
         isNeedWarmUpDeploy: Boolean = false,
+        startCompileTime: Long? = null
     ) {
         logger.info("Init compile... isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
 
@@ -316,7 +321,7 @@ class JuggManager @TestOnly constructor(
 
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo, isNeedReloadProjectInfo)
-            deployFileManager.init(compileContextInfo.apkInfos, deployedFiles)
+            deployFileManager.init(compileContextInfo.apkInfos, deployedFiles, startCompileTime)
             deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
             juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
         }

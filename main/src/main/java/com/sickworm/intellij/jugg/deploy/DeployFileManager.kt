@@ -56,8 +56,8 @@ class DeployFileManager(
     private var moduleInfos: Map<String, ModuleInfo> = mutableMapOf()
 
     @Synchronized
-    fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>) {
-        reset()
+    fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>, resetFilesBeforeTimeMill: Long?) {
+        reset(resetFilesBeforeTimeMill)
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
     }
@@ -188,10 +188,20 @@ class DeployFileManager(
 
     @TestOnly
     @Synchronized
-    fun reset() {
+    fun reset(resetFilesBeforeTimeMill: Long?) {
+        logger.debug("reset deploy file manager, resetFilesBeforeTimeMill=$resetFilesBeforeTimeMill")
+        val remainUncompiledFiles = uncompiledFiles.filter {
+            resetFilesBeforeTimeMill != null && it.value.file.lastModified() > resetFilesBeforeTimeMill
+        }
+
         uncompiledFiles.clear()
         compiledFiles.clear()
         stagingFiles.clear()
+
+        if (remainUncompiledFiles.isNotEmpty()) {
+            logger.debug("reset deploy file manager, remain uncompiled files: $remainUncompiledFiles")
+            uncompiledFiles.putAll(remainUncompiledFiles)
+        }
     }
 
     @Synchronized
