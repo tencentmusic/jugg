@@ -113,7 +113,7 @@ class JuggCompileTest {
         assertCompileResultJugg(remainTask, remainResult)
     }
 
-    private fun assertCompileResultJugg(task: CompileTask, result: CompileResult) {
+    private fun assertCompileResultJugg(task: CompileTask, result: CompileResult, isRFileChanged: Boolean = false) {
         val mapper: OutputFileMapper = {
             if (it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin) {
                 val outputBaseDir = File(task.outputDir, "classes")
@@ -133,14 +133,16 @@ class JuggCompileTest {
                 )
 
                 // R*.dex
-                val sourceBaseDir = File(task.outputDir, "classes")
-                val rOutDir = File(sourceBaseDir, androidApkPackage.replace(".", "/"))
-                // TODO figure out how to recover R$styleable.dex
-                val rDexList = ("R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, " +
-                        "R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, " +
-                        "R\$string.dex, R\$style.dex, R.dex").split(", ")
-                val dexOutputs = rDexList.map { name ->
-                    CompileOutput(CompileOutput.Type.Dex, File(rOutDir, name), sourceBaseDir)
+                var dexOutputs = listOf<CompileOutput>()
+                if (isRFileChanged) {
+                    val sourceBaseDir = File(task.outputDir, "classes")
+                    val rOutDir = File(sourceBaseDir, androidApkPackage.replace(".", "/"))
+                    val rDexList = ("R\$anim.dex, R\$attr.dex, R\$bool.dex, R\$color.dex, R\$dimen.dex, " +
+                            "R\$drawable.dex, R\$id.dex, R\$integer.dex, R\$layout.dex, R\$mipmap.dex, " +
+                            "R\$string.dex, R\$style.dex, R.dex").split(", ")
+                    dexOutputs = rDexList.map { name ->
+                        CompileOutput(CompileOutput.Type.Dex, File(rOutDir, name), sourceBaseDir)
+                    }
                 }
 
                 // resources.arsc

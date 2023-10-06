@@ -63,7 +63,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 428)
+        checkArscResult(task, result, 428, isRJavaChanged = true)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -82,7 +82,7 @@ class ResourceCompileTest {
         val resourceOverlayCompiler = ResourceOverlayCompiler(context)
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 8)
+        checkArscResult(task, result, 8, isRJavaChanged = false)
     }
 
     @Test
@@ -100,7 +100,7 @@ class ResourceCompileTest {
 
         val result = resourceOverlayCompiler.compile(task)
 
-        checkArscResult(task, result, 3)
+        checkArscResult(task, result, 3, isRJavaChanged = true)
 
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
         assertTrue(rFiles.first().file.readText().contains("button999"))
@@ -121,7 +121,7 @@ class ResourceCompileTest {
 
         val result = resourceOverlayCompiler.compile(task)
 
-        checkArscResult(task, result, 2)
+        checkArscResult(task, result, 2, isRJavaChanged = true)
 
         val containsIds = task.files.flatMap { file ->
             file.file.readLines().mapNotNull {
@@ -138,12 +138,16 @@ class ResourceCompileTest {
         }
     }
 
-    private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int) {
+    private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int, isRJavaChanged: Boolean) {
         assertEquals(result.details.size, task.files.size)
         assertTrue(result.isAllSuccess)
 
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
-        assertEquals(1, rFiles.size)
+        if (isRJavaChanged) {
+            assertEquals(1, rFiles.size)
+        } else {
+            assertEquals(0, rFiles.size)
+        }
 
         val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Res }
         assertEquals(exceptOverlayOutputSize, resFiles.size) // TODO more logical

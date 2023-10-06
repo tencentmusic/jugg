@@ -81,7 +81,7 @@ class Aapt2DaemonInvoker(
             while (sc.hasNextLine()) {
                 val line = sc.nextLine()
                 outputBuilder.appendLine(line)
-                logger.debug("output: $line")
+                logger.debug("std output: $line")
                 readLine++
             }
             logger.debug("output lines: $readLine")
@@ -101,7 +101,13 @@ class Aapt2DaemonInvoker(
                 }
                 stringBuilder.appendLine(line)
                 readLine++
-                logger.info("stderr output: $line")
+
+                if (line.contains("error: ")) {
+                    logger.warn("output: $line")
+                } else {
+                    // warn: / note:
+                    logger.debug("output: $line")
+                }
             }
             logger.debug("aapt2 invoke finished")
             return stringBuilder.toString()
@@ -113,7 +119,7 @@ class Aapt2DaemonInvoker(
             if (!isMac) {
                 throw IllegalStateException("aapt2-inclink not support windows nor linux yet")
             }
-            return copyResource("/tools/darwin/aapt2-inclink-2.19.1")
+            return copyResource("/tools/darwin/aapt2-inclink-2.19.2")
         }
     }
 }
