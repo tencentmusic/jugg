@@ -107,6 +107,6 @@ class CompileContextDb(
         val assetFiles = assetDeployedDir.listFilesRecursively().map {
             CompileOutput(CompileOutput.Type.Asset, it, assetDeployedDir)
         }
-        return dexFiles + overlayFiles
+        return dexFiles + overlayFiles + assetFiles
     }
 }
