@@ -184,6 +184,21 @@ class IncLinker: private Linker {
     return 0;
   }
 
+  void readTableCount(std::map<ResourceType, int> &entry_count, std::map<ResourceType, int> &config_count) {
+    for (const auto& pkg : final_table_.packages) {
+      for (const auto& type : pkg->types) {
+        entry_count[type->type] = 0;
+        config_count[type->type] = 0;
+        for (const auto& entry : type->entries) {
+          entry_count[type->type]++;
+          for (const auto& config_value : entry->values) {
+            config_count[type->type]++;
+          }
+        }
+      }
+    }
+  }
+
   int IncLinkAdv(const std::vector<std::string>& input_files) {
     proguard::KeepSet proguard_main_dex_keep_set;
 
@@ -194,6 +209,27 @@ class IncLinker: private Linker {
     table_merger_options.strict_visibility = options_.strict_visibility;
     table_merger_ = util::make_unique<TableMerger>(context_, &final_table_, table_merger_options);
 
+    // read origin table count
+    std::map<ResourceType, int> originEntryCount;
+    std::map<ResourceType, int> originConfigCount;
+    readTableCount(originEntryCount, originConfigCount);
+
+    if (context_->IsVerbose()) {
+      std::map<ResourceType, int> ::iterator it;
+      std::map<ResourceType, int> ::iterator itEnd;
+      it = originEntryCount.begin();
+      itEnd = originEntryCount.end();
+      while (it != itEnd) {
+        context_->GetDiagnostics()->Note(DiagMessage("before_table_count") 
+          << it->first 
+          << " has entry count " 
+          << it->second
+          << ", config count "
+          << originConfigCount[it->first]
+          );
+        it++;
+      }
+    }
 
     for (const std::string& input : input_files) {
       if (!MergePath(input, true)) {
@@ -201,6 +237,59 @@ class IncLinker: private Linker {
         return 1;
       }
     }
+
+    // read current table count
+    std::map<ResourceType, int> currentEntryCount;
+    std::map<ResourceType, int> currentConfigCount;
+    readTableCount(currentEntryCount, currentConfigCount);
+
+    if (context_->IsVerbose()) {
+      std::map<ResourceType, int> ::iterator it;
+      std::map<ResourceType, int> ::iterator itEnd;
+      it = currentEntryCount.begin();
+      itEnd = currentEntryCount.end();
+      while (it != itEnd) {
+        context_->GetDiagnostics()->Note(DiagMessage("after_table_count") 
+          << it->first 
+          << " has entry count " 
+          << it->second
+          << ", config count "
+          << currentConfigCount[it->first]
+          );
+        it++;
+      }
+    }
+
+    // print difference
+    std::map<ResourceType, int> ::iterator it;
+    std::map<ResourceType, int> ::iterator itEnd;
+    it = currentEntryCount.begin();
+    itEnd = currentEntryCount.end();
+    bool isRJavaChange = false;
+    while (it != itEnd) {
+      std::map<ResourceType, int>::iterator iterator = originEntryCount.find(it->first);
+      int originEntryCountValue = 0;
+      if (iterator != originEntryCount.end()) {
+        originEntryCountValue = iterator->second;
+      }
+      int currentEntryCountValue = it->second;
+      if (originEntryCountValue != currentEntryCountValue) {
+        isRJavaChange = true;
+        context_->GetDiagnostics()->Note(DiagMessage("table_count_changes") 
+          << it->first 
+          << " entry count changed from " 
+          << originEntryCountValue
+          << " to "
+          << currentEntryCountValue
+          );
+      }
+      it++;
+    }
+
+    context_->GetDiagnostics()->Note(DiagMessage("table_count_changes") 
+          << "isRJavaChange "
+          << (isRJavaChange ? "true" : "false")
+          );
 
     // Assign IDs if we are building a regular app.
     IdAssigner id_assigner(&options_.stable_id_map);
@@ -277,8 +366,10 @@ class IncLinker: private Linker {
     }
 
     if (options_.generate_java_class_path || options_.generate_text_symbols_path) {
-      if (!GenerateJavaClasses()) {
-        return 1;
+      if (isRJavaChange) {
+        if (!GenerateJavaClasses()) {
+          return 1;
+        }
       }
     }
 
