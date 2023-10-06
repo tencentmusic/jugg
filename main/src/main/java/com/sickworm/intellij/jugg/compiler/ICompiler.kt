@@ -4,6 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
@@ -283,7 +284,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
 
     open val isNeedPrintProgress: Boolean = false
 
-    val logger get() = context.logger
+    val logger = context.logger.getInstance(this::class.java.simpleName)
 
     init {
         context.listenUpdate(::onContextUpdate)
