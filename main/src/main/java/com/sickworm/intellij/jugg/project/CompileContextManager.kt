@@ -120,13 +120,13 @@ class CompileContextManager(
 
     fun getAllModulesByModuleManager(isNeedReloadProjectInfo: Boolean): Map<String, ModuleInfo> {
         var modules: Map<String, ModuleInfo>? = null
-//        if (!isNeedReloadProjectInfo) {
-//            val cacheModules = projectInfoSerializer.load()
-//            logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
-//            if (cacheModules != null) {
-//                modules = cacheModules
-//            }
-//        }
+        if (!isNeedReloadProjectInfo) {
+            val cacheModules = projectInfoSerializer.load()
+            logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
+            if (cacheModules != null) {
+                modules = cacheModules
+            }
+        }
         if (modules == null) {
             modules = doGetAllModulesByModuleManager()
             projectInfoSerializer.save(modules)
