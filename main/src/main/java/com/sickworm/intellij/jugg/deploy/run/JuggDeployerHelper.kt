@@ -165,14 +165,19 @@ class JuggDeployerHelper(
 
                 val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
-                if (isMissingAgentResponses || isOverlayIdNotCorrect) {
+                val isClassNotFoundException = reason.contains("Class not found")
+                if (isMissingAgentResponses || isOverlayIdNotCorrect || isClassNotFoundException) {
                     val isNeedRecover = when {
                         isMissingAgentResponses && !isAppForeground-> {
                             logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
                             true
                         }
                         isOverlayIdNotCorrect -> {
-                            logger.info("Deploy history mismatch with device, try recover deploy state.")
+                            logger.info("Deploy history mismatch with the device, try recover deploy state.")
+                            true
+                        }
+                        isClassNotFoundException -> {
+                            logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
                             true
                         }
                         else -> false
