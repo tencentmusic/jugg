@@ -88,6 +88,8 @@ void ClassDefinition::Print(bool final, Printer* printer, bool strip_api_annotat
   printer->Print("final class ").Print(name_).Println(" {");
   printer->Indent();
 
+  printer->Print("private ").Print(name_).Println("() {}");
+
   for (const std::unique_ptr<ClassMember>& member : ordered_members_) {
     // There can be nullptr members when a member is added to the ClassDefinition
     // and takes precedence over a previous member with the same name. The overridden member is
