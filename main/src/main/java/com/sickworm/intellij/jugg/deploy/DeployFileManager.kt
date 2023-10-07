@@ -221,6 +221,18 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun resetAfterReinstall() {
+        deployDataGenerator.clearDeployedData()
+        val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
+        val deployedFiles = deployedFiles.values.filter {
+            it.relativeFile.path !in stagingFileRelativeSet
+        }
+        deployedFiles.forEach {
+            stagingFiles[it.file.stdAbsPath] = it
+        }
+    }
+
+    @Synchronized
     fun updateModuleInfos(moduleInfos: Map<String, ModuleInfo>) {
         this.moduleInfos = moduleInfos
         val sourceDirs = moduleInfos.values.flatMap {

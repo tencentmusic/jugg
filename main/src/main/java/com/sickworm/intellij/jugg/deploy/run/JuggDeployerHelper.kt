@@ -238,7 +238,7 @@ class JuggDeployerHelper(
             logger.info("Deploy state matched, no need reinstall app.")
             return true
         }
-        logger.info("Going to reinstall app.")
+        logger.info("Deploy state not match, start reinstalling app...")
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
@@ -248,12 +248,7 @@ class JuggDeployerHelper(
             logger.warn("Recovery failed for app not launched.")
             return false
         }
-        val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
-        if (deployContextRecoverInfo == null) {
-            logger.warn("No deploy recover info found.")
-            return false
-        }
-        deployFileManager.addDeployFiles(deployContextRecoverInfo.deployedFiles)
+        deployFileManager.resetAfterReinstall()
 
         logger.info("Device online, continue deploy.")
         return true

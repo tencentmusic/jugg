@@ -21,6 +21,9 @@ interface IDeployDataDatabase {
 
     fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>): List<ParsedApkUpdateResult>
 
+
+    fun clearDeployedData()
+
     fun commitDeployedData(juggDeployData: JuggDeployData)
 
     fun isDeployedOverlaysBefore(): Boolean
@@ -90,6 +93,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         logger.debug("database all init finish, cost ${costTime}ms.")
 
         return updateResults
+    }
+
+    override fun clearDeployedData() {
+        incDeployedDatabase.init(emptyList())
     }
 
     @Synchronized

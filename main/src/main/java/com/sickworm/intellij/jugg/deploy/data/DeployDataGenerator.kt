@@ -112,6 +112,11 @@ class DeployDataGenerator(
         deployDataDatabase.init(apks, deployedItems)
     }
 
+    @Synchronized
+    fun clearDeployedData() {
+        deployDataDatabase.clearDeployedData()
+    }
+
     /**
      * Mark [juggDeployData] as deployed.
      */
