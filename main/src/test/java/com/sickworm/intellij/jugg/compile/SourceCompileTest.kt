@@ -11,7 +11,7 @@ import java.io.File
 
 class SourceCompileTest {
 
-    private val sourceCompiler = SourceCompiler(context)
+    private val sourceCompiler = SourceCompiler(context, mockParentDisposable)
 
     @Before
     fun init() {

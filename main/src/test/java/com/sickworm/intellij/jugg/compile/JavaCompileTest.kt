@@ -10,7 +10,7 @@ import java.io.File
 
 class JavaCompileTest {
 
-    private val javaCompiler = JavaCompiler(context)
+    private val javaCompiler = JavaCompiler(context, mockParentDisposable)
 
     @Before
     fun init() {

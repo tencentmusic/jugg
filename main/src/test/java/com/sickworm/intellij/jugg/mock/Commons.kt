@@ -3,6 +3,7 @@
 package com.sickworm.intellij.jugg.mock
 
 import com.google.gson.JsonSyntaxException
+import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
@@ -71,6 +72,8 @@ val context get() = SimpleCompileContext(
     projectDir = projectInfo.projectRoot,
     deployedFiles = emptyList(),
 )
+
+val mockParentDisposable = Disposable { }
 
 private val appModuleDir = File(projectInfo.projectRoot, "app")
 

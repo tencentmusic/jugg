@@ -10,7 +10,7 @@ import java.io.File
 
 class KotlinCompileTest {
 
-    private val kotlinCompiler = KotlinCompiler(context)
+    private val kotlinCompiler = KotlinCompiler(context, mockParentDisposable)
 
     @Before
     fun init() {

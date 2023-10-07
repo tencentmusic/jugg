@@ -39,7 +39,7 @@ class ResourceCompileTest {
     }
 
     private fun compileRes(files: List<File>, baseDir: File) {
-        val resCompiler = ResourceCompiler(context)
+        val resCompiler = ResourceCompiler(context, mockParentDisposable)
         val task = CompileTask(
             files.map { CompileFile(CompileFile.Type.Resource, it, baseDir, mockModule) },
             stagingDir
@@ -57,7 +57,7 @@ class ResourceCompileTest {
 
     @Test
     fun compileArsc() {
-        val arscCompiler = ArscCompiler(context)
+        val arscCompiler = ArscCompiler(context, mockParentDisposable)
         val task = CompileTask(
             flatFiles,
             stagingDir
@@ -79,7 +79,7 @@ class ResourceCompileTest {
     @Test
     fun compileResourceOverlay() {
         val task = resourceOverlayTask
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context)
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
         checkArscResult(task, result, 8, isRJavaChanged = false)
@@ -96,7 +96,7 @@ class ResourceCompileTest {
             ),
             stagingDir
         )
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context)
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
 
@@ -117,7 +117,7 @@ class ResourceCompileTest {
             },
             stagingDir
         )
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context)
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
 

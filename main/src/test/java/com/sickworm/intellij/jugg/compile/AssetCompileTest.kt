@@ -9,7 +9,7 @@ import java.io.File
 
 class AssetCompileTest {
 
-    private val assetCompiler = AssetOverlayCompiler(context)
+    private val assetCompiler = AssetOverlayCompiler(context, mockParentDisposable)
 
     @Before
     fun init() {

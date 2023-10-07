@@ -10,7 +10,7 @@ import java.lang.IllegalStateException
 
 class JuggCompileTest {
 
-    private val juggCompiler = JuggCompiler(context)
+    private val juggCompiler = JuggCompiler(context, mockParentDisposable)
 
     @Before
     fun init() {

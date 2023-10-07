@@ -165,7 +165,7 @@ class MockJugg {
      * reset deploy state
      */
     fun resetDeploy() {
-        deployFileManager.reset()
+        deployFileManager.reset(null)
     }
 
     /**
@@ -244,8 +244,6 @@ class MockJugg {
         val gradleBuildModule = mock(GradleBuildModel::class.java)
         doReturn(getAndroidModel()).`when`(gradleBuildModule).android()
         doReturn(gradleBuildModule).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
-        compileContextManager = CompileContextManager(project, pathManager,
-            moduleManager, projectJdkTable, projectBuildModel, logger)
 
         fileChangesHandler = FileChangesHandler(project, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
@@ -253,6 +251,8 @@ class MockJugg {
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
         deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir)
         deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
+        compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
+            moduleManager, projectJdkTable, projectBuildModel, logger)
 
         val juggReporter = JuggReporter(project)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggReporter, { JuggStateListener.emptyImpl }, logger) {
