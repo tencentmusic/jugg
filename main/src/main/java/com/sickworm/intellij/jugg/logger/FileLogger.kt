@@ -92,7 +92,11 @@ class FileLogger(
                 Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
                 latestLogFile.delete()
             }
-            Files.createSymbolicLink(latestLogFile.toPath(), Path.of(dir.absolutePath, name))
+
+            val source = Path.of(dir.absolutePath, name)
+            val link = latestLogFile.toPath()
+            val relativePath = link.parent.relativize(source)
+            Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
 
             return loggerHandler
         }
