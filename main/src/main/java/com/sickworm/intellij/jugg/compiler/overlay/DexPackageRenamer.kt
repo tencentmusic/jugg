@@ -102,14 +102,7 @@ private class ChangePackageWriter(
 
             override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
                 return if (method.owner == className) {
-                    val finalAccessFlags = if (method.name == "<init>") {
-                        // workaround for origin accessFlags of constructor in R.jar which has private access.
-                        // have no idea why it's private, maybe it's the difference of Java Compiler
-                        (accessFlags or DexConstants.ACC_PRIVATE) and DexConstants.ACC_PUBLIC.inv()
-                    } else {
-                        accessFlags
-                    }
-                    super.visitMethod(finalAccessFlags, Method(newClassSigName, method.name, method.proto))
+                    super.visitMethod(accessFlags, Method(newClassSigName, method.name, method.proto))
                 } else {
                     super.visitMethod(accessFlags, method)
                 }
