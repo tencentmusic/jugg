@@ -18,7 +18,8 @@ class KotlinCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
-    private val kotlinCompile = K2JVMCompilerIsolate(logger)
+    private var kotlinCompile = K2JVMCompilerIsolate(logger)
+    private var hasRecreateAfterInternalError = false
 
     private var hasFoundKotlinAndroidExtensions: Boolean = false
     private var kotlinAndroidExtensionsPath: String? = null
@@ -128,6 +129,13 @@ class KotlinCompiler(
         val exitCode = kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
+
+        if (exitCode == ExitCode.INTERNAL_ERROR && !hasRecreateAfterInternalError) {
+            logger.warn("kotlin compile failed with INTERNAL_ERROR, retry with recreating compiler once")
+            hasRecreateAfterInternalError = true
+            kotlinCompile = K2JVMCompilerIsolate(logger)
+            return doModuleCompile(task, module)
+        }
 
         try {
             merger.loadAndMerge()
