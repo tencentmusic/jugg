@@ -78,9 +78,11 @@ class JuggDeployTask(
             service.dexDatabase,
             adbInstaller,
             ideService,
+            launchContext.exceptOverlayIds,
             logger
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
+        val overlayIds = mutableMapOf<String, String>()
         for ((applicationId, apkFiles) in packages) {
             try {
                 launchContext.launchApp = shouldTaskLaunchApp()
@@ -93,9 +95,10 @@ class JuggDeployTask(
                     launchContext.killBeforeLaunch = true
                     launchContext.launchApp = true
                 }
+                overlayIds[applicationId] = result.overlayId ?: ""
             } catch (e: DeployerException) {
                 logger.error(e, "%s failed: %s %s", deployType, e.message, e.details)
-                return LaunchResult(false, e.error.ordinal, e.message + " " +  e.details)
+                return LaunchResult(false, e.error.ordinal, e.message + " " +  e.details, emptyMap())
             }
         }
         stopwatch.stop()
@@ -115,7 +118,7 @@ class JuggDeployTask(
             printer.stdout(content)
             logger.info("%s. %s", title, content)
         }
-        return LaunchResult(true, 0, null)
+        return LaunchResult(true, 0, null, overlayIds)
     }
 
     private fun shouldTaskLaunchApp() = when(type) {
@@ -250,6 +253,7 @@ enum class AndroidDeployType {
 class LaunchContext(
     val consolePrinter: ConsolePrinter,
     val device: IDevice,
+    val exceptOverlayIds: Map<String, String>,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
@@ -274,4 +278,5 @@ class LaunchResult(
     val success: Boolean,
     val errorId: Int,
     val consoleError: String?,
+    val overlayIds: Map<String, String>, // applicationId -> overlayId
 )

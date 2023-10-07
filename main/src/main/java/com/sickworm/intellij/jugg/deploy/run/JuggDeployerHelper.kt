@@ -60,7 +60,7 @@ class JuggDeployerHelper(
 
         val consolePrinter = ConsolePrinter(logger)
         val device = deployTargetManager.getDevice()
-        val launchContext = LaunchContext(consolePrinter, device)
+        val launchContext = LaunchContext(consolePrinter, device, deployHistoryManager.lastDeployOverlayIds)
         val launchResult = task.run(launchContext)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
@@ -76,6 +76,7 @@ class JuggDeployerHelper(
             logger.debug("App foreground, no need to restart app.")
         }
 
+        deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
         logger.debug("runTask end")
         isRunning = false
     }
@@ -166,7 +167,9 @@ class JuggDeployerHelper(
                 val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
                 val isClassNotFoundException = reason.contains("Class not found")
-                if (isMissingAgentResponses || isOverlayIdNotCorrect || isClassNotFoundException) {
+                // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
+                val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
+                if (isMissingAgentResponses || isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch) {
                     val isNeedRecover = when {
                         isMissingAgentResponses && !isAppForeground-> {
                             logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
@@ -178,6 +181,10 @@ class JuggDeployerHelper(
                         }
                         isClassNotFoundException -> {
                             logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
+                            true
+                        }
+                        isOverlayIdNotMatch -> {
+                            logger.info("The device's deploy status mismatch with this project, try recover deploy state.")
                             true
                         }
                         else -> false

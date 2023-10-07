@@ -23,6 +23,11 @@ interface IDeployHistoryManager {
     val hasBeenFullCompiled: Boolean
 
     /**
+     * Records the last overlay ids to verify deployment state before deploy.
+     */
+    var lastDeployOverlayIds: Map<String, String>
+
+    /**
      * @return False if [hasBeenFullCompiled] is false. Otherwise, return true.
      */
     fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo?

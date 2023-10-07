@@ -18,6 +18,7 @@ class JuggDeployer(
     private val dexDb: SqlApkFileDatabase,
     private val installer: Installer,
     private val service: UIService,
+    private val exceptOverlayIds: Map<String, String>,
     private val logger: ILogger
 ) {
 
@@ -31,7 +32,7 @@ class JuggDeployer(
     class Result {
         var skippedInstall = false
         var needsRestart = false
-        var error: String? = null
+        var overlayId: String? = null
     }
 
     /**
@@ -59,6 +60,7 @@ class JuggDeployer(
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
             deployCache.store(adb.serial, appId, apkList, oid)
+            result.overlayId = oid.sha
             return result
         }
     }
@@ -90,7 +92,16 @@ class JuggDeployer(
 
         // Get the list of files from the installed app assuming deployment cache is correct.
         val speculativeDump: DeploymentCacheDatabase.Entry? = deployCache[deviceSerial, packageName]
-        logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}, is base install: ${speculativeDump?.overlayId?.isBaseInstall}")
+        val exceptOverlayId = exceptOverlayIds[packageName]
+        logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
+                ", except overlay id: $exceptOverlayId" +
+                ", base install: ${speculativeDump?.overlayId?.isBaseInstall}")
+        if (exceptOverlayId != speculativeDump?.overlayId?.sha) {
+            // situation 1: using device running on different projects but same package name.
+            // situation 2: using different devices running on one project.
+            logger.info("overlay id mismatch with Jugg, skip deploy")
+            throw DeployerException.overlayIdMismatch()
+        }
 
         // On an on-host verification of the dump first.
         val dumper = ApplicationDumper(installer)
@@ -108,7 +119,9 @@ class JuggDeployer(
         )
         logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}")
         deployCache.store(deviceSerial, packageName, newFiles, overlayId)
-        return Result()
+        return Result().also {
+            it.overlayId = overlayId.sha
+        }
     }
 
     fun supportsNewPipeline(): Boolean {

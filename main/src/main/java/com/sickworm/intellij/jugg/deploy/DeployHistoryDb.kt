@@ -25,6 +25,9 @@ class DeployHistoryDb(
     /** File to store deploy history */
     private val deployHistoryFile = File(dbDir, "deploy_history.json")
 
+    /** File to store deploy history */
+    private val overlayIdsFile = File(dbDir, "overlay_ids.json")
+
     /** Directory to store deploy items */
     private val deployItemsDir = File(dbDir, "deploys")
 
@@ -33,6 +36,28 @@ class DeployHistoryDb(
 
     val isAvailable: Boolean
         get() = gitManager.hasInitGit && (gitManager.getLastCommitHash() != null)
+
+    @Suppress("UNCHECKED_CAST")
+    var overlayIds: Map<String, String>
+        get() {
+            if (!overlayIdsFile.exists()) {
+                return emptyMap()
+            }
+            val json = overlayIdsFile.readText()
+            val map = Gson().fromJson(json, Map::class.java)
+            return try {
+                map as Map<String, String>
+            } catch (e: Exception) {
+                logger.warn("Failed to parse overlay ids from file: $json")
+                emptyMap()
+            }
+        }
+        set(value) {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            val string = gson.toJson(value)
+            overlayIdsFile.parentFile?.mkdirs()
+            overlayIdsFile.writeText(string)
+        }
 
     fun getChangedFilesSinceLastFullCompiled(): List<File>? {
         if (!isAvailable) {

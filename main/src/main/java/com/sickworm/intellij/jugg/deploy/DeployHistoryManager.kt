@@ -42,6 +42,12 @@ class DeployHistoryManager(
             hasBeenFullCompiledRuntime
         }
 
+    override var lastDeployOverlayIds: Map<String, String>
+        get() = deployHistoryDb.overlayIds
+        set(value) {
+            deployHistoryDb.overlayIds = value
+        }
+
     override fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo? {
         if (!isRecoverFeatureAvailable) {
             logger.warn("tryGetContextRecoverInfoFromDb failed, recover feature not available")
