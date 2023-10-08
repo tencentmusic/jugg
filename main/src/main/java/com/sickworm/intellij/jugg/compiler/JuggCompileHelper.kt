@@ -69,6 +69,9 @@ class JuggCompilerHelper(
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
                 return incrementalResult
+            } else {
+                logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
+                JuggRunningTask.notifyFallback(project, incrementalResult.failedReason ?: "See log for details.")
             }
         }
 

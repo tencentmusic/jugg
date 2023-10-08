@@ -129,6 +129,7 @@ class JuggRunningTask(
                 failedAndActiveRunWindow()
             } else {
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
+                notifyFallback(project, deployTaskResult.failedReason ?: "See log for details.")
                 doRun(indicator, true)
             }
         }
@@ -218,6 +219,14 @@ class JuggRunningTask(
         fun resetHasRun(project: Project) {
             val key = project.bashPathOrDefault
             isFirstTimeRun.remove(key)
+        }
+
+        fun notifyFallback(project: Project, reason: String) {
+            val text = "Fallback to gradle compile. Reason: $reason"
+            SwingUtilities.invokeLater {
+                val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+                toolWindowManager.notifyByBalloon("Run", MessageType.WARNING, text)
+            }
         }
     }
 }
