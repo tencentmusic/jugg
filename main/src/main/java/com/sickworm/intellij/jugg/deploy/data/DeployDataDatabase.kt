@@ -184,10 +184,16 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs)
         val effectClassNodesMap = incrementalEffectClassNodes.toMutableMap()
         database.values.forEach { helper ->
-            val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs)
-            apkEffectClassNodesMap.forEach addNode@{
-                // use incremental first
-                effectClassNodesMap.putIfAbsent(it.key, it.value)
+            try {
+                val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs)
+                apkEffectClassNodesMap.forEach addNode@{
+                    // use incremental first
+                    effectClassNodesMap.putIfAbsent(it.key, it.value)
+                }
+            } catch (e: Exception) {
+                logger.warn("Failed to find effected source and classes, Exception: ${e.message}")
+                logger.warn("The compilation may work incorrectly.")
+                return@forEach
             }
         }
 
