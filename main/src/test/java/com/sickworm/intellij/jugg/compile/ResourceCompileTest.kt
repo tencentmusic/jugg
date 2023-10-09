@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
 import com.sickworm.intellij.jugg.compiler.overlay.ArscCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
+import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
@@ -63,7 +64,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 428, isRJavaChanged = true)
+        checkArscResult(task, result, 428, isRJavaChanged = false)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")

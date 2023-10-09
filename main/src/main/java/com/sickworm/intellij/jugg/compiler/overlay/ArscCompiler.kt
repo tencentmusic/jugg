@@ -66,9 +66,16 @@ class ArscCompiler(
             resApkFile = latestResApkFile
         }
 
+        val styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
+        if (styleableFile == null) {
+            logger.warn("loadTable failed, generateStyleableFile failed")
+        }
+
         val command = """
             |inclink
             |--load
+            |--styleables
+            |${styleableFile?.absolutePath ?: "no_styleables_file"}
             |-o no_need_output_path_on_load
             |-I ${context.androidJar}
             |--manifest no_need_manifest_on_load
@@ -170,6 +177,7 @@ class ArscCompiler(
         }
         zipOutputStream.close()
     }
+
 }
 
 const val ARSC_FILE_NAME = "resources.arsc"
