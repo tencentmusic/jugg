@@ -107,6 +107,10 @@ struct LinkOptions {
 
   // Whether we should fail on definitions of a resource with conflicting visibility.
   bool strict_visibility = false;
+
+  // Inclink options.
+  // Import styleable definitions from a text file.
+  Maybe<std::string> styleable_path;
 };
 
 class LinkCommand : public Command {

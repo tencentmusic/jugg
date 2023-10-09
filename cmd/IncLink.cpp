@@ -17,6 +17,12 @@
 #include "IncLink.h"
 #include "Link.cpp"
 
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+
 namespace aapt {
 
 class IncLinker: private Linker {
@@ -26,6 +32,112 @@ class IncLinker: private Linker {
   void updateContextOnInc(LinkContext* context, LinkOptions& options) {
     options_ = options;
     context_->updateContextOnInc(context);
+  }
+
+  // Creates a SymbolTable that loads symbols from the various APKs.
+  // Pre-condition: context_->GetCompilationPackage() needs to be set.
+  bool LoadSymbolsFromIncludePathsApk() {
+    for (const std::string& path : options_.include_paths) {
+      if (context_->IsVerbose()) {
+        context_->GetDiagnostics()->Note(DiagMessage() << "including binary APK " << path);
+      }
+
+      std::string error;
+      auto zip_collection = io::ZipFileCollection::Create(path, &error);
+      if (zip_collection == nullptr) {
+        context_->GetDiagnostics()->Error(DiagMessage() << "failed to open binary APK: " << error);
+        return false;
+      }
+
+      if (zip_collection->FindFile(kApkResourceTablePath) != nullptr) {
+        std::unique_ptr<LoadedApk> binaryApk = LoadedApk::LoadApkFromPath(path, context_->GetDiagnostics());
+        if (!binaryApk) {
+          context_->GetDiagnostics()->Error(
+              DiagMessage() << "load binary APK failed");
+          return false;
+        }
+        ResourceTable* table = binaryApk->GetResourceTable();
+
+        context_->GetExternalSymbols()->AppendSource(
+            util::make_unique<ResourceTableSymbolSource>(table));
+        static_library_includes_.push_back(std::move(binaryApk));
+      }
+    }
+
+    return true;
+  }
+
+  void processStyleableFile(const std::string& styleables_path) {
+    std::ifstream file(styleables_path);
+    if (!file.is_open()) {
+          context_->GetDiagnostics()->Warn(DiagMessage() << "Error: Unable to open file " << styleables_path);
+      return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+      if (line.empty()) {
+        continue;
+      }
+
+      for (const auto& pkg : final_table_.packages) {
+        ResourceTableType* styleableType = pkg->FindOrCreateType(ResourceType::kStyleable);
+        ResourceTableType* attrType = pkg->FindOrCreateType(ResourceType::kAttr);
+
+        std::istringstream line_stream(line);
+        std::string styleableName;
+        std::string attrs;
+        if (!std::getline(line_stream, styleableName, ':')) {
+          context_->GetDiagnostics()->Error(DiagMessage() << "Error: Unable to parse line:" << line);
+          continue;
+        }
+        ResourceEntry* entry = styleableType->FindOrCreateEntry(android::StringPiece(styleableName), Maybe<uint16_t>());
+        ResourceConfigValue* value = entry->FindOrCreateValue({}, {});
+        std::unique_ptr<Styleable> styleable = util::make_unique<Styleable>();
+
+        if (!std::getline(line_stream, attrs, ':')) {
+          // styleables without any attrs are allowed
+          value->value.reset(styleable.release());
+          continue;
+        }
+        
+        std::istringstream attrs_stream(attrs);
+        std::string attr;
+        std::string originAttr = attr;
+        std::string packageName;
+        while (std::getline(attrs_stream, attr, ',')) {
+          android::StringPiece attrName = android::StringPiece(attr);
+          ResourceNameRef referenceNameRef = ResourceNameRef(pkg->name, ResourceType::kAttr, attrName);
+          bool isFound = false;
+          if (attrType->FindEntry(attrName)) {
+              isFound = true;
+          } else {
+            size_t underscorePos = attr.find('_');
+            if (underscorePos != std::string::npos) {
+              // e.g. "android_layout_gravity"
+              packageName = attr.substr(0, underscorePos);  // maybe "android"
+              attr = attr.substr(underscorePos + 1);
+              attrName = android::StringPiece(attr);
+              referenceNameRef = ResourceNameRef(android::StringPiece(packageName), ResourceType::kAttr, attrName);
+              if (context_->GetExternalSymbols()->FindByName(referenceNameRef.ToResourceName())) {
+                isFound = true;
+              }
+            }
+          }
+          if (!isFound) {
+            context_->GetDiagnostics()->Warn(DiagMessage() << "Unable to find attr " << originAttr << ", ignore attr");
+            continue;
+          }
+
+          Reference reference = Reference(referenceNameRef);
+          styleable->entries.push_back(std::move(reference));
+        }
+
+        value->value.reset(styleable.release());
+      }
+    }
+
+    file.close();
   }
 
   int LoadFromApk(const std::vector<std::string>& input_files) {
@@ -79,6 +191,13 @@ class IncLinker: private Linker {
 
 
 
+    // import styleable
+    if (!LoadSymbolsFromIncludePathsApk()) {
+      return 1;
+    }
+    if (options_.styleable_path) {
+      processStyleableFile(options_.styleable_path.value());
+    }
 
     // origin Link process with out MergePath and LinkReference
 
