@@ -142,6 +142,8 @@ interface ICompileContext {
     val logger: Logger
     /** compile temporary directory */
     val tempCompileDir: File
+    /** classpath directory to storage special generated classes. e.g. R.class */
+    val tempClasspathDir: File
     /** Android sdk dir */
     val androidHome: File
     /** build-tools directory */

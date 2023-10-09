@@ -43,7 +43,6 @@ class CompileContextManager(
 ) {
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
-    private val tempCompileDir = File(pathManager.compileRootDir, "compiled")
     private val projectInfoJsonFile = File(pathManager.historyDir, "project_infos.db/project_infos.dat")
     private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger)
 
@@ -106,7 +105,8 @@ class CompileContextManager(
         val context = BaseCompileContext(
             logger = JuggLogger.getInstance(project, "Compiler"),
             androidHome = androidHome,
-            tempCompileDir = tempCompileDir,
+            tempCompileDir = File(pathManager.compileRootDir, "compiled"),
+            tempClasspathDir = File(pathManager.compileRootDir, "classpath"),
             modules = modules,
             minApi = JuggSettings.minApi,
             projectDir = pathManager.projectDir,

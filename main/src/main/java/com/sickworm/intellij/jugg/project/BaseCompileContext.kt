@@ -9,6 +9,7 @@ import java.io.File
 data class BaseCompileContext(
     override val logger: Logger,
     override var tempCompileDir: File,
+    override var tempClasspathDir: File,
     override val androidHome: File,
     override var modules: Map<String, ModuleInfo> = emptyMap(),
     override var apkInfos: List<ApkInfo> = emptyList(),
@@ -34,6 +35,11 @@ data class BaseCompileContext(
                 null
             }
         }
+    }
+
+    init {
+        tempClasspathDir.mkdirs()
+        tempClasspathDir.clearDir()
     }
 
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
@@ -64,7 +70,7 @@ data class BaseCompileContext(
             logger.warn("No R.jar found in project, compile may fail.")
         }
 
-        val dependencies = mutableListOf(androidJar)
+        val dependencies = mutableListOf(tempClasspathDir.absolutePath, androidJar)
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)

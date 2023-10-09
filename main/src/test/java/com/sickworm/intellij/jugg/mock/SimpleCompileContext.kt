@@ -8,6 +8,7 @@ import java.io.File
 class SimpleCompileContext(
     override val logger: Logger,
     override val tempCompileDir: File,
+    override val tempClasspathDir: File,
     override val androidHome: File,
     override val androidBuildTools: File,
     override val androidJar: File,
@@ -57,7 +58,7 @@ class SimpleCompileContext(
             logger.warn("No R.jar found in project, compile may fail.")
         }
 
-        val dependencies = mutableListOf(androidJar)
+        val dependencies = mutableListOf(tempClasspathDir.absolutePath, androidJar)
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)

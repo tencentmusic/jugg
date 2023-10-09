@@ -70,8 +70,7 @@ class RDexForSubmoduleCompiler(
             logger.debug("going to generate R.dex for module ${module.name}, package name is $packageName, source R.dex files are $sourceRDexFiles")
 
             sourceRDexFiles.map { sourceFile ->
-                val classPathDir = module.buildPathInfo.javaClassPath
-                val (destDexFile, _) = DexPackageRenamer(sourceFile, packageName).generate(task.outputDir, classPathDir)
+                val (destDexFile, _) = DexPackageRenamer(sourceFile, packageName).generate(task.outputDir, context.tempClasspathDir)
                 CompileOutput(
                     CompileOutput.Type.Dex,
                     destDexFile,

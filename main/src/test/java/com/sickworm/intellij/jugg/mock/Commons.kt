@@ -63,6 +63,7 @@ val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
 val context get() = SimpleCompileContext(
     logger = logger,
     tempCompileDir = tempCompileDir,
+    tempClasspathDir = File(buildDir, "classpath"),
     androidHome = androidHome,
     androidBuildTools = androidBuildTools,
     androidJar = androidJar,
