@@ -54,6 +54,13 @@ class JuggCompileTest {
     }
 
     @Test
+    fun compileResourceAddIds() {
+        val task = ResourceCompileTest().resourceOverlayAddIdsTask
+        val result = juggCompiler.compile(task)
+        assertCompileResultJugg(task, result)
+    }
+
+    @Test
     fun compileMultiJavaAndAsset() {
         val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask
         val result = juggCompiler.compile(task)

@@ -1,15 +1,12 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.googlecode.d2j.DexConstants
-import com.googlecode.d2j.DexType
-import com.googlecode.d2j.Field
-import com.googlecode.d2j.Method
-import com.googlecode.d2j.Visibility
+import com.googlecode.d2j.*
 import com.googlecode.d2j.dex.writer.DexFileWriter
 import com.googlecode.d2j.dex.writer.ev.EncodedArray
 import com.googlecode.d2j.dex.writer.ev.EncodedValue
 import com.googlecode.d2j.dex.writer.item.*
 import com.googlecode.d2j.reader.DexFileReader
+import com.googlecode.d2j.reader.Op
 import com.googlecode.d2j.visitors.*
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
@@ -54,10 +51,10 @@ private class ChangePackageWriter(
         val writerClassVisitor = writer.visit(access_flags, newClassSigName, superClass, interfaceNames)
         return object : DexClassVisitor(writerClassVisitor) {
             override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
-                val writerAnnotationVisitor = writerClassVisitor.visitAnnotation(name, visibility)
+                val superVisitor = super.visitAnnotation(name, visibility)
                 when (name) {
                     "Ldalvik/annotation/EnclosingClass;" -> {
-                        return object : DexAnnotationVisitor(writerAnnotationVisitor) {
+                        return object : DexAnnotationVisitor(superVisitor) {
                             override fun visit(name: String?, value: Any?) {
                                 when (value) {
                                     is DexType -> {
@@ -74,7 +71,7 @@ private class ChangePackageWriter(
                         }
                     }
                     "Ldalvik/annotation/MemberClasses;" -> {
-                        return object : DexAnnotationVisitor(writerAnnotationVisitor) {
+                        return object : DexAnnotationVisitor(superVisitor) {
                             override fun visitArray(name: String?): DexAnnotationVisitor {
                                 return object : DexAnnotationVisitor(super.visitArray(name)) {
                                     override fun visit(name: String?, value: Any?) {
@@ -95,14 +92,51 @@ private class ChangePackageWriter(
                         }
                     }
                     else -> {
-                        return writerAnnotationVisitor
+                        return superVisitor
                     }
                 }
             }
 
             override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
                 return if (method.owner == className) {
-                    super.visitMethod(accessFlags, Method(newClassSigName, method.name, method.proto))
+                    val superVisitor = super.visitMethod(accessFlags, Method(newClassSigName, method.name, method.proto))
+                    return object : DexMethodVisitor(superVisitor) {
+                        override fun visitCode(): DexCodeVisitor {
+                            val superVisitorVisitCode = super.visitCode()
+                            return object : DexCodeVisitor(superVisitorVisitCode) {
+                                override fun visitFieldStmt(op: Op?, a: Int, b: Int, field: Field) {
+                                    if (field.owner == className) {
+                                        super.visitFieldStmt(op, a, b, Field(newClassSigName, field.name, field.type))
+                                    } else {
+                                        super.visitFieldStmt(op, a, b, field)
+                                    }
+                                }
+
+                                override fun visitMethodStmt(op: Op?, args: IntArray?, method: Method) {
+                                    if (method.owner == className) {
+                                        super.visitMethodStmt(op, args, Method(newClassSigName, method.name, method.proto))
+                                    } else {
+                                        super.visitMethodStmt(op, args, method)
+                                    }
+                                }
+
+                                override fun visitMethodStmt(op: Op?, args: IntArray?, bsm: Method?, proto: Proto?) {
+                                    super.visitMethodStmt(op, args, bsm, proto)
+                                }
+
+                                override fun visitMethodStmt(
+                                    op: Op?,
+                                    args: IntArray?,
+                                    name: String?,
+                                    proto: Proto?,
+                                    bsm: MethodHandle?,
+                                    vararg bsmArgs: Any?
+                                ) {
+                                    super.visitMethodStmt(op, args, name, proto, bsm, *bsmArgs)
+                                }
+                            }
+                        }
+                    }
                 } else {
                     super.visitMethod(accessFlags, method)
                 }

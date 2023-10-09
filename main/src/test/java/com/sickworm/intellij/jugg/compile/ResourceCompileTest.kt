@@ -86,22 +86,23 @@ class ResourceCompileTest {
         checkArscResult(task, result, 8, isRJavaChanged = false)
     }
 
+    val resourceOverlayAddIdsTask = CompileTask(
+        listOf(
+            CompileFile(CompileFile.Type.Resource,
+                File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_main.xml"),
+                File(assetsAndroidModifySourceDir, "app/src/main/res"),
+                mockModule),
+        ),
+        stagingDir
+    )
+
     @Test
     fun compileAddIdsLayout() {
-        val task = CompileTask(
-            listOf(
-                CompileFile(CompileFile.Type.Resource,
-                    File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_main.xml"),
-                    File(assetsAndroidModifySourceDir, "app/src/main/res"),
-                    mockModule),
-            ),
-            stagingDir
-        )
         val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
-        val result = resourceOverlayCompiler.compile(task)
+        val result = resourceOverlayCompiler.compile(resourceOverlayAddIdsTask)
 
-        checkArscResult(task, result, 3, isRJavaChanged = true)
+        checkArscResult(resourceOverlayAddIdsTask, result, 3, isRJavaChanged = true)
 
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
         assertTrue(rFiles.first().file.readText().contains("button999"))

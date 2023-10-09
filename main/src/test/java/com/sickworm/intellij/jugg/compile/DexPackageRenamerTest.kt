@@ -1,15 +1,17 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.googlecode.d2j.DexConstants
+import com.googlecode.d2j.reader.BaseDexFileReader
+import com.googlecode.d2j.reader.DexFileReader
 import com.sickworm.intellij.jugg.compiler.overlay.DexPackageRenamer
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
 import com.sickworm.intellij.jugg.deploy.data.ApkParser
+import com.sickworm.intellij.jugg.deploy.data.DexFileNodeCollector
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.clearBuild
 import org.junit.Before
 import org.junit.Test
 import org.objectweb.asm.ClassReader
-import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.ClassNode
 import java.io.File
 import kotlin.test.assertEquals
@@ -24,9 +26,11 @@ class DexPackageRenamerTest {
 
     @Test
     fun test() {
-        var dexFile = File("src/test/assets/dex/com/example/myapplication/R.dex").absoluteFile
-        doTest(dexFile)
-        dexFile = File("src/test/assets/dex/com/example/myapplication/R\$dimen.dex").absoluteFile
+//        var dexFile = File("src/test/assets/dex/com/example/myapplication/R.dex").absoluteFile
+//        doTest(dexFile)
+//        dexFile = File("src/test/assets/dex/com/example/myapplication/R\$dimen.dex").absoluteFile
+//        doTest(dexFile)
+        val dexFile = File("src/test/assets/dex/com/example/myapplication/R\$styleable.dex").absoluteFile
         doTest(dexFile)
     }
 
@@ -65,6 +69,8 @@ class DexPackageRenamerTest {
         assertEquals(originClassNode.interfaceNames, classNode.interfaceNames)
         assertEquals(originClassNode.superClass, classNode.superClass)
 
+        DexFileReader(outputDexFile.readBytes()).accept(DexFileOwnerChecker(originClassNode.className), 0)
+
         assertTrue(outputClassFile.exists())
         val reader = ClassReader(outputClassFile.readBytes())
         val asmClassNode = ClassNode()
@@ -93,3 +99,4 @@ class DexPackageRenamerTest {
         assertEquals(originClassNode.superClass.asmSigFormat, asmClassNode.superName)
     }
 }
+
