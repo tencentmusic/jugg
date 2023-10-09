@@ -142,8 +142,8 @@ interface ICompileContext {
     val logger: Logger
     /** compile temporary directory */
     val tempCompileDir: File
-    /** classpath directory to storage special generated classes. e.g. R.class */
-    val tempClasspathDir: File
+    /** temporary module directory for generating something that no belong to any modules*/
+    val tempModuleDir: File
     /** Android sdk dir */
     val androidHome: File
     /** build-tools directory */
@@ -164,6 +164,11 @@ interface ICompileContext {
     val packageName get() = apkInfos.firstOrNull()?.applicationId
 
     val apkFile: File? get() = apkInfos.firstOrNull()?.files?.first()?.apkFile
+
+    val tempModule get() = ModuleInfo.virtualModule.copy(
+        name = "temp_module",
+        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir),
+    )
 
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
@@ -210,7 +215,7 @@ data class ModuleInfo(
 
         const val DEFAULT_BUILD_VARIANT = "debug"
 
-        // a virtual module used for redex files, compile R file, etc.
+        // virtual module that not physical exists
         val virtualModule = ModuleInfo(
             name = "virtual_module",
             moduleRootDir = File(""),
@@ -255,7 +260,7 @@ data class ModuleBuildPathInfo(
     /** on gradle 3.2.1 has different java class path */
     private val javaClassPathOld get() = File(buildDir, "intermediates/javac/debug/compileDebugJavaWithJavac/classes")
     /** java class path */
-    val javaClassPath get() = if (javaClassPathNew.exists()) javaClassPathNew else javaClassPathOld
+    val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
     /** after gradle 4.1.1, R.class not storage in buildClassPath */
     val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar")
     /** kotlin class path */

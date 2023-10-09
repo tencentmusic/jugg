@@ -67,12 +67,10 @@ class JavaCompiler(
                 CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
             }
 
-            if (module != ModuleInfo.virtualModule) {
-                // copy outputs to java class path
-                val javaClassPath = module.buildPathInfo.javaClassPath
-                outputs.forEach {
-                    it.file.copyToBaseDir(task.outputDir, javaClassPath)
-                }
+            // copy outputs to java class path
+            val javaClassPath = module.buildPathInfo.javaClassPath
+            outputs.forEach {
+                it.file.copyToBaseDir(task.outputDir, javaClassPath)
             }
 
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)

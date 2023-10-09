@@ -313,7 +313,7 @@ class DeployFileManager(
                     if (destFile.exists()) {
                         logger.debug("found desugared class file: $destFile")
                         iterator.remove()
-                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.virtualModule)
+                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, moduleInfo)
                         redexClassesFiles.add(changedFile)
                     }
                 }

@@ -81,14 +81,6 @@ class KotlinCompiler(
             emptyList()
         }
 
-        val outputPath = if (module == ModuleInfo.virtualModule) {
-            ""
-        } else {
-            // we have to set output dir to kotlin compiled class path to resolve
-            // 'xxx' is a public API property declared in different module
-            kotlinClassPath.absolutePath
-        }
-
         val compileArgs = listOf(
             "-verbose",
             "-jvm-target", module.kotlinJvmTarget ?: "1.8",
@@ -101,7 +93,9 @@ class KotlinCompiler(
             // resolve "class is not abstract and does not implement abstract member"
             // resolve "reference not found" when invoke new java methods that haven't been compiled
             "-Xjava-source-roots=${module.sourceDirs.joinToString(",")}",
-            "-d", outputPath,
+            // we have to set output dir to kotlin compiled class path to resolve
+            // 'xxx' is a public API property declared in different module
+            "-d", kotlinClassPath.absolutePath,
         )
 
         var classPathArgs = listOf<String>()
@@ -149,17 +143,11 @@ class KotlinCompiler(
             return CompileResult(task, outputParser.results, emptyList())
         }
 
-        val outputs = if (module == ModuleInfo.virtualModule) {
-            outputParser.outputs.map {
-                CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
-            }
-        } else {
-            // copy outputs to task.outputDir
-            outputParser.outputs.mapNotNull {
-                if (it.extension == "kotlin_module") return@mapNotNull null
-                val targetFile = it.copyToBaseDir(kotlinClassPath, task.outputDir)
-                CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
-            }
+        // copy outputs to task.outputDir
+        val outputs = outputParser.outputs.mapNotNull {
+            if (it.extension == "kotlin_module") return@mapNotNull null
+            val targetFile = it.copyToBaseDir(kotlinClassPath, task.outputDir)
+            CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)

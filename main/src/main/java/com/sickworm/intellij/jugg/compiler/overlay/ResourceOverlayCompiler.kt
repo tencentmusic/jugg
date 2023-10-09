@@ -48,7 +48,7 @@ class ResourceOverlayCompiler(
         // build .arsc
         val arscTask = CompileTask(
             resourceResult.outputs.map {
-                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, ModuleInfo.virtualModule)
+                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
             },
             task.outputDir
         )

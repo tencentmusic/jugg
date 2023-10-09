@@ -104,7 +104,7 @@ class JuggCompiler(
                 val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }
                 if (rJavaFile != null) {
                     val rJavaTask = CompileTask(
-                        files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, ModuleInfo.virtualModule)),
+                        files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, context.tempModule)),
                         outputDir = classesOutputDir,
                     )
                     val rJavaResult = sourceCompiler.compile(rJavaTask)
@@ -135,7 +135,7 @@ class JuggCompiler(
         val rDexResult = rDexForSubmoduleCompiler.compile(
             CompileTask(
                 files = rJavaResultOutputs.map {
-                    CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, ModuleInfo.virtualModule)
+                    CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, context.tempModule)
                 } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
                 outputDir = classesOutputDir,
             )

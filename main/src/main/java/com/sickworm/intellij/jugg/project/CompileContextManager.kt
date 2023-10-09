@@ -106,7 +106,7 @@ class CompileContextManager(
             logger = JuggLogger.getInstance(project, "Compiler"),
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
-            tempClasspathDir = File(pathManager.compileRootDir, "classpath"),
+            tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
             modules = modules,
             minApi = JuggSettings.minApi,
             projectDir = pathManager.projectDir,

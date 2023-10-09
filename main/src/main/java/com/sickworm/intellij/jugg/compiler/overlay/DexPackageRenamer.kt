@@ -177,7 +177,7 @@ private class ChangePackageWriter(
                 it.field.name.stringData.string,
                 it.field.type.descriptor.stringData.string,
                 null,
-                it.staticValue.value)
+                it.staticValue?.value)
         }
         node.classData.staticFields.forEach {
             visitField(it)

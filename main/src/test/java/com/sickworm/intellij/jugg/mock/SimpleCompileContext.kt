@@ -8,7 +8,7 @@ import java.io.File
 class SimpleCompileContext(
     override val logger: Logger,
     override val tempCompileDir: File,
-    override val tempClasspathDir: File,
+    override val tempModuleDir: File,
     override val androidHome: File,
     override val androidBuildTools: File,
     override val androidJar: File,
@@ -30,6 +30,10 @@ class SimpleCompileContext(
         }
     }
 
+    init {
+        tempModule.buildPathInfo.moduleRootDir.clearDir()
+    }
+
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = androidJar.path
 
@@ -37,6 +41,12 @@ class SimpleCompileContext(
             file.exists()
         }.map { file ->
             file.absolutePath
+        }
+
+        val tempDependencies: List<String> = tempModule.buildPathInfo.allClassPath.filter {
+            it.exists()
+        }.map {
+            it.absolutePath
         }
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
@@ -58,7 +68,8 @@ class SimpleCompileContext(
             logger.warn("No R.jar found in project, compile may fail.")
         }
 
-        val dependencies = mutableListOf(tempClasspathDir.absolutePath, androidJar)
+        val dependencies = mutableListOf(androidJar)
+        dependencies.addAll(tempDependencies)
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)
