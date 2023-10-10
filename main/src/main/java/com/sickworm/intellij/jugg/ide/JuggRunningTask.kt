@@ -20,7 +20,10 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import javax.swing.SwingUtilities
 
-
+/**
+ * Implementation of compilation and deployment.
+ * [run] will be called when user click "Run" button.
+ */
 @Suppress("DialogTitleCapitalization")
 class JuggRunningTask(
     private val project: Project,

@@ -55,7 +55,10 @@ class JuggCompilerHelper(
     ): CompileTaskResult {
         val statTime = System.currentTimeMillis()
         if (!isForceInstall) {
+            val loggerListener = IndicatorLoggerListener(indicator)
+            JuggLogger.listenProjectLog(project, loggerListener)
             var incrementalResult = incrementalCompile()
+            JuggLogger.stopListenProjectLog(project, loggerListener)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
             juggReporter.report {
                 action = "incremental_compile"
