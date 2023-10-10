@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 /**
  * Create a deploy task.
@@ -109,7 +110,7 @@ class JuggDeployerHelper(
 
                 if (!deployStateManager.deployState.isReadyDeploy) {
                     if (deployStateManager.deployState.isReadyIncCompile) {
-                        if (!recoverDeployState()) {
+                        if (!recoverDeployState(isNeedTryDeyDeployFirst = true)) {
                             logger.info("Try recover deploy state failed.")
                             return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Try recover deploy state failed.")
                         } else {
@@ -170,27 +171,27 @@ class JuggDeployerHelper(
                 // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
                 val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
                 if (isAgentNotResponses || isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch) {
-                    val isNeedRecover = when {
+                    val (isNeedRecover, isNeedTryDeyDeployFirst) = when {
                         isAgentNotResponses && !isAppForeground-> {
                             logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
-                            true
+                            true to true
                         }
                         isOverlayIdNotCorrect -> {
                             logger.info("Deploy history mismatch with the device, try recover deploy state.")
-                            true
+                            true to false
                         }
                         isClassNotFoundException -> {
                             logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
-                            true
+                            true to true
                         }
                         isOverlayIdNotMatch -> {
                             logger.info("The device's deploy status mismatch with this project, try recover deploy state.")
-                            true
+                            true to true
                         }
-                        else -> false
+                        else -> false to false
                     }
                     val result: DeployTaskResult = if (isNeedRecover) {
-                        if (!recoverDeployState()) {
+                        if (!recoverDeployState(isNeedTryDeyDeployFirst)) {
                             logger.info("Try recover deploy state failed on retry.")
                             DeployTaskResult(isSuccess = false, costTime = costTime(),
                                 failedReason = "Try recover deploy state failed on retry.")
@@ -237,19 +238,26 @@ class JuggDeployerHelper(
      * Redeploy apk and compiled files.
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      */
-    private fun recoverDeployState(): Boolean {
+    private fun recoverDeployState(isNeedTryDeyDeployFirst: Boolean): Boolean {
         logger.info("App not ready to deploy, recover deploy state from history.")
 
         // dry deploy first, if success, no need to reinstall and recover
-        if (tryDryDeploy()) {
-            logger.info("Deploy state matched, no need reinstall app.")
-            return true
+        if (isNeedTryDeyDeployFirst) {
+            if (tryDryDeploy()) {
+                logger.info("Deploy state matched, no need reinstall app.")
+                return true
+            } else {
+                logger.info("Deploy state not match, start reinstalling app...")
+            }
         }
-        logger.info("Deploy state not match, start reinstalling app...")
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
-        runTask(deployData)
+        val costTime = measureTimeMillis {
+            runTask(deployData)
+        }
+        logger.info("Reinstalling app finished, cost ${costTime}ms.")
+
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
             logger.warn("Recovery failed for app not launched.")
