@@ -1,7 +1,11 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.projectRoots.JavaSdk
+import com.intellij.openapi.projectRoots.Sdk
+import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -10,9 +14,10 @@ import java.io.File
 import java.io.IOException
 import java.io.PrintStream
 
+
 class LocalGradleCompileClient(
     private val project: Project,
-    private val logger: Logger = JuggLogger.getInstance(project, "LocalClient"),
+    private val logger: Logger = JuggLogger.getInstance(project, "LocalGradleCompileClient"),
 ) : IGradleCompileClient {
 
     private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
@@ -21,9 +26,31 @@ class LocalGradleCompileClient(
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
+    private var gradleJdkPath: String? = null
+
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         // no need to login
         this.juggGradleCompileOptions = juggGradleCompileOptions
+        val javaHome = System.getenv("JAVA_HOME")
+        logger.debug("JAVA_HOME: $javaHome")
+
+        @Suppress("MissingRecentApi")
+        gradleJdkPath = ModuleManager.getInstance(project).modules.firstNotNullOfOrNull { module ->
+            val moduleRootManager = ModuleRootManager.getInstance(module)
+            val jdk: Sdk = moduleRootManager.sdk ?: return@firstNotNullOfOrNull null
+            if (jdk.sdkType != JavaSdk.getInstance()) {
+                return@firstNotNullOfOrNull null
+            }
+            if (jdk.homePath == null) {
+                return@firstNotNullOfOrNull null
+            }
+            logger.debug("found gradleJdkPath in module: ${module.name}, path: ${jdk.homePath}")
+            return@firstNotNullOfOrNull jdk.homePath!!
+        }
+        if (gradleJdkPath == null) {
+            logger.debug("can't find gradleJdkPath in modules, use JAVA_HOME $javaHome instead")
+            gradleJdkPath = javaHome
+        }
     }
 
     override fun compileAndFetchResult(): GradleCompileResult {
@@ -72,7 +99,22 @@ class LocalGradleCompileClient(
     private fun invoke(command: ISshCommand): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
-        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", command.getCommend(isNeedSetChineseLanguage = false)))
+        val envArray: MutableList<String> = System.getenv().entries
+            .filter {
+                it.key == "JAVA_HOME"
+            }
+            .map {
+                "${it.key}=${it.value}"
+            }
+            .toMutableList()
+        if (gradleJdkPath != null) {
+            envArray.add("JAVA_HOME=$gradleJdkPath")
+        }
+
+        val process = Runtime.getRuntime().exec(
+            arrayOf("/bin/bash", "-c", command.getCommend(isNeedSetChineseLanguage = false)),
+            envArray.toTypedArray(),
+        )
         currentRunningProcess = process
 
         command.beforeInvokeCommand()
