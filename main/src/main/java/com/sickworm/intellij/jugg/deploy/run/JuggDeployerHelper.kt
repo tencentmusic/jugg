@@ -164,14 +164,14 @@ class JuggDeployerHelper(
                     return deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true)
                 }
 
-                val isMissingAgentResponses = reason.contains("MISSING_AGENT_RESPONSES")
+                val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
                 val isClassNotFoundException = reason.contains("Class not found")
                 // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
                 val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
-                if (isMissingAgentResponses || isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch) {
+                if (isAgentNotResponses || isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch) {
                     val isNeedRecover = when {
-                        isMissingAgentResponses && !isAppForeground-> {
+                        isAgentNotResponses && !isAppForeground-> {
                             logger.info("Deploy agent no response, and App is not in foreground, try recover deploy state.")
                             true
                         }
