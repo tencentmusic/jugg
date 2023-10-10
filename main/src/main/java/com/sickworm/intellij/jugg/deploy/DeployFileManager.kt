@@ -62,6 +62,7 @@ class DeployFileManager(
 
     @Synchronized
     fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>, resetFilesBeforeTimeMill: Long?) {
+        logger.debug("init deploy file manager, apks: ${apks.size}, deployedFiles: ${deployedFiles.size}, resetFilesBeforeTimeMill: $resetFilesBeforeTimeMill")
         reset(resetFilesBeforeTimeMill)
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
@@ -222,6 +223,7 @@ class DeployFileManager(
 
     @Synchronized
     fun resetAfterReinstall() {
+        logger.debug("resetAfterReinstall start, staging file size: ${stagingFiles.size}, deployed file size: ${deployedFiles.size}")
         deployDataGenerator.clearDeployedData()
         val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
         val deployedFiles = deployedFiles.values.filter {
@@ -230,6 +232,7 @@ class DeployFileManager(
         deployedFiles.forEach {
             stagingFiles[it.file.stdAbsPath] = it
         }
+        logger.debug("resetAfterReinstall done, staging file size: ${stagingFiles.size}")
     }
 
     @Synchronized

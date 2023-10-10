@@ -257,13 +257,13 @@ class JuggDeployerHelper(
             runTask(deployData)
         }
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
+        deployFileManager.resetAfterReinstall()
 
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
             logger.warn("Recovery failed for app not launched.")
             return false
         }
-        deployFileManager.resetAfterReinstall()
 
         logger.info("Device online, continue deploy.")
         return true
