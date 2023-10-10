@@ -34,6 +34,8 @@ data class BaseCompileContext(
             } else {
                 null
             }
+        }.sortedBy {
+            -File(it).length() // sort by file size, to let the biggest R.jar go first
         }
     }
 
