@@ -65,9 +65,9 @@ class JuggManager @TestOnly constructor(
         runTaskSafe("Init Jugg", {
             logger.info("Create run configuration...")
             createRunConfiguration()
+            JuggRunningTask.resetHasRun(project)
             logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            JuggRunningTask.resetHasRun(project)
             logger.info("Start jugg finished.")
         })
     }

@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.bashPathOrDefault
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 private val Project.instanceKey get() = bashPathOrDefault
 
@@ -60,7 +61,7 @@ object JuggLogger {
         map[project.instanceKey]?.fileLogger?.resetLatestCompileLog()
     }
 
-    private val map = mutableMapOf<String, ProjectLogHolder>()
+    private val map = ConcurrentHashMap<String, ProjectLogHolder>()
 
     private fun ensure(project: Project): ProjectLogHolder {
         return ensureKey(project.instanceKey)
