@@ -34,6 +34,7 @@ object JuggSettings {
     /** don't support change minApi dynamically */
     const val minApi = 30 // Android 11
 
+    var isEnableWarmUpDeploy: Boolean = false
 
     fun updateDefaultSettings(options: JuggGradleCompileOptions) {
         defaultRemoteSshUser = options.remoteSshUser

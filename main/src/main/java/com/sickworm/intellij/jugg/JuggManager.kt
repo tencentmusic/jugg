@@ -131,7 +131,8 @@ class JuggManager @TestOnly constructor(
         }
 
         // step 1: recover compile context
-        initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles, isNeedReloadProjectInfo)
+        initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles,
+            isNeedReloadProjectInfo, false, null)
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
@@ -302,7 +303,7 @@ class JuggManager @TestOnly constructor(
 
 
         initCompile(compileContextInfo, emptyList(), false,
-            isNeedWarmUpDeploy = true,
+            isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
     }
@@ -311,8 +312,8 @@ class JuggManager @TestOnly constructor(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
         isNeedReloadProjectInfo: Boolean,
-        isNeedWarmUpDeploy: Boolean = false,
-        startCompileTime: Long? = null
+        isNeedWarmUpDeploy: Boolean,
+        startCompileTime: Long?,
     ) {
         logger.info("Init compile... isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
 
