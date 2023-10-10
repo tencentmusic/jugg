@@ -197,10 +197,11 @@ class DeployFileManager(
 
     @Synchronized
     fun commit(juggDeployData: JuggDeployData) {
+        logger.debug("commit juggDeployData, staging file size: ${stagingFiles.size}, deployed file size: ${deployedFiles.size}")
         deployDataGenerator.commitDeployedData(juggDeployData)
+        deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
         compiledFiles.clear()
-        deployedFiles.putAll(stagingFiles)
     }
 
     @TestOnly
