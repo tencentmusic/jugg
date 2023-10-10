@@ -223,7 +223,7 @@ class JuggDeployerHelper(
                 logger.debug(e)
             }
 
-            DeployTaskResult(isSuccess = false, isCanFallback = !isInstall, costTime = costTime(), failedReason = "Exception: $e")
+            DeployTaskResult(isSuccess = false, isCanFallback = !isInstall, costTime = costTime(), failedReason = reason)
         }
     }
 
