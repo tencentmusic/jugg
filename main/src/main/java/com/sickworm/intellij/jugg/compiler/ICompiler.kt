@@ -313,22 +313,27 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             task.outputDir.mkdirs()
         }
 
-        val content = if (supportedTypes == listOf(CompileFile.Type.Class)) {
+        val compilingContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
             "classes to DEX"
         } else {
-            "[" + task.files.joinToString(", ") { it.file.name } + "]"
+            supportedTypes.joinToString(", ") + " files"
         }
-        logger.debug("Compiling $content..")
+        logger.debug("Compiling $compilingContent..")
 
         val result = doCompile(task)
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("${this::class.java.simpleName} compile result: $result")
         if (isNeedPrintProgress && task.files.isNotEmpty()) {
-            if (result.isAllSuccess) {
-                logger.info("Compile $content finished, cost ${costTime}ms.")
+            val finishContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
+                "classes to DEX"
             } else {
-                logger.warn("Compile $content failed, cost ${costTime}ms.")
+                "[" + task.files.joinToString(", ") { it.file.name } + "]"
+            }
+            if (result.isAllSuccess) {
+                logger.info("Compile $finishContent finished, cost ${costTime}ms.")
+            } else {
+                logger.warn("Compile $finishContent failed, cost ${costTime}ms.")
             }
         }
         logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms. isAllSuccess: ${result.isAllSuccess}")
