@@ -129,7 +129,7 @@ class Aapt2DaemonInvoker(
             if (!isMac) {
                 throw IllegalStateException("aapt2-inclink not support windows nor linux yet")
             }
-            return copyResource("/tools/darwin/aapt2-inclink-2.19.4")
+            return copyResource("/tools/darwin/aapt2-inclink-2.19.5")
         }
     }
 }
