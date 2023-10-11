@@ -425,11 +425,12 @@ bool ResourceParser::ParseResources(xml::XmlPullParser* parser) {
     }
 
     if (event == xml::XmlPullParser::Event::kText) {
-      if (!util::TrimWhitespace(parser->text()).empty()) {
-        diag_->Error(DiagMessage(source_.WithLine(parser->line_number()))
-                     << "plain text not allowed here");
-        error = true;
-      }
+      // AGP won't get this error, it's wired.
+      // if (!util::TrimWhitespace(parser->text()).empty()) {
+      //   diag_->Error(DiagMessage(source_.WithLine(parser->line_number()))
+      //                << "plain text not allowed here");
+      //   error = true;
+      // }
       continue;
     }
 
