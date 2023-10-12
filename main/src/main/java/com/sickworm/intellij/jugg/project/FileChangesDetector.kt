@@ -84,7 +84,8 @@ class FileChangesDetector(
             }
         }
 
-        return files
+        // ignore hidden files, e.g. .DS_Store
+        return files.filter { !it.isHidden }
     }
 
     private val String.virtualFile: VirtualFile?
