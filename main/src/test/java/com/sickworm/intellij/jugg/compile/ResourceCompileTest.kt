@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
 import com.sickworm.intellij.jugg.compiler.overlay.ArscCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
-import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
@@ -64,7 +63,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 428, isRJavaChanged = false)
+        checkArscResult(task, result, 426, isRJavaChanged = false)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -83,7 +82,7 @@ class ResourceCompileTest {
         val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 8, isRJavaChanged = false)
+        checkArscResult(task, result, 6, isRJavaChanged = false)
     }
 
     val resourceOverlayAddIdsTask = CompileTask(
@@ -102,7 +101,7 @@ class ResourceCompileTest {
 
         val result = resourceOverlayCompiler.compile(resourceOverlayAddIdsTask)
 
-        checkArscResult(resourceOverlayAddIdsTask, result, 3, isRJavaChanged = true)
+        checkArscResult(resourceOverlayAddIdsTask, result, 1, isRJavaChanged = true)
 
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
         assertTrue(rFiles.first().file.readText().contains("button999"))
@@ -123,7 +122,7 @@ class ResourceCompileTest {
 
         val result = resourceOverlayCompiler.compile(task)
 
-        checkArscResult(task, result, 2, isRJavaChanged = true)
+        checkArscResult(task, result, 0, isRJavaChanged = true)
 
         val containsIds = task.files.flatMap { file ->
             file.file.readLines().mapNotNull {
@@ -152,7 +151,7 @@ class ResourceCompileTest {
         }
 
         val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Res }
-        assertEquals(exceptOverlayOutputSize, resFiles.size) // TODO more logical
+        assertEquals(exceptOverlayOutputSize, resFiles.size - 2) // arsc and manifest are not included
 
         val arscFile = resFiles.filter { it.relativeFile.path == ARSC_FILE_NAME }
         assertEquals(1, arscFile.size)
