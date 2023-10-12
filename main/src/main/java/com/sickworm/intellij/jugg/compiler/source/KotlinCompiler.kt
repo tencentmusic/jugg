@@ -57,8 +57,8 @@ class KotlinCompiler(
 
         var flavor = "main"
         val splits = module.name.split(".")
-        if (splits.size == 3) {
-            flavor = splits[2]
+        if (splits.size >= 2) {
+            flavor = splits.last()
         } else {
             logger.warn("module name \"${module.name}\" is not valid, use default flavor name: $flavor")
         }
