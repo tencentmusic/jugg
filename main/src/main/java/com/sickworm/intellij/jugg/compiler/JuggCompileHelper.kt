@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
@@ -16,7 +17,6 @@ import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
-import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import org.jetbrains.annotations.TestOnly
@@ -112,9 +112,16 @@ class JuggCompilerHelper(
         val deployState = deployStateManager.updateDeployState()
         logger.debug("Try incremental compile. Current state: $deployState")
 
-        if (!deployStateManager.deployState.isReadyIncCompile) {
+        if (!deployState.isReadyIncCompile) {
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
-            return CompileTaskResult.incrementalFailed(true, "Deploy state not ready $deployState")
+            return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+
+        if (!deployState.isReadyDeploy) {
+            if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
+                logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
+                return CompileTaskResult.incrementalFailed(true, deployState.ideDeployState.message)
+            }
         }
 
         val compiler = juggCompiler?: run {
