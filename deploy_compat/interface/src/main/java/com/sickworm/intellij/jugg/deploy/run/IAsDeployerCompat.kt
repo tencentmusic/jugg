@@ -47,7 +47,7 @@ interface IAsDeployerCompat {
 
     fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider
 
-    fun getDisableMessage(project: Project): String?
+    fun getIdeDeployStateResult(project: Project): IdeDeployState
 
     fun getDeploymentService(project: Project): DeploymentService
 

@@ -3,6 +3,7 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.ide.util.PropertiesComponent
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import kotlin.reflect.KProperty
 
 object JuggSettings {
@@ -32,7 +33,7 @@ object JuggSettings {
     var defaultHttpProxyPort: Int by propertiesComponent.delegate(defaultValue = 12639)
 
     /** don't support change minApi dynamically */
-    const val minApi = 30 // Android 11
+    const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
 
     var isEnableWarmUpDeploy: Boolean = false
 

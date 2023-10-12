@@ -158,8 +158,8 @@ object AsDeployerCompat : IAsDeployerCompat {
         return impl.toApkProvider(apkInfos)
     }
 
-    override fun getDisableMessage(project: Project): String? {
-        return impl.getDisableMessage(project)
+    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
+        return impl.getIdeDeployStateResult(project)
     }
 
     override fun getDeploymentService(project: Project): DeploymentService {

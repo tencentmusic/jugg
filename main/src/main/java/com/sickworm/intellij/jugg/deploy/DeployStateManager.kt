@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.logger.JuggLogger
 
 /**
@@ -17,7 +18,8 @@ class DeployStateManager(
 
     var deployState = JuggDeployState(
         JuggDeployState.State.NOTHING_CAN_DO,
-        "jugg not initialized"
+        "jugg not initialized",
+        IdeDeployState.ok,
     )
         private set
 
@@ -50,44 +52,39 @@ class DeployStateManager(
 
     private fun getNewDeployState(): JuggDeployState {
         val ideDeployState = ideDeployStateHelper.getIdeDeployState()
-        if (!ideDeployState.isReadyRunFullBuild) {
-            return ideDeployState
-        }
 
         if (isBuildGradleChanged) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "build.gradle changed")
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "build.gradle changed", ideDeployState)
         }
         if (isManifestChanged) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "AndroidManifest.xml changed")
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "AndroidManifest.xml changed", ideDeployState)
         }
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "need full compile")
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "not gradle compile yet", ideDeployState)
         }
 
-        return ideDeployState
+        if (ideDeployState.state != IdeDeployState.State.OK) {
+            return JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE,
+                ideDeployState.message,
+                ideDeployState,
+            )
+        }
+
+        return JuggDeployState.READY
     }
 }
 
 interface IIdeDeployStateHelper {
-    fun getIdeDeployState(): JuggDeployState
+    fun getIdeDeployState(): IdeDeployState
 }
 
 class IdeDeployStateHelper(
     private val project: Project,
 ) : IIdeDeployStateHelper {
 
-    override fun getIdeDeployState(): JuggDeployState {
-        val disableMessage = AsDeployerCompat.getDisableMessage(project)
-        if (disableMessage != null) {
-            return canNotIncrementalDeploy(disableMessage)
-        }
-
-        return JuggDeployState.READY
-    }
-
-    private fun canNotIncrementalDeploy(disableMessage: String): JuggDeployState {
-        return JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE, disableMessage)
+    override fun getIdeDeployState(): IdeDeployState {
+        return AsDeployerCompat.getIdeDeployStateResult(project)
     }
 
 }

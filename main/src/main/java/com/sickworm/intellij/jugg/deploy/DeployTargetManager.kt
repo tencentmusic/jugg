@@ -35,7 +35,7 @@ class DeployTargetManager(
     override fun getDevice(): IDevice {
         try {
             val devices = AsDeployerCompat.getDevices(project)
-            if (devices == null || devices.isEmpty()) {
+            if (devices.isNullOrEmpty()) {
                 throw JuggException.deviceNotFound()
             }
 
@@ -51,14 +51,6 @@ class DeployTargetManager(
                 logger.error("getDevice failed", e)
             }
             throw e
-        }
-    }
-
-    private fun getDeviceSafe(): IDevice? {
-        return try {
-            getDevice()
-        } catch (e: Exception) {
-            null
         }
     }
 
@@ -83,7 +75,7 @@ class DeployTargetManager(
     }
 
     override fun isAppForeground(): Boolean {
-        val device = getDeviceSafe() ?: return false
+        val device = getDeviceOrNull() ?: return false
         return try {
             AdbCmdHelper(device, logger).isAppForeground(getPackageName())
         } catch (e: Exception) {
@@ -101,11 +93,6 @@ class DeployTargetManager(
             throw JuggException.notSupportMultiApk()
         }
         return apks.first().applicationId
-    }
-
-    private fun getRunConfig(): Pair<RunnerAndConfigurationSettings, AndroidRunConfiguration> {
-        val runConfig = RunManager.getInstance(project).selectedConfiguration!!
-        return runConfig to runConfig.configuration as AndroidRunConfiguration
     }
 
 }

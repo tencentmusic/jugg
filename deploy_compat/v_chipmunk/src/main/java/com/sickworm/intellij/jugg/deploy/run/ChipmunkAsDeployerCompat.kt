@@ -21,7 +21,6 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
-import java.lang.reflect.Field
 import java.util.*
 import java.util.concurrent.ExecutionException
 
@@ -183,100 +182,45 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         }
     }
 
-    override fun getDisableMessage(project: Project): String? {
-        val disableMessage = doGetDisableMessage(project) ?: return null
-        return getToolTipField().get(disableMessage) as? String
-    }
-
-    private var toolTipField: Field? = null
-
-    private fun getToolTipField(): Field {
-        toolTipField?.let { return it }
-        val toolTipField = BaseAction.DisableMessage::class.java.getDeclaredField("myTooltip")
-        toolTipField.isAccessible = true
-        this.toolTipField = toolTipField
-        return toolTipField
-    }
-
-    /**
-     * @see [com.android.tools.idea.run.ui.BaseAction.getDisableMessage]
-     */
-    private fun doGetDisableMessage(project: Project): BaseAction.DisableMessage? {
+    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
         val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
             return@firstOrNull isApplyChangesRelevant(it)
-        } ?: return BaseAction.DisableMessage(
-            BaseAction.DisableMessage.DisableMode.INVISIBLE, "no available supported configuration",
-            "all configuration is not supported"
-        )
+        } ?: return IdeDeployState.noAndroidConfiguration
 
         val deployableProvider = DeployableProvider.getInstance(project)
-            ?: return BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED, "no deployment provider",
-                "there is no deployment provider specified"
-            )
+            ?: return IdeDeployState.noDeploymentProvider
         val deployable: Deployable?
         try {
             deployable = deployableProvider.getDeployable(selectedRunConfig)
             if (deployable == null) {
-                return BaseAction.DisableMessage(
-                    BaseAction.DisableMessage.DisableMode.DISABLED,
-                    "selected device is invalid",
-                    "the selected device is not valid"
-                )
+                return IdeDeployState.selectDeviceIsInvalid
             }
             if (!deployable.isOnline) {
                 if (deployable.isUnauthorized) {
-                    return BaseAction.DisableMessage(
-                        BaseAction.DisableMessage.DisableMode.DISABLED, "device not authorized",
-                        "the selected device is not authorized"
-                    )
+                    return IdeDeployState.deviceNotAuthorized
                 } else {
-                    return BaseAction.DisableMessage(
-                        BaseAction.DisableMessage.DisableMode.DISABLED,
-                        "device not connected",
-                        "the selected device is not connected"
-                    )
+                    return IdeDeployState.deviceNotConnected
                 }
             }
             val versionFuture = deployable.version
             if (!versionFuture.isDone) {
                 // Don't stall the EDT - if the Future isn't ready, just return false.
-                return BaseAction.DisableMessage(
-                    BaseAction.DisableMessage.DisableMode.DISABLED,
-                    "unknown device API level",
-                    "its API level is currently unknown"
-                )
+                return IdeDeployState.unknownDeviceApiLevel
             }
             if (versionFuture.get().apiLevel < IAsDeployerCompat.MIN_DEVICE_API) {
-                return BaseAction.DisableMessage(
-                    BaseAction.DisableMessage.DisableMode.DISABLED, "incompatible device API level",
-                    "its API level is lower than ${IAsDeployerCompat.MIN_DEVICE_API}"
-                )
+                return IdeDeployState.incompatibleDeviceApiLevel
             }
             if (deployable.searchClientsForPackage().isEmpty()) {
-                return BaseAction.DisableMessage(
-                    BaseAction.DisableMessage.DisableMode.DISABLED, "app not detected",
-                    "the app is not yet running or not debuggable"
-                )
+                return IdeDeployState.appNotRunningOrNotDebuggable
             }
         } catch (ex: InterruptedException) {
-            return BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED,
-                "update interrupted",
-                "its status update was interrupted"
-            )
+            return IdeDeployState.updateInterrupted
         } catch (ex: ExecutionException) {
-            return BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED, "unknown device API level",
-                "its API level could not be determined"
-            )
+            return IdeDeployState.unknownDeviceApiLevel
         } catch (ex: Exception) {
-            return BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED, "unexpected exception",
-                "an unexpected exception was thrown: $ex"
-            )
+            return IdeDeployState.unknownDeviceApiLevel
         }
-        return null
+        return IdeDeployState.ok
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {

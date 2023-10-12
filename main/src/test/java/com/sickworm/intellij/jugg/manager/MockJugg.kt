@@ -36,6 +36,7 @@ import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggStateListener
@@ -74,16 +75,12 @@ class MockJugg {
 
     private val adbDeviceHelper = AdbDeviceHelper()
 
-    var isGradleBuilding = false
     private val ideDeployStateHelper = object : IIdeDeployStateHelper {
-        override fun getIdeDeployState(): JuggDeployState {
-            if (isGradleBuilding) {
-                return JuggDeployState(JuggDeployState.State.GRADLE_BUILDING, "mock: gradle building")
-            }
+        override fun getIdeDeployState(): IdeDeployState {
             return if (adbDeviceHelper.hasLaunchedApp(projectInfo.packageName)) {
-                JuggDeployState.READY
+                IdeDeployState.ok
             } else {
-                JuggDeployState(JuggDeployState.State.READY_INCREMENTAL_COMPILE, "mock: app not launched")
+                IdeDeployState.appNotRunningOrNotDebuggable
             }
         }
     }

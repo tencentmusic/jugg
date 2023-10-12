@@ -18,68 +18,34 @@ import java.lang.reflect.Field
  */
 class HedgehogAsDeployerCompat: GiraffeAsDeployerCompat() {
 
-    override fun getDisableMessage(project: Project): String? {
-        val disableMessage = doGetDisableMessage(project) ?: return null
-        return getToolTipField().get(disableMessage) as? String
-    }
-
-    private var toolTipField: Field? = null
-
-    private fun getToolTipField(): Field {
-        toolTipField?.let { return it }
-        val toolTipField = BaseAction.DisableMessage::class.java.getDeclaredField("myTooltip")
-        toolTipField.isAccessible = true
-        this.toolTipField = toolTipField
-        return toolTipField
-    }
-
     /**
      * @see [BaseAction.getDisableMessage]
      */
-    private fun doGetDisableMessage(project: Project): BaseAction.DisableMessage? {
+    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
         val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
             return@firstOrNull isApplyChangesRelevant(it)
-        } ?: return BaseAction.DisableMessage(
-            BaseAction.DisableMessage.DisableMode.INVISIBLE, "no available supported configuration",
-            "all configuration is not supported"
-        )
+        } ?: return IdeDeployState.noAndroidConfiguration
 
         val packageName = (selectedRunConfig as AppRunConfiguration).appId ?: ""
         val selectedExecutionTarget = ExecutionTargetManager.getInstance(project)
             .getTargetsFor(selectedRunConfig)
             .find { it is AndroidExecutionTarget } as? AndroidExecutionTarget
-            ?: return BaseAction.DisableMessage(BaseAction.DisableMessage.DisableMode.DISABLED, "unsupported execution target", "unsupported execution target")
+            ?: return IdeDeployState.unsupportedExecutionTarget
 
         val devices = selectedExecutionTarget.runningDevices
         if (devices.isEmpty()) {
-            return BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED,
-                "devices not connected",
-                "the selected devices are not connected"
-            )
+            return IdeDeployState.deviceNotConnected
         }
 
         val firstDevice = devices.first()
         return if (firstDevice.state == IDevice.DeviceState.UNAUTHORIZED) {
-            BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED,
-                "device not authorized",
-                "the selected device is not authorized"
-            )
+            IdeDeployState.deviceNotAuthorized
         } else if (!firstDevice.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
-            BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED,
-                "incompatible device API level",
-                "its API level is lower than ${IAsDeployerCompat.MIN_DEVICE_API}"
-            )
+            IdeDeployState.incompatibleDeviceApiLevel
         } else if (DeploymentApplicationService.instance.findClient(firstDevice, packageName).isEmpty()) {
-            BaseAction.DisableMessage(
-                BaseAction.DisableMessage.DisableMode.DISABLED,
-                "app not detected",
-                "the app is not yet running or not debuggable"
-            )
+            IdeDeployState.appNotRunningOrNotDebuggable
         } else {
-            return null
+            IdeDeployState.ok
         }
     }
 

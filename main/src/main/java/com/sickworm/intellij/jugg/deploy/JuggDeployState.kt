@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
+import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
+
 /**
  * The deployment state of a project.
  */
@@ -9,6 +11,10 @@ data class JuggDeployState(
      * Reason why we can't do incremental deploy. Or "ready to deploy" if state = [State.READY_DEPLOY].
      */
     val msg: String,
+    /**
+     * The state of deployment which detected by IDE. Use to check why we can't deploy.
+     */
+    val ideDeployState: IdeDeployState,
 ) {
 
     val isGradleBuilding: Boolean get() = state == State.GRADLE_BUILDING
@@ -28,14 +34,6 @@ data class JuggDeployState(
      */
     val isReadyDeploy: Boolean get() = state > State.READY_INCREMENTAL_COMPILE
 
-    val deployButtonText: String get() = when(state) {
-        State.NOTHING_CAN_DO -> "Not Init"
-        State.GRADLE_BUILDING -> "Gradle Building"
-        State.READY_FULL_COMPILE -> "Build & Launch"
-        State.READY_INCREMENTAL_COMPILE -> "Install & Launch"
-        State.READY_DEPLOY -> "Deploy"
-    }
-
     override fun toString(): String {
         return "[$state]($msg)"
     }
@@ -43,7 +41,8 @@ data class JuggDeployState(
     companion object {
         val READY = JuggDeployState(
             State.READY_DEPLOY,
-            msg = "ready to deploy",
+            "ready to deploy",
+            IdeDeployState.ok,
         )
     }
 
