@@ -86,8 +86,11 @@ class ResourceCompileTest {
     }
 
     /**
-     * Since LOLLIPOP MR1, the framework can handle silently ignoring unknown public attributes.
+     * 1. Since LOLLIPOP MR1, the framework can handle silently ignoring unknown public attributes.
      * So aapt2 will create a v22 config if the resource file attributes that api level < min sdk level.
+     *
+     * 2. Using the w600dp qualifier automatically includes the v13 qualifier
+     * because the available width qualifiers are new in API level 13.
      */
     @Test
     fun compileResourceOverlayWithAttrRules() {
@@ -100,6 +103,9 @@ class ResourceCompileTest {
         val newLayoutFile = CompileFile(CompileFile.Type.Resource,
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/test_layout2.xml"),
             File(assetsAndroidModifySourceDir, "app/src/main/res"), mockModule)
+        val layoutW600DpFile = CompileFile(CompileFile.Type.Resource,
+            File(assetsAndroidDir, "app/src/main/res/layout-w600dp/test_layout.xml"),
+            File(assetsAndroidDir, "app/src/main/res"), mockModule)
 
         val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
         var task = CompileTask(
@@ -133,6 +139,22 @@ class ResourceCompileTest {
         stagingDir.clearDir()
         result = resourceOverlayCompiler.compile(task)
         checkArscResult(task, result, 2, isRJavaChanged = true)
+
+        task = CompileTask(
+            listOf(layoutW600DpFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 1, isRJavaChanged = false)
+
+        task = CompileTask(
+            listOf(layoutFile, layoutW600DpFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 2, isRJavaChanged = false)
     }
 
     val resourceOverlayAddIdsTask = CompileTask(
