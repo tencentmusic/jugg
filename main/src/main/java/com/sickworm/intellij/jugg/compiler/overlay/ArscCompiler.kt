@@ -96,7 +96,7 @@ class ArscCompiler(
         return true
     }
 
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+    override fun doCompile(task: CompileTask): CompileResult {
         if (!canCompile) {
             throw JuggInternalException.contextInvalidToCompileArsc()
         }
@@ -119,6 +119,11 @@ class ArscCompiler(
             task.files.map { Result.success(it) },
             result
         )
+    }
+
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        // no need to implement
+        return CompileResult(task, emptyList(), emptyList())
     }
 
     private fun incLinkCompile(flatFiles: List<File>, outputDir: File): List<CompileOutput> {
@@ -149,6 +154,8 @@ class ArscCompiler(
         val overlays = overlayDir.listFilesRecursively().map {
             CompileOutput(CompileOutput.Type.Res, it, overlayDir)
         }
+
+        // check whether resources has more config created. e.g. layout-v22
         return rFiles + overlays
     }
 

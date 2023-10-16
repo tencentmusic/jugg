@@ -35,6 +35,8 @@ data class CompileFile(
     val dependencyPaths: List<String> = emptyList() // extra dependency paths, default use module's dependencies in CompileContext
 ) {
 
+    val relativeFile get() = file.absoluteFile.relativeTo(baseDir)
+
     override fun toString(): String {
         return "$type:${file.name}"
     }

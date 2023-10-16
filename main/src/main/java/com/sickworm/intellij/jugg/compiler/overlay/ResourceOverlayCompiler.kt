@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import java.io.File
 
 /**
  * Compile res file to deployable files.
@@ -63,12 +64,65 @@ class ResourceOverlayCompiler(
             )
         }
 
+        val finalOutputs = filterResources(arscResult.outputs, task.files)
+
         return CompileResult(
             task,
             resourceResult.details,
-            arscResult.outputs
+            finalOutputs
         )
     }
+
+    private fun filterResources(resource: List<CompileOutput>, sourceFiles: List<CompileFile>): List<CompileOutput> {
+        val resourceNameToPathMap = resource.groupBy { it.relativeFile.name }
+
+        val finalOverlays = resource.toMutableList()
+        resourceNameToPathMap.forEach rootLoop@{ (resourceName, outputs) ->
+            if (outputs.size == 1) {
+                return@rootLoop
+            }
+            outputs.forEach { output ->
+                if (!output.relativeFile.path.startsWith(APK_RESOURCE_ROOT_DIR + File.separator)) {
+                    return@forEach
+                }
+                val relativePath = output.relativeFile.path.substringAfter(File.separator)
+
+                val sourceFile = sourceFiles.find {
+                    val sourceResourceConfigPath = it.relativeFile.path
+                    sourceResourceConfigPath == relativePath
+                }
+                val isCreateByAapt2 = sourceFile == null
+                if (!isCreateByAapt2) {
+                    return@forEach
+                }
+
+                // the resource is additional created by aapt2, try to find the origin xml file
+                val guessSourceXmlFiles = sourceFiles.filter { compileFile ->
+                    compileFile.file.name == resourceName
+                }
+                logger.debug("${output.relativeFile.path} is additional created by aapt2, " +
+                        "guess sources: ${guessSourceXmlFiles.map { it.relativeFile.path }}")
+
+                // check whether the resource has override xml file
+                val overrideSourceXmlFiles = guessSourceXmlFiles.mapNotNull { compileFile ->
+                    val guessOverrideSourceXmlFile = File(compileFile.baseDir, relativePath)
+                    if (guessOverrideSourceXmlFile.exists()) {
+                        return@mapNotNull guessOverrideSourceXmlFile
+                    } else {
+                        return@mapNotNull null
+                    }
+                }.toSet()
+                if (overrideSourceXmlFiles.isEmpty()) {
+                    logger.debug("${output.relativeFile.path} has no override xml file")
+                } else {
+                    logger.debug("${output.relativeFile.path} has override xml file: $overrideSourceXmlFiles, ignore creation")
+                    finalOverlays.remove(output)
+                }
+            }
+        }
+        return finalOverlays
+    }
+
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // no need to implement
@@ -77,5 +131,9 @@ class ResourceOverlayCompiler(
 
     override fun warmUp() {
         arscCompiler.warmUp()
+    }
+
+    companion object {
+        private const val APK_RESOURCE_ROOT_DIR = "res"
     }
 }

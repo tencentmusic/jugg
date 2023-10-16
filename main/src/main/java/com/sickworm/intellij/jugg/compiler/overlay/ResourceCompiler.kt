@@ -25,7 +25,7 @@ class ResourceCompiler(
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+    override fun doCompile(task: CompileTask): CompileResult {
         val outputDir = task.outputDir.absolutePath
         val filesString = task.files.joinToString(" ") {
             it.file.absolutePath
@@ -66,5 +66,10 @@ class ResourceCompiler(
             detailsAndOutputs.map { it.first },
             detailsAndOutputs.filter { it.first.isSuccess }.map { it.second }
         )
+    }
+
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        // no need to implement
+        return CompileResult(task, emptyList(), emptyList())
     }
 }

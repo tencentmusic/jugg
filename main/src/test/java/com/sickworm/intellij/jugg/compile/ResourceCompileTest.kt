@@ -85,6 +85,56 @@ class ResourceCompileTest {
         checkArscResult(task, result, 6, isRJavaChanged = false)
     }
 
+    /**
+     * Since LOLLIPOP MR1, the framework can handle silently ignoring unknown public attributes.
+     * So aapt2 will create a v22 config if the resource file attributes that api level < min sdk level.
+     */
+    @Test
+    fun compileResourceOverlayWithAttrRules() {
+        val layoutFile = CompileFile(CompileFile.Type.Resource,
+            File(assetsAndroidDir, "app/src/main/res/layout/test_layout.xml"),
+            File(assetsAndroidDir, "app/src/main/res"), mockModule)
+        val layoutV22File = CompileFile(CompileFile.Type.Resource,
+            File(assetsAndroidDir, "app/src/main/res/layout-v22/test_layout.xml"),
+            File(assetsAndroidDir, "app/src/main/res"), mockModule)
+        val newLayoutFile = CompileFile(CompileFile.Type.Resource,
+            File(assetsAndroidModifySourceDir, "app/src/main/res/layout/test_layout2.xml"),
+            File(assetsAndroidModifySourceDir, "app/src/main/res"), mockModule)
+
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+        var task = CompileTask(
+            listOf(layoutFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        var result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 1, isRJavaChanged = false)
+
+        task = CompileTask(
+            listOf(layoutV22File),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 1, isRJavaChanged = false)
+
+        task = CompileTask(
+            listOf(layoutFile, layoutV22File),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 2, isRJavaChanged = false)
+
+        task = CompileTask(
+            listOf(newLayoutFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 2, isRJavaChanged = true)
+    }
+
     val resourceOverlayAddIdsTask = CompileTask(
         listOf(
             CompileFile(CompileFile.Type.Resource,
