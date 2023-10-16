@@ -27,9 +27,9 @@ class ResourceCompiler(
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val outputDir = task.outputDir.absolutePath
-        val filesString = task.files.map {
+        val filesString = task.files.joinToString(" ") {
             it.file.absolutePath
-        }.joinToString(" ")
+        }
 
         // --legacy is required for: multiple substitutions specified in non-positional format; did you mean to add the formatted="false" attribute?.
         val command = "compile --legacy -o $outputDir $filesString"
