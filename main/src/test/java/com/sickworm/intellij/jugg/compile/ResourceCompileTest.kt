@@ -157,6 +157,55 @@ class ResourceCompileTest {
         checkArscResult(task, result, 2, isRJavaChanged = false)
     }
 
+
+    /**
+     * 3. If the resource file contains high level attr before and deleted now, we should still create v22 config
+     * to override the old v22 config. Because appt2-inclink can not delete entry.
+     */
+    @Test
+    fun compileResourceOverlayWithAttrRules2() {
+        val layoutNoHighLevelAttrFile = CompileFile(CompileFile.Type.Resource,
+            File(assetsAndroidModifySourceDir, "app/src/main/res/layout/test_layout3.xml"),
+            File(assetsAndroidModifySourceDir, "app/src/main/res"), mockModule)
+
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+        val task = CompileTask(
+            listOf(layoutNoHighLevelAttrFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        val result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 2, isRJavaChanged = false)
+    }
+
+    /**
+     * 4. A bug for aapt-inclink: .../app/src/main/res/layout/test_layout2.xml: error: file not found.
+     * Happens when compile a new layout xml at the second time.
+     */
+    @Test
+    fun compileResourceOverlayWithAttrRules3() {
+        val newLayoutFile = CompileFile(CompileFile.Type.Resource,
+            File(assetsAndroidModifySourceDir, "app/src/main/res/layout/test_layout2.xml"),
+            File(assetsAndroidModifySourceDir, "app/src/main/res"), mockModule)
+
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+        var task = CompileTask(
+            listOf(newLayoutFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        var result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 2, isRJavaChanged = true)
+
+        task = CompileTask(
+            listOf(newLayoutFile),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 2, isRJavaChanged = false)
+    }
+
     val resourceOverlayAddIdsTask = CompileTask(
         listOf(
             CompileFile(CompileFile.Type.Resource,
