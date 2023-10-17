@@ -328,6 +328,15 @@ ResourceTable::CollisionResult ResourceTable::IgnoreCollision(Value* /** existin
   return CollisionResult::kKeepBoth;
 }
 
+ResourceTable::CollisionResult ResourceTable::KeepOriginalIfCollision(Value* existing,
+                                                              Value* incoming) {
+  CollisionResult result = ResolveValueCollision(existing, incoming);
+  if (result == CollisionResult::kConflict) {
+    return CollisionResult::kKeepOriginal;
+  }
+  return result;
+}
+
 static StringPiece ResourceNameValidator(const StringPiece& name) {
   if (!IsValidResourceEntryName(name)) {
     return name;
@@ -362,6 +371,13 @@ bool ResourceTable::AddResourceMangled(const ResourceNameRef& name, const Config
                                        IDiagnostics* diag) {
   return AddResourceImpl(name, ResourceId{}, config, product, std::move(value), SkipNameValidator,
                          (validate_resources_ ? ResolveValueCollision : IgnoreCollision), diag);
+}
+
+bool ResourceTable::AddResourceMangledKeepOriginalIfCollision(const ResourceNameRef& name, const ConfigDescription& config,
+                                       const StringPiece& product, std::unique_ptr<Value> value,
+                                       IDiagnostics* diag) {
+  return AddResourceImpl(name, ResourceId{}, config, product, std::move(value), SkipNameValidator,
+                         KeepOriginalIfCollision, diag);
 }
 
 bool ResourceTable::AddResourceWithIdMangled(const ResourceNameRef& name, const ResourceId& id,

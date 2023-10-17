@@ -80,6 +80,9 @@
         "version": "cpp",
         "filesystem": "cpp",
         "*.inc": "cpp",
-        "iterator": "cpp"
+        "iterator": "cpp",
+        "__memory": "cpp",
+        "__functional_base": "cpp",
+        "functional": "cpp"
     }
 }

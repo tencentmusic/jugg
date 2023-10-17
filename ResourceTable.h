@@ -211,6 +211,8 @@ class ResourceTable {
   // When a collision of resources occurs, this method keeps both values
   static CollisionResult IgnoreCollision(Value* existing, Value* incoming);
 
+  static CollisionResult KeepOriginalIfCollision(Value* existing, Value* incoming);
+
   bool AddResource(const ResourceNameRef& name, const android::ConfigDescription& config,
                    const android::StringPiece& product, std::unique_ptr<Value> value,
                    IDiagnostics* diag);
@@ -223,6 +225,10 @@ class ResourceTable {
   // Same as AddResource, but doesn't verify the validity of the name. This is used
   // when loading resources from an existing binary resource table that may have mangled names.
   bool AddResourceMangled(const ResourceNameRef& name, const android::ConfigDescription& config,
+                          const android::StringPiece& product, std::unique_ptr<Value> value,
+                          IDiagnostics* diag);
+
+  bool AddResourceMangledKeepOriginalIfCollision(const ResourceNameRef& name, const android::ConfigDescription& config,
                           const android::StringPiece& product, std::unique_ptr<Value> value,
                           IDiagnostics* diag);
 

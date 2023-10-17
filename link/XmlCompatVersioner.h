@@ -59,7 +59,8 @@ class XmlCompatVersioner {
 
   std::vector<std::unique_ptr<xml::XmlResource>> Process(IAaptContext* context,
                                                          xml::XmlResource* doc,
-                                                         util::Range<ApiVersion> api_range);
+                                                         util::Range<ApiVersion> api_range,
+                                                         bool isForceGenerateLolipopMr1ApiLevel);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(XmlCompatVersioner);

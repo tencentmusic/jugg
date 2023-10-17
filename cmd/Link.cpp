@@ -355,7 +355,8 @@ class ResourceFileFlattener {
   };
 
   std::vector<std::unique_ptr<xml::XmlResource>> LinkAndVersionXmlFile(ResourceTable* table,
-                                                                       FileOperation* file_op);
+                                                                       FileOperation* file_op,
+                                                                       bool isForceGenerateLolipopMr1ApiLevel);
 
   ResourceFileFlattenerOptions options_;
   IAaptContext* context_;
@@ -434,7 +435,7 @@ std::vector<T> make_singleton_vec(T&& val) {
 }
 
 std::vector<std::unique_ptr<xml::XmlResource>> ResourceFileFlattener::LinkAndVersionXmlFile(
-    ResourceTable* table, FileOperation* file_op) {
+    ResourceTable* table, FileOperation* file_op, bool isForceGenerateLolipopMr1ApiLevel) {
   TRACE_CALL();
   xml::XmlResource* doc = file_op->xml_to_flatten.get();
   const Source& src = doc->file.source;
@@ -485,7 +486,7 @@ std::vector<std::unique_ptr<xml::XmlResource>> ResourceFileFlattener::LinkAndVer
   XmlCompatVersioner xml_compat_versioner(&rules_);
   const util::Range<ApiVersion> api_range{config.sdkVersion,
                                           FindNextApiVersionForConfig(entry, config)};
-  return xml_compat_versioner.Process(context_, doc, api_range);
+  return xml_compat_versioner.Process(context_, doc, api_range, isForceGenerateLolipopMr1ApiLevel);
 }
 
 ResourceFile::Type XmlFileTypeForOutputFormat(OutputFormat format) {
@@ -618,8 +619,37 @@ bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archiv
             }
           }
 
+          // inclink workaround for layout-v22 generation
+          // true means we force generate the layout-v22 xml file
+          bool isForceGenerateLolipopMr1ApiLevel = false;
+          for (auto& config_value : file_op.entry->values) {
+            FileReference* file_ref = ValueCast<FileReference>(config_value->value.get());
+            if (!file_ref) {
+              continue;
+            }
+            // there is a old v22 layout file, we need to force generate the additional layout-v22 xml file
+            if (config_value->config.sdkVersion == SDK_LOLLIPOP_MR1) {
+              isForceGenerateLolipopMr1ApiLevel = true;
+              break;
+            }
+          }
+          for (auto& config_value : file_op.entry->values) {
+            FileReference* file_ref = ValueCast<FileReference>(config_value->value.get());
+            if (!file_ref) {
+              continue;
+            }
+            if (!table_merger->IsMergedFile(file_ref)) {
+              continue;
+            }
+            // v22 layout file is in merged file list, we won't generate the additional layout-v22 xml file
+            if (config_value->config.sdkVersion == SDK_LOLLIPOP_MR1) {
+              isForceGenerateLolipopMr1ApiLevel = false;
+              break;
+            }
+          }
+
           std::vector<std::unique_ptr<xml::XmlResource>> versioned_docs =
-              LinkAndVersionXmlFile(table, &file_op);
+              LinkAndVersionXmlFile(table, &file_op, isForceGenerateLolipopMr1ApiLevel);
           if (versioned_docs.empty()) {
             error = true;
             continue;
@@ -643,7 +673,7 @@ bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archiv
               file_ref->SetSource(doc->file.source);
               // Update the output format of this XML file.
               file_ref->type = XmlFileTypeForOutputFormat(options_.output_format);
-              if (!table->AddResourceMangled(file.name, file.config, {}, std::move(file_ref),
+              if (!table->AddResourceMangledKeepOriginalIfCollision(file.name, file.config, {}, std::move(file_ref),
                                              context_->GetDiagnostics())) {
                 return false;
               }

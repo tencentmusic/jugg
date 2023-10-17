@@ -128,13 +128,18 @@ std::unique_ptr<xml::XmlResource> XmlCompatVersioner::ProcessDoc(
 }
 
 std::vector<std::unique_ptr<xml::XmlResource>> XmlCompatVersioner::Process(
-    IAaptContext* context, xml::XmlResource* doc, util::Range<ApiVersion> api_range) {
+    IAaptContext* context, xml::XmlResource* doc, util::Range<ApiVersion> api_range, bool isForceGenerateLolipopMr1ApiLevel) {
   // Adjust the API range so that it falls after this document and after minSdkVersion.
   api_range.start = std::max(api_range.start, context->GetMinSdkVersion());
   api_range.start = std::max(api_range.start, static_cast<ApiVersion>(doc->file.config.sdkVersion));
 
   std::vector<std::unique_ptr<xml::XmlResource>> versioned_docs;
   std::set<ApiVersion> apis_referenced;
+
+  if (isForceGenerateLolipopMr1ApiLevel) {
+      apis_referenced.insert(ApiVersion(SDK_LOLLIPOP_MR1));
+  }
+
   versioned_docs.push_back(ProcessDoc(api_range.start, api_range.end, doc, &apis_referenced));
 
   // Adjust the sdkVersion of the first XML document back to its original (this only really
@@ -144,7 +149,8 @@ std::vector<std::unique_ptr<xml::XmlResource>> XmlCompatVersioner::Process(
   // Iterate from smallest to largest API version.
   for (ApiVersion api : apis_referenced) {
     std::set<ApiVersion> dummy;
-    versioned_docs.push_back(ProcessDoc(api, api_range.end, doc, &dummy));
+    ApiVersion end_version = std::max<ApiVersion>(api_range.end, SDK_LOLLIPOP_MR1);
+    versioned_docs.push_back(ProcessDoc(api, end_version, doc, &dummy));
   }
   return versioned_docs;
 }
