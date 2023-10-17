@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.IdeInfo
+import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -82,14 +83,25 @@ class JuggDeployerHelper(
         isRunning = false
     }
 
-    fun deploy(isInstall: Boolean = false, isWarmUp: Boolean = false, retryReason: String? = null, isFallbackAllHotFix: Boolean = false): DeployTaskResult {
+    fun deploy(processHandler: ProcessHandler? = null,
+               isInstall: Boolean = false,
+               isWarmUp: Boolean = false,
+               retryReason: String? = null,
+               isFallbackAllHotFix: Boolean = false,
+               startTime: Long = System.currentTimeMillis(),
+    ): DeployTaskResult {
+
+        fun costTime(): Long { return System.currentTimeMillis() - startTime }
+
+        if (processHandler != null && (processHandler.isProcessTerminating || processHandler.isProcessTerminated)) {
+            logger.warn("Deploy canceled.")
+            return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "deploy canceled")
+        }
+
         logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $isFallbackAllHotFix")
 
         val deployState = deployStateManager.updateDeployState()
         logger.debug("Jugg deploy state: $deployState")
-
-        val statTime = System.currentTimeMillis()
-        fun costTime(): Long { return System.currentTimeMillis() - statTime }
 
         return try {
             if (isInstall) {
@@ -162,7 +174,7 @@ class JuggDeployerHelper(
                         action = "incremental_deploy_retry"
                         detail = reason
                     }
-                    return deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true)
+                    return deploy(processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime)
                 }
 
                 val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
@@ -201,7 +213,7 @@ class JuggDeployerHelper(
                                 action = "incremental_deploy_retry_after_recover"
                                 detail = reason
                             }
-                            deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason)
+                            deploy(processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, startTime = startTime)
                         }
                     } else {
                         logger.info("Deploy agent no response, but App is in foreground, try again.")
@@ -209,7 +221,7 @@ class JuggDeployerHelper(
                             action = "incremental_deploy_retry"
                             detail = reason
                         }
-                        deploy(isInstall = false, isWarmUp = isWarmUp, retryReason = reason)
+                        deploy(processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, startTime = startTime)
                     }
                     return result.copy(costTime = costTime())
                 }

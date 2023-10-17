@@ -53,6 +53,25 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
+        val result = doCompile(options, processHandler, indicator, isForceInstall)
+        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            logger.warn("Compile canceled.")
+            return result.copy(
+                isSuccess = false,
+                isCanFallback = false,
+                failedReason = "Compile canceled",
+            )
+        }
+        return result
+    }
+
+    @Synchronized
+    fun doCompile(
+        options: JuggGradleCompileOptions,
+        processHandler: SimpleProcessHandler,
+        indicator: ProgressIndicator,
+        isForceInstall: Boolean,
+    ): CompileTaskResult {
         val statTime = System.currentTimeMillis()
         if (!isForceInstall) {
             val loggerListener = IndicatorLoggerListener(indicator)
@@ -76,6 +95,17 @@ class JuggCompilerHelper(
                 logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
                 JuggRunningTask.notifyFallback(project, incrementalResult.failedReason ?: "See log for details.")
             }
+        }
+
+        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            logger.warn("Compile canceled.")
+            return CompileTaskResult(
+                isSuccess = false,
+                isGradleCompile = true,
+                isCanFallback = false,
+                costTime = System.currentTimeMillis() - statTime,
+                failedReason = "Compile canceled",
+            )
         }
 
         val result = gradleCompile(options, processHandler, indicator)

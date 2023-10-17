@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.google.gson.Gson
-import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
@@ -29,7 +28,7 @@ class JuggRunningTask(
     private val project: Project,
     private val juggReporter: JuggReporter,
     private val deployTargetManager: IDeployTargetManager,
-    private val processHandler: ProcessHandler,
+    private val processHandler: SimpleProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
     private val deployTask: (forceInstall: Boolean) -> DeployTaskResult,
     private val initIncrementalCompileTask: () -> Unit,
@@ -102,7 +101,7 @@ class JuggRunningTask(
         }
 
         if (!compileTaskResult.isSuccess) {
-            failedAndActiveRunWindow()
+            failedAndActiveRunWindowIfNotCanceled()
             return
         }
 
@@ -129,7 +128,7 @@ class JuggRunningTask(
                 if (compileTaskResult.isGradleCompile) {
                     initIncrementalCompileTask.invoke()
                 }
-                failedAndActiveRunWindow()
+                failedAndActiveRunWindowIfNotCanceled()
             } else {
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
                 notifyFallback(project, deployTaskResult.failedReason ?: "See log for details.")
@@ -168,7 +167,10 @@ class JuggRunningTask(
         }
     }
 
-    private fun failedAndActiveRunWindow() {
+    private fun failedAndActiveRunWindowIfNotCanceled() {
+        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            return
+        }
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.activate(null)
