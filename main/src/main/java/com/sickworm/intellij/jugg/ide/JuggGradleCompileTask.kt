@@ -22,14 +22,6 @@ class JuggGradleCompileTask(
     private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
 ) {
 
-    private val outputListener = GradleOutputParser(
-        juggGradleCompileOptions,
-        project.basePath ?: "",
-        processHandler,
-        indicator,
-        logger,
-    )
-
     fun run(): GradleCompileResult {
         return try {
             doRun()
@@ -44,6 +36,11 @@ class JuggGradleCompileTask(
     }
 
     private fun doRun(): GradleCompileResult {
+        val outputListener = GradleOutputParser(
+            juggGradleCompileOptions, project.basePath ?: "",
+            processHandler, indicator, logger,
+        )
+
         compileClient.terminalOutputListener = outputListener
         processHandler.cancelAction = {
             try {
@@ -64,9 +61,13 @@ class JuggGradleCompileTask(
         if (result.isSuccess) {
             logger.info("\nBUILD SUCCESSFUL in ${costTime / 1000}s.\n")
         } else if (isCanceled) {
-            logger.warn("BUILD CANCELED in ${costTime / 1000}s.\n")
+            logger.warn("\nBUILD CANCELED in ${costTime / 1000}s.\n")
         } else {
-            logger.warn("BUILD FAILED in ${costTime / 1000}s.\n")
+            if (outputListener.possibleErrorLog.isNotEmpty()) {
+                logger.warn("\n[Jugg] Found error in logs:")
+                outputListener.possibleErrorLog.forEach { logger.warn(it) }
+            }
+            logger.warn("\nBUILD FAILED in ${costTime / 1000}s.\n")
         }
 
         compileClient.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
@@ -84,24 +85,48 @@ private class GradleOutputParser(
     private val logger: Logger,
 ) : IGradleCompileClient.TerminalOutputListener {
 
+    val possibleErrorLog = mutableListOf<String>()
+    private var isCollectingTaskErrorMsg = false
+    private var isCollectingExceptionErrorMsg = false
+
     override fun onOutput(line: String) {
         val parsedOutput = parseOutput(line)
         processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDOUT)
         processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
 
-        if (line.startsWith("[Jugg] SyncFileCommand exec start")) {
+        if (parsedOutput.startsWith("[Jugg] SyncFileCommand exec start")) {
             indicator.text = "Syncing file to remote..."
-        } else if (line.startsWith("[Jugg] CompileProjectCommand exec start")) {
+        } else if (parsedOutput.startsWith("[Jugg] CompileProjectCommand exec start")) {
             indicator.text = "Compiling project..."
-        } else if (line.startsWith("[Jugg] FetchOutputCommand exec start")) {
+        } else if (parsedOutput.startsWith("[Jugg] FetchOutputCommand exec start")) {
             indicator.text = "Getting apk..."
-        } else if (line.startsWith("> Configure project ")) {
-            val projectName = line.substring("> Configure project ".length)
+        } else if (parsedOutput.startsWith("> Configure project ")) {
+            val projectName = parsedOutput.substring("> Configure project ".length)
             indicator.text = "Configured $projectName..."
-        } else if (line.startsWith("> Task ")) {
-            val taskName = line.substring("> Task ".length).substringBefore(" ")
+        } else if (parsedOutput.startsWith("> Task ")) {
+            val taskName = parsedOutput.substring("> Task ".length).substringBefore(" ")
             indicator.text = "Executed $taskName..."
         }
+
+        if (parsedOutput.startsWith("* What went wrong")) {
+            isCollectingExceptionErrorMsg = true
+            isCollectingTaskErrorMsg = false
+        }
+        if (isCollectingExceptionErrorMsg) {
+            if (parsedOutput.startsWith("* Try") || parsedOutput.startsWith("===")) {
+                isCollectingExceptionErrorMsg = false
+            } else {
+                possibleErrorLog.add(parsedOutput)
+            }
+        }
+
+        if (parsedOutput.startsWith("> Task")) {
+            isCollectingTaskErrorMsg = parsedOutput.contains("FAILED")
+        }
+        if (isCollectingTaskErrorMsg) {
+            possibleErrorLog.add(parsedOutput)
+        }
+
     }
 
     override fun onOutputErr(line: String) {
