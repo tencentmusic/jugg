@@ -215,7 +215,7 @@ std::string GetToolFingerprint() {
   static const char* const sMajorVersion = "2";
 
   // Update minor version whenever a feature or flag is added.
-  static const char* const sMinorVersion = "19.6";
+  static const char* const sMinorVersion = "19.7";
 
   // The build id of aapt2 binary.
   static const std::string sBuildId = android::build::GetBuildNumber();

@@ -362,6 +362,9 @@ bool TableMerger::IsMergedFile(FileReference* file_ref) {
   if (!file_ref) {
     return false;
   }
+  if (!file_ref->file) {
+    return false;
+  }
   return std::find(merged_path_of_values_.begin(), merged_path_of_values_.end(), file_ref->GetSource().path) != merged_path_of_values_.end();
 }
 

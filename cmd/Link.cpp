@@ -627,12 +627,15 @@ bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archiv
             if (!file_ref) {
               continue;
             }
-            // there is a old v22 layout file, we need to force generate the additional layout-v22 xml file
-            if (config_value->config.sdkVersion == SDK_LOLLIPOP_MR1) {
+            ConfigDescription temp_config(config_value->config);
+            temp_config.sdkVersion = config.sdkVersion;
+            if (temp_config == config && (config_value->config.sdkVersion == SDK_LOLLIPOP_MR1)) {
+              // there is a old v22 layout file, we need to force generate the additional layout-v22 xml file
               isForceGenerateLolipopMr1ApiLevel = true;
               break;
             }
           }
+
           for (auto& config_value : file_op.entry->values) {
             FileReference* file_ref = ValueCast<FileReference>(config_value->value.get());
             if (!file_ref) {
@@ -641,8 +644,10 @@ bool ResourceFileFlattener::Flatten(ResourceTable* table, IArchiveWriter* archiv
             if (!table_merger->IsMergedFile(file_ref)) {
               continue;
             }
-            // v22 layout file is in merged file list, we won't generate the additional layout-v22 xml file
-            if (config_value->config.sdkVersion == SDK_LOLLIPOP_MR1) {
+            ConfigDescription temp_config(config_value->config);
+            temp_config.sdkVersion = config.sdkVersion;
+            if (temp_config == config && (config_value->config.sdkVersion == SDK_LOLLIPOP_MR1)) {
+              // v22 layout file is in merged file list, we won't generate the additional layout-v22 xml file
               isForceGenerateLolipopMr1ApiLevel = false;
               break;
             }
