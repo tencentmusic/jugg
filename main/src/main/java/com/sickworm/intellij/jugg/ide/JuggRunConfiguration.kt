@@ -13,11 +13,11 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import java.io.File
 import javax.swing.JComponent
 
-
+/**
+ * Implementation of [RunConfigurationBase], which is for managing config content.
+ */
 class JuggRunConfiguration(
     project: Project,
     factory: ConfigurationFactory,
@@ -41,6 +41,9 @@ class JuggRunConfiguration(
     }
 }
 
+/**
+ * Implementation of [ConfigurationTypeBase], which is for creating a run configuration.
+ */
 class JuggConfigurationType : ConfigurationTypeBase(
     this::class.toString(),
     "Jugg",
@@ -67,6 +70,7 @@ class JuggConfigurationType : ConfigurationTypeBase(
         })
     }
 
+    @Suppress("CompanionObjectInExtension")
     companion object {
         @JvmStatic
         fun getInstance(): JuggConfigurationType {
@@ -75,6 +79,9 @@ class JuggConfigurationType : ConfigurationTypeBase(
     }
 }
 
+/**
+ * Implementation of [RunConfigurationOptions], which is for handing config load/save.
+ */
 class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
     override fun resetEditorFrom(s: JuggRunConfiguration) {
@@ -112,6 +119,9 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
 }
 
+/**
+ * Implementation of [RunConfigurationOptions], which is for executing run configuration.
+ */
 class JuggRunProfileState(
     private val project: Project,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,

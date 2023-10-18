@@ -5,6 +5,9 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 
+/**
+ * Implementation of [RunConfigurationOptions], which is the bean of config content.
+ */
 class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
     var compileCommand by string(JuggSettings.defaultCompileCommand)
@@ -23,6 +26,9 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
 }
 
+/**
+ * Wrapper of [JuggRunConfigurationOptions], which is used for compilation.
+ */
 data class JuggGradleCompileOptions(
     val projectRootPath: String,
     val compileCommand: String,

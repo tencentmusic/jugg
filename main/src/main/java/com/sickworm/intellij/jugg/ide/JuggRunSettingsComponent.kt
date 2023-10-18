@@ -5,7 +5,9 @@ import java.awt.Dimension
 import java.awt.GridLayout
 import javax.swing.*
 
-
+/**
+ * Run configuration settings UI
+ */
 class JuggRunSettingsComponent : JComponent() {
     private val compileCommandLabel = JLabel("Compile command:")
     val compileCommandTextField = JTextField()
