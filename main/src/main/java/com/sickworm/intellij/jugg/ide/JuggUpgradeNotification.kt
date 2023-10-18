@@ -9,22 +9,13 @@ import com.intellij.openapi.project.Project
 class JuggUpgradeNotification(private val project: Project) {
 
     fun show(downloadUrl: String) {
-        val notification = try {
-                @Suppress("MissingRecentApi")
-                NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Jugg Notification Group")
-                    .createNotification(
-                        "Jugg is ready to upgrade", "",
-                        NotificationType.INFORMATION
-                    )
-            } catch (e: Exception) {
-                NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Jugg Notification Group")
-                    .createNotification(
-                        "Jugg is ready to upgrade",
-                        NotificationType.INFORMATION
-                    )
-            }
+        @Suppress("MissingRecentApi")
+        val notification = NotificationGroupManager.getInstance()
+            .getNotificationGroup("Jugg Notification Group")
+            .createNotification(
+                "Jugg is ready to upgrade", "",
+                NotificationType.INFORMATION
+            )
         notification.addAction(object : AnAction("Download") {
             override fun actionPerformed(e: AnActionEvent) {
                 // open download url
