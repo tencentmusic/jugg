@@ -1,6 +1,13 @@
 package com.sickworm.intellij.jugg.ide
 
+import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
+import com.intellij.ui.components.ActionLink
+import com.intellij.util.ui.JBUI
+import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
+import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
+import com.sickworm.intellij.jugg.logger.JuggReporter
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Dimension
 import java.awt.GridLayout
 import javax.swing.*
@@ -14,6 +21,8 @@ class JuggRunSettingsComponent : JComponent() {
     private val outputApkNameLabel = JLabel("Output APK name:")
     val outputApkNameTextField = JTextField()
     val enableRemoteCompileCheckBox = JCheckBox("Enable iFt remote compile")
+
+    private val reportIssueActionLink = ActionLink("Report issues")
 
     private val tipsLabel = JLabel("Notice: Do not modify the default value if you don't know that it is").also {
         it.foreground = JBColor.GRAY
@@ -57,10 +66,10 @@ class JuggRunSettingsComponent : JComponent() {
     init {
         layout = GridLayout(0, 1, 5, 5)
 
-        addPair(compileCommandLabel, compileCommandTextField, leftWidth = 120)
-        addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 120)
+        addPair(compileCommandLabel, compileCommandTextField, leftWidth = 140)
+        addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 140)
 
-        add(enableRemoteCompileCheckBox)
+        addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 220, isAlignEnd = true)
 
         enableRemoteCompileCheckBox.addActionListener {
             val isSelected = enableRemoteCompileCheckBox.isSelected
@@ -69,7 +78,7 @@ class JuggRunSettingsComponent : JComponent() {
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected)
     }
 
-    fun updateUi(settings: JuggRunConfigurationOptions) {
+    fun updateUi(settings: JuggRunConfigurationOptions, project: Project) {
         compileCommandTextField.text = settings.compileCommand
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
@@ -84,15 +93,44 @@ class JuggRunSettingsComponent : JComponent() {
         localToRemoteSyncPathTextField.text = settings.localToRemoteSyncPath
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
+
+        if (reportIssueActionLink.actionListeners.isEmpty()) {
+            reportIssueActionLink.addActionListener {
+                doUpload(project)
+            }
+        }
     }
 
-    private fun addPair(left: JComponent, right: JComponent?, leftWidth: Int) {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun doUpload(project: Project) {
+        val dialog = ReportProgressDialog()
+        val isConfirmed = ReportConfirmDialog().showAndGet()
+        if (!isConfirmed) {
+            return
+        }
+
+        val deferred = JuggReporter(project).reportAndUploadLogs()
+        deferred.invokeOnCompletion {
+            val uploadResult = deferred.getCompleted()
+            SwingUtilities.invokeLater {
+                dialog.setResult(uploadResult)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun addPair(left: JComponent, right: JComponent?, leftWidth: Int, isAlignEnd: Boolean = false) {
         val jPanel = JPanel()
         jPanel.run {
+            border = JBUI.Borders.empty(0, 4)
             layout = BoxLayout(this, BoxLayout.X_AXIS)
             add(left)
             val realLeftWidth = if (right == null) Int.MAX_VALUE else leftWidth
             left.preferredSize = Dimension(realLeftWidth, left.preferredSize.height)
+
+            if (isAlignEnd) {
+                add(Box.createHorizontalGlue())
+            }
 
             right?.let {
                 add(right)

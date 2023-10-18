@@ -31,7 +31,7 @@ class JuggRunConfiguration(
     }
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> {
-        editor.resetEditorFrom(state!!)
+        editor.resetEditorFrom(state!!, project)
         return editor
     }
 
@@ -86,12 +86,12 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
     override fun resetEditorFrom(s: JuggRunConfiguration) {
         s.state?.let {
-            resetEditorFrom(it)
+            resetEditorFrom(it, s.project)
         }
     }
 
-    fun resetEditorFrom(options: JuggRunConfigurationOptions) {
-        (component as JuggRunSettingsComponent).updateUi(options)
+    fun resetEditorFrom(options: JuggRunConfigurationOptions, project: Project) {
+        (component as JuggRunSettingsComponent).updateUi(options, project)
     }
 
     override fun applyEditorTo(s: JuggRunConfiguration) {

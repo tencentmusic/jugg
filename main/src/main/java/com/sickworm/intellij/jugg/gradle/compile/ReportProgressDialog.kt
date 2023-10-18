@@ -1,0 +1,81 @@
+package com.sickworm.intellij.jugg.gradle.compile
+
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.util.ui.JBUI
+import com.sickworm.intellij.jugg.logger.UploadResult
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
+import java.awt.Toolkit
+import java.awt.datatransfer.Clipboard
+import java.awt.datatransfer.StringSelection
+import javax.swing.*
+
+
+class ReportProgressDialog : DialogWrapper(true) {
+
+    private val mainPanel: JPanel = JPanel(GridBagLayout())
+    private val uploadingLabel: JLabel = JLabel("Uploading logs...")
+
+    private val progressBar: JProgressBar = JProgressBar().also {
+        it.isIndeterminate = true
+    }
+
+    init {
+        title = "Reporting Issue"
+
+        val constraints = GridBagConstraints()
+        constraints.gridx = 0
+        constraints.gridy = 0
+        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.insets = JBUI.insets(12, 12, 12, 0)
+        mainPanel.add(uploadingLabel, constraints)
+
+        constraints.gridx = 1
+        constraints.insets = JBUI.insets(12, 0, 12, 12)
+        mainPanel.add(progressBar, constraints)
+
+        isOKActionEnabled = false
+        isResizable = false
+        init()
+    }
+
+    override fun createActions(): Array<Action> {
+        setOKButtonText("Copy ID and Close")
+        return arrayOf(okAction)
+    }
+
+    override fun createCenterPanel(): JComponent {
+        return mainPanel
+    }
+
+    fun setResult(uploadResult: UploadResult) {
+        val text = if (uploadResult.isSuccess) {
+            "Report success. Report ID: ${uploadResult.reportId ?: "null"}"
+        } else {
+            setOKButtonText("Copy Error and Close")
+            "Report failed. Error: ${uploadResult.errorMessage}"
+        }
+
+        val copyText = if (uploadResult.isSuccess) {
+            uploadResult.reportId ?: ""
+        } else {
+            text
+        }
+        getButton(okAction)?.addActionListener {
+            saveTextToClipboard(copyText)
+        }
+
+        isOKActionEnabled = true
+        uploadingLabel.text = text
+        mainPanel.remove(progressBar)
+        mainPanel.revalidate()
+        mainPanel.repaint()
+    }
+
+    private fun saveTextToClipboard(text: String) {
+        val clipboard: Clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        val stringSelection = StringSelection(text)
+        clipboard.setContents(stringSelection, null)
+    }
+}
+
