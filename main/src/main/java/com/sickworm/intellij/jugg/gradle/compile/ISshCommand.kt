@@ -5,10 +5,10 @@ package com.sickworm.intellij.jugg.gradle.compile
  */
 interface ISshCommand {
 
-    fun getCommend(isNeedSetChineseLanguage: Boolean): String
+    fun getCommand(isNeedSetChineseLanguage: Boolean): String
 
     /**
-     * call be fore invoke [getCommend].
+     * call be fore invoke [getCommand].
      */
     fun beforeInvokeCommand() = Unit
 
@@ -38,7 +38,7 @@ abstract class BaseSshCommand() : ISshCommand {
      * add echo at last to confirm exec finished and get the result
      * '\n' to avoid control ascii code on the line start
      */
-    override fun getCommend(isNeedSetChineseLanguage: Boolean): String {
+    override fun getCommand(isNeedSetChineseLanguage: Boolean): String {
         return if (isNeedSetChineseLanguage) {
             "export LC_CTYPE=\"zh_CN.utf8\" ; $baseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
         } else {

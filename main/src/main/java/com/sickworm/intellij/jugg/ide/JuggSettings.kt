@@ -23,12 +23,13 @@ object JuggSettings {
     const val defaultOutputApkName = "app-*.apk"
     const val  defaultIsRemoteCompile = false
     var defaultRemoteSshUser: String by propertiesComponent.delegate(defaultValue = "root")
-    var defaultRemoteSshPassword: String by propertiesComponent.delegate(defaultValue = "")
     var defaultRemoteSshIp: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultRemoteSshPassword: String by propertiesComponent.delegate(defaultValue = "")
     var defaultRemoteSshPort: Int by propertiesComponent.delegate(defaultValue = 36000)
+    var defaultLocalToRemoteIftConfigName: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultLocalToRemoteSyncPath: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultRemoteToLocalIftConfigName: String by propertiesComponent.delegate(defaultValue = "")
     var defaultRemoteToLocalSyncPath: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultLocalToRemoteIftConfigName: String by propertiesComponent.delegate(defaultValue = "remote")
-    var defaultRemoteToLocalIftConfigName: String by propertiesComponent.delegate(defaultValue = "local")
     var defaultHttpProxyIp: String by propertiesComponent.delegate(defaultValue = "127.0.0.1")
     var defaultHttpProxyPort: Int by propertiesComponent.delegate(defaultValue = 12639)
 
@@ -39,12 +40,13 @@ object JuggSettings {
 
     fun updateDefaultSettings(options: JuggGradleCompileOptions) {
         defaultRemoteSshUser = options.remoteSshUser
-        defaultRemoteSshPassword = options.remoteSshPassword
         defaultRemoteSshIp = options.remoteSshIp
+        defaultRemoteSshPassword = options.remoteSshPassword
         defaultRemoteSshPort = options.remoteSshPort
-        defaultRemoteToLocalSyncPath = options.remoteToLocalSyncPath
         defaultLocalToRemoteIftConfigName = options.localToRemoteIftConfigName
+        defaultLocalToRemoteSyncPath = options.localToRemoteSyncPath
         defaultRemoteToLocalIftConfigName = options.remoteToLocalIftConfigName
+        defaultRemoteToLocalSyncPath = options.remoteToLocalSyncPath
         defaultHttpProxyIp = options.httpProxyIp
         defaultHttpProxyPort = options.httpProxyPort
     }

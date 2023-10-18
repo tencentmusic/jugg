@@ -11,7 +11,7 @@ class JuggRunSettingsComponent : JComponent() {
     val compileCommandTextField = JTextField()
     private val outputApkNameLabel = JLabel("Output APK name:")
     val outputApkNameTextField = JTextField()
-    val enableRemoteCompileCheckBox = JCheckBox("Enable remote compile")
+    val enableRemoteCompileCheckBox = JCheckBox("Enable iFt remote compile")
 
     private val tipsLabel = JLabel("Notice: Do not modify the default value if you don't know that it is").also {
         it.foreground = JBColor.GRAY
@@ -23,13 +23,15 @@ class JuggRunSettingsComponent : JComponent() {
     val passwordTextField = JPasswordField()
     private val ipLabel = JLabel("SSH IP:")
     val ipTextField = JTextField()
-    private val portLabel = JLabel("SSH Port:")
+    private val portLabel = JLabel("SSH port:")
     val portTextField = JTextField()
-    private val remoteToLocalSyncPathLabel = JLabel("Remote to local sync path:")
-    val remoteToLocalSyncPathTextField = JTextField()
     private val localToRemoteIftConfigNameLabel = JLabel("Local to remote IFT config name:")
     val localToRemoteIftConfigNameTextField = JTextField()
+    private val localToRemoteSyncPathLabel = JLabel("Local to remote sync path:")
+    val localToRemoteSyncPathTextField = JTextField()
     private val remoteToLocalIftConfigNameLabel = JLabel("Remote to local IFT config name:")
+    private val remoteToLocalSyncPathLabel = JLabel("Remote to local sync path:")
+    val remoteToLocalSyncPathTextField = JTextField()
     val remoteToLocalIftConfigNameTextField = JTextField()
     private val httpProxyIpLabel = JLabel("HTTP proxy IP:")
     val httpProxyIpTextField = JTextField()
@@ -42,9 +44,10 @@ class JuggRunSettingsComponent : JComponent() {
         Pair(passwordLabel, passwordTextField),
         Pair(ipLabel, ipTextField),
         Pair(portLabel, portTextField),
-        Pair(remoteToLocalSyncPathLabel, remoteToLocalSyncPathTextField),
         Pair(localToRemoteIftConfigNameLabel, localToRemoteIftConfigNameTextField),
+        Pair(localToRemoteSyncPathLabel, localToRemoteSyncPathTextField),
         Pair(remoteToLocalIftConfigNameLabel, remoteToLocalIftConfigNameTextField),
+        Pair(remoteToLocalSyncPathLabel, remoteToLocalSyncPathTextField),
         Pair(httpProxyIpLabel, httpProxyIpTextField),
         Pair(httpProxyPortLabel, httpProxyPortTextField),
     )
@@ -73,9 +76,10 @@ class JuggRunSettingsComponent : JComponent() {
         passwordTextField.text = settings.remoteSshPassword
         ipTextField.text = settings.remoteSshIp
         portTextField.text = settings.remoteSshPort.toString()
-        localToRemoteIftConfigNameTextField.text = settings.localToRemoteIftConfigName
         httpProxyIpTextField.text = settings.httpProxyIp ?: ""
         httpProxyPortTextField.text = settings.httpProxyPort.toString()
+        localToRemoteIftConfigNameTextField.text = settings.localToRemoteIftConfigName
+        localToRemoteSyncPathTextField.text = settings.localToRemoteSyncPath
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
     }

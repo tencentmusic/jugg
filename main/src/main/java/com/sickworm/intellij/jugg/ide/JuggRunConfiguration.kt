@@ -36,7 +36,7 @@ class JuggRunConfiguration(
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(File(project.basePath!!).name, state!!)
+        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(project.basePath!!, state!!)
         return JuggRunProfileState(project, gradleCompileOptions)
     }
 }
@@ -98,6 +98,7 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
             remoteSshIp = component.ipTextField.text
             remoteSshPort = component.portTextField.text.toInt()
             localToRemoteIftConfigName = component.localToRemoteIftConfigNameTextField.text
+            localToRemoteSyncPath = component.localToRemoteSyncPathTextField.text
             remoteToLocalIftConfigName = component.remoteToLocalIftConfigNameTextField.text
             remoteToLocalSyncPath = component.remoteToLocalSyncPathTextField.text
             httpProxyIp = component.httpProxyIpTextField.text

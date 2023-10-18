@@ -111,8 +111,10 @@ class LocalGradleCompileClient(
             envArray.add("JAVA_HOME=$gradleJdkPath")
         }
 
+        val commandString = command.getCommand(isNeedSetChineseLanguage = false)
+        logger.debug("invoke command: $commandString")
         val process = Runtime.getRuntime().exec(
-            arrayOf("/bin/bash", "-c", command.getCommend(isNeedSetChineseLanguage = false)),
+            arrayOf("/bin/bash", "-c", commandString),
             envArray.toTypedArray(),
         )
         currentRunningProcess = process
@@ -150,6 +152,7 @@ class LocalGradleCompileClient(
                         printToStream(line)
                     }
                     val output = command.getInput(line)
+                    logger.debug("output: $output")
                     if (output != null) {
                         commander.println(output)
                         commander.flush()

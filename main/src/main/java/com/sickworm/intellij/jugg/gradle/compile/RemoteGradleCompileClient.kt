@@ -14,7 +14,7 @@ import java.io.PrintStream
 
 class RemoteGradleCompileClient(
     project: Project,
-    private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteClient"),
+    private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
 ) : IGradleCompileClient {
 
     private var session: Session? = null
@@ -67,7 +67,7 @@ class RemoteGradleCompileClient(
             throw JuggInternalException.notLoginYet()
         }
 
-        val syncFileCommand = SyncFileCommand(gradleCompileSettings.localProjectIftPath, gradleCompileSettings.remoteProjectPath)
+        val syncFileCommand = SyncFileCommand(gradleCompileSettings.localSyncIftPath, gradleCompileSettings.remoteSyncRootPath)
         val syncFileResult = invoke(channel, syncFileCommand)
         if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
             syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
@@ -116,8 +116,8 @@ class RemoteGradleCompileClient(
         }
 
         val fetchClasspathCommand = FetchClasspathCommand(
-            gradleCompileSettings.remoteProjectPath,
-            gradleCompileSettings.remoteToLocalProjectIftPath,
+            gradleCompileSettings.remoteSyncRootPath,
+            gradleCompileSettings.remoteToLocalRootIftPath,
             buildDirs
         )
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
@@ -125,7 +125,7 @@ class RemoteGradleCompileClient(
             printToStreamErrorIfCanceled("Fetch classpath failed, please check your iFt client is opened.")
             return null
         }
-        return File(gradleCompileSettings.remoteToLocalProjectSyncClasspathPath)
+        return File(gradleCompileSettings.remoteToLocalSyncClasspathPath)
     }
 
     @Volatile
@@ -150,7 +150,9 @@ class RemoteGradleCompileClient(
 
         command.beforeInvokeCommand()
         val commander = PrintStream(channel.outputStream, false)
-        commander.println(command.getCommend(isNeedSetChineseLanguage = true))
+        val commandString = command.getCommand(isNeedSetChineseLanguage = true)
+        logger.debug("invoke command: $commandString")
+        commander.println(commandString)
         commander.flush()
 
         val buffer = StringBuilder()
@@ -183,6 +185,7 @@ class RemoteGradleCompileClient(
                             result = interruptCode
                             break@whileRoot
                         }
+                        logger.debug("output: $output")
                         commander.println(output)
                         commander.flush()
                     } else {

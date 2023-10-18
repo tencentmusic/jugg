@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.JuggException
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -29,9 +30,15 @@ class JuggGradleCompileTask(
             val sw = StringWriter()
             val pw = PrintWriter(sw)
             e.printStackTrace(pw)
-            logger.warn("\nCompile stop unexpected with ${e::class.java}:\n$sw\n")
-            logger.warn("\nCompile stop unexpected.")
-            GradleCompileResult.failed(false, "Exception: $e")
+            return if (e is JuggException) {
+                logger.warn("\nCompile failed:\n${e.message}")
+                logger.debug("\nCompile failed: $sw\n")
+                GradleCompileResult.failed(false, e.message ?: "unknown error")
+            } else {
+                logger.warn("\nCompile stop unexpected with exception: ${e::class.java}:\n$sw\n")
+                logger.warn("\nCompile stop unexpected.")
+                GradleCompileResult.failed(false, "Exception: $e")
+            }
         }
     }
 
@@ -53,6 +60,7 @@ class JuggGradleCompileTask(
         logger.info("\nJugg gradle compile started.\n")
 
         val (costTime, result) = measureTimeMillisWithResult {
+            juggGradleCompileOptions.checkConfig()
             compileClient.login(juggGradleCompileOptions)
             compileClient.compileAndFetchResult()
         }
