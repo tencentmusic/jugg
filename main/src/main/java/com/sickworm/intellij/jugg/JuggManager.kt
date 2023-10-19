@@ -362,7 +362,7 @@ class JuggManager @TestOnly constructor(
                     }
                 }
             } else {
-                logger.debug("already warm up deploy, skip.")
+                logger.debug("no need warm up deploy, skip.")
             }
         }
     }
