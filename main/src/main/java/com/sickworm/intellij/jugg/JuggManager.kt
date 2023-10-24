@@ -75,7 +75,7 @@ class JuggManager @TestOnly constructor(
     fun initProjectInfo(isNeedReloadProjectInfo: Boolean) {
         runTaskSafe("Init Project Info", {
             if (isNeedReloadProjectInfo) {
-                // gradle sync finished, reset hasRun flag to avoid "No files changes" fallback
+                // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
                 JuggRunningTask.resetHasRun(project)
             }
 
