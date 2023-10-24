@@ -22,7 +22,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 3
+        private const val VERSION = 4
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -81,6 +81,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     source TEXT,
                     super_name TEXT NOT NULL,
                     interface_names TEXT NOT NULL,
+                    access INTEGER NOT NULL,
                     methods TEXT NOT NULL,
                     fields TEXT NOT NULL
                 );
@@ -310,7 +311,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         }
 
         runWithTimeCost("doInsertClassInfo") {
-            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?);"
+            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, access, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
                 parsedApk.classes.values.forEach {
                     preparedStatement.setString(1, it.className)
@@ -318,10 +319,11 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     preparedStatement.setString(3, it.superClass)
                     preparedStatement.setString(4, it.source)
                     preparedStatement.setString(5, it.dexFileName)
-                    preparedStatement.setString(6, it.methods.toMethodString())
-                    preparedStatement.setString(7, it.fields.toFieldString())
+                    preparedStatement.setInt(6, it.access)
+                    preparedStatement.setString(7, it.methods.toMethodString())
+                    preparedStatement.setString(8, it.fields.toFieldString())
                     val classId = nextClassId++
-                    preparedStatement.setInt(8, classId)
+                    preparedStatement.setInt(9, classId)
                     preparedStatement.addBatch()
                     dbClassNodeMap[it.className] = classId
                 }
@@ -513,7 +515,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             val dbClasses = mutableMapOf<Int, ClassNode>()
             val classes = mutableMapOf<String, ClassNode>()
-            val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, methods, fields FROM class_info;"
+            val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields, id FROM class_info;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
@@ -522,10 +524,11 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)
-                    val methodInfos = resultSet.getString(6).toMethodList(className)
-                    val fieldInfos = resultSet.getString(7).toFieldList(className)
-                    val id = resultSet.getInt(8)
-                    val classNode = ClassNode(dexFileName, className, methodInfos, fieldInfos, interfaceNames, superName, source)
+                    val access = resultSet.getInt(6)
+                    val methodInfos = resultSet.getString(7).toMethodList(className)
+                    val fieldInfos = resultSet.getString(8).toFieldList(className)
+                    val id = resultSet.getInt(9)
+                    val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source)
                     dbClasses[id] = classNode
                     classes[className] = classNode
                 }
@@ -604,7 +607,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
                 val classNamesString = classNames.joinToString(",") { "'$it'" }
-                val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, methods, fields FROM class_info WHERE name IN ($classNamesString);"
+                val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields FROM class_info WHERE name IN ($classNamesString);"
                 val classes = mutableMapOf<String, ClassNode>()
                 val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
                 while (resultSet.next()) {
@@ -613,9 +616,10 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val superName = resultSet.getString(3)
                     val source = resultSet.getString(4)
                     val dexFileName = resultSet.getString(5)
-                    val methodInfos = resultSet.getString(6).toMethodList(className)
-                    val fieldInfos = resultSet.getString(7).toFieldList(className)
-                    val classNode = ClassNode(dexFileName, className, methodInfos, fieldInfos, interfaceNames, superName, source)
+                    val access = resultSet.getInt(6)
+                    val methodInfos = resultSet.getString(7).toMethodList(className)
+                    val fieldInfos = resultSet.getString(8).toFieldList(className)
+                    val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source)
                     classes[className] = classNode
                 }
 

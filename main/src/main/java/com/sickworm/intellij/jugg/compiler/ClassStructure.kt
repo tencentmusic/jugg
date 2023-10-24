@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 class ClassNode(
     val dexFileName: String,
     val className: String,
+    val access: Int,
     val methods: List<MethodNode>,
     val fields: List<FieldNode>,
     val interfaceNames: List<String>,
@@ -23,9 +24,12 @@ class ClassNode(
 
     val source: String = sourceArg ?: NO_SOURCE
 
+    val isAbstract: Boolean get() = access and DexConstants.ACC_ABSTRACT != 0
+
     constructor(dexFileName: String, node: DexClassNode): this(
         dexFileName = dexFileName,
         className = node.className,
+        access = node.access,
         methods = node.methods?.map { MethodNode(it) }?: emptyList(),
         fields = node.fields?.map { FieldNode(it) }?: emptyList(),
         interfaceNames = node.interfaceNames?.map { ClassStringPool[it] }?: emptyList(),
@@ -63,6 +67,8 @@ class MethodNode(
     name: String,
     desc: String,
 ) {
+
+    val isAbstract: Boolean get() = access and DexConstants.ACC_ABSTRACT != 0
 
     constructor(node: DexMethodNode): this(
         owner = node.method.owner,
