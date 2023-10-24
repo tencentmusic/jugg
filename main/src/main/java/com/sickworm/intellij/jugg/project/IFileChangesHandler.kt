@@ -26,9 +26,8 @@ data class ChangedFile(
     val file: File,
     val baseDir: File,
     val module: ModuleInfo,
+    var compiledTimes: Int = 0,
 ) {
-
-    var compiledTimes: Int = 0
 
     val hasCompiledOnce: Boolean get() = compiledTimes > 0
 

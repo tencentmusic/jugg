@@ -89,8 +89,7 @@ class JuggManager @TestOnly constructor(
                 }
                 val isSuccess = compileContextManager.refreshCompileContext()
                 if (isSuccess) {
-                    deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
-                    juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+                    reInitOnCompileContextUpdate()
                 }
             }
 
@@ -312,6 +311,12 @@ class JuggManager @TestOnly constructor(
         )
     }
 
+    private fun reInitOnCompileContextUpdate() {
+        deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
+        juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+        fileChangesHandler.init(compileContextManager.compileContext)
+    }
+
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
@@ -327,12 +332,10 @@ class JuggManager @TestOnly constructor(
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo, isNeedReloadProjectInfo)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles, startCompileTime)
-            deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
-            juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+            reInitOnCompileContextUpdate()
         }
         logger.debug("Init compile cost ${costTime}ms")
 
-        fileChangesHandler.init(compileContextManager.compileContext)
         fileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>) {
                 processFileChanged(changedFiles)

@@ -163,12 +163,11 @@ class JuggCompilerHelper(
         val uncompiledFiles = deployFileManager.getUncompiledFiles()
         if (uncompiledFiles.all { it.hasCompiledOnce }) {
             val deviceName = deployTargetManager.getDeviceOrNull()?.name
-            return if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
-                logger.info("First time run, try start app directly.")
-                CompileTaskResult.incrementalSuccess()
+            if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
+                logger.info("No files changes, but it's first time run, will run with incremental compile.")
             } else {
                 logger.info("No files changes. will fallback to gradle compile.")
-                CompileTaskResult.incrementalFailed(true, "No files changes")
+                return CompileTaskResult.incrementalFailed(true, "No files changes")
             }
         }
 

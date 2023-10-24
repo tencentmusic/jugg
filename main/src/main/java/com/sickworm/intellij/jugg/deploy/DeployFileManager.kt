@@ -239,6 +239,11 @@ class DeployFileManager(
     @Synchronized
     fun updateModuleInfos(moduleInfos: Map<String, ModuleInfo>) {
         this.moduleInfos = moduleInfos
+        uncompiledFiles = uncompiledFiles.mapValues {
+            val newModuleInfo = moduleInfos[it.value.module.name] ?: return@mapValues it.value
+            it.value.copy(module = newModuleInfo)
+        }.toMutableMap()
+
         val sourceDirs = moduleInfos.values.flatMap {
             it.sourceDirs
         }
