@@ -45,6 +45,8 @@ class ClassNodeComparator(
         val deletedEffectedMethods = LinkedList(oldClassNode.methods)
         removeUnionExceptEffected(addedEffectedMethods, deletedEffectedMethods)
 
+        val isAddedAbstractMethodForNonAbstractClass = newClassNode.isAbstract && addedMethods.any { it.isAbstract }
+
         return ClassNodeDiffResult(
             oldClassNode.className,
             modifiedParentClass,
@@ -55,6 +57,7 @@ class ClassNodeComparator(
             addedMethods,
             deletedMethods,
             deletedEffectedMethods,
+            isAddedAbstractMethodForNonAbstractClass,
         )
     }
 
@@ -107,6 +110,8 @@ class ClassNodeDiffResult(
     val deletedMethods: List<MethodNode>,
 
     val effectMethods: List<MethodNode>,
+
+    val isAddedAbstractMethodForNonAbstractClass: Boolean,
 ) {
 
     val isSameStructure

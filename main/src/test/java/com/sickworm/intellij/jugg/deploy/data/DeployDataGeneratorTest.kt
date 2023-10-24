@@ -20,14 +20,15 @@ import kotlin.test.assertTrue
 class DeployDataGeneratorTest {
 
 
-    private val parsedApk = ApkParser().parse(projectInfo.apkInfo)
+    private lateinit var parsedApk: ParsedApk
 
-    private val abcParsedDexMock: ParsedDex get() = getParsedDex()
+    private val abcParsedDexMock: ParsedDex get() = getParsedDex("com.example.myapplication.ABC")
     private val abdClassNode get() = abcParsedDexMock.classDeployItems[0].classNode
 
     @Before
     fun assemble() {
         clearBuild()
+        parsedApk = ApkParser().parse(projectInfo.apkInfo)
     }
 
     @Test
@@ -164,7 +165,35 @@ class DeployDataGeneratorTest {
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;", "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
     }
 
-    private fun getParsedDex(className: String = "com.example.myapplication.ABC"): ParsedDex {
+    @Test
+    fun testEffectSourceByNewAbstractMethod() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.newabstractmethod.AbstractClass")
+        val classNode = parsedDex.classDeployItems[0].classNode
+        val addedMethods = classNode.methods + MethodNode(
+            classNode.className,
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_ABSTRACT,
+            "newAbstractMethod3",
+            "()V",
+        )
+        val removeMethodParsedDex = parsedDex.updateMethods(addedMethods)
+        val effectedSources = listOf("ImplClass2.java")
+
+        var data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+        generator.commitDeployedData(data)
+
+        val fullParsedDex = parsedApk.toParsedDex
+        data = generator.buildDeployData(fullParsedDex, emptyList())
+        generator.commitDeployedData(data)
+
+        data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+    }
+
+    private fun getParsedDex(className: String): ParsedDex {
         val classNode = parsedApk.classes[className.classSigName]!!
         val deployItem = DeployItem(className, CompileOutput.Type.Dex, 0, byteArrayOf())
         return ParsedDex(
@@ -182,6 +211,7 @@ class DeployDataGeneratorTest {
             ClassNode(
                 oldClassNode.classNode.dexFileName,
                 oldClassNode.classNode.className,
+                oldClassNode.classNode.access,
                 methods,
                 oldClassNode.classNode.fields,
                 oldClassNode.classNode.interfaceNames,

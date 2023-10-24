@@ -3,6 +3,7 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
+import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
@@ -629,14 +630,20 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun getEffectedClassNodes(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
-        DriverManager.getConnection(url).use { connection ->
+    fun getEffectedClassNodes(
+        changedMethodRefs: List<MethodNode>,
+        changedFieldRefs: List<FieldNode>,
+        changedAbstractClasses: List<ClassNode>,
+    ): Map<String, List<String>> {
 
-            val dbClassNodeMap = mutableMapOf<String, Int>()
+        DriverManager.getConnection(url).use { connection ->
+            // step 1. build dbClassNodeMap to get classId
+            val dbClassNodeMap = mutableMapOf<String, Int>() // className -> classId map
             runWithTimeCost("doGetClassIds") {
                 val classNameList = mutableListOf<String>()
                 changedMethodRefs.forEach { classNameList.add(it.owner) }
                 changedFieldRefs.forEach { classNameList.add(it.owner) }
+                changedAbstractClasses.forEach { classNameList.add(it.className) }
                 val classNamesString = classNameList.joinToString(",") { "'$it'" }
 
                 val sql = "SELECT name, id FROM class_info WHERE name IN ($classNamesString);"
@@ -649,15 +656,14 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
             }
+            val refClassIds = mutableSetOf<Int>() // result of effected class ids
 
-            val refClassIds = mutableSetOf<Int>()
 
-            // changedMethodRefs and changedMethodRefs of subclasses
+            // step 2. get all subclasses of [changedMethodRefs] to supports invoke-virtual
             val changedMethodRefsWithSubclasses: MutableList<MethodNodeDb> = changedMethodRefs.mapNotNull {
                 val classId = dbClassNodeMap[it.owner] ?: return@mapNotNull null
                 MethodNodeDb(classId, it.name, it.desc)
-            }.toMutableList()
-
+            }.toMutableList() // classes and subclasses of [changedMethodRefs]
             runWithTimeCost("doGetSubClassIds") {
                 var currentSuperClassIds = changedMethodRefsWithSubclasses
                     .map { it.classId }
@@ -711,8 +717,9 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-
+            // step 3. get all ref class ids of [changedMethodRefsWithSubclasses] and [changedFieldRefs]
             runWithTimeCost("doGetRefClassIds") {
+                // get class ids by method refs
                 if (changedMethodRefsWithSubclasses.isNotEmpty()) {
                     val methodClassIdsString = changedMethodRefsWithSubclasses.joinToString(" OR ") {
                         "(class_id=${it.classId} AND name='${it.name}' AND desc='${it.desc}')"
@@ -727,6 +734,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
 
+                // get class ids by field refs
                 val fieldClassIds = changedFieldRefs.filter {
                     dbClassNodeMap.containsKey(it.owner)
                 }
@@ -744,10 +752,47 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
             }
+
+            // step 4. get all non-abstract subclasses of [changedAbstractClasses]
+            runWithTimeCost("doGetAbstractSubClassIds") {
+                var currentSuperClassIds: List<Int> = changedAbstractClasses.mapNotNull { dbClassNodeMap[it.className] }
+                while (currentSuperClassIds.isNotEmpty()) {
+                    val superClassIdsString = currentSuperClassIds.joinToString(",") {
+                        "$it"
+                    }
+                    val getSubclassesSql = "SELECT ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
+                    val newSubclassIds = mutableListOf<Int>()
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQuery(getSubclassesSql)
+                        while (resultSet.next()) {
+                            val refClassId = resultSet.getInt(1)
+                            newSubclassIds.add(refClassId)
+                        }
+                    }
+
+                    val newSubclassIdsString = newSubclassIds.joinToString(",")
+                    val getAccessClassIds = "SELECT id, access FROM class_info WHERE id IN ($newSubclassIdsString);"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQuery(getAccessClassIds)
+                        while (resultSet.next()) {
+                            val id = resultSet.getInt(1)
+                            val access = resultSet.getInt(2)
+                            val isAbstract = access and DexConstants.ACC_ABSTRACT != 0
+                            if (!isAbstract) {
+                                refClassIds.add(id)
+                                newSubclassIds.remove(id)
+                            }
+                        }
+                    }
+
+                    currentSuperClassIds = newSubclassIds
+                }
+            }
+
+            // step 5. get all effected class nodes by [refClassIds]
             if (refClassIds.isEmpty()) {
                 return emptyMap()
             }
-
             val effectedClassNodes = mutableMapOf<String, MutableList<String>>()
             runWithTimeCost("doGetClassNodes") {
                 val refClassIdsString = refClassIds.joinToString(",")

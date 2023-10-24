@@ -45,6 +45,7 @@ class DeployDataGenerator(
         val hotFixModifiedClasses = mutableListOf<ClassDeployItem>()
         val changedMethodRef = mutableListOf<MethodNode>()
         val changedFieldRef = mutableListOf<FieldNode>()
+        val changedAbstractClasses = mutableListOf<ClassNode>()
         changedClasses.forEach {
             val className = it.sigName
             val oldClassNode: ClassNode? = oldClassNodes[className]
@@ -70,6 +71,9 @@ class DeployDataGenerator(
             // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
             changedMethodRef.addAll(result.effectMethods)
             changedFieldRef.addAll(result.deletedFields)
+            if (result.isAddedAbstractMethodForNonAbstractClass) {
+                changedAbstractClasses.add(newClassNode)
+            }
         }
 
         var overlays = changedOverlays
@@ -84,7 +88,7 @@ class DeployDataGenerator(
         }
 
         val includeClassNames = changedClasses.map { it.sigName }.toSet()
-        val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(includeClassNames, changedMethodRef, changedFieldRef)
+        val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(includeClassNames, changedMethodRef, changedFieldRef, changedAbstractClasses)
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }

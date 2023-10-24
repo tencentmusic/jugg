@@ -40,6 +40,7 @@ interface IDeployDataDatabase {
     fun getEffectedSourceAndClass(includeClassNames: Set<String>,
                                   changedMethodRefs: List<MethodNode>,
                                   changedFieldRefs: List<FieldNode>,
+                                  changedAbstractClasses: List<ClassNode>,
                                   ): Map<String, List<String>>
 
     fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String>
@@ -173,19 +174,21 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun getEffectedSourceAndClass(includeClassNames: Set<String>,
-                                           changedMethodRefs: List<MethodNode>,
-                                           changedFieldRefs: List<FieldNode>,
+    override fun getEffectedSourceAndClass(
+        includeClassNames: Set<String>,
+        changedMethodRefs: List<MethodNode>,
+        changedFieldRefs: List<FieldNode>,
+        changedAbstractClasses: List<ClassNode>,
     ): Map<String, List<String>> {
-        if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty()) {
+        if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty() && changedAbstractClasses.isEmpty()) {
             return emptyMap()
         }
 
-        val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs)
+        val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
         val effectClassNodesMap = incrementalEffectClassNodes.toMutableMap()
         database.values.forEach { helper ->
             try {
-                val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs)
+                val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
                 apkEffectClassNodesMap.forEach addNode@{
                     // use incremental first
                     effectClassNodesMap.putIfAbsent(it.key, it.value)
@@ -295,7 +298,10 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         return deployedClasses.filterKeys { classNames.contains(it) }
     }
 
-    fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>, changedFieldRefs: List<FieldNode>): Map<String, List<String>> {
+    fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>,
+                                  changedFieldRefs: List<FieldNode>,
+                                  changedAbstractClasses: List<ClassNode>,
+    ): Map<String, List<String>> {
         val effectClassNodesMap = mutableMapOf<String, MutableList<String>>()
 
         // changedMethodRefs and changedMethodRefs of subclasses
@@ -344,6 +350,25 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
                     effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
                 }
             }
+        }
+
+        var toCheckChangedAbstractClasses = changedAbstractClasses.toMutableList()
+        while (toCheckChangedAbstractClasses.isNotEmpty()) {
+            val newToCheckChangedAbstractClasses = mutableListOf<ClassNode>()
+            toCheckChangedAbstractClasses.forEach { superClassNode ->
+                subclassRefs[superClassNode.className]?.forEach { subclassName ->
+                    deployedClasses[subclassName]?.let { subclassNode ->
+                        if (subclassNode.isAbstract) {
+                            newToCheckChangedAbstractClasses.add(subclassNode)
+                        } else {
+                            logger.debug("found effected source ${subclassNode.source} in class ${subclassNode.className}, ref class ${superClassNode.className}")
+                            effectClassNodesMap.getOrPut(subclassNode.source) { mutableListOf() }.add(subclassNode.className)
+                            newToCheckChangedAbstractClasses.add(subclassNode)
+                        }
+                    }
+                }
+            }
+            toCheckChangedAbstractClasses = newToCheckChangedAbstractClasses
         }
 
         return effectClassNodesMap
