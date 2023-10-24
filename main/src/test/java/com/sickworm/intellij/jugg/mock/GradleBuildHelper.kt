@@ -22,7 +22,10 @@ object GradleBuildHelper {
         println()
         println(String(process.errorStream.readBytes()))
         println("\n-----------  assembleDebug end  -----------\n")
-        process.waitFor()
+        val result = process.waitFor()
+        if (result != 0) {
+            throw IllegalStateException("assembleDebug failed, see log for details")
+        }
     }
 
 }
