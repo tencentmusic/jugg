@@ -80,8 +80,8 @@ class KotlinCompilerOutputParser(
                 logger.debug(message)
             }
             MessageType.ERROR -> {
-                logger.warn(message)
-                parseErrorMessage(message)
+                val parsedMessage = parseErrorMessage(message)
+                logger.warn(parsedMessage)
             }
             MessageType.OUTPUT -> {
                 logger.debug(message)
@@ -93,7 +93,7 @@ class KotlinCompilerOutputParser(
 
     private val errorRegex = Regex("(.*):(.*):(.*): error: (.*)")
 
-    private fun parseErrorMessage(message: String) {
+    private fun parseErrorMessage(message: String): String {
         // e.g.
         // src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/ #soft wrap
         // testcase/CaseKtSmartCast.kt:9:26: error: smart cast to 'MutableList<String>' is impossible, #soft wrap
@@ -104,13 +104,16 @@ class KotlinCompilerOutputParser(
         val file = files.find { it.file.absolutePath.endsWith(filePath) }
         if (file == null) {
             logger.debug("failed to parse error message: $message")
-            return
+            return message
         }
 
         if (!innerErrors.containsKey(file)) {
             innerErrors[file] = mutableListOf()
         }
         innerErrors[file]?.add(line to message)
+
+        // replace to absolute path to make it clickable in IDE
+        return message.replace(filePath, file.file.absolutePath)
     }
 
     private fun parseOutputMessage(message: String) {
