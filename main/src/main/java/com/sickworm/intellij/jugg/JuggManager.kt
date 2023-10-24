@@ -91,7 +91,6 @@ class JuggManager @TestOnly constructor(
                 if (isSuccess) {
                     deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
                     juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
-                    warmUpCompile(false)
                 }
             }
 
