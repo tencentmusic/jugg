@@ -74,6 +74,11 @@ class JuggManager @TestOnly constructor(
 
     fun initProjectInfo(isNeedReloadProjectInfo: Boolean) {
         runTaskSafe("Init Project Info", {
+            if (isNeedReloadProjectInfo) {
+                // gradle sync finished, reset hasRun flag to avoid "No files changes" fallback
+                JuggRunningTask.resetHasRun(project)
+            }
+
             if (!deployStateManager.deployState.isReadyIncCompile) {
                 logger.debug("Deploy state is not ready inc compile")
                 recoverDeployContext(isNeedReloadProjectInfo)
