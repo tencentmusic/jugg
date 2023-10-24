@@ -193,6 +193,37 @@ class DeployDataGeneratorTest {
         assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
     }
 
+    /**
+     * Actually works same as [testEffectSourceByNewAbstractMethod]
+     */
+    @Test
+    fun testEffectSourceByNewInterfaceMethod() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.newinterfacemethod.Interface")
+        val classNode = parsedDex.classDeployItems[0].classNode
+        val addedMethods = classNode.methods + MethodNode(
+            classNode.className,
+            DexConstants.ACC_PUBLIC or DexConstants.ACC_ABSTRACT,
+            "fun4",
+            "()V",
+        )
+        val removeMethodParsedDex = parsedDex.updateMethods(addedMethods)
+        val effectedSources = listOf("ImplClass1.java", "ImplClass2.java")
+
+        var data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+        generator.commitDeployedData(data)
+
+        val fullParsedDex = parsedApk.toParsedDex
+        data = generator.buildDeployData(fullParsedDex, emptyList())
+        generator.commitDeployedData(data)
+
+        data = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+    }
+
     private fun getParsedDex(className: String): ParsedDex {
         val classNode = parsedApk.classes[className.classSigName]!!
         val deployItem = DeployItem(className, CompileOutput.Type.Dex, 0, byteArrayOf())
