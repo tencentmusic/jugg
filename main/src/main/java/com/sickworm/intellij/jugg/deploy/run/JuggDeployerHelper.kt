@@ -291,7 +291,7 @@ class JuggDeployerHelper(
         }
         val isDeviceDeployable = waitingForDeployable()
         if (!isDeviceDeployable) {
-            logger.warn("Dry deploy failed for app not launched.")
+            logger.info("Dry deploy failed for app not launched.")
             return false
         }
 
@@ -329,7 +329,7 @@ class JuggDeployerHelper(
             }
         }
 
-        logger.warn("App not launched, please check the app is started and adb is not occupied by other process")
+        logger.warn("App not launched, please check the app is started and debuggable, and adb is not occupied by other process")
         return false
     }
 
