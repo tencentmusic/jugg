@@ -216,7 +216,9 @@ class JuggDeployerHelper(
                             deploy(processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, startTime = startTime)
                         }
                     } else {
-                        logger.info("Deploy agent no response, but App is in foreground, try again.")
+                        val delaySeconds = 5
+                        logger.info("Deploy agent no response, but App is in foreground, try again after ${delaySeconds}s.")
+                        Thread.sleep(delaySeconds * 1000L)
                         juggReporter.report {
                             action = "incremental_deploy_retry"
                             detail = reason
