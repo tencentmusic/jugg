@@ -329,7 +329,7 @@ class JuggDeployerHelper(
             }
         }
 
-        logger.warn("App not launched, please check the app is started and debuggable, and adb is not occupied by other process")
+        logger.info("App not launched, please check the app is started and debuggable, and adb is not occupied by other process")
         return false
     }
 
