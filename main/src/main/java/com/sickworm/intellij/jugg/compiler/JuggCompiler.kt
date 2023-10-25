@@ -125,31 +125,34 @@ class JuggCompiler(
                 return@run CompileResult(
                     resourceCompileTask,
                     details = resourceResult.details,
-                    outputs = rJavaResultOutputs + overlays,
+                    outputs = overlays,
                 )
             }
             compileResult += finalResult
         }
 
         // build R.dex for all compiling module if needed
-        val rDexResult = rDexForSubmoduleCompiler.compile(
-            CompileTask(
-                files = rJavaResultOutputs.map {
-                    CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, context.tempModule)
-                } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
-                outputDir = classesOutputDir,
+        if (rJavaResultOutputs.isNotEmpty()) {
+            val rDexResult = rDexForSubmoduleCompiler.compile(
+                CompileTask(
+                    files = rJavaResultOutputs.map {
+                        CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, context.tempModule)
+                    } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
+                    outputDir = classesOutputDir,
+                )
             )
-        )
-        if (!rDexResult.isAllSuccess) {
-            return CompileResult(
-                task,
-                task.files.map {
-                    Result.failure(CompileError(it, listOf(0L to "compile R.dex failed")))
-                },
-                emptyList()
-            )
+            if (!rDexResult.isAllSuccess) {
+                return CompileResult(
+                    task,
+                    task.files.map {
+                        Result.failure(CompileError(it, listOf(0L to "compile R.dex failed")))
+                    },
+                    emptyList()
+                )
+            }
+            // we don't need to add R.dex to compile result, because R fields has been inlined
+//            compileResult += rDexResult.copy(task = task)
         }
-        compileResult += rDexResult.copy(task = task) // remove R.dex from compile files
 
         // compile source
         val sourceCompileTask = CompileTask(
