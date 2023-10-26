@@ -56,8 +56,6 @@ class DeployFileManager(
      */
     private val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)
 
-    private var crc32 = CRC32()
-
     private var moduleInfos: Map<String, ModuleInfo> = mutableMapOf()
 
     @Synchronized
@@ -176,23 +174,6 @@ class DeployFileManager(
     @Synchronized
     fun getDeployedFiles(): List<CompileOutput> {
         return deployedFiles.values.toList()
-    }
-
-    private fun CompileOutput.toDeployItem(): DeployItem {
-        val bytes = file.readBytes()
-        val crc = crc32.run {
-            reset()
-            update(bytes)
-            value
-        }
-        val name = if (type == CompileOutput.Type.Dex) {
-            relativeFile.stdPath
-                .replace('/', '.')
-                .replace(file.name, file.nameWithoutExtension)
-        } else {
-            relativeFile.stdPath
-        }
-        return DeployItem(name, type, crc, bytes)
     }
 
     @Synchronized
@@ -383,10 +364,30 @@ class DeployFileManager(
     }
 
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
-    private val File.stdPath get() = path.replace(File.separatorChar, '/')
 }
 
 class RecompileFiles(
     val effectedSourceFiles: List<File>,
     val redexClasses: List<ChangedFile>,
 )
+
+private val crc32 = CRC32()
+
+private val File.stdPath get() = path.replace(File.separatorChar, '/')
+
+fun CompileOutput.toDeployItem(): DeployItem {
+    val bytes = file.readBytes()
+    val crc = crc32.run {
+        reset()
+        update(bytes)
+        value
+    }
+    val name = if (type == CompileOutput.Type.Dex) {
+        relativeFile.stdPath
+            .replace('/', '.')
+            .replace(file.name, file.nameWithoutExtension)
+    } else {
+        relativeFile.stdPath
+    }
+    return DeployItem(name, type, crc, bytes)
+}

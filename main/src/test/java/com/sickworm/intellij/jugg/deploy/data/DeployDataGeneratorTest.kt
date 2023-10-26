@@ -1,18 +1,17 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.googlecode.d2j.DexConstants
-import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.source.KotlinCompiler
+import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.mock.buildDir
-import com.sickworm.intellij.jugg.mock.clearBuild
-import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sickworm.intellij.jugg.deploy.toDeployItem
+import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -222,6 +221,33 @@ class DeployDataGeneratorTest {
 
         data = generator.buildDeployData(removeMethodParsedDex, emptyList())
         assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
+    }
+
+    @Test
+    fun testEffectSourceByAddingKotlinDefaultParam() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/ktdefaultparam/ClassWithDefaultParam.kt"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    mockModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                )
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+        assertEquals(listOf("JavaInvoker.java", "KtInvoker.kt"), deployData.effectedSourceFileNames.sorted())
     }
 
     private fun getParsedDex(className: String): ParsedDex {
