@@ -123,6 +123,7 @@ class ResourceEntry {
   std::vector<std::unique_ptr<ResourceConfigValue>> values;
 
   explicit ResourceEntry(const android::StringPiece& name) : name(name.to_string()) {}
+  explicit ResourceEntry(const std::string nameArg) : name(nameArg) {}
 
   ResourceConfigValue* FindValue(const android::ConfigDescription& config);
 

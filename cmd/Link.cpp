@@ -730,22 +730,6 @@ static bool LoadStableIdMap(IDiagnostics* diag, const std::string& path,
   return true;
 }
 
-static android::ApkAssetsCookie FindFrameworkAssetManagerCookie(
-    const android::AssetManager2& assets) {
-  using namespace android;
-
-  // Find the system package (0x01). AAPT always generates attributes with the type 0x01, so
-  // we're looking for the first attribute resource in the system package.
-  Res_value val{};
-  ResTable_config config{};
-  uint32_t type_spec_flags;
-  ApkAssetsCookie idx = assets.GetResource(0x01010000, true /** may_be_bag */,
-                                           0 /** density_override */, &val, &config,
-                                           &type_spec_flags);
-
-  return idx;
-}
-
 class Linker {
  public:
   Linker(LinkContext* context, const LinkOptions& options)
@@ -758,8 +742,12 @@ class Linker {
   void ExtractCompileSdkVersions(android::AssetManager2* assets) {
     using namespace android;
 
-    android::ApkAssetsCookie cookie = FindFrameworkAssetManagerCookie(*assets);
-    if (cookie == android::kInvalidCookie) {
+    // Find the system package (0x01). AAPT always generates attributes with the type 0x01, so
+    // we're looking for the first attribute resource in the system package.
+    android::ApkAssetsCookie cookie;
+    if (auto value = assets->GetResource(0x01010000, true /** may_be_bag */); value.has_value()) {
+      cookie = value->cookie;
+    } else {
       // No Framework assets loaded. Not a failure.
       return;
     }
@@ -1272,7 +1260,8 @@ class Linker {
       return false;
     }
 
-    ClassDefinition::WriteJavaFile(manifest_class.get(), package_utf8, true, &fout);
+    ClassDefinition::WriteJavaFile(manifest_class.get(), package_utf8, true,
+                                   false /* strip_api_annotations */, &fout);
     fout.Flush();
 
     if (fout.HadError()) {
@@ -2334,11 +2323,15 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
   }
 
   // Populate some default no-compress extensions that are already compressed.
-  options_.extensions_to_not_compress.insert(
-      {".jpg",   ".jpeg", ".png",  ".gif", ".wav",  ".mp2",  ".mp3",  ".ogg",
-          ".aac",   ".mpg",  ".mpeg", ".mid", ".midi", ".smf",  ".jet",  ".rtttl",
-          ".imy",   ".xmf",  ".mp4",  ".m4a", ".m4v",  ".3gp",  ".3gpp", ".3g2",
-          ".3gpp2", ".amr",  ".awb",  ".wma", ".wmv",  ".webm", ".mkv"});
+  options_.extensions_to_not_compress.insert({
+      // Image extensions
+      ".jpg", ".jpeg", ".png", ".gif", ".webp",
+      // Audio extensions
+      ".wav", ".mp2", ".mp3", ".ogg", ".aac", ".mid", ".midi", ".smf", ".jet", ".rtttl", ".imy",
+      ".xmf", ".amr", ".awb",
+      // Audio/video extensions
+      ".mpg", ".mpeg", ".mp4", ".m4a", ".m4v", ".3gp", ".3gpp", ".3g2", ".3gpp2", ".wma", ".wmv",
+      ".webm", ".mkv"});
 
   // Turn off auto versioning for static-libs.
   if (context.GetPackageType() == PackageType::kStaticLib) {
