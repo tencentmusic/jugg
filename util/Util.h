@@ -303,8 +303,6 @@ inline ::std::ostream& operator<<(::std::ostream& out,
   return f(out);
 }
 
-void PrintStackTrace();
-
 }  // namespace aapt
 
 #endif  // AAPT_UTIL_H

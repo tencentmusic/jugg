@@ -31,9 +31,6 @@
 #include "util/Maybe.h"
 #include "utils/Unicode.h"
 
-#include <regex>
-#include <execinfo.h>
-
 using ::aapt::text::Utf8Iterator;
 using ::android::StringPiece;
 using ::android::StringPiece16;
@@ -548,24 +545,5 @@ std::string GetString(const android::ResStringPool& pool, size_t idx) {
 }
 
 }  // namespace util
-
-void PrintStackTrace() {
-  void *bt[128]; 
-  char **strings; 
-  size_t nptrs;
-  nptrs = backtrace(bt, 128); 
-  strings = backtrace_symbols(bt, nptrs); 
-
-  for(int i = 1; i < nptrs - 1; ++i) {
-      std::string str = std::string(strings[i]);
-      std::smatch result;
-      std::regex pattern("(\\d+) +\\w+ +\\w+ [_a-zA-Z]+\\d+[_a-zA-Z]+\\d+(_GLOBAL__N_\\d+)?([_a-zA-Z]+)\\d+(.*?)(EP|ER).*");
-      if (regex_match(str, result, pattern)) {
-        std::cout << result[1] << " " << result[3] << " -> " << result[4] << "()" << std::endl;
-      } else {
-        printf("%s\n", strings[i]);
-      }
-  }
-}
 
 }  // namespace aapt
