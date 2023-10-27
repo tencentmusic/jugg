@@ -308,7 +308,9 @@ class JuggDeployerHelper(
                 val isAppForeground = deployTargetManager.isAppForeground()
                 logger.debug("got MISSING_AGENT_RESPONSES, canRetry: $canRetry, isAppForeground: $isAppForeground")
                 if (canRetry && isAppForeground) {
-                    logger.info("Deploy agent no response, but App is in foreground, try dry deploy again.")
+                    val delaySeconds = 5
+                    Thread.sleep(delaySeconds * 1000L)
+                    logger.info("Deploy agent no response, but App is in foreground, try dry deploy again after ${delaySeconds}s.")
                     return tryDryDeploy(canRetry = false, needStartApp = false)
                 }
             }
