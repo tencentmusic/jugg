@@ -63,7 +63,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 426, isRJavaChanged = false)
+        checkArscResult(task, result, 427, isRJavaChanged = false)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
