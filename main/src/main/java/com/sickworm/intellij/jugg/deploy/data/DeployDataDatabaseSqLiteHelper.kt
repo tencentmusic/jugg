@@ -13,6 +13,7 @@ import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
+import java.sql.Statement
 import kotlin.math.max
 
 
@@ -47,7 +48,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         DriverManager.getConnection(url).use { connection ->
             val readVersionSQL = "PRAGMA schema_version;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(readVersionSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(readVersionSQL)
                 if (resultSet.next()) {
                     val version = resultSet.getInt(1)
                     logger.debug("Current database version: ${if (version == 0) "not set" else "$version"}")
@@ -154,7 +155,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         runWithTimeCost("doInsertApkInfo") {
             val querySql = "SELECT next_class_id FROM apk_info;"
             connection.createStatement().use { preparedStatement ->
-                val resultSet: ResultSet = preparedStatement.executeQuery(querySql)
+                val resultSet: ResultSet = preparedStatement.executeQueryAndLog(querySql)
                 while (resultSet.next()) {
                     nextClassId = max(nextClassId, resultSet.getInt(1))
                 }
@@ -244,7 +245,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 "SELECT name, entry_info_name, id FROM class_info WHERE (entry_info_name IN ($deleteDexNamesString)) OR (name IN ($refClassNamesString));"
             }
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
                     val entryName = resultSet.getString(2)
@@ -409,7 +410,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val apkInfoKeys = mutableListOf<String>()
             val selectApkSQL = "SELECT * FROM apk_info;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectApkSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectApkSQL)
                 while (resultSet.next()) {
                     val key = resultSet.getString("key")
                     apkInfoKeys.add(key)
@@ -424,7 +425,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val dbDexFiles = mutableMapOf<String, JuggFileInfo>()
             val dbOverlayFiles = mutableMapOf<String, JuggFileInfo>()
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectEntrySQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectEntrySQL)
                 while (resultSet.next()) {
                     val name = resultSet.getString("name")
                     val checksum = resultSet.getLong("checksum")
@@ -501,7 +502,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             val selectSQL = "SELECT name, checksum, type FROM entry_info;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectSQL)
                 while (resultSet.next()) {
                     val fileName = resultSet.getString(1)
                     val checksum = resultSet.getLong(2)
@@ -518,7 +519,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val classes = mutableMapOf<String, ClassNode>()
             val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields, id FROM class_info;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
                     val interfaceNames = resultSet.getString(2).toInterfaceList()
@@ -538,7 +539,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val methodRefs = mutableMapOf<MethodNode, MutableList<String>>()
             val selectMethodRefSQL = "SELECT * FROM method_refs;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectMethodRefSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectMethodRefSQL)
                 while (resultSet.next()) {
                     val classId = resultSet.getInt(1)
                     val methodName = resultSet.getString(2)
@@ -554,7 +555,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val fieldRefs = mutableMapOf<FieldNode, MutableList<String>>()
             val selectFieldRefSQL = "SELECT * FROM field_refs;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectFieldRefSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectFieldRefSQL)
                 while (resultSet.next()) {
                     val classId = resultSet.getInt(1)
                     val fieldName = resultSet.getString(2)
@@ -570,7 +571,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val subclassRefs = mutableMapOf<String, MutableList<String>>()
             val selectSubclassRefSQL = "SELECT * FROM subclass_refs;"
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectSubclassRefSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectSubclassRefSQL)
                 while (resultSet.next()) {
                     val classId = resultSet.getInt(1)
                     val refClassId = resultSet.getInt(2)
@@ -590,7 +591,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         val resInfos = mutableListOf<JuggFileInfo>()
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectSQL)
                 while (resultSet.next()) {
                     val resInfo = JuggFileInfo(
                         resultSet.getString(1),
@@ -610,7 +611,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val classNamesString = classNames.joinToString(",") { "'$it'" }
                 val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields FROM class_info WHERE name IN ($classNamesString);"
                 val classes = mutableMapOf<String, ClassNode>()
-                val resultSet: ResultSet = statement.executeQuery(selectClassSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
                 while (resultSet.next()) {
                     val className = resultSet.getString(1)
                     val interfaceNames = resultSet.getString(2).toInterfaceList()
@@ -648,7 +649,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
                 val sql = "SELECT name, id FROM class_info WHERE name IN ($classNamesString);"
                 connection.createStatement().use { statement ->
-                    val resultSet: ResultSet = statement.executeQuery(sql)
+                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                     while (resultSet.next()) {
                         val className = resultSet.getString(1)
                         val classId = resultSet.getInt(2)
@@ -676,7 +677,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val sql = "SELECT class_id, ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
                     val newSubclassMethodNode = mutableListOf<MethodNodeDb>()
                     connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQuery(sql)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                         while (resultSet.next()) {
                             val classId = resultSet.getInt(1)
                             val refClassId = resultSet.getInt(2)
@@ -691,11 +692,14 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         }
                     }
 
+                    if (newSubclassMethodNode.isEmpty()) {
+                        break
+                    }
                     val newSubclassIdsString = newSubclassMethodNode.map { it.classId }
                         .toSet().joinToString(",")
                     val sql2 = "SELECT id, name, methods FROM class_info WHERE id IN ($newSubclassIdsString);"
                     connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQuery(sql2)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql2)
                         while (resultSet.next()) {
                             val classId = resultSet.getInt(1)
                             val className = resultSet.getString(2)
@@ -726,7 +730,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                     val sql = "SELECT ref_class_id FROM method_refs WHERE $methodClassIdsString;"
                     connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQuery(sql)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                         while (resultSet.next()) {
                             val classId = resultSet.getInt(1)
                             refClassIds.add(classId)
@@ -744,7 +748,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                     val sql2 = "SELECT ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
                     connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQuery(sql2)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql2)
                         while (resultSet.next()) {
                             val classId = resultSet.getInt(1)
                             refClassIds.add(classId)
@@ -763,7 +767,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val getSubclassesSql = "SELECT ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
                     val newSubclassIds = mutableListOf<Int>()
                     connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQuery(getSubclassesSql)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(getSubclassesSql)
                         while (resultSet.next()) {
                             val refClassId = resultSet.getInt(1)
                             newSubclassIds.add(refClassId)
@@ -773,7 +777,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val newSubclassIdsString = newSubclassIds.joinToString(",")
                     val getAccessClassIds = "SELECT id, access FROM class_info WHERE id IN ($newSubclassIdsString);"
                     connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQuery(getAccessClassIds)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(getAccessClassIds)
                         while (resultSet.next()) {
                             val id = resultSet.getInt(1)
                             val access = resultSet.getInt(2)
@@ -798,7 +802,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val refClassIdsString = refClassIds.joinToString(",")
                 val sql = "SELECT name, source FROM class_info WHERE id IN ($refClassIdsString);"
                 connection.createStatement().use { statement ->
-                    val resultSet: ResultSet = statement.executeQuery(sql)
+                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                     while (resultSet.next()) {
                         val className = resultSet.getString(1)
                         val source = resultSet.getString(2)
@@ -834,7 +838,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         val defaultInterfaces = toCheckInterfaces.map { it.desugarDefaultInterfaceName }
                         val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
                         val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
-                        val resultSet: ResultSet = statement.executeQuery(sql)
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                         while (resultSet.next()) {
                             val name = resultSet.getString(1)
                             val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
@@ -846,7 +850,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         val toCheckInterfacesString = toCheckInterfaces.joinToString(",") { "'$it'" }
                         val sql2 = "SELECT super_name, interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
                         val newToCheckInterfaces = mutableSetOf<String>()
-                        val resultSet2: ResultSet = statement.executeQuery(sql2)
+                        val resultSet2: ResultSet = statement.executeQueryAndLog(sql2)
                         while (resultSet2.next()) {
                             val superClassName = resultSet.getString(1)
                             val superInterfaceNames = resultSet.getString(2).toInterfaceList()
@@ -870,7 +874,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         val keys = mutableListOf<String>()
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectSQL)
                 while (resultSet.next()) {
                     val key = resultSet.getString("key")
                     keys.add(key)
@@ -885,7 +889,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         val selectSQL = "SELECT COUNT(*) FROM $tableName;"
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQuery(selectSQL)
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectSQL)
                 while (resultSet.next()) {
                     return resultSet.getInt(1)
                 }
@@ -957,6 +961,11 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         return joinToString("\n") {
             "${it.access} ${it.name} ${it.type}"
         }
+    }
+    
+    private fun Statement.executeQueryAndLog(sql: String): ResultSet {
+        logger.debug("executeQuery: $sql")
+        return executeQuery(sql)
     }
 }
 
