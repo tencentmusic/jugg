@@ -23,7 +23,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 4
+        private const val VERSION = 5
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -276,7 +276,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 preparedStatement.executeBatch()
             }
 
-            val deleteMethodRefSql = "DELETE FROM method_refs WHERE class_id=? OR ref_class_id=?;"
+            val deleteMethodRefSql = "DELETE FROM method_refs WHERE ref_class_id=?;"
             connection.prepareStatement(deleteMethodRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
@@ -286,7 +286,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 preparedStatement.executeBatch()
             }
 
-            val deleteFieldRefSql = "DELETE FROM field_refs WHERE class_id=? OR ref_class_id=?;"
+            val deleteFieldRefSql = "DELETE FROM field_refs WHERE ref_class_id=?;"
             connection.prepareStatement(deleteFieldRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
@@ -296,7 +296,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 preparedStatement.executeBatch()
             }
 
-            val deleteSubclassRefSql = "DELETE FROM subclass_refs WHERE class_id=? OR ref_class_id=?;"
+            val deleteSubclassRefSql = "DELETE FROM subclass_refs WHERE ref_class_id=?;"
             connection.prepareStatement(deleteSubclassRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
