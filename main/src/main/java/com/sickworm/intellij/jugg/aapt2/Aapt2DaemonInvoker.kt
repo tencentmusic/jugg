@@ -4,6 +4,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.compiler.copyResource
 import com.sickworm.intellij.jugg.compiler.isMac
+import com.sickworm.intellij.jugg.compiler.isLinux
+import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.project.JuggException
 import java.io.*
 import java.util.*
 
@@ -126,10 +129,16 @@ class Aapt2DaemonInvoker(
 
     companion object {
         fun getEmbeddedAapt2(): File {
-            if (!isMac) {
-                throw IllegalStateException("aapt2-inclink not support windows nor linux yet")
+            val version = "2.19.7"
+            return if (isMac) {
+                copyResource("/tools/darwin/aapt2-inclink-$version")
+            } else if (isLinux) {
+                copyResource("/tools/linux/aapt2-inclink-$version")
+            } else if (isWindows) {
+                copyResource("/tools/windows/aapt2-inclink-$version.exe")
+            } else {
+                throw JuggException.unsupportedOs()
             }
-            return copyResource("/tools/darwin/aapt2-inclink-2.19.7")
         }
     }
 }

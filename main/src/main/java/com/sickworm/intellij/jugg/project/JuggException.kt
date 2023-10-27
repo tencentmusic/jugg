@@ -47,6 +47,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun runConfigInvalid(details: String) =
             JuggException("Run configuration is invalid. $details. Please check your run configuration.")
+
+        fun unsupportedOs() =
+            JuggException("Unsupported OS, currently only support Windows, Linux and Mac.")
     }
 }
 
