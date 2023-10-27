@@ -318,7 +318,7 @@ class JuggDeployerHelper(
     }
 
     private fun waitingForDeployable(): Boolean {
-        val maxWaitTimeSecond = 5
+        val maxWaitTimeSecond = 3
         var waitedTimeSecond = 0
         val waitGapMillSecond = 1
         while (waitedTimeSecond < maxWaitTimeSecond) {
