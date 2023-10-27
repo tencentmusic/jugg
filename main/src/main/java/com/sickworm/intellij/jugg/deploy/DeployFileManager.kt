@@ -163,7 +163,7 @@ class DeployFileManager(
     @Synchronized
     fun getDeployData(isWarmUp: Boolean = false, isFallbackAllHotFix: Boolean = false): JuggDeployData {
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
-        val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp)
+        val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
         return if (isFallbackAllHotFix) {
             deployData.copy(hotFixModifiedClasses = deployData.hotFixModifiedClasses + deployData.hotReloadModifiedClasses, hotReloadModifiedClasses = emptyList())
         } else {
@@ -236,7 +236,7 @@ class DeployFileManager(
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
-        val juggDeployData = deployDataGenerator.buildDeployData(deployItems)
+        val juggDeployData = deployDataGenerator.buildDeployData(deployItems, isNeedCheckRecompile = true)
 
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(

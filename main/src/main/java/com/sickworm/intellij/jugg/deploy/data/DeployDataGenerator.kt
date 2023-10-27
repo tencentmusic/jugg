@@ -27,15 +27,19 @@ class DeployDataGenerator(
     /**
      * Build [JuggDeployData] according to deployment history.
      */
-    fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean = false): JuggDeployData {
+    fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean = false, isNeedCheckRecompile: Boolean = true): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
-        return buildDeployData(parsedDex, changedOverlays, isWarmUp)
+        return buildDeployData(parsedDex, changedOverlays, isWarmUp, isNeedCheckRecompile)
     }
 
     @TestOnly
-    fun buildDeployData(parsedDex: ParsedDex, changedOverlays: List<DeployItem>, isWarmUp: Boolean = false): JuggDeployData {
+    fun buildDeployData(parsedDex: ParsedDex,
+                        changedOverlays: List<DeployItem>,
+                        isWarmUp: Boolean = false,
+                        isNeedCheckRecompile: Boolean = true
+    ): JuggDeployData {
         val startTime = System.currentTimeMillis()
 
         val changedClasses = parsedDex.classDeployItems
@@ -88,11 +92,19 @@ class DeployDataGenerator(
         }
 
         val includeClassNames = changedClasses.map { it.sigName }.toSet()
-        val effectedSourceAndClassNodes = deployDataDatabase.getEffectedSourceAndClass(includeClassNames, changedMethodRef, changedFieldRef, changedAbstractClasses)
+        val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
+            deployDataDatabase.getEffectedSourceAndClass(includeClassNames, changedMethodRef, changedFieldRef, changedAbstractClasses)
+        } else {
+            emptyMap()
+        }
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }
-        val interfacesWithDesugaredDefaultMethod = deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(changedClasses.map { it.classNode })
+        val interfacesWithDesugaredDefaultMethod = if (isNeedCheckRecompile) {
+            deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(changedClasses.map { it.classNode })
+        } else {
+            emptyList()
+        }
         if (interfacesWithDesugaredDefaultMethod.isNotEmpty()) {
             logger.debug("interfaces with desugared default method: $interfacesWithDesugaredDefaultMethod")
         }
