@@ -71,24 +71,54 @@ class CompileContextManager(
         initCompileContext(isNeedReloadProjectInfo)
 
         this.compileContextInfo = compileContextInfo
-        val copyModules = compileContext.modules.map { (name, module) ->
+
+        val guessBuildPathBaseDir: File? = compileContext.modules.firstNotNullOfOrNull { (name, module) ->
+            val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name] ?: return@firstNotNullOfOrNull null
+            val relativePath = module.buildPathInfo.buildDir.relativeTo(module.buildPathInfo.projectRootDir)
+            if (newBuildPathInfo.buildDir.endsWith(relativePath)) {
+                return@firstNotNullOfOrNull File(newBuildPathInfo.buildDir.absolutePath.substringBefore(relativePath.absolutePath))
+            } else {
+                return@firstNotNullOfOrNull null
+            }
+        }
+
+        val copyModules: Map<String, ModuleInfo> = compileContext.modules.map { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
             if (newBuildPathInfo != null) {
-                name to module.copy(buildPathInfo = newBuildPathInfo)
+                return@map name to module.copy(buildPathInfo = newBuildPathInfo)
+            }
+
+            logger.info("build path of module($name) is missing, maybe module is synced after full build. " +
+                    "Try to guess build path by guessBuildPathBaseDir=$guessBuildPathBaseDir")
+            if (guessBuildPathBaseDir == null) {
+                logger.warn("guess build path guessBuildPathBaseDir not valid, use old build path: ${module.buildPathInfo}")
+                return@map name to module
+            }
+
+            val guessedBuildPathInfo = ModuleBuildPathInfo(
+                module.projectRootDir,
+                module.moduleRootDir.changeBaseDir(module.projectRootDir, guessBuildPathBaseDir),
+            )
+            if (guessedBuildPathInfo.buildDir.exists()) {
+                logger.info("guess build path success: ${guessedBuildPathInfo.buildDir}")
+                return@map name to module.copy(buildPathInfo = guessedBuildPathInfo)
             } else {
-                // module that without build path. e.g. root project
-                name to module
+                logger.warn("guess build path can't find build path for module $name, " +
+                        "tried: ${guessedBuildPathInfo.buildDir}, " +
+                        "use old build path: ${module.buildPathInfo}")
+                return@map name to module
             }
         }.toMap()
         compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
     private fun initCompileContext(isNeedReloadProjectInfo: Boolean) {
+        logger.debug("initCompileContext start")
         val costTime = measureTimeMillis {
             val modules = getAllModulesByModuleManager(isNeedReloadProjectInfo)
             initCompileContext(modules)
         }
-        logger.debug("initCompileContext cost ${costTime}ms")
+        logger.debug("initCompileContext finish, cost ${costTime}ms")
     }
 
     private fun initCompileContext(modules: Map<String, ModuleInfo>) {
