@@ -100,5 +100,8 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun notLoginYet() =
             JuggException("Not login yet. Please Login first")
 
+        fun findModuleCompileOrderFailed() =
+            JuggInternalException("Find module compile order failed, please report issues.")
+
     }
 }

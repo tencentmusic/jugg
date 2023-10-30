@@ -346,10 +346,23 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         return splitModuleAndCompile(task)
     }
 
+    private val moduleDependencies: List<ModuleInfo> by lazy {
+        val modules = context.modules.values.toMutableSet()
+        modules.add(context.tempModule)
+        ModuleCompileOrderUtils.getModuleCompileOrders(modules)
+    }
+
     private fun splitModuleAndCompile(task: CompileTask): CompileResult {
         // split by module
-        val fileGroups = task.files.groupBy { it.module }
-        val moduleCompileOrder = ModuleCompileOrderUtils.getModuleCompileOrders(fileGroups.keys)
+        val fileGroups: Map<ModuleInfo, List<CompileFile>> = task.files.groupBy { it.module }
+        val fileGroupNames = fileGroups.keys.map { it.name }.toSet()
+        val moduleCompileOrder = moduleDependencies.filter {
+            fileGroupNames.contains(it.name)
+        }
+        if (moduleCompileOrder.isEmpty() && fileGroups.isNotEmpty()) {
+            throw JuggInternalException.findModuleCompileOrderFailed()
+        }
+
         if (moduleCompileOrder.size > 1) {
             logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
         }
