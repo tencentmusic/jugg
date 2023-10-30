@@ -40,8 +40,8 @@ class GitManager(override val rootDir: File): IGitManager {
     override fun getUncommittedFiles(): List<File> {
         Git.open(rootDir).use { git ->
             val status = git.status().call()
-            val uncommittedFiles = status.untracked.toList() + status.modified.toList() + status.removed.toList()
-            return uncommittedFiles.map {
+            val uncommittedFiles = status.untracked.toList() + status.modified.toList() + status.removed.toList() + status.added.toList()
+            return uncommittedFiles.toSet().map {
                 File(rootDir, it)
             }
         }
