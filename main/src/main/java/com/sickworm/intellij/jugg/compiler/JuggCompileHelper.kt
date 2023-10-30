@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import org.jetbrains.annotations.TestOnly
@@ -76,7 +77,7 @@ class JuggCompilerHelper(
         if (!isForceInstall) {
             val loggerListener = IndicatorLoggerListener(indicator)
             JuggLogger.listenProjectLog(project, loggerListener)
-            var incrementalResult = incrementalCompile()
+            var incrementalResult = incrementalCompile(processHandler)
             JuggLogger.stopListenProjectLog(project, loggerListener)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
             juggReporter.report {
@@ -138,7 +139,7 @@ class JuggCompilerHelper(
     }
 
     @TestOnly
-    fun incrementalCompile(): CompileTaskResult {
+    fun incrementalCompile(processHandler: SimpleProcessHandler): CompileTaskResult {
         val deployState = deployStateManager.updateDeployState()
         logger.debug("Try incremental compile. Current state: $deployState")
 
@@ -154,7 +155,7 @@ class JuggCompilerHelper(
             }
         }
 
-        val compiler = juggCompiler?: run {
+        val compiler = juggCompiler ?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
             return CompileTaskResult.incrementalFailed(true, "Jugg compiler not init")
         }
@@ -169,6 +170,15 @@ class JuggCompilerHelper(
                 logger.info("No file changes. will fallback to gradle compile.")
                 return CompileTaskResult.incrementalFailed(true, "No file changes")
             }
+        }
+
+        return doIncrementalCompile(compiler, uncompiledFiles, processHandler)
+    }
+
+    private fun doIncrementalCompile(compiler: JuggCompiler, uncompiledFiles: List<ChangedFile>, processHandler: SimpleProcessHandler): CompileTaskResult {
+        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            logger.warn("Compile canceled.")
+            return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
         val compileFiles = uncompiledFiles.map {
@@ -222,11 +232,10 @@ class JuggCompilerHelper(
             if (redexClasses.isNotEmpty()) {
                 logger.info("Compile success, but found classes that need to be redexed, continue compile. Classes: ${redexClasses.map { it.file.name }}")
                 deployFileManager.addChangedFile(redexClasses)
-                return incrementalCompile()
             }
 
             if (deployFileManager.getUncompiledFiles().isNotEmpty()) {
-                return incrementalCompile()
+                return doIncrementalCompile(compiler, deployFileManager.getUncompiledFiles(), processHandler)
             }
         }
 

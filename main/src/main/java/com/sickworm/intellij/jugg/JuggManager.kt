@@ -240,7 +240,7 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun compileChanges() {
-        val result = juggCompilerHelper.incrementalCompile()
+        val result = juggCompilerHelper.incrementalCompile(SimpleProcessHandler())
         if (result.isSuccess && JuggSettings.deployOnSave) {
             deployAsync(false)
         }
