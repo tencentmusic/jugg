@@ -195,7 +195,10 @@ class CompileContextManager(
                 return@forEach
             }
 
-            if (module.name.endsWith(".test") || module.name.endsWith(".androidTest") || module.name.endsWith(".unitTest")) {
+            val stdModuleName = module.name.replace(Regex("~\\d+$"), "")
+            if (stdModuleName.endsWith(".test") ||
+                stdModuleName.endsWith(".androidTest") ||
+                stdModuleName.endsWith(".unitTest")) {
                 testModules.add(module.name)
                 return@forEach
             }
