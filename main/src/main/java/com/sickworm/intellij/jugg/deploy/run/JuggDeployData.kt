@@ -88,7 +88,7 @@ data class JuggDeployData(
             if (isFullRes) {
                 builder.append("    (total ${overlays.size} files)\n")
             } else {
-                builder.append(overlays.toLogString())
+                builder.append(overlays.toLogString(isFull))
                 builder.append("\n")
             }
         }
@@ -177,8 +177,14 @@ class ClassDeployItem(
     }
 }
 
-fun Collection<DeployItem>.toLogString(): String {
-    return joinToString(separator = "\n    ", prefix = "    ") { "${it.name}, checksum: ${it.checksum}" }
+fun Collection<DeployItem>.toLogString(isFull: Boolean): String {
+    return joinToString(separator = "\n    ", prefix = "    ") {
+        if (isFull) {
+            "${it.name}, checksum: ${it.checksum}"
+        } else {
+            it.name
+        }
+    }
 }
 
 fun Collection<ClassDeployItem>.toClassLogString(isFull: Boolean,
