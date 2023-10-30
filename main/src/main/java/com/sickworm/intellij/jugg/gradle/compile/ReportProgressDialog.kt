@@ -40,7 +40,7 @@ class ReportProgressDialog : DialogWrapper(true) {
     }
 
     override fun createActions(): Array<Action> {
-        setOKButtonText("Copy ID and Close")
+        setOKButtonText("Copy Issue ID and Close")
         return arrayOf(okAction)
     }
 
@@ -62,7 +62,7 @@ class ReportProgressDialog : DialogWrapper(true) {
             text
         }
         getButton(okAction)?.addActionListener {
-            saveTextToClipboard(copyText)
+            saveTextToClipboard("Jugg report ID: $copyText")
         }
 
         isOKActionEnabled = true
