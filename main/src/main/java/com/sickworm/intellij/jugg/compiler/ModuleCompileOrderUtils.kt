@@ -38,7 +38,7 @@ object ModuleCompileOrderUtils {
             dependencyMap.forEach { (moduleName, dependencies) ->
                 dependencies.remove(moduleInfo.name)
                 if (dependencies.isEmpty()) {
-                    compileOrder.add(moduleMap[moduleName]!!)
+                    queue.add(moduleMap[moduleName]!!)
                     removeKeys.add(moduleName)
                 }
             }

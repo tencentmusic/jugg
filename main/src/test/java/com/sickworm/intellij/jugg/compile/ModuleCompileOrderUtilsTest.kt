@@ -46,17 +46,17 @@ class ModuleCompileOrderUtilsTest {
     @Test
     fun testThreeDependModules() {
         var order = ModuleCompileOrderUtils.getModuleCompileOrders(setOf(module3, module1, module2))
-        assertModuleOrder(listOf(module1, module3, module2), order)
+        assertModuleOrder(listOf(module1, module2, module3), order)
         order = ModuleCompileOrderUtils.getModuleCompileOrders(setOf(module1, module2, module3))
-        assertModuleOrder(listOf(module1, module3, module2), order)
+        assertModuleOrder(listOf(module1, module2, module3), order)
     }
 
     @Test
     fun testThreeDependModulesWithNonExistsModule() {
         var order = ModuleCompileOrderUtils.getModuleCompileOrders(setOf(module3, module1, module4))
-        assertModuleOrder(listOf(module1, module3, module4), order)
+        assertModuleOrder(listOf(module1, module4, module3), order)
         order = ModuleCompileOrderUtils.getModuleCompileOrders(setOf(module1, module4, module3))
-        assertModuleOrder(listOf(module1, module3, module4), order)
+        assertModuleOrder(listOf(module1, module4, module3), order)
     }
 
     private fun assertModuleOrder(expected: List<ModuleInfo>, actual: List<ModuleInfo>) {
