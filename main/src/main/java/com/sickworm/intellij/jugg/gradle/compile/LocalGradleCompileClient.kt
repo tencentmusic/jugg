@@ -152,8 +152,8 @@ class LocalGradleCompileClient(
                         printToStream(line)
                     }
                     val output = command.getInput(line)
-                    logger.debug("output: $output")
                     if (output != null) {
+                        logger.debug("output: $output")
                         commander.println(output)
                         commander.flush()
                     }

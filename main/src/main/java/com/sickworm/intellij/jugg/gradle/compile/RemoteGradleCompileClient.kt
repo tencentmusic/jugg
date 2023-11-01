@@ -185,7 +185,6 @@ class RemoteGradleCompileClient(
                             result = interruptCode
                             break@whileRoot
                         }
-                        logger.debug("output: $output")
                         commander.println(output)
                         commander.flush()
                     } else {
@@ -199,6 +198,7 @@ class RemoteGradleCompileClient(
 
                 val output = command.getInput(line)
                 if (output != null) {
+                    logger.debug("output: $output")
                     commander.println(output)
                     commander.flush()
                 }
