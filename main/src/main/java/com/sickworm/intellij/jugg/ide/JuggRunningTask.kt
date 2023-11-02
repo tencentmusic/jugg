@@ -148,16 +148,18 @@ class JuggRunningTask(
             }
         }
 
-        notifyLaunched(compileTaskResult.isGradleCompile)
+        notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType)
 
         if (compileTaskResult.isGradleCompile) {
             initIncrementalCompileTask.invoke()
         }
     }
 
-    private fun notifyLaunched(isGradleCompile: Boolean) {
+    private fun notifyLaunched(isGradleCompile: Boolean, deployType: JuggDeployData.DeployType?) {
         val text = if (isGradleCompile) {
             "Launch succeeded"
+        } else if (deployType == JuggDeployData.DeployType.HOT_RELOAD) {
+            "Deploy changes succeeded (no need restart App)"
         } else {
             "Deploy changes succeeded"
         }
