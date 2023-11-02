@@ -14,8 +14,6 @@ class ApkReader(
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
-    private var apkResInfo: ApkResInfo? = null
-
     private var manifestCache : ManifestActivityInfo? = null
 
     /**
@@ -30,12 +28,13 @@ class ApkReader(
             return it
         }
 
-        val zipApkFile = ZipFile(apkFile)
-        val androidManifestEntry = zipApkFile.getEntry("AndroidManifest.xml")
-        val androidManifestInput = zipApkFile.getInputStream(androidManifestEntry)
-        val manifest = ManifestActivityInfo.parseBinaryFromStream(androidManifestInput)
-        manifestCache = manifest
-        return manifest
+        ZipFile(apkFile).use { zipApkFile ->
+            val androidManifestEntry = zipApkFile.getEntry("AndroidManifest.xml")
+            val androidManifestInput = zipApkFile.getInputStream(androidManifestEntry)
+            val manifest = ManifestActivityInfo.parseBinaryFromStream(androidManifestInput)
+            manifestCache = manifest
+            return manifest
+        }
     }
 
     fun getDefaultActivity(): String? {
