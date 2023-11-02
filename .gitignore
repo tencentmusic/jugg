@@ -16,4 +16,4 @@ local.properties
 /verification
 
 **/build/
-/src/test/assets/android/MyApplicationIntellij/.idea/workspace.xml
+/main/src/test/assets/android/MyApplicationIntellij/.idea/
