@@ -38,7 +38,7 @@ class FileLogger(
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
 
         private fun createPatternName(): String {
-            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date()) + ".log"
+            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date()) + ".log"
         }
 
         private fun createLogger(dir: File, patterName: String): Logger {
