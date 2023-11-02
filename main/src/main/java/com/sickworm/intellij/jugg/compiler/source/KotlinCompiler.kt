@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source
 import com.intellij.openapi.Disposable
 import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
@@ -27,10 +28,17 @@ class KotlinCompiler(
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = context.getModuleDependencies(module, task)
 
-        val analyzeResult = analyzeSource(task.files.map { it.file })
+        val analyzeResult = analyzeSource(task.files.map { it.file }, module)
         logger.debug("analyzeSource result: $analyzeResult")
 
         if (analyzeResult.isNeedKotlinAndroidExtensions) {
+            if (analyzeResult.rPackageName == null) {
+                logger.warn("found KotlinAndroidExtensions, but rPackageName is null, failed to proceed.")
+                val details: List<Result<CompileFile, CompileError>> = task.files.map {
+                    Result.failure(CompileError(it, listOf(0L to "rPackageName not found for KotlinAndroidExtensions")))
+                }
+                return CompileResult(task, details, emptyList())
+            }
             if (!hasFoundKotlinAndroidExtensions) {
                 val classLoader = this::class.java.classLoader
                 kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
@@ -45,7 +53,7 @@ class KotlinCompiler(
                 hasFoundKotlinAndroidExtensions = true
             }
             if (kotlinAndroidExtensionsPath == null) {
-                logger.warn("kotlinAndroidExtensionsPath not found in classpath, can not proceed kotlin android extensions.")
+                logger.warn("KotlinAndroidExtensions not found in classpath, can not proceed kotlin android extensions.")
                 val details: List<Result<CompileFile, CompileError>> = task.files.map {
                     Result.failure(CompileError(it, listOf(0L to "kotlinAndroidExtensionsPath not found in classpath")))
                 }
@@ -177,10 +185,9 @@ class KotlinCompiler(
         logger.debug("kotlin compile: kotlinc ${shortOptions.joinToString(" ")}")
     }
 
-    private fun analyzeSource(files: List<File>): KotlinSourceAnalyzeResult {
+    private fun analyzeSource(files: List<File>, module: ModuleInfo): KotlinSourceAnalyzeResult {
         val startTime = System.currentTimeMillis()
         var isNeedKotlinAndroidExtensions = false
-        var rPackageName = "null"
         files.forEach root@{ file ->
             file.readLines().forEach {
                 if (!it.startsWith("import")) {
@@ -190,15 +197,15 @@ class KotlinCompiler(
                     logger.debug("find kotlinx.android.synthetic in $file")
                     isNeedKotlinAndroidExtensions = true
                 }
-                if (it.endsWith(".R")) {
-                    val packageName = it.substringAfter("import ").substringBefore(".R")
-                    logger.debug("find R in $file, packageName: $packageName")
-                    rPackageName = packageName
-                }
-                if (isNeedKotlinAndroidExtensions && rPackageName != "null") {
+                if (isNeedKotlinAndroidExtensions) {
                     return@root
                 }
             }
+        }
+
+        var rPackageName: String? = null
+        if (isNeedKotlinAndroidExtensions && module.manifestFile != null) {
+            rPackageName = RPackageReader(module.manifestFile, logger).readPackageName()
         }
 
         val costTime = System.currentTimeMillis() - startTime
@@ -219,5 +226,5 @@ class KotlinCompiler(
 
 private data class KotlinSourceAnalyzeResult(
     val isNeedKotlinAndroidExtensions: Boolean,
-    val rPackageName: String,
+    val rPackageName: String?,
 )
