@@ -1,9 +1,7 @@
 package com.sickworm.intellij.jugg.aapt2
 
-import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
-import com.sickworm.intellij.jugg.apk.DefaultApkActivityLocator
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
@@ -27,6 +25,7 @@ class ApkReaderTest {
         assertEquals("", result.errorOutput)
         assertTrue(result.output.isNotEmpty())
         assertTrue(result.isSuccess)
+        reader.release()
     }
 
     @Test
@@ -46,6 +45,7 @@ class ApkReaderTest {
         assertEquals("", result.errorOutput)
         assertTrue(result.output.isNotEmpty())
         assertTrue(result.isSuccess)
+        reader.release()
     }
 
     @Test

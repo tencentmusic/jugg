@@ -13,6 +13,10 @@ object GradleBuildHelper {
         println()
         println(String(process.errorStream.readBytes()))
         println("\n-----------  clean end  -----------\n")
+        val result = process.waitFor()
+        if (result != 0) {
+            throw IllegalStateException("clean failed, see log for details")
+        }
     }
 
     fun appAssembleDebug() {
