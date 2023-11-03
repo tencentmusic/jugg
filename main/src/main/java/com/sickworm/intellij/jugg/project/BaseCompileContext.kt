@@ -181,15 +181,15 @@ data class BaseCompileContext(
 
     private fun getLatestVersion(versions: List<String?>?): String? {
         versions?: return null
-        var suggestedVersion: String? = versions.firstOrNull()
+        var latestVersion: String? = null
         versions.forEach {
             if (it == null) return@forEach
             if (!it.matches("[.0-9]+".toRegex())) return@forEach
-            if (it.isLargerThan(suggestedVersion)) {
-                suggestedVersion = it
+            if (it.isLargerThan(latestVersion)) {
+                latestVersion = it
             }
         }
-        return suggestedVersion
+        return latestVersion
     }
 
     private fun String.isLargerThan(version: String?): Boolean {
@@ -199,9 +199,9 @@ data class BaseCompileContext(
         val size = kotlin.math.min(myVersions.size, otherVersions.size)
         for (i in 0 until size) {
             val compareResult = myVersions[i].compareTo(otherVersions[i])
-            if (compareResult == 1) return true
-            if (compareResult == -1) return false
+            if (compareResult == 0) continue
+            return compareResult > 0
         }
-        return myVersions.size < otherVersions.size
+        return myVersions.size > otherVersions.size
     }
 }
