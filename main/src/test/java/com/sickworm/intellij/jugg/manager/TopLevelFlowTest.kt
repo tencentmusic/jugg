@@ -1,14 +1,13 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.deploy.JuggDeployState
+import com.sickworm.intellij.jugg.mock.RequiresDevice
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 import kotlin.test.assertEquals
 
-/**
- * Need an Android device for this test.
- */
+@RequiresDevice
 class TopLevelFlowTest {
 
     companion object {
