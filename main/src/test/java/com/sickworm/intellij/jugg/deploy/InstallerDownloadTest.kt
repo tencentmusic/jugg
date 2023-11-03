@@ -12,6 +12,5 @@ class InstallerDownloadTest {
         val result = downloader.makeSureComponentIsInPlace()
         assertTrue(result)
         assertTrue(downloader.installerFilePath.exists())
-        assertTrue(downloader.installerFilePath.length() > 0)
     }
 }

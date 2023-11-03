@@ -281,7 +281,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             connection.prepareStatement(deleteMethodRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
-                    preparedStatement.setInt(2, it)
                     preparedStatement.addBatch()
                 }
                 preparedStatement.executeBatch()
@@ -291,7 +290,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             connection.prepareStatement(deleteFieldRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
-                    preparedStatement.setInt(2, it)
                     preparedStatement.addBatch()
                 }
                 preparedStatement.executeBatch()
@@ -301,7 +299,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             connection.prepareStatement(deleteSubclassRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
-                    preparedStatement.setInt(2, it)
                     preparedStatement.addBatch()
                 }
                 preparedStatement.executeBatch()

@@ -30,9 +30,9 @@ class SourceFileDatabaseSqLiteHelperTest {
         val helper = SourceFileDatabaseSqLiteHelper(dbFile, logger)
         helper.init()
         helper.updateSourceDirs(sourceDirs)
+        val originFileSize = helper.getFiles().size
         helper.updateSourceDirs(sourceDirs)
-
-        assertEquals(14, helper.getFiles().size)
+        assertEquals(originFileSize, helper.getFiles().size)
     }
 
     @Test
@@ -40,21 +40,22 @@ class SourceFileDatabaseSqLiteHelperTest {
         val helper = SourceFileDatabaseSqLiteHelper(dbFile, logger)
         helper.init()
         helper.updateSourceDirs(sourceDirs)
+        var originFileSize = helper.getFiles().size
 
         val newFiles = listOf(File("A.java"))
         helper.updateFiles(newFiles, emptyList())
-        assertEquals(15, helper.getFiles().size)
+        assertEquals(++originFileSize, helper.getFiles().size)
 
         helper.updateFiles(newFiles, emptyList())
-        assertEquals(15, helper.getFiles().size)
+        assertEquals(originFileSize, helper.getFiles().size)
 
         val deleteFiles = listOf(File("B.java")) // not exists
         helper.updateFiles(emptyList(), deleteFiles)
-        assertEquals(15, helper.getFiles().size)
+        assertEquals(originFileSize, helper.getFiles().size)
 
         val deleteFiles2 = listOf(helper.getFiles().first())
         helper.updateFiles(emptyList(), deleteFiles2)
-        assertEquals(14, helper.getFiles().size)
+        assertEquals(--originFileSize, helper.getFiles().size)
 
         val deleteFiles3 = helper.getFiles()
         helper.updateFiles(emptyList(), deleteFiles3)

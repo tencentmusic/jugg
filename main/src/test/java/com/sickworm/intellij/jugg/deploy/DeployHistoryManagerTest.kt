@@ -135,7 +135,7 @@ class DeployHistoryManagerTest {
             it.createNewFile()
             CompileOutput(CompileOutput.Type.Res, it, buildDir)
         }
-        val storageFile2 = File(storageDir, "compile_context.db/deployed/overlays/drawable/B.xml")
+        val storageFile2 = File(storageDir, "compile_context.db/deployed/res/drawable/B.xml")
         assertFalse(storageFile2.exists())
         historyManager.updateHistoryOnAfterDeployed(emptyList(), listOf(deployedFile2))
         val recoverInfoNew2 = historyManager.tryGetContextRecoverInfoFromDb()
