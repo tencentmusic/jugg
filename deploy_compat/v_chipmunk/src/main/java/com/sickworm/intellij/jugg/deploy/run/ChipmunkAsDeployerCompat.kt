@@ -75,7 +75,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
         // find the first available devices
         // TODO more elegant
-        ModuleManager.getInstance(project).modules.forEach { module ->
+        getModuleManager(project).modules.forEach { module ->
             val facet = AndroidFacet.getInstance(module) ?: return@forEach
             val deviceFutures = deployTarget.getDevices(facet) ?: return@forEach
 

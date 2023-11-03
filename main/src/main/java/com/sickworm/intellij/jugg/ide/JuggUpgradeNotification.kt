@@ -9,7 +9,6 @@ import com.intellij.openapi.project.Project
 class JuggUpgradeNotification(private val project: Project) {
 
     fun show(downloadUrl: String) {
-        @Suppress("MissingRecentApi")
         val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup("Jugg Notification Group")
             .createNotification(

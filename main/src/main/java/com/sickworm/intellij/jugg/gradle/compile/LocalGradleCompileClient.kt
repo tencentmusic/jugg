@@ -7,6 +7,7 @@ import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -34,8 +35,7 @@ class LocalGradleCompileClient(
         val javaHome = System.getenv("JAVA_HOME")
         logger.debug("JAVA_HOME: $javaHome")
 
-        @Suppress("MissingRecentApi")
-        gradleJdkPath = ModuleManager.getInstance(project).modules.firstNotNullOfOrNull { module ->
+        gradleJdkPath = AsDeployerCompat.getModuleManager(project).modules.firstNotNullOfOrNull { module ->
             val moduleRootManager = ModuleRootManager.getInstance(module)
             val jdk: Sdk = moduleRootManager.sdk ?: return@firstNotNullOfOrNull null
             if (jdk.sdkType != JavaSdk.getInstance()) {

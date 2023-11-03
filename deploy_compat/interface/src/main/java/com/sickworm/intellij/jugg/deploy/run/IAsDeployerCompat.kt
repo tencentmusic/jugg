@@ -7,6 +7,7 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.idea.run.*
 import com.android.utils.ILogger
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 
 /**
@@ -50,6 +51,28 @@ interface IAsDeployerCompat {
     fun getIdeDeployStateResult(project: Project): IdeDeployState
 
     fun getDeploymentService(project: Project): DeploymentService
+
+    fun getModuleManager(project: Project): ModuleManager {
+        // ModuleManager rewrite by Kotlin after Android Studio Giraffe
+        // which cause "java.lang.NoSuchFieldError: Companion" before Android Studio Giraffe
+
+        val companionField = try {
+            ModuleManager::class.java.getDeclaredField("Companion")
+        } catch (e: NoSuchFieldException) {
+            null
+        }
+
+        return if (companionField == null) {
+            // before Android Studio Giraffe
+            val getInstanceMethod = ModuleManager::class.java.getDeclaredMethod("getInstance", Project::class.java)
+            getInstanceMethod.invoke(null, project) as ModuleManager
+        } else {
+            // after Android Studio Giraffe
+            val companion = companionField.get(null)
+            val getInstanceMethod = companion.javaClass.getDeclaredMethod("getInstance", Project::class.java)
+            getInstanceMethod.invoke(companion, project) as ModuleManager
+        }
+    }
 
     companion object {
         const val MIN_DEVICE_API = 30
