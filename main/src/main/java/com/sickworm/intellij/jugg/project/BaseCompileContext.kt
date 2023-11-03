@@ -18,8 +18,9 @@ data class BaseCompileContext(
     private val deployFileManager: DeployFileManager,
 ): ICompileContext {
 
-    override val androidJar: File get() = getSuggestedPlatform(modules)
-    override val androidBuildTools: File get() = getSuggestedBuildTools(modules)
+    private val androidJarApi: String = getSuggestedPlatformApi(modules)
+    override val androidJar: File = File(androidHome, "platforms/android-$androidJarApi/android.jar")
+    override val androidBuildTools: File = getSuggestedBuildTools(modules, androidJarApi)
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
@@ -117,10 +118,11 @@ data class BaseCompileContext(
         }
     }
 
-    private fun getSuggestedPlatform(modules: Map<String, ModuleInfo>): File {
+    private fun getSuggestedPlatformApi(modules: Map<String, ModuleInfo>): String {
         val versionsInGradle = modules.values.map { it.compileVersion }
         var version = getLatestVersion(versionsInGradle)
         val rootDir = File(androidHome, "platforms")
+        logger.debug("getSuggestedPlatformApi version: $version, versions in gradle: $versionsInGradle")
 
         if (version != null) {
             val targetDir = File(rootDir, "android-$version")
@@ -137,46 +139,55 @@ data class BaseCompileContext(
                 it.name.substring("android-".length)
             }
             version = getLatestVersion(versionsInSdk)
+            logger.debug("getSuggestedPlatformApi version: $version, versions in gradle: $versionsInSdk")
 
             if (version == null) {
-                throw JuggException.androidJarNotFound(
-                    "versions in gradle: $versionsInGradle, versions in sdk: $versionsInSdk")
+                throw JuggException.androidJarNotFound("")
             }
         }
 
-        val path = File(androidHome, "platforms/android-$version/android.jar")
-        if (!path.exists()) throw JuggException.androidJarNotFound("file not exists $path")
-        return path
+        return version
     }
 
-    private fun getSuggestedBuildTools(modules: Map<String, ModuleInfo>): File {
+    private fun getSuggestedBuildTools(modules: Map<String, ModuleInfo>, androidJarApi: String): File {
         val versionsInGradle = modules.values.map { it.buildToolsVersion }
         var version = getLatestVersion(versionsInGradle)
+        logger.debug("getSuggestedBuildTools version: $version, androidJarApi: $androidJarApi, versions in gradle: $versionsInGradle")
 
         if (version != null) {
             val targetDir = File(androidHome, "build-tools/$version")
             if (!targetDir.exists()) {
-                logger.warn("Can't not read build-tools version from gradle, path($targetDir) not exist" +
-                        "Try to find in android home.")
+                logger.warn(
+                    "Can't not read build-tools version from gradle, path($targetDir) not exist" +
+                            "Try to find in android home."
+                )
                 version = null
             }
         }
 
         if (version == null) {
             val rootDir = File(androidHome, "build-tools")
-            val versionsInSdk = rootDir.listFiles()?.mapNotNull {
+            var versionsInSdk = rootDir.listFiles()?.mapNotNull {
                 it.name
             }
+            val versionsInSdkMatchesApi = versionsInSdk?.filter {
+                it.startsWith(androidJarApi)
+            }
+            if (!versionsInSdkMatchesApi.isNullOrEmpty()) {
+                versionsInSdk = versionsInSdkMatchesApi
+            }
             version = getLatestVersion(versionsInSdk)
+            logger.debug("getSuggestedBuildTools version: $version, androidJarApi: $androidJarApi, " +
+                        "versions in gradle: $versionsInGradle, " +
+                        "versions in sdk: $versionsInSdk"
+            )
 
             if (version == null) {
-                throw JuggException.buildToolsNotFound(
-                    "versions in gradle: $versionsInGradle, versions in sdk: $versionsInSdk")
+                throw JuggException.buildToolsNotFound("")
             }
         }
-        val targetDir = File(androidHome, "build-tools/$version")
-        if (!targetDir.exists()) throw JuggException.buildToolsNotFound("file not exists $targetDir")
-        return targetDir
+
+        return File(androidHome, "build-tools/$version")
     }
 
     private fun getLatestVersion(versions: List<String?>?): String? {
