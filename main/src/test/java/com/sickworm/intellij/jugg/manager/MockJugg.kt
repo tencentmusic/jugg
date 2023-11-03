@@ -14,7 +14,6 @@ import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.configurations.ConfigurationType
 import com.intellij.facet.FacetManager
-import com.intellij.html.embedding.HtmlEmbeddedContentSupport
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
 import com.intellij.openapi.application.ApplicationInfo
@@ -28,7 +27,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.pom.java.LanguageLevel
@@ -190,6 +188,7 @@ class MockJugg {
         }.`when`(mockProgressManager).run(any<Task>())
         application.registerService(ProgressManager::class.java, mockProgressManager)
 
+        @Suppress("UnresolvedPluginConfigReference")
         val extensionPoint = ExtensionPointName.create<ConfigurationType>("com.intellij.configurationType")
         application.extensionArea.registerExtensionPoint(extensionPoint,
             ConfigurationType::class.java.name, ExtensionPoint.Kind.INTERFACE, application)
@@ -235,8 +234,6 @@ class MockJugg {
             getModel(it)
         }.toTypedArray()
         doReturn(modules).`when`(moduleManager).modules
-        val projectJdkTable = mock(ProjectJdkTable::class.java)
-        doReturn(arrayOf(MockAndroid30Sdk())).`when`(projectJdkTable).allJdks
         val projectBuildModel = mock(ProjectBuildModel::class.java)
         val gradleBuildModule = mock(GradleBuildModel::class.java)
         doReturn(getAndroidModel()).`when`(gradleBuildModule).android()
@@ -249,7 +246,7 @@ class MockJugg {
         deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir)
         deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
         compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
-            moduleManager, projectJdkTable, projectBuildModel, logger)
+            moduleManager, projectBuildModel, logger)
 
         val juggReporter = JuggReporter(project)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggReporter, { JuggStateListener.emptyImpl }, logger) {

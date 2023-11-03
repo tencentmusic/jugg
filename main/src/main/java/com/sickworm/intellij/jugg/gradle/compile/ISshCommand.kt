@@ -5,7 +5,7 @@ package com.sickworm.intellij.jugg.gradle.compile
  */
 interface ISshCommand {
 
-    fun getCommand(isNeedSetChineseLanguage: Boolean): String
+    fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String
 
     /**
      * call be fore invoke [getCommand].
@@ -30,7 +30,7 @@ interface ISshCommand {
     fun shouldInterrupted(currentChar: Int, buffer: StringBuilder): Int? = null
 }
 
-abstract class BaseSshCommand() : ISshCommand {
+abstract class BaseSshCommand : ISshCommand {
 
     abstract val baseCommand: String
 
@@ -38,12 +38,21 @@ abstract class BaseSshCommand() : ISshCommand {
      * add echo at last to confirm exec finished and get the result
      * '\n' to avoid control ascii code on the line start
      */
-    override fun getCommand(isNeedSetChineseLanguage: Boolean): String {
-        return if (isNeedSetChineseLanguage) {
-            "export LC_CTYPE=\"zh_CN.utf8\" ; $baseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
+    override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
+        val fixedBaseCommand = if (isWindows) {
+            baseCommand.replace("./gradlew", ".\\gradlew.bat")
         } else {
-            "$baseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
+            baseCommand
         }
+        val command = if (isWindows) {
+            "$fixedBaseCommand && (echo. & echo ${RESULT_ECHO}0& echo.) || (echo. & echo ${RESULT_ECHO}1& echo.)"
+        } else {
+            "$fixedBaseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
+        }
+        if (isNeedSetChineseLanguage && !isWindows) {
+            return "export LC_CTYPE=\"zh_CN.utf8\" ; $command"
+        }
+        return command
     }
 
     override fun hasFinishWithResult(terminalOutputLine: String): Int? {

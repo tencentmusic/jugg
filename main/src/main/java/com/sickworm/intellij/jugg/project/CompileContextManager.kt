@@ -2,8 +2,6 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
-import com.android.tools.idea.gradle.dsl.api.android.sourceSets.SourceDirectoryModel
-import com.android.tools.idea.gradle.dsl.api.ext.GradlePropertyModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.diagnostic.Logger
@@ -37,7 +35,6 @@ class CompileContextManager(
     private val pathManager: JuggPathManager,
     private val deployFileManager: DeployFileManager,
     private val moduleManager: ModuleManager = AsDeployerCompat.getModuleManager(project), // mock
-    private val projectJdkTable: ProjectJdkTable = ProjectJdkTable.getInstance(), // mock
     private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock,
     private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
 ) {
@@ -126,7 +123,7 @@ class CompileContextManager(
 
         // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
         // TODO AndroidSdkEventListener on sdk path changed
-        val androidHome = getAndroidSdkRootDir()
+        val androidHome = getAndroidSdkRootDir(logger)
         logger.debug("Use android sdk home: $androidHome")
         if (androidHome == null) {
             throw JuggException.androidHomeNotFound()
@@ -336,27 +333,6 @@ class CompileContextManager(
         return files.any { it.name == "drawable" || it.name == "layout" || it.name == "values" }
     }
 
-    private fun getAndroidSdkRootDir(): File? {
-        val allJdks = projectJdkTable.allJdks
-        val allJdkString = allJdks.map {
-            it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
-        }
-        logger.debug("All available jdks: $allJdkString")
-        val androidJdks = allJdks.filter {
-            it.name.contains("Android") && it.homeDirectory?.exists() == true
-        }
-        logger.debug("All available android jdks: $androidJdks")
-
-        return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
-    }
-
-    private fun SourceDirectoryModel.getFileList(baseDir: File): List<File> {
-        val dirs = srcDirs().getValue(GradlePropertyModel.LIST_TYPE)?: emptyList()
-        return dirs
-            .mapNotNull { it.getValue(GradlePropertyModel.STRING_TYPE) }
-            .map { File(baseDir, it) }
-    }
-
     private fun ResolvedPropertyModel.readString(model: GradleBuildModel): String? {
         var value = valueAsString()?.trim()?: return null
         // TODO better way to eval property
@@ -370,5 +346,23 @@ class CompileContextManager(
             return property.valueAsString()
         }
         return value
+    }
+
+    companion object {
+
+        fun getAndroidSdkRootDir(logger: Logger): File? {
+            val allJdks = ProjectJdkTable.getInstance().allJdks
+            val allJdkString = allJdks.map {
+                it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
+            }
+            logger.debug("All available jdks: $allJdkString")
+            val androidJdks = allJdks.filter {
+                it.name.contains("Android") && it.homeDirectory?.exists() == true
+            }
+            logger.debug("All available android jdks: $androidJdks")
+
+            return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
+        }
+
     }
 }

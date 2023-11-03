@@ -3,10 +3,17 @@
 package com.sickworm.intellij.jugg.mock
 
 import com.google.gson.JsonSyntaxException
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.mock.MockApplication
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationInfo
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.impl.ApplicationInfoImpl
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -169,3 +176,25 @@ fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, depend
     CompileTask(listOf(CompileFile(CompileFile.Type.Java, filePath, assetsJavaDir, mockModule, dependencyPaths = dependencies)), outputDir)
 
 val String.systemBasedPath get() = File(this).path
+
+
+@Suppress("unused")
+
+
+val init = run {
+    // avoid AsDeployerCompat init failed
+    val application = MockApplication {}
+    ApplicationManager.setApplication(application) {}
+    application.registerService(ApplicationInfo::class.java, ApplicationInfoImpl.getShadowInstance())
+    // avoid JuggSettings init failed
+    application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
+
+    val projectJdkTable = Mockito.mock(ProjectJdkTable::class.java)
+    Mockito.doReturn(arrayOf(MockAndroid30Sdk())).`when`(projectJdkTable).allJdks
+    application.registerService(ProjectJdkTable::class.java, projectJdkTable)
+}
+
+/**
+ * Need an Android device for this test.
+ */
+annotation class RequiresDevice

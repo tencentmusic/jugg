@@ -93,6 +93,7 @@ class FileLogger(
                 latestLogFile.delete()
             }
 
+            latestLogFile.delete()
             val source = Path.of(dir.absolutePath, name)
             val link = latestLogFile.toPath()
             val relativePath = link.parent.relativize(source)

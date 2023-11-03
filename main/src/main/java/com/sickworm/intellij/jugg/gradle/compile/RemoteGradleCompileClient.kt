@@ -150,7 +150,7 @@ class RemoteGradleCompileClient(
 
         command.beforeInvokeCommand()
         val commander = PrintStream(channel.outputStream, false)
-        val commandString = command.getCommand(isNeedSetChineseLanguage = true)
+        val commandString = command.getCommand(isNeedSetChineseLanguage = true, isWindows = false)
         logger.debug("invoke command: $commandString")
         commander.println(commandString)
         commander.flush()

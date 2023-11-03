@@ -2,6 +2,8 @@
 
 package com.sickworm.intellij.jugg.gradle
 
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
@@ -12,6 +14,7 @@ import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.junit.BeforeClass
 import org.junit.Test
+import org.mockito.Mockito
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -26,6 +29,11 @@ class LocalGradleCompileClientTest {
         @BeforeClass
         fun beforeClass() {
             project = JuggMockProject(projectInfo.projectRoot)
+
+            val moduleManager = Mockito.mock(ModuleManager::class.java)
+            Mockito.doReturn(arrayOf<Module>()).`when`(moduleManager).modules
+            project.registerService(ModuleManager::class.java, moduleManager)
+
             val pathManager = JuggPathManager(project, projectInfo.projectRoot)
             JuggLogger.register(project, pathManager.logDir)
 
@@ -41,7 +49,7 @@ class LocalGradleCompileClientTest {
 
     @Test
     fun testCompile() {
-        val localClient = LocalGradleCompileClient(project)
+        val localClient = LocalGradleCompileClient(project, logger)
         localClient.login(juggGradleCompileOptions)
         val remoteCompileResult = localClient.compileAndFetchResult()
         assertTrue(remoteCompileResult.isSuccess)
@@ -49,7 +57,7 @@ class LocalGradleCompileClientTest {
 
     @Test
     fun testCancel() {
-        val localClient = LocalGradleCompileClient(project)
+        val localClient = LocalGradleCompileClient(project, logger)
         localClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
             override fun onOutput(line: String) {
                 println(line)

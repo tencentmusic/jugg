@@ -8,8 +8,10 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 import java.io.IOException
@@ -28,10 +30,12 @@ class LocalGradleCompileClient(
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
     private var gradleJdkPath: String? = null
+    private var androidHomePath: String? = null
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         // no need to login
         this.juggGradleCompileOptions = juggGradleCompileOptions
+
         val javaHome = System.getenv("JAVA_HOME")
         logger.debug("JAVA_HOME: $javaHome")
 
@@ -50,6 +54,16 @@ class LocalGradleCompileClient(
         if (gradleJdkPath == null) {
             logger.debug("can't find gradleJdkPath in modules, use JAVA_HOME $javaHome instead")
             gradleJdkPath = javaHome
+        }
+
+        val androidHome = System.getenv("ANDROID_HOME")
+        logger.debug("ANDROID_HOME: $androidHome")
+        androidHomePath = CompileContextManager.getAndroidSdkRootDir(logger)?.absolutePath
+        if (androidHomePath == null) {
+            logger.debug("can't find androidHomePath in modules, use ANDROID_HOME $androidHome instead")
+            androidHomePath = androidHome
+        } else {
+            logger.debug("found androidHomePath $androidHomePath")
         }
     }
 
@@ -101,7 +115,7 @@ class LocalGradleCompileClient(
 
         val envArray: MutableList<String> = System.getenv().entries
             .filter {
-                it.key == "JAVA_HOME"
+                it.key == "JAVA_HOME" || it.key == "ANDROID_HOME"
             }
             .map {
                 "${it.key}=${it.value}"
@@ -110,11 +124,19 @@ class LocalGradleCompileClient(
         if (gradleJdkPath != null) {
             envArray.add("JAVA_HOME=$gradleJdkPath")
         }
+        if (androidHomePath != null) {
+            envArray.add("ANDROID_HOME=$androidHomePath")
+        }
 
-        val commandString = command.getCommand(isNeedSetChineseLanguage = false)
+        val commandString = command.getCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
         logger.debug("invoke command: $commandString")
+        val commands = if (isWindows) {
+            arrayOf("cmd.exe", "/c", commandString)
+        } else {
+            arrayOf("/bin/bash", "-c", commandString)
+        }
         val process = Runtime.getRuntime().exec(
-            arrayOf("/bin/bash", "-c", commandString),
+            commands,
             envArray.toTypedArray(),
         )
         currentRunningProcess = process
