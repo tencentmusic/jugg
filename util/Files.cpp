@@ -186,6 +186,12 @@ void AppendPath(std::string* base, StringPiece part) {
     // None of the pieces has a separator.
     *base += sDirSep;
   }
+
+  #ifdef _WIN32
+  std::string strPart = part.to_string();
+  std::replace(strPart.begin(), strPart.end(), '/', '\\');
+  part = StringPiece(strPart);
+  #endif
   base->append(part.data(), part.size());
 }
 
