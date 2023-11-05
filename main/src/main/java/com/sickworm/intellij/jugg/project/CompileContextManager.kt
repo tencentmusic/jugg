@@ -356,13 +356,20 @@ class CompileContextManager(
                 it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
             }
             logger.debug("All available jdks: $allJdkString")
-            val androidJdks = allJdks.filter {
-                it.name.contains("Android") && it.homeDirectory?.exists() == true
+            @Suppress("RedundantIf")
+            val androidJdks = allJdks.filter { sdk ->
+                val homeDirectory = sdk.homeDirectory ?: return@filter false
+                if (!homeDirectory.exists()) return@filter false
+                val subDirs = homeDirectory.toIoFile().listFiles() ?: return@filter false
+                val platformsDir = subDirs.firstOrNull { it.name == "platforms" } ?: return@filter false
+                if (platformsDir.listFiles().isNullOrEmpty()) return@filter false
+                val buildToolsDir = subDirs.firstOrNull { it.name == "build-tools" } ?: return@filter false
+                if (buildToolsDir.listFiles().isNullOrEmpty()) return@filter false
+                return@filter true
             }
             logger.debug("All available android jdks: $androidJdks")
 
             return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
         }
-
     }
 }
