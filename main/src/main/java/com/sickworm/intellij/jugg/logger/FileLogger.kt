@@ -81,23 +81,29 @@ class FileLogger(
             }
             loggerHandler.formatter = formatter
 
-            // link file to compile_latest.log and compile_latest-1.log
-            val latestLogFile = File(dir, LATEST_LOG_NAME)
-            if (latestLogFile.exists()) {
-                val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
-                if (lastLatestLogFile.exists()) {
-                    lastLatestLogFile.delete()
+            try {
+                // link file to compile_latest.log and compile_latest-1.log
+                val latestLogFile = File(dir, LATEST_LOG_NAME)
+                if (latestLogFile.exists()) {
+                    val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
+                    if (lastLatestLogFile.exists()) {
+                        lastLatestLogFile.delete()
+                    }
+                    val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
+                    Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
+                    latestLogFile.delete()
                 }
-                val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
-                Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
-                latestLogFile.delete()
-            }
 
-            latestLogFile.delete()
-            val source = Path.of(dir.absolutePath, name)
-            val link = latestLogFile.toPath()
-            val relativePath = link.parent.relativize(source)
-            Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
+                latestLogFile.delete()
+                val source = Path.of(dir.absolutePath, name)
+                val link = latestLogFile.toPath()
+                val relativePath = link.parent.relativize(source)
+                Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
+            } catch (e: Exception) {
+                // robust
+                com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
+                    .warn("createFileHandler error", e)
+            }
 
             return loggerHandler
         }
