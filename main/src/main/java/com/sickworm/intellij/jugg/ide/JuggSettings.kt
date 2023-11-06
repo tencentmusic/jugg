@@ -10,13 +10,9 @@ object JuggSettings {
 
     private val propertiesComponent get() = PropertiesComponent.getInstance()
 
-    var logDebug: Boolean by propertiesComponent.delegate(defaultValue = false)
-
     var compileOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     var deployOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
-
-    var restartActivity: Boolean by propertiesComponent.delegate(defaultValue = true)
 
     // default compile settings
     const val defaultCompileCommand = "./gradlew :app:assembleDebug"
@@ -77,7 +73,6 @@ private class PropertiesDelegate(
     private val defaultValue: Any? = null
 ) {
 
-    @Suppress("UNCHECKED_CAST")
     inline operator fun <reified T> getValue(obj: Any, property: KProperty<*>): T {
         val name = "jugg." + (keyName?: property.name)
         return doGetValue(name, T::class.java) as T
