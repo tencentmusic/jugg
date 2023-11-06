@@ -36,6 +36,9 @@ object JuggSettings {
     /** don't support change minApi dynamically */
     const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
 
+    /** limit max source modules to compile for better performance */
+    const val maxCompileSourceModules = 10
+
     var isEnableWarmUpDeploy: Boolean = false
 
     fun updateDefaultSettings(options: JuggGradleCompileOptions) {

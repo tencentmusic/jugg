@@ -171,6 +171,15 @@ class JuggCompilerHelper(
                 return CompileTaskResult.incrementalFailed(true, "No file changes")
             }
         }
+        val uncompiledSourceModules = uncompiledFiles.filter {
+            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
+        }.map {
+            it.module.name + "_" + it.type
+        }.toSet()
+        if (uncompiledSourceModules.size > JuggSettings.maxCompileSourceModules) {
+            logger.info("Uncompiled modules too much, will fallback to gradle compile for better performance.")
+            return CompileTaskResult.incrementalFailed(true, "Too many changes")
+        }
 
         return doIncrementalCompile(compiler, uncompiledFiles, processHandler)
     }
