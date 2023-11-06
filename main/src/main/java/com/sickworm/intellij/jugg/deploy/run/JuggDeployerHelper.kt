@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
@@ -98,7 +99,8 @@ class JuggDeployerHelper(
             return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "deploy canceled")
         }
 
-        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $isFallbackAllHotFix")
+        val finalIsFallbackAllHotFix = isFallbackAllHotFix || JuggSettings.isQuickFallbackToHotFix
+        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $finalIsFallbackAllHotFix")
 
         val deployState = deployStateManager.updateDeployState()
         logger.debug("Jugg deploy state: $deployState")
@@ -133,7 +135,7 @@ class JuggDeployerHelper(
                         return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Invalid state for deploy.")
                     }
                 }
-                val deployData = deployFileManager.getDeployData(isWarmUp, isFallbackAllHotFix)
+                val deployData = deployFileManager.getDeployData(isWarmUp, finalIsFallbackAllHotFix)
                 logger.debug("Deploying data(debug):\n$deployData")
                 logger.info("Deploying data:\n${deployData.toDescString()}")
                 if (deployData.isFullRes) {
