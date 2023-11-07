@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
@@ -31,6 +30,16 @@ class RemoteGradleCompileClient(
 
         dispose()
 
+        var password = juggGradleCompileOptions.remoteSshPassword
+        if (password.isEmpty()) {
+            val enteredPassword = UserAndPasswordInputDialog.showAndGetResult(
+                "SSH Password",
+                subTitle = "You will see this because password is empty in run configuration."
+            ) ?: throw JuggException.loginToRemoteFailed("User canceled.")
+
+            password = enteredPassword
+        }
+
         try {
             val jsch = JSch()
             JSch.setLogger(JschLogger { terminalOutputListener })
@@ -42,10 +51,9 @@ class RemoteGradleCompileClient(
                 juggGradleCompileOptions.httpProxyPort != 0) {
                 session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
             }
-            session.setPassword(juggGradleCompileOptions.remoteSshPassword)
+            session.setPassword(password)
             session.setConfig("StrictHostKeyChecking", "no")
             session.setConfig("Charset", "UTF-8")
-//            session.set("LC_CTYPE", "zh_CN.UTF-8"); // 设置 LC_CTYPE 环境变量
             session.connect()
             val channel = session.openChannel("shell")
             channel.connect()
@@ -55,7 +63,7 @@ class RemoteGradleCompileClient(
             this.juggGradleCompileOptions = juggGradleCompileOptions
         } catch (e: JSchException) {
             printToStreamError("RemoteClient login failed", e)
-            throw JuggException.loginToRemoteFailed()
+            throw JuggException.loginToRemoteFailed("Please check your login info.")
         }
     }
 
@@ -175,11 +183,8 @@ class RemoteGradleCompileClient(
                     if (interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
                         interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
                         lastInterruptCode = interruptCode
-                        var output: String? = null
-                        ApplicationManager.getApplication().invokeAndWait {
-                            val content = "iFt ${buffer.toString().replace(":", "")}"
-                            output = UserAndPasswordInputDialog(content).showAndGetResult()
-                        }
+                        val content = "iFt ${buffer.toString().replace(":", "")}"
+                        val output = UserAndPasswordInputDialog.showAndGetResult(content)
                         if (output == null) {
                             // user canceled
                             result = interruptCode

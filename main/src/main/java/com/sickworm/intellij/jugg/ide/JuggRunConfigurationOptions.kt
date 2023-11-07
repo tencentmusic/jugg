@@ -88,9 +88,6 @@ data class JuggGradleCompileOptions(
             if (remoteSshUser.isEmpty()) {
                 errorDetails += "Run configuration argument [SSH user] is empty\n"
             }
-            if (remoteSshPassword.isEmpty()) {
-                errorDetails += "Run configuration argument [SSH password] is empty\n"
-            }
             if (remoteSshIp.isEmpty()) {
                 errorDetails += "Run configuration argument [SSH host] is empty\n"
             }

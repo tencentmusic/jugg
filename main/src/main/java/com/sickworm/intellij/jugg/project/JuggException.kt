@@ -36,8 +36,8 @@ class JuggException(msg: String): Exception(msg) {
         fun invokeAdbFailed2(cmd: String, e: Exception) =
             JuggException("Invoke cmd command \"$cmd\" failed, message: ${e.message}")
 
-        fun loginToRemoteFailed() =
-            JuggException("Login to remote ssh failed. Please check your login info.")
+        fun loginToRemoteFailed(message: String) =
+            JuggException("Login to remote ssh failed. $message")
 
         fun getJavaCompilerFailed() =
             JuggException("Get JavaCompiler failed, please check your environment.")
