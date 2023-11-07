@@ -70,9 +70,13 @@ data class BaseCompileContext(
                 file.absolutePath
             }
         }
-        val libraryDependency = moduleInfo.libraryDependencies.map {
-            it.file.absolutePath
-        }
+        val libraryDependency = moduleInfo.libraryDependencies
+            .filter {
+                it.file.exists() && it.file.name != "AndroidManifest.xml"
+            }
+            .map {
+                it.file.absolutePath
+            }
 
         if (finalRFiles.isEmpty()) {
             logger.warn("No R.jar found in project, compile may fail.")
