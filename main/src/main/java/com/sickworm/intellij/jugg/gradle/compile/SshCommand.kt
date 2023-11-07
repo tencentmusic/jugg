@@ -59,7 +59,7 @@ class SyncFileCommand(
     remoteProjectPath: String,
 ) : IftSyncCommand() {
 
-    override val baseCommand: String = """ft sync -s $localProjectIftPath --get $remoteProjectPath -a "-av --delete  --exclude='build/' --exclude='imagebus/log/' --exclude='imagebus/mapping/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'" """
+    override val baseCommand: String = """ft sync -s $localProjectIftPath --get $remoteProjectPath -a "-av --delete  --exclude='build/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'" """
 
 }
 
