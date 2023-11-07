@@ -33,9 +33,6 @@ class JuggException(msg: String): Exception(msg) {
         fun multipleDeviceFound() =
             JuggException("More than one device found via adb, please make sure there is only one device to be deployed.")
 
-        fun invokeAdbFailed(cmd: String, resultCode: Int) =
-            JuggException("Invoke cmd command \"$cmd\" failed, result code: $resultCode. Make sure you have adb in \$PATH.")
-
         fun invokeAdbFailed2(cmd: String, e: Exception) =
             JuggException("Invoke cmd command \"$cmd\" failed, message: ${e.message}")
 
@@ -93,9 +90,6 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun initKotlinCompilerFailed(missingClassPaths: List<String>) =
             JuggInternalException("Init kotlin compiler failed, missing classpath: $missingClassPaths.")
-
-        fun historyNotAvailable(projectDir: File) =
-            JuggInternalException("$projectDir is not a git repository, deployment history is not available")
 
         fun notLoginYet() =
             JuggException("Not login yet. Please Login first")
