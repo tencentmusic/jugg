@@ -94,16 +94,17 @@ class JuggManager @TestOnly constructor(
             }
 
             logger.debug("Checking updates...")
-            val versionData = juggReporter.checkUpdate()
-            logger.debug("Check update result: $versionData")
-            if (versionData.isNeedUpgrade) {
-                val prefix = if (versionData.downloadUrl.contains("?")) {
-                    "&"
-                } else {
-                    "?"
+            juggReporter.checkUpdate { versionData ->
+                logger.debug("Check update result: $versionData")
+                if (versionData.isNeedUpgrade) {
+                    val prefix = if (versionData.downloadUrl.contains("?")) {
+                        "&"
+                    } else {
+                        "?"
+                    }
+                    val downloadUrl = versionData.downloadUrl + prefix + "version=${juggReporter.version}"
+                    JuggUpgradeNotification(project).show(downloadUrl)
                 }
-                val downloadUrl = versionData.downloadUrl + prefix + "version=${juggReporter.version}"
-                JuggUpgradeNotification(project).show(downloadUrl)
             }
         })
     }
