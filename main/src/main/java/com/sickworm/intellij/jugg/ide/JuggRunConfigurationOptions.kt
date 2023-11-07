@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide;
+package com.sickworm.intellij.jugg.ide
 
 import com.intellij.execution.configurations.RunConfigurationOptions
 import com.sickworm.intellij.jugg.gradle.compile.isChild
@@ -99,10 +99,6 @@ data class JuggGradleCompileOptions(
                 errorDetails = "Remote to local IFT config name is empty"
             } else if (remoteToLocalSyncPath.isEmpty()) {
                 errorDetails = "Remote to local sync path is empty"
-            } else if (httpProxyIp.isEmpty()) {
-                errorDetails = "HTTP proxy ip is empty"
-            } else if (httpProxyPort <= 0) {
-                errorDetails = "HTTP proxy port is invalid"
             } else if (!File(projectRootPath).isChild(File(localToRemoteSyncPath))) {
                 errorDetails = "Project path($projectRootPath) must be the parent of " +
                         "localToRemoteSyncPath($localToRemoteSyncPath) which specified in run configuration"
