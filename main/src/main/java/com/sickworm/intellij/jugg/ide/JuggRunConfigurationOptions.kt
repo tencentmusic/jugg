@@ -79,29 +79,39 @@ data class JuggGradleCompileOptions(
         var errorDetails = ""
 
         if (compileCommand.isEmpty()) {
-            errorDetails = "Compile command is empty"
-        } else if (outputApkName.isEmpty()) {
-            errorDetails = "Output apk name is empty"
-        } else if (isRemoteCompile) {
+            errorDetails += "Run configuration argument [Compile command] is empty\n"
+        }
+        if (outputApkName.isEmpty()) {
+            errorDetails += "Run configuration argument [Output apk name] is empty\n"
+        }
+        if (isRemoteCompile) {
             if (remoteSshUser.isEmpty()) {
-                errorDetails = "SSH user is empty"
-            } else if (remoteSshPassword.isEmpty()) {
-                errorDetails = "SSH password is empty"
-            } else if (remoteSshIp.isEmpty()) {
-                errorDetails = "SSH IP is empty"
-            } else if (remoteSshPort <= 0) {
-                errorDetails = "SSH port is invalid"
-            } else if (localToRemoteIftConfigName.isEmpty()) {
-                errorDetails = "Local to remote IFT config name is empty"
-            } else if (localToRemoteSyncPath.isEmpty()) {
-                errorDetails = "Local to remote sync path is empty"
-            } else if (remoteToLocalIftConfigName.isEmpty()) {
-                errorDetails = "Remote to local IFT config name is empty"
-            } else if (remoteToLocalSyncPath.isEmpty()) {
-                errorDetails = "Remote to local sync path is empty"
-            } else if (!File(projectRootPath).isChild(File(localToRemoteSyncPath))) {
-                errorDetails = "Project path($projectRootPath) must be the parent of " +
-                        "localToRemoteSyncPath($localToRemoteSyncPath) which specified in run configuration"
+                errorDetails += "Run configuration argument [SSH user] is empty\n"
+            }
+            if (remoteSshPassword.isEmpty()) {
+                errorDetails += "Run configuration argument [SSH password] is empty\n"
+            }
+            if (remoteSshIp.isEmpty()) {
+                errorDetails += "Run configuration argument [SSH host] is empty\n"
+            }
+            if (remoteSshPort <= 0) {
+                errorDetails += "Run configuration argument [SSH port] is invalid\n"
+            }
+            if (localToRemoteIftConfigName.isEmpty()) {
+                errorDetails += "Run configuration argument [Local to remote IFT config] name is empty\n"
+            }
+            if (localToRemoteSyncPath.isEmpty()) {
+                errorDetails += "Run configuration argument [Local to remote sync path] is empty\n"
+            }
+            if (remoteToLocalIftConfigName.isEmpty()) {
+                errorDetails += "Run configuration argument [Remote to local IFT config] name is empty\n"
+            }
+            if (remoteToLocalSyncPath.isEmpty()) {
+                errorDetails += "Run configuration argument [Remote to local sync path] is empty\n"
+            }
+            if (!File(projectRootPath).isChild(File(localToRemoteSyncPath))) {
+                errorDetails += "Run configuration argument [Local to remote IFT sync path]($localToRemoteSyncPath) " +
+                        "must be the parent of project path($projectRootPath)\n"
             }
         }
 

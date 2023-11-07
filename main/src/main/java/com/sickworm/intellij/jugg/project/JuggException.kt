@@ -43,7 +43,7 @@ class JuggException(msg: String): Exception(msg) {
             JuggException("Get JavaCompiler failed, please check your environment.")
 
         fun runConfigInvalid(details: String) =
-            JuggException("Run configuration is invalid. $details. Please check your run configuration.")
+            JuggException("Run configuration is invalid:\n$details\nPlease check your run configuration.")
 
         fun unsupportedOs() =
             JuggException("Unsupported OS, currently only support Windows, Linux and Mac.")
