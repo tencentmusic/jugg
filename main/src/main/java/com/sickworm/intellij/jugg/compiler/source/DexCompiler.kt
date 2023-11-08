@@ -4,7 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
-import java.io.File
+import com.sickworm.intellij.jugg.ide.JuggSettings
 
 class DexCompiler(
     context: ICompileContext,
@@ -25,7 +25,7 @@ class DexCompiler(
         try {
             val tempOutput = context.tempCompileDir
             tempOutput.clearDir()
-            dexFileMaker.dex(tempOutput, files, dependencies, context.androidJar, context.minApi)
+            dexFileMaker.dex(tempOutput, files, dependencies, context.androidJar, JuggSettings.minApi)
             val dexFiles = tempOutput.listFilesRecursively()
             val details: List<Result<CompileFile, CompileError>> = task.files.map {
                 Result.success(it)

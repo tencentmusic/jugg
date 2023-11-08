@@ -156,8 +156,6 @@ interface ICompileContext {
     val modules: Map<String, ModuleInfo>
     /** deployed base apks */
     val apkInfos: List<ApkInfo>
-    /** compile min api */
-    val minApi: Int
     /** project root directory, for log print */
     val projectDir: File
     /** all deployed files */

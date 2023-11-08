@@ -12,7 +12,6 @@ import com.intellij.openapi.application.impl.ApplicationInfoImpl
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.ide.JuggSettings
 import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
@@ -76,7 +75,6 @@ val context get() = SimpleCompileContext(
     androidJar = androidJar,
     modules = mapOf(mockModule.name to mockModule),
     apkInfos = projectInfo.apkInfos,
-    minApi = JuggSettings.minApi,
     projectDir = projectInfo.projectRoot,
     deployedFiles = emptyList(),
 )

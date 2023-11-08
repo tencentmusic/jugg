@@ -11,7 +11,6 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.jps.model.java.JavaResourceRootType
@@ -135,7 +134,6 @@ class CompileContextManager(
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
             tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
             modules = modules,
-            minApi = JuggSettings.minApi,
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
         )

@@ -13,7 +13,6 @@ data class BaseCompileContext(
     override val androidHome: File,
     override var modules: Map<String, ModuleInfo> = emptyMap(),
     override var apkInfos: List<ApkInfo> = emptyList(),
-    override val minApi: Int,
     override val projectDir: File,
     private val deployFileManager: DeployFileManager,
 ): ICompileContext {
