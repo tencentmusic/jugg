@@ -148,8 +148,6 @@ interface ICompileContext {
     val tempModuleDir: File
     /** Android sdk dir */
     val androidHome: File
-    /** build-tools directory */
-    val androidBuildTools: File
     /** android.jar */
     val androidJar: File
     /** modules in project */

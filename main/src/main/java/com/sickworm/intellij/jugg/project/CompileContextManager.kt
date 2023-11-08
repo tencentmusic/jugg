@@ -139,7 +139,6 @@ class CompileContextManager(
         )
         logger.debug("""
             context loaded:
-            build-tools:${context.androidBuildTools}
             android.jar:${context.androidJar}
         """.trimIndent())
 
