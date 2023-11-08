@@ -117,6 +117,9 @@ class JuggDeployerHelper(
                     logger.warn("\nNo device connected, please check device is connected.")
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "no device connected")
                 }
+                val device = deployTargetManager.getDevice()
+                logger.debug("Deploying to device: ${device.name}(${device.serialNumber})")
+
                 if (isWarmUp && !deployStateManager.deployState.isReadyDeploy) {
                     logger.info("Device not ready to warm up.")
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
