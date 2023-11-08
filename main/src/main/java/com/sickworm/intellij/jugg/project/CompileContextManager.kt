@@ -1,8 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
-import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
 import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
@@ -53,6 +51,8 @@ class CompileContextManager(
     private var compileContextInside: BaseCompileContext? = null
 
     private var compileContextInfo: CompileContextInfo? = null
+
+    private var isFirstTimeLoad = true
 
     fun refreshCompileContext(): Boolean {
         val compileContextInfo = compileContextInfo
@@ -158,13 +158,25 @@ class CompileContextManager(
             }
         }
         if (modules == null) {
-            modules = doGetAllModulesByModuleManager()
+            val gradleVariableHelper = GradleVariableHelper()
+            gradleVariableHelper.init(project)
+            if (isFirstTimeLoad) {
+                isFirstTimeLoad = false
+            } else {
+                // Reparse gradle. Otherwise GradleBuildModel won't update after sync
+                val costTime = measureTimeMillis {
+                    projectBuildModel.reparse()
+                }
+                logger.debug("Reparse gradle cost ${costTime}ms")
+            }
+            modules = doGetAllModulesByModuleManager(gradleVariableHelper)
+            gradleVariableHelper.release()
             projectInfoSerializer.save(modules)
         }
         return modules
     }
 
-    private fun doGetAllModulesByModuleManager(): Map<String, ModuleInfo> {
+    private fun doGetAllModulesByModuleManager(gradleVariableHelper: GradleVariableHelper): Map<String, ModuleInfo> {
         logger.debug("Start init module roots")
 
         val modules = mutableMapOf<String, ModuleInfo>()
@@ -271,8 +283,16 @@ class CompileContextManager(
                 return@forEach
             }
 
-            val buildToolsVersion: String? = buildModel.android().buildToolsVersion().readString(buildModel)
-            val compileVersion: String? = buildModel.android().compileSdkVersion().readString(buildModel)
+
+
+            val buildToolsVersion: String? = gradleVariableHelper.readVariable(
+                buildModel.android().buildToolsVersion(), buildModel) {
+                this.all { it.isDigit() || it == '.' }
+            }
+            val compileVersion: String? = gradleVariableHelper.readVariable(
+                buildModel.android().compileSdkVersion(), buildModel) {
+                this.all { it.isDigit() }
+            }
             val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
             val javaSourceCompatibility: String? = buildModel.android().compileOptions().sourceCompatibility()
@@ -305,8 +325,10 @@ class CompileContextManager(
 
             modules[module.name] = moduleInfo
             addedModules.add("add $moduleInfo")
+
         }
 
+        gradleVariableHelper.release()
         if (directoryNotFoundModules.isNotEmpty()) {
             logger.debug("ignore modules (module directory not found): ${directoryNotFoundModules.joinToString(", ")}")
         }
@@ -333,21 +355,6 @@ class CompileContextManager(
         return files.any { it.name == "drawable" || it.name == "layout" || it.name == "values" }
     }
 
-    private fun ResolvedPropertyModel.readString(model: GradleBuildModel): String? {
-        var value = valueAsString()?.trim()?: return null
-        // TODO better way to eval property
-        if (value.contains(" as ")) {
-            val index = value.indexOf(" as ")
-            value = value.substring(0, index)
-        }
-        // TODO try model.ext() ?
-        val property = model.inScopeProperties[value]
-        if (property != null) {
-            return property.valueAsString()
-        }
-        return value
-    }
-
     companion object {
 
         fun getAndroidSdkRootDir(logger: Logger): File? {
@@ -356,7 +363,6 @@ class CompileContextManager(
                 it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
             }
             logger.debug("All available jdks: $allJdkString")
-            @Suppress("RedundantIf")
             val androidJdks = allJdks.filter { sdk ->
                 val homeDirectory = sdk.homeDirectory ?: return@filter false
                 if (!homeDirectory.exists()) return@filter false
