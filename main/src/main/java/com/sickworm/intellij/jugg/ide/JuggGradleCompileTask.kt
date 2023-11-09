@@ -58,6 +58,7 @@ class JuggGradleCompileTask(
         }
 
         logger.info("\nJugg gradle compile started.\n")
+        indicator.text = "Start gradle compiling..."
 
         val (costTime, result) = measureTimeMillisWithResult {
             juggGradleCompileOptions.checkConfig()
