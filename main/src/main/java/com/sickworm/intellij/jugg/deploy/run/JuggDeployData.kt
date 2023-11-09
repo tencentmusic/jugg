@@ -63,9 +63,12 @@ data class JuggDeployData(
         }
         builder.append("[\n")
         if (newClasses.isNotEmpty()) {
-            builder.append("new classes:\n")
-            builder.append(newClasses.toClassLogString(isFull))
-            builder.append("\n")
+            val classString = newClasses.toClassLogString(isFull, excludeNodes = hotFixModifiedClasses + hotReloadModifiedClasses)
+            if (classString.isNotEmpty()) {
+                builder.append("new classes:\n")
+                builder.append(classString)
+                builder.append("\n")
+            }
         }
         if (hotFixModifiedClasses.isNotEmpty()) {
             val classString = hotFixModifiedClasses.toClassLogString(isFull, includeNodes = hotReloadModifiedClasses)
