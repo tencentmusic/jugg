@@ -99,12 +99,12 @@ class JuggDeployerHelper(
             return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "deploy canceled")
         }
 
-        val finalIsFallbackAllHotFix = isFallbackAllHotFix || JuggSettings.isQuickFallbackToHotFix
-        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $finalIsFallbackAllHotFix")
+        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp, isFallbackAllHotFix: $isFallbackAllHotFix")
 
         val deployState = deployStateManager.updateDeployState()
         logger.debug("Jugg deploy state: $deployState")
 
+        var finalIsFallbackAllHotFix = isFallbackAllHotFix
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
@@ -139,6 +139,9 @@ class JuggDeployerHelper(
                     }
                 }
                 val deployData = deployFileManager.getDeployData(isWarmUp, finalIsFallbackAllHotFix)
+                finalIsFallbackAllHotFix = isFallbackAllHotFix || (
+                        JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty()
+                        )
                 logger.debug("Deploying data(debug):\n$deployData")
                 logger.info("Deploying data:\n${deployData.toDescString()}")
                 if (deployData.isFullRes) {
