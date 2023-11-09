@@ -1,5 +1,7 @@
 # Jugg
 
+[演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
+
 Jugg is an Android incremental deploy plugin running on Android Studio and Intellij Idea. Jugg has **super-fast** speed on deploying your changed code and assets, without restart App in most situations.
 
 Jugg 是一个基于 Android Studio 的 Android 增量部署插件，也支持 Intellij Idea。它可以以极快的速度将你的代码和资源更新到正在运行的 App 中。因为使用了 JVMTI（ARTTI）接口，改动甚至不需要重启 App。
