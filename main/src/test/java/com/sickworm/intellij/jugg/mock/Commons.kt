@@ -71,7 +71,6 @@ val context get() = SimpleCompileContext(
     tempCompileDir = tempCompileDir,
     tempModuleDir = File(buildDir, "temp_module"),
     androidHome = androidHome,
-    androidBuildTools = androidBuildTools,
     androidJar = androidJar,
     modules = mapOf(mockModule.name to mockModule),
     apkInfos = projectInfo.apkInfos,

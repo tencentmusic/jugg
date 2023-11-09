@@ -16,7 +16,7 @@ object JuggSettings {
 
     // default compile settings
     const val defaultCompileCommand = "./gradlew :app:assembleDebug"
-    const val defaultOutputApkName = "app-*.apk"
+    const val defaultOutputApkName = "app-*debug.apk"
     const val  defaultIsRemoteCompile = false
     var defaultRemoteSshUser: String by propertiesComponent.delegate(defaultValue = "root")
     var defaultRemoteSshIp: String by propertiesComponent.delegate(defaultValue = "")
