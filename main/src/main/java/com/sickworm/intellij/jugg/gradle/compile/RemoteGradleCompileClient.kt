@@ -13,6 +13,7 @@ import java.io.PrintStream
 
 class RemoteGradleCompileClient(
     project: Project,
+    private val isRemoteWindows: Boolean = false,
     private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
 ) : IGradleCompileClient {
 
@@ -160,7 +161,7 @@ class RemoteGradleCompileClient(
         val commander = PrintStream(channel.outputStream, false)
         val commandString = command.getCommand(isNeedSetChineseLanguage = true, isWindows = false)
         logger.debug("invoke command: $commandString")
-        commander.println(commandString)
+        commander.printlnCompat(commandString)
         commander.flush()
 
         val buffer = StringBuilder()
@@ -190,7 +191,7 @@ class RemoteGradleCompileClient(
                             result = interruptCode
                             break@whileRoot
                         }
-                        commander.println(output)
+                        commander.printlnCompat(output)
                         commander.flush()
                     } else {
                         result = interruptCode
@@ -204,7 +205,7 @@ class RemoteGradleCompileClient(
                 val output = command.getInput(line)
                 if (output != null) {
                     logger.debug("output: $output")
-                    commander.println(output)
+                    commander.printlnCompat(output)
                     commander.flush()
                 }
                 val currentResult = command.hasFinishWithResult(line)
@@ -223,6 +224,15 @@ class RemoteGradleCompileClient(
 
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
         return result
+    }
+
+    private fun PrintStream.printlnCompat(line: String) {
+        print(line)
+        if (isRemoteWindows) {
+            print("\r\n")
+        } else {
+            print("\n")
+        }
     }
 
     private fun printToStream(line: String) {
