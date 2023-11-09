@@ -24,6 +24,9 @@ abstract class IftSyncCommand : BaseSshCommand() {
         if (terminalOutputLine == "Login With User:") {
             return "1"
         }
+        if (terminalOutputLine == "Online Devices:") {
+            return "2"
+        }
         return null
     }
 
