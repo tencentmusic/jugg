@@ -6,14 +6,22 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.*
 
-class UserAndPasswordInputDialog(content: String, subTitle: String? = null) : DialogWrapper(true) {
+class UserAndPasswordInputDialog(
+    content: String,
+    subTitle: String? = null,
+    isPassword: Boolean = false,
+) : DialogWrapper(true) {
     private val mainPanel: JPanel
-    private val passwordField: JTextField
+    private val textField: JTextField
 
     init {
         title = "Please input your $content"
         mainPanel = JPanel(GridBagLayout())
-        passwordField = JTextField(20)
+        textField = if (isPassword) {
+            JPasswordField()
+        } else {
+            JTextField()
+        }
 
         val constraints = GridBagConstraints()
         constraints.gridx = 0
@@ -33,7 +41,7 @@ class UserAndPasswordInputDialog(content: String, subTitle: String? = null) : Di
         mainPanel.add(JLabel("$content: "), constraints)
 
         constraints.gridx = 1
-        mainPanel.add(passwordField, constraints)
+        mainPanel.add(textField, constraints)
 
         isResizable = false
         init()
@@ -45,12 +53,12 @@ class UserAndPasswordInputDialog(content: String, subTitle: String? = null) : Di
 
     companion object {
 
-        fun showAndGetResult(content: String, subTitle: String? = null): String? {
+        fun showAndGetResult(content: String, subTitle: String? = null, isPassword: Boolean = false): String? {
             var result: String? = null
             ApplicationManager.getApplication().invokeAndWait {
-                val dialog = UserAndPasswordInputDialog(content, subTitle)
+                val dialog = UserAndPasswordInputDialog(content, subTitle, isPassword)
                 if (dialog.showAndGet()) {
-                    result = dialog.passwordField.text
+                    result = dialog.textField.text
                 }
             }
             return result

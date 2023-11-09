@@ -35,7 +35,8 @@ class RemoteGradleCompileClient(
         if (password.isEmpty()) {
             val enteredPassword = UserAndPasswordInputDialog.showAndGetResult(
                 "SSH Password",
-                subTitle = "You will see this because password is empty in run configuration."
+                subTitle = "You will see this because password is empty in run configuration.",
+                isPassword = true,
             ) ?: throw JuggException.loginToRemoteFailed("User canceled.")
 
             password = enteredPassword
@@ -185,7 +186,8 @@ class RemoteGradleCompileClient(
                         interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
                         lastInterruptCode = interruptCode
                         val content = "iFt ${buffer.toString().replace(":", "")}"
-                        val output = UserAndPasswordInputDialog.showAndGetResult(content)
+                        val output = UserAndPasswordInputDialog.showAndGetResult(content,
+                            isPassword = interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD)
                         if (output == null) {
                             // user canceled
                             result = interruptCode
