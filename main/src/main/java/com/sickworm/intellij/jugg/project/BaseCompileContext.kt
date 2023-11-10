@@ -121,8 +121,8 @@ data class BaseCompileContext(
     }
 
     private fun getSuggestedPlatformApi(modules: Map<String, ModuleInfo>): String {
-        val versionsInGradle = modules.values.map { it.compileVersion }
-        var version = getLatestVersion(versionsInGradle)
+        val versionsInGradle = modules.values.map { it.name to it.compileVersion }
+        var version = getLatestVersion(versionsInGradle.map { it.second} )
         val rootDir = File(androidHome, "platforms")
         logger.debug("getSuggestedPlatformApi version: $version, versions in gradle: $versionsInGradle")
 
@@ -141,7 +141,7 @@ data class BaseCompileContext(
                 it.name.substring("android-".length)
             }
             version = getLatestVersion(versionsInSdk)
-            logger.debug("getSuggestedPlatformApi version: $version, versions in gradle: $versionsInSdk")
+            logger.debug("getSuggestedPlatformApi version: $version, versions in sdk: $versionsInSdk")
 
             if (version == null) {
                 throw JuggException.androidJarNotFound("")

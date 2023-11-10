@@ -6,13 +6,15 @@ import com.android.tools.idea.gradle.repositories.search.CachingRepositorySearch
 import com.android.tools.idea.gradle.structure.configurables.PsContextImpl
 import com.android.tools.idea.gradle.structure.model.PsProjectImpl
 import com.android.tools.idea.gradle.structure.model.meta.maybeValue
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 
-class GradleVariableHelper {
+class GradleVariableHelper(private val logger: Logger) {
 
     private var psContext: PsContextImpl? = null
 
     fun init(project: Project) {
+        logger.debug("init")
         val repositorySearchFactory = CachingRepositorySearchFactory()
         psContext = PsContextImpl(
             PsProjectImpl(project, repositorySearchFactory), { },
@@ -33,7 +35,7 @@ class GradleVariableHelper {
             return value
         }
 
-        // parse will failed if variable contains " as "
+        // parse will fail if variable contains " as "
         var fixedValue = value
         if (fixedValue.contains(" as ")) {
             val index = value.indexOf(" as ")

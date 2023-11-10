@@ -146,6 +146,7 @@ class CompileContextManager(
     }
 
     fun getAllModulesByModuleManager(isNeedReloadProjectInfo: Boolean): Map<String, ModuleInfo> {
+        logger.debug("getAllModulesByModuleManager isNeedReloadProjectInfo: $isNeedReloadProjectInfo, isFirstTimeLoad: $isFirstTimeLoad")
         var modules: Map<String, ModuleInfo>? = null
         if (!isNeedReloadProjectInfo) {
             val cacheModules = projectInfoSerializer.load()
@@ -155,7 +156,7 @@ class CompileContextManager(
             }
         }
         if (modules == null) {
-            val gradleVariableHelper = GradleVariableHelper()
+            val gradleVariableHelper = GradleVariableHelper(logger)
             gradleVariableHelper.init(project)
             if (isFirstTimeLoad) {
                 isFirstTimeLoad = false
