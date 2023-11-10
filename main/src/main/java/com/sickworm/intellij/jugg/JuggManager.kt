@@ -285,6 +285,7 @@ class JuggManager @TestOnly constructor(
                     it.copy(buildPathInfo = ModuleBuildPathInfo(
                         classpathRootDir,
                         File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
+                        it.buildVariant,
                     ))
                 }
                 .associateBy { it.name }

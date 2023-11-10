@@ -152,7 +152,8 @@ private class ProjectInfoSerialize(
                     javaTargetCompatibility = stringMap[parts[12]]!!.nullIfNull(),
                     buildPathInfo = ModuleBuildPathInfo(
                         File(stringMap[parts[13]]!!),
-                        File(stringMap[parts[14]]!!)
+                        File(stringMap[parts[14]]!!),
+                        stringMap[parts[7]]!!,
                     ),
                     moduleDependencies = if (parts[15].isEmpty()) emptyList() else parts[15].split(",").map { moduleDependency ->
                         ModuleDependency(

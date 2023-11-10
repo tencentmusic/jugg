@@ -165,7 +165,7 @@ interface ICompileContext {
 
     val tempModule get() = ModuleInfo.virtualModule.copy(
         name = "temp_module",
-        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, "debug"),
     )
 
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
@@ -228,7 +228,7 @@ data class ModuleInfo(
             kotlinJvmTarget = null,
             javaSourceCompatibility = null,
             javaTargetCompatibility = null,
-            buildPathInfo = ModuleBuildPathInfo(File(""), File("")),
+            buildPathInfo = ModuleBuildPathInfo(File(""), File(""), "debug"),
             moduleDependencies = emptyList(),
             libraryDependencies = emptyList(),
         )
@@ -248,21 +248,23 @@ data class ModuleBuildPathInfo(
     val projectRootDir: File,
     /** module root dir */
     val moduleRootDir: File,
+    /** build variant. e.g. debug, release, developmentDebug */
+    val buildVariant: String,
 ) {
 
     /** build root dir */
     val buildDir: File = File(moduleRootDir, "build")
 
     /** java class path */
-    private val javaClassPathNew get() = File(buildDir, "intermediates/javac/debug/classes")
+    private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
     /** on gradle 3.2.1 has different java class path */
-    private val javaClassPathOld get() = File(buildDir, "intermediates/javac/debug/compileDebugJavaWithJavac/classes")
+    private val javaClassPathOld get() = File(buildDir, "intermediates/javac/$buildVariant/compileDebugJavaWithJavac/classes")
     /** java class path */
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
     /** after gradle 4.1.1, R.class not storage in buildClassPath */
-    val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar")
+    val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant/R.jar")
     /** kotlin class path */
-    val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/debug")
+    val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
 
     /** java classpath for java library */
     private val javaClassPathForJavaLibrary get() = File(buildDir, "classes/java/main")

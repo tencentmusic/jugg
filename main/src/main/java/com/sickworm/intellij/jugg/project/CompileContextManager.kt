@@ -94,6 +94,7 @@ class CompileContextManager(
             val guessedBuildPathInfo = ModuleBuildPathInfo(
                 module.projectRootDir,
                 module.moduleRootDir.changeBaseDir(module.projectRootDir, guessBuildPathBaseDir),
+                module.buildVariant,
             )
             if (guessedBuildPathInfo.buildDir.exists()) {
                 logger.info("guess build path success: ${guessedBuildPathInfo.buildDir}")
@@ -316,7 +317,7 @@ class CompileContextManager(
                 manifestFile,
                 buildVariant, compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
-                ModuleBuildPathInfo(pathManager.projectDir, baseDir),
+                ModuleBuildPathInfo(pathManager.projectDir, baseDir, buildVariant),
                 moduleDependencies,
                 libraryDependencies,
             )
