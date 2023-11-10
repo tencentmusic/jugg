@@ -60,10 +60,10 @@ data class JuggGradleCompileOptions(
     val localSyncIftPath get() = "$localToRemoteIftConfigName/$projectSyncRootRelativePath"
 
     /** remote project sync path, used for syncing files to remote by iFt, and fetching classpath */
-    val remoteSyncRootPath get() = "/$remoteBasePath/$localToRemoteIftConfigName/$projectSyncRootRelativePath"
+    val remoteSyncRootPath get() = "$remoteBasePath/$localToRemoteIftConfigName/$projectSyncRootRelativePath"
 
     /** remote project root path, used for compilation */
-    val remoteProjectPath get() = "/$remoteBasePath/$localToRemoteIftConfigName/$projectSyncRelativePath" // use ~/ will make path replacement don't work
+    val remoteProjectPath get() = "$remoteBasePath/$localToRemoteIftConfigName/$projectSyncRelativePath" // use ~/ will make path replacement don't work
 
     /** remote iFt path, used for fetching apk output to local */
     val remoteToLocalProjectIftPath get() = "$remoteToLocalIftConfigName/$projectSyncRelativePath"
