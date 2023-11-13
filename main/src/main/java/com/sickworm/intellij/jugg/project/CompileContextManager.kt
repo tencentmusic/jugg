@@ -228,7 +228,7 @@ class CompileContextManager(
                 }
                 .filter {
                     val relativeFile = it.relativeToOrNull(baseDir) ?: return@filter true
-                    return@filter !relativeFile.path.startsWith("build/") // exclude generated source
+                    return@filter !relativeFile.path.startsWith("build" + File.separator) // exclude generated source
                 }
             sourceDirs.addAll(subSourceRoots)
 
@@ -276,13 +276,12 @@ class CompileContextManager(
                 return@forEach
             }
 
+            // read attributes
             val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
                 notGradleModules.add(module.name)
                 return@forEach
             }
-
-
 
             val buildToolsVersion: String? = gradleVariableHelper.readVariable(
                 buildModel.android().buildToolsVersion(), buildModel) {
