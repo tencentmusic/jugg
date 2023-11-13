@@ -407,7 +407,7 @@ class JuggManager @TestOnly constructor(
                     juggReporter.report(reportEventData)
                 }
             }
-        }.setCancelText("Jugg: Stopping $jobName...").queue();
+        }.setCancelText("Jugg: Stopping $jobName...").queue()
     }
 
     override fun dispose() {
