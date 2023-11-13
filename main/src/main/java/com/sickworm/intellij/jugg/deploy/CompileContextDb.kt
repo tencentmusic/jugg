@@ -11,7 +11,6 @@ import java.io.File
  */
 class CompileContextDb(
     private val dbDir: File,
-    private val projectDir: File,
     private val logger: Logger,
 ) {
 
@@ -63,6 +62,16 @@ class CompileContextDb(
             completeFlagFile.delete()
             return null
         }
+        apkInfos.forEach { apkInfo ->
+            apkInfo.files.forEach { apkFileUnit ->
+                if (apkFileUnit.apkFile.exists().not()) {
+                    logger.warn("Apk file not exists: ${apkFileUnit.apkFile}")
+                    completeFlagFile.delete()
+                    return null
+                }
+            }
+        }
+
         val moduleBuilds = ProjectInfoSerializer(moduleBuildPathDatFile, logger).load()
         if (moduleBuilds.isNullOrEmpty()) {
             logger.warn("Failed to load module build path info from db")

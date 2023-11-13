@@ -23,7 +23,6 @@ class DeployHistoryManager(
     ),
     private val compileContextDb: CompileContextDb = CompileContextDb(
         dbDir = File(storageDir, "compile_context.db"),
-        projectDir = projectDir,
         logger = logger,
     ),
 ): IDeployHistoryManager {
