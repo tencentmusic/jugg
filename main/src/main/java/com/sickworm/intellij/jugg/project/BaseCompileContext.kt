@@ -38,10 +38,6 @@ data class BaseCompileContext(
         }
     }
 
-    init {
-        tempModule.buildPathInfo.moduleRootDir.clearDir()
-    }
-
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = androidJar.path
 
