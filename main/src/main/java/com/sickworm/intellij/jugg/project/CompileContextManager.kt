@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.jps.model.java.JavaResourceRootType
@@ -187,10 +188,8 @@ class CompileContextManager(
         val noSourceModules = mutableSetOf<String>()
         val fullLibraryDependencies = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
-            val sourceDirs = mutableSetOf<File>()
-            val resourceDirs = mutableSetOf<File>()
-            val assetDirs = mutableSetOf<File>()
 
+            // 1. guess base directory
             val baseDir = module.guessModuleDirAdv(projectBuildModel)
             if (baseDir == null) {
                 directoryNotFoundModules.add(module.name)
@@ -211,72 +210,7 @@ class CompileContextManager(
                 return@forEach
             }
 
-            val moduleRootManager = ModuleRootManager.getInstance(module)
-
-            // find source roots
-            val subSourceRoots = moduleRootManager.getSourceRoots(
-                setOf(
-                    JavaSourceRootType.SOURCE,
-                    org.jetbrains.kotlin.config.SourceKotlinRootType
-                ))
-                .filter { file ->
-                    // ignore source in excludeRoots, etc. build
-                    moduleRootManager.excludeRoots.all { !file.path.startsWith(it.path) }
-                }
-                .map {
-                    it.toIoFile()
-                }
-                .filter {
-                    val relativeFile = it.relativeToOrNull(baseDir) ?: return@filter true
-                    return@filter !relativeFile.path.startsWith("build" + File.separator) // exclude generated source
-                }
-            sourceDirs.addAll(subSourceRoots)
-
-            val subResourceRoots = moduleRootManager.getSourceRoots(
-                setOf(
-                    JavaResourceRootType.RESOURCE,
-                    org.jetbrains.kotlin.config.ResourceKotlinRootType
-                ))
-            subResourceRoots.forEach {
-                val file = it.toIoFile()
-                if (it.name == "res") {
-                    resourceDirs.add(file)
-                } else if (it.name == "assets") {
-                    assetDirs.add(file)
-                } else {
-                    val isResDir = file.guessIsResDir()
-                    logger.warn("${module.name} unknown resource dir: ${file}, guess isResDir: $isResDir")
-                    if (isResDir) {
-                        resourceDirs.add(file)
-                    } else {
-                        assetDirs.add(file)
-                    }
-                }
-            }
-
-            // find dependencies
-            val moduleDependencies = mutableListOf<ModuleDependency>()
-            val libraryDependencies = mutableListOf<LibraryDependency>()
-            moduleRootManager.orderEntries.forEach {
-                when (it) {
-                    is ModuleOrderEntry -> {
-                        moduleDependencies.add(ModuleDependency(it.moduleName))
-                    }
-                    is LibraryOrderEntry -> {
-                        it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
-                            libraryDependencies.add(LibraryDependency(file.toIoFile()))
-                            fullLibraryDependencies.add(file.toIoFile().absolutePath)
-                        }
-                    }
-                }
-            }
-
-            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty() && libraryDependencies.isEmpty()) {
-                noSourceModules.add(module.name)
-                return@forEach
-            }
-
-            // read attributes
+            // 2. read attributes
             val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
                 notGradleModules.add(module.name)
@@ -309,6 +243,74 @@ class CompileContextManager(
             if (manifestProperties != null) {
                 manifestFile = File(baseDir, manifestProperties)
             }
+            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, baseDir, buildVariant)
+
+            // 3. find source roots
+            val sourceDirs = mutableSetOf<File>()
+            val resourceDirs = mutableSetOf<File>()
+            val assetDirs = mutableSetOf<File>()
+
+            val moduleRootManager = ModuleRootManager.getInstance(module)
+            val subSourceRoots = moduleRootManager.getSourceRoots(
+                setOf(
+                    JavaSourceRootType.SOURCE,
+                    org.jetbrains.kotlin.config.SourceKotlinRootType
+                ))
+                .filter { file ->
+                    // ignore source in excludeRoots, etc. build
+                    moduleRootManager.excludeRoots.all { !file.path.startsWith(it.path) }
+                }
+                .map {
+                    it.toIoFile()
+                }
+                .filter {
+                    return@filter !it.isChild(moduleBuildPathInfo.buildDir) // exclude generated source
+                }
+            sourceDirs.addAll(subSourceRoots)
+
+            val subResourceRoots = moduleRootManager.getSourceRoots(
+                setOf(
+                    JavaResourceRootType.RESOURCE,
+                    org.jetbrains.kotlin.config.ResourceKotlinRootType
+                ))
+            subResourceRoots.forEach {
+                val file = it.toIoFile()
+                if (it.name == "res") {
+                    resourceDirs.add(file)
+                } else if (it.name == "assets") {
+                    assetDirs.add(file)
+                } else {
+                    val isResDir = file.guessIsResDir()
+                    logger.warn("${module.name} unknown resource dir: ${file}, guess isResDir: $isResDir")
+                    if (isResDir) {
+                        resourceDirs.add(file)
+                    } else {
+                        assetDirs.add(file)
+                    }
+                }
+            }
+
+            // 4. find dependencies
+            val moduleDependencies = mutableListOf<ModuleDependency>()
+            val libraryDependencies = mutableListOf<LibraryDependency>()
+            moduleRootManager.orderEntries.forEach {
+                when (it) {
+                    is ModuleOrderEntry -> {
+                        moduleDependencies.add(ModuleDependency(it.moduleName))
+                    }
+                    is LibraryOrderEntry -> {
+                        it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
+                            libraryDependencies.add(LibraryDependency(file.toIoFile()))
+                            fullLibraryDependencies.add(file.toIoFile().absolutePath)
+                        }
+                    }
+                }
+            }
+
+            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty() && libraryDependencies.isEmpty()) {
+                noSourceModules.add(module.name)
+                return@forEach
+            }
 
             val moduleInfo = ModuleInfo(
                 module.name, baseDir, pathManager.projectDir,
@@ -316,7 +318,7 @@ class CompileContextManager(
                 manifestFile,
                 buildVariant, compileVersion, buildToolsVersion,
                 kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
-                ModuleBuildPathInfo(pathManager.projectDir, baseDir, buildVariant),
+                moduleBuildPathInfo,
                 moduleDependencies,
                 libraryDependencies,
             )
