@@ -96,6 +96,7 @@ val mockModule = ModuleInfo(
     buildPathInfo = ModuleBuildPathInfo(
         projectInfo.projectRoot,
         appModuleDir,
+        ModuleInfo.DEFAULT_BUILD_VARIANT
     ),
     kotlinJvmTarget = "1.8",
     javaSourceCompatibility = "1.8",

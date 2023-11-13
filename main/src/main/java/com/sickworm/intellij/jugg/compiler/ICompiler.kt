@@ -165,7 +165,7 @@ interface ICompileContext {
 
     val tempModule get() = ModuleInfo.virtualModule.copy(
         name = "temp_module",
-        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, "debug"),
+        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
     )
 
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
@@ -228,7 +228,7 @@ data class ModuleInfo(
             kotlinJvmTarget = null,
             javaSourceCompatibility = null,
             javaTargetCompatibility = null,
-            buildPathInfo = ModuleBuildPathInfo(File(""), File(""), "debug"),
+            buildPathInfo = ModuleBuildPathInfo(File(""), File(""), DEFAULT_BUILD_VARIANT),
             moduleDependencies = emptyList(),
             libraryDependencies = emptyList(),
         )
