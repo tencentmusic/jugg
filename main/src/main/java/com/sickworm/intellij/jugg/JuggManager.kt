@@ -64,7 +64,7 @@ class JuggManager @TestOnly constructor(
         Disposer.register(this, juggCompilerHelper)
         runTaskSafe("Init Jugg", {
             logger.info("Create run configuration...")
-            createRunConfiguration()
+            createDefaultRunConfigurationIfNoneExist()
             JuggRunningTask.resetHasRun(project)
             logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
@@ -109,7 +109,7 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    private fun createRunConfiguration() {
+    private fun createDefaultRunConfigurationIfNoneExist() {
         val defaultName = "jugg:app"
         val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
         if (currentList.isNotEmpty()) {
