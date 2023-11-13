@@ -54,6 +54,13 @@ data class JuggDeployData(
         else -> DeployType.HOT_RELOAD
     }
 
+    fun toFallbackToHotFixData(): JuggDeployData {
+        return this.copy(
+            hotFixModifiedClasses = this.hotFixModifiedClasses + this.hotReloadModifiedClasses,
+            hotReloadModifiedClasses = emptyList(),
+        )
+    }
+
     private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")

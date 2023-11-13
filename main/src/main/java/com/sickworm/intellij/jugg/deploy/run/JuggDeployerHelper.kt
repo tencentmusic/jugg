@@ -138,10 +138,14 @@ class JuggDeployerHelper(
                         return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Invalid state for deploy.")
                     }
                 }
-                val deployData = deployFileManager.getDeployData(isWarmUp, finalIsFallbackAllHotFix)
-                finalIsFallbackAllHotFix = isFallbackAllHotFix || (
-                        JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty()
-                        )
+
+                var deployData = deployFileManager.getDeployData(isWarmUp)
+                finalIsFallbackAllHotFix = isFallbackAllHotFix ||
+                        (JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty())
+                if (finalIsFallbackAllHotFix) {
+                    deployData = deployData.toFallbackToHotFixData()
+                }
+
                 logger.debug("Deploying data(debug):\n$deployData")
                 logger.info("Deploying data:\n${deployData.toDescString()}")
                 if (deployData.isFullRes) {
