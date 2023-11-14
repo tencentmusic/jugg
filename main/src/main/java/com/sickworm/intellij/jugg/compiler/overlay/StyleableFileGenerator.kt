@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
+import org.objectweb.asm.tree.FieldNode
 import java.io.BufferedOutputStream
 import java.io.File
 import java.util.zip.ZipFile
@@ -21,10 +22,10 @@ class StyleableFileGenerator(
             logger.warn("generateStyleableFile failed, no application module found")
             return null
         }
-        val selectedApplicationModule = applicationModules.maxBy {
+        val selectedApplicationModule = applicationModules.maxByOrNull {
             val rFile = it.buildPathInfo.rFilePath
-            return@maxBy rFile.length()
-        }
+            return@maxByOrNull rFile.length()
+        } ?: applicationModules.first()
         logger.debug("found ${applicationModules.size} application modules, select: ${selectedApplicationModule.name}")
 
         val manifestFile = selectedApplicationModule.manifestFile
@@ -53,7 +54,9 @@ class StyleableFileGenerator(
                 val asmClassNode = ClassNode()
                 classReader.accept(asmClassNode, 0)
                 asmClassNode.fields.forEach {
-                    styleablesMerger.acceptVariable(it.name, it.desc)
+                    if (it is FieldNode) {
+                        styleablesMerger.acceptVariable(it.name, it.desc)
+                    }
                 }
             }
             logger.debug("generateStyleableFile success, load styleables: ${styleablesMerger.getResult().size}")
