@@ -274,11 +274,14 @@ class CompileContextManager(
                     JavaResourceRootType.RESOURCE,
                     org.jetbrains.kotlin.config.ResourceKotlinRootType
                 ))
-            subResourceRoots.forEach {
-                val file = it.toIoFile()
-                if (it.name == "res") {
+            subResourceRoots.map {
+                it.toIoFile()
+            }.filter {
+                return@filter !it.isChild(moduleBuildPathInfo.buildDir) // exclude generated source
+            }.forEach { file ->
+                if (file.name == "res") {
                     resourceDirs.add(file)
-                } else if (it.name == "assets") {
+                } else if (file.name == "assets") {
                     assetDirs.add(file)
                 } else {
                     val isResDir = file.guessIsResDir()
