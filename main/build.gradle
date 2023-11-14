@@ -14,7 +14,15 @@ archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 version '1.1.7-SNAPSHOT'
 
-sourceCompatibility = 17
+sourceCompatibility = 11
+targetCompatibility = 11
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
 
 intellij {
     pluginName = 'jugg'
@@ -82,11 +90,4 @@ dependencies {
     testImplementation "org.mockito.kotlin:mockito-kotlin:5.0.0"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.7.22"
     testImplementation "org.json:json:20230618"
-}
-
-compileKotlin {
-    kotlinOptions.jvmTarget = "11"
-}
-compileTestKotlin {
-    kotlinOptions.jvmTarget = "11"
 }

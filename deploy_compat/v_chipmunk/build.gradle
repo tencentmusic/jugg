@@ -4,6 +4,13 @@ plugins {
     id 'org.jetbrains.intellij'
 }
 
+sourceCompatibility = 11
+targetCompatibility = 11
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
 buildSearchableOptions {
     enabled = false
 }
