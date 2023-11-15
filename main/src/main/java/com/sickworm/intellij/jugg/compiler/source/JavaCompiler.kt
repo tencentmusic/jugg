@@ -33,6 +33,7 @@ class JavaCompiler(
         // compile options
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = context.getModuleDependencies(module, task)
+        options.add("-g") // generate debug info, e.g. local variable name
         options.addAll(listOf("-cp", dependencies.joinToString(File.pathSeparator)))
         // ensure class file version for later dex
         options.addAll(listOf("-source", module.javaSourceCompatibility ?: "1.8"))
