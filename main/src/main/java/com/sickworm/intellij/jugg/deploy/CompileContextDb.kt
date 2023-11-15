@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.deploy
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import java.io.File
 
 /**
@@ -17,7 +16,7 @@ class CompileContextDb(
     private val completeFlagFile = File(dbDir, "complete_flag")
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
-    private val moduleBuildPathDatFile = File(dbDir, "module_builds.dat")
+    private val moduleBuildPathDatFile = File(dbDir, "module_builds.json")
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
     private val resDeployedDir = File(deployedDir, "res")
@@ -39,7 +38,7 @@ class CompileContextDb(
         apkInfoFile.writeText(ApkInfoSerializer().serialize(apkInfos), Charsets.UTF_8)
 
         // save module info
-        ProjectInfoSerializer(moduleBuildPathDatFile, logger).save(modules)
+        BuildPathInfoSerializer(moduleBuildPathDatFile, logger).save(modules)
 
         // WOW! We have done!
         completeFlagFile.createNewFile()
@@ -72,15 +71,13 @@ class CompileContextDb(
             }
         }
 
-        val moduleBuilds = ProjectInfoSerializer(moduleBuildPathDatFile, logger).load()
+        val moduleBuilds = BuildPathInfoSerializer(moduleBuildPathDatFile, logger).load()
         if (moduleBuilds.isNullOrEmpty()) {
             logger.warn("Failed to load module build path info from db")
             completeFlagFile.delete()
             return null
         }
-        val moduleBuildPathInfos = moduleBuilds.mapValues { it.value.buildPathInfo }
-
-        return CompileContextInfo(apkInfos, moduleBuildPathInfos)
+        return CompileContextInfo(apkInfos, moduleBuilds)
     }
 
     fun updateDeployedData(deployedFiles: List<CompileOutput>) {

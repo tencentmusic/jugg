@@ -311,7 +311,7 @@ data class ModuleBuildPathInfo(
 ) {
 
     /** build root dir */
-    val buildDir: File = File(moduleRootDir, "build")
+    val buildDir: File get() = File(moduleRootDir, "build")
 
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
