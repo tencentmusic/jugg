@@ -12,7 +12,7 @@ test {
 
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
-version '1.1.7-SNAPSHOT'
+version '1.1.8-SNAPSHOT'
 
 sourceCompatibility = 11
 targetCompatibility = 11
