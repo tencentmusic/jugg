@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.jetbrains.android.facet.AndroidFacet
+import org.jetbrains.android.sdk.AndroidSdkAdditionalData
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
@@ -221,7 +222,7 @@ class CompileContextManager(
                 buildModel.android().buildToolsVersion(), buildModel) {
                 this.all { it.isDigit() || it == '.' }
             }
-            val compileVersion: String? = gradleVariableHelper.readVariable(
+            var compileVersion: String? = gradleVariableHelper.readVariable(
                 buildModel.android().compileSdkVersion(), buildModel) {
                 this.all { it.isDigit() }
             }
@@ -302,6 +303,17 @@ class CompileContextManager(
                         it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
                             libraryDependencies.add(LibraryDependency(file.toIoFile()))
                             fullLibraryDependencies.add(file.toIoFile().absolutePath)
+                        }
+                    }
+                    is ModuleJdkOrderEntry -> {
+                        if (it.jdkTypeName == "Android SDK") {
+                            val additionalData = it.jdk?.sdkAdditionalData as? AndroidSdkAdditionalData
+                            val buildTarget = additionalData?.buildTargetHashString
+                            if (buildTarget != null && buildTarget.startsWith("android-")) {
+                                compileVersion = buildTarget
+                                    .substringAfter("android-")
+                                    .substringBefore("-ext")
+                            }
                         }
                     }
                 }
