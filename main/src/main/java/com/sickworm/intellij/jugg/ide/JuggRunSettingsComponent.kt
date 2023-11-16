@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
@@ -40,6 +41,10 @@ class JuggRunSettingsComponent : JComponent() {
     val localToRemoteIftConfigNameTextField = JTextField()
     private val localToRemoteSyncPathLabel = JLabel("Local to remote sync path:")
     val localToRemoteSyncPathTextField = JTextField()
+    private val remoteSyncPathLabel = JLabel("Remote sync path (optional):")
+    val remoteSyncPathTextField = JBTextField().also {
+        it.emptyText.text = "default \$HOME/{Local to remote IFT config name}, e.g. /root/remote"
+    }
     private val remoteToLocalIftConfigNameLabel = JLabel("Remote to local IFT config name:")
     private val remoteToLocalSyncPathLabel = JLabel("Remote to local sync path:")
     val remoteToLocalSyncPathTextField = JTextField()
@@ -57,6 +62,7 @@ class JuggRunSettingsComponent : JComponent() {
         Pair(portLabel, portTextField),
         Pair(localToRemoteIftConfigNameLabel, localToRemoteIftConfigNameTextField),
         Pair(localToRemoteSyncPathLabel, localToRemoteSyncPathTextField),
+        Pair(remoteSyncPathLabel, remoteSyncPathTextField),
         Pair(remoteToLocalIftConfigNameLabel, remoteToLocalIftConfigNameTextField),
         Pair(remoteToLocalSyncPathLabel, remoteToLocalSyncPathTextField),
         Pair(httpProxyIpLabel, httpProxyIpTextField),
@@ -69,7 +75,7 @@ class JuggRunSettingsComponent : JComponent() {
         addPair(compileCommandLabel, compileCommandTextField, leftWidth = 140)
         addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 140)
 
-        addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 220, isAlignEnd = true)
+        addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 260, isAlignEnd = true)
 
         enableRemoteCompileCheckBox.addActionListener {
             val isSelected = enableRemoteCompileCheckBox.isSelected
@@ -91,6 +97,7 @@ class JuggRunSettingsComponent : JComponent() {
         httpProxyPortTextField.text = settings.httpProxyPort.toString()
         localToRemoteIftConfigNameTextField.text = settings.localToRemoteIftConfigName
         localToRemoteSyncPathTextField.text = settings.localToRemoteSyncPath
+        remoteSyncPathTextField.text = settings.remoteSyncPath
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
 
@@ -146,7 +153,7 @@ class JuggRunSettingsComponent : JComponent() {
                 it.first.parent?.let { parent ->
                     add(parent)
                 } ?: run {
-                    addPair(it.first, it.second, leftWidth = 220)
+                    addPair(it.first, it.second, leftWidth = 260)
                 }
             } else {
                 it.first.parent?.let { parent ->

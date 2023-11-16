@@ -106,6 +106,7 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
             remoteSshPort = component.portTextField.text.toInt()
             localToRemoteIftConfigName = component.localToRemoteIftConfigNameTextField.text
             localToRemoteSyncPath = component.localToRemoteSyncPathTextField.text
+            remoteSyncPath = component.remoteSyncPathTextField.text
             remoteToLocalIftConfigName = component.remoteToLocalIftConfigNameTextField.text
             remoteToLocalSyncPath = component.remoteToLocalSyncPathTextField.text
             httpProxyIp = component.httpProxyIpTextField.text

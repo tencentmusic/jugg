@@ -24,6 +24,7 @@ object JuggSettings {
     var defaultRemoteSshPort: Int by propertiesComponent.delegate(defaultValue = 36000)
     var defaultLocalToRemoteIftConfigName: String by propertiesComponent.delegate(defaultValue = "")
     var defaultLocalToRemoteSyncPath: String by propertiesComponent.delegate(defaultValue = "")
+    var defaultRemoteSyncPath: String by propertiesComponent.delegate(defaultValue = "")
     var defaultRemoteToLocalIftConfigName: String by propertiesComponent.delegate(defaultValue = "")
     var defaultRemoteToLocalSyncPath: String by propertiesComponent.delegate(defaultValue = "")
     var defaultHttpProxyIp: String by propertiesComponent.delegate(defaultValue = "127.0.0.1")
@@ -51,6 +52,7 @@ object JuggSettings {
         defaultRemoteSshPort = options.remoteSshPort
         defaultLocalToRemoteIftConfigName = options.localToRemoteIftConfigName
         defaultLocalToRemoteSyncPath = options.localToRemoteSyncPath
+        defaultRemoteSyncPath = options.remoteSyncPath
         defaultRemoteToLocalIftConfigName = options.remoteToLocalIftConfigName
         defaultRemoteToLocalSyncPath = options.remoteToLocalSyncPath
         defaultHttpProxyIp = options.httpProxyIp

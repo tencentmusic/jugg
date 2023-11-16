@@ -19,6 +19,7 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     var remoteSshPort by property(JuggSettings.defaultRemoteSshPort)
     var localToRemoteIftConfigName by string(JuggSettings.defaultLocalToRemoteIftConfigName)
     var localToRemoteSyncPath by string(JuggSettings.defaultLocalToRemoteSyncPath)
+    var remoteSyncPath by string(JuggSettings.defaultRemoteSyncPath)
     var remoteToLocalIftConfigName by string(JuggSettings.defaultRemoteToLocalIftConfigName)
     var remoteToLocalSyncPath by string(JuggSettings.defaultRemoteToLocalSyncPath)
     var httpProxyIp by string(JuggSettings.defaultHttpProxyIp)
@@ -40,6 +41,7 @@ data class JuggGradleCompileOptions(
     val remoteSshPort: Int,
     val localToRemoteIftConfigName: String,
     val localToRemoteSyncPath: String,
+    val remoteSyncPath: String,
     val remoteToLocalIftConfigName: String,
     val remoteToLocalSyncPath: String,
     val httpProxyIp: String,
@@ -53,17 +55,20 @@ data class JuggGradleCompileOptions(
 
     private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(File.separatorChar)
 
+    /** remote home directory */
+    private val remoteHomePath = if (remoteSshUser == "root") "/root" else "/data/home/$remoteSshUser"
+
     /** project storage directory */
-    private val remoteBasePath = if (remoteSshUser == "root") "/root" else "/data/home/$remoteSshUser"
+    private val finalRemoteSyncPath = remoteSyncPath.ifEmpty { "$remoteHomePath/$localToRemoteIftConfigName" }
 
     /** local iFt path, used for syncing files to remote by iFt */
     val localSyncIftPath get() = "$localToRemoteIftConfigName/$projectSyncRootRelativePath"
 
     /** remote project sync path, used for syncing files to remote by iFt, and fetching classpath */
-    val remoteSyncRootPath get() = "$remoteBasePath/$localToRemoteIftConfigName/$projectSyncRootRelativePath"
+    val remoteSyncRootPath get() = "$finalRemoteSyncPath/$projectSyncRootRelativePath"
 
     /** remote project root path, used for compilation */
-    val remoteProjectPath get() = "$remoteBasePath/$localToRemoteIftConfigName/$projectSyncRelativePath" // use ~/ will make path replacement don't work
+    val remoteProjectPath get() = "$finalRemoteSyncPath/$projectSyncRelativePath" // use ~/ will make path replacement don't work
 
     /** remote iFt path, used for fetching apk output to local */
     val remoteToLocalProjectIftPath get() = "$remoteToLocalIftConfigName/$projectSyncRelativePath"
@@ -136,6 +141,7 @@ data class JuggGradleCompileOptions(
                 options.remoteSshPort,
                 options.localToRemoteIftConfigName ?: "",
                 options.localToRemoteSyncPath ?: "",
+                options.remoteSyncPath ?: "",
                 options.remoteToLocalIftConfigName ?: "",
                 options.remoteToLocalSyncPath ?: "",
                 options.httpProxyIp ?: "",
