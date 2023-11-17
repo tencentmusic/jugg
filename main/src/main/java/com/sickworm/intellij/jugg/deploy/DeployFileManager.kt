@@ -80,6 +80,7 @@ class DeployFileManager(
         }
         files.forEach {
             uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
+            compiledFiles.remove(it.file.stdPath)
         }
         sourceFileManager.updateFiles(newFiles.map { it.file }, emptyList())
     }
@@ -147,6 +148,11 @@ class DeployFileManager(
     @Synchronized
     fun getCompiledFiles(): List<ChangedFile> {
         return compiledFiles.values.toList()
+    }
+
+    @Synchronized
+    fun getUndeployedFiles(): List<ChangedFile> {
+        return getUncompiledFiles() + getCompiledFiles()
     }
 
     @Synchronized

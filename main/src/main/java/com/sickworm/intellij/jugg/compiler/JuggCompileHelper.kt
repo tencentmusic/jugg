@@ -160,9 +160,9 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Jugg compiler not init")
         }
 
-        // read all uncompiled files
-        val uncompiledFiles = deployFileManager.getUncompiledFiles()
-        if (uncompiledFiles.all { it.hasCompiledOnce }) {
+        // read all undeployed files
+        val undeployedFiles = deployFileManager.getUndeployedFiles()
+        if (undeployedFiles.all { it.hasCompiledOnce }) {
             val deviceName = deployTargetManager.getDeviceOrNull()?.name
             if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
                 logger.info("No file changes, but it's first time run, will run with incremental compile.")
@@ -171,26 +171,26 @@ class JuggCompilerHelper(
                 return CompileTaskResult.incrementalFailed(true, "No file changes")
             }
         }
-        val uncompiledSourceModules = uncompiledFiles.filter {
+        val undeployedSourceModules = undeployedFiles.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
         }.map {
             it.module.name + "_" + it.type
         }.toSet()
-        if (uncompiledSourceModules.size > JuggSettings.maxCompileSourceModules) {
-            logger.info("Uncompiled modules too much, will fallback to gradle compile for better performance.")
+        if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
+            logger.info("Compile modules too much, will fallback to gradle compile for better performance.")
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
 
-        return doIncrementalCompile(compiler, uncompiledFiles, processHandler)
+        return doIncrementalCompile(compiler, undeployedFiles, processHandler)
     }
 
-    private fun doIncrementalCompile(compiler: JuggCompiler, uncompiledFiles: List<ChangedFile>, processHandler: SimpleProcessHandler): CompileTaskResult {
+    private fun doIncrementalCompile(compiler: JuggCompiler, undeployedFiles: List<ChangedFile>, processHandler: SimpleProcessHandler): CompileTaskResult {
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             logger.warn("Compile canceled.")
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
-        val compileFiles = uncompiledFiles.map {
+        val compileFiles = undeployedFiles.map {
             CompileFile(it.type, it.file, it.baseDir, it.module)
         }
 
@@ -229,7 +229,7 @@ class JuggCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val recompileFiles = deployFileManager.getRecompileFiles(uncompiledFiles)
+            val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
             if (effectedSourceFiles.isNotEmpty()) {
                 logger.info("Compile success, but found effected source files, continue compile. Files: ${effectedSourceFiles.map { it.name }}")
