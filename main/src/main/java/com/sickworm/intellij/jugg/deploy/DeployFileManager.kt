@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.jetbrains.rd.util.concurrentMapOf
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
@@ -29,22 +30,22 @@ class DeployFileManager(
     /**
      * uncompiled files. All operation must be thread-safe
      */
-    private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
+    private var uncompiledFiles = concurrentMapOf<String, ChangedFile>()
 
     /**
      * compiled files. All operation must be thread-safe
      */
-    private var compiledFiles = mutableMapOf<String, ChangedFile>()
+    private var compiledFiles = concurrentMapOf<String, ChangedFile>()
 
     /**
      * Staging files for deployment. All operation must be thread-safe
      */
-    private var stagingFiles = mutableMapOf<String, CompileOutput>()
+    private var stagingFiles = concurrentMapOf<String, CompileOutput>()
 
     /**
      * Deployed files. All operation must be thread-safe
      */
-    private val deployedFiles = mutableMapOf<String, CompileOutput>()
+    private val deployedFiles = concurrentMapOf<String, CompileOutput>()
 
     /**
      * build [JuggDeployData]
