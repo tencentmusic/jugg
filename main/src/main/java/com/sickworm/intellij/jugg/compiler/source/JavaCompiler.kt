@@ -56,14 +56,10 @@ class JavaCompiler(
         // do compile
         logCompileCommand(module, options, compileItems)
         val javaTask = compiler.getTask(null, fileManager, compileListener, options, null, objects)
-        if (!javaTask.call()) {
-            logger.debug("javaTask call failed!")
-        }
+        val isSuccess = javaTask.call() // true if and only all the files compiled without errors; false otherwise
 
-        // check result
-        val failedItems = compileItems.filter { it.isFailed }
         // all failed or all success
-        return if (failedItems.isEmpty()) {
+        return if (isSuccess) {
             val outputs = task.outputDir.listFilesRecursively().map {
                 CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
             }
@@ -76,6 +72,7 @@ class JavaCompiler(
 
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
         } else {
+            logger.warn("javaTask call failed!")
             CompileResult(task, compileItems.map { Result.failure(CompileError(it.file, it.errors)) }, emptyList())
         }
     }
