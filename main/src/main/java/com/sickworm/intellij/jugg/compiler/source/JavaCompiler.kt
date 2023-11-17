@@ -120,9 +120,10 @@ class JavaCompiler(
 
         fun getJavaCompiler(logger: Logger): JavaCompiler {
             var compiler: JavaCompiler? = ToolProvider.getSystemJavaCompiler()
-            if (compiler == null) {
-                logger.debug("get JavaCompiler failed by ToolProvider.getSystemJavaCompiler(), try use reflect")
+            if (compiler != null) {
+                return compiler
             }
+            logger.debug("get JavaCompiler failed by ToolProvider.getSystemJavaCompiler(), try use reflect")
             try {
                 @Suppress("DEPRECATION")
                 compiler = Class.forName("com.sun.tools.javac.api.JavacTool").newInstance() as JavaCompiler
