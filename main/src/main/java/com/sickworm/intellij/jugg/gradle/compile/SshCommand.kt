@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
+import java.io.File
 
 abstract class IftSyncCommand : BaseSshCommand() {
 
@@ -87,20 +88,14 @@ ft sync -s $remoteToLocalClasspathPath/ --put ${'$'}find_apk \
 }
 
 class FetchClasspathCommand(
-    remoteProjectPath: String,
-    remoteToLocalClasspathPath: String,
-    modules: List<ModuleBuildPathInfo>,
+    private val remoteProjectPath: String,
+    private val remoteToLocalClasspathPath: String,
+    private val modules: List<ModuleBuildPathInfo>,
 ) : IftSyncCommand() {
 
-    private val includeClasspathFilter = modules
-        .flatMap { it.allClassPathRelative }
-        .toSet()
-        .joinToString(" ") {
-            if (it.extension.isNotEmpty()) "--include='$it'"
-            else "--include='$it/**'"
-        }
+    private var includeClasspathFilter = ""
 
-    override val baseCommand: String = """\
+    override val baseCommand: String get() = """\
         |ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a \
         |"-av --delete --prune-empty-dirs --include='*/' \
         |$includeClasspathFilter \
@@ -108,5 +103,21 @@ class FetchClasspathCommand(
         |"""
         .trimMargin()
 
+    override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
+        includeClasspathFilter = modules
+            .flatMap { it.allClassPathRelative }
+            .toSet()
+            .map {
+                val platformSeparator = File.separatorChar
+                val remoteSeparator = if (isWindows) '\\' else '/'
+                it.path.replace(platformSeparator, remoteSeparator) to it.extension
+            }
+            .joinToString(" ") { (path, extension) ->
+                if (extension.isNotEmpty()) "--include='$path'"
+                else "--include='$path/**'"
+            }
+
+        return super.getCommand(isNeedSetChineseLanguage, isWindows)
+    }
 }
 
