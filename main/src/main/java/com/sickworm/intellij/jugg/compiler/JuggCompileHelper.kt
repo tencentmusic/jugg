@@ -199,6 +199,7 @@ class JuggCompilerHelper(
         })
 
         // do compile
+        logger.debug("Compile files: ${compileFiles.map { it.file.absolutePath }}")
         logger.info("Compile files:\n${compileFiles.desc()}")
         val startTime = System.currentTimeMillis()
         val compileResult = try {
