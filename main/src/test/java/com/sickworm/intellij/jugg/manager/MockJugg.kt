@@ -174,27 +174,7 @@ class MockJugg {
         juggManager.compileChanges()
     }
 
-    @Suppress("IncorrectParentDisposable", "UnstableApiUsage")
     private fun renewComponents() {
-        val application = MockApplication {}
-        ApplicationManager.setApplication(application) {}
-        application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
-        application.registerService(MessagesService::class.java, mock(MessagesService::class.java))
-        application.registerService(ApplicationInfo::class.java, ApplicationInfoImpl.getShadowInstance())
-
-        val mockProgressManager = mock(ProgressManager::class.java)
-        doAnswer {
-            (it.arguments[0] as Task).run(mock(ProgressIndicator::class.java))
-        }.`when`(mockProgressManager).run(any<Task>())
-        application.registerService(ProgressManager::class.java, mockProgressManager)
-
-        @Suppress("UnresolvedPluginConfigReference")
-        val extensionPoint = ExtensionPointName.create<ConfigurationType>("com.intellij.configurationType")
-        application.extensionArea.registerExtensionPoint(extensionPoint,
-            ConfigurationType::class.java.name, ExtensionPoint.Kind.INTERFACE, application)
-        application.registerExtension(extensionPoint, JuggConfigurationType(), application)
-
-
         project = JuggMockProject(projectDir)
         pathManager = JuggPathManager(project, projectDir, buildDir)
         JuggLogger.register(project, pathManager.logDir)

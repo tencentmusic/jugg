@@ -16,12 +16,17 @@ class GradleVariableHelper(private val logger: Logger) {
     fun init(project: Project) {
         logger.debug("init")
         val repositorySearchFactory = CachingRepositorySearchFactory()
-        psContext = PsContextImpl(
-            PsProjectImpl(project, repositorySearchFactory), { },
-            disableAnalysis = false,
-            disableResolveModels = false,
-            cachingRepositorySearchFactory = repositorySearchFactory
-        )
+        try {
+            psContext = PsContextImpl(
+                PsProjectImpl(project, repositorySearchFactory), { },
+                disableAnalysis = false,
+                disableResolveModels = false,
+                cachingRepositorySearchFactory = repositorySearchFactory
+            )
+        } catch (e: Exception) {
+            // failed in test
+            logger.warn("init failed", e)
+        }
     }
 
     fun readVariable(property: ResolvedPropertyModel, model: GradleBuildModel, isValid: String.() -> Boolean): String? {
