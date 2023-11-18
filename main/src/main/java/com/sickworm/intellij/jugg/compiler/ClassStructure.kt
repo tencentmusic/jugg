@@ -124,6 +124,10 @@ class MethodNode(
         return signature
     }
 
+    fun toStringWithoutOwner(): String {
+        return "$access $name$desc"
+    }
+
     override fun hashCode(): Int {
         return owner.hashCode() + access + name.hashCode() + desc.hashCode()
     }
@@ -181,6 +185,10 @@ class FieldNode(owner: String, access: Int, name: String, type: String) {
 
     override fun toString(): String {
         return signature
+    }
+
+    fun toStringWithoutOwner(): String {
+        return "$access $type $name"
     }
 
     override fun hashCode(): Int {

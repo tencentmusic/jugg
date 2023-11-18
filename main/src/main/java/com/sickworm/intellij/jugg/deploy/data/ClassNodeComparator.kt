@@ -146,18 +146,26 @@ class ClassNodeDiffResult(
             builder.append("\ndeletedInterfaces: $deletedInterfaces")
         }
         if (addedFields.isNotEmpty()) {
-            builder.append("\naddedFields: $addedFields")
+            builder.append("\naddedFields: ${addedFields.toFieldsString()}")
         }
         if (deletedFields.isNotEmpty()) {
-            builder.append("\ndeletedFields: $deletedFields")
+            builder.append("\ndeletedFields: ${deletedFields.toFieldsString()}")
         }
         if (addedMethods.isNotEmpty()) {
-            builder.append("\naddedMethods: $addedMethods")
+            builder.append("\naddedMethods: ${addedMethods.toMethodsString()}")
         }
         if (deletedMethods.isNotEmpty()) {
-            builder.append("\ndeletedMethods: $deletedMethods")
+            builder.append("\ndeletedMethods: ${deletedMethods.toMethodsString()}")
         }
 
         return builder.toString()
+    }
+
+    private fun List<FieldNode>.toFieldsString(): String {
+        return this.map { it.toStringWithoutOwner() }.toString()
+    }
+
+    private fun List<MethodNode>.toMethodsString(): String {
+        return this.map { it.toStringWithoutOwner() }.toString()
     }
 }
