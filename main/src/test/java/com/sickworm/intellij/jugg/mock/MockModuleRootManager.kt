@@ -4,7 +4,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.vfs.VirtualFile
-import com.sickworm.intellij.jugg.project.IntellijLibraryConfigParser
+import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType
@@ -39,7 +39,7 @@ class MockModuleRootManager(private val root: VirtualFile): ModuleRootManager() 
         TODO("Not yet implemented")
     }
 
-    private val dependencies = IntellijLibraryConfigParser(intellijLibraryDir, assetsAndroidDir.absolutePath).parse()
+    private val dependencies = IntellijLibraryConfigParserTest().loadLibraryConfigInTest()
 
     override fun getOrderEntries(): Array<OrderEntry> {
         return dependencies!!.map {
