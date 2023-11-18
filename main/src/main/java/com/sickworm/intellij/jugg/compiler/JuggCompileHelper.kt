@@ -171,15 +171,6 @@ class JuggCompilerHelper(
                 return CompileTaskResult.incrementalFailed(true, "No file changes")
             }
         }
-        val undeployedSourceModules = undeployedFiles.filter {
-            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
-        }.map {
-            it.module.name + "_" + it.type
-        }.toSet()
-        if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
-            logger.info("Compile modules too much, will fallback to gradle compile for better performance.")
-            return CompileTaskResult.incrementalFailed(true, "Too many changes")
-        }
 
         return doIncrementalCompile(compiler, undeployedFiles, processHandler)
     }
@@ -188,6 +179,17 @@ class JuggCompilerHelper(
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             logger.warn("Compile canceled.")
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
+        }
+
+        val undeployedSourceModules = undeployedFiles.filter {
+            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
+        }.map {
+            it.module.name + "_" + it.type
+        }.toSet()
+        if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
+            logger.info("Compile modules too much(${undeployedSourceModules.size} modules), " +
+                    "will fallback to gradle compile for better performance.")
+            return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
 
         val compileFiles = undeployedFiles.map {
