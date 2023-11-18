@@ -243,20 +243,22 @@ class JuggCompilerHelper(
         if (isSuccess) {
             val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
+
+            val nextCompileFiles = mutableListOf<ChangedFile>()
             if (effectedSourceFiles.isNotEmpty()) {
                 logger.info("Compile success, but found effected source files, continue compile. Files: ${effectedSourceFiles.map { it.name }}")
                 val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
-                deployFileManager.addChangedFile(changedFiles)
+                nextCompileFiles.addAll(changedFiles)
             }
 
             val redexClasses = recompileFiles.redexClasses
             if (redexClasses.isNotEmpty()) {
                 logger.info("Compile success, but found classes that need to be redexed, continue compile. Classes: ${redexClasses.map { it.file.name }}")
-                deployFileManager.addChangedFile(redexClasses)
+                nextCompileFiles.addAll(redexClasses)
             }
 
-            if (deployFileManager.getUncompiledFiles().isNotEmpty()) {
-                return doIncrementalCompile(compiler, deployFileManager.getUncompiledFiles(), processHandler)
+            if (nextCompileFiles.isNotEmpty()) {
+                return doIncrementalCompile(compiler, nextCompileFiles, processHandler)
             }
         }
 
