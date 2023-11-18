@@ -722,15 +722,19 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             runWithTimeCost("doGetRefClassIds") {
                 // get class ids by method refs
                 if (changedMethodRefsWithSubclasses.isNotEmpty()) {
-                    val methodClassIdsString = changedMethodRefsWithSubclasses.joinToString(" OR ") {
+                    val methodClassIdsStringList = changedMethodRefsWithSubclasses.map {
                         "(class_id=${it.classId} AND name='${it.name}' AND desc='${it.desc}')"
                     }
-                    val sql = "SELECT ref_class_id FROM method_refs WHERE $methodClassIdsString;"
-                    connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                        while (resultSet.next()) {
-                            val classId = resultSet.getInt(1)
-                            refClassIds.add(classId)
+                    // avoid Exception: [SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))
+                    methodClassIdsStringList.chunked(900).forEach {
+                        val methodClassIdsString = it.joinToString(" OR ")
+                        val sql = "SELECT ref_class_id FROM method_refs WHERE $methodClassIdsString;"
+                        connection.createStatement().use { statement ->
+                            val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                            while (resultSet.next()) {
+                                val classId = resultSet.getInt(1)
+                                refClassIds.add(classId)
+                            }
                         }
                     }
                 }
