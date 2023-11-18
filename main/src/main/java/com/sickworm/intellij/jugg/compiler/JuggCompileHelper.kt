@@ -203,7 +203,10 @@ class JuggCompilerHelper(
         logger.info("Compile files:\n${compileFiles.desc()}")
         val startTime = System.currentTimeMillis()
         val compileResult = try {
-            compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir))
+            val isShouldCancelCallback = {
+                processHandler.isProcessTerminating || processHandler.isProcessTerminated
+            }
+            compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir, isShouldCancelCallback))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
             return CompileTaskResult.incrementalFailed(true, "Exception: $e")
@@ -222,6 +225,12 @@ class JuggCompilerHelper(
         val failedStates = compileResult.failedFiles.map {
             ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
         }
+
+        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            logger.warn("Compile canceled.")
+            return CompileTaskResult.incrementalFailed(false, "Compile canceled")
+        }
+
         val costTime = System.currentTimeMillis() - startTime
         logger.info("Compile finished in ${costTime / 1000}s, " +
                 "success: ${compileResult.successFiles.size}, " +

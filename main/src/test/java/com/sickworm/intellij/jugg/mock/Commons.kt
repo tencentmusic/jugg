@@ -192,6 +192,9 @@ val init = run {
     application.registerService(ProjectJdkTable::class.java, projectJdkTable)
 }
 
+@Suppress("TestFunctionName")
+fun CompileTask(files: List<CompileFile>, outputDir: File) = CompileTask(files, outputDir) { false }
+
 /**
  * Need an Android device for this test.
  */

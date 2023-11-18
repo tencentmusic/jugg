@@ -21,13 +21,19 @@ class SourceCompiler(
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         context.tempCompileDir.clearDir()
-        var classCompileResult = CompileResult(task.copy(outputDir = context.tempCompileDir), emptyList(), emptyList())
+        val compileTask = CompileTask(
+            files = task.files,
+            outputDir = context.tempCompileDir,
+            parentTask = task,
+        )
+        var classCompileResult = CompileResult(compileTask, emptyList(), emptyList())
 
         // Kotlin must go first because in the cross-reference case, Java depends on Kotlin compile output
         // while Kotlin don't (kotlin can use -Xjava-source-roots argument)
         val kotlinCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Kotlin },
-            outputDir = File(context.tempCompileDir, "kotlin")
+            outputDir = File(context.tempCompileDir, "kotlin"),
+            parentTask = compileTask,
         )
         if (kotlinCompileTask.isNeedCompile) {
             classCompileResult += kotlinCompiler.compile(kotlinCompileTask)
@@ -35,7 +41,8 @@ class SourceCompiler(
 
         val javaCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Java },
-            outputDir = File(context.tempCompileDir, "java")
+            outputDir = File(context.tempCompileDir, "java"),
+            parentTask = compileTask,
         )
         if (javaCompileTask.isNeedCompile) {
             classCompileResult += javaCompiler.compile(javaCompileTask)
@@ -49,7 +56,7 @@ class SourceCompiler(
         val compileClassFiles = classFiles.map {
             CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module, dependencyPaths = dependencies)
         }
-        val dexTask = CompileTask(compileClassFiles, task.outputDir)
+        val dexTask = CompileTask(compileClassFiles, task.outputDir, task)
         val dexCompileResult = dexCompiler.compile(dexTask)
         if (!dexCompileResult.isAllSuccess) {
             // mark all failed

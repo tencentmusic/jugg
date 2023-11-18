@@ -8,23 +8,72 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
-data class CompileTask(
+class CompileTask(
     val files: List<CompileFile>,
-    val outputDir: File
+    val outputDir: File,
+    private val parentTask: CompileTask?,
+    private val isShouldCancelCallback: (() -> Boolean)?
 ) {
+
+    constructor(files: List<CompileFile>, outputDir: File, isShouldCancelCallback: () -> Boolean):
+            this(files, outputDir, null, isShouldCancelCallback)
+
+    constructor(files: List<CompileFile>, outputDir: File, parentTask: CompileTask):
+            this(files, outputDir, parentTask, null)
+
+    @Suppress("IfThenToElvis")
+    val isShouldCancel: Boolean get() {
+        return if (isShouldCancelCallback != null) {
+            isShouldCancelCallback.invoke()
+        } else {
+            parentTask?.isShouldCancel ?: false
+        }
+    }
 
     val isNeedCompile get() = files.isNotEmpty()
 
+    override fun equals(other: Any?): Boolean {
+        return if (other is CompileTask) {
+            files == other.files
+                    && outputDir == other.outputDir
+                    && parentTask == other.parentTask
+                    && isShouldCancelCallback == other.isShouldCancelCallback
+        } else {
+            false
+        }
+    }
+
+    override fun hashCode(): Int {
+        return files.hashCode() + outputDir.absolutePath.hashCode() + parentTask.hashCode() + isShouldCancelCallback.hashCode()
+    }
+
     operator fun plus(task: CompileTask): CompileTask {
         if (!outputDir.isParentOf(task.outputDir)) {
-            throw JuggInternalException.combineTaskFailed(outputDir, task.outputDir)
+            val reason = "Output dir not matched, origin: $outputDir, combined: ${task.outputDir}"
+            throw JuggInternalException.combineTaskFailed(reason)
         }
-        return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir)
+        if (this != task.parentTask) {
+            if (this.isShouldCancelCallback != task.isShouldCancelCallback) {
+                val reason = "isShouldCancelCallback not the same"
+                throw JuggInternalException.combineTaskFailed(reason)
+            }
+            if (this.parentTask != task.parentTask) {
+                val reason = "parentTask not the same"
+                throw JuggInternalException.combineTaskFailed(reason)
+            }
+        }
+        return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir, parentTask, isShouldCancelCallback)
     }
 
     private fun File.isParentOf(file: File) = file.path.startsWith(path)
 
     companion object
+}
+
+fun CompileTask.toCancelResult(): CompileResult {
+    return CompileResult(this, this.files.map {
+        Result.failure(CompileError(it, listOf(0L to "Compile canceled.")))
+    }, emptyList())
 }
 
 data class CompileFile(
@@ -302,6 +351,10 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     }
 
     override fun compile(task: CompileTask): CompileResult {
+        if (task.isShouldCancel) {
+            return task.toCancelResult()
+        }
+
         val startTime = System.currentTimeMillis()
         logger.debug("${this::class.java.simpleName} start")
         checkTypesCanCompile(task)
@@ -367,12 +420,15 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
 
         val results = moduleCompileOrder.map {
             val files = fileGroups[it] ?: emptyList()
-            doModuleCompile(CompileTask(files, task.outputDir), it)
+            if (task.isShouldCancel) {
+                return task.toCancelResult()
+            }
+            doModuleCompile(CompileTask(files, task.outputDir, task), it)
         }
         if (results.isEmpty()) {
             return CompileResult(task, emptyList(), emptyList())
         }
-        return results.reduce { acc, compileResult -> acc + compileResult }
+        return results.reduce { acc, compileResult -> acc + compileResult }.copy(task = task)
     }
 
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult

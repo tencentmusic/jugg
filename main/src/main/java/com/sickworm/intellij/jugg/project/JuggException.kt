@@ -55,8 +55,9 @@ class JuggException(msg: String): Exception(msg) {
 class JuggInternalException(msg: String): Exception(msg) {
 
     companion object {
-        fun combineTaskFailed(origin: File, combined: File) =
-            JuggInternalException("Output dir not matched when combining CompileTask. origin: $origin, combined: $combined")
+
+        fun combineTaskFailed(reason: String) =
+            JuggInternalException("Combining CompileTask failed: $reason")
 
         fun compilerContextNotInit() =
             JuggInternalException("Compiler context not init, which should not happened in logic.")

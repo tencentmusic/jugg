@@ -50,11 +50,12 @@ class JuggCompiler(
 
         // compile asset
         val assetsOutputDir = File(overlayOutputDir, "assets")
-        val assetCompileTask = task.copy(
+        val assetCompileTask = CompileTask(
             files = task.files.filter {
                 it.type == CompileFile.Type.Asset
             },
-            outputDir = assetsOutputDir
+            outputDir = assetsOutputDir,
+            parentTask = task,
         )
         if (assetCompileTask.isNeedCompile) {
             // overlay assets
@@ -67,11 +68,12 @@ class JuggCompiler(
         }
 
         // compile resource
-        val resourceCompileTask = task.copy(
+        val resourceCompileTask = CompileTask(
             files = task.files.filter {
                 it.type == CompileFile.Type.Resource
             },
-            outputDir = task.outputDir
+            outputDir = task.outputDir,
+            parentTask = task,
         )
         var rJavaResultOutputs: List<CompileOutput> = emptyList()
         if (resourceCompileTask.isNeedCompile) {
@@ -80,11 +82,15 @@ class JuggCompiler(
                 // compile to .flat
                 val tempOutputDir = File(context.tempCompileDir, "tmp_resource")
                 tempOutputDir.clearDir()
-                val tempResourceCompileTask = resourceCompileTask.copy(outputDir = tempOutputDir)
+                val tempResourceCompileTask = CompileTask(
+                    files = resourceCompileTask.files,
+                    outputDir = tempOutputDir,
+                    parentTask = resourceCompileTask,
+                )
                 val resourceResult = resourceOverlayCompiler.compile(tempResourceCompileTask)
                 if (!resourceResult.isAllSuccess) {
                     // avoid JuggInternalException.combineTaskFailed
-                    return@run resourceResult.copy(task = tempResourceCompileTask.copy(outputDir = task.outputDir))
+                    return@run resourceResult.copy(task = resourceCompileTask)
                 }
 
                 // move overlays to output directory
@@ -106,6 +112,7 @@ class JuggCompiler(
                     val rJavaTask = CompileTask(
                         files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, context.tempModule)),
                         outputDir = classesOutputDir,
+                        parentTask = task,
                     )
                     val rJavaResult = sourceCompiler.compile(rJavaTask)
                     if (!rJavaResult.isAllSuccess) {
@@ -139,6 +146,7 @@ class JuggCompiler(
                         CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, context.tempModule)
                     } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
                     outputDir = classesOutputDir,
+                    parentTask = task,
                 )
             )
             if (!rDexResult.isAllSuccess) {
@@ -159,7 +167,8 @@ class JuggCompiler(
             files = task.files.filter {
                 it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
             },
-            outputDir = classesOutputDir
+            outputDir = classesOutputDir,
+            parentTask = task,
         )
         if (sourceCompileTask.isNeedCompile) {
             compileResult += sourceCompiler.compile(sourceCompileTask)
@@ -170,12 +179,16 @@ class JuggCompiler(
             files = task.files.filter {
                 it.type == CompileFile.Type.Class
             },
-            outputDir = classesOutputDir
+            outputDir = classesOutputDir,
+            parentTask = task,
         )
         if (dexCompileTask.isNeedCompile) {
             compileResult += dexCompiler.compile(dexCompileTask)
         }
 
+        if (task.isShouldCancel) {
+            return task.toCancelResult()
+        }
         return compileResult
     }
 

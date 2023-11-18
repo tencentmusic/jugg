@@ -35,7 +35,8 @@ class ResourceOverlayCompiler(
         // compile to .flat
         val resourceTask = CompileTask(
             task.files,
-            context.tempCompileDir
+            context.tempCompileDir,
+            task,
         )
         val resourceResult = resourceCompiler.compile(resourceTask)
         if (!resourceResult.isAllSuccess) {
@@ -51,7 +52,8 @@ class ResourceOverlayCompiler(
             resourceResult.outputs.map {
                 CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
             },
-            task.outputDir
+            task.outputDir,
+            task,
         )
         val arscResult = arscCompiler.compile(arscTask)
         if (!arscResult.isAllSuccess) {
