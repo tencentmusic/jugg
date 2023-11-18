@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.data
 
-import com.sickworm.intellij.jugg.mock.GradleSettingsDummyReader
-import com.sickworm.intellij.jugg.mock.buildDir
-import com.sickworm.intellij.jugg.mock.logger
-import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.project.ChangedFile
 import junit.framework.TestCase.assertTrue
 import org.junit.Test
 import java.io.File
@@ -14,8 +14,15 @@ class SourceFileDatabaseSqLiteHelperTest {
 
     private val dbFile = File(buildDir, "test.db")
 
-    private val sourceDirs = GradleSettingsDummyReader(projectInfo.projectRoot).readProjectDirs()
-        .map { File(it, "src/main/java") }
+    private val sourceDirs1 = listOf(
+        File(assetsAndroidDir, "app/src/main/java"),
+    )
+
+    private val sourceDirs2 = listOf(
+        File(assetsAndroidModifySourceDir, "app/src/main/java")
+    )
+
+    private val sourceDirs = sourceDirs1 + sourceDirs2
 
     @Test
     fun testCreateDataBase() {
@@ -29,10 +36,21 @@ class SourceFileDatabaseSqLiteHelperTest {
     fun testUpdateSourceDirs() {
         val helper = SourceFileDatabaseSqLiteHelper(dbFile, logger)
         helper.init()
+        helper.updateSourceDirs(sourceDirs1)
+        val sourceDirs1FileSize = helper.getFiles().size
+        assertEquals(sourceDirs1.flatMap { it.listFilesRecursively() }.size, sourceDirs1FileSize)
+
         helper.updateSourceDirs(sourceDirs)
-        val originFileSize = helper.getFiles().size
+        val sourceDirsFileSize = helper.getFiles().size
+        assertEquals(sourceDirs.flatMap { it.listFilesRecursively() }.size, sourceDirsFileSize)
+
         helper.updateSourceDirs(sourceDirs)
-        assertEquals(originFileSize, helper.getFiles().size)
+        val sourceDirsFileSize2 = helper.getFiles().size
+        assertEquals(sourceDirsFileSize, sourceDirsFileSize2)
+
+        helper.updateSourceDirs(sourceDirs2)
+        val sourceDirs2FileSize = helper.getFiles().size
+        assertEquals(sourceDirs2.flatMap { it.listFilesRecursively() }.size, sourceDirs2FileSize)
     }
 
     @Test
@@ -42,14 +60,14 @@ class SourceFileDatabaseSqLiteHelperTest {
         helper.updateSourceDirs(sourceDirs)
         var originFileSize = helper.getFiles().size
 
-        val newFiles = listOf(File("A.java"))
+        val newFiles = listOf(ChangedFile(CompileFile.Type.Java, File("lib/A.java"), File("lib"), mockModule))
         helper.updateFiles(newFiles, emptyList())
         assertEquals(++originFileSize, helper.getFiles().size)
 
         helper.updateFiles(newFiles, emptyList())
         assertEquals(originFileSize, helper.getFiles().size)
 
-        val deleteFiles = listOf(File("B.java")) // not exists
+        val deleteFiles = listOf(File("lib/B.java")) // not exists
         helper.updateFiles(emptyList(), deleteFiles)
         assertEquals(originFileSize, helper.getFiles().size)
 

@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 import java.sql.DriverManager
 
@@ -25,7 +26,7 @@ class SourceFileManager(private val logger: Logger, dbDir: File) {
     }
 
     @Synchronized
-    fun updateFiles(addFiles: List<File>, deleteFiles: List<File>) {
+    fun updateFiles(addFiles: List<ChangedFile>, deleteFiles: List<File>) {
         val startTime = System.currentTimeMillis()
         try {
             database.updateFiles(addFiles, deleteFiles)

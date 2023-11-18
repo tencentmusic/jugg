@@ -82,7 +82,7 @@ class DeployFileManager(
             uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
             compiledFiles.remove(it.file.stdPath)
         }
-        sourceFileManager.updateFiles(newFiles.map { it.file }, emptyList())
+        sourceFileManager.updateFiles(newFiles, emptyList())
     }
 
     @Synchronized

@@ -2,14 +2,20 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 import java.sql.DriverManager
+import java.sql.ResultSet
 
 class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     private var hasInit = false
+
+    companion object {
+        private const val VERSION = 2
+    }
 
     @Synchronized
     fun init() {
@@ -25,6 +31,23 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
         // Create a new database connection
         DriverManager.getConnection(url).use { connection ->
+            val readVersionSQL = "PRAGMA schema_version;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQuery(readVersionSQL)
+                if (resultSet.next()) {
+                    val version = resultSet.getInt(1)
+                    logger.debug("Current database version: ${if (version == 0) "not set" else "$version"}")
+                    if (version > 0 && version != VERSION) {
+                        logger.debug("Database version is not match, expect: ${VERSION}, actual: ${version}. recreate database.")
+                        connection.close()
+                        statement.close()
+                        recreateDatabase()
+                        init()
+                        return
+                    }
+                }
+            }
+
             // Create a new table
             val createTableSQL = """
                 CREATE TABLE IF NOT EXISTS source_dirs (
@@ -33,6 +56,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 
                 CREATE TABLE IF NOT EXISTS file_infos (
                     path TEXT NOT NULL PRIMARY KEY,
+                    source_dir_path TEXT NOT NULL,
                     name TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS file_infos_name_index ON file_infos(name);
@@ -93,19 +117,20 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
 
                 val newFiles = runWithTimeCost("doGetNewFiles") {
-                    addDirs.flatMap {
-                        it.listFilesRecursively()
-                    }
+                    addDirs.associateWith { it.listFilesRecursively() }
                 }
-                logger.debug("newFiles: ${newFiles.size}")
+                logger.debug("newFiles: ${newFiles.values.sumOf { it.size }}")
 
                 runWithTimeCost("doInsertFiles") {
-                    val insertSQL = "INSERT INTO file_infos(path, name) VALUES(?, ?)"
+                    val insertSQL = "INSERT OR REPLACE INTO file_infos(source_dir_path, path, name) VALUES(?, ?, ?)"
                     connection.prepareStatement(insertSQL).use { statement ->
-                        newFiles.forEach { file ->
-                            statement.setString(1, file.absolutePath)
-                            statement.setString(2, file.name)
-                            statement.addBatch()
+                        newFiles.forEach { (dir, files) ->
+                            files.forEach { file ->
+                                statement.setString(1, dir.absolutePath)
+                                statement.setString(2, file.absolutePath)
+                                statement.setString(3, file.name)
+                                statement.addBatch()
+                            }
                         }
                         statement.executeBatch()
                     }
@@ -113,17 +138,11 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
 
             if (deleteDirs.isNotEmpty()) {
-                val deleteFiles = runWithTimeCost("doGetDeleteFiles") {
-                    deleteDirs.flatMap {
-                        it.listFilesRecursively()
-                    }
-                }
-                logger.debug("deleteFiles: ${deleteFiles.size}")
                 runWithTimeCost("doDeleteFiles") {
-                    val deleteSQL = "DELETE FROM file_infos WHERE path = ?"
+                    val deleteSQL = "DELETE FROM file_infos WHERE source_dir_path = ?"
                     connection.prepareStatement(deleteSQL).use { statement ->
-                        deleteFiles.forEach { file ->
-                            statement.setString(1, file.absolutePath)
+                        deleteDirs.forEach { dir ->
+                            statement.setString(1, dir.absolutePath)
                             statement.addBatch()
                         }
                         statement.executeBatch()
@@ -136,15 +155,16 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun updateFiles(addFiles: List<File>, deleteFiles: List<File>) {
+    fun updateFiles(addFiles: List<ChangedFile>, deleteFiles: List<File>) {
         DriverManager.getConnection(url).use { connection ->
 
             runWithTimeCost("doInsertFiles") {
-                val insertSQL = "INSERT OR REPLACE INTO file_infos(path, name) VALUES(?, ?)"
+                val insertSQL = "INSERT OR REPLACE INTO file_infos(source_dir_path, path, name) VALUES(?, ?, ?)"
                 connection.prepareStatement(insertSQL).use { statement ->
                     addFiles.forEach { file ->
-                        statement.setString(1, file.absolutePath)
-                        statement.setString(2, file.name)
+                        statement.setString(1, file.baseDir.absolutePath)
+                        statement.setString(2, file.file.absolutePath)
+                        statement.setString(3, file.file.name)
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -185,6 +205,13 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
             return files
         }
+    }
+
+    @Synchronized
+    fun recreateDatabase() {
+        dbFile.delete()
+        hasInit = false
+        init()
     }
 
     private inline fun <T, R> T.runWithTimeCost(name: String, block: T.() -> R): R {
