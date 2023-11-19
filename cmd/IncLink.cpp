@@ -82,6 +82,7 @@ class IncLinker: private Linker {
 
       for (const auto& pkg : final_table_.packages) {
         ResourceTableType* styleableType = pkg->FindOrCreateType(ResourceType::kStyleable);
+        styleableType->visibility_level = Visibility::Level::kPublic;
         ResourceTableType* attrType = pkg->FindOrCreateType(ResourceType::kAttr);
 
         std::istringstream line_stream(line);
