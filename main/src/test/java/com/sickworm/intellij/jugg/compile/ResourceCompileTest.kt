@@ -260,8 +260,48 @@ class ResourceCompileTest {
         }
     }
 
+    @Test
+    fun compileStyleableLayout() {
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+
+        val compileStyleableLayoutTask = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource,
+                    File(assetsAndroidDir, "app/src/main/res/layout/test_styleable_layout.xml"),
+                    File(assetsAndroidDir, "app/src/main/res"),
+                    mockModule),
+            ),
+            stagingDir
+        )
+        var result = resourceOverlayCompiler.compile(compileStyleableLayoutTask)
+        checkArscResult(compileStyleableLayoutTask, result, 1, isRJavaChanged = false)
+
+        val compileStyleableTask = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource,
+                    File(assetsAndroidDir, "app/src/main/res/values/attrs.xml"),
+                    File(assetsAndroidDir, "app/src/main/res"),
+                    mockModule),
+            ),
+            stagingDir
+        )
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(compileStyleableTask)
+        checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = false)
+
+        // error on appt2-2.19.8
+        // error: resource com.example.myapplication:styleable/styleable_value has same ID 0x7f0d0000 as com.example.myapplication:styleable/ActionBar.
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(compileStyleableLayoutTask)
+        checkArscResult(compileStyleableLayoutTask, result, 1, isRJavaChanged = false)
+
+        stagingDir.clearDir()
+        result = resourceOverlayCompiler.compile(compileStyleableTask)
+        checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = false)
+    }
+
     private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int, isRJavaChanged: Boolean) {
-        assertEquals(result.details.size, task.files.size)
+        assertEquals(task.files.size, result.details.size)
         assertTrue(result.isAllSuccess)
 
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
