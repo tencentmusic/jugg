@@ -290,7 +290,14 @@ data class ModuleDependency(
 
 data class LibraryDependency(
     val file: File,
-)
+) {
+
+    val isValid get() = file.exists()
+
+    val isRes get() = file.name == "res"
+
+    val isAndroidManifest get() = file.name == "AndroidManifest.xml"
+}
 
 data class ModuleBuildPathInfo(
     /** project root dir */

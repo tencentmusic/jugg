@@ -4,6 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import java.io.File
 
 data class BaseCompileContext(
@@ -66,7 +67,8 @@ data class BaseCompileContext(
         }
         val libraryDependency = moduleInfo.libraryDependencies
             .filter {
-                it.file.exists() && it.file.name != "AndroidManifest.xml"
+                val isInProject = it.file.isChild(moduleInfo.moduleRootDir)
+                !isInProject && it.isValid && !it.isAndroidManifest && !it.isRes
             }
             .map {
                 it.file.absolutePath
