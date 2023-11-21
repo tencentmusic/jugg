@@ -19,7 +19,6 @@ class KotlinCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
-    private var kotlinCompile = K2JVMCompilerIsolate(logger)
     private var hasRecreateAfterInternalError = false
 
     private var hasFoundKotlinAndroidExtensions: Boolean = false
@@ -130,14 +129,19 @@ class KotlinCompiler(
         }
 
         val outputParser = KotlinCompilerOutputParser(task.files, logger)
-        val exitCode = kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
+        val exitCode = try {
+            kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
+        } catch (e: Exception) {
+            logger.error("invoke kotlin compile failed", e)
+            ExitCode.INTERNAL_ERROR
+        }
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
         if (exitCode == ExitCode.INTERNAL_ERROR && !hasRecreateAfterInternalError) {
             logger.warn("kotlin compile failed with INTERNAL_ERROR, retry with recreating compiler once")
             hasRecreateAfterInternalError = true
-            kotlinCompile = K2JVMCompilerIsolate(logger)
+            kotlinCompile = K2JVMCompilerIsolate()
             return doModuleCompile(task, module)
         }
 
@@ -215,6 +219,9 @@ class KotlinCompiler(
         return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName)
     }
 
+    companion object {
+        private var kotlinCompile = K2JVMCompilerIsolate()
+    }
 }
 
 private data class KotlinSourceAnalyzeResult(

@@ -19,35 +19,31 @@ import java.net.URLClassLoader
  * 2. avoid using wrong version of K2JVMCompiler which embedded in IntelliJ Idea
  *
  */
-class K2JVMCompilerIsolate(private val logger: Logger) {
+class K2JVMCompilerIsolate {
 
     private lateinit var classLoader: ClassLoader
 
+    @Suppress("MoveVariableDeclarationIntoWhen")
     fun exec(printStream: PrintStream, args: Array<String>): ExitCode {
         if (!::classLoader.isInitialized) {
             classLoader = getIsolateClassLoader()
         }
 
-        var exitCode = ExitCode.INTERNAL_ERROR
-        try {
-            val compileClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
-            val compileInstance = compileClass.declaredConstructors[0].newInstance()
-            val method = compileClass.getMethod("exec", PrintStream::class.java, Array<String>::class.java)
-            val exitCodeIsolate = method.invoke(compileInstance, printStream, args)
+        val compileClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+        val compileInstance = compileClass.declaredConstructors[0].newInstance()
+        val method = compileClass.getMethod("exec", PrintStream::class.java, Array<String>::class.java)
+        val exitCodeIsolate = method.invoke(compileInstance, printStream, args)
 
-            val exitCodeClass = classLoader.loadClass("org.jetbrains.kotlin.cli.common.ExitCode")
-            val exitCodeMethod = exitCodeClass.getDeclaredMethod("getCode")
-            val exitCodeInt = exitCodeMethod.invoke(exitCodeIsolate)
+        val exitCodeClass = classLoader.loadClass("org.jetbrains.kotlin.cli.common.ExitCode")
+        val exitCodeMethod = exitCodeClass.getDeclaredMethod("getCode")
+        val exitCodeInt = exitCodeMethod.invoke(exitCodeIsolate)
 
-            exitCode = when(exitCodeInt) {
-                0 -> ExitCode.OK
-                1 -> ExitCode.COMPILATION_ERROR
-                2 -> ExitCode.INTERNAL_ERROR
-                3 -> ExitCode.SCRIPT_EXECUTION_ERROR
-                else -> throw IllegalArgumentException("unexpected exit code $exitCodeInt")
-            }
-        } catch (e: Throwable) {
-            logger.error("invoke kotlin compile failed", e)
+        val exitCode = when(exitCodeInt) {
+            0 -> ExitCode.OK
+            1 -> ExitCode.COMPILATION_ERROR
+            2 -> ExitCode.INTERNAL_ERROR
+            3 -> ExitCode.SCRIPT_EXECUTION_ERROR
+            else -> throw IllegalArgumentException("unexpected exit code $exitCodeInt")
         }
 
         return exitCode
