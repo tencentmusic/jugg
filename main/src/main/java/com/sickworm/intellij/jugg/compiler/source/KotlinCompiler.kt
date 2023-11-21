@@ -213,15 +213,6 @@ class KotlinCompiler(
         return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName)
     }
 
-    override fun warmUp() {
-        val startTime = System.currentTimeMillis()
-        val selectModule = context.modules.values.maxBy {
-            it.moduleDependencies.size + it.libraryDependencies.size
-        }
-        logger.debug("start KotlinCompiler warm up, selectModule: ${selectModule.name}")
-        doModuleCompile(CompileTask(emptyList(), context.tempCompileDir) { false }, context.modules.values.first())
-        logger.debug("finish KotlinCompiler warm up, cost: ${System.currentTimeMillis() - startTime}ms")
-    }
 }
 
 private data class KotlinSourceAnalyzeResult(
