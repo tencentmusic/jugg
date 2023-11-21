@@ -80,6 +80,10 @@ class SimpleCompileContext(
         return dependencies
     }
 
+    override fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File> {
+        return emptyList()
+    }
+
     override fun listenUpdate(listener: OnContextUpdate) {
     }
 }

@@ -219,6 +219,8 @@ interface ICompileContext {
 
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
+    fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
+
     fun listenUpdate(listener: OnContextUpdate)
 }
 
@@ -322,6 +324,9 @@ data class ModuleBuildPathInfo(
     /** kotlin class path */
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
 
+    /** generated source path, used in java-source-roots in KotlinCompiler */
+    val generatedSourcePath get() = File(buildDir, "generated")
+
     /** java classpath for java library */
     private val javaClassPathForJavaLibrary get() = File(buildDir, "classes/java/main")
     /** kotlin classpath for java library */
@@ -329,7 +334,7 @@ data class ModuleBuildPathInfo(
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary)
 
-    val allClassPathRelative get() = allClassPath.map { it.relativeTo(moduleRootDir) }
+    val allBuildPathRelative get() = (allClassPath + generatedSourcePath).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 

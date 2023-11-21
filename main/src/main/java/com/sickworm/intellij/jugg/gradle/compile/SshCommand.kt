@@ -105,7 +105,7 @@ class FetchClasspathCommand(
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
-            .flatMap { it.allClassPathRelative }
+            .flatMap { it.allBuildPathRelative }
             .toSet()
             .map {
                 val platformSeparator = File.separatorChar

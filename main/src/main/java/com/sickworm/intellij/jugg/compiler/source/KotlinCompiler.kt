@@ -89,6 +89,8 @@ class KotlinCompiler(
             emptyList()
         }
 
+        val javaSourceRoots = module.sourceDirs + context.getGeneratedSourcePaths(module)
+
         val compileArgs = listOf(
             "-verbose",
             "-jvm-target", module.kotlinJvmTarget ?: "1.8",
@@ -100,7 +102,7 @@ class KotlinCompiler(
             "-Xreport-output-files",
             // resolve "class is not abstract and does not implement abstract member"
             // resolve "reference not found" when invoke new java methods that haven't been compiled
-            "-Xjava-source-roots=${module.sourceDirs.joinToString(",")}",
+            "-Xjava-source-roots=${javaSourceRoots.joinToString(",")}",
             // we have to set output dir to kotlin compiled class path to resolve
             // 'xxx' is a public API property declared in different module
             "-d", kotlinClassPath.absolutePath,
