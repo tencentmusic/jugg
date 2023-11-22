@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.overlay.ArscCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.mock.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -13,6 +14,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ResourceCompileTest {
+
+    private lateinit var resCompiler: ResourceCompiler
 
     private val flatFiles = assetsFlatDir.listFilesRecursively()
         .map {
@@ -22,6 +25,12 @@ class ResourceCompileTest {
     @Before
     fun init() {
         clearBuild()
+        resCompiler = ResourceCompiler(context, mockParentDisposable)
+    }
+
+    @After
+    fun release() {
+        resCompiler.dispose()
     }
 
     @Test
