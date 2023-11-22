@@ -108,7 +108,7 @@ class IncLinker: private Linker {
         std::string packageName;
         while (std::getline(attrs_stream, attr, ',')) {
           android::StringPiece attrName = android::StringPiece(attr);
-          ResourceNameRef referenceNameRef = ResourceNameRef(pkg->name, ResourceType::kAttr, attrName);
+          ResourceNameRef referenceNameRef = ResourceNameRef(android::StringPiece(), ResourceType::kAttr, attrName);
           bool isFound = false;
           if (attrType->FindEntry(attrName)) {
               isFound = true;
@@ -119,7 +119,7 @@ class IncLinker: private Linker {
               packageName = attr.substr(0, underscorePos);  // maybe "android"
               attr = attr.substr(underscorePos + 1);
               attrName = android::StringPiece(attr);
-              referenceNameRef = ResourceNameRef(android::StringPiece(packageName), ResourceType::kAttr, attrName);
+              referenceNameRef = ResourceNameRef(android::StringPiece(), ResourceType::kAttr, attrName);
               if (context_->GetExternalSymbols()->FindByName(referenceNameRef.ToResourceName())) {
                 isFound = true;
               }
