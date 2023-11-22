@@ -251,12 +251,27 @@ class ResourceCompileTest {
                 Regex("name=\"([^\"]+)\"").find(it)?.groupValues?.get(1)
             }
         }
-        println(containsIds)
 
         val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
         val rFileText = rFiles.first().file.readText()
         containsIds.forEach {
-            assertTrue(rFileText.contains(it))
+            assertTrue(rFileText.contains(it), "r file not contains $it")
+        }
+
+        // styleable index output error on aapt2-inclink-2.19.9
+        val containsValues = task.files.flatMap { file ->
+            var index = 0
+            file.file.readLines().mapNotNull {
+                if (it.contains("<declare-styleable ")) {
+                    index = 0
+                }
+                // matches name="$1"
+                val name = Regex("<attr name=\"([^\"]+)\"").find(it)?.groupValues?.get(1) ?: return@mapNotNull  null
+                "$name=${index++}"
+            }
+        }
+        containsValues.forEach {
+            assertTrue(rFileText.contains(it), "r file not contains $it")
         }
     }
 

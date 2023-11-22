@@ -14,4 +14,17 @@
             <flag name="test_add_styleable_value_flag4" value="8" />
         </attr>
     </declare-styleable>
+
+    <declare-styleable name="styleable_value">
+        <attr name="value_attr1" format="boolean"/>
+        <attr name="value_attr2" />
+        <attr name="value_attr3" format="reference"/>
+        <attr name="value_attr4" format="dimension">
+            <flag name="test_add_styleable_value_flag1" value="1" />
+            <flag name="test_add_styleable_value_flag2" value="2" />
+            <flag name="test_add_styleable_value_flag3" value="4" />
+            <flag name="test_add_styleable_value_flag4" value="8" />
+        </attr>
+        <attr name="value_attr5" format="boolean"/>
+    </declare-styleable>
 </resources>
