@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import org.jetbrains.annotations.TestOnly
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.FieldNode
@@ -39,8 +40,19 @@ class StyleableFileGenerator(
             return null
         }
 
-        val rStyleableEntryName = packageName.replace('.', '/') + "/R\$styleable.class"
         val rFile = selectedApplicationModule.buildPathInfo.rFilePath
+        return generateStyleableFile(rFile, packageName, outputDir)
+    }
+
+    @TestOnly
+    fun generateStyleableFile(rFile: File, packageName: String, outputDir: File): File? {
+        if (!rFile.exists()) {
+            logger.warn("generateStyleableFile failed, rFile not exists: ${rFile.absolutePath}")
+            return null
+        }
+
+        val rStyleableEntryName = packageName.replace('.', '/') + "/R\$styleable.class"
+        logger.debug("generateStyleableFile, rFile: ${rFile.absolutePath}, rStyleableEntryName: $rStyleableEntryName")
         ZipFile(rFile).use { jarFile ->
             val rStyleableEntry = jarFile.getEntry(rStyleableEntryName)
             if (rStyleableEntry == null) {
