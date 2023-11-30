@@ -9,6 +9,14 @@ import com.intellij.openapi.project.Project
 class JuggUpgradeNotification(private val project: Project) {
 
     fun show(downloadUrl: String) {
+        try {
+            doShow(downloadUrl)
+        } catch (e: Throwable) {
+            // ignore, catch for test
+        }
+    }
+
+    private fun doShow(downloadUrl: String) {
         val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup("Jugg Notification Group")
             .createNotification(

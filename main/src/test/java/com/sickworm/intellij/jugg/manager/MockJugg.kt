@@ -101,6 +101,12 @@ class MockJugg {
         renewManager()
     }
 
+    fun loadFromHistory() {
+        renewComponents()
+        renewManager()
+        juggManager.initProjectInfo(false)
+    }
+
     /**
      * Init adb client.
      * Must call this method if you need real device deploy.
@@ -176,7 +182,7 @@ class MockJugg {
 
     private fun renewComponents() {
         project = JuggMockProject(projectDir)
-        pathManager = JuggPathManager(project, projectDir, buildDir)
+        pathManager = JuggPathManager(project, projectDir, File(projectDir, "build/jugg"))
         JuggLogger.register(project, pathManager.logDir)
 
         juggStateListener = mock(JuggStateListener::class.java)
@@ -210,9 +216,7 @@ class MockJugg {
         }
 
         val moduleManager = mock(ModuleManager::class.java)
-        val modules = GradleSettingsDummyReader(assetsAndroidDir).readProjectDirs().map {
-            getModel(it)
-        }.toTypedArray()
+        val modules = emptyArray<Module>()
         doReturn(modules).`when`(moduleManager).modules
         val projectBuildModel = mock(ProjectBuildModel::class.java)
         val gradleBuildModule = mock(GradleBuildModel::class.java)
