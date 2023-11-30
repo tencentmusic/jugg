@@ -251,7 +251,9 @@ class JuggCompilerHelper(
                 nextCompileFiles.addAll(changedFiles)
             }
 
-            val redexClasses = recompileFiles.redexClasses
+            val redexClasses = recompileFiles.redexClasses.map {
+                it.copy(module = compileContextManager.compileContext.tempModule)
+            }
             if (redexClasses.isNotEmpty()) {
                 logger.info("Compile success, but found classes that need to be redexed, continue compile. Classes: ${redexClasses.map { it.file.name }}")
                 nextCompileFiles.addAll(redexClasses)
