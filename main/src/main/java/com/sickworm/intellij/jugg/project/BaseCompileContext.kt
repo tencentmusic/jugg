@@ -67,8 +67,9 @@ data class BaseCompileContext(
         }
         val libraryDependency = moduleInfo.libraryDependencies
             .filter {
-                val isInProject = it.file.isChild(moduleInfo.moduleRootDir)
-                !isInProject && it.isValid && !it.isAndroidManifest && !it.isRes
+                // filter unnecessary LibraryDependency for source file compilation
+                val isInBuildDir = it.file.isChild(moduleInfo.buildPathInfo.buildDir)
+                !isInBuildDir && it.isValid && !it.isAndroidManifest && !it.isRes
             }
             .map {
                 it.file.absolutePath
