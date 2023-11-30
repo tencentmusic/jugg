@@ -171,7 +171,22 @@ class JuggCompiler(
             parentTask = task,
         )
         if (sourceCompileTask.isNeedCompile) {
-            compileResult += sourceCompiler.compile(sourceCompileTask)
+            val sourceCompileResult = sourceCompiler.compile(sourceCompileTask)
+            val movedOutputs = sourceCompileResult.outputs.map {
+                if (it.type == CompileOutput.Type.Res) {
+                    // move from classes output dir to resource output dir
+                    val destFile = it.file.changeBaseDir(it.baseDir, overlayOutputDir)
+                    destFile.parentFile.mkdirs()
+                    if (destFile.exists()) {
+                        destFile.delete()
+                    }
+                    it.file.renameTo(destFile)
+                    CompileOutput(it.type, destFile, overlayOutputDir)
+                } else {
+                    it
+                }
+            }
+            compileResult += sourceCompileResult.copy(outputs = movedOutputs)
         }
 
         // compile .class

@@ -61,7 +61,12 @@ class JavaCompiler(
         // all failed or all success
         return if (isSuccess) {
             val outputs = task.outputDir.listFilesRecursively().map {
-                CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
+                if (it.extension == "class") {
+                    CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
+                } else {
+                    // e.g. META-INF/service/xxx
+                    CompileOutput(CompileOutput.Type.Res, it, task.outputDir)
+                }
             }
 
             // copy outputs to java class path

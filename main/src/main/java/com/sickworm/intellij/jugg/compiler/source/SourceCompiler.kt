@@ -47,6 +47,10 @@ class SourceCompiler(
         if (javaCompileTask.isNeedCompile) {
             classCompileResult += javaCompiler.compile(javaCompileTask)
         }
+        // e.g. META-INF/service/xxx
+        val otherOutputs = classCompileResult.outputs.filter {
+            it.type != CompileOutput.Type.Class
+        }
 
         // dex .class
         val classFiles = classCompileResult.outputs.filter {
@@ -67,7 +71,7 @@ class SourceCompiler(
             }
             return CompileResult(task, failedDexDetails + failedDetails, emptyList())
         }
-        return CompileResult(task, classCompileResult.details, dexCompileResult.outputs)
+        return CompileResult(task, classCompileResult.details, dexCompileResult.outputs + otherOutputs)
     }
 
     override fun warmUp() {
