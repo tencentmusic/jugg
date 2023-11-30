@@ -187,7 +187,6 @@ class CompileContextManager(
         val notGradleModules = mutableSetOf<String>()
         val testModules = mutableSetOf<String>()
         val noSourceModules = mutableSetOf<String>()
-        val fullLibraryDependencies = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
@@ -305,7 +304,6 @@ class CompileContextManager(
                     is LibraryOrderEntry -> {
                         it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
                             libraryDependencies.add(LibraryDependency(file.toIoFile()))
-                            fullLibraryDependencies.add(file.toIoFile().absolutePath)
                         }
                     }
                     is ModuleJdkOrderEntry -> {
