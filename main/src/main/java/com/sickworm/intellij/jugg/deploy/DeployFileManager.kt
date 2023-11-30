@@ -326,6 +326,10 @@ class DeployFileManager(
         logger.debug("getDesugarInterfaceWithDefaultMethodFiles: libraryPaths ${libraryFiles.size}")
 
         libraryFiles.forEach libraryLoop@{ libraryFile ->
+            if (!libraryFile.isFile || libraryFile.extension != "jar") {
+                return@libraryLoop
+            }
+
             val iterator = interfaceRelativePaths.iterator()
             while (iterator.hasNext()) {
                 val relativePath = iterator.next()
@@ -351,7 +355,8 @@ class DeployFileManager(
                         }
                     }
                 } catch (e: Exception) {
-                    logger.warn("getDesugarInterfaceWithDefaultMethodFiles: failed to find desugared class file in library ${libraryFile.absolutePath}/${relativePath}, error: ${e.message}")
+                    logger.warn("getDesugarInterfaceWithDefaultMethodFiles: failed to find desugared class file in " +
+                            "library ${libraryFile.absolutePath}/${relativePath}, error: ${e.message}")
                 }
             }
         }
