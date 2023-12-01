@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.manager.utils.ListFiles
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import org.junit.AfterClass
 import org.junit.Assert
@@ -48,6 +49,8 @@ class CompileConsistencyTest {
         fun initAndSetNotCompileOnSave() {
             oldCompileForSave = JuggSettings.compileOnSave
             JuggSettings.compileOnSave = false
+            logger.isEnableDebug = false
+            logger.isEnableInfo = false
         }
 
         private fun initClasses(apkInfos: List<ApkInfo>) {
@@ -74,6 +77,8 @@ class CompileConsistencyTest {
         @JvmStatic
         fun resetCompileOnSave() {
             JuggSettings.compileOnSave = oldCompileForSave
+            logger.isEnableDebug = true
+            logger.isEnableInfo = true
         }
     }
 

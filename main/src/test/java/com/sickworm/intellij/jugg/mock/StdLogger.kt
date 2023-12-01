@@ -8,6 +8,9 @@ import org.jetbrains.annotations.NonNls
  */
 class StdLogger(category: String): DefaultLogger(category) {
 
+    var isEnableDebug = true
+    var isEnableInfo = true
+
     override fun isTraceEnabled(): Boolean {
         return false
     }
@@ -29,23 +32,34 @@ class StdLogger(category: String): DefaultLogger(category) {
     }
 
     override fun debug(message: String?) {
-        println("[D] $message")
+        if (isEnableDebug) {
+            println("[D] $message")
+        }
     }
 
     override fun debug(t: Throwable?) {
-        dumpExceptionsToStderr("[D] ", t)
+        if (isEnableDebug) {
+            dumpExceptionsToStderr("[D] ", t)
+        }
     }
 
     override fun debug(@NonNls message: String?, t: Throwable?) {
-        dumpExceptionsToStderr("[D] $message", t)
+        if (isEnableDebug) {
+            dumpExceptionsToStderr("[D] $message", t)
+        }
+
     }
 
     override fun info(message: String?) {
-        println("[I] $message")
+        if (isEnableInfo) {
+            println("[I] $message")
+        }
     }
 
     override fun info(message: String?, t: Throwable?) {
-        dumpExceptionsToStderr("[I] $message", t)
+        if (isEnableInfo) {
+            dumpExceptionsToStderr("[I] $message", t)
+        }
     }
 
     override fun warn(message: String?, t: Throwable?) {
