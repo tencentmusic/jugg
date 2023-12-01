@@ -5,6 +5,7 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
+import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
@@ -235,5 +236,9 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun getDeploymentService(project: Project): DeploymentService {
         return DeploymentService.getInstance(project)
+    }
+
+    override fun parseApks(paths: List<String>): List<Apk> {
+        return ApkParser().parsePaths(paths)
     }
 }

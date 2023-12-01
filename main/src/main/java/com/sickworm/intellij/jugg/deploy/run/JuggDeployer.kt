@@ -54,7 +54,7 @@ class JuggDeployer(
                 adb, service, installer, logger,
                 packageName, apks, options, installMode,
             )
-            val apkList = ApkParser().parsePaths(apks)
+            val apkList = AsDeployerCompat.parseApks(apks)
             // Update the database
             splitter.cache(apkList)
             val appId = ApplicationDumper.getPackageName(apkList)
@@ -84,7 +84,7 @@ class JuggDeployer(
         }
         val deviceSerial = adb.serial
         // Get the list of files from the local apks
-        val newFiles = ApkParser().parsePaths(argPaths)
+        val newFiles = AsDeployerCompat.parseApks(argPaths)
         // Get the App info. Some from the APK, some from DDMLib.
         val packageName = ApplicationDumper.getPackageName(newFiles)
         val pids = adb.getPids(packageName)

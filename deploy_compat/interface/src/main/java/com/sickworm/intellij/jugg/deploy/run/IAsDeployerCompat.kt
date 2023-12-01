@@ -5,6 +5,7 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
+import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.run.*
 import com.android.utils.ILogger
 import com.intellij.openapi.module.ModuleManager
@@ -51,6 +52,8 @@ interface IAsDeployerCompat {
     fun getIdeDeployStateResult(project: Project): IdeDeployState
 
     fun getDeploymentService(project: Project): DeploymentService
+
+    fun parseApks(paths: List<String>): List<Apk>
 
     fun getModuleManager(project: Project): ModuleManager {
         // ModuleManager rewrite by Kotlin after Android Studio Giraffe

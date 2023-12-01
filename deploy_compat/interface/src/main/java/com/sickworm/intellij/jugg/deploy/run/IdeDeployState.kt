@@ -79,5 +79,10 @@ data class IdeDeployState(
             State.INVALID_DEVICE,
             "unsupported execution target",
         )
+
+        val canNotDetectApplicationId = IdeDeployState(
+            State.NO_DEPLOYABLE_APP,
+            "can't detect applicationId",
+        )
     }
 }

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
+import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
@@ -29,7 +30,7 @@ object AsDeployerCompat : IAsDeployerCompat {
                         throw e.targetException
                     }
 
-                    logger.debug("try priorityImpl with ${e.targetException::class.simpleName}, try higher version impl")
+                    logger.debug("try priorityImpl with ${e.targetException}, try higher version impl")
 
                     // try other version impl
                     compatImplList
@@ -43,11 +44,11 @@ object AsDeployerCompat : IAsDeployerCompat {
                                 if (!e.targetException.isCompatError) {
                                     throw e.targetException
                                 }
-                                logger.debug("try ${it.ideVersion.name} API with ${e.targetException::class.simpleName}")
+                                logger.debug("try ${it.ideVersion.name} API with ${e.targetException}")
                             }
                         }
 
-                    logger.warn("try all impl failed")
+                    logger.warn("Try all Android Studio API failed.")
                     throw e
                 }
             }
@@ -65,6 +66,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      * Must order DESC
      */
     private val compatImplList = listOf(
+        CompatImpl(
+            IdeVersion("Android Studio Iguana", "IA", "232.10227.8"),
+            lazy { IguanaAsDeployerCompat() },
+        ),
         CompatImpl(
             IdeVersion("Android Studio Hedgehog", "IA", "231.9225.16"),
             lazy { HedgehogAsDeployerCompat() },
@@ -164,6 +169,10 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun getDeploymentService(project: Project): DeploymentService {
         return impl.getDeploymentService(project)
+    }
+
+    override fun parseApks(paths: List<String>): List<Apk> {
+        return impl.parseApks(paths)
     }
 }
 

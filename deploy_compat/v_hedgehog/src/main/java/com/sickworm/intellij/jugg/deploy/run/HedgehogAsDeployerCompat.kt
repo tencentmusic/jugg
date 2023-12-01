@@ -11,12 +11,11 @@ import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.project.Project
-import java.lang.reflect.Field
 
 /**
  * Android Studio Giraffe
  */
-class HedgehogAsDeployerCompat: GiraffeAsDeployerCompat() {
+open class HedgehogAsDeployerCompat: GiraffeAsDeployerCompat() {
 
     /**
      * @see [BaseAction.getDisableMessage]
