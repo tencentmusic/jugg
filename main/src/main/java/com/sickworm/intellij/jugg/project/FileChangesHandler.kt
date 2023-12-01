@@ -60,7 +60,6 @@ class FileChangesHandler(
                 file.path.startsWith(it.path)
             }
             if (baseSourceDir != null) {
-                logger.debug("Source file changed: ${file.name}")
                 val type = when (file.extension) {
                     "java" -> CompileFile.Type.Java
                     "kt" -> CompileFile.Type.Kotlin
@@ -74,13 +73,11 @@ class FileChangesHandler(
 
             val baseResourceDir = module.resourceDirs.find { file.path.startsWith(it.path) }
             if (baseResourceDir != null) {
-                logger.debug("Resource file changed: ${file.name}")
                 return ChangedFile(CompileFile.Type.Resource, file, baseResourceDir, module)
             }
 
             val baseAssetDir = module.assetsDirs.find { file.path.startsWith(it.path) }
             if (baseAssetDir != null) {
-                logger.debug("Asset file changed: ${file.name}")
                 return ChangedFile(CompileFile.Type.Asset, file, baseAssetDir, module)
             }
         }

@@ -179,6 +179,9 @@ class JuggManager @TestOnly constructor(
         }
 
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
+        realChangedFiles.forEach {
+            logger.debug("${it.type} file changed: ${it.file.name}")
+        }
         if (realChangedFiles.isEmpty()) {
             return
         }
