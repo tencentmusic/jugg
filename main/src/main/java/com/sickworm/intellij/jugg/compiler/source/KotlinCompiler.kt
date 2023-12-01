@@ -83,6 +83,7 @@ class KotlinCompiler(
             listOf(
                 "-Xplugin=$kotlinAndroidExtensionsPath",
                 "-P", "plugin:org.jetbrains.kotlin.android:package=${analyzeResult.rPackageName}",
+                "-P", "plugin:org.jetbrains.kotlin.android:experimental=true",
             ) + variantArgs
         } else {
             emptyList()
