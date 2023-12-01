@@ -116,6 +116,8 @@ class DeployFileManager(
 
     @Synchronized
     fun updateUncompiledFiles(successFiles: List<CompileFile>, failedFiles: List<CompileFile>) {
+        logger.debug("updateUncompiledFiles, successFiles: ${successFiles.map { it.file.name } }" +
+                ", failedFiles: ${failedFiles.map { it.file.name } }")
         successFiles.forEach {
             val fileKey = it.file.stdAbsPath
             val changedFile = uncompiledFiles[fileKey]

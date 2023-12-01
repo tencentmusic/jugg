@@ -88,7 +88,7 @@ class JuggCompilerHelper(
             }
             if (incrementalResult.isSuccess) {
                 return incrementalResult
-            } else if (!incrementalResult.isCanFallback) {
+            } else if (!incrementalResult.isCanFallback && !(processHandler.isProcessTerminating || processHandler.isProcessTerminated)) {
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
                 return incrementalResult
@@ -175,7 +175,12 @@ class JuggCompilerHelper(
         return doIncrementalCompile(compiler, undeployedFiles, processHandler)
     }
 
-    private fun doIncrementalCompile(compiler: JuggCompiler, undeployedFiles: List<ChangedFile>, processHandler: SimpleProcessHandler): CompileTaskResult {
+    private fun doIncrementalCompile(
+        compiler: JuggCompiler,
+        undeployedFiles: List<ChangedFile>,
+        processHandler: SimpleProcessHandler,
+        compiledFilesThisTime: List<ChangedFile> = emptyList(), // used for avoid recompilation dead loop
+    ): CompileTaskResult {
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             logger.warn("Compile canceled.")
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
@@ -241,13 +246,13 @@ class JuggCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles)
+            val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles + compiledFilesThisTime)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()
-            if (effectedSourceFiles.isNotEmpty()) {
-                logger.info("Compile success, but found effected source files, continue compile. Files: ${effectedSourceFiles.map { it.name }}")
-                val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
+            val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
+            if (changedFiles.isNotEmpty()) {
+                logger.info("Compile success, but found effected source files, continue compile. Files: ${changedFiles.map { it.file.name }}")
                 nextCompileFiles.addAll(changedFiles)
             }
 
@@ -260,7 +265,7 @@ class JuggCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                return doIncrementalCompile(compiler, nextCompileFiles, processHandler)
+                return doIncrementalCompile(compiler, nextCompileFiles, processHandler, compiledFilesThisTime = undeployedFiles + compiledFilesThisTime)
             }
         }
 
