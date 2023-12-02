@@ -105,6 +105,7 @@ class MockJugg {
         renewComponents()
         renewManager()
         juggManager.initProjectInfo(false)
+        deployFileManager.reset()
     }
 
     /**
