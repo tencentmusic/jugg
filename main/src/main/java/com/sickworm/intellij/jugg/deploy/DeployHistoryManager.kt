@@ -52,6 +52,7 @@ class DeployHistoryManager(
             logger.warn("tryGetContextRecoverInfoFromDb failed, recover feature not available")
             return null
         }
+        logger.debug("tryGetContextRecoverInfoFromDb recover feature is available")
 
         val startTime = System.currentTimeMillis()
         val changedFiles = deployHistoryDb.getChangedFilesSinceLastFullCompiled()

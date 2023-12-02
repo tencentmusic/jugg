@@ -16,7 +16,7 @@ class DeployHistoryDb(
     private val projectDir: File,
     dbDir: File,
     private val logger: Logger,
-    private val gitManager: IGitManager = GitManager(projectDir),
+    private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir, logger),
 ) {
 
     /** Used to generate hash of a file */
@@ -74,7 +74,7 @@ class DeployHistoryDb(
         val lastDeployCommitHash = deployHistoryData.fullCompileGitCommitHash
         val lastProjectCommitHash = gitManager.getLastCommitHash()
         if (lastDeployCommitHash == null) {
-            logger.warn("Project has no full compile on specific commit, this should not happened.")
+            logger.warn("Project has no full compile on specific commit, maybe Git is init after full compilation.")
             return null
         }
         if (lastProjectCommitHash == null) {

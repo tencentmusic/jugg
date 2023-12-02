@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.git
 
+import com.intellij.openapi.diagnostic.Logger
 import org.gradle.internal.impldep.org.eclipse.jgit.api.Git
 import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.NoHeadException
 import org.gradle.internal.impldep.org.eclipse.jgit.errors.RepositoryNotFoundException
@@ -97,6 +98,24 @@ class GitManager(override val rootDir: File): IGitManager {
             }
         } catch (e: RepositoryNotFoundException) {
             return null
+        }
+    }
+
+    companion object {
+
+        fun createGitManagerAndTrySearchParent(dir: File, logger: Logger): GitManager {
+            var rootDir: File? = dir
+            while (rootDir != null) {
+                val gitManager = GitManager(rootDir)
+                if (gitManager.hasInitGit) {
+                    logger.debug("createGitManagerAndTrySearchParent found git root dir: $rootDir")
+                    return gitManager
+                }
+                rootDir = rootDir.parentFile
+            }
+
+            logger.debug("createGitManagerAndTrySearchParent no git root dir")
+            return GitManager(dir)
         }
     }
 }
