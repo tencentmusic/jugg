@@ -33,6 +33,12 @@ class Aapt2DaemonInvoker(
         outputReader = OutputReader(process.inputStream, process.errorStream, logger)
     }
 
+    @Synchronized
+    fun isAlive(): Boolean {
+        return process?.isAlive == true
+    }
+
+    @Synchronized
     fun invoke(params: String): Aapt2Result {
         if (process?.isAlive != true) {
             init()
@@ -45,6 +51,7 @@ class Aapt2DaemonInvoker(
         return outputReader!!.read()
     }
 
+    @Synchronized
     fun release() {
         logger.debug("exit aapt2 daemon")
         process?.destroy()

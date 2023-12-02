@@ -100,7 +100,7 @@ class ArscCompiler(
         if (!canCompile) {
             throw JuggInternalException.contextInvalidToCompileArsc()
         }
-        if (!hasLoaded) {
+        if (!hasLoaded || !aapt2Invoker.isAlive()) {
             loadTable()
         }
 
