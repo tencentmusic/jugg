@@ -10,6 +10,7 @@ import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.AbstractTreeIterato
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.CanonicalTreeParser
 import java.io.File
 import java.io.IOException
+import java.nio.charset.Charset
 
 
 class GitManager(override val rootDir: File): IGitManager {
@@ -24,6 +25,30 @@ class GitManager(override val rootDir: File): IGitManager {
             true
         } catch (e: Exception) {
             false
+        }
+    }
+
+    override val name: String? by lazy {
+        if (!hasInitGit) {
+            return@lazy null
+        }
+        try {
+            val regex = Regex("^\\surl\\s=.*/(.+)$")
+            val urlSetting = File(rootDir, ".git/config")
+                .readLines(Charset.defaultCharset())
+                .find {
+                    it.matches(regex)
+                } ?: return@lazy null
+            var name = regex.find(urlSetting)?.groups?.get(1)?.value ?: return@lazy null
+            if (name.endsWith('/')) {
+                name = name.substring(0, name.length - 1)
+            }
+            if (name.endsWith(".git")) {
+                name = name.substring(0, name.length - 4)
+            }
+            return@lazy name
+        } catch (e: Exception) {
+            return@lazy null
         }
     }
 

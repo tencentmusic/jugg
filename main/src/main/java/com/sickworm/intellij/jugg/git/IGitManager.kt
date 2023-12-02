@@ -15,6 +15,12 @@ interface IGitManager {
     val hasInitGit: Boolean
 
     /**
+     * get git project name in .git/config
+     * something like: git config --local remote.origin.url|sed -n 's#.*\/\([^.]*\)\.git#\1#p'
+     */
+    val name: String?
+
+    /**
      * git init
      */
     fun init()
