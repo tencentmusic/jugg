@@ -165,7 +165,8 @@ class JuggCompilerHelper(
         if (undeployedFiles.all { it.hasCompiledOnce }) {
             val deviceName = deployTargetManager.getDeviceOrNull()?.name
             if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
-                logger.info("No file changes, but it's first time run, will run with incremental compile.")
+                logger.info("No file changes, but it's first time run or canceled last compilation" +
+                        ", will run with incremental compile.")
             } else {
                 logger.info("No file changes. will fallback to gradle compile.")
                 return CompileTaskResult.incrementalFailed(true, "No file changes")

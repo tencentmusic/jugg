@@ -9,6 +9,7 @@ import com.intellij.openapi.progress.util.ProgressIndicatorListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
+import com.jetbrains.rd.util.concurrentMapOf
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
@@ -60,10 +61,14 @@ class JuggRunningTask(
             e.printStackTrace(pw)
             logger.warn("Run stop unexpected with ${e::class.java}:\n$sw\nRun stop unexpected.")
         } finally {
-            stop(indicator)
             isRunning = false
-            setHasRun(project, deployTargetManager.getDeviceOrNull()?.name)
+            if (processHandler.isCanceled && !processHandler.isCanceledByNextTask) {
+                resetHasRun(project)
+            } else {
+                setHasRun(project, deployTargetManager.getDeviceOrNull()?.name)
+            }
             JuggLogger.stopListenProjectLog(project, loggerListener)
+            stop(indicator)
         }
     }
 
@@ -197,6 +202,7 @@ class JuggRunningTask(
         if (isRunning) {
             this.onFinishListener = onFinishListener
             logger.debug("Try canceling process...")
+            processHandler.isCanceledByNextTask = true
             processHandler.detachProcess()
         } else {
             logger.debug("Process already terminated.")
@@ -205,7 +211,7 @@ class JuggRunningTask(
     }
 
     companion object {
-        private var isFirstTimeRun = mutableMapOf<String, String?>()
+        private var isFirstTimeRun = concurrentMapOf<String, String?>()
 
         fun isFirstTimeRun(project: Project, runningDevice: String? = null): Boolean {
             val key = project.bashPathOrDefault
@@ -220,7 +226,7 @@ class JuggRunningTask(
 
         fun setHasRun(project: Project, runningDevice: String?) {
             val key = project.bashPathOrDefault
-            this.isFirstTimeRun[key] = runningDevice
+            this.isFirstTimeRun[key] = runningDevice ?: "null"
         }
 
         fun resetHasRun(project: Project) {

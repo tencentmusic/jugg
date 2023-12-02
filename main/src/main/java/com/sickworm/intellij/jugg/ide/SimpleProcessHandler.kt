@@ -18,6 +18,10 @@ class SimpleProcessHandler : ProcessHandler(),
 
     var cancelAction: (() -> Unit)? = null
 
+    val isCanceled get() = isProcessTerminating || isProcessTerminated
+
+    var isCanceledByNextTask = false
+
     override fun destroyProcessImpl() {
         detachProcessImpl()
     }
