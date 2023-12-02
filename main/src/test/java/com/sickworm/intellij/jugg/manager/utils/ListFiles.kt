@@ -7,6 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
+import kotlin.io.path.absolutePathString
 
 object ListFiles {
 
@@ -36,8 +37,11 @@ object ListFiles {
                     return FileVisitResult.CONTINUE
                 }
 
-                // TODO support res check
                 if (fileName.endsWith(".java") || fileName.endsWith(".kt")) {
+                    fileListPerDir.orderAdd(file.toFile())
+                }
+
+                if (file.absolutePathString().contains("/res/") && fileName.endsWith(".xml")) {
                     fileListPerDir.orderAdd(file.toFile())
                 }
                 return FileVisitResult.CONTINUE

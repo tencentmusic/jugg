@@ -49,8 +49,10 @@ class CompileConsistencyTest {
         fun initAndSetNotCompileOnSave() {
             oldCompileForSave = JuggSettings.compileOnSave
             JuggSettings.compileOnSave = false
-            logger.isEnableDebug = false
-            logger.isEnableInfo = false
+            if (isCollectErrorFilesOnly) {
+                logger.isEnableDebug = false
+                logger.isEnableInfo = false
+            }
         }
 
         private fun initClasses(apkInfos: List<ApkInfo>) {
