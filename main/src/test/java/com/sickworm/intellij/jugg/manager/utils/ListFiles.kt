@@ -21,6 +21,9 @@ object ListFiles {
                 if (fileName == "build") {
                     return FileVisitResult.SKIP_SUBTREE
                 }
+                if (fileName == "buildSrc") {
+                    return FileVisitResult.SKIP_SUBTREE
+                }
                 if (fileName.startsWith(".")) {
                     return FileVisitResult.SKIP_SUBTREE
                 }
