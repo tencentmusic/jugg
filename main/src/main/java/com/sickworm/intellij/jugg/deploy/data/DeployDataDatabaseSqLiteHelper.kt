@@ -24,7 +24,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 5
+        private const val VERSION = 6
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -113,6 +113,13 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 );
                 CREATE INDEX IF NOT EXISTS subclass_refs_class_id_index ON subclass_refs(class_id);
                 CREATE INDEX IF NOT EXISTS subclass_refs_ref_class_id_index ON subclass_refs(ref_class_id);
+                
+                CREATE TABLE IF NOT EXISTS default_method_invoke_refs (
+                    class_id INTEGER NOT NULL,
+                    ref_class_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS default_method_invoke_refs_class_id_index ON subclass_refs(class_id);
+                CREATE INDEX IF NOT EXISTS default_method_invoke_refs_ref_class_id_index ON subclass_refs(ref_class_id);
                 
                 PRAGMA schema_version = $VERSION;
             """.trimIndent()
@@ -303,6 +310,15 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
                 preparedStatement.executeBatch()
             }
+
+            val deleteDefaultMethodInvokeRefSql = "DELETE FROM default_method_invoke_refs WHERE ref_class_id=?;"
+            connection.prepareStatement(deleteDefaultMethodInvokeRefSql).use { preparedStatement ->
+                dbDeleteClasses.values.forEach {
+                    preparedStatement.setInt(1, it)
+                    preparedStatement.addBatch()
+                }
+                preparedStatement.executeBatch()
+            }
         }
 
         val addedClasses = parsedApk.classes.keys.filter {
@@ -372,6 +388,23 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val sql = "INSERT INTO subclass_refs(class_id, ref_class_id) VALUES(?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
                 parsedApk.subclassRefs.forEach { (className, refClassName) ->
+                    val dbClassNode = dbClassNodeMap[className]
+                        ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
+                        return@forEach
+                    refClassName.forEach {
+                        preparedStatement.setInt(1, dbClassNode)
+                        preparedStatement.setInt(2, dbClassNodeMap[it]!!)
+                        preparedStatement.addBatch()
+                    }
+                }
+                preparedStatement.executeBatch()
+            }
+        }
+
+        runWithTimeCost("doInsertDefaultMethodInvokeRef") {
+            val sql = "INSERT INTO default_method_invoke_refs(class_id, ref_class_id) VALUES(?, ?);"
+            connection.prepareStatement(sql).use { preparedStatement ->
+                parsedApk.defaultMethodInvokeRefs.forEach { (className, refClassName) ->
                     val dbClassNode = dbClassNodeMap[className]
                         ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
                         return@forEach
@@ -578,7 +611,20 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
+            val defaultMethodInvokeRefs = mutableMapOf<String, MutableList<String>>()
+            val selectDefaultMethodInvokeRefSQL = "SELECT * FROM default_method_invoke_refs;"
+            connection.createStatement().use { statement ->
+                val resultSet: ResultSet = statement.executeQueryAndLog(selectDefaultMethodInvokeRefSQL)
+                while (resultSet.next()) {
+                    val classId = resultSet.getInt(1)
+                    val refClassId = resultSet.getInt(2)
+                    val className = dbClasses[classId]?.className ?: continue
+                    val refClassName = dbClasses[refClassId]?.className ?: continue
+                    defaultMethodInvokeRefs.getOrPut(className) { mutableListOf() }.add(refClassName)
+                }
+            }
+
+            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
         }
     }
 

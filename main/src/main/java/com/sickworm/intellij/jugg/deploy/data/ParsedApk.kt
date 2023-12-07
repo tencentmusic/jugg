@@ -17,4 +17,5 @@ class ParsedApk(
     val methodRefs: Map<MethodNode, List<String>>,
     val fieldRefs: Map<FieldNode, List<String>>,
     val subclassRefs: Map<String, List<String>>,
+    val defaultMethodInvokeRefs: Map<String, List<String>>,
 )

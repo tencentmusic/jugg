@@ -22,6 +22,7 @@ import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import org.mockito.Mockito
 import java.io.File
@@ -214,6 +215,8 @@ val init = run {
     application.extensionArea.registerExtensionPoint(extensionPoint,
         ConfigurationType::class.java.name, ExtensionPoint.Kind.INTERFACE, application)
     application.registerExtension(extensionPoint, JuggConfigurationType(), application)
+
+    AsDeployerCompat.init(logger)
 }
 
 @Suppress("TestFunctionName")

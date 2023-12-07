@@ -252,6 +252,7 @@ class DeployDataGeneratorTest {
             emptyMap(),
             emptyMap(),
             emptyMap(),
+            emptyMap(),
         )
     }
 
@@ -275,6 +276,7 @@ class DeployDataGeneratorTest {
             emptyMap(),
             emptyMap(),
             emptyMap(),
+            emptyMap(),
         )
     }
 
@@ -290,6 +292,7 @@ class DeployDataGeneratorTest {
                 methodRefs = this.methodRefs,
                 fieldRefs = this.fieldRefs,
                 subclassRefs = this.subclassRefs,
+                defaultMethodInvokeRefs = this.defaultMethodInvokeRefs,
             )
         }
 }

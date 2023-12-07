@@ -30,7 +30,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             parse(apkInfo, apkFile, includeEntries)
         }
         if (parsedApks.isEmpty()) {
-            return ParsedApk(apkInfo, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+            return ParsedApk(apkInfo, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
         }
         if (parsedApks.size == 1) {
             return parsedApks[0]
@@ -41,6 +41,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
         val methodRefs = mutableMapOf<MethodNode, List<String>>()
         val fieldRefs = mutableMapOf<FieldNode, List<String>>()
         val subclassRefs = mutableMapOf<String, List<String>>()
+        val defaultMethodInvokeRefs = mutableMapOf<String, List<String>>()
         parsedApks.forEach {
             classes.putAll(it.classes)
             dexFiles.putAll(it.dexFiles)
@@ -48,8 +49,9 @@ class ApkParser: CoroutineScope by CoroutineScope(
             methodRefs.putAll(it.methodRefs)
             fieldRefs.putAll(it.fieldRefs)
             subclassRefs.putAll(it.subclassRefs)
+            defaultMethodInvokeRefs.putAll(it.defaultMethodInvokeRefs)
         }
-        return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
+        return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
 
     }
 
@@ -58,16 +60,18 @@ class ApkParser: CoroutineScope by CoroutineScope(
         val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
         val fieldRefs = ConcurrentHashMap<FieldNode, MutableList<String>>()
         val subclassRefs = ConcurrentHashMap<String, MutableList<String>>()
-        parseDex(apkFile, classes, methodRefs, fieldRefs, subclassRefs, includeEntries)
+        val defaultMethodInvokeRefs = ConcurrentHashMap<String, MutableList<String>>()
+        parseDex(apkFile, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs, includeEntries)
 
         val apkOverlays = includeEntries ?: parseEntries(apkInfo)
-        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs)
+        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
     }
 
     fun parseDex(deployItems: List<DeployItem>): ParsedDex {
         val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
         val fieldRefs = ConcurrentHashMap<FieldNode, MutableList<String>>()
         val subclassRefs = ConcurrentHashMap<String, MutableList<String>>()
+        val defaultMethodInvokeRefs = ConcurrentHashMap<String, MutableList<String>>()
         val classDeployItem = deployItems.map {
             val classes = ConcurrentHashMap<String, ClassNode>()
             parseDex(
@@ -77,6 +81,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 methodRefs,
                 fieldRefs,
                 subclassRefs,
+                defaultMethodInvokeRefs,
                 false,
             )
             if (classes.size != 1) {
@@ -85,7 +90,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             }
             ClassDeployItem(it, classes.first().value)
         }
-        return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs)
+        return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
     }
 
     fun parseDexFiles(dexFiles: List<File>): ParsedDex {
@@ -111,6 +116,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                  methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
                  fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
                  subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
+                 defaultMethodInvokeRefs: ConcurrentHashMap<String, MutableList<String>>,
                  includeEntries: ApkEntries?,
     ) {
 
@@ -135,7 +141,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 if (entryName.startsWith("classes") && entryName.endsWith(".dex")) {
                     val job = launch {
                         val dexBytes = zipFile.getInputStream(it).readBytes()
-                        parseDex(entryName, dexBytes, classes, methodRefs, fieldRefs, subclassRefs, false)
+                        parseDex(entryName, dexBytes, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs, false)
                     }
                     jobs.add(job)
                 }
@@ -151,9 +157,10 @@ class ApkParser: CoroutineScope by CoroutineScope(
                          methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
                          fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
                          subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
+                         defaultMethodInvokeRefs: ConcurrentHashMap<String, MutableList<String>>,
                          @Suppress("SameParameterValue") isSkipCode: Boolean) {
         val reader: BaseDexFileReader = DexFileReader(bytes)
-        val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs)
+        val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
     }
@@ -207,8 +214,9 @@ data class ParsedDex(
     val methodRefs: Map<MethodNode, List<String>>,
     val fieldRefs: Map<FieldNode, List<String>>,
     val subclassRefs: Map<String, List<String>>,
+    val defaultMethodInvokeRefs: Map<String, List<String>>,
 ) {
     companion object {
-        val EMPTY = ParsedDex(emptyList(), emptyMap(), emptyMap(), emptyMap())
+        val EMPTY = ParsedDex(emptyList(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
     }
 }

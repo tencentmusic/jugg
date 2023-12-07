@@ -11,6 +11,8 @@ import com.googlecode.d2j.visitors.DexMethodVisitor
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceSuffix
+import com.sickworm.intellij.jugg.deploy.interfaceNameFromDesugaredDefaultMethodClass
 import com.sickworm.intellij.jugg.deploy.isOfficialClass
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -22,6 +24,7 @@ class DexFileNodeCollector(
     private val methodRefs: ConcurrentHashMap<MethodNode, MutableList<String>>,
     private val fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
     private val subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
+    private val defaultMethodInvokeRefs: ConcurrentHashMap<String, MutableList<String>>,
 ) : DexFileVisitor() {
 
 
@@ -81,6 +84,14 @@ class DexFileNodeCollector(
                                 if (owner.startsWith(classNewArray)) {
                                     return
                                 }
+
+                                // find before isOfficialClass，because we may redex androidx classes
+                                if (owner.endsWith(desugarDefaultInterfaceSuffix)) {
+                                    val realOwner = owner.interfaceNameFromDesugaredDefaultMethodClass
+                                    defaultMethodInvokeRefs.getOrPut(realOwner) { Collections.synchronizedList(ArrayList()) }
+                                        .add(className)
+                                }
+
                                 if (owner.isOfficialClass) {
                                     return
                                 }
@@ -110,9 +121,4 @@ class DexFileNodeCollector(
             }
         }
     }
-
-    fun getClasses(): Map<String, ClassNode> {
-        return classes
-    }
-
 }
