@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
+import com.android.tools.idea.gradle.structure.configurables.ui.properties.renderAnyTo
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
@@ -71,5 +72,9 @@ class ResourceCompiler(
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // no need to implement
         return CompileResult(task, emptyList(), emptyList())
+    }
+
+    override fun dispose() {
+        aapt2Invoker.release()
     }
 }
