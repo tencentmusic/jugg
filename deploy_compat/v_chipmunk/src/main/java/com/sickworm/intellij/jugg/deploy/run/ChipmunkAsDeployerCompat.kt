@@ -66,6 +66,10 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     // Collection that will accumulate metrics for the deployment.
     val metrics = MetricsRecorder()
 
+    override fun isSupportsSyncCallback(): Boolean {
+        return false
+    }
+
     override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
         return project.getProjectSystem().getApkProvider(config)!!
     }

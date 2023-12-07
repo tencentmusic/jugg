@@ -22,9 +22,9 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     private val impl : IAsDeployerCompat = Proxy.newProxyInstance(this.javaClass.classLoader,
         arrayOf<Class<*>>(IAsDeployerCompat::class.java), object : InvocationHandler {
-            override fun invoke(proxy: Any?, method: Method, args: Array<Any?>): Any? {
+             override fun invoke(proxy: Any?, method: Method, args: Array<Any?>?): Any? {
                 try {
-                    return method.invoke(priorityImpl.impl.value, *args)
+                    return method.invoke(priorityImpl.impl.value, *(args ?: emptyArray()))
                 } catch (e: InvocationTargetException) {
                     if (!e.targetException.isCompatError) {
                         throw e.targetException
@@ -37,7 +37,7 @@ object AsDeployerCompat : IAsDeployerCompat {
                         .filter { it.ideVersion != priorityImpl.ideVersion }
                         .forEach {
                             try {
-                                val result = method.invoke(it.impl.value, *args)
+                                val result = method.invoke(it.impl.value, *(args ?: emptyArray()))
                                 logger.debug("try ${it.ideVersion.name} API success, return")
                                 return result
                             } catch (e: InvocationTargetException) {
@@ -110,6 +110,10 @@ object AsDeployerCompat : IAsDeployerCompat {
             ChipmunkAsDeployerCompat()
         }
         this.priorityImpl = impl
+    }
+
+    override fun isSupportsSyncCallback(): Boolean {
+        return impl.isSupportsSyncCallback()
     }
 
     override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {

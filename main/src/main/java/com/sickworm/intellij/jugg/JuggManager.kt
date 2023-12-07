@@ -69,6 +69,11 @@ class JuggManager @TestOnly constructor(
             logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             logger.info("Start jugg finished.")
+
+            if (!AsDeployerCompat.isSupportsSyncCallback()) {
+                logger.info("IDE API is not support sync callback, invoke directly.")
+                initProjectInfo(true)
+            }
         })
     }
 
@@ -309,8 +314,8 @@ class JuggManager @TestOnly constructor(
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
-
-        initCompile(compileContextInfo, emptyList(), false,
+        val isNeedReloadProjectInfo = !AsDeployerCompat.isSupportsSyncCallback()
+        initCompile(compileContextInfo, emptyList(), isNeedReloadProjectInfo,
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
