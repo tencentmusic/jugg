@@ -39,6 +39,10 @@ class DexFileNodeCollector(
         val classInnerClassPrefix = "$className$"
         val classNewArray = "[$className"
 
+        val classMethodRefs = mutableSetOf<MethodNode>()
+        val classFieldRefs = mutableSetOf<FieldNode>()
+        val classDefaultMethodInvokeRefs = mutableListOf<String>()
+
         return object : DexClassVisitor(cn) {
 
             override fun visitMethod(accessFlags: Int, method: Method?): DexMethodVisitor {
@@ -63,8 +67,7 @@ class DexFileNodeCollector(
                                 if (owner.isOfficialClass) {
                                     return
                                 }
-                                fieldRefs.getOrPut(FieldNode(field)) { Collections.synchronizedList(ArrayList()) }
-                                    .add(className)
+                                classFieldRefs.add(FieldNode(field))
                             }
 
                             override fun visitMethodStmt(op: Op?, args: IntArray?, method: Method?) {
@@ -88,16 +91,14 @@ class DexFileNodeCollector(
                                 // find before isOfficialClass，because we may redex androidx classes
                                 if (owner.endsWith(desugarDefaultInterfaceSuffix)) {
                                     val realOwner = owner.interfaceNameFromDesugaredDefaultMethodClass
-                                    defaultMethodInvokeRefs.getOrPut(realOwner) { Collections.synchronizedList(ArrayList()) }
-                                        .add(className)
+                                    classDefaultMethodInvokeRefs.add(realOwner)
                                 }
 
                                 if (owner.isOfficialClass) {
                                     return
                                 }
 
-                                methodRefs.getOrPut(MethodNode(method)) { Collections.synchronizedList(ArrayList()) }
-                                    .add(className)
+                                classMethodRefs.add(MethodNode(method))
                             }
                         }
                     }
@@ -117,6 +118,21 @@ class DexFileNodeCollector(
                         subclassRefs.getOrPut(it) { Collections.synchronizedList(ArrayList()) }
                             .add(className)
                     }
+                }
+
+                classFieldRefs.forEach {
+                    fieldRefs.getOrPut(it) { Collections.synchronizedList(ArrayList()) }
+                        .add(className)
+                }
+
+                classMethodRefs.forEach {
+                    methodRefs.getOrPut(it) { Collections.synchronizedList(ArrayList()) }
+                        .add(className)
+                }
+
+                classDefaultMethodInvokeRefs.forEach {
+                    defaultMethodInvokeRefs.getOrPut(it) { Collections.synchronizedList(ArrayList()) }
+                        .add(className)
                 }
             }
         }

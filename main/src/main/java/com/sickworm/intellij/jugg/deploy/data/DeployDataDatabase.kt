@@ -81,7 +81,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
                 logger.debug("${it.applicationId} database dex files changed $allChangedDexFileSize, incremental update database.")
             }
 
+            val parseStartTime = System.currentTimeMillis()
             val diffParsedApk = ApkParser().parse(it, includeEntries)
+            logger.debug("${it.applicationId} parse apk finish, cost ${System.currentTimeMillis() - parseStartTime}ms.")
+
             val updateResult = helper.saveParsedApk(diffParsedApk, diffResult)
             updateResults.add(updateResult)
             if (updateResult.isSuccess) {
