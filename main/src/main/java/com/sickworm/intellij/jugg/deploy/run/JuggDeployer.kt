@@ -84,7 +84,10 @@ class JuggDeployer(
         }
         val deviceSerial = adb.serial
         // Get the list of files from the local apks
+        val parseApksStartTime = System.currentTimeMillis()
         val newFiles = AsDeployerCompat.parseApks(argPaths)
+        logger.info("parseApks time: ${System.currentTimeMillis() - parseApksStartTime}ms")
+
         // Get the App info. Some from the APK, some from DDMLib.
         val packageName = ApplicationDumper.getPackageName(newFiles)
         val pids = adb.getPids(packageName)
@@ -118,7 +121,10 @@ class JuggDeployer(
             adb, logger,
         )
         logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}")
+        val storeStartTime = System.currentTimeMillis()
         deployCache.store(deviceSerial, packageName, newFiles, overlayId)
+        logger.info("after store, newFiles: ${newFiles.size}, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
+
         return Result().also {
             it.overlayId = overlayId.sha
         }
