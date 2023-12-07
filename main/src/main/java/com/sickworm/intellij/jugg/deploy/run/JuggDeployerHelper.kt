@@ -274,7 +274,7 @@ class JuggDeployerHelper(
                 logger.info("Deploy state matched, no need reinstall app.")
                 return true
             } else if (isCanReinstall) {
-                logger.info("Deploy state not match, start reinstalling app...")
+                logger.warn("Deploy state not match, start reinstalling app...")
             } else {
                 logger.debug("Dry deploy failed and isCanReinstall=false, exit dry deploy.")
                 return false
