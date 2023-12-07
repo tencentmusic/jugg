@@ -149,13 +149,28 @@ class DeployDataGeneratorTest {
         var deployData = generator.buildDeployData(parsedDex, emptyList())
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
 
-        parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass2")
+        parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementBaseClass2")
         deployData = generator.buildDeployData(parsedDex, emptyList())
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
 
         parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3")
         deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;", "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
+        assertContentEquals(listOf(
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"
+        ).sorted(),
+            deployData.desugaredInterfacesWithDefaultMethods.sorted()
+        )
+    }
+
+    @Test
+    fun testFixInterfaceStaticMethod() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass1")
+        val deployData = generator.buildDeployData(parsedDex, emptyList())
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
     }
 
     @Test
