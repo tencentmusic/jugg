@@ -166,17 +166,15 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun processFileChanged(changedFiles: List<File>) {
-        if (fileChangesHandler.checkBuildGradleChanged(changedFiles)) {
-            deployStateManager.isBuildGradleChanged = true
-            logger.warn("Build.gradle changed, need rebuild")
-            return
-        }
-
-        if (fileChangesHandler.checkAndroidManifestChanged(changedFiles)) {
-            deployStateManager.isManifestChanged = true
-            logger.warn("AndroidManifest.xml changed, need rebuild")
-            return
-        }
+        fileChangesHandler.checkBuildFileChanged(changedFiles)
+            .takeIf { (isChanged, _) ->
+                isChanged
+            }
+            ?.let { (_, changedWhat) ->
+                deployStateManager.isBuildFileChanged = true
+                deployStateManager.whatBuildFileChanged = changedWhat
+                logger.warn("build file changed, need rebuild")
+            }
 
         val deletedFiles = changedFiles.filter { !it.exists() }
         if (deletedFiles.isNotEmpty()) {
@@ -336,8 +334,7 @@ class JuggManager @TestOnly constructor(
     ) {
         logger.info("Init compile... isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
 
-        deployStateManager.isBuildGradleChanged = false
-        deployStateManager.isManifestChanged = false
+        deployStateManager.isBuildFileChanged = false
 
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo, isNeedReloadProjectInfo)

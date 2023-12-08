@@ -23,9 +23,9 @@ class DeployStateManager(
     )
         private set
 
-    var isBuildGradleChanged = false
+    var isBuildFileChanged = false
 
-    var isManifestChanged = false
+    var whatBuildFileChanged: String = ""
 
     /**
      * Invoke when project need to update [JuggDeployState].
@@ -53,11 +53,8 @@ class DeployStateManager(
     private fun getNewDeployState(): JuggDeployState {
         val ideDeployState = ideDeployStateHelper.getIdeDeployState()
 
-        if (isBuildGradleChanged) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "build.gradle changed", ideDeployState)
-        }
-        if (isManifestChanged) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "AndroidManifest.xml changed", ideDeployState)
+        if (isBuildFileChanged) {
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "$whatBuildFileChanged changed", ideDeployState)
         }
 
         if (!deployHistoryManager.hasBeenFullCompiled) {

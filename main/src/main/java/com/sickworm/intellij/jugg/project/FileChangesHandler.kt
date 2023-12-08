@@ -85,7 +85,23 @@ class FileChangesHandler(
         return null
     }
 
-    override fun checkBuildGradleChanged(files: List<File>): Boolean {
+    override fun checkBuildFileChanged(files: List<File>): Pair<Boolean, String> {
+        if (checkBuildGradleChanged(files)) {
+            return true to "build.gradle"
+        }
+
+        checkBuildPropertiesChanged(files)
+            .takeIf { it.first }
+            ?.let { return it }
+
+        if (checkAndroidManifestChanged(files)) {
+            return true to "AndroidManifest.xml"
+        }
+
+        return false to ""
+    }
+
+    private fun checkBuildGradleChanged(files: List<File>): Boolean {
         var isBuildGradleChanged = false
         files.forEach { file ->
             val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
@@ -111,7 +127,26 @@ class FileChangesHandler(
         return isBuildGradleChanged
     }
 
-    override fun checkAndroidManifestChanged(files: List<File>): Boolean {
+    private fun checkBuildPropertiesChanged(files: List<File>): Pair<Boolean, String> {
+        var changedFileName = ""
+        files.forEach { file ->
+            val isPropertiesFile = (file.name == "local.properties") || (file.name == "gradle.properties")
+            if (!isPropertiesFile) {
+                return@forEach
+            }
+
+            val projectRootDir = getProjectRootDir()
+            if (projectRootDir != null && file.parentFile.absolutePath == projectRootDir.absolutePath) {
+                logger.info("Detect properties file changed: $file")
+                changedFileName = file.name
+                return@forEach
+            }
+        }
+        return changedFileName.isNotEmpty() to changedFileName
+    }
+
+
+    private fun checkAndroidManifestChanged(files: List<File>): Boolean {
         var isAndroidManifestChanged = false
         files.forEach { file ->
             val isAndroidManifest = file.name == "AndroidManifest.xml"
@@ -160,9 +195,5 @@ class FileChangesHandler(
         }
 
         return compileContext?.modules?.values?: emptyList()
-    }
-
-    private fun isBuildFile(file: File): Boolean {
-        return file.name == "build.gradle" || file.name == "build.gradle.kts"
     }
 }
