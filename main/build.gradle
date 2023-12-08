@@ -32,7 +32,91 @@ intellij {
 }
 
 patchPluginXml.changeNotes = """
-      Hello World!
+<h1>Change Log</h1> 
+<h2>1.1.10 (2023.12.08)</h2>
+<p>1. [feature] supports Android Studio Iguana</p>
+<p>2. [optimize] auto reload table after kill aapt2 process</p>
+<p>3. [optimize] supports recover feature on projects that git root directory is project's parent file</p>
+<p>4. [optimize] remove redundant ref records (reduce 50% rows)</p>
+<p>5. [bugfix] fix NoSuchMethodError when invoke static interface method</p>
+<p>6. [bugfix] fix Android Studio Chipmunk Dolphin won't init project infos</p>
+<p>7. [bugfix] fix aapt2-inclink process leak</p>
+<p>8. [bugfix] fix kotlin-android-extensions error "error: unresolved reference. None of the following candidates is applicable because of receiver type mismatch"</p>
+<p>9. [bugfix] fix dead loop when files are effected files for each other</p>
+<p>10. [bugfix] fix "Find module compile order failed"</p>
+<p>11. [bugfix] fix compilation error "can not find symbol" with jars in project dir</p>
+<p>12. [bugfix] fix android_* attrs in styleable not loaded after last bugfix commit</p>
+<h2>1.1.9 (2023.11.22)</h2>
+<p>1. [feature] well supports Windows!</p>
+<p>2. [optimize] do not recreate K2JVMCompilerIsolate for better compilation speed</p>
+<p>3. [optimize] supports cancel during compilation</p>
+<p>4. [optimize] speed up initialization: remove KotlinCompiler warmup because it doesn't help much</p>
+<p>5. [optimize] effected source files won't save to DeployFileManager to avoid recompilation</p>
+<p>6. [bugfix] fix styleable attr index not correct after compile styleables</p>
+<p>7. [bugfix] fix Kotlin error: "type mismatch", "cannot access class" when compiling with data binding. add generated source into -Xjava-source-roots</p>
+<p>8. [bugfix] fix error: Exception: [SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))</p>
+<p>9. [bugfix] fix AbstractMethodError when file once compiled successfully, and invoked function was changed later</p>
+<p>10. [bugfix] fix error: "org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: file_infos.path)"</p>
+<p>11. [bugfix] fix compiling a deleted file sometimes</p>
+<h2>1.1.8 (2023.11.15)</h2>
+<p>1. [feature] support specific remote sync path (optional)</p>
+<p>2. [feature] remote compilation supports empty password, and show enter dialog when clicking run</p>
+<p>3. [optimize] add fallback strategy: if compile times going to > 10, then fallback to gradle compile</p>
+<p>4. [optimize] fallback all to hot fix if there is any hot fix files for better performance</p>
+<p>5. [optimize] improve robustness of getting compile sdk version</p>
+<p>6. [optimize] hide password in dialog</p>
+<p>7. [optimize] read compile sdk version from ModuleJdkOrderEntry to improve robust</p>
+<p>8. [bugfix] fix running failed with remote compilation on Windows</p>
+<p>9. [bugfix] supports build variant, fix fetch classpath missing files when variant is not "debug"</p>
+<p>10. [bugfix] compat with Java 11 with Android Studio Dolphin</p>
+<p>11. [bugfix] fix can not see local variable after Deploying Java files. Add "-g" for javac to keep local variable name</p>
+<p>12. [bugfix] remote compilation sync failed when remote directory not exist</p>
+<h2>1.1.7 (2023.11.3)</h2>
+<p>1. [optimize] improve tips of deploying result</p>
+<p>2. [optimize] optimize logic of getting platform and build-tools</p>
+<p>3. [bugfix] fix compatibility for Flamingo and below versions after supporting Giraffe</p>
+<p>4. [bugfix] passed unit test on Windows, fix failure of starting up and compiling resource</p>
+<p>5. [bugfix] fix getting the wrong Android Home</p>
+<h2>1.1.6 (2023.10.30)</h2>
+<p>1. [feature] resource compilation supports Linux and Windows</p>
+<p>2. [optimize] retry with delay 5s when agent no response</p>
+<p>3. [optimize] decrease waiting time for deployable from 5s to 3s</p>
+<p>4. [optimize] update incremental update database condition for better performance</p>
+<p>5. [bugfix] fix compilation failed after full build then gradle sync on remote mode. Try to guess base dir and resolve the missing classpath</p>
+<p>6. [bugfix] fix references missing after incremental update database, because of over-ranged deletion</p>
+<p>7. [bugfix] fix missing new files on reopening project</p>
+<h2>1.1.5</h2>
+<p>1. [feature] supports get effect source files when adding new abstract methods</p>
+<p>2. [optimize] won't deploy R.dex because R fields has been inlined, to improve deploy speed and compatibility</p>
+<p>3. [optimize] make Kotlin compilation error clickable in IDE by replacing relative path to absolute path</p>
+<p>4. [bugfix] fix compilation failed after gradle sync, for dependencies not updated</p>
+<h2>1.1.4 (2023.10.18)</h2>
+<p>1. [feature] add report issue function, add button to the run configuration window</p>
+<p>2. [feature] supports subdirectory for remote compile, add field for local to remote sync path</p>
+<p>3. [feature] collect and show gradle error output when compilation failed</p>
+<p>4. [optimize] improve progress indicator UX</p>
+<p>5. [optimize] optimize fallback reason</p>
+<p>6. [bugfix] fix deployed files not added on commit</p>
+<p>7. [bugfix] fix compile error in local compile, by using Java SDK of project instead of JAVA_HOME in env, to match the gradle JDK version</p>
+<p>8. [bugfix] fix compiled failed when Jugg directory has .DS_Store</p>
+<p>9. [bugfix] fix changes of layout XML not taken effect because aapt2 generates a 'layout-v22' XML</p>
+<p>10. [bugfix] fix error "file not found" when compile a new layout xml at the second time</p>
+<h2>1.1.3 (2023.10.09)</h2>
+<p>1. [bugfix] fix R.styleable not generated. Let aapt2 supports import R.styleable.</p>
+<p>2. [bugfix] fix gradle compiler error "Type xxx.R${'\$'}anim is defined multiple times" after R compilation</p>
+<p>3. [bugfix] fix Run stop unexpected by catching error "org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))"</p>
+<h2>1.1.2 (2023.10.07)</h2>
+<p>1. [bugfix] deploy state incorrect when using device running on different projects but same package name</p>
+<p>2. [bugfix] deploy state incorrect when using different devices running on one project</p>
+<h2>1.1.1 (2023.10.06)</h2>
+<p>1. [bugfix] fix Jugg reloading the latest resource table after reopen project</p>
+<p>2. [bugfix] fix aapt2 daemon process not exit after project closed</p>
+<p>3. [bugfix] workaround for error "R+ Device should have FULL debugger swap support"</p>
+<p>4. [optimize] mark modified files during gradle compilation as uncompiled</p>
+<h2>1.1.0 (2023.10.06)</h2>
+<p>1. [feature] resource compilation supports adding IDs</p>
+<h2>1.0.0 (2023.9.15)</h2>
+<p>1. First release version</p>
       """
 
 runIde {
