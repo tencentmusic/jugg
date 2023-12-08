@@ -41,9 +41,9 @@ object JuggInitializer {
 
         val pathManager = JuggPathManager(project, File(projectDir))
         JuggLogger.register(project, pathManager.logDir)
+        tryGetProjectLogger(project)?.info("Start Init Jugg on ${project.basePath}")
 
         val juggManager = JuggManager(project, pathManager)
-        tryGetProjectLogger(project)?.info("init $juggManager")
         juggManager.init()
         instanceSet[projectDir] = juggManager
     }
@@ -51,7 +51,7 @@ object JuggInitializer {
     @Synchronized
     fun release(project: Project) {
         val juggManager = instanceSet.remove(project.bashPathOrDefault)
-        tryGetProjectLogger(project)?.info("release $juggManager")
+        tryGetProjectLogger(project)?.info("Release Jugg on ${project.basePath}")
 
         juggManager ?: return
         Disposer.dispose(juggManager)
