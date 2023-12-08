@@ -100,6 +100,7 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
             compileCommand = component.compileCommandTextField.text
             outputApkName = component.outputApkNameTextField.text
             isRemoteCompile = component.enableRemoteCompileCheckBox.isSelected
+            isSyncAllProjects = component.enableSyncAllProjectsCheckBox.isSelected
             remoteSshUser = component.userTextField.text
             remoteSshPassword = component.passwordTextField.password.joinToString("")
             remoteSshIp = component.ipTextField.text

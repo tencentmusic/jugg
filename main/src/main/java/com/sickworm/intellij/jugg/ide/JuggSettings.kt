@@ -17,7 +17,8 @@ object JuggSettings {
     // default compile settings
     const val defaultCompileCommand = "./gradlew :app:assembleDebug"
     const val defaultOutputApkName = "app-*debug.apk"
-    const val  defaultIsRemoteCompile = false
+    var defaultIsRemoteCompile: Boolean by propertiesComponent.delegate(defaultValue = false)
+    var defaultIsSyncAllProjects: Boolean by propertiesComponent.delegate(defaultValue = false)
     var defaultRemoteSshUser: String by propertiesComponent.delegate(defaultValue = "root")
     var defaultRemoteSshIp: String by propertiesComponent.delegate(defaultValue = "")
     var defaultRemoteSshPassword: String by propertiesComponent.delegate(defaultValue = "")
@@ -46,6 +47,8 @@ object JuggSettings {
     const val isQuickFallbackToHotFix: Boolean = true
 
     fun updateDefaultSettings(options: JuggGradleCompileOptions) {
+        defaultIsRemoteCompile = options.isRemoteCompile
+        defaultIsSyncAllProjects = options.isSyncAllProjects
         defaultRemoteSshUser = options.remoteSshUser
         defaultRemoteSshIp = options.remoteSshIp
         defaultRemoteSshPassword = options.remoteSshPassword

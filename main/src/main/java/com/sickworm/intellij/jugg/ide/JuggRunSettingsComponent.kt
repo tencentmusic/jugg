@@ -22,6 +22,7 @@ class JuggRunSettingsComponent : JComponent() {
     private val outputApkNameLabel = JLabel("Output APK name:")
     val outputApkNameTextField = JTextField()
     val enableRemoteCompileCheckBox = JCheckBox("Enable iFt remote compile")
+    val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in iFT root dir)")
 
     private val reportIssueActionLink = ActionLink("Report issues")
 
@@ -56,6 +57,7 @@ class JuggRunSettingsComponent : JComponent() {
 
     private val remoteComponentList = listOf<Pair<JComponent, JComponent?>>(
         Pair(tipsLabel, null),
+        Pair(enableSyncAllProjectsCheckBox, null),
         Pair(userLabel, userTextField),
         Pair(passwordLabel, passwordTextField),
         Pair(ipLabel, ipTextField),
@@ -89,6 +91,7 @@ class JuggRunSettingsComponent : JComponent() {
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
         updateRemoteUi(settings.isRemoteCompile)
+        enableSyncAllProjectsCheckBox.isSelected = settings.isSyncAllProjects
         userTextField.text = settings.remoteSshUser
         passwordTextField.text = settings.remoteSshPassword
         ipTextField.text = settings.remoteSshIp
