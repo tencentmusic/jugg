@@ -74,8 +74,7 @@ class JuggDeployTask(
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
             adb,
-            service.deploymentCacheDatabase,
-            service.dexDatabase,
+            JuggDeploymentService,
             adbInstaller,
             ideService,
             launchContext.exceptOverlayIds,

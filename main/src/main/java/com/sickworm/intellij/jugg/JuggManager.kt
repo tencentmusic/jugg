@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
@@ -73,6 +74,14 @@ class JuggManager @TestOnly constructor(
             if (!AsDeployerCompat.isSupportsSyncCallback()) {
                 logger.info("IDE API is not support sync callback, invoke directly.")
                 initProjectInfo(true)
+            }
+
+            // init async
+            JuggDeploymentService.postWithLock {
+                val costTime = measureTimeMillis {
+                    preInit()
+                }
+                logger.debug("JuggDeploymentService.preInit cost ${costTime}ms")
             }
         })
     }

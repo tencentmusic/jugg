@@ -14,8 +14,7 @@ import java.util.Comparator
  */
 class JuggDeployer(
     private val adb: AdbClient,
-    private val deployCache: DeploymentCacheDatabase,
-    private val dexDb: SqlApkFileDatabase,
+    private val deploymentService: JuggDeploymentService,
     private val installer: Installer,
     private val service: UIService,
     private val exceptOverlayIds: Map<String, String>,
@@ -45,7 +44,7 @@ class JuggDeployer(
     ): Result {
         val result = Result()
         Trace.begin("install").use {
-            val splitter = CachedDexSplitter(dexDb, D8DexSplitter())
+            val splitter = CachedDexSplitter(deploymentService.dexDatabase, D8DexSplitter())
             var installMode = argInstallMode
             if (installMode == InstallMode.DELTA) {
                 installMode = InstallMode.DELTA_NO_SKIP
@@ -59,7 +58,11 @@ class JuggDeployer(
             splitter.cache(apkList)
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
-            deployCache.store(adb.serial, appId, apkList, oid)
+            val storeStartTime = System.currentTimeMillis()
+            deploymentService.postWithLock {
+                deploymentCacheDatabase.store(adb.serial, appId, apkList, oid)
+                logger.info("after install store, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
+            }
             result.overlayId = oid.sha
             return result
         }
@@ -94,7 +97,9 @@ class JuggDeployer(
         val arch = adb.getArch(pids)
 
         // Get the list of files from the installed app assuming deployment cache is correct.
-        val speculativeDump: DeploymentCacheDatabase.Entry? = deployCache[deviceSerial, packageName]
+        val speculativeDump: DeploymentCacheDatabase.Entry? = deploymentService.withLock {
+            deploymentService.deploymentCacheDatabase[deviceSerial, packageName]
+        }
         val exceptOverlayId = exceptOverlayIds[packageName]
         logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
                 ", except overlay id: $exceptOverlayId" +
@@ -122,8 +127,10 @@ class JuggDeployer(
         )
         logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}")
         val storeStartTime = System.currentTimeMillis()
-        deployCache.store(deviceSerial, packageName, newFiles, overlayId)
-        logger.info("after store, newFiles: ${newFiles.size}, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
+        deploymentService.postWithLock {
+            deploymentCacheDatabase.store(deviceSerial, packageName, newFiles, overlayId)
+            logger.info("after deploy store, newFiles: ${newFiles.size}, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
+        }
 
         return Result().also {
             it.overlayId = overlayId.sha
