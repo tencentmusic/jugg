@@ -277,7 +277,11 @@ class JuggManager @TestOnly constructor(
         if (isRemoteCompile) {
             logger.info("Fetching remote classpath...")
             val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
-                juggCompilerHelper.fetchClasspathResult(true, moduleBuildPathInfos)
+                val originText = currentIndicator?.text
+                currentIndicator?.text = "Jugg: Fetching remote classpath..."
+                val result = juggCompilerHelper.fetchClasspathResult(true, moduleBuildPathInfos)
+                currentIndicator?.text = originText
+                return@measureTimeMillisWithResult result
             }
             logger.debug("fetchClasspathResult cost ${costTime2}ms")
             logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir")
@@ -381,6 +385,8 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    private var currentIndicator: ProgressIndicator? = null
+
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         object : Task.Backgroundable(project, jobName, false) {
             override fun run(indicator: ProgressIndicator) {
@@ -393,6 +399,7 @@ class JuggManager @TestOnly constructor(
                         if (isNeedShowIndicator) {
                             indicator.text = "Jugg: $jobName..."
                             indicator.isIndeterminate = true
+                            currentIndicator = indicator
                         }
                         action.run()
                         val costTime = System.currentTimeMillis() - startTime
@@ -404,6 +411,7 @@ class JuggManager @TestOnly constructor(
                     } finally {
                         if (isNeedShowIndicator) {
                             indicator.stop()
+                            currentIndicator = null
                         }
                     }
 
