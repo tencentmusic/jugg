@@ -140,10 +140,6 @@ class CompileContextManager(
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
         )
-        logger.debug("""
-            context loaded:
-            android.jar:${context.androidJar}
-        """.trimIndent())
 
         compileContextInside = context
     }

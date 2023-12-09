@@ -40,7 +40,7 @@ data class BaseCompileContext(
     }
 
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
-        val androidJar = androidJar.path
+        val androidJar = getAndroidJarPath(moduleInfo)
 
         val tempDependencies: List<String> = tempModule.buildPathInfo.allClassPath.filter {
             it.exists()
@@ -91,6 +91,18 @@ data class BaseCompileContext(
         }
 
         return dependencies
+    }
+
+    private fun getAndroidJarPath(moduleInfo: ModuleInfo): String {
+        if (moduleInfo.compileVersion != null) {
+            val androidJar = File(androidHome, "platforms/android-${moduleInfo.compileVersion}/android.jar")
+            if (androidJar.exists()) {
+                return androidJar.absolutePath
+            }
+        }
+
+        logger.debug("android.jar not found in ${moduleInfo.name}, use ${androidJar.absolutePath} for fallback.")
+        return androidJar.absolutePath
     }
 
     override fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File> {
