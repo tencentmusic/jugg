@@ -10,23 +10,45 @@ import java.io.File
  */
 class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
-    var compileCommand by string(JuggSettings.defaultCompileCommand)
-    var outputApkName by string(JuggSettings.defaultOutputApkName)
-    var isRemoteCompile by property(JuggSettings.defaultIsRemoteCompile)
-    var remoteSshUser by string(JuggSettings.defaultRemoteSshUser)
-    var remoteSshPassword by string(JuggSettings.defaultRemoteSshPassword)
-    var remoteSshIp by string(JuggSettings.defaultRemoteSshIp)
-    var remoteSshPort by property(JuggSettings.defaultRemoteSshPort)
-    var localToRemoteIftConfigName by string(JuggSettings.defaultLocalToRemoteIftConfigName)
-    var localToRemoteSyncPath by string(JuggSettings.defaultLocalToRemoteSyncPath)
-    var remoteSyncPath by string(JuggSettings.defaultRemoteSyncPath)
-    var remoteToLocalIftConfigName by string(JuggSettings.defaultRemoteToLocalIftConfigName)
-    var remoteToLocalSyncPath by string(JuggSettings.defaultRemoteToLocalSyncPath)
-    var httpProxyIp by string(JuggSettings.defaultHttpProxyIp)
-    var httpProxyPort by property(JuggSettings.defaultHttpProxyPort)
-    var isSyncAllProjects by property(JuggSettings.defaultIsSyncAllProjects)
+    var compileCommand by string()
+    var outputApkName by string()
+    var isRemoteCompile by property(false)
+    var remoteSshUser by string()
+    var remoteSshPassword by string()
+    var remoteSshIp by string()
+    var remoteSshPort by property(0)
+    var localToRemoteIftConfigName by string()
+    var localToRemoteSyncPath by string()
+    var remoteSyncPath by string()
+    var remoteToLocalIftConfigName by string()
+    var remoteToLocalSyncPath by string()
+    var httpProxyIp by string()
+    var httpProxyPort by property(0)
+    var isSyncAllProjects by property(false)
+    // used to recognize whether default value has set
+    // can not set default value in the string() or property(), value will be reset to default when default value is changed.
+    var hasSetDefaultValue by property(false)
 
     // new options must add to the end because property persist is in order
+
+    fun setToDefault() {
+        compileCommand = JuggSettings.defaultCompileCommand
+        outputApkName = JuggSettings.defaultOutputApkName
+        isRemoteCompile = JuggSettings.defaultIsRemoteCompile
+        remoteSshUser = JuggSettings.defaultRemoteSshUser
+        remoteSshPassword = JuggSettings.defaultRemoteSshPassword
+        remoteSshIp = JuggSettings.defaultRemoteSshIp
+        remoteSshPort = JuggSettings.defaultRemoteSshPort
+        localToRemoteIftConfigName = JuggSettings.defaultLocalToRemoteIftConfigName
+        localToRemoteSyncPath = JuggSettings.defaultLocalToRemoteSyncPath
+        remoteSyncPath = JuggSettings.defaultRemoteSyncPath
+        remoteToLocalIftConfigName = JuggSettings.defaultRemoteToLocalIftConfigName
+        remoteToLocalSyncPath = JuggSettings.defaultRemoteToLocalSyncPath
+        httpProxyIp = JuggSettings.defaultHttpProxyIp
+        httpProxyPort = JuggSettings.defaultHttpProxyPort
+        isSyncAllProjects = JuggSettings.defaultIsSyncAllProjects
+        hasSetDefaultValue = true
+    }
 }
 
 /**
