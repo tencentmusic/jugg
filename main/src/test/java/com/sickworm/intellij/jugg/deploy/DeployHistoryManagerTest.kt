@@ -4,7 +4,6 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.manager.MockJugg
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ChangedFile
@@ -27,6 +26,7 @@ class DeployHistoryManagerTest {
     @Test
     fun testHistoryDb() {
         val storageDir = buildDir
+        gitManager.init() // we need init first after GitManager can search parent directory
         val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
 
         gitManager.deleteGit()
@@ -43,9 +43,7 @@ class DeployHistoryManagerTest {
         assertFalse(historyManager.hasBeenFullCompiled)
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
-        val jugg = MockJugg()
-        val modules = jugg.compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, modules)
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule))
         assertTrue(historyManager.hasBeenFullCompiled)
         val recoverInfo1 = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo1)
@@ -108,9 +106,7 @@ class DeployHistoryManagerTest {
         gitManager.deleteGit()
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
-        val jugg = MockJugg()
-        val modules = jugg.compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, modules)
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule))
 
         val deployedFile = File(buildDir, "com/A.dex").let {
             it.parentFile.mkdirs()
