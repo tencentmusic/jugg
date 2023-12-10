@@ -16,7 +16,7 @@ import com.intellij.openapi.project.Project
  */
 interface IAsDeployerCompat {
 
-    fun isSupportsSyncCallback(): Boolean = true
+    fun isSupportsSyncCallback(): Boolean
 
     fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider
 

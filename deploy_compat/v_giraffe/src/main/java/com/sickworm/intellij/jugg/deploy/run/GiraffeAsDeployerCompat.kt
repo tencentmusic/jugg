@@ -19,6 +19,11 @@ import java.util.concurrent.ExecutionException
  * Android Studio Giraffe
  */
 open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
+
+    override fun isSupportsSyncCallback(): Boolean {
+        return true // actually Electric already supports sync callback. But I don't want to compatible with it now.
+    }
+
     override fun getDevices(project: Project): List<IDevice>? {
         val deployTargetContext = DeployTargetContext()
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
