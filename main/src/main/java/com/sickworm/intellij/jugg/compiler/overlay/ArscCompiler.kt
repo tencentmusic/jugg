@@ -109,6 +109,11 @@ class ArscCompiler(
         val result = incLinkCompile(flatFiles, task.outputDir)
 
         if (result.isEmpty()) {
+            // reload
+            logger.debug("incLink failed, may effects later compilation. release and reinit next time call.")
+            aapt2Invoker.release()
+            hasLoaded = false
+
             return CompileResult(task, task.files.map {
                 val error = CompileError(it, listOf(0L to "makeResApk failed"))
                 Result.failure(error)
