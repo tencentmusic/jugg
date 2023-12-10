@@ -101,7 +101,7 @@ data class JuggGradleCompileOptions(
     }
 
     /** remote project root path, used for compilation */
-    val remoteProjectPath get() = "$finalRemoteSyncPath/$projectSyncRelativePath" // use ~/ will make path replacement don't work
+    val remoteProjectPath get() = "$finalRemoteSyncPath/$projectSyncRelativePath"
 
     /** remote iFt path, used for fetching apk output to local */
     val remoteToLocalProjectIftPath get() = "$remoteToLocalIftConfigName/$projectSyncRelativePath"
