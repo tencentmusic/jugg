@@ -153,6 +153,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun getClassNodes(classNames: List<String>): Map<String, ClassNode> {
+        if (classNames.isEmpty()) {
+            return emptyMap()
+        }
+
         val classNodes = mutableMapOf<String, ClassNode>()
 
         val incClassNodes = incDeployedDatabase.getClassNodes(classNames)
@@ -228,6 +232,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String> {
+        if (classNodes.isEmpty()) {
+            return emptyList()
+        }
+
         // we don't need to check deployed class node because we already handle it
         val incrementalClassNodes = incDeployedDatabase.getClassNodes(classNodes.map { it.className })
         val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
