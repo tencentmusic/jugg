@@ -51,6 +51,8 @@ class K2JVMCompilerIsolate {
 
     companion object {
 
+        const val VERSION = "1.7"
+
         private val requiredLibraries = listOf(
             "annotations-13.0.jar", // as plugin
             "annotations-23.0.0.jar", // in test

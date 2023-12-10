@@ -93,6 +93,7 @@ class KotlinCompiler(
 
         val compileArgs = module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
+            "-language-version", guessKotlinVersion(module),
             "-jvm-target", module.kotlinJvmTarget ?: "1.8",
             "-nowarn",
             "-no-stdlib",
@@ -219,6 +220,32 @@ class KotlinCompiler(
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("analyze kotlin source cost: $costTime ms")
         return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName)
+    }
+
+    private var guessKotlinVersionCache = mapOf<String, String>()
+
+
+    private fun guessKotlinVersion(module: ModuleInfo): String {
+        guessKotlinVersionCache[module.name]?.let {
+            return it
+        }
+
+        val kotlinStdlibName = module.libraryDependencies.find {
+            it.file.name.contains("kotlin-stdlib")
+        }?.file?.name
+        if (kotlinStdlibName == null) {
+            logger.debug("kotlin-stdlib not found in module ${module.name}, can not guess kotlin version, use default ${K2JVMCompilerIsolate.VERSION}")
+            return K2JVMCompilerIsolate.VERSION
+        }
+
+        val kotlinVersion = try {
+            kotlinStdlibName.split("-").last().split(".").take(2).joinToString(".")
+        } catch (e: Exception) {
+            logger.debug("kotlin-stdlib name '$kotlinStdlibName' is not valid, can not guess kotlin version, use default ${K2JVMCompilerIsolate.VERSION}")
+            return K2JVMCompilerIsolate.VERSION
+        }
+
+        return kotlinVersion
     }
 
     companion object {
