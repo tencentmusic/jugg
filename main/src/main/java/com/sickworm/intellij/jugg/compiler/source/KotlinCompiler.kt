@@ -94,6 +94,7 @@ class KotlinCompiler(
         val compileArgs = module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
             "-jvm-target", module.kotlinJvmTarget ?: "1.8",
+            "-nowarn",
             "-no-stdlib",
             "-no-reflect",
             "-module-name", "${module.simpleName}_${module.buildVariant}",
