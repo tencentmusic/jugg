@@ -162,7 +162,12 @@ class CompileContextManager(
             } else {
                 // Reparse gradle. Otherwise GradleBuildModel won't update after sync
                 val costTime = measureTimeMillis {
-                    projectBuildModel.reparse()
+                    try {
+                        projectBuildModel.reparse()
+                    } catch (e: Exception) {
+                        // java.util.ConcurrentModificationException
+                        logger.warn("Reparse gradle failed ${e.message}")
+                    }
                 }
                 logger.debug("Reparse gradle cost ${costTime}ms")
             }
