@@ -151,7 +151,8 @@ private class GradleOutputParser(
         if (!juggGradleCompileOptions.isRemoteCompile) {
             return line
         }
-        val remoteProjectAbsPath = juggGradleCompileOptions.remoteProjectPath
-        return line.replace(remoteProjectAbsPath, projectRootPath)
+        val remoteRootPath = juggGradleCompileOptions.finalRemoteSyncPath
+        val localRootPath = juggGradleCompileOptions.localToRemoteSyncPath
+        return line.replace(remoteRootPath, localRootPath)
     }
 }

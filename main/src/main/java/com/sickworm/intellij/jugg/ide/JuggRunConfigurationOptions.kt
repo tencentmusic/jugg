@@ -84,7 +84,7 @@ data class JuggGradleCompileOptions(
     private val remoteHomePath = if (remoteSshUser == "root") "/root" else "/data/home/$remoteSshUser"
 
     /** project storage directory */
-    private val finalRemoteSyncPath = remoteSyncPath.ifEmpty { "$remoteHomePath/$localToRemoteIftConfigName" }
+    val finalRemoteSyncPath = remoteSyncPath.ifEmpty { "$remoteHomePath/$localToRemoteIftConfigName" }
 
     /** local iFt path, used for syncing files to remote by iFt */
     val localSyncIftPath get() = if (isSyncAllProjects) {
