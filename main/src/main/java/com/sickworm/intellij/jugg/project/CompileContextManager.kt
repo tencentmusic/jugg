@@ -223,6 +223,8 @@ class CompileContextManager(
             }
             val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
+            val kotlinFreeCompilerArgs: List<String> = buildModel.android().kotlinOptions().freeCompilerArgs()
+                .toList()?.map { it.toString() } ?: emptyList()
             val javaSourceCompatibility: String? = buildModel.android().compileOptions().sourceCompatibility()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
             val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
@@ -326,7 +328,8 @@ class CompileContextManager(
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
                 manifestFile,
                 buildVariant, compileVersion, buildToolsVersion,
-                kotlinJvmTarget, javaSourceCompatibility, javaTargetCompatibility,
+                kotlinJvmTarget, kotlinFreeCompilerArgs,
+                javaSourceCompatibility, javaTargetCompatibility,
                 moduleBuildPathInfo,
                 moduleDependencies,
                 libraryDependencies,

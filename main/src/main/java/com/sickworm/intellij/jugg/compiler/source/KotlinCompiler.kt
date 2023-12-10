@@ -91,7 +91,7 @@ class KotlinCompiler(
 
         val javaSourceRoots = module.sourceDirs + context.getGeneratedSourcePaths(module)
 
-        val compileArgs = listOf(
+        val compileArgs = module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
             "-jvm-target", module.kotlinJvmTarget ?: "1.8",
             "-no-stdlib",

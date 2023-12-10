@@ -242,6 +242,7 @@ data class ModuleInfo(
     val compileVersion: String?,
     val buildToolsVersion: String?,
     val kotlinJvmTarget: String?,
+    val kotlinFreeCompilerArgs: List<String>,
     val javaSourceCompatibility: String?,
     val javaTargetCompatibility: String?,
     val buildPathInfo: ModuleBuildPathInfo,
@@ -282,6 +283,7 @@ data class ModuleInfo(
             buildPathInfo = ModuleBuildPathInfo(File(""), File(""), DEFAULT_BUILD_VARIANT),
             moduleDependencies = emptyList(),
             libraryDependencies = emptyList(),
+            kotlinFreeCompilerArgs = emptyList(),
         )
     }
 }

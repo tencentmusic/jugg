@@ -111,6 +111,7 @@ val mockModule = ModuleInfo(
         ModuleInfo.DEFAULT_BUILD_VARIANT
     ),
     kotlinJvmTarget = "1.8",
+    kotlinFreeCompilerArgs = emptyList(),
     javaSourceCompatibility = "1.8",
     javaTargetCompatibility = "1.8",
     moduleDependencies = emptyList(),
