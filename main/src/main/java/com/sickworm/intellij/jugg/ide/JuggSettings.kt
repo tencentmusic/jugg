@@ -36,6 +36,8 @@ object JuggSettings {
 
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 10
+    /** limit max source files to compile for better performance */
+    const val maxCompileSourceFiles = 30
 
     /** whether deploy all res files to device after install apk */
     var isEnableWarmUpDeploy: Boolean = false

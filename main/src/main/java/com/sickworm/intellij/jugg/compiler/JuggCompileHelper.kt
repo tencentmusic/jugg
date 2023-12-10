@@ -187,13 +187,18 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
-        val undeployedSourceModules = undeployedFiles.filter {
+        val undeployedSourceFiles = undeployedFiles.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
-        }.map {
+        }
+        val undeployedSourceModules = undeployedSourceFiles.map {
             it.module.name + "_" + it.type
         }.toSet()
         if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
             logger.info("Compile modules too much(${undeployedSourceModules.size} modules), " +
+                    "will fallback to gradle compile for better performance.")
+            return CompileTaskResult.incrementalFailed(true, "Too many changes")
+        } else if (undeployedSourceFiles.size > JuggSettings.maxCompileSourceFiles) {
+            logger.info("Compile files too much(${undeployedSourceFiles.size} files), " +
                     "will fallback to gradle compile for better performance.")
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
