@@ -34,6 +34,7 @@ import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
@@ -314,6 +315,8 @@ class MockJugg {
             deployHistoryManager = deployHistoryManager,
         )
         juggManager.deployStateListener = juggStateListener
-        juggManager.init()
+
+//        juggManager.init() // init will call initProjectInfo(true) and module cache is overridden by MockJugg
+        AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
     }
 }
