@@ -74,6 +74,7 @@ class ArscCompiler(
         val command = """
             |inclink
             |--load
+            |--warn-manifest-validation
             |--styleables
             |${styleableFile?.absolutePath ?: "no_styleables_file"}
             |-o no_need_output_path_on_load
