@@ -256,21 +256,7 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun compileChanges() {
-        val result = juggCompilerHelper.incrementalCompile(SimpleProcessHandler())
-        if (result.isSuccess && JuggSettings.deployOnSave) {
-            deployAsync(false)
-        }
-    }
-
-    @Deprecated("use deploy(JuggRunConfigurationSettings) instead", ReplaceWith("deploy(JuggRunConfigurationSettings)"))
-    fun deployAsync(isUserClick: Boolean) {
-        TODO() // remove
-    }
-
-    @TestOnly
-    @Deprecated("use deploy(JuggRunConfigurationSettings) instead", ReplaceWith("deploy(JuggRunConfigurationSettings)"))
-    fun deploy() {
-        TODO() // remove
+        juggCompilerHelper.incrementalCompile(SimpleProcessHandler())
     }
 
     @TestOnly

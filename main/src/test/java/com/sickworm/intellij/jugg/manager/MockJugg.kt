@@ -143,7 +143,7 @@ class MockJugg {
             }.start()
         }
 
-        juggManager.deploy()
+//        juggManager.deploy() TODO fixme
         waitingLaunchAppAndCheck()
         juggManager.updateDeployState()
     }
