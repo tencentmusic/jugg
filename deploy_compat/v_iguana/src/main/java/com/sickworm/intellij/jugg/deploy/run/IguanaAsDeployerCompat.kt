@@ -25,7 +25,7 @@ open class IguanaAsDeployerCompat: HedgehogAsDeployerCompat() {
     /**
      * @see [BaseAction.getDisableMessage]
      */
-    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
+    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
         val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
             return@firstOrNull isApplyChangesRelevant(it)
         } ?: return IdeDeployState.noAndroidConfiguration
@@ -38,23 +38,13 @@ open class IguanaAsDeployerCompat: HedgehogAsDeployerCompat() {
             return IdeDeployState.canNotDetectApplicationId
         }
 
-        val selectedExecutionTarget = ExecutionTargetManager.getInstance(project)
-            .getTargetsFor(selectedRunConfig)
-            .find { it is AndroidExecutionTarget } as? AndroidExecutionTarget
-            ?: return IdeDeployState.unsupportedExecutionTarget
-        val devices = selectedExecutionTarget.runningDevices
-        if (devices.isEmpty()) {
-            return IdeDeployState.deviceNotConnected
-        }
-
-        val firstDevice = devices.first()
-        if (firstDevice.state == IDevice.DeviceState.UNAUTHORIZED) {
+        if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
             return IdeDeployState.deviceNotAuthorized
         }
-        if (!firstDevice.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
+        if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
             return IdeDeployState.incompatibleDeviceApiLevel
         }
-        if (DeploymentApplicationService.instance.findClient(firstDevice, applicationId).isEmpty()) {
+        if (DeploymentApplicationService.instance.findClient(device, applicationId).isEmpty()) {
             return IdeDeployState.appNotRunningOrNotDebuggable
         }
         return IdeDeployState.ok

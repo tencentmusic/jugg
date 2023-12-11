@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import com.android.ddmlib.Client
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
@@ -9,8 +10,6 @@ import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
-import com.android.tools.idea.run.deployable.Deployable
-import com.android.tools.idea.run.deployable.DeployableProvider
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.run.util.DebuggerRedefiner
@@ -19,11 +18,10 @@ import com.google.common.collect.ImmutableMap
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
-import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
 import java.util.*
-import java.util.concurrent.ExecutionException
 
 /**
  * Android Studio Chipmunk
@@ -187,45 +185,40 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         }
     }
 
-    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
+    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
         val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
+            if (it !is AndroidRunConfigurationBase) {
+                return@firstOrNull false
+            }
             return@firstOrNull isApplyChangesRelevant(it)
         } ?: return IdeDeployState.noAndroidConfiguration
 
-        val deployableProvider = DeployableProvider.getInstance(project)
-            ?: return IdeDeployState.noDeploymentProvider
-        val deployable: Deployable?
-        try {
-            deployable = deployableProvider.getDeployable(selectedRunConfig)
-            if (deployable == null) {
-                return IdeDeployState.selectDeviceIsInvalid
-            }
-            if (!deployable.isOnline) {
-                if (deployable.isUnauthorized) {
-                    return IdeDeployState.deviceNotAuthorized
-                } else {
-                    return IdeDeployState.deviceNotConnected
-                }
-            }
-            val versionFuture = deployable.version
-            if (!versionFuture.isDone) {
-                // Don't stall the EDT - if the Future isn't ready, just return false.
-                return IdeDeployState.unknownDeviceApiLevel
-            }
-            if (versionFuture.get().apiLevel < IAsDeployerCompat.MIN_DEVICE_API) {
-                return IdeDeployState.incompatibleDeviceApiLevel
-            }
-            if (deployable.searchClientsForPackage().isEmpty()) {
-                return IdeDeployState.appNotRunningOrNotDebuggable
-            }
-        } catch (ex: InterruptedException) {
-            return IdeDeployState.updateInterrupted
-        } catch (ex: ExecutionException) {
-            return IdeDeployState.unknownDeviceApiLevel
-        } catch (ex: Exception) {
-            return IdeDeployState.unknownDeviceApiLevel
+        val androidRunConfiguration = selectedRunConfig as AndroidRunConfigurationBase
+        val packageName = androidRunConfiguration.applicationIdProvider?.packageName
+            ?: return IdeDeployState.noAndroidConfiguration
+
+        return if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
+            IdeDeployState.deviceNotAuthorized
+        } else if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
+            IdeDeployState.incompatibleDeviceApiLevel
+        } else if (findClientCompat(device, packageName).isEmpty()) {
+            IdeDeployState.appNotRunningOrNotDebuggable
+        } else {
+            IdeDeployState.ok
         }
-        return IdeDeployState.ok
+    }
+
+    private fun findClientCompat(device: IDevice, packageName: String): List<Client> {
+        return try {
+            DeploymentApplicationService.getInstance().findClient(device, packageName)
+        } catch (e: IncompatibleClassChangeError) {
+            val clazz = Class.forName("com.android.tools.idea.run.DeploymentApplicationService")
+            val method = clazz.getDeclaredMethod("getInstance")
+            val instance = method.invoke(null)
+            val findClientMethod = clazz.getDeclaredMethod("findClient", IDevice::class.java, String::class.java)
+            @Suppress("UNCHECKED_CAST")
+            findClientMethod.invoke(instance, device, packageName) as List<Client>
+        }
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {

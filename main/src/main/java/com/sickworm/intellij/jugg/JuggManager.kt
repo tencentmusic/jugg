@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.android.ddmlib.IDevice
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.execution.process.ProcessHandler
@@ -51,7 +52,7 @@ class JuggManager @TestOnly constructor(
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
-    private val deployStateManager: DeployStateManager = DeployStateManager(project, deployHistoryManager),
+    private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggReporter, { deployStateListener }),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, fileChangesHandler, { deployStateListener }),
 ): Disposable {
@@ -238,8 +239,8 @@ class JuggManager @TestOnly constructor(
         val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
             return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
         }
-        val deployTask = task@{ isInstall: Boolean ->
-            return@task juggDeployerHelper.deploy(processHandler, isInstall)
+        val deployTask = task@{ device: IDevice, isInstall: Boolean ->
+            return@task juggDeployerHelper.deploy(device, processHandler, isInstall)
         }
         val initIncrementalCompileTask = task@{
             // do it async
@@ -366,12 +367,14 @@ class JuggManager @TestOnly constructor(
             }
             if (isNeedWarmUpDeploy) {
                 launch(Dispatchers.IO) {
-                    val result = juggDeployerHelper.deploy(processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)
-                    juggReporter.report {
-                        action = "warm_up_deploy"
-                        isSuccess = result.isSuccess
-                        costTime = result.costTime
-                        detail = result.failedReason
+                    deployTargetManager.getDevices().forEach { device ->
+                        val result = juggDeployerHelper.deploy(device, processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)
+                        juggReporter.report {
+                            action = "warm_up_deploy"
+                            isSuccess = result.isSuccess
+                            costTime = result.costTime
+                            detail = result.failedReason
+                        }
                     }
                 }
             } else {

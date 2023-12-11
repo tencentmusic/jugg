@@ -12,32 +12,18 @@ import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
 import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
-import com.intellij.execution.configurations.ConfigurationType
 import com.intellij.facet.FacetManager
-import com.intellij.ide.util.PropertiesComponent
-import com.intellij.mock.MockApplication
-import com.intellij.openapi.application.ApplicationInfo
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.impl.ApplicationInfoImpl
-import com.intellij.openapi.extensions.ExtensionPoint
-import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.openapi.ui.messages.MessagesService
 import com.intellij.pom.java.LanguageLevel
-import com.intellij.testFramework.registerExtension
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
@@ -75,7 +61,7 @@ class MockJugg {
     private val adbDeviceHelper = AdbDeviceHelper()
 
     private val ideDeployStateHelper = object : IIdeDeployStateHelper {
-        override fun getIdeDeployState(): IdeDeployState {
+        override fun getIdeDeployState(device: IDevice): IdeDeployState {
             return if (adbDeviceHelper.hasLaunchedApp(projectInfo.packageName)) {
                 IdeDeployState.ok
             } else {
@@ -198,22 +184,22 @@ class MockJugg {
                 return projectInfo.apkInfos
             }
 
-            override fun getDevice(): IDevice {
-                return this@MockJugg.getDevice()
+            override fun getDevices(): List<IDevice> {
+                return listOf(this@MockJugg.getDevice())
             }
 
-            override fun startApp(): Boolean {
-                AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
+            override fun startApp(device: IDevice): Boolean {
+                AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
                 return true
             }
 
-            override fun restartApp(): Boolean {
-                AdbCmdHelper(getDevice(), logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
+            override fun restartApp(device: IDevice): Boolean {
+                AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
                 return true
             }
 
-            override fun isAppForeground(): Boolean {
-                return AdbCmdHelper(getDevice(), logger).isAppForeground(projectInfo.packageName)
+            override fun isAppForeground(device: IDevice): Boolean {
+                return AdbCmdHelper(device, logger).isAppForeground(projectInfo.packageName)
             }
         }
 
@@ -230,7 +216,7 @@ class MockJugg {
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
         deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir)
-        deployStateManager = DeployStateManager(project, deployHistoryManager, ideDeployStateHelper)
+        deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
             moduleManager, projectBuildModel, logger)
 

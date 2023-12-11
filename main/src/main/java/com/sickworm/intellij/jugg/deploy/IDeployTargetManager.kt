@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.*
 import com.android.tools.idea.run.ApkInfo
-import com.intellij.execution.ExecutionResult
 
 /**
  * Manage device list，application state
@@ -16,25 +15,24 @@ interface IDeployTargetManager {
 
     fun getApks(): List<ApkInfo>
 
-    fun getDevice(): IDevice
+    fun getDevices(): List<IDevice>
 
-    fun startApp(): Boolean
+    fun startApp(device: IDevice): Boolean
 
-    fun restartApp(): Boolean
+    fun restartApp(device: IDevice): Boolean
 
-    fun isAppForeground(): Boolean
+    fun isAppForeground(device: IDevice): Boolean
 
     val hasDevice: Boolean
-        get() = try {
-            getDevice()
-            true
-        } catch (e: Exception) {
-            false
-        }
+        get() = getDevices().isNotEmpty()
 
-    fun getDeviceOrNull(): IDevice? {
+    fun getDeviceNameList(): String? {
         return try {
-            getDevice()
+            val device = getDevices()
+            if (device.isEmpty()) {
+                return null
+            }
+            getDevices().joinToString(", ") { it.name }
         } catch (e: Exception) {
             null
         }

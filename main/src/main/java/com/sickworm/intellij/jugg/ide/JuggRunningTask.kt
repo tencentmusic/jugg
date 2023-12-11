@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
+import com.android.ddmlib.IDevice
 import com.google.gson.Gson
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.diagnostic.Logger
@@ -16,6 +17,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.project.JuggException
 import java.io.PrintWriter
 import java.io.StringWriter
 import javax.swing.SwingUtilities
@@ -31,7 +33,7 @@ class JuggRunningTask(
     private val deployTargetManager: IDeployTargetManager,
     private val processHandler: SimpleProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
-    private val deployTask: (forceInstall: Boolean) -> DeployTaskResult,
+    private val deployTask: (device: IDevice, forceInstall: Boolean) -> DeployTaskResult,
     private val initIncrementalCompileTask: () -> Unit,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg") {
@@ -65,7 +67,7 @@ class JuggRunningTask(
             if (processHandler.isCanceled && !processHandler.isCanceledByNextTask) {
                 resetHasRun(project)
             } else {
-                setHasRun(project, deployTargetManager.getDeviceOrNull()?.name)
+                setHasRun(project, deployTargetManager.getDeviceNameList())
             }
             JuggLogger.stopListenProjectLog(project, loggerListener)
             stop(indicator)
@@ -110,15 +112,87 @@ class JuggRunningTask(
             return
         }
 
-        if (compileTaskResult.isGradleCompile) {
-            logger.info("Launching app...")
-            indicator.text = "Launching app..."
-        } else {
-            logger.info("Deploying changes...")
-            indicator.text = "Deploying changes..."
+        val devices = deployTargetManager.getDevices()
+        if (devices.isEmpty()) {
+            throw JuggException.deviceNotFound()
         }
 
-        val deployTaskResult = deployTask(compileTaskResult.isGradleCompile)
+        var totalDeployTime = 0L
+        val deployTaskResultList = mutableListOf<DeployTaskResult>()
+        val isMultipleDevices = devices.size > 1
+        devices.forEach { device ->
+            val deployTaskResult = deployDevice(isMultipleDevices, device, indicator, compileTaskResult, detailMap)
+            deployTaskResultList.add(deployTaskResult)
+            totalDeployTime += deployTaskResult.costTime
+        }
+
+        if (deployTaskResultList.any { !it.isSuccess }) {
+            // not all device is success
+            if (!deployTaskResultList.all { it.isCanFallback }) {
+                // not all device can fall back
+                if (compileTaskResult.isGradleCompile) {
+                    initIncrementalCompileTask.invoke()
+                }
+                failedAndActiveRunWindowIfNotCanceled()
+            } else {
+                // fallback to gradle compile
+                logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
+                val failedReason = if (deployTaskResultList.size == 1) {
+                    deployTaskResultList[0].failedReason ?: "See log for details."
+                } else {
+                    deployTaskResultList.joinToString(", ") { it.failedReason ?: "See log for details." }
+                }
+                notifyFallback(project, failedReason)
+                doRun(indicator, true)
+            }
+            return
+        }
+
+        val totalTime = compileTaskResult.costTime + totalDeployTime
+        val deployType = when {
+            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.INSTALL } -> {
+                JuggDeployData.DeployType.INSTALL
+            }
+            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.HOT_FIX } -> {
+                JuggDeployData.DeployType.HOT_FIX
+            }
+            else -> {
+                JuggDeployData.DeployType.HOT_RELOAD
+            }
+        }
+        when (deployType) {
+            JuggDeployData.DeployType.INSTALL -> {
+                logger.info("\nGradle BUILD_AND_INSTALL SUCCESSFUL in ${totalTime / 1000}s.")
+                logger.info("App launched.")
+            }
+            else -> {
+                logger.info("\nJugg $deployType SUCCESSFUL in ${totalTime / 1000}s.")
+                logger.info("App deployed.")
+            }
+        }
+
+        if (compileTaskResult.isGradleCompile) {
+            initIncrementalCompileTask.invoke()
+        }
+    }
+
+    private fun deployDevice(
+        isMultipleDevices: Boolean,
+        device: IDevice,
+        indicator: ProgressIndicator,
+        compileTaskResult: CompileTaskResult,
+        detailMap: MutableMap<String, String>,
+    ): DeployTaskResult {
+        val suffix = if (isMultipleDevices) "on [${device.name}]" else ""
+        if (compileTaskResult.isGradleCompile) {
+            logger.info("Launching app $suffix...")
+            indicator.text = "Launching app $suffix..."
+        } else {
+            logger.info("Deploying changes $suffix...")
+            indicator.text = "Deploying changes $suffix..."
+        }
+
+        val deployTaskResult = deployTask(device, compileTaskResult.isGradleCompile)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         juggReporter.report {
@@ -128,46 +202,22 @@ class JuggRunningTask(
             detail = Gson().toJson(detailMap)
         }
 
-        if (!deployTaskResult.isSuccess) {
-            return if (!deployTaskResult.isCanFallback) {
-                if (compileTaskResult.isGradleCompile) {
-                    initIncrementalCompileTask.invoke()
-                }
-                failedAndActiveRunWindowIfNotCanceled()
-            } else {
-                logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
-                notifyFallback(project, deployTaskResult.failedReason ?: "See log for details.")
-                doRun(indicator, true)
-            }
+        if (deployTaskResult.isSuccess) {
+            notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType, suffix)
         }
 
-        val totalTime = compileTaskResult.costTime + deployTaskResult.costTime
-        when (deployTaskResult.deployType) {
-            JuggDeployData.DeployType.INSTALL -> {
-                logger.info("\nGradle BUILD_AND_INSTALL SUCCESSFUL in ${totalTime / 1000}s.")
-                logger.info("App launched.")
-            }
-            else -> {
-                logger.info("\nJugg ${deployTaskResult.deployType?.name} SUCCESSFUL in ${totalTime / 1000}s.")
-                logger.info("App deployed.")
-            }
-        }
-
-        notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType)
-
-        if (compileTaskResult.isGradleCompile) {
-            initIncrementalCompileTask.invoke()
-        }
+        return deployTaskResult
     }
 
-    private fun notifyLaunched(isGradleCompile: Boolean, deployType: JuggDeployData.DeployType?) {
+    private fun notifyLaunched(isGradleCompile: Boolean, deployType: JuggDeployData.DeployType?, suffix: String) {
         val text = if (isGradleCompile) {
-            "Launch succeeded"
+            "Launch succeeded $suffix"
         } else if (deployType == JuggDeployData.DeployType.HOT_RELOAD) {
-            "Deploy changes succeeded (no need restart App)"
+            "Deploy changes succeeded $suffix (no need restart App)"
         } else {
-            "Deploy changes succeeded"
+            "Deploy changes succeeded $suffix"
         }
+        logger.info(text + "\n")
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.notifyByBalloon("Run", MessageType.INFO, text)
@@ -235,6 +285,14 @@ class JuggRunningTask(
         }
 
         fun notifyFallback(project: Project, reason: String) {
+            val text = "Fallback to gradle compile. Reason: $reason"
+            SwingUtilities.invokeLater {
+                val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+                toolWindowManager.notifyByBalloon("Run", MessageType.WARNING, text)
+            }
+        }
+
+        fun notifyDeploy(project: Project, reason: String) {
             val text = "Fallback to gradle compile. Reason: $reason"
             SwingUtilities.invokeLater {
                 val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)

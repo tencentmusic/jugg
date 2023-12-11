@@ -58,6 +58,7 @@ object AsDeployerCompat : IAsDeployerCompat {
         return this is NoSuchMethodError
                 || this is NoSuchFieldError
                 || this is NoClassDefFoundError
+                || this is IncompatibleClassChangeError
     }
 
     private lateinit var priorityImpl : CompatImpl
@@ -167,8 +168,8 @@ object AsDeployerCompat : IAsDeployerCompat {
         return impl.toApkProvider(apkInfos)
     }
 
-    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
-        return impl.getIdeDeployStateResult(project)
+    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
+        return impl.getIdeDeployStateResult(project, device)
     }
 
     override fun getDeploymentService(project: Project): DeploymentService {

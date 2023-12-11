@@ -20,28 +20,18 @@ open class HedgehogAsDeployerCompat: GiraffeAsDeployerCompat() {
     /**
      * @see [BaseAction.getDisableMessage]
      */
-    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
+    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
         val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
             return@firstOrNull isApplyChangesRelevant(it)
         } ?: return IdeDeployState.noAndroidConfiguration
 
         val packageName = (selectedRunConfig as AppRunConfiguration).appId ?: ""
-        val selectedExecutionTarget = ExecutionTargetManager.getInstance(project)
-            .getTargetsFor(selectedRunConfig)
-            .find { it is AndroidExecutionTarget } as? AndroidExecutionTarget
-            ?: return IdeDeployState.unsupportedExecutionTarget
 
-        val devices = selectedExecutionTarget.runningDevices
-        if (devices.isEmpty()) {
-            return IdeDeployState.deviceNotConnected
-        }
-
-        val firstDevice = devices.first()
-        return if (firstDevice.state == IDevice.DeviceState.UNAUTHORIZED) {
+        return if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
             IdeDeployState.deviceNotAuthorized
-        } else if (!firstDevice.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
+        } else if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
             IdeDeployState.incompatibleDeviceApiLevel
-        } else if (DeploymentApplicationService.instance.findClient(firstDevice, packageName).isEmpty()) {
+        } else if (DeploymentApplicationService.instance.findClient(device, packageName).isEmpty()) {
             IdeDeployState.appNotRunningOrNotDebuggable
         } else {
             IdeDeployState.ok

@@ -145,7 +145,7 @@ class TopLevelFlowWithGitTest {
         jugg.deploy()
 
         // set app not launched
-        AdbCmdHelper(jugg.deployTargetManager.getDevice(), logger).stopApp(projectInfo.packageName)
+        AdbCmdHelper(jugg.deployTargetManager.getDevices().first(), logger).stopApp(projectInfo.packageName)
 
         // recoverable state after renew Jugg
         println("\n\nstart deploy 2")

@@ -163,7 +163,7 @@ class JuggCompilerHelper(
         // read all undeployed files
         val undeployedFiles = deployFileManager.getUndeployedFiles()
         if (undeployedFiles.all { it.hasCompiledOnce }) {
-            val deviceName = deployTargetManager.getDeviceOrNull()?.name
+            val deviceName = deployTargetManager.getDeviceNameList()
             if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
                 logger.info("No file changes, but it's first time run or canceled last compilation" +
                         ", will run with incremental compile.")

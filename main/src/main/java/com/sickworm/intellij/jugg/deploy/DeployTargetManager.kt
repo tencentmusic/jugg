@@ -1,11 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.IDevice
-import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.ApkInfo
-import com.android.tools.idea.run.ApkProvider
-import com.intellij.execution.*
-import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -32,18 +28,14 @@ class DeployTargetManager(
         return apks
     }
 
-    override fun getDevice(): IDevice {
+    override fun getDevices(): List<IDevice> {
         try {
             val devices = AsDeployerCompat.getDevices(project)
             if (devices.isNullOrEmpty()) {
-                throw JuggException.deviceNotFound()
+                return emptyList()
             }
 
-            if (devices.size > 1) {
-                throw JuggException.multipleDeviceFound()
-            }
-
-            return devices[0]
+            return devices
         } catch (e: Exception) {
             if (e is JuggException) {
                 logger.debug("getDevice failed: ${e.message}")
@@ -54,9 +46,9 @@ class DeployTargetManager(
         }
     }
 
-    override fun startApp(): Boolean {
+    override fun startApp(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks, isRestart = false)
+            AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = false)
             true
         } catch (e: Exception) {
             logger.error("restartApp failed", e)
@@ -64,9 +56,9 @@ class DeployTargetManager(
         }
     }
 
-    override fun restartApp(): Boolean {
+    override fun restartApp(device: IDevice): Boolean {
         return try {
-            AdbCmdHelper(getDevice(), logger).startDefaultApp(getPackageName(), apks, isRestart = true)
+            AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = true)
             true
         } catch (e: Exception) {
             logger.error("restartApp failed", e)
@@ -74,8 +66,7 @@ class DeployTargetManager(
         }
     }
 
-    override fun isAppForeground(): Boolean {
-        val device = getDeviceOrNull() ?: return false
+    override fun isAppForeground(device: IDevice): Boolean {
         return try {
             AdbCmdHelper(device, logger).isAppForeground(getPackageName())
         } catch (e: Exception) {

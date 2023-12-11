@@ -2,9 +2,11 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
 import com.android.tools.deployer.*
+import com.android.tools.idea.execution.common.AppRunConfiguration
 import com.android.tools.idea.execution.common.applychanges.BaseAction
 import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
+import com.android.tools.idea.run.DeploymentApplicationService
 import com.android.tools.idea.run.deployable.Deployable
 import com.android.tools.idea.run.deployable.DeployableProvider
 import com.android.tools.idea.run.editor.DeployTargetContext
@@ -59,45 +61,22 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
     /**
      * @see [BaseAction.getDisableMessage]
      */
-    override fun getIdeDeployStateResult(project: Project): IdeDeployState {
+    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
         val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
             return@firstOrNull isApplyChangesRelevant(it)
         } ?: return IdeDeployState.noAndroidConfiguration
 
-        val deployableProvider = DeployableProvider.getInstance(project)
-            ?: return IdeDeployState.noDeploymentProvider
-        val deployable: Deployable?
-        try {
-            deployable = deployableProvider.getDeployable(selectedRunConfig)
-            if (deployable == null) {
-                return IdeDeployState.selectDeviceIsInvalid
-            }
-            if (!deployable.isOnline) {
-                if (deployable.isUnauthorized) {
-                    return IdeDeployState.deviceNotAuthorized
-                } else {
-                    return IdeDeployState.deviceNotConnected
-                }
-            }
-            val versionFuture = deployable.versionAsync
-            if (!versionFuture.isDone) {
-                // Don't stall the EDT - if the Future isn't ready, just return false.
-                return IdeDeployState.unknownDeviceApiLevel
-            }
-            if (versionFuture.get().apiLevel < IAsDeployerCompat.MIN_DEVICE_API) {
-                return IdeDeployState.incompatibleDeviceApiLevel
-            }
-            if (deployable.searchClientsForPackage().isEmpty()) {
-                return IdeDeployState.appNotRunningOrNotDebuggable
-            }
-        } catch (ex: InterruptedException) {
-            return IdeDeployState.updateInterrupted
-        } catch (ex: ExecutionException) {
-            return IdeDeployState.unknownDeviceApiLevel
-        } catch (ex: Exception) {
-            return IdeDeployState.unexpectedException
+        val packageName = (selectedRunConfig as AppRunConfiguration).appId ?: ""
+
+        return if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
+            IdeDeployState.deviceNotAuthorized
+        } else if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {
+            IdeDeployState.incompatibleDeviceApiLevel
+        } else if (DeploymentApplicationService.instance.findClient(device, packageName).isEmpty()) {
+            IdeDeployState.appNotRunningOrNotDebuggable
+        } else {
+            IdeDeployState.ok
         }
-        return IdeDeployState.ok
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {
