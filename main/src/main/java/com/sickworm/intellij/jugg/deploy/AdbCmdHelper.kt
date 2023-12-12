@@ -24,10 +24,8 @@ class AdbCmdHelper(
     private val adb = AdbClient(device, this.logger)
 
     fun startApp(packageName: String, launchedActivity: String, isRestart: Boolean = true) {
-        if (isRestart) {
-            stopApp(packageName)
-        }
-        execAdbShellCmd("am start -S -n $packageName/$launchedActivity")
+        val restartFlag = if (isRestart) "-S" else ""
+        execAdbShellCmd("am start $restartFlag -n $packageName/$launchedActivity")
     }
 
     fun installApp(apkFile: File): Pair<Boolean, String> {
