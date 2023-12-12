@@ -51,7 +51,7 @@ class DeployTargetManager(
             AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = false)
             true
         } catch (e: Exception) {
-            logger.error("restartApp failed", e)
+            logger.error("startApp failed", e)
             false
         }
     }
