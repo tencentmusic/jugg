@@ -36,7 +36,7 @@ class JuggRunningTask(
     private val deployTask: (device: IDevice, forceInstall: Boolean, isLastDevice: Boolean) -> DeployTaskResult,
     private val initIncrementalCompileTask: () -> Unit,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
-) : Task.Backgroundable(project, "Running Jugg") {
+) : Task.Backgroundable(project, "Running Jugg...") {
 
     private val indicatorListener = object : ProgressIndicatorListener {
         override fun cancelled() { processHandler.detachProcess() }

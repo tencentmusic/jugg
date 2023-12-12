@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
+import kotlinx.coroutines.*
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -21,7 +22,7 @@ class JuggGradleCompileTask(
     private val processHandler: SimpleProcessHandler,
     private val indicator: ProgressIndicator,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
-) {
+): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
     fun run(): GradleCompileResult {
         return try {
@@ -44,7 +45,7 @@ class JuggGradleCompileTask(
 
     private fun doRun(): GradleCompileResult {
         val outputListener = GradleOutputParser(
-            juggGradleCompileOptions, project.basePath ?: "",
+            juggGradleCompileOptions,
             processHandler, indicator, logger,
         )
 
@@ -60,11 +61,19 @@ class JuggGradleCompileTask(
         logger.info("\nJugg gradle compile started.\n")
         indicator.text = "Start gradle compiling..."
 
+        val updateTimeJob = launch {
+            while (isActive) {
+                delay(10_000)
+                outputListener.updateIndicatorWithTime()
+            }
+        }
+
         val (costTime, result) = measureTimeMillisWithResult {
             juggGradleCompileOptions.checkConfig()
             compileClient.login(juggGradleCompileOptions)
             compileClient.compileAndFetchResult()
         }
+        updateTimeJob.cancel()
 
         val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated
         if (result.isSuccess) {
@@ -88,7 +97,6 @@ class JuggGradleCompileTask(
 
 private class GradleOutputParser(
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
-    private val projectRootPath: String,
     private val processHandler: ProcessHandler,
     private val indicator: ProgressIndicator,
     private val logger: Logger,
@@ -98,23 +106,26 @@ private class GradleOutputParser(
     private var isCollectingTaskErrorMsg = false
     private var isCollectingExceptionErrorMsg = false
 
+    private var startCompileTime = System.currentTimeMillis()
+    private var currentIndicatorText = ""
+
     override fun onOutput(line: String) {
         val parsedOutput = parseOutput(line)
         processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDOUT)
         processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
 
-        if (parsedOutput.startsWith("[Jugg] SyncFileCommand exec start")) {
-            indicator.text = "Syncing file to remote..."
-        } else if (parsedOutput.startsWith("[Jugg] CompileProjectCommand exec start")) {
-            indicator.text = "Compiling project..."
-        } else if (parsedOutput.startsWith("[Jugg] FetchOutputCommand exec start")) {
-            indicator.text = "Getting apk..."
-        } else if (parsedOutput.startsWith("> Configure project ")) {
-            val projectName = parsedOutput.substring("> Configure project ".length)
-            indicator.text = "Configured $projectName..."
-        } else if (parsedOutput.startsWith("> Task ")) {
-            val taskName = parsedOutput.substring("> Task ".length).substringBefore(" ")
-            indicator.text = "Executed $taskName..."
+        val isConfiguring = parsedOutput.startsWith("> Configure project ")
+        val isExecuting = parsedOutput.startsWith("> Task ")
+        if (isConfiguring || isExecuting) {
+            @Suppress("KotlinConstantConditions")
+            if (isConfiguring) {
+                val projectName = parsedOutput.substring("> Configure project ".length)
+                currentIndicatorText = "Configured $projectName..."
+            } else if (isExecuting) {
+                val taskName = parsedOutput.substring("> Task ".length).substringBefore(" ")
+                currentIndicatorText = "Executed $taskName..."
+            }
+            updateIndicatorWithTime()
         }
 
         if (parsedOutput.startsWith("* What went wrong")) {
@@ -135,7 +146,15 @@ private class GradleOutputParser(
         if (isCollectingTaskErrorMsg) {
             possibleErrorLog.add(parsedOutput)
         }
+    }
 
+    fun updateIndicatorWithTime() {
+        val costTime = (System.currentTimeMillis() - startCompileTime) / 1000 / 60
+        var timeSuffix = ""
+        if (costTime >= 1) {
+            timeSuffix = "(run ${costTime}min)"
+        }
+        indicator.text = currentIndicatorText + timeSuffix
     }
 
     override fun onOutputErr(line: String) {
