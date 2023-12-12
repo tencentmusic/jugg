@@ -64,10 +64,20 @@ class AdbCmdHelper(
     }
 
     fun isAppForeground(packageName: String): Boolean {
+        var startFind = false
         val result = execAdbShellCmd("dumpsys activity recents")
         result.lines().forEach {
-            if (it.contains("Recent #0")) {
-                return it.contains(packageName)
+            if (it.startsWith("  * Recent #0")) {
+                startFind = true
+            } else if (it.startsWith("  * Recent #")) {
+                // reach end
+                return false
+            }
+
+            if (startFind) {
+                if (it.contains("$packageName/")) {
+                    return true
+                }
             }
         }
         return false
