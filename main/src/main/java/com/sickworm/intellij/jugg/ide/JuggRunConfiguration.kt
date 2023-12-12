@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
+import com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
@@ -11,6 +12,7 @@ import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import javax.swing.JComponent
@@ -25,6 +27,10 @@ class JuggRunConfiguration(
 ) : RunConfigurationBase<JuggRunConfigurationOptions>(project, factory, name) {
 
     private val editor = JuggSettingsEditor()
+
+    init {
+        putUserData(DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE, true)
+    }
 
     override fun getType(): ConfigurationType {
         return JuggConfigurationType.getInstance()
