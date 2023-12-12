@@ -27,11 +27,17 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     var isSyncAllProjects by property(false)
     // used to recognize whether default value has set
     // can not set default value in the string() or property(), value will be reset to default when default value is changed.
-    var hasSetDefaultValue by property(false)
+    private var hasSetDefaultValue by property(false)
 
     // new options must add to the end because property persist is in order
 
-    fun setToDefault() {
+    init {
+        if (!hasSetDefaultValue) {
+            setToDefault()
+        }
+    }
+
+    private fun setToDefault() {
         compileCommand = JuggSettings.defaultCompileCommand
         outputApkName = JuggSettings.defaultOutputApkName
         isRemoteCompile = JuggSettings.defaultIsRemoteCompile

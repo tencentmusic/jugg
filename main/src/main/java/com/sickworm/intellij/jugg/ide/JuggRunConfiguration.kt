@@ -97,9 +97,6 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
     }
 
     fun resetEditorFrom(options: JuggRunConfigurationOptions, project: Project) {
-        if (!options.hasSetDefaultValue) {
-            options.setToDefault()
-        }
         (component as JuggRunSettingsComponent).updateUi(options, project)
     }
 
