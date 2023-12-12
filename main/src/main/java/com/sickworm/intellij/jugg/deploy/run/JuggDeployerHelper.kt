@@ -289,6 +289,8 @@ class JuggDeployerHelper(
                 logger.debug("Dry deploy failed and isCanReinstall=false, exit dry deploy.")
                 return false
             }
+        } else {
+            logger.warn("Deploy state not match, start reinstalling app...")
         }
 
         // recover deploy state for device
