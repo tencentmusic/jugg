@@ -219,7 +219,6 @@ class JuggRunningTask(
         } else {
             "Deploy changes succeeded$suffix"
         }
-        logger.info(text + "\n")
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.notifyByBalloon("Run", MessageType.INFO, text)
