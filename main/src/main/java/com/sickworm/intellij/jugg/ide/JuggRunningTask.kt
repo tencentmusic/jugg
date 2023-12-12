@@ -215,7 +215,7 @@ class JuggRunningTask(
         val text = if (isGradleCompile) {
             "Launch succeeded $suffix"
         } else if (deployType == JuggDeployData.DeployType.HOT_RELOAD) {
-            "Deploy changes succeeded $suffix (no need restart App)"
+            "Deploy changes succeeded $suffix(no need restart App)"
         } else {
             "Deploy changes succeeded $suffix"
         }
