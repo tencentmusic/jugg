@@ -185,13 +185,13 @@ class JuggRunningTask(
         compileTaskResult: CompileTaskResult,
         detailMap: MutableMap<String, String>,
     ): DeployTaskResult {
-        val suffix = if (isMultipleDevices) "on [${device.name}]" else ""
+        val suffix = if (isMultipleDevices) " on [${device.name}]" else ""
         if (compileTaskResult.isGradleCompile) {
-            logger.info("Launching app $suffix...")
-            indicator.text = "Launching app $suffix..."
+            logger.info("Launching app$suffix...")
+            indicator.text = "Launching app$suffix..."
         } else {
-            logger.info("Deploying changes $suffix...")
-            indicator.text = "Deploying changes $suffix..."
+            logger.info("Deploying changes$suffix...")
+            indicator.text = "Deploying changes$suffix..."
         }
 
         val deployTaskResult = deployTask(device, compileTaskResult.isGradleCompile, isLastDevice)
@@ -213,11 +213,11 @@ class JuggRunningTask(
 
     private fun notifyLaunched(isGradleCompile: Boolean, deployType: JuggDeployData.DeployType?, suffix: String) {
         val text = if (isGradleCompile) {
-            "Launch succeeded $suffix"
+            "Launch succeeded$suffix"
         } else if (deployType == JuggDeployData.DeployType.HOT_RELOAD) {
-            "Deploy changes succeeded $suffix(no need restart App)"
+            "Deploy changes succeeded$suffix (no need restart App)"
         } else {
-            "Deploy changes succeeded $suffix"
+            "Deploy changes succeeded$suffix"
         }
         logger.info(text + "\n")
         SwingUtilities.invokeLater {
