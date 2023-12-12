@@ -33,7 +33,7 @@ class JuggRunningTask(
     private val deployTargetManager: IDeployTargetManager,
     private val processHandler: SimpleProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
-    private val deployTask: (device: IDevice, forceInstall: Boolean) -> DeployTaskResult,
+    private val deployTask: (device: IDevice, forceInstall: Boolean, isLastDevice: Boolean) -> DeployTaskResult,
     private val initIncrementalCompileTask: () -> Unit,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg") {
@@ -120,8 +120,9 @@ class JuggRunningTask(
         var totalDeployTime = 0L
         val deployTaskResultList = mutableListOf<DeployTaskResult>()
         val isMultipleDevices = devices.size > 1
-        devices.forEach { device ->
-            val deployTaskResult = deployDevice(isMultipleDevices, device, indicator, compileTaskResult, detailMap)
+        devices.forEachIndexed { index, device ->
+            val isLastDevice = index == devices.size - 1
+            val deployTaskResult = deployDevice(isMultipleDevices, isLastDevice, device, indicator, compileTaskResult, detailMap)
             deployTaskResultList.add(deployTaskResult)
             totalDeployTime += deployTaskResult.costTime
         }
@@ -178,6 +179,7 @@ class JuggRunningTask(
 
     private fun deployDevice(
         isMultipleDevices: Boolean,
+        isLastDevice: Boolean,
         device: IDevice,
         indicator: ProgressIndicator,
         compileTaskResult: CompileTaskResult,
@@ -192,7 +194,7 @@ class JuggRunningTask(
             indicator.text = "Deploying changes $suffix..."
         }
 
-        val deployTaskResult = deployTask(device, compileTaskResult.isGradleCompile)
+        val deployTaskResult = deployTask(device, compileTaskResult.isGradleCompile, isLastDevice)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         juggReporter.report {
@@ -285,14 +287,6 @@ class JuggRunningTask(
         }
 
         fun notifyFallback(project: Project, reason: String) {
-            val text = "Fallback to gradle compile. Reason: $reason"
-            SwingUtilities.invokeLater {
-                val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
-                toolWindowManager.notifyByBalloon("Run", MessageType.WARNING, text)
-            }
-        }
-
-        fun notifyDeploy(project: Project, reason: String) {
             val text = "Fallback to gradle compile. Reason: $reason"
             SwingUtilities.invokeLater {
                 val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)

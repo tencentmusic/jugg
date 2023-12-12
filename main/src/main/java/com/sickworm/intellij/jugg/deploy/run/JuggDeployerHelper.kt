@@ -45,7 +45,7 @@ class JuggDeployerHelper(
 
     private var isRunning = false
 
-    private fun runTask(device: IDevice, data: JuggDeployData) = synchronized(runTaskLock) {
+    private fun runTask(device: IDevice, data: JuggDeployData, isSkipExceptOverlayCheck: Boolean = false): LaunchResult = synchronized(runTaskLock) {
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
 
@@ -63,7 +63,7 @@ class JuggDeployerHelper(
         val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
 
         val consolePrinter = ConsolePrinter(logger)
-        val launchContext = LaunchContext(consolePrinter, device, deployHistoryManager.lastDeployOverlayIds)
+        val launchContext = LaunchContext(consolePrinter, device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
         val launchResult = task.run(launchContext)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
@@ -79,17 +79,20 @@ class JuggDeployerHelper(
             logger.debug("App foreground, no need to restart app.")
         }
 
-        deployHistoryManager.lastDeployOverlayIds += launchResult.overlayIds
         logger.debug("runTask end")
         isRunning = false
+
+        return launchResult
     }
 
     fun deploy(device: IDevice,
+               isLastDevice: Boolean,
                processHandler: ProcessHandler? = null,
                isInstall: Boolean = false,
                isWarmUp: Boolean = false,
                retryReason: String? = null,
                isFallbackAllHotFix: Boolean = false,
+               isSkipExceptOverlayCheck: Boolean = false,
                startTime: Long = System.currentTimeMillis(),
     ): DeployTaskResult {
 
@@ -111,7 +114,11 @@ class JuggDeployerHelper(
                 val apks = deployTargetManager.getApks()
                 logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
                 val deployData = JuggDeployData.forInstall(apks)
-                runTask(device, deployData)
+                val launchResult = runTask(device, deployData)
+                if (isLastDevice) {
+                    logger.debug("Installing finished, update info after install.")
+                    deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
+                }
                 DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
             } else {
                 if (!deployTargetManager.hasDevice) {
@@ -150,13 +157,16 @@ class JuggDeployerHelper(
                 if (deployData.isFullRes) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
-                runTask(device, deployData)
+                val launchResult = runTask(device, deployData, isSkipExceptOverlayCheck)
 
                 deployStateListener.onDeployed(
                     false,
                     deployFileManager.getCompiledFiles().map { it.file },
                 )
-                updateInfoAfterIncDeploy(deployData)
+                if (isLastDevice) {
+                    logger.debug("Deploying finished, update info after deploy.")
+                    updateInfoAfterIncDeploy(launchResult, deployData)
+                }
 
                 DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
             }
@@ -185,7 +195,7 @@ class JuggDeployerHelper(
                         action = "incremental_deploy_retry"
                         detail = reason
                     }
-                    return deploy(device, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime)
+                    return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime)
                 }
 
                 val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
@@ -224,7 +234,7 @@ class JuggDeployerHelper(
                                 action = "incremental_deploy_retry_after_recover"
                                 detail = reason
                             }
-                            deploy(device, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime)
+                            deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime, isSkipExceptOverlayCheck = true)
                         }
                     } else {
                         val delaySeconds = 5
@@ -234,7 +244,7 @@ class JuggDeployerHelper(
                             action = "incremental_deploy_retry"
                             detail = reason
                         }
-                        deploy(device, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime)
+                        deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime)
                     }
                     return result.copy(costTime = costTime())
                 }
@@ -252,11 +262,12 @@ class JuggDeployerHelper(
         }
     }
 
-    private fun updateInfoAfterIncDeploy(deployData: JuggDeployData) {
+    private fun updateInfoAfterIncDeploy(launchResult: LaunchResult, deployData: JuggDeployData) {
         val compiledFiles = deployFileManager.getCompiledFiles()
         val deployedFiles = deployFileManager.getStagingFiles()
         deployHistoryManager.updateHistoryOnAfterDeployed(compiledFiles, deployedFiles)
         deployFileManager.commit(deployData)
+        deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
     }
 
     /**

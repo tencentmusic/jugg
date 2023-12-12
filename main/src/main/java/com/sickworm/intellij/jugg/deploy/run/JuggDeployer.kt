@@ -18,6 +18,7 @@ class JuggDeployer(
     private val installer: Installer,
     private val service: UIService,
     private val exceptOverlayIds: Map<String, String>,
+    private val isSkipExceptOverlayCheck: Boolean,
     private val logger: ILogger
 ) {
 
@@ -100,15 +101,18 @@ class JuggDeployer(
         val speculativeDump: DeploymentCacheDatabase.Entry? = deploymentService.withLock {
             deploymentService.deploymentCacheDatabase[deviceSerial, packageName]
         }
-        val exceptOverlayId = exceptOverlayIds[packageName]
-        logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
-                ", except overlay id: $exceptOverlayId" +
-                ", base install: ${speculativeDump?.overlayId?.isBaseInstall}")
-        if (exceptOverlayId != speculativeDump?.overlayId?.sha) {
-            // situation 1: using device running on different projects but same package name.
-            // situation 2: using different devices running on one project.
-            logger.info("overlay id mismatch with Jugg, skip deploy")
-            throw DeployerException.overlayIdMismatch()
+
+        if (!isSkipExceptOverlayCheck) {
+            val exceptOverlayId = exceptOverlayIds[packageName]
+            logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
+                    ", except overlay id: $exceptOverlayId" +
+                    ", base install: ${speculativeDump?.overlayId?.isBaseInstall}")
+            if (exceptOverlayId != speculativeDump?.overlayId?.sha) {
+                // situation 1: using device running on different projects but same package name.
+                // situation 2: using different devices running on one project.
+                logger.info("overlay id mismatch with Jugg, skip deploy")
+                throw DeployerException.overlayIdMismatch()
+            }
         }
 
         // On an on-host verification of the dump first.

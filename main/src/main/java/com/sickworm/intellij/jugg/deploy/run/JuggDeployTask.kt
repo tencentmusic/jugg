@@ -78,6 +78,7 @@ class JuggDeployTask(
             adbInstaller,
             ideService,
             launchContext.exceptOverlayIds,
+            launchContext.isSkipExceptOverlayCheck,
             logger
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
@@ -253,6 +254,7 @@ class LaunchContext(
     val consolePrinter: ConsolePrinter,
     val device: IDevice,
     val exceptOverlayIds: Map<String, String>,
+    val isSkipExceptOverlayCheck: Boolean,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false

@@ -239,8 +239,8 @@ class JuggManager @TestOnly constructor(
         val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
             return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
         }
-        val deployTask = task@{ device: IDevice, isInstall: Boolean ->
-            return@task juggDeployerHelper.deploy(device, processHandler, isInstall)
+        val deployTask = task@{ device: IDevice, isInstall: Boolean, isLastDevice: Boolean ->
+            return@task juggDeployerHelper.deploy(device, isLastDevice, processHandler, isInstall)
         }
         val initIncrementalCompileTask = task@{
             // do it async
@@ -367,8 +367,10 @@ class JuggManager @TestOnly constructor(
             }
             if (isNeedWarmUpDeploy) {
                 launch(Dispatchers.IO) {
-                    deployTargetManager.getDevices().forEach { device ->
-                        val result = juggDeployerHelper.deploy(device, processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)
+                    val devices = deployTargetManager.getDevices()
+                    devices.forEachIndexed { index, device ->
+                        val isLastDevice = index == devices.size - 1
+                        val result = juggDeployerHelper.deploy(device, isLastDevice, processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)
                         juggReporter.report {
                             action = "warm_up_deploy"
                             isSuccess = result.isSuccess
