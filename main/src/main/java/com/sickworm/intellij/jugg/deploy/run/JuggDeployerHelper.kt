@@ -189,8 +189,14 @@ class JuggDeployerHelper(
                 val isRequiresAppRestart = reason.contains("app restart")
                 // seems like a bug of some devices e.g. OPPO Reno.
                 val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
-                if ((!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError)) {
-                    logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
+                // seems like a bug of deploy service, just retry
+                val isInstrumentationFailed = reason.contains("INSTRUMENTATION_FAILED")
+                if ((!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError || isInstrumentationFailed)) {
+                    if (isInstrumentationFailed) {
+                        logger.info("Deploy got INSTRUMENTATION_FAILED error, will retry again with HOT_FIX.")
+                    } else {
+                        logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
+                    }
                     juggReporter.report {
                         action = "incremental_deploy_retry"
                         detail = reason
