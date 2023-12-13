@@ -319,6 +319,12 @@ class JuggManager @TestOnly constructor(
         )
     }
 
+    fun restartApp() {
+        AsDeployerCompat.getDevices(project)?.forEach {
+            deployTargetManager.restartApp(it)
+        }
+    }
+
     private fun reInitOnCompileContextUpdate() {
         deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
         juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)

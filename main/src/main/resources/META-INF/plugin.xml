@@ -41,13 +41,6 @@
     </projectListeners>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- trying replaced by run configuration instead -->
-<!--        <toolWindow-->
-<!--                id="Jugg"-->
-<!--                icon="AllIcons.Toolwindows.ToolWindowRun"-->
-<!--                anchor="bottom"-->
-<!--                factoryClass="com.sickworm.intellij.jugg.ide.toolWindow.JuggToolWindowFactory"-->
-<!--        />-->
         <configurationType
                 id="jugg.JuggConfigurationType"
                 implementation="com.sickworm.intellij.jugg.ide.JuggConfigurationType"
@@ -56,4 +49,16 @@
                            displayType="BALLOON"
                            key="notification.group.name"/>
     </extensions>
+    <actions>
+        <action id="jugg.RestartAppAction"
+                class="com.sickworm.intellij.jugg.ide.RestartAppAction"
+                text="Restart App"
+                description="Restart App for selected devices"
+                icon="AllIcons.Actions.Refresh"
+        >
+            <add-to-group group-id="RunMenu" anchor="last"/> <!-- menu -->
+            <add-to-group group-id="ToolbarRunGroup" anchor="last"/> <!-- old ui -->
+            <add-to-group group-id="MainToolbarRight" anchor="first"/> <!-- new ui -->
+        </action>
+    </actions>
 </idea-plugin>
