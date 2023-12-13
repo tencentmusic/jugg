@@ -131,13 +131,16 @@ class JuggDeployerHelper(
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
                 }
 
+                var isRecoverWithReinstall = false
                 if (!deployStateManager.getDeployState(device).isReadyDeploy) {
                     if (deployStateManager.getDeployState(device).isReadyIncCompile) {
-                        if (!recoverDeployState(device, isNeedTryDeyDeployFirst = true)) {
+                        val (isSuccess, isReinstalled) = recoverDeployState(device, isNeedTryDeyDeployFirst = true)
+                        if (!isSuccess) {
                             logger.info("Try recover deploy state failed.")
                             return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Try recover deploy state failed.")
                         } else {
                             logger.info("Try recover deploy state success.")
+                            isRecoverWithReinstall = isReinstalled
                         }
                     } else {
                         logger.warn("Invalid state for deploy.")
@@ -157,7 +160,8 @@ class JuggDeployerHelper(
                 if (deployData.isFullRes) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
-                val launchResult = runTask(device, deployData, isSkipExceptOverlayCheck)
+                val finalIsSkipExceptOverlayCheck = isSkipExceptOverlayCheck || isRecoverWithReinstall
+                val launchResult = runTask(device, deployData, finalIsSkipExceptOverlayCheck)
 
                 deployStateListener.onDeployed(
                     false,
@@ -230,7 +234,8 @@ class JuggDeployerHelper(
                         else -> false to false
                     }
                     val result: DeployTaskResult = if (isNeedRecover) {
-                        if (!recoverDeployState(device, isNeedTryDeyDeployFirst)) {
+                        val (isSuccess, _) = recoverDeployState(device, isNeedTryDeyDeployFirst)
+                        if (!isSuccess) {
                             logger.info("Try recover deploy state failed on retry.")
                             DeployTaskResult(isSuccess = false, costTime = costTime(),
                                 failedReason = "Try recover deploy state failed on retry.")
@@ -279,8 +284,9 @@ class JuggDeployerHelper(
     /**
      * Redeploy apk and compiled files.
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
+     * @return <isSuccess, isReinstalled>
      */
-    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean): Boolean {
+    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean): Pair<Boolean, Boolean> {
         logger.info("App not ready to deploy, recover deploy state from history.")
 
         // dry deploy first, if success, no need to reinstall and recover
@@ -288,12 +294,12 @@ class JuggDeployerHelper(
             val (isSuccess, isCanReinstall) = tryDryDeploy(device)
             if (isSuccess) {
                 logger.info("Deploy state matched, no need reinstall app.")
-                return true
+                return true to false
             } else if (isCanReinstall) {
                 logger.warn("Deploy state not match, start reinstalling app...")
             } else {
                 logger.debug("Dry deploy failed and isCanReinstall=false, exit dry deploy.")
-                return false
+                return false to false
             }
         } else {
             logger.warn("Deploy state not match, start reinstalling app...")
@@ -310,11 +316,11 @@ class JuggDeployerHelper(
         val isDeviceDeployable = waitingForDeployable(device)
         if (!isDeviceDeployable) {
             logger.warn("Recovery failed for app not launched.")
-            return false
+            return false to true
         }
 
         logger.info("Device online, continue deploy.")
-        return true
+        return true to true
     }
 
     /**
