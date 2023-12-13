@@ -195,7 +195,7 @@ class JuggDeployerHelper(
                         action = "incremental_deploy_retry"
                         detail = reason
                     }
-                    return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime)
+                    return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime, isSkipExceptOverlayCheck = true)
                 }
 
                 val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
@@ -244,7 +244,7 @@ class JuggDeployerHelper(
                             action = "incremental_deploy_retry"
                             detail = reason
                         }
-                        deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime)
+                        deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime, isSkipExceptOverlayCheck = true)
                     }
                     return result.copy(costTime = costTime())
                 }
