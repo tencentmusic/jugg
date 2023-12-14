@@ -114,7 +114,17 @@ class JuggRunningTask(
 
         val devices = deployTargetManager.getDevices()
         if (devices.isEmpty()) {
-            throw JuggException.deviceNotFound()
+            val deployType = if (compileTaskResult.isGradleCompile) {
+                "installing"
+            } else {
+                "deploying"
+            }
+            logger.warn("No device found. Stop $deployType.")
+            failedAndActiveRunWindowIfNotCanceled()
+            if (compileTaskResult.isGradleCompile) {
+                initIncrementalCompileTask.invoke()
+            }
+            return
         }
 
         var totalDeployTime = 0L
