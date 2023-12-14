@@ -100,6 +100,8 @@ class JuggRunningTask(
 
         val compileTaskResult = compileTask(indicator, isForceGradleCompile)
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
+        detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
+        detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
         juggReporter.report {
             action = "compile"
             isSuccess = compileTaskResult.isSuccess

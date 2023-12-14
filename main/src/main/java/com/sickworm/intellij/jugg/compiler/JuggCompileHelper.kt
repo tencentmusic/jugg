@@ -74,10 +74,11 @@ class JuggCompilerHelper(
         isForceInstall: Boolean,
     ): CompileTaskResult {
         val statTime = System.currentTimeMillis()
+        var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
             val loggerListener = IndicatorLoggerListener(indicator)
             JuggLogger.listenProjectLog(project, loggerListener)
-            var incrementalResult = incrementalCompile(processHandler)
+            incrementalResult = incrementalCompile(processHandler)
             JuggLogger.stopListenProjectLog(project, loggerListener)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
             juggReporter.report {
@@ -118,6 +119,7 @@ class JuggCompilerHelper(
             isCanFallback = false,
             costTime = System.currentTimeMillis() - statTime,
             failedReason = result.failedReason,
+            incrementalFailedReason = incrementalResult?.failedReason
         )
     }
 
@@ -333,6 +335,7 @@ data class CompileTaskResult(
     val isCanFallback: Boolean,
     val costTime: Long,
     val failedReason: String? = null,
+    val incrementalFailedReason: String? = null,
 ) {
     companion object {
 
