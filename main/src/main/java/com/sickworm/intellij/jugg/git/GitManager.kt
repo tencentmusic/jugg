@@ -128,18 +128,15 @@ class GitManager(override val rootDir: File): IGitManager {
 
     companion object {
 
-        fun createGitManagerAndTrySearchParent(dir: File, logger: Logger): GitManager {
+        fun createGitManagerAndTrySearchParent(dir: File): GitManager {
             var rootDir: File? = dir
             while (rootDir != null) {
                 val gitManager = GitManager(rootDir)
                 if (gitManager.hasInitGit) {
-                    logger.debug("createGitManagerAndTrySearchParent found git root dir: $rootDir")
                     return gitManager
                 }
                 rootDir = rootDir.parentFile
             }
-
-            logger.debug("createGitManagerAndTrySearchParent no git root dir")
             return GitManager(dir)
         }
     }

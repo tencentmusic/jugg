@@ -3,8 +3,10 @@ package com.sickworm.intellij.jugg.deploy
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 import java.util.zip.CRC32
@@ -16,7 +18,6 @@ class DeployHistoryDb(
     private val projectDir: File,
     dbDir: File,
     private val logger: Logger,
-    private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir, logger),
 ) {
 
     /** Used to generate hash of a file */
@@ -33,6 +34,8 @@ class DeployHistoryDb(
 
     /** Directory to store deployment changes record */
     private val deployLogsDir = File(dbDir, "logs")
+
+    private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
 
     val isAvailable: Boolean
         get() = gitManager.hasInitGit && (gitManager.getLastCommitHash() != null)
@@ -70,24 +73,44 @@ class DeployHistoryDb(
             logger.info("Project has not been deployed yet, need full compile first.")
             return null
         }
-
-        val lastDeployCommitHash = deployHistoryData.fullCompileGitCommitHash
-        val lastProjectCommitHash = gitManager.getLastCommitHash()
-        if (lastDeployCommitHash == null) {
-            logger.warn("Project has no full compile on specific commit, maybe Git is init after full compilation.")
-            return null
-        }
-        if (lastProjectCommitHash == null) {
-            logger.warn("Project has no git commit, this should not happened.")
-            return null
+        val dirAndCommitMap = mutableMapOf<String, String?>()
+        dirAndCommitMap[projectDir.absolutePath] = deployHistoryData.fullCompileGitCommitHash
+        deployHistoryData.subModulesFullCompileGitCommitHash?.forEach { (rootDir, commit) ->
+            dirAndCommitMap[rootDir] = commit
         }
 
-        val changedSinceLastDeployFiles = gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
-        val uncommittedFiles = gitManager.getUncommittedFiles()
-        val undeployFiles = (changedSinceLastDeployFiles + uncommittedFiles).filter {
+        val changedFiles = mutableListOf<File>()
+        dirAndCommitMap.forEach { (rootDir, commit) ->
+            val subChangedFiles = getGitChangedFiles(File(rootDir), commit)
+            logger.debug("getChangedFilesSinceLastFullCompiled, dir: ${rootDir}, files: ${subChangedFiles?.map { it.name }}")
+            if (subChangedFiles == null) {
+                logger.warn("getChangedFilesSinceLastFullCompiled failed")
+                return null
+            }
+            changedFiles.addAll(subChangedFiles)
+        }
+        val undeployFiles = changedFiles.filter {
             isCrcChanged(deployHistoryData, it)
         }
         return undeployFiles
+    }
+
+    private fun getGitChangedFiles(rootDir: File, lastDeployCommitHash: String?): List<File>? {
+        if (lastDeployCommitHash == null) {
+            logger.warn("${rootDir.absolutePath} has no full compile on specific commit, maybe Git is init after full compilation.")
+            return null
+        }
+
+        val lastProjectCommitHash = GitManager.createGitManagerAndTrySearchParent(rootDir).getLastCommitHash()
+        if (lastProjectCommitHash == null) {
+            logger.warn("${rootDir.absolutePath} has no git commit, maybe Git is delete after full compilation.")
+            return null
+        }
+
+        val gitManager = GitManager.createGitManagerAndTrySearchParent(rootDir)
+        val changedSinceLastDeployFiles = gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
+        val uncommittedFiles = gitManager.getUncommittedFiles()
+        return changedSinceLastDeployFiles + uncommittedFiles
     }
 
     private fun isCrcChanged(deployHistoryData: DeployHistoryData, file: File): Boolean {
@@ -114,19 +137,55 @@ class DeployHistoryDb(
         deployItemsDir.deleteRecursively()
     }
 
-    fun resetHistoryAfterFullCompiled() {
+    fun resetHistoryAfterFullCompiled(modules: Map<String, ModuleInfo>) {
         val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
             val newCommitHash = gitManager.getLastCommitHash()
-            val changedFiles = gitManager.getUncommittedFiles()
+            val changedFiles = mutableMapOf<String, Long>()
+
+            // add changed files in project root
+            val mainChangedFiles = gitManager.getUncommittedFiles()
                 .filter { it.exists() } // ignore deleted files
                 .associate { it.changedFilePair }
-            DeployHistoryData(newCommitHash, 0, changedFiles)
+            changedFiles.putAll(mainChangedFiles)
+
+            val submoduleGitManagers = getSubmoduleGitManagers(modules.values)
+            // add changed files in submodules
+            val sumModuleChangedFile = submoduleGitManagers.values.map { submoduleGitManager ->
+                submoduleGitManager.getUncommittedFiles()
+                    .filter { it.exists() } // ignore deleted files
+                    .associate { it.changedFilePair }
+            }
+            sumModuleChangedFile.forEach {
+                changedFiles.putAll(it)
+            }
+            // get map of <submodule, commit>
+            val subModulesFullCompileGitCommitHash = submoduleGitManagers.mapValues { (_, submoduleGitManager) ->
+                submoduleGitManager.getLastCommitHash()
+            }
+
+            DeployHistoryData(newCommitHash, subModulesFullCompileGitCommitHash, 0, changedFiles)
         } else {
-            DeployHistoryData(null, 0, emptyMap())
+            DeployHistoryData(null, null,0, emptyMap())
         }
         newDeployHistoryData.save(deployHistoryFile)
         deployLogsDir.deleteRecursively()
         deployItemsDir.deleteRecursively()
+    }
+
+    private fun getSubmoduleGitManagers(modules: Collection<ModuleInfo>): Map<String, IGitManager> {
+        val subModulesGitManager = mutableMapOf<String, IGitManager>()
+        val existGitRoots = mutableSetOf(gitManager.rootDir.absolutePath)
+        modules.forEach {
+            if (it.moduleRootDir.isChild(projectDir)) {
+                return@forEach
+            }
+            val subModuleGitManager = GitManager.createGitManagerAndTrySearchParent(it.moduleRootDir)
+            if (subModuleGitManager.rootDir.absolutePath !in existGitRoots) {
+                existGitRoots.add(subModuleGitManager.rootDir.absolutePath)
+                subModulesGitManager[it.moduleRootDir.absolutePath] = subModuleGitManager
+            }
+        }
+        return subModulesGitManager
     }
 
     fun updateHistory(sourceFiles: List<ChangedFile>) {
@@ -181,6 +240,7 @@ class DeployHistoryDb(
  */
 data class DeployHistoryData(
     val fullCompileGitCommitHash: String?,
+    val subModulesFullCompileGitCommitHash: Map<String, String?>?,
     val incDeployTimes: Int,
     /**
      * Map of RelativeFilePath to Crc32Hash.

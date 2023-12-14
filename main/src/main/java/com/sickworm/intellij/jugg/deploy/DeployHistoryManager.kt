@@ -93,7 +93,7 @@ class DeployHistoryManager(
         logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}, modules: ${modules.size}")
         deployHistoryDb.deleteHistory()
         val compileContextInfo = compileContextDb.saveCompileContext(apkInfos, modules)
-        deployHistoryDb.resetHistoryAfterFullCompiled()
+        deployHistoryDb.resetHistoryAfterFullCompiled(modules)
         hasBeenFullCompiledRuntime = true
         return compileContextInfo
     }
