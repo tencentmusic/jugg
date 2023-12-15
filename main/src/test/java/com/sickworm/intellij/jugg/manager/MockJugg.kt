@@ -26,7 +26,7 @@ import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesHandler

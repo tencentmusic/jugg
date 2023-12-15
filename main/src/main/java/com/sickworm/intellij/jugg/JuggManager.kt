@@ -19,9 +19,9 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
-import com.sickworm.intellij.jugg.logger.ReportEventData
+import com.sickworm.intellij.jugg.server.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.project.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

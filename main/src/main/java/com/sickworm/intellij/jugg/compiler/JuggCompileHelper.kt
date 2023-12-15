@@ -16,7 +16,7 @@ import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler

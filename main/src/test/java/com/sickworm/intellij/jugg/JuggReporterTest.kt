@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.mock.JuggMockProject
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger

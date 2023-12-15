@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.android.download.AndroidProfilerDownloader

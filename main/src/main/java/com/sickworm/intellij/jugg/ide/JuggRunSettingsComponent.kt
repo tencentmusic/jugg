@@ -7,7 +7,7 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
-import com.sickworm.intellij.jugg.logger.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggReporter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Dimension
 import java.awt.GridLayout

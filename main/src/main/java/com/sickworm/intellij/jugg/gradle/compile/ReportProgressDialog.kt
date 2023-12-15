@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.util.ui.JBUI
-import com.sickworm.intellij.jugg.logger.UploadResult
+import com.sickworm.intellij.jugg.server.UploadResult
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Toolkit
