@@ -242,10 +242,12 @@ class RemoteGradleCompileClient(
     }
 
     private fun printToStreamInfo(line: String) {
+        terminalOutputListener.onOutput(line, isNeedPrint = false)
         logger.info(line)
     }
 
     private fun printToStreamError(line: String, e: Exception? = null) {
+        terminalOutputListener.onOutput(line, isNeedPrint = false)
         logger.warn(line, e)
     }
 
@@ -253,6 +255,7 @@ class RemoteGradleCompileClient(
         if (isCanceled) {
             return
         }
+        terminalOutputListener.onOutput(line, isNeedPrint = false)
         return printToStreamError(line, e)
     }
 

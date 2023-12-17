@@ -43,13 +43,15 @@ interface IGradleCompileClient : Disposable {
     fun cancelAction(isByUser: Boolean)
 
     interface TerminalOutputListener {
-        fun onOutput(line: String)
+        fun onOutput(line: String, isNeedPrint: Boolean = true)
         fun onOutputErr(line: String)
 
         companion object {
             val DEFAULT: TerminalOutputListener = object : TerminalOutputListener {
-                override fun onOutput(line: String) {
-                    println(line)
+                override fun onOutput(line: String, isNeedPrint: Boolean) {
+                    if (isNeedPrint) {
+                        println(line)
+                    }
                 }
                 override fun onOutputErr(line: String) {
                     System.err.println(line)

@@ -109,23 +109,26 @@ private class GradleOutputParser(
     private var startCompileTime = System.currentTimeMillis()
     private var currentIndicatorText = ""
 
-    override fun onOutput(line: String) {
-        val parsedOutput = parseOutput(line)
-        processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDOUT)
-        processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
+    override fun onOutput(line: String, isNeedPrint: Boolean) {
 
-        val isConfiguring = parsedOutput.startsWith("> Configure project ")
-        val isExecuting = parsedOutput.startsWith("> Task ")
-        if (isConfiguring || isExecuting) {
-            @Suppress("KotlinConstantConditions")
-            if (isConfiguring) {
-                val projectName = parsedOutput.substring("> Configure project ".length)
-                currentIndicatorText = "Configured $projectName..."
-            } else if (isExecuting) {
-                val taskName = parsedOutput.substring("> Task ".length).substringBefore(" ")
-                currentIndicatorText = "Executed $taskName..."
-            }
-            updateIndicatorWithTime()
+        val parsedOutput = parseOutput(line)
+        if (isNeedPrint) {
+            processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDOUT)
+            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
+        }
+
+        if (parsedOutput.startsWith("[Jugg] SyncFileCommand exec start")) {
+            updateIndicatorWithTime("Syncing files to remote...")
+        } else if (parsedOutput.startsWith("[Jugg] CompileProjectCommand exec start")) {
+            updateIndicatorWithTime("Compiling project...")
+        } else if (parsedOutput.startsWith("[Jugg] FetchOutputCommand exec start")) {
+            updateIndicatorWithTime("Getting apk...")
+        } else if (parsedOutput.startsWith("> Configure project ")) {
+            val projectName = parsedOutput.substring("> Configure project ".length)
+            updateIndicatorWithTime("Configured $projectName...")
+        } else if (parsedOutput.startsWith("> Task ")) {
+            val taskName = parsedOutput.substring("> Task ".length).substringBefore(" ")
+            updateIndicatorWithTime("Executed $taskName...")
         }
 
         if (parsedOutput.startsWith("* What went wrong")) {
@@ -148,7 +151,10 @@ private class GradleOutputParser(
         }
     }
 
-    fun updateIndicatorWithTime() {
+    fun updateIndicatorWithTime(newText: String? = null) {
+        if (newText != null) {
+            currentIndicatorText = newText
+        }
         val costTime = (System.currentTimeMillis() - startCompileTime) / 1000 / 60
         var timeSuffix = ""
         if (costTime >= 1) {
