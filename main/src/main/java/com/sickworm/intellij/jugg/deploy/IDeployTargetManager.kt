@@ -23,6 +23,8 @@ interface IDeployTargetManager {
 
     fun isAppForeground(device: IDevice): Boolean
 
+    fun getPackageName(): String
+
     val hasDevice: Boolean
         get() = getDevices().isNotEmpty()
 
@@ -33,6 +35,14 @@ interface IDeployTargetManager {
                 return null
             }
             getDevices().joinToString(", ") { it.name }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun getPackageNameOrNull(): String? {
+        return try {
+            getPackageName()
         } catch (e: Exception) {
             null
         }

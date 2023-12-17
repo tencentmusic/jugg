@@ -168,8 +168,8 @@ object AsDeployerCompat : IAsDeployerCompat {
         return impl.toApkProvider(apkInfos)
     }
 
-    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
-        return impl.getIdeDeployStateResult(project, device)
+    override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
+        return impl.getIdeDeployStateResult(project, device, packageName)
     }
 
     override fun getDeploymentService(project: Project): DeploymentService {

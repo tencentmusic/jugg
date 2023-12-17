@@ -15,10 +15,8 @@ import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.run.util.DebuggerRedefiner
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
-import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
 import java.util.*
@@ -185,18 +183,13 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         }
     }
 
-    override fun getIdeDeployStateResult(project: Project, device: IDevice): IdeDeployState {
-        val selectedRunConfig = RunManager.getInstance(project).allConfigurationsList.firstOrNull {
-            if (it !is AndroidRunConfigurationBase) {
-                return@firstOrNull false
-            }
-            return@firstOrNull isApplyChangesRelevant(it)
-        } ?: return IdeDeployState.noAndroidConfiguration
-
-        val androidRunConfiguration = selectedRunConfig as AndroidRunConfigurationBase
-        val packageName = androidRunConfiguration.applicationIdProvider?.packageName
-            ?: return IdeDeployState.noAndroidConfiguration
-
+    override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
+        if (device == null) {
+            return IdeDeployState.deviceNotConnected
+        }
+        if (packageName == null) {
+            return IdeDeployState.canNotDetectApplicationId
+        }
         return if (device.state == IDevice.DeviceState.UNAUTHORIZED) {
             IdeDeployState.deviceNotAuthorized
         } else if (!device.version.isGreaterOrEqualThan(IAsDeployerCompat.MIN_DEVICE_API)) {

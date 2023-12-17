@@ -71,11 +71,7 @@ class DeployStateManager(
     }
 
     private fun getNewDeployState(device: IDevice? = null): JuggDeployState {
-        val ideDeployState = if (device != null) {
-            ideDeployStateHelper.getIdeDeployState(device)
-        } else {
-            IdeDeployState.deviceNotConnected
-        }
+        val ideDeployState = ideDeployStateHelper.getIdeDeployState(device, deployTargetManager.getPackageNameOrNull())
 
         if (isBuildFileChanged) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "$whatBuildFileChanged changed", ideDeployState)
@@ -97,15 +93,15 @@ class DeployStateManager(
 }
 
 interface IIdeDeployStateHelper {
-    fun getIdeDeployState(device: IDevice): IdeDeployState
+    fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState
 }
 
 class IdeDeployStateHelper(
     private val project: Project,
 ) : IIdeDeployStateHelper {
 
-    override fun getIdeDeployState(device: IDevice): IdeDeployState {
-        return AsDeployerCompat.getIdeDeployStateResult(project, device)
+    override fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState {
+        return AsDeployerCompat.getIdeDeployStateResult(project, device, packageName)
     }
 
 }

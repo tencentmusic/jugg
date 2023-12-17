@@ -75,7 +75,7 @@ class DeployTargetManager(
         }
     }
 
-    private fun getPackageName(): String {
+    override fun getPackageName(): String {
         val apks = getApks()
         if (apks.isEmpty()) {
             throw JuggInternalException.getPackageNameFailedApkNotFound()
