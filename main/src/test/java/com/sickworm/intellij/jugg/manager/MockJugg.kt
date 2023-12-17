@@ -61,8 +61,8 @@ class MockJugg {
     private val adbDeviceHelper = AdbDeviceHelper()
 
     private val ideDeployStateHelper = object : IIdeDeployStateHelper {
-        override fun getIdeDeployState(device: IDevice): IdeDeployState {
-            return if (adbDeviceHelper.hasLaunchedApp(projectInfo.packageName)) {
+        override fun getIdeDeployState(device: IDevice?, packageName: String?): IdeDeployState {
+            return if (adbDeviceHelper.hasLaunchedApp(packageName!!)) {
                 IdeDeployState.ok
             } else {
                 IdeDeployState.appNotRunningOrNotDebuggable
@@ -200,6 +200,10 @@ class MockJugg {
 
             override fun isAppForeground(device: IDevice): Boolean {
                 return AdbCmdHelper(device, logger).isAppForeground(projectInfo.packageName)
+            }
+
+            override fun getPackageName(): String {
+                return projectInfo.packageName
             }
         }
 

@@ -68,6 +68,7 @@ class DeployHistoryManagerTest {
             assertNotNull(deployHistoryData?.fullCompileGitCommitHash)
             assertEquals(DeployHistoryData(
                 deployHistoryData?.fullCompileGitCommitHash,
+                emptyMap(),
                 1,
                 mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java".systemBasedPath to
                         if (isWindows) 901992344 else 2808648208 // "/r/n" vs "/n"
@@ -89,6 +90,7 @@ class DeployHistoryManagerTest {
             assertNotNull(deployHistoryData?.fullCompileGitCommitHash)
             assertEquals(DeployHistoryData(
                 deployHistoryData?.fullCompileGitCommitHash,
+                emptyMap(),
                 2,
                 mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java".systemBasedPath to
                         if (isWindows) 3934764329 else 1715140577 // "/r/n" vs "/n"
