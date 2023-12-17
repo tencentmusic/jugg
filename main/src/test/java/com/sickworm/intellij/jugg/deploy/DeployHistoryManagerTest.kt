@@ -103,6 +103,7 @@ class DeployHistoryManagerTest {
     @Test
     fun testDeployDb() {
         val storageDir = buildDir
+        gitManager.init() // we need init first after GitManager can search parent directory
         val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
 
         gitManager.deleteGit()
