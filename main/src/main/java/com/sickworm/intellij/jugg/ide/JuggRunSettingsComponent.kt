@@ -3,11 +3,15 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.DropDownLink
+import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
 import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Dimension
 import java.awt.GridLayout
@@ -17,6 +21,16 @@ import javax.swing.*
  * Run configuration settings UI
  */
 class JuggRunSettingsComponent : JComponent() {
+
+    private val selectTemplateButton = DropDownLink(
+        "Choose template",
+        JuggSettings.compileTemplateList.map { it.templateName}) { selectedTemplateName ->
+        val selectedTemplate = JuggSettings.compileTemplateList.find { it.templateName == selectedTemplateName }
+        if (selectedTemplate != null) {
+            updateUi(selectedTemplate)
+        }
+    }
+
     private val compileCommandLabel = JLabel("Compile command:")
     val compileCommandTextField = JTextField()
     private val outputApkNameLabel = JLabel("Output APK name:")
@@ -33,7 +47,7 @@ class JuggRunSettingsComponent : JComponent() {
     private val userLabel = JLabel("SSH user:")
     val userTextField = JTextField()
     private val passwordLabel = JLabel("SSH password:")
-    val passwordTextField = JPasswordField()
+    val passwordTextField = JBPasswordField()
     private val ipLabel = JLabel("SSH host:")
     val ipTextField = JTextField()
     private val portLabel = JLabel("SSH port:")
@@ -74,6 +88,9 @@ class JuggRunSettingsComponent : JComponent() {
     init {
         layout = GridLayout(0, 1, 5, 5)
 
+        if (JuggSettings.compileTemplateList.isNotEmpty()) {
+            addPair(null, selectTemplateButton, leftWidth = 240, isAlignEnd = true)
+        }
         addPair(compileCommandLabel, compileCommandTextField, leftWidth = 140)
         addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 140)
 
@@ -86,14 +103,27 @@ class JuggRunSettingsComponent : JComponent() {
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected)
     }
 
-    fun updateUi(settings: JuggRunConfigurationOptions, project: Project) {
+    private fun updateUi(settings: RunConfigurationTemplate) {
+        updateUi(settings, isTemplate = true)
+    }
+
+    fun updateUi(settings: JuggRunConfigurationOptions) {
+        updateUi(settings.toRunConfigurationTemplate(), isTemplate = false)
+    }
+
+    private fun updateUi(settings: RunConfigurationTemplate, isTemplate: Boolean) {
         compileCommandTextField.text = settings.compileCommand
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
         updateRemoteUi(settings.isRemoteCompile)
         enableSyncAllProjectsCheckBox.isSelected = settings.isSyncAllProjects
         userTextField.text = settings.remoteSshUser
-        passwordTextField.text = settings.remoteSshPassword
+        if (isTemplate) {
+            passwordTextField.text = ""
+            passwordTextField.emptyText.text = settings.remoteSshPassword ?: ""
+        } else {
+            passwordTextField.text = settings.remoteSshPassword
+        }
         ipTextField.text = settings.remoteSshIp
         portTextField.text = settings.remoteSshPort.toString()
         httpProxyIpTextField.text = settings.httpProxyIp ?: ""
@@ -104,6 +134,9 @@ class JuggRunSettingsComponent : JComponent() {
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
 
+    }
+
+    fun initUpload(project: Project) {
         if (reportIssueActionLink.actionListeners.isEmpty()) {
             reportIssueActionLink.addActionListener {
                 doUpload(project)
@@ -129,14 +162,16 @@ class JuggRunSettingsComponent : JComponent() {
         dialog.show()
     }
 
-    private fun addPair(left: JComponent, right: JComponent?, leftWidth: Int, isAlignEnd: Boolean = false) {
+    private fun addPair(left: JComponent?, right: JComponent?, leftWidth: Int, isAlignEnd: Boolean = false) {
         val jPanel = JPanel()
         jPanel.run {
             border = JBUI.Borders.empty(0, 4)
             layout = BoxLayout(this, BoxLayout.X_AXIS)
-            add(left)
-            val realLeftWidth = if (right == null) Int.MAX_VALUE else leftWidth
-            left.preferredSize = Dimension(realLeftWidth, left.preferredSize.height)
+            left?.let {
+                add(left)
+                val realLeftWidth = if (right == null) Int.MAX_VALUE else leftWidth
+                left.preferredSize = Dimension(realLeftWidth, left.preferredSize.height)
+            }
 
             if (isAlignEnd) {
                 add(Box.createHorizontalGlue())

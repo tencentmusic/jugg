@@ -12,9 +12,9 @@ import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
+import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import javax.swing.JComponent
 
 /**
@@ -97,7 +97,8 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
     }
 
     fun resetEditorFrom(options: JuggRunConfigurationOptions, project: Project) {
-        (component as JuggRunSettingsComponent).updateUi(options, project)
+        (component as JuggRunSettingsComponent).updateUi(options)
+        (component as JuggRunSettingsComponent).initUpload(project)
     }
 
     override fun applyEditorTo(s: JuggRunConfiguration) {

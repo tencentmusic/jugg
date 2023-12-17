@@ -120,6 +120,9 @@ class JuggManager @TestOnly constructor(
                     val downloadUrl = versionData.downloadUrl + prefix + "version=${juggReporter.version}"
                     JuggUpgradeNotification(project).show(downloadUrl)
                 }
+                if (versionData.templateList.isNotEmpty()) {
+                    JuggSettings.compileTemplateList = versionData.templateList
+                }
             }
         })
     }

@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
+import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
@@ -112,7 +113,7 @@ class JuggCompilerHelper(
 
         val result = gradleCompile(options, processHandler, indicator)
         if (result.isSuccess) {
-            JuggSettings.updateDefaultSettings(options)
+            JuggSettings.defaultCompileSettings = options.toRunConfigurationTemplate()
         }
         return CompileTaskResult(isSuccess = result.isSuccess,
             isGradleCompile = true,

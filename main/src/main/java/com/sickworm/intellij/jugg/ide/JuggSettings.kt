@@ -2,8 +2,12 @@
 
 package com.sickworm.intellij.jugg.ide
 
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import kotlin.reflect.KProperty
 
 object JuggSettings {
@@ -15,21 +19,8 @@ object JuggSettings {
     var deployOnSave: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     // default compile settings
-    const val defaultCompileCommand = "./gradlew :app:assembleDebug"
-    const val defaultOutputApkName = "app-*debug.apk"
-    var defaultIsRemoteCompile: Boolean by propertiesComponent.delegate(defaultValue = false)
-    var defaultIsSyncAllProjects: Boolean by propertiesComponent.delegate(defaultValue = false)
-    var defaultRemoteSshUser: String by propertiesComponent.delegate(defaultValue = "root")
-    var defaultRemoteSshIp: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultRemoteSshPassword: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultRemoteSshPort: Int by propertiesComponent.delegate(defaultValue = 36000)
-    var defaultLocalToRemoteIftConfigName: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultLocalToRemoteSyncPath: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultRemoteSyncPath: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultRemoteToLocalIftConfigName: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultRemoteToLocalSyncPath: String by propertiesComponent.delegate(defaultValue = "")
-    var defaultHttpProxyIp: String by propertiesComponent.delegate(defaultValue = "127.0.0.1")
-    var defaultHttpProxyPort: Int by propertiesComponent.delegate(defaultValue = 12639)
+    private var defaultCompileSettingsJson: String by propertiesComponent.delegate(defaultValue = "")
+    private var compileTemplateListJson: String by propertiesComponent.delegate(defaultValue = "")
 
     /** don't support change minApi dynamically */
     const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
@@ -48,20 +39,81 @@ object JuggSettings {
      */
     const val isQuickFallbackToHotFix: Boolean = true
 
-    fun updateDefaultSettings(options: JuggGradleCompileOptions) {
-        defaultIsRemoteCompile = options.isRemoteCompile
-        defaultIsSyncAllProjects = options.isSyncAllProjects
-        defaultRemoteSshUser = options.remoteSshUser
-        defaultRemoteSshIp = options.remoteSshIp
-        defaultRemoteSshPassword = options.remoteSshPassword
-        defaultRemoteSshPort = options.remoteSshPort
-        defaultLocalToRemoteIftConfigName = options.localToRemoteIftConfigName
-        defaultLocalToRemoteSyncPath = options.localToRemoteSyncPath
-        defaultRemoteSyncPath = options.remoteSyncPath
-        defaultRemoteToLocalIftConfigName = options.remoteToLocalIftConfigName
-        defaultRemoteToLocalSyncPath = options.remoteToLocalSyncPath
-        defaultHttpProxyIp = options.httpProxyIp
-        defaultHttpProxyPort = options.httpProxyPort
+    /**
+     * Use this for Jugg run configuration arguments if first set.
+     */
+    var defaultCompileSettings: RunConfigurationTemplate
+        get() {
+            var default = RunConfigurationTemplate.default
+            if (defaultCompileSettingsJson.isNotEmpty()) {
+                // use last compile success settings
+                try {
+                    default = GsonBuilder()
+                        .registerTypeAdapter(String::class.java, RunConfigurationTemplate.typeAdapter)
+                        .create()
+                        .fromJson(defaultCompileSettingsJson, RunConfigurationTemplate::class.java)
+                } catch (e: Exception) {
+                    // ignore
+                }
+            } else if (compileTemplateList.isNotEmpty()) {
+                // use first template settings
+                default = compileTemplateList.first()
+            }
+            return default
+        }
+        set(value) {
+            defaultCompileSettingsJson = Gson().toJson(value)
+        }
+
+    private var compileTemplateListCache: List<RunConfigurationTemplate>? = null
+    var compileTemplateList: List<RunConfigurationTemplate>
+        get() {
+            compileTemplateListCache?.let {
+                return it
+            }
+            val compileTemplateList = compileTemplateListJson
+            if (compileTemplateList.isEmpty()) {
+                return emptyList()
+            }
+
+            try {
+                compileTemplateListCache = GsonBuilder()
+                    .registerTypeAdapter(String::class.java, RunConfigurationTemplate.typeAdapter)
+                    .create()
+                    .fromJson(compileTemplateList, RunConfigurationTemplate.listType)
+            } catch (e: Exception) {
+                // ignore
+            }
+            return compileTemplateListCache ?: emptyList()
+        }
+        set(value) {
+            compileTemplateListCache = null // don't save it directly, because value won't be processed by typeAdapter
+            compileTemplateListJson = Gson().toJson(value)
+        }
+
+    init {
+        // compat with old version of Jugg
+        if (defaultCompileSettingsJson.isEmpty() && propertiesComponent.getValue("defaultCompileCommand", "") != "") {
+            val recoverTemplate = RunConfigurationTemplate(
+                "Default",
+                propertiesComponent.getValue("defaultCompileCommand"),
+                propertiesComponent.getValue("defaultOutputApkName"),
+                propertiesComponent.getBoolean("defaultIsRemoteCompile"),
+                propertiesComponent.getValue("defaultRemoteSshUser"),
+                propertiesComponent.getValue("defaultRemoteSshIp"),
+                propertiesComponent.getValue("defaultRemoteSshPassword"),
+                propertiesComponent.getInt("defaultRemoteSshPort", 0),
+                propertiesComponent.getValue("defaultLocalToRemoteIftConfigName"),
+                propertiesComponent.getValue("defaultLocalToRemoteSyncPath"),
+                propertiesComponent.getValue("defaultRemoteSyncPath"),
+                propertiesComponent.getValue("defaultRemoteToLocalIftConfigName"),
+                propertiesComponent.getValue("defaultRemoteToLocalSyncPath"),
+                propertiesComponent.getValue("defaultHttpProxyIp"),
+                propertiesComponent.getInt("defaultHttpProxyPort", 0),
+                propertiesComponent.getBoolean("defaultIsSyncAllProjects"),
+            )
+            defaultCompileSettingsJson = Gson().toJson(recoverTemplate)
+        }
     }
 }
 

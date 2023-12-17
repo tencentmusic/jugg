@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.execution.configurations.RunConfigurationOptions
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
 import java.io.File
 
 /**
@@ -33,27 +34,27 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
     init {
         if (!hasSetDefaultValue) {
-            setToDefault()
+            setOption(JuggSettings.defaultCompileSettings)
+            hasSetDefaultValue = true
         }
     }
 
-    private fun setToDefault() {
-        compileCommand = JuggSettings.defaultCompileCommand
-        outputApkName = JuggSettings.defaultOutputApkName
-        isRemoteCompile = JuggSettings.defaultIsRemoteCompile
-        remoteSshUser = JuggSettings.defaultRemoteSshUser
-        remoteSshPassword = JuggSettings.defaultRemoteSshPassword
-        remoteSshIp = JuggSettings.defaultRemoteSshIp
-        remoteSshPort = JuggSettings.defaultRemoteSshPort
-        localToRemoteIftConfigName = JuggSettings.defaultLocalToRemoteIftConfigName
-        localToRemoteSyncPath = JuggSettings.defaultLocalToRemoteSyncPath
-        remoteSyncPath = JuggSettings.defaultRemoteSyncPath
-        remoteToLocalIftConfigName = JuggSettings.defaultRemoteToLocalIftConfigName
-        remoteToLocalSyncPath = JuggSettings.defaultRemoteToLocalSyncPath
-        httpProxyIp = JuggSettings.defaultHttpProxyIp
-        httpProxyPort = JuggSettings.defaultHttpProxyPort
-        isSyncAllProjects = JuggSettings.defaultIsSyncAllProjects
-        hasSetDefaultValue = true
+    private fun setOption(template: RunConfigurationTemplate) {
+        compileCommand = template.compileCommand
+        outputApkName = template.outputApkName
+        isRemoteCompile = template.isRemoteCompile
+        remoteSshUser = template.remoteSshUser
+        remoteSshPassword = template.remoteSshPassword
+        remoteSshIp = template.remoteSshIp
+        remoteSshPort = template.remoteSshPort
+        localToRemoteIftConfigName = template.localToRemoteIftConfigName
+        localToRemoteSyncPath = template.localToRemoteSyncPath
+        remoteSyncPath = template.remoteSyncPath
+        remoteToLocalIftConfigName = template.remoteToLocalIftConfigName
+        remoteToLocalSyncPath = template.remoteToLocalSyncPath
+        httpProxyIp = template.httpProxyIp
+        httpProxyPort = template.httpProxyPort
+        isSyncAllProjects = template.isSyncAllProjects
     }
 }
 
