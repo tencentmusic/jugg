@@ -12,7 +12,7 @@ test {
 
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
-version '1.1.10-SNAPSHOT'
+version '1.1.11-SNAPSHOT'
 
 sourceCompatibility = 11
 targetCompatibility = 11
@@ -33,6 +33,22 @@ intellij {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1> 
+<h2>1.1.11 (2023.12.13)</h2>
+<p>1. [feature] add "Restart App" button to MainToolbar</p>
+<p>2. [feature] supports multiple device deployment by choosing in device select box</p>
+<p>3. [feature] local.properties and gradle.properties changes also fallback to gradle compilation</p>
+<p>4. [feature] supports multiple project sync</p>
+<p>5. [feature] isolate remote run configuration</p>
+<p>6. [optimize] improve deploy speed by creating JuggDeploymentService to replace DeploymentService for better performance</p>
+<p>7. [optimize] avoid all res compilation failed after inclink failed once</p>
+<p>8. [optimize] add maxCompileSourceFiles limit to fallback to gradle</p>
+<p>9. [optimize] add run time in indicator</p>
+<p>10. [optimize] reopen KotlinCompiler warmUp to increase speed of "logging: configuring the compilation environment"</p>
+<p>11. [bugfix] fix compile android.jar API error for compileSdkVersion not match. Use module compileSdkVersion first</p>
+<p>12. [bugfix] fix isNeedReloadProjectInfo is always true on new IDE</p>
+<p>13. [bugfix] fix Init Project Info failed by exception when reparse gradle</p>
+<p>14. [bugfix] fix kotlin language version not match the build.gradle, which makes error "and is not allowed on a nullable receiver"</p>
+<p>15. [bugfix] fix fetch remote classpath failed if remoteSyncPath ends with '/'</p>
 <h2>1.1.10 (2023.12.08)</h2>
 <p>1. [feature] supports Android Studio Iguana</p>
 <p>2. [optimize] auto reload table after kill aapt2 process</p>
