@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.util.toIoFile
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -17,6 +18,7 @@ import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
+import org.jetbrains.kotlin.idea.base.util.runReadActionInSmartMode
 import java.io.File
 import kotlin.system.measureTimeMillis
 
@@ -163,7 +165,9 @@ class CompileContextManager(
                 // Reparse gradle. Otherwise GradleBuildModel won't update after sync
                 val costTime = measureTimeMillis {
                     try {
-                        projectBuildModel.reparse()
+                        ApplicationManager.getApplication().runReadAction {
+                            projectBuildModel.reparse()
+                        }
                     } catch (e: Exception) {
                         // java.util.ConcurrentModificationException
                         logger.warn("Reparse gradle failed ${e.message}")
