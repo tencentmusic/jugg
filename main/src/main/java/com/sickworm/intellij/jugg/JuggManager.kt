@@ -84,6 +84,23 @@ class JuggManager @TestOnly constructor(
                 }
                 logger.debug("JuggDeploymentService.preInit cost ${costTime}ms")
             }
+
+            logger.debug("Checking updates...")
+            juggReporter.checkUpdate { versionData ->
+                logger.debug("Check update result: $versionData")
+                if (versionData.isNeedUpgrade) {
+                    val prefix = if (versionData.downloadUrl.contains("?")) {
+                        "&"
+                    } else {
+                        "?"
+                    }
+                    val downloadUrl = versionData.downloadUrl + prefix + "version=${juggReporter.version}"
+                    JuggUpgradeNotification(project).show(downloadUrl)
+                }
+                if (versionData.templateList.isNotEmpty()) {
+                    JuggSettings.compileTemplateList = versionData.templateList
+                }
+            }
         })
     }
 
@@ -105,23 +122,6 @@ class JuggManager @TestOnly constructor(
                 val isSuccess = compileContextManager.refreshCompileContext()
                 if (isSuccess) {
                     reInitOnCompileContextUpdate()
-                }
-            }
-
-            logger.debug("Checking updates...")
-            juggReporter.checkUpdate { versionData ->
-                logger.debug("Check update result: $versionData")
-                if (versionData.isNeedUpgrade) {
-                    val prefix = if (versionData.downloadUrl.contains("?")) {
-                        "&"
-                    } else {
-                        "?"
-                    }
-                    val downloadUrl = versionData.downloadUrl + prefix + "version=${juggReporter.version}"
-                    JuggUpgradeNotification(project).show(downloadUrl)
-                }
-                if (versionData.templateList.isNotEmpty()) {
-                    JuggSettings.compileTemplateList = versionData.templateList
                 }
             }
         })
