@@ -1,11 +1,15 @@
 package com.sickworm.intellij.jugg.ide
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopup
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.DropDownLink
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.scale.JBUIScale
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
@@ -13,9 +17,11 @@ import com.sickworm.intellij.jugg.server.JuggReporter
 import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridLayout
 import java.lang.ref.WeakReference
+import java.util.function.Consumer
 import javax.swing.*
 
 /**
@@ -23,15 +29,16 @@ import javax.swing.*
  */
 class JuggRunSettingsComponent : JComponent() {
 
-    private var selectTemplateButtonContainer: JPanel? = null
+    private val topButtonsContainer: JPanel = JPanel().also {
+        it.border = JBUI.Borders.empty(0, 4)
+        it.layout = BoxLayout(it, BoxLayout.X_AXIS)
+    }
+
     private var selectTemplateButton: DropDownLink<String> = createSelectTemplateButton()
-    private val templateUpdateListener =  {
+    private val moreOptionsButton: DropDownLink<String> = createMoreOptionsButton()
+    private val templateUpdateListener = {
         SwingUtilities.invokeLater {
-            selectTemplateButtonContainer?.removeAll()
-            selectTemplateButton = createSelectTemplateButton()
-            selectTemplateButtonContainer?.add(Box.createHorizontalGlue())
-            selectTemplateButtonContainer?.add(selectTemplateButton)
-            selectTemplateButtonContainer?.isVisible = true
+            updateTopButtons()
         }
     }
 
@@ -92,11 +99,9 @@ class JuggRunSettingsComponent : JComponent() {
     init {
         layout = GridLayout(0, 1, 5, 5)
 
-        selectTemplateButtonContainer = addPair(null, selectTemplateButton, leftWidth = 240, isAlignEnd = true)
+        add(topButtonsContainer)
+        updateTopButtons()
         JuggSettings.templateListUpdateListener = WeakReference(templateUpdateListener)
-        if (JuggSettings.compileTemplateList.isEmpty()) {
-            selectTemplateButtonContainer?.isVisible = false
-        }
 
         addPair(compileCommandLabel, compileCommandTextField, leftWidth = 140)
         addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 140)
@@ -118,7 +123,33 @@ class JuggRunSettingsComponent : JComponent() {
             if (selectedTemplate != null) {
                 updateUi(selectedTemplate)
             }
+        }.also {
+            it.border = JBUI.Borders.empty(0, 4)
         }
+    }
+
+    private fun createMoreOptionsButton(): DropDownLink<String> {
+        val popupBuilder: (DropDownLink<String>) -> JBPopup = { link ->
+            JBPopupFactory.getInstance()
+                .createPopupChooserBuilder(JuggMoreOptionsItem.options)
+                .setRenderer(MyLinkCellRenderer(link))
+                .setItemChosenCallback { selectOptions ->
+                    selectOptions.isSelected = !selectOptions.isSelected
+                }
+                .createPopup()
+        }
+
+        return DropDownLink("More options", popupBuilder).also {
+            it.border = JBUI.Borders.empty(0, 4)
+        }
+    }
+
+    private fun updateTopButtons() {
+        topButtonsContainer.removeAll()
+        selectTemplateButton = createSelectTemplateButton()
+        topButtonsContainer.add(Box.createHorizontalGlue())
+        topButtonsContainer.add(selectTemplateButton)
+        topButtonsContainer.add(moreOptionsButton)
     }
 
     private fun updateUi(settings: RunConfigurationTemplate) {
@@ -220,6 +251,31 @@ class JuggRunSettingsComponent : JComponent() {
         }
         revalidate()
         repaint()
+    }
+}
+
+/** Copied from [DropDownLink] and modified */
+private class MyLinkCellRenderer(private val link: Component) : DefaultListCellRenderer() {
+    private fun coerce(size: Dimension): Dimension {
+        size.width = size.width.coerceAtLeast(link.preferredSize.width)
+        size.height = size.height.coerceAtLeast(JBUIScale.scale(22))
+        return size
+    }
+
+    override fun getMinimumSize() = coerce(super.getMinimumSize())
+    override fun getPreferredSize() = coerce(super.getPreferredSize())
+    override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean): Component {
+        super.getListCellRendererComponent(list, value, index, selected, false)
+        border = JBUI.Borders.empty(0, 8)
+        if (value is JuggMoreOptionsItem) {
+            text = value.name
+            icon = if (value.isSelected) {
+                AllIcons.Actions.SetDefault
+            } else {
+                null
+            }
+        }
+        return this
     }
 }
 

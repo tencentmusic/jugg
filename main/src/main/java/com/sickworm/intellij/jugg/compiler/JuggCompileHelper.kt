@@ -101,7 +101,6 @@ class JuggCompilerHelper(
         }
 
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
-            logger.warn("Compile canceled.")
             return CompileTaskResult(
                 isSuccess = false,
                 isGradleCompile = true,
@@ -172,7 +171,11 @@ class JuggCompilerHelper(
                         ", will run with incremental compile.")
             } else {
                 logger.info("No file changes. will fallback to gradle compile.")
-                return CompileTaskResult.incrementalFailed(true, "No file changes")
+                val isConfirmFallback = ConfirmFallbackDialog.showAndGetResult()
+                if (!isConfirmFallback) {
+                    processHandler.detachProcess()
+                }
+                return CompileTaskResult.incrementalFailed(isConfirmFallback, "No file changes")
             }
         }
 
@@ -186,7 +189,6 @@ class JuggCompilerHelper(
         compiledFilesThisTime: List<ChangedFile> = emptyList(), // used for avoid recompilation dead loop
     ): CompileTaskResult {
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
-            logger.warn("Compile canceled.")
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
@@ -243,7 +245,6 @@ class JuggCompilerHelper(
         }
 
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
-            logger.warn("Compile canceled.")
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 

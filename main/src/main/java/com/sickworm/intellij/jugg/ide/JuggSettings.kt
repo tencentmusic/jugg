@@ -7,7 +7,6 @@ import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
-import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import java.lang.ref.WeakReference
 import kotlin.reflect.KProperty
 
@@ -22,6 +21,8 @@ object JuggSettings {
     // default compile settings
     private var defaultCompileSettingsJson: String by propertiesComponent.delegate(defaultValue = "")
     private var compileTemplateListJson: String by propertiesComponent.delegate(defaultValue = "")
+
+    var isConfirmFallbackWhenNoFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
 
     /** don't support change minApi dynamically */
     const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
