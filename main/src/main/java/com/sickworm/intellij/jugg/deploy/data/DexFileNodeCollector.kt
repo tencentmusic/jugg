@@ -41,7 +41,7 @@ class DexFileNodeCollector(
 
         val classMethodRefs = mutableSetOf<MethodNode>()
         val classFieldRefs = mutableSetOf<FieldNode>()
-        val classDefaultMethodInvokeRefs = mutableListOf<String>()
+        val classDefaultMethodInvokeRefs = mutableSetOf<String>()
 
         return object : DexClassVisitor(cn) {
 
