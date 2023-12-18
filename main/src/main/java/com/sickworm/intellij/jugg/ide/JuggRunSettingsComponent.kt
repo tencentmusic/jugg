@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Dimension
 import java.awt.GridLayout
+import java.lang.ref.WeakReference
 import javax.swing.*
 
 /**
@@ -22,12 +23,15 @@ import javax.swing.*
  */
 class JuggRunSettingsComponent : JComponent() {
 
-    private val selectTemplateButton = DropDownLink(
-        "Choose template",
-        JuggSettings.compileTemplateList.map { it.templateName}) { selectedTemplateName ->
-        val selectedTemplate = JuggSettings.compileTemplateList.find { it.templateName == selectedTemplateName }
-        if (selectedTemplate != null) {
-            updateUi(selectedTemplate)
+    private var selectTemplateButtonContainer: JPanel? = null
+    private var selectTemplateButton: DropDownLink<String> = createSelectTemplateButton()
+    private val templateUpdateListener =  {
+        SwingUtilities.invokeLater {
+            selectTemplateButtonContainer?.removeAll()
+            selectTemplateButton = createSelectTemplateButton()
+            selectTemplateButtonContainer?.add(Box.createHorizontalGlue())
+            selectTemplateButtonContainer?.add(selectTemplateButton)
+            selectTemplateButtonContainer?.isVisible = true
         }
     }
 
@@ -88,9 +92,12 @@ class JuggRunSettingsComponent : JComponent() {
     init {
         layout = GridLayout(0, 1, 5, 5)
 
-        if (JuggSettings.compileTemplateList.isNotEmpty()) {
-            addPair(null, selectTemplateButton, leftWidth = 240, isAlignEnd = true)
+        selectTemplateButtonContainer = addPair(null, selectTemplateButton, leftWidth = 240, isAlignEnd = true)
+        JuggSettings.templateListUpdateListener = WeakReference(templateUpdateListener)
+        if (JuggSettings.compileTemplateList.isEmpty()) {
+            selectTemplateButtonContainer?.isVisible = false
         }
+
         addPair(compileCommandLabel, compileCommandTextField, leftWidth = 140)
         addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 140)
 
@@ -101,6 +108,17 @@ class JuggRunSettingsComponent : JComponent() {
             updateRemoteUi(isSelected)
         }
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected)
+    }
+
+    private fun createSelectTemplateButton(): DropDownLink<String> {
+        return DropDownLink(
+            "Choose template",
+            JuggSettings.compileTemplateList.map { it.templateName}) { selectedTemplateName ->
+            val selectedTemplate = JuggSettings.compileTemplateList.find { it.templateName == selectedTemplateName }
+            if (selectedTemplate != null) {
+                updateUi(selectedTemplate)
+            }
+        }
     }
 
     private fun updateUi(settings: RunConfigurationTemplate) {
@@ -133,7 +151,6 @@ class JuggRunSettingsComponent : JComponent() {
         remoteSyncPathTextField.text = settings.remoteSyncPath
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
-
     }
 
     fun initUpload(project: Project) {
@@ -162,7 +179,7 @@ class JuggRunSettingsComponent : JComponent() {
         dialog.show()
     }
 
-    private fun addPair(left: JComponent?, right: JComponent?, leftWidth: Int, isAlignEnd: Boolean = false) {
+    private fun addPair(left: JComponent?, right: JComponent?, leftWidth: Int, isAlignEnd: Boolean = false): JPanel {
         val jPanel = JPanel()
         jPanel.run {
             border = JBUI.Borders.empty(0, 4)
@@ -183,6 +200,8 @@ class JuggRunSettingsComponent : JComponent() {
             }
         }
         add(jPanel)
+
+        return jPanel
     }
 
     private fun updateRemoteUi(isSelected: Boolean) {

@@ -8,6 +8,7 @@ import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
+import java.lang.ref.WeakReference
 import kotlin.reflect.KProperty
 
 object JuggSettings {
@@ -38,6 +39,8 @@ object JuggSettings {
      * Enable this can skip JVM-TI process and save time.
      */
     const val isQuickFallbackToHotFix: Boolean = true
+
+    var templateListUpdateListener: WeakReference<() -> Unit> = WeakReference(null)
 
     /**
      * Use this for Jugg run configuration arguments if first set.
@@ -89,6 +92,7 @@ object JuggSettings {
         set(value) {
             compileTemplateListCache = null // don't save it directly, because value won't be processed by typeAdapter
             compileTemplateListJson = Gson().toJson(value)
+            templateListUpdateListener.get()?.invoke()
         }
 
     init {
