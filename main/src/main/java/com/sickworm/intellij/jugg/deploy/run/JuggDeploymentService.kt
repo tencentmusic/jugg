@@ -19,6 +19,7 @@ object JuggDeploymentService {
     private val lock = Object()
 
     val dexDatabase: SqlApkFileDatabase by lazy {
+        // absolute path e.g.
         val dexDbPath = Paths.get(PathManager.getSystemPath(), ".dex_cache.db")
         SqlApkFileDatabase(
             dexDbPath.toFile(),

@@ -248,7 +248,13 @@ class JuggManager @TestOnly constructor(
         val initIncrementalCompileTask = task@{
             // do it async
             fun action() {
-                initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
+                deployStateManager.isInitializingIncrementalCompile = true
+                try {
+                    initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
+                } catch (e: Exception) {
+                    logger.warn("initIncrementalCompileAfterFullBuild failed", e)
+                }
+                deployStateManager.isInitializingIncrementalCompile = false
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
@@ -265,8 +271,6 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, isRemoteCompile: Boolean = false) {
-        deployStateManager.isInitializingIncrementalCompile = true
-
         JuggLogger.resetLatestCompileLog(project)
         juggReporter.afterFullCompile()
 
@@ -322,8 +326,6 @@ class JuggManager @TestOnly constructor(
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
-
-        deployStateManager.isInitializingIncrementalCompile = false
     }
 
     fun restartApp() {
