@@ -39,17 +39,30 @@ class LocalGradleCompileClient(
         val javaHome = System.getenv("JAVA_HOME")
         logger.debug("JAVA_HOME: $javaHome")
 
-        gradleJdkPath = AsDeployerCompat.getModuleManager(project).modules.firstNotNullOfOrNull { module ->
-            val moduleRootManager = ModuleRootManager.getInstance(module)
-            val jdk: Sdk = moduleRootManager.sdk ?: return@firstNotNullOfOrNull null
-            if (jdk.sdkType != JavaSdk.getInstance()) {
-                return@firstNotNullOfOrNull null
+        val rootModule = AsDeployerCompat.getModuleManager(project).modules.find {
+            it.name == project.name
+        }
+        if (rootModule != null) {
+            val moduleRootManager = ModuleRootManager.getInstance(rootModule)
+            val jdk: Sdk? = moduleRootManager.sdk
+            if (jdk != null && jdk.sdkType == JavaSdk.getInstance() && jdk.homePath != null) {
+                logger.debug("found gradleJdkPath in root module: ${rootModule.name}, path: ${jdk.homePath}")
+                gradleJdkPath = jdk.homePath
             }
-            if (jdk.homePath == null) {
-                return@firstNotNullOfOrNull null
+        }
+        if (gradleJdkPath == null) {
+            gradleJdkPath = AsDeployerCompat.getModuleManager(project).modules.firstNotNullOfOrNull { module ->
+                val moduleRootManager = ModuleRootManager.getInstance(module)
+                val jdk: Sdk = moduleRootManager.sdk ?: return@firstNotNullOfOrNull null
+                if (jdk.sdkType != JavaSdk.getInstance()) {
+                    return@firstNotNullOfOrNull null
+                }
+                if (jdk.homePath == null) {
+                    return@firstNotNullOfOrNull null
+                }
+                logger.debug("found gradleJdkPath in module: ${module.name}, path: ${jdk.homePath}")
+                return@firstNotNullOfOrNull jdk.homePath!!
             }
-            logger.debug("found gradleJdkPath in module: ${module.name}, path: ${jdk.homePath}")
-            return@firstNotNullOfOrNull jdk.homePath!!
         }
         if (gradleJdkPath == null) {
             logger.debug("can't find gradleJdkPath in modules, use JAVA_HOME $javaHome instead")
