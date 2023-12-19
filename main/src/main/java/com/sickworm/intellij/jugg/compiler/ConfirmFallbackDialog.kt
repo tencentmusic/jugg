@@ -11,6 +11,8 @@ import java.awt.GridBagLayout
 import javax.swing.*
 
 class ConfirmFallbackDialog(
+    content: String,
+    isShowDoNotAsk: Boolean,
 ) : DialogWrapper(true) {
     private val mainPanel: JPanel = JPanel(GridBagLayout())
     val checkBox: JBCheckBox = JBCheckBox("Don't ask me next time")
@@ -25,12 +27,14 @@ class ConfirmFallbackDialog(
 
         constraints.insets = JBUI.insetsBottom(12)
         constraints.gridwidth = 1
-        mainPanel.add(JBLabel("No file changes, continue will fallback to gradle."), constraints)
+        mainPanel.add(JBLabel(content), constraints)
         constraints.gridy++
 
-        constraints.insets = JBUI.insetsBottom(4)
-        constraints.gridwidth = 1
-        mainPanel.add(checkBox, constraints)
+        if (isShowDoNotAsk) {
+            constraints.insets = JBUI.insetsBottom(4)
+            constraints.gridwidth = 1
+            mainPanel.add(checkBox, constraints)
+        }
 
         isResizable = false
         init()
@@ -47,14 +51,14 @@ class ConfirmFallbackDialog(
 
     companion object {
 
-        fun showAndGetResult(): Boolean {
+        fun showAndGetResult(content: String, isShowDoNotAsk: Boolean): Boolean {
             if (!JuggSettings.isConfirmFallbackWhenNoFileChanges) {
                 return true
             }
 
             var result = false
             ApplicationManager.getApplication().invokeAndWait {
-                val dialog = ConfirmFallbackDialog()
+                val dialog = ConfirmFallbackDialog(content, isShowDoNotAsk)
                 if (dialog.showAndGet()) {
                     val isChecked = dialog.checkBox.isSelected
                     if (isChecked) {

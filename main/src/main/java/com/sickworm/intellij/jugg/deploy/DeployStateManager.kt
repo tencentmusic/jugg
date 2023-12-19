@@ -27,9 +27,14 @@ class DeployStateManager(
 
     private var deployStateMap = mapOf<String, JuggDeployState>()
 
+    @Volatile
     var isBuildFileChanged = false
 
+    @Volatile
     var whatBuildFileChanged: String = ""
+
+    @Volatile
+    var isInitializingIncrementalCompile = false
 
     /**
      * Invoke when project need to update [JuggDeployState].

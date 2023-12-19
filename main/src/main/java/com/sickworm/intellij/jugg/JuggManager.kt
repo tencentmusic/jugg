@@ -265,6 +265,8 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, isRemoteCompile: Boolean = false) {
+        deployStateManager.isInitializingIncrementalCompile = true
+
         JuggLogger.resetLatestCompileLog(project)
         juggReporter.afterFullCompile()
 
@@ -320,6 +322,8 @@ class JuggManager @TestOnly constructor(
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
+
+        deployStateManager.isInitializingIncrementalCompile = false
     }
 
     fun restartApp() {

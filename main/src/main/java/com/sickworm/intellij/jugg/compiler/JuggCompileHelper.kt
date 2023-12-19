@@ -74,6 +74,13 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
+        if (deployStateManager.isInitializingIncrementalCompile) {
+            logger.info("Waiting Jugg initializing finish...")
+            while (deployStateManager.isInitializingIncrementalCompile) {
+                Thread.sleep(200)
+            }
+        }
+
         val statTime = System.currentTimeMillis()
         var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
@@ -171,7 +178,7 @@ class JuggCompilerHelper(
                         ", will run with incremental compile.")
             } else {
                 logger.info("No file changes. will fallback to gradle compile.")
-                val isConfirmFallback = ConfirmFallbackDialog.showAndGetResult()
+                val isConfirmFallback = ConfirmFallbackDialog.showAndGetResult("No file changes, continue will fallback to gradle.", true)
                 if (!isConfirmFallback) {
                     processHandler.detachProcess()
                 }
@@ -295,7 +302,6 @@ class JuggCompilerHelper(
      * Fetch classpath from gradle compile client.
      * @return classpath root dir
      */
-    @Synchronized
     fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>): File? {
         return gradleCompileClientManager.getClient(isRemote).fetchClasspathResult(buildDirs)
     }
