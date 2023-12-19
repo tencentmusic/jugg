@@ -60,7 +60,9 @@ class JuggDeployer(
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
             val storeStartTime = System.currentTimeMillis()
+            logger.info("after install, overlay id: ${oid.sha}, is base install: ${oid.isBaseInstall}")
             deploymentService.postWithLock {
+                logger.info("before install store")
                 deploymentCacheDatabase.store(adb.serial, appId, apkList, oid)
                 logger.info("after install store, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
             }
@@ -102,11 +104,13 @@ class JuggDeployer(
             deploymentService.deploymentCacheDatabase[deviceSerial, packageName]
         }
 
+        val exceptOverlayId = exceptOverlayIds[packageName]
+        logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
+                ", except overlay id: $exceptOverlayId" +
+                ", as overlay id: ${speculativeDump?.overlayId?.sha}" +
+                ", base install: ${speculativeDump?.overlayId?.isBaseInstall}")
+
         if (!isSkipExceptOverlayCheck) {
-            val exceptOverlayId = exceptOverlayIds[packageName]
-            logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
-                    ", except overlay id: $exceptOverlayId" +
-                    ", base install: ${speculativeDump?.overlayId?.isBaseInstall}")
             if (exceptOverlayId != speculativeDump?.overlayId?.sha) {
                 // situation 1: using device running on different projects but same package name.
                 // situation 2: using different devices running on one project.
@@ -132,6 +136,7 @@ class JuggDeployer(
         logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}")
         val storeStartTime = System.currentTimeMillis()
         deploymentService.postWithLock {
+            logger.info("before deploy store")
             deploymentCacheDatabase.store(deviceSerial, packageName, newFiles, overlayId)
             logger.info("after deploy store, newFiles: ${newFiles.size}, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
         }
