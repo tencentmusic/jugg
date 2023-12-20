@@ -73,14 +73,10 @@ class DeployDataGenerator(
 
             // we don't care about abstract, because it won't affect class bytecode.
             // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
-            if (className.isInnerClass && !result.isCanHotReload) {
-                logger.debug("class $className is inner class, no need to find effected classes")
-            } else {
-                changedMethodRef.addAll(result.effectMethods)
-                changedFieldRef.addAll(result.deletedFields)
-                if (result.isAddedAbstractMethodForNonAbstractClass) {
-                    changedAbstractClasses.add(newClassNode)
-                }
+            changedMethodRef.addAll(result.effectMethods)
+            changedFieldRef.addAll(result.deletedFields)
+            if (result.isAddedAbstractMethodForNonAbstractClass) {
+                changedAbstractClasses.add(newClassNode)
             }
         }
 
