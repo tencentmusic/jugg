@@ -43,7 +43,7 @@ interface IDeployDataDatabase {
                                   changedAbstractClasses: List<ClassNode>,
                                   ): Map<String, List<String>>
 
-    fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String>
+    fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>, newClassNodes: List<ClassNode>): List<String>
 }
 
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
@@ -231,8 +231,8 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String> {
-        if (classNodes.isEmpty()) {
+    override fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>, newClassNodes: List<ClassNode>): List<String> {
+        if (classNodes.isEmpty() && newClassNodes.isEmpty()) {
             return emptyList()
         }
 
@@ -240,8 +240,18 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val incrementalClassNodes = incDeployedDatabase.getClassNodes(classNodes.map { it.className })
         val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
 
-        val interfaceNames = database.values.flatMap {
-            it.findInterfacesWithDesugaredDefaultMethod(apkClassNodes)
+        val interfaceNames = mutableListOf<String>()
+        if (apkClassNodes.isNotEmpty()) {
+            val result = database.values.flatMap {
+                it.findInterfacesWithDesugaredDefaultMethod(apkClassNodes)
+            }
+            interfaceNames.addAll(result)
+        }
+        if (newClassNodes.isNotEmpty()) {
+            val result = database.values.flatMap {
+                it.findInterfacesWithDesugaredDefaultMethodForNewClasses(newClassNodes)
+            }
+            interfaceNames.addAll(result)
         }
 
         // we don't need to check deployed interfaces because we already handle it

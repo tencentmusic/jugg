@@ -6,6 +6,9 @@ import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
+import com.sickworm.intellij.jugg.deploy.interfaceNameFromDesugaredDefaultMethodClass
+import com.sickworm.intellij.jugg.deploy.isOfficialClassExceptAndroidX
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -907,6 +910,60 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             return result
         }
+    }
+
+    @Synchronized
+    fun findInterfacesWithDesugaredDefaultMethodForNewClasses(classNodes: List<ClassNode>): List<String> {
+        val checkedClasses = mutableSetOf<String>()
+
+        val result = mutableListOf<String>()
+
+        var toCheckInterfaces: List<String> = classNodes
+            .flatMap {
+                listOf(it.superClass) + it.interfaceNames
+            }.filter {
+                // don't filter android X classes because they may use default method.
+                // e.g. Landroidx/lifecycle/DefaultLifecycleObserver;
+                !it.isOfficialClassExceptAndroidX
+            }
+
+        runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethodForNewClasses") {
+            DriverManager.getConnection(url).use { connection ->
+                connection.createStatement().use { statement ->
+
+                    while (toCheckInterfaces.isNotEmpty()) {
+                        // find interfaces with desugared default method class which has suffix of "$-CC;"
+                        val defaultInterfaces = toCheckInterfaces.map { it.desugarDefaultInterfaceName }
+                        val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
+                        val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                        while (resultSet.next()) {
+                            val name = resultSet.getString(1)
+                            val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
+                            result.add(interfaceName)
+                        }
+                        checkedClasses.addAll(toCheckInterfaces)
+
+                        // find classes' super class and interfaces
+                        val toCheckInterfacesString = toCheckInterfaces.joinToString(",") { "'$it'" }
+                        val sql2 = "SELECT super_name, interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
+                        val newToCheckInterfaces = mutableSetOf<String>()
+                        val resultSet2: ResultSet = statement.executeQueryAndLog(sql2)
+                        while (resultSet2.next()) {
+                            val superClassName = resultSet.getString(1)
+                            val superInterfaceNames = resultSet.getString(2).toInterfaceList()
+                            newToCheckInterfaces.add(superClassName)
+                            newToCheckInterfaces.addAll(superInterfaceNames)
+                        }
+                        toCheckInterfaces = newToCheckInterfaces.filter {
+                            !checkedClasses.contains(it) && !it.isOfficialClassExceptAndroidX
+                        }
+                    }
+                }
+            }
+        }
+
+        return result
     }
 
     @Synchronized

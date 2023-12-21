@@ -101,7 +101,7 @@ class DeployDataGenerator(
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }
         val interfacesWithDesugaredDefaultMethod = if (isNeedCheckRecompile) {
-            deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(changedClasses.map { it.classNode })
+            deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(changedClasses.map { it.classNode }, newClasses.map { it.classNode })
         } else {
             emptyList()
         }
