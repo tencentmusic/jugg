@@ -80,10 +80,7 @@ class FetchOutputCommand(
     remoteToLocalClasspathPath: String,
 ) : IftSyncCommand() {
 
-    override val baseCommand: String = """\
-find_apk=${'$'}(find -name "$outputApkName" -print -quit) && \
-ft sync -s $remoteToLocalClasspathPath/ --put ${'$'}find_apk \
-"""
+    override val baseCommand: String = """find_apk=${'$'}(find -name "$outputApkName" -print -quit) && ft sync -s $remoteToLocalClasspathPath/ --put ${'$'}find_apk"""
 
 }
 
@@ -95,13 +92,7 @@ class FetchClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """\
-        |ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a \
-        |"-av --delete --prune-empty-dirs --include='*/' \
-        |$includeClasspathFilter \
-        |--exclude='*'" \
-        |"""
-        .trimMargin()
+    override val baseCommand: String get() = """ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a "-av --delete --prune-empty-dirs --include='*/' $includeClasspathFilter --exclude='*'" """
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
