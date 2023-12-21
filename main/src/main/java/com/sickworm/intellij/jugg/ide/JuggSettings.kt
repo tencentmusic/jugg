@@ -28,9 +28,9 @@ object JuggSettings {
     const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
 
     /** limit max source modules to compile for better performance */
-    const val maxCompileSourceModules = 10
+    const val maxCompileSourceModules = 20
     /** limit max source files to compile for better performance */
-    const val maxCompileSourceFiles = 30
+    const val maxCompileSourceFiles = 60
 
     /** whether deploy all res files to device after install apk */
     var isEnableWarmUpDeploy: Boolean = false
