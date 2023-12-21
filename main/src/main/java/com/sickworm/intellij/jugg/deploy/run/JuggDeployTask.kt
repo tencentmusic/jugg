@@ -60,9 +60,16 @@ class JuggDeployTask(
 
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
-        val logger = LogWrapper(logger).also {
-            it.alwaysLogAsDebug(true)
-            it.allowVerbose(true)
+        // only print warning and error
+        val logger = object : LogWrapper(logger) {
+            init {
+                alwaysLogAsDebug(false)
+                allowVerbose(true)
+            }
+
+            override fun info(msgFormat: String?, vararg args: Any?) {
+                verbose(msgFormat, *args)
+            }
         }
         val device = launchContext.device
         val printer = launchContext.consolePrinter
