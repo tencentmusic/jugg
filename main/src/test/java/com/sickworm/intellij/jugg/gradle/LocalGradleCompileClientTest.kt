@@ -59,8 +59,11 @@ class LocalGradleCompileClientTest {
     fun testCancel() {
         val localClient = LocalGradleCompileClient(project, logger)
         localClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
-            override fun onOutput(line: String) {
-                println(line)
+
+            override fun onOutput(line: String, isNeedPrint: Boolean) {
+                if (isNeedPrint) {
+                    println(line)
+                }
                 if (line.contains(":preBuild")) {
                     localClient.cancelAction(true)
                 }
