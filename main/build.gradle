@@ -12,7 +12,7 @@ test {
 
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
-version '1.1.11-SNAPSHOT'
+version '1.1.12-SNAPSHOT'
 
 sourceCompatibility = 11
 targetCompatibility = 11
@@ -33,6 +33,16 @@ intellij {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1> 
+<h2>1.1.12 (2023.12.22)</h2>
+<p>1. [feature] run configuration supports select template</p>
+<p>2. [feature] show confirm dialog when "No file changes"</p>
+<p>3. [optimize] increase "Too many changes" limit for gigantic project</p>
+<p>4. [optimize] no longer needs an android run configuration to run Jugg</p>
+<p>5. [optimize] waiting Jugg initializing finish before start a new compilation</p>
+<p>6. [optimize] UX: add more indicator state</p>
+<p>7. [bugfix] fix local gradle build failed by JAVA_HOME not correct</p>
+<p>8. [bugfix] fix NoSuchMethodError by effected class not found, after inner static class method / companion class method changed</p>
+<p>9. [bugfix] fix AbstractMethodError when new classes implement interface with default methods</p>
 <h2>1.1.11 (2023.12.13)</h2>
 <p>1. [feature] add "Restart App" button to MainToolbar</p>
 <p>2. [feature] supports multiple device deployment by choosing in device select box</p>
@@ -101,7 +111,7 @@ patchPluginXml.changeNotes = """
 <p>5. [bugfix] fix compilation failed after full build then gradle sync on remote mode. Try to guess base dir and resolve the missing classpath</p>
 <p>6. [bugfix] fix references missing after incremental update database, because of over-ranged deletion</p>
 <p>7. [bugfix] fix missing new files on reopening project</p>
-<h2>1.1.5</h2>
+<h2>1.1.5 (2023.10.25)</h2>
 <p>1. [feature] supports get effect source files when adding new abstract methods</p>
 <p>2. [optimize] won't deploy R.dex because R fields has been inlined, to improve deploy speed and compatibility</p>
 <p>3. [optimize] make Kotlin compilation error clickable in IDE by replacing relative path to absolute path</p>
