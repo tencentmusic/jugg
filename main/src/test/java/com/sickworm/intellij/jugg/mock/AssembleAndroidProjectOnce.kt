@@ -6,6 +6,7 @@ object AssembleAndroidProjectOnce {
 
     fun ensure() {
         if (!hasAssemble) {
+            GradleBuildHelper.clean()
             GradleBuildHelper.appAssembleDebug()
         }
         hasAssemble = true
