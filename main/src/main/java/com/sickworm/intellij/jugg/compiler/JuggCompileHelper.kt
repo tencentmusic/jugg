@@ -282,7 +282,7 @@ class JuggCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                return doIncrementalCompile(compiler, nextCompileFiles, processHandler, compiledFilesThisTime = undeployedFiles + compiledFilesThisTime)
+                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), processHandler, compiledFilesThisTime = undeployedFiles + compiledFilesThisTime)
             }
         }
 

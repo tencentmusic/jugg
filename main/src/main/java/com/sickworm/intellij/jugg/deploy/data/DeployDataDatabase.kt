@@ -242,7 +242,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val incrementalClassNodes = incDeployedDatabase.getClassNodes(classNodes.map { it.className })
         val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
 
-        val interfaceNames = mutableListOf<String>()
+        val interfaceNames = mutableSetOf<String>()
         if (apkClassNodes.isNotEmpty()) {
             val result = database.values.flatMap {
                 it.findInterfacesWithDesugaredDefaultMethod(apkClassNodes)
@@ -321,7 +321,7 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         return deployedOverlays.isNotEmpty()
     }
 
-    fun getClassNodes(classNames: List<String>): Map<String, ClassNode> {
+    fun getClassNodes(classNames: Collection<String>): Map<String, ClassNode> {
         return deployedClasses.filterKeys { classNames.contains(it) }
     }
 
