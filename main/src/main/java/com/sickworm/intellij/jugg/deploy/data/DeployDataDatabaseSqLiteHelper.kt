@@ -24,7 +24,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 6
+        private const val VERSION = 7
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -242,13 +242,27 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 return@runWithTimeCost
             }
 
-            val deleteDexNamesString = deleteDexNames.keys.joinToString(",") { "'$it'"}
-            val refClassNames = parsedApk.methodRefs.values.flatten() + parsedApk.fieldRefs.values.flatten()
-            val refClassNamesString = refClassNames.joinToString(",") { "'$it'"}
+            val refClassNames = mutableSetOf<String>()
+            parsedApk.methodRefs.keys.forEach {
+                refClassNames.add(it.owner)
+            }
+            parsedApk.fieldRefs.keys.forEach {
+                refClassNames.add(it.owner)
+            }
+            parsedApk.subclassRefs.keys.forEach {
+                refClassNames.add(it)
+            }
+            parsedApk.defaultMethodInvokeRefs.keys.forEach {
+                refClassNames.add(it)
+            }
+            logger.debug("doGetClassInfo deleteDexNames: ${deleteDexNames.size}, refClassNames: ${refClassNames.size}")
+
             val selectClassSQL = if (deleteDexNames.size + refClassNames.size > 10000) {
                 // query performance optimize
                 "SELECT name, entry_info_name, id FROM class_info;"
             } else {
+                val deleteDexNamesString = deleteDexNames.keys.joinToString(",") { "'$it'"}
+                val refClassNamesString = refClassNames.joinToString(",") { "'$it'"}
                 "SELECT name, entry_info_name, id FROM class_info WHERE (entry_info_name IN ($deleteDexNamesString)) OR (name IN ($refClassNamesString));"
             }
             connection.createStatement().use { statement ->
