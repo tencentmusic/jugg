@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
+import com.googlecode.d2j.DexConstants
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
 import com.jetbrains.rd.util.first
@@ -216,6 +217,9 @@ data class ParsedDex(
     val subclassRefs: Map<String, List<String>>,
     val defaultMethodInvokeRefs: Map<String, List<String>>,
 ) {
+
+    val staticMethodRefs get() = methodRefs.filter { it.key.access and DexConstants.ACC_STATIC != 0 }
+
     companion object {
         val EMPTY = ParsedDex(emptyList(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
     }

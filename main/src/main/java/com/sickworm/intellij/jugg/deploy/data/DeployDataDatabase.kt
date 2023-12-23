@@ -43,7 +43,9 @@ interface IDeployDataDatabase {
                                   changedAbstractClasses: List<ClassNode>,
                                   ): Map<String, List<String>>
 
-    fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>, newClassNodes: List<ClassNode>): List<String>
+    fun findInterfacesWithDesugaredDefaultMethod(
+        classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>,
+    ): List<String>
 }
 
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
@@ -232,10 +234,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>, newClassNodes: List<ClassNode>): List<String> {
-        if (classNodes.isEmpty() && newClassNodes.isEmpty()) {
-            return emptyList()
-        }
+    override fun findInterfacesWithDesugaredDefaultMethod(
+        classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>,
+    ): List<String> {
 
         // we don't need to check deployed class node because we already handle it
         val incrementalClassNodes = incDeployedDatabase.getClassNodes(classNodes.map { it.className })
@@ -248,9 +249,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             }
             interfaceNames.addAll(result)
         }
-        if (newClassNodes.isNotEmpty()) {
+        if (newClassNodes.isNotEmpty() || invokeStaticRefClassNames.isNotEmpty()) {
             val result = database.values.flatMap {
-                it.findInterfacesWithDesugaredDefaultMethodForNewClasses(newClassNodes)
+                it.findInterfacesWithDesugaredDefaultMethodForRefs(newClassNodes, invokeStaticRefClassNames)
             }
             interfaceNames.addAll(result)
         }

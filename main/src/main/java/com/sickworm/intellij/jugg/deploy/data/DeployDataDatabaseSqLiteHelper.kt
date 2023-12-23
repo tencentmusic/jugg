@@ -7,6 +7,7 @@ import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceSuffix
 import com.sickworm.intellij.jugg.deploy.interfaceNameFromDesugaredDefaultMethodClass
 import com.sickworm.intellij.jugg.deploy.isOfficialClassExceptAndroidX
 import java.io.File
@@ -897,7 +898,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
                 connection.createStatement().use { statement ->
                     val classIdsString = classIds.joinToString(",")
-                    val sql = "SELECT class_id FROM default_method_invoke_refs WHERE ref_class_id IN ($classIdsString);"
+                    val sql = "SELECT ref_class_id FROM default_method_invoke_refs WHERE class_id IN ($classIdsString);"
                     val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                     while (resultSet.next()) {
                         val classId = resultSet.getInt(1)
@@ -927,7 +928,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun findInterfacesWithDesugaredDefaultMethodForNewClasses(classNodes: List<ClassNode>): List<String> {
+    fun findInterfacesWithDesugaredDefaultMethodForRefs(classNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>): List<String> {
         val checkedClasses = mutableSetOf<String>()
 
         val result = mutableListOf<String>()
@@ -941,9 +942,29 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 !it.isOfficialClassExceptAndroidX
             }
 
-        runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethodForNewClasses") {
+        runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs") {
             DriverManager.getConnection(url).use { connection ->
                 connection.createStatement().use { statement ->
+
+                    if (invokeStaticRefClassNames.isNotEmpty()) {
+                        // find interfaces with desugared default method class which has suffix of "$-CC;"
+                        val defaultInterfaces = invokeStaticRefClassNames.map {
+                            if (it.endsWith(desugarDefaultInterfaceSuffix)) {
+                                it
+                            } else {
+                                it.desugarDefaultInterfaceName
+                            }
+                        }
+                        val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
+                        val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                        while (resultSet.next()) {
+                            val name = resultSet.getString(1)
+                            val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
+                            result.add(interfaceName)
+                        }
+                        checkedClasses.addAll(toCheckInterfaces)
+                    }
 
                     while (toCheckInterfaces.isNotEmpty()) {
                         // find interfaces with desugared default method class which has suffix of "$-CC;"
