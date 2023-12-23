@@ -4,7 +4,9 @@ import com.android.tools.deployer.*
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.model.ApkParser
 import com.android.tools.deployer.model.App
+import com.android.tools.idea.execution.common.DeployableToDevice
 import com.android.utils.ILogger
+import com.intellij.execution.configurations.RunConfigurationBase
 import java.nio.file.Path
 
 /**
@@ -29,5 +31,9 @@ open class IguanaAsDeployerCompat: HedgehogAsDeployerCompat() {
 
     override fun parseApks(paths: List<String>): List<Apk> {
         return ApkParser.parsePaths(paths)
+    }
+
+    override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
+        runConfiguration.putUserData(DeployableToDevice.KEY, true)
     }
 }

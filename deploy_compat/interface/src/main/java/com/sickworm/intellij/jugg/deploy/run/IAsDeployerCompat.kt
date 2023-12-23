@@ -8,6 +8,7 @@ import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.run.*
 import com.android.utils.ILogger
+import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 
@@ -56,6 +57,8 @@ interface IAsDeployerCompat {
     fun getDeploymentService(project: Project): DeploymentService
 
     fun parseApks(paths: List<String>): List<Apk>
+
+    fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>)
 
     fun getModuleManager(project: Project): ModuleManager {
         // ModuleManager rewrite by Kotlin after Android Studio Giraffe

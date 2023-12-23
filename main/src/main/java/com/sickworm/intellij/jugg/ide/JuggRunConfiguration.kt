@@ -14,7 +14,8 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
-import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import javax.swing.JComponent
 
 /**
@@ -29,7 +30,12 @@ class JuggRunConfiguration(
     private val editor = JuggSettingsEditor()
 
     init {
-        putUserData(DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE, true)
+        try {
+            AsDeployerCompat.setAllowSelectDevice(this)
+        } catch (e: Exception) {
+            JuggLogger.getInstance(project, "JuggRunConfiguration")
+                .warn("Failed to set allow select device: ${e.message}");
+        }
     }
 
     override fun getType(): ConfigurationType {

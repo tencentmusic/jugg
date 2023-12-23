@@ -10,6 +10,7 @@ import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
+import com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.run.util.DebuggerRedefiner
@@ -230,5 +231,9 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun parseApks(paths: List<String>): List<Apk> {
         return ApkParser().parsePaths(paths)
+    }
+
+    override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
+        runConfiguration.putUserData(DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE, true)
     }
 }

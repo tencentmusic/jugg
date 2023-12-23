@@ -9,6 +9,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.DeploymentService
 import com.android.utils.ILogger
+import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -178,6 +179,10 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun parseApks(paths: List<String>): List<Apk> {
         return impl.parseApks(paths)
+    }
+
+    override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
+        return impl.setAllowSelectDevice(runConfiguration)
     }
 }
 
