@@ -881,7 +881,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
 
     @Synchronized
-    fun findInterfacesWithDesugaredDefaultMethod(classNodes: List<ClassNode>): List<String> {
+    fun findRefsOfDefaultMethodWhenImplChanged(classNodes: List<ClassNode>): List<String> {
         DriverManager.getConnection(url).use { connection ->
 
             val classIds = mutableListOf<Int>()
@@ -931,7 +931,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun findInterfacesWithDesugaredDefaultMethodForRefs(classNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>): List<String> {
+    fun findRefsOfDesugaredDefaultMethod(classNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>): List<String> {
         val checkedClasses = mutableSetOf<String>()
 
         val result = mutableListOf<String>()

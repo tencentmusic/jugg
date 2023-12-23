@@ -245,13 +245,13 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val interfaceNames = mutableSetOf<String>()
         if (apkClassNodes.isNotEmpty()) {
             val result = database.values.flatMap {
-                it.findInterfacesWithDesugaredDefaultMethod(apkClassNodes)
+                it.findRefsOfDefaultMethodWhenImplChanged(apkClassNodes)
             }
             interfaceNames.addAll(result)
         }
         if (newClassNodes.isNotEmpty() || invokeStaticRefClassNames.isNotEmpty()) {
             val result = database.values.flatMap {
-                it.findInterfacesWithDesugaredDefaultMethodForRefs(newClassNodes, invokeStaticRefClassNames)
+                it.findRefsOfDesugaredDefaultMethod(newClassNodes, invokeStaticRefClassNames)
             }
             interfaceNames.addAll(result)
         }
