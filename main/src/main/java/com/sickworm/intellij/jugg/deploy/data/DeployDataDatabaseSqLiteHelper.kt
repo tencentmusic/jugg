@@ -942,10 +942,10 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 !it.isOfficialClassExceptAndroidX
             }
 
-        runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs") {
-            DriverManager.getConnection(url).use { connection ->
-                connection.createStatement().use { statement ->
+        DriverManager.getConnection(url).use { connection ->
+            connection.createStatement().use { statement ->
 
+                runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs1") {
                     if (invokeStaticRefClassNames.isNotEmpty()) {
                         // find interfaces with desugared default method class which has suffix of "$-CC;"
                         val defaultInterfaces = invokeStaticRefClassNames.map {
@@ -955,17 +955,24 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                                 it.desugarDefaultInterfaceName
                             }
                         }
-                        val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
-                        val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
-                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                        while (resultSet.next()) {
-                            val name = resultSet.getString(1)
-                            val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
-                            result.add(interfaceName)
-                        }
-                        checkedClasses.addAll(toCheckInterfaces)
-                    }
+                        .distinct()
 
+                        defaultInterfaces.chunked(10000).forEach { subDefaultInterfaces ->
+                            val defaultInterfacesString = subDefaultInterfaces
+                                .joinTo(StringBuilder(subDefaultInterfaces.size * 60), ",") { "'$it'" }.toString()
+                            val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
+                            val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                            while (resultSet.next()) {
+                                val name = resultSet.getString(1)
+                                val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
+                                result.add(interfaceName)
+                            }
+                            checkedClasses.addAll(toCheckInterfaces)
+                        }
+                    }
+                }
+
+                runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs2") {
                     while (toCheckInterfaces.isNotEmpty()) {
                         // find interfaces with desugared default method class which has suffix of "$-CC;"
                         val defaultInterfaces = toCheckInterfaces.map { it.desugarDefaultInterfaceName }
