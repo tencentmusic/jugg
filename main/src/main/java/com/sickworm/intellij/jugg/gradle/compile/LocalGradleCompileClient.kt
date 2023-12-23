@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.Sdk
@@ -128,7 +127,7 @@ class LocalGradleCompileClient(
 
         val envArray: MutableList<String> = System.getenv().entries
             .filter {
-                it.key == "JAVA_HOME" || it.key == "ANDROID_HOME"
+                it.key != "JAVA_HOME" || it.key != "ANDROID_HOME"
             }
             .map {
                 "${it.key}=${it.value}"
@@ -140,6 +139,7 @@ class LocalGradleCompileClient(
         if (androidHomePath != null) {
             envArray.add("ANDROID_HOME=$androidHomePath")
         }
+        logger.debug("input env: $envArray")
 
         val commandString = command.getCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
         logger.debug("invoke command: $commandString")
