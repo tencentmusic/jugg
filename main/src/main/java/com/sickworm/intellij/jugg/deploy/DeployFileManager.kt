@@ -294,6 +294,9 @@ class DeployFileManager(
         val startTime = System.currentTimeMillis()
         val interfaceRelativePaths = interfaceNames.map {
             it.classNameToPath
+        }.filter {
+            // ExternalSyntheticLambda is desugar inner class, just redex main class file is enough
+            !it.contains("\$ExternalSyntheticLambda")
         }.toMutableList()
         logger.debug("getDesugarInterfaceWithDefaultMethodFiles: interfaceRelativePaths $interfaceRelativePaths")
 
