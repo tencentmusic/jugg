@@ -805,15 +805,18 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     dbClassNodeMap.containsKey(it.owner)
                 }
                 if (fieldClassIds.isNotEmpty()) {
-                    val fieldClassIdsString = fieldClassIds.joinToString(" OR ") {
-                        "(class_id=${dbClassNodeMap[it.owner]!!} AND name='${it.name}' AND type='${it.type}')"
-                    }
-                    val sql2 = "SELECT ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
-                    connection.createStatement().use { statement ->
-                        val resultSet: ResultSet = statement.executeQueryAndLog(sql2)
-                        while (resultSet.next()) {
-                            val classId = resultSet.getInt(1)
-                            refClassIds.add(classId)
+                    // avoid Exception: [SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))
+                    fieldClassIds.chunked(900).forEach { fieldNode ->
+                        val fieldClassIdsString = fieldNode.joinToString(" OR ") {
+                            "(class_id=${dbClassNodeMap[it.owner]!!} AND name='${it.name}' AND type='${it.type}')"
+                        }
+                        val sql2 = "SELECT ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
+                        connection.createStatement().use { statement ->
+                            val resultSet: ResultSet = statement.executeQueryAndLog(sql2)
+                            while (resultSet.next()) {
+                                val classId = resultSet.getInt(1)
+                                refClassIds.add(classId)
+                            }
                         }
                     }
                 }
