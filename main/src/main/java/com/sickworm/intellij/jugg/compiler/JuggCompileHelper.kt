@@ -263,7 +263,8 @@ class JuggCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles + compiledFilesThisTime)
+            val isRecompilation = compiledFilesThisTime.isNotEmpty()
+            val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles + compiledFilesThisTime, isRecompilation)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()

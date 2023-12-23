@@ -45,6 +45,7 @@ interface IDeployDataDatabase {
 
     fun findInterfacesWithDesugaredDefaultMethod(
         classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>,
+        isRecompilation: Boolean,
     ): List<String>
 }
 
@@ -235,7 +236,10 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun findInterfacesWithDesugaredDefaultMethod(
-        classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>,
+        classNodes: List<ClassNode>,
+        newClassNodes: List<ClassNode>,
+        invokeStaticRefClassNames: List<String>,
+        isRecompilation: Boolean,
     ): List<String> {
 
         // we don't need to check deployed class node because we already handle it
@@ -243,7 +247,8 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
 
         val interfaceNames = mutableSetOf<String>()
-        if (apkClassNodes.isNotEmpty()) {
+        if (apkClassNodes.isNotEmpty() && !isRecompilation) {
+            // we don't need to redex invoker of default method if it's recompilation (no changes)
             val result = database.values.flatMap {
                 it.findRefsOfDefaultMethodWhenImplChanged(apkClassNodes)
             }

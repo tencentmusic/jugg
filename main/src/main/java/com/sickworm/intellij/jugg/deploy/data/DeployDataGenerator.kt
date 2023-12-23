@@ -27,18 +27,24 @@ class DeployDataGenerator(
     /**
      * Build [JuggDeployData] according to deployment history.
      */
-    fun buildDeployData(items: List<DeployItem>, isWarmUp: Boolean = false, isNeedCheckRecompile: Boolean = true): JuggDeployData {
+    fun buildDeployData(
+        items: List<DeployItem>,
+        isWarmUp: Boolean = false,
+        isNeedCheckRecompile: Boolean = true,
+        isRecompilation: Boolean = false,
+    ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
-        return buildDeployData(parsedDex, changedOverlays, isWarmUp, isNeedCheckRecompile)
+        return buildDeployData(parsedDex, changedOverlays, isWarmUp, isNeedCheckRecompile, isRecompilation)
     }
 
     @TestOnly
     fun buildDeployData(parsedDex: ParsedDex,
                         changedOverlays: List<DeployItem>,
                         isWarmUp: Boolean = false,
-                        isNeedCheckRecompile: Boolean = true
+                        isNeedCheckRecompile: Boolean = true,
+                        isRecompilation: Boolean = false,
     ): JuggDeployData {
         val startTime = System.currentTimeMillis()
 
@@ -105,6 +111,7 @@ class DeployDataGenerator(
                 changedClasses.map { it.classNode },
                 newClasses.map { it.classNode },
                 parsedDex.staticMethodRefs.map { it.key.owner },
+                isRecompilation,
             )
         } else {
             emptyList()
