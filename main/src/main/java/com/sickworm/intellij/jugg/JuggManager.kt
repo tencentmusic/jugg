@@ -180,16 +180,6 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun processFileChanged(changedFiles: List<File>) {
-        fileChangesHandler.checkBuildFileChanged(changedFiles)
-            .takeIf { (isChanged, _) ->
-                isChanged
-            }
-            ?.let { (_, changedWhat) ->
-                deployStateManager.isBuildFileChanged = true
-                deployStateManager.whatBuildFileChanged = changedWhat
-                logger.warn("build file changed, need rebuild")
-            }
-
         val deletedFiles = changedFiles.filter { !it.exists() }
         if (deletedFiles.isNotEmpty()) {
             deployFileManager.removeChangedFile(deletedFiles)
@@ -201,6 +191,14 @@ class JuggManager @TestOnly constructor(
         }
         if (realChangedFiles.isEmpty()) {
             return
+        }
+        val buildFile = realChangedFiles.find {
+            it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+        }
+        if (buildFile != null) {
+            deployStateManager.isBuildFileChanged = true
+            deployStateManager.whatBuildFileChanged = buildFile.file.name
+            logger.warn("build file changed, need rebuild")
         }
 
         deployFileManager.addChangedFile(realChangedFiles)

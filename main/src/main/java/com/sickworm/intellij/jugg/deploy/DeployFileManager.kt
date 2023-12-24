@@ -82,6 +82,7 @@ class DeployFileManager(
             uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
             compiledFiles.remove(it.file.stdPath)
         }
+
         sourceFileManager.updateFiles(newFiles, emptyList())
     }
 
@@ -379,6 +380,7 @@ class DeployFileManager(
         return redexClassesFiles
     }
 
+    // I have forgotten why I need both stdAbsPath and stdPath, but it seems to be ok to use stdAbsPath only.
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
 }
 

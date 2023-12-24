@@ -16,8 +16,6 @@ interface IFileChangesHandler {
      */
     fun filter(file: List<File>): List<ChangedFile>
 
-    fun checkBuildFileChanged(files: List<File>): Pair<Boolean, String>
-
 }
 
 data class ChangedFile(
@@ -29,6 +27,8 @@ data class ChangedFile(
 ) {
 
     val hasCompiledOnce: Boolean get() = compiledTimes > 0
+
+    val isSourceFile: Boolean get() = type.isSourceFile
 
     override fun toString(): String {
         return """

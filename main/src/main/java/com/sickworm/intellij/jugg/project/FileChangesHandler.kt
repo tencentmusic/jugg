@@ -55,6 +55,23 @@ class FileChangesHandler(
             return null
         }
 
+        checkBuildGradle(file)?.let {
+            return it
+        }
+        checkBuildProperties(file)?.let {
+            return it
+        }
+        checkAndroidManifest(file)?.let {
+            return it
+        }
+        checkSource(file)?.let {
+            return it
+        }
+
+        return null
+    }
+
+    private fun checkSource(file: File): ChangedFile? {
         getModules().forEach { module ->
             val baseSourceDir = module.sourceDirs.find {
                 file.path.startsWith(it.path)
@@ -85,103 +102,90 @@ class FileChangesHandler(
         return null
     }
 
-    override fun checkBuildFileChanged(files: List<File>): Pair<Boolean, String> {
-        if (checkBuildGradleChanged(files)) {
-            return true to "build.gradle"
+    private fun checkBuildGradle(file: File): ChangedFile? {
+        val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
+        if (!isGradleFile) {
+            return null
         }
 
-        checkBuildPropertiesChanged(files)
-            .takeIf { it.first }
-            ?.let { return it }
-
-        if (checkAndroidManifestChanged(files)) {
-            return true to "AndroidManifest.xml"
-        }
-
-        return false to ""
-    }
-
-    private fun checkBuildGradleChanged(files: List<File>): Boolean {
-        var isBuildGradleChanged = false
-        files.forEach { file ->
-            val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
-            if (!isGradleFile) {
-                return@forEach
-            }
-
-            val projectRootDir = getProjectRootDir()
-            if (projectRootDir != null && file.isChild(projectRootDir)) {
+        getModules().forEach inner@{ module ->
+            val moduleRootDir = module.moduleRootDir
+            if (file.isChild(moduleRootDir)) {
                 logger.info("Detect gradle file changed: $file")
-                isBuildGradleChanged = true
-                return@forEach
-            }
-            getModules().forEach inner@{ module ->
-                val moduleRootDir = module.moduleRootDir
-                if (file.isChild(moduleRootDir)) {
-                    logger.info("Detect gradle file changed: $file")
-                    isBuildGradleChanged = true
-                    return@forEach
-                }
+                return ChangedFile(
+                    CompileFile.Type.Gradle,
+                    file,
+                    moduleRootDir,
+                    module
+                )
             }
         }
-        return isBuildGradleChanged
-    }
 
-    private fun checkBuildPropertiesChanged(files: List<File>): Pair<Boolean, String> {
-        var changedFileName = ""
-        files.forEach { file ->
-            val isPropertiesFile = (file.name == "local.properties") || (file.name == "gradle.properties")
-            if (!isPropertiesFile) {
-                return@forEach
-            }
-
-            val projectRootDir = getProjectRootDir()
-            if (projectRootDir != null && file.parentFile.absolutePath == projectRootDir.absolutePath) {
-                logger.info("Detect properties file changed: $file")
-                changedFileName = file.name
-                return@forEach
-            }
+        val projectRootDir = getProjectRootDir()
+        if (projectRootDir != null && file.isChild(projectRootDir)) {
+            logger.info("Detect gradle file changed: $file")
+            return ChangedFile(
+                CompileFile.Type.Gradle,
+                file,
+                projectRootDir,
+                ModuleInfo.virtualModule
+            )
         }
-        return changedFileName.isNotEmpty() to changedFileName
+
+        return null
+    }
+
+    private fun checkBuildProperties(file: File): ChangedFile? {
+        val isPropertiesFile = (file.name == "local.properties") || (file.name == "gradle.properties")
+        if (!isPropertiesFile) {
+            return null
+        }
+
+        val projectRootDir = getProjectRootDir()
+        if (projectRootDir != null && file.parentFile.absolutePath == projectRootDir.absolutePath) {
+            logger.info("Detect properties file changed: $file")
+            return ChangedFile(
+                CompileFile.Type.Gradle,
+                file,
+                projectRootDir,
+                ModuleInfo.virtualModule,
+            )
+        }
+
+        return null
     }
 
 
-    private fun checkAndroidManifestChanged(files: List<File>): Boolean {
-        var isAndroidManifestChanged = false
-        files.forEach { file ->
-            val isAndroidManifest = file.name == "AndroidManifest.xml"
-            if (!isAndroidManifest) {
-                return@forEach
-            }
-            val isInJuggDir = file.isChild(juggRootDir)
-            if (isInJuggDir) {
-                return@forEach
-            }
+    private fun checkAndroidManifest(file: File): ChangedFile? {
+        val isAndroidManifest = file.name == "AndroidManifest.xml"
+        if (!isAndroidManifest) {
+            return null
+        }
+        val isInJuggDir = file.isChild(juggRootDir)
+        if (isInJuggDir) {
+            return null
+        }
 
-            getModules().forEach inner@{ module ->
+        getModules().forEach inner@{ module ->
+            val moduleRootDir = module.moduleRootDir
+            if (file.isChild(moduleRootDir)) {
                 val moduleBuildDir = module.buildPathInfo.buildDir
                 if (file.isChild(moduleBuildDir)) {
                     // AndroidManifest.xml in build dir is generated by gradle, ignore
-                    return@forEach
+                    return null
                 }
-            }
 
-            val projectRootDir = getProjectRootDir()
-            if (projectRootDir != null && file.isChild(projectRootDir)) {
                 logger.info("Detect AndroidManifest.xml changed: $file")
-                isAndroidManifestChanged = true
-                return@forEach
-            }
-            getModules().forEach inner@{ module ->
-                val moduleRootDir = module.moduleRootDir
-                if (file.isChild(moduleRootDir)) {
-                    logger.info("Detect AndroidManifest.xml changed: $file")
-                    isAndroidManifestChanged = true
-                    return@forEach
-                }
+                return ChangedFile(
+                    CompileFile.Type.AndroidManifest,
+                    file,
+                    moduleRootDir,
+                    module
+                )
             }
         }
-        return isAndroidManifestChanged
+
+        return null
     }
 
     private fun getProjectRootDir(): File? {

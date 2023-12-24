@@ -97,7 +97,14 @@ data class CompileFile(
         Asset,
         Resource,
         Flat,
-        Dex;
+        Dex,
+        Gradle,
+        AndroidManifest,
+        ;
+
+        val isSourceFile: Boolean get() {
+            return this == Java || this == Kotlin || this == Asset || this == Resource
+        }
     }
 }
 
@@ -116,6 +123,8 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.Resource -> "resource"
                     CompileFile.Type.Flat -> "flat"
                     CompileFile.Type.Dex -> "dex"
+                    CompileFile.Type.Gradle -> "gradle"
+                    CompileFile.Type.AndroidManifest -> "manifest"
                 }
                 return@groupBy type
             }
