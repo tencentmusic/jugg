@@ -57,7 +57,7 @@ class DeployFileManager(
      */
     private val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)
 
-    private var moduleInfos: Map<String, ModuleInfo> = mutableMapOf()
+    private var moduleInfos: Map<String, ModuleInfo> = emptyMap()
 
     @Synchronized
     fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>, resetFilesBeforeTimeMill: Long?) {
