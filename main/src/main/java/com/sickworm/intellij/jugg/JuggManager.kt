@@ -65,11 +65,11 @@ class JuggManager @TestOnly constructor(
     fun init() {
         Disposer.register(this, juggCompilerHelper)
         runTaskSafe("Init Jugg", {
-            logger.info("Create run configuration...")
-            createDefaultRunConfigurationIfNoneExist()
             JuggRunningTask.resetHasRun(project)
             logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
+            logger.info("Create run configuration...")
+            createDefaultRunConfigurationIfNoneExist()
             logger.info("Start jugg finished.")
 
             if (!AsDeployerCompat.isSupportsSyncCallback()) {
