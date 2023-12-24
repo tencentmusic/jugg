@@ -249,13 +249,7 @@ class JuggManager @TestOnly constructor(
         val initIncrementalCompileTask = task@{
             // do it async
             fun action() {
-                deployStateManager.isInitializingIncrementalCompile = true
-                try {
-                    initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
-                } catch (e: Exception) {
-                    logger.warn("initIncrementalCompileAfterFullBuild failed", e)
-                }
-                deployStateManager.isInitializingIncrementalCompile = false
+                initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
@@ -412,6 +406,7 @@ class JuggManager @TestOnly constructor(
 
                     try {
                         logger.debug("job <$jobName> start")
+                        deployStateManager.isInitializingIncrementalCompile = true
                         if (isNeedShowIndicator) {
                             indicator.text = "Jugg: $jobName..."
                             indicator.isIndeterminate = true
@@ -425,6 +420,7 @@ class JuggManager @TestOnly constructor(
                         reportEventData.detail = e.message ?: e.cause?.message ?: ""
                         reportEventData.isSuccess = false
                     } finally {
+                        deployStateManager.isInitializingIncrementalCompile = false
                         if (isNeedShowIndicator) {
                             indicator.stop()
                             currentIndicator = null
