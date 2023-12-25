@@ -162,6 +162,46 @@ class DeployDataGeneratorTest {
         ).sorted(),
             deployData.desugaredInterfacesWithDefaultMethods.sorted()
         )
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Java,
+                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass1.java"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    mockModule,
+                )
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        deployData = generator.buildDeployData(deployItems)
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
+    }
+
+    @Test
+    fun testFixDefaultMethodWithCompile() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Java,
+                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass1.java"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    mockModule,
+                )
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
     }
 
     @Test

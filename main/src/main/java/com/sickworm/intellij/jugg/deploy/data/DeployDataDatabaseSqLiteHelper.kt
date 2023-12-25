@@ -897,11 +897,25 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
+            // find out subclasses of interface with default methods
             val resultIds = mutableListOf<Int>()
             runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
                 connection.createStatement().use { statement ->
                     val classIdsString = classIds.joinToString(",")
                     val sql = "SELECT ref_class_id FROM default_method_invoke_refs WHERE class_id IN ($classIdsString);"
+                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                    while (resultSet.next()) {
+                        val classId = resultSet.getInt(1)
+                        resultIds.add(classId)
+                    }
+                }
+            }
+
+            // find out interfaces with default methods which are invokes by classes
+            runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod2") {
+                connection.createStatement().use { statement ->
+                    val classIdsString = classIds.joinToString(",")
+                    val sql = "SELECT class_id FROM default_method_invoke_refs WHERE ref_class_id IN ($classIdsString);"
                     val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                     while (resultSet.next()) {
                         val classId = resultSet.getInt(1)
@@ -948,6 +962,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
 
+                // find out classes with invocation of interface static method
                 runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs1") {
                     if (invokeStaticRefClassNames.isNotEmpty()) {
                         // find interfaces with desugared default method class which has suffix of "$-CC;"
@@ -975,6 +990,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
 
+                // find out classes implements interface with default method (only new classes is needed, old classes can be found by findRefsOfDefaultMethodWhenImplChanged)
                 runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs2") {
                     while (toCheckInterfaces.isNotEmpty()) {
                         // find interfaces with desugared default method class which has suffix of "$-CC;"
