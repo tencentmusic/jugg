@@ -27,7 +27,34 @@ class ResourceCompiler(
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     override fun doCompile(task: CompileTask): CompileResult {
-        val outputDir = task.outputDir.absolutePath
+        val filePathNames = mutableSetOf<String>()
+        var isNeedSplitModule = false
+        task.files.forEach {
+            val filePathName = it.file.parentFile!!.name + "_" + it.file.nameWithoutExtension
+            if (filePathNames.contains(filePathName)) {
+                isNeedSplitModule = true
+                return@forEach
+            }
+            filePathNames.add(filePathName)
+        }
+
+        logger.debug("isNeedSplitModule: $isNeedSplitModule")
+        return if (isNeedSplitModule) {
+            super.doCompile(task)
+        } else {
+            aapt2Compile(task)
+        }
+    }
+
+    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
+        return aapt2Compile(task, module.name)
+    }
+
+    private fun aapt2Compile(task: CompileTask, moduleName: String = ""): CompileResult {
+        val subDir = if (moduleName.isEmpty()) "" else "$moduleName/"
+        val outputDir = task.outputDir.absolutePath + "/" + subDir
+        File(outputDir).mkdirs()
+
         val filesString = task.files.joinToString(" ") {
             it.file.absolutePath
         }
@@ -50,8 +77,8 @@ class ResourceCompiler(
             val extension = if (folderName.startsWith("values")) "arsc"
             else it.file.extension
             val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
-            val outputFile = File(task.outputDir, fileName)
-            val output = CompileOutput(CompileOutput.Type.Res, outputFile, task.outputDir)
+            val outputFile = File(outputDir, fileName)
+            val output = CompileOutput(CompileOutput.Type.Res, outputFile, File(outputDir))
             val detail: Result<CompileFile, CompileError> =
                 if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(it)
@@ -67,11 +94,6 @@ class ResourceCompiler(
             detailsAndOutputs.map { it.first },
             detailsAndOutputs.filter { it.first.isSuccess }.map { it.second }
         )
-    }
-
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        // no need to implement
-        return CompileResult(task, emptyList(), emptyList())
     }
 
     override fun dispose() {
