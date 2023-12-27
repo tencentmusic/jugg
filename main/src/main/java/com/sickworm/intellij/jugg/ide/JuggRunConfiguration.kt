@@ -30,12 +30,7 @@ class JuggRunConfiguration(
     private val editor = JuggSettingsEditor()
 
     init {
-        try {
-            AsDeployerCompat.setAllowSelectDevice(this)
-        } catch (e: Exception) {
-            JuggLogger.getInstance(project, "JuggRunConfiguration")
-                .warn("Failed to set allow select device: ${e.message}");
-        }
+        AsDeployerCompat.setAllowSelectDevice(this)
     }
 
     override fun getType(): ConfigurationType {

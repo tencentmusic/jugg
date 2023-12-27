@@ -182,7 +182,14 @@ object AsDeployerCompat : IAsDeployerCompat {
     }
 
     override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
-        return impl.setAllowSelectDevice(runConfiguration)
+        // special api, call before project init, we just loop all impl
+        compatImplList.forEach {
+            try {
+                it.impl.value.setAllowSelectDevice(runConfiguration)
+            } catch (e: Throwable) {
+                // do nothing
+            }
+        }
     }
 }
 
