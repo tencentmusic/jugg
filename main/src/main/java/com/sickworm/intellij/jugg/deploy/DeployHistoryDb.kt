@@ -213,6 +213,84 @@ class DeployHistoryDb(
         })
     }
 
+    fun filterUnchangedFiles(files: List<File>): List<File> {
+        if (!isAvailable) {
+            logger.debug("filterUnchangedFiles failed, Git not init in this project.")
+            return files
+        }
+
+        val deployHistoryData = DeployHistoryData.load(deployHistoryFile) ?: run {
+            logger.debug("filterUnchangedFiles failed, Project has no deployment history.")
+            return files
+        }
+
+        val gitFileMap = mutableMapOf<String, MutableList<File>>()
+        val gitCommitMap = mutableMapOf<String, String>()
+
+        if (deployHistoryData.fullCompileGitCommitHash == null) {
+            logger.debug("filterUnchangedFiles failed, Project has no full compile history.")
+            return files
+        }
+        gitFileMap[projectDir.absolutePath] = mutableListOf()
+        gitCommitMap[projectDir.absolutePath] = deployHistoryData.fullCompileGitCommitHash
+
+        deployHistoryData.subModulesFullCompileGitCommitHash?.firstNotNullOfOrNull { (subDir, subCommitHash) ->
+            if (subCommitHash == null) {
+                logger.debug("filterUnchangedFiles failed, subCommitHash is null, which should not happen.")
+                return@firstNotNullOfOrNull false
+            }
+            gitCommitMap[subDir] = subCommitHash
+            gitFileMap[subDir] = mutableListOf()
+        }
+
+        val unchangedFiles = mutableListOf<File>()
+        files.forEach { file ->
+            val path = file.relativeTo(projectDir).path
+            val fileCrc = deployHistoryData.changedFiles?.get(path)
+
+            val isOnUncommittedFileList = fileCrc != null
+            if (isOnUncommittedFileList) {
+                val newCrc = file.crc32
+                if (fileCrc != newCrc) {
+                    // file changed, don't put it in gitFileMap
+                    return@forEach
+                } else {
+                    // file not changed
+                    unchangedFiles.add(file)
+                    return@forEach
+                }
+            }
+
+
+            // file not in records, use git to check it later
+            gitFileMap.forEach { (projectDir, list) ->
+                if (file.isChild(File(projectDir))) {
+                    list.add(file)
+                }
+            }
+        }
+
+        gitFileMap.forEach { (projectDir, files) ->
+            if (files.isEmpty()) {
+                return@forEach
+            }
+
+            val gitManager = GitManager.createGitManagerAndTrySearchParent(File(projectDir))
+            logger.debug("filterUnchangedFiles filtering ${gitManager.rootDir} in ${files.map { it.name }}")
+            val changedFileByGit = gitManager.filterChangedFiles(gitCommitMap[projectDir]!!, files).map {
+                it.absolutePath
+            }.toSet()
+            files.forEach {
+                if (it.absolutePath !in changedFileByGit) {
+                    unchangedFiles.add(it)
+                }
+            }
+        }
+
+        logger.debug("filterUnchangedFiles result: ${unchangedFiles.map { it.name }}")
+        return unchangedFiles
+    }
+
     private val File.changedFilePair: Pair<String, Long> get() {
         val relativePath = relativeTo(projectDir).path
         val crc = crc32
@@ -240,6 +318,7 @@ class DeployHistoryDb(
  */
 data class DeployHistoryData(
     val fullCompileGitCommitHash: String?,
+    /** dir -> commit */
     val subModulesFullCompileGitCommitHash: Map<String, String?>?,
     val incDeployTimes: Int,
     /**
@@ -255,6 +334,7 @@ data class DeployHistoryData(
         val string = gson.toJson(this)
         target.parentFile?.mkdirs()
         target.writeText(string)
+        cache[target.absolutePath] = this
     }
 
     companion object {
@@ -268,7 +348,7 @@ data class DeployHistoryData(
                 return null
             }
 
-            val cacheKey = target.absolutePath + "_" + target.lastModified()
+            val cacheKey = target.absolutePath
             if (isUseCache && cache.containsKey(cacheKey)) {
                 return cache[cacheKey]
             }

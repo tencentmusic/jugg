@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.git
 
-import com.intellij.openapi.diagnostic.Logger
 import org.gradle.internal.impldep.org.eclipse.jgit.api.Git
 import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.NoHeadException
 import org.gradle.internal.impldep.org.eclipse.jgit.errors.RepositoryNotFoundException
@@ -8,6 +7,7 @@ import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevCommit
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevWalk
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.filter.PathFilterGroup
 import java.io.File
 import java.io.IOException
 import java.nio.charset.Charset
@@ -126,9 +126,23 @@ class GitManager(override val rootDir: File): IGitManager {
         }
     }
 
+    override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> {
+        Git.open(rootDir).use { git ->
+            val oldCommitTree = getCanonicalTreeParser(git, commitHash)
+            val diffResult = git.diff()
+                .setPathFilter(PathFilterGroup.createFromStrings(files.map { file ->
+                    file.relativeToOrSelf(rootDir).path
+                }))
+                .setShowNameAndStatusOnly(true)
+                .setOldTree(oldCommitTree)
+                .call()
+            return diffResult.map { File(rootDir, it.newPath) }
+        }
+    }
+
     companion object {
 
-        fun createGitManagerAndTrySearchParent(dir: File): GitManager {
+        fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
             var rootDir: File? = dir
             while (rootDir != null) {
                 val gitManager = GitManager(rootDir)

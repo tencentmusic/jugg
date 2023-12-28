@@ -24,6 +24,9 @@ object JuggSettings {
 
     var isConfirmFallbackWhenNoFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    /** whether check checksum to make sure file is really change when file changes */
+    var isCheckChecksumWhenFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
+
     /** don't support change minApi dynamically */
     const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
 

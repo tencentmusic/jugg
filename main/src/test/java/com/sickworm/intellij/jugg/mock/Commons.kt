@@ -24,6 +24,7 @@ import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
@@ -218,6 +219,9 @@ val init = run {
     application.registerExtension(extensionPoint, JuggConfigurationType(), application)
 
     AsDeployerCompat.init(logger)
+
+    // in tests, we often add change file without really change, so disable checksum check
+    JuggSettings.isCheckChecksumWhenFileChanges = false
 }
 
 @Suppress("TestFunctionName")

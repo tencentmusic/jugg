@@ -8,6 +8,7 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
@@ -30,6 +31,7 @@ class JuggCompilerHelper(
     private val deployTargetManager: IDeployTargetManager,
     private val deployStateManager: DeployStateManager,
     private val deployFileManager: DeployFileManager,
+    private val deployHistoryManager: IDeployHistoryManager,
     private val compileContextManager: CompileContextManager,
     private val fileChangesHandler: IFileChangesHandler,
     private val deployStateListenerGetter: () -> JuggStateListener,
@@ -82,6 +84,10 @@ class JuggCompilerHelper(
         }
 
         val statTime = System.currentTimeMillis()
+
+        checkFilesRollback()
+        logger.debug("checkFileRollback cost ${System.currentTimeMillis() - statTime}ms")
+
         var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
             val loggerListener = IndicatorLoggerListener(indicator)
@@ -145,6 +151,56 @@ class JuggCompilerHelper(
             deployTargetManager.setApks(listOf(apkInfo))
         }
         return result
+    }
+
+    /**
+     * Check file whether is rollback
+     * We need to do it here because file may not change on disk when AsyncFileListener callback
+     */
+    private fun checkFilesRollback() {
+        if (JuggSettings.isCheckChecksumWhenFileChanges) {
+            val uncompiledFiles = deployFileManager.getUncompiledFiles()
+            val changedBuildFile = uncompiledFiles.find {
+                it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+            }
+            // unnecessary to check if file size is small and no build file changed
+            val isShouldCheck = uncompiledFiles.size > 20 || changedBuildFile != null
+            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, changedBuildFile: ${changedBuildFile != null}, isShouldCheck: $isShouldCheck")
+
+            if (isShouldCheck) {
+                try {
+                    val startTime = System.currentTimeMillis()
+                    if (uncompiledFiles.size > 100) {
+                        logger.info("Checking files whether is really changed...")
+                    }
+                    val rollbackFiles = deployHistoryManager.filterUnchangedFiles(uncompiledFiles.map { it.file })
+                    if (rollbackFiles.isNotEmpty()) {
+                        logger.debug("Found ${rollbackFiles.size} files rollback, files: ${rollbackFiles.map { it.name }}")
+                        deployFileManager.removeChangedFile(rollbackFiles)
+                    }
+                    val costTime = System.currentTimeMillis() - startTime
+
+                    if (uncompiledFiles.size > 100) {
+                        logger.info("Checking finished, cost ${costTime}ms. Rollback files ${rollbackFiles.size}.")
+                    }
+                } catch (e: Exception) {
+                    logger.debug("Check files whether is really changed failed: ${e.message}", e)
+                }
+            }
+        }
+
+        // we need to double-check because file may roll back to not changed
+        val changedBuildFile = deployFileManager.getUncompiledFiles().find {
+            it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+        }
+        if (changedBuildFile != null) {
+            deployStateManager.isBuildFileChanged = true
+            deployStateManager.whatBuildFileChanged = changedBuildFile.file.name
+            logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")
+        } else {
+            deployStateManager.isBuildFileChanged = false
+            deployStateManager.whatBuildFileChanged = ""
+        }
     }
 
     @TestOnly

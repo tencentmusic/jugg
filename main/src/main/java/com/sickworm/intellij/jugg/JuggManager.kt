@@ -54,7 +54,7 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggReporter, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, compileContextManager, fileChangesHandler, { deployStateListener }),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
 ): Disposable {
 
     constructor(
@@ -191,14 +191,6 @@ class JuggManager @TestOnly constructor(
         }
         if (realChangedFiles.isEmpty()) {
             return
-        }
-        val buildFile = realChangedFiles.find {
-            it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
-        }
-        if (buildFile != null) {
-            deployStateManager.isBuildFileChanged = true
-            deployStateManager.whatBuildFileChanged = buildFile.file.name
-            logger.warn("build file changed, need rebuild")
         }
 
         deployFileManager.addChangedFile(realChangedFiles)

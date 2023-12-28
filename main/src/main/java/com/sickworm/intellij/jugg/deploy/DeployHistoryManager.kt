@@ -104,4 +104,8 @@ class DeployHistoryManager(
         compileContextDb.updateDeployedData(deployedFiles)
         deployHistoryDb.updateHistory(sourceFiles)
     }
+
+    override fun filterUnchangedFiles(files: List<File>): List<File> {
+       return deployHistoryDb.filterUnchangedFiles(files)
+    }
 }

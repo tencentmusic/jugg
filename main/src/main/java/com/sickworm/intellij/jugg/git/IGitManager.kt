@@ -55,4 +55,9 @@ interface IGitManager {
      * null if [rootDir] does not have any commits yet
      */
     fun getLastCommitHash(): String?
+
+    /**
+     * git diff [commitHash] [files]
+     */
+    fun filterChangedFiles(commitHash: String, files: List<File>): List<File>
 }

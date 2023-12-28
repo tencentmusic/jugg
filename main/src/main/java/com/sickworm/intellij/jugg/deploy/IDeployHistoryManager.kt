@@ -44,6 +44,11 @@ interface IDeployHistoryManager {
      * Invoke this method to update deploy history after project complete deploying by Jugg.
      */
     fun updateHistoryOnAfterDeployed(sourceFiles: List<ChangedFile>, deployedFiles: List<CompileOutput>)
+
+    /**
+     * Check whether file is changed with checking its checksum.
+     */
+    fun filterUnchangedFiles(files: List<File>): List<File>
 }
 
 /**
