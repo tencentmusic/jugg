@@ -12,7 +12,11 @@ test {
 
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
-version '1.1.12-SNAPSHOT'
+
+def versionName = '1.1.13-rc9'
+def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
+def gitBranchPrefix = gitBranch == 'main' ? 'release' : gitBranch + '-SNAPSHOT'
+version "${versionName}-${gitBranchPrefix}"
 
 sourceCompatibility = 11
 targetCompatibility = 11
@@ -33,6 +37,16 @@ intellij {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1> 
+<h2>1.1.13 (2023.12.29)</h2>
+<p>1. [bugfix] fix run configuration not created after Hedgehog</p>
+<p>2. [bugfix] fix local gradle compile failed by env not correctly set</p>
+<p>3. [bugfix] fix AbstractMethodError when add codes of invocation interface static method</p>
+<p>4. [bugfix] fix interface default implementation not update if changing</p>
+<p>5. [bugfix] fix org.sqlite.SQLiteException: [tr] String or BLOB exceeds size limit (statement too long)</p>
+<p>6. [bugfix] fix redex error: Compilation failed to complete, Caused by: XXXX is defined multiple times</p>
+<p>7. [bugfix] fix "unresolved reference" when compile strings.xml in two different modules</p>
+<p>8. [bugfix] fix run configuration reset after reopen IDE</p>
+<p>9. [bugfix] fix remote compilation error "must be the parent of project path" when ift sync path equals project path</p>
 <h2>1.1.12 (2023.12.22)</h2>
 <p>1. [feature] run configuration supports select template</p>
 <p>2. [feature] show confirm dialog when "No file changes"</p>
