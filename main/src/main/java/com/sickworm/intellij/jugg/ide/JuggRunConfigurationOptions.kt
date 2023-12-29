@@ -168,7 +168,8 @@ data class JuggGradleCompileOptions(
             if (remoteToLocalSyncPath.isEmpty()) {
                 errorDetails += "Run configuration argument [Remote to local sync path] is empty\n"
             }
-            if (!File(projectRootPath).isChild(File(localToRemoteSyncPath))) {
+            if (!File(projectRootPath).isChild(File(localToRemoteSyncPath)) &&
+                        (projectRootPath != localToRemoteSyncPath)) {
                 errorDetails += "Run configuration argument [Local to remote IFT sync path]($localToRemoteSyncPath) " +
                         "must be the parent of project path($projectRootPath)\n"
             }
