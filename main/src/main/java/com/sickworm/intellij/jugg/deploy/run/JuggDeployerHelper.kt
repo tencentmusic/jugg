@@ -195,9 +195,11 @@ class JuggDeployerHelper(
                 val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
                 // seems like a bug of deploy service, just retry
                 val isInstrumentationFailed = reason.contains("INSTRUMENTATION_FAILED")
-                if ((!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError || isInstrumentationFailed)) {
+
+                val isClassModifiedError = (!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError)
+                if (isClassModifiedError || isInstrumentationFailed) {
                     if (isInstrumentationFailed) {
-                        logger.info("Deploy got INSTRUMENTATION_FAILED error, will retry again with HOT_FIX.")
+                        logger.info("Deploy got INSTRUMENTATION_FAILED error, will retry again.")
                     } else {
                         logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
                     }
