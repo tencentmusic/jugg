@@ -72,11 +72,6 @@ class JuggManager @TestOnly constructor(
             createDefaultRunConfigurationIfNoneExist()
             logger.info("Start jugg finished.")
 
-            if (!AsDeployerCompat.isSupportsSyncCallback()) {
-                logger.info("IDE API is not support sync callback, invoke directly.")
-                initProjectInfo(true)
-            }
-
             // init async
             JuggDeploymentService.postWithLock {
                 val costTime = measureTimeMillis {
@@ -187,7 +182,7 @@ class JuggManager @TestOnly constructor(
             ?.let { (_, changedWhat) ->
                 deployStateManager.isBuildFileChanged = true
                 deployStateManager.whatBuildFileChanged = changedWhat
-                logger.warn("build file changed, need rebuild")
+                logger.debug("build file changed, need rebuild")
             }
 
         val deletedFiles = changedFiles.filter { !it.exists() }
@@ -322,8 +317,7 @@ class JuggManager @TestOnly constructor(
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
-        val isNeedReloadProjectInfo = !AsDeployerCompat.isSupportsSyncCallback()
-        initCompile(compileContextInfo, emptyList(), isNeedReloadProjectInfo,
+        initCompile(compileContextInfo, emptyList(), false,
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )

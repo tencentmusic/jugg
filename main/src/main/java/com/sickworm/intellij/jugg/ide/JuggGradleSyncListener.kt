@@ -20,29 +20,37 @@ class JuggGradleSyncListener : GradleSyncListener {
     }
 
     override fun syncStarted(project: Project) {
-        JuggGradleSyncWithRootListener.isEnabled = false
+        disableRootListener()
         ideaLogger.info("syncStarted $project")
         tryGetProjectLogger(project)?.info("syncStarted")
     }
 
     override fun syncSucceeded(project: Project) {
-        JuggGradleSyncWithRootListener.isEnabled = false
         ideaLogger.info("syncSucceeded $project")
         JuggInitializer.initOrRefresh(project)
         tryGetProjectLogger(project)?.info("syncSucceeded")
     }
 
     override fun syncSkipped(project: Project) {
-        JuggGradleSyncWithRootListener.isEnabled = false
+        disableRootListener()
         ideaLogger.info("syncSkipped $project")
         JuggInitializer.initOrRefresh(project, isNeedReloadProjectInfo = false)
         tryGetProjectLogger(project)?.info("syncSkipped")
     }
 
     override fun syncFailed(project: Project, errorMessage: String) {
-        JuggGradleSyncWithRootListener.isEnabled = false
+        disableRootListener()
         ideaLogger.info("syncFailed $project $errorMessage")
         JuggInitializer.initOrRefresh(project)
         tryGetProjectLogger(project)?.info("syncFailed $errorMessage")
+    }
+
+    private fun disableRootListener() {
+        try {
+            JuggGradleSyncWithRootListener.isEnabled = false
+        } catch (e: Throwable) {
+            // Cannot load class com.android.tools.idea.gradle.project.sync.GradleSyncListenerWithRoot
+            // ok with that
+        }
     }
 }
