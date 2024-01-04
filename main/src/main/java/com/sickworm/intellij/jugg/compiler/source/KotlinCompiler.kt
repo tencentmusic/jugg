@@ -167,6 +167,7 @@ class KotlinCompiler(
             CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 
+        hasRecreateAfterInternalError = false
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
     }
 
