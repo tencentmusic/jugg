@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.1.13-rc10'
+def versionName = '1.1.13-rc11'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : gitBranch + '-SNAPSHOT'
 version "${versionName}-${gitBranchPrefix}"
@@ -49,6 +49,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix "unresolved reference" when compile strings.xml in two different modules</li>
 <li>[bugfix] fix run configuration reset after reopen IDE</li>
 <li>[bugfix] fix remote compilation error "must be the parent of project path" when ift sync path equals project path</li>
+<li>[bugfix] fix "Run configuration is invalid" when using Windows with "/" and "\\" mixed</li>
 </ol>
 <h2>1.1.12 (2023.12.22)</h2>
 <ol>
