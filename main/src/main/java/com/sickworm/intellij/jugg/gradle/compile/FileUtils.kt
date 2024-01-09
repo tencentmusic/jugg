@@ -25,5 +25,6 @@ fun File.findFilesRecursively(fileNameRegex: Regex): File? {
 }
 
 fun File.isChild(parent: File): Boolean {
-    return this.absolutePath.startsWith(parent.absolutePath + File.separator)
+    return this.absolutePath.replace("\\", "/")
+        .startsWith(parent.absolutePath.replace("\\", "/") + "/", ignoreCase = true)
 }

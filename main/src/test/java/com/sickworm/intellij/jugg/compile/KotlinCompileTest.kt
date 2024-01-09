@@ -58,6 +58,42 @@ class KotlinCompileTest {
         assertCompileResultKotlin(task, result)
     }
 
+    @Test
+    fun kotlinSmartCastCompile() {
+        val task = CompileTask(
+            listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/ktsmartcast/ImplClass1.kt"),
+                    File(assetsAndroidDir, "app/src/main/java/"),
+                    mockModule,
+                    dependencyPaths = IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!,
+                )
+            ),
+            stagingDir,
+        )
+        val result = kotlinCompiler.compile(task)
+        assertCompileResultKotlin(task, result)
+    }
+
+    @Test
+    fun kotlinInternalCompile() {
+        val task = CompileTask(
+            listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/ktinternal/InvokeClass1.kt"),
+                    File(assetsAndroidDir, "app/src/main/java/"),
+                    mockModule,
+                    dependencyPaths = IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!,
+                )
+            ),
+            stagingDir,
+        )
+        val result = kotlinCompiler.compile(task)
+        assertCompileResultKotlin(task, result)
+    }
+
     private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult, vararg subclassList: String) {
         val mapper: OutputFileMapper = { file ->
             (subclassList.toList() + "").map {

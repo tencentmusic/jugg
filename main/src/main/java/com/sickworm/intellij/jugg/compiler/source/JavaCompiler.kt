@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.JuggException
+import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler
@@ -21,7 +22,9 @@ class JavaCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
-    private val compiler: JavaCompiler = getJavaCompiler(logger)
+    private var hasRecreateAfterInternalError = false
+
+    private var compiler: JavaCompiler = getJavaCompiler(logger)
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
@@ -75,9 +78,19 @@ class JavaCompiler(
                 it.file.copyToBaseDir(task.outputDir, javaClassPath)
             }
 
+            hasRecreateAfterInternalError = false
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
         } else {
-            logger.warn("javaTask call failed!")
+            val errorCount = compileItems.sumOf { it.errors.size }
+            if (errorCount == 0) {
+                logger.warn("javaTask call failed with no error!")
+                if (!hasRecreateAfterInternalError) {
+                    logger.warn("java compile failed with no error, retry with recreating compiler once")
+                    hasRecreateAfterInternalError = true
+                    compiler = getJavaCompiler(logger)
+                    return doModuleCompile(task, module)
+                }
+            }
             CompileResult(task, compileItems.map { Result.failure(CompileError(it.file, it.errors)) }, emptyList())
         }
     }

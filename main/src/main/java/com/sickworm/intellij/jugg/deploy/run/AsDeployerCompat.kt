@@ -114,10 +114,6 @@ object AsDeployerCompat : IAsDeployerCompat {
         this.priorityImpl = impl
     }
 
-    override fun isSupportsSyncCallback(): Boolean {
-        return impl.isSupportsSyncCallback()
-    }
-
     override fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider {
         return impl.getApkProvider(project, config)
     }
