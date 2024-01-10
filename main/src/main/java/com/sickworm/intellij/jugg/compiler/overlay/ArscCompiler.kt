@@ -68,7 +68,7 @@ class ArscCompiler(
 
         val styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
         if (styleableFile == null) {
-            logger.warn("loadTable failed, generateStyleableFile failed")
+            logger.warn("generateStyleableFile failed, start aapt2 with no styleableFile")
         }
 
         val command = """
