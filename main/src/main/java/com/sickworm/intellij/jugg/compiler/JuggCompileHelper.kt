@@ -17,7 +17,7 @@ import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
@@ -27,7 +27,7 @@ import java.io.File
 
 class JuggCompilerHelper(
     private val project: Project,
-    private val juggReporter: JuggReporter,
+    private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
     private val deployStateManager: DeployStateManager,
     private val deployFileManager: DeployFileManager,
@@ -95,7 +95,7 @@ class JuggCompilerHelper(
             incrementalResult = incrementalCompile(processHandler)
             JuggLogger.stopListenProjectLog(project, loggerListener)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
-            juggReporter.report {
+            juggServer.report {
                 action = "incremental_compile"
                 isSuccess = incrementalResult.isSuccess
                 costTime = incrementalResult.costTime

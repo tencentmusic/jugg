@@ -16,7 +16,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.PrintWriter
 import java.io.StringWriter
 import javax.swing.SwingUtilities
@@ -28,7 +28,7 @@ import javax.swing.SwingUtilities
 @Suppress("DialogTitleCapitalization")
 class JuggRunningTask(
     private val project: Project,
-    private val juggReporter: JuggReporter,
+    private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
     private val processHandler: SimpleProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
@@ -50,7 +50,7 @@ class JuggRunningTask(
         try {
             JuggLogger.recreateLogFileIfDeleted(project)
             JuggLogger.listenProjectLog(project, loggerListener)
-            juggReporter.onCompile()
+            juggServer.onCompile()
 
             isRunning = true
             showGreenDotOnRunToolWindow()
@@ -101,7 +101,7 @@ class JuggRunningTask(
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
-        juggReporter.report {
+        juggServer.report {
             action = "compile"
             isSuccess = compileTaskResult.isSuccess
             costTime = compileTaskResult.costTime
@@ -208,7 +208,7 @@ class JuggRunningTask(
         val deployTaskResult = deployTask(device, compileTaskResult.isGradleCompile, isLastDevice)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
-        juggReporter.report {
+        juggServer.report {
             action = "deploy"
             isSuccess = deployTaskResult.isSuccess
             costTime = deployTaskResult.costTime

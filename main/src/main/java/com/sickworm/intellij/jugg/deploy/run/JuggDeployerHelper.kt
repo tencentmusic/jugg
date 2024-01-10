@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.android.download.AndroidProfilerDownloader
@@ -33,7 +33,7 @@ class JuggDeployerHelper(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployStateManager: DeployStateManager,
-    private val juggReporter: JuggReporter,
+    private val juggServer: JuggServer,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
     private var installPathProvider: Computable<String> = Computable<String> {
@@ -181,7 +181,7 @@ class JuggDeployerHelper(
                 val isAppForeground = deployTargetManager.isAppForeground(device)
                 logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
 
-                juggReporter.report {
+                juggServer.report {
                     action = "incremental_deploy_retry_start"
                     detail = reason
                 }
@@ -203,7 +203,7 @@ class JuggDeployerHelper(
                     } else {
                         logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
                     }
-                    juggReporter.report {
+                    juggServer.report {
                         action = "incremental_deploy_retry"
                         detail = reason
                     }
@@ -243,7 +243,7 @@ class JuggDeployerHelper(
                                 failedReason = "Try recover deploy state failed on retry.")
                         } else {
                             logger.info("Try recover deploy state success on retry.")
-                            juggReporter.report {
+                            juggServer.report {
                                 action = "incremental_deploy_retry_after_recover"
                                 detail = reason
                             }
@@ -253,7 +253,7 @@ class JuggDeployerHelper(
                         val delaySeconds = 5
                         logger.info("Deploy agent no response, but App is in foreground, try again after ${delaySeconds}s.")
                         Thread.sleep(delaySeconds * 1000L)
-                        juggReporter.report {
+                        juggServer.report {
                             action = "incremental_deploy_retry"
                             detail = reason
                         }

@@ -21,7 +21,7 @@ import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.server.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,7 +36,7 @@ class JuggManager @TestOnly constructor(
     val project: Project,
     val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
-    private val juggReporter: JuggReporter = JuggReporter(project, pathManager),
+    private val juggServer: JuggServer = JuggServer(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project, pathManager.juggRootDir),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
@@ -53,8 +53,8 @@ class JuggManager @TestOnly constructor(
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
-    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggReporter, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggReporter, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
+    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { deployStateListener }),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
 ): Disposable {
 
     constructor(
@@ -81,7 +81,7 @@ class JuggManager @TestOnly constructor(
             }
 
             logger.debug("Checking updates...")
-            juggReporter.checkUpdate { versionData ->
+            juggServer.checkUpdate { versionData ->
                 logger.debug("Check update result: $versionData")
                 if (versionData.isNeedUpgrade) {
                     val prefix = if (versionData.downloadUrl.contains("?")) {
@@ -89,7 +89,7 @@ class JuggManager @TestOnly constructor(
                     } else {
                         "?"
                     }
-                    val downloadUrl = versionData.downloadUrl + prefix + "version=${juggReporter.version}"
+                    val downloadUrl = versionData.downloadUrl + prefix + "version=${juggServer.version}"
                     JuggUpgradeNotification(project).show(downloadUrl)
                 }
                 if (versionData.templateList.isNotEmpty()) {
@@ -238,7 +238,7 @@ class JuggManager @TestOnly constructor(
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
-        val task = JuggRunningTask(project, juggReporter, deployTargetManager,
+        val task = JuggRunningTask(project, juggServer, deployTargetManager,
             processHandler, compileTask, deployTask, initIncrementalCompileTask)
         currentTask = task
         return task
@@ -252,7 +252,7 @@ class JuggManager @TestOnly constructor(
     @TestOnly
     fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, isRemoteCompile: Boolean = false) {
         JuggLogger.resetLatestCompileLog(project)
-        juggReporter.afterFullCompile()
+        juggServer.afterFullCompile()
 
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
 
@@ -365,7 +365,7 @@ class JuggManager @TestOnly constructor(
                     devices.forEachIndexed { index, device ->
                         val isLastDevice = index == devices.size - 1
                         val result = juggDeployerHelper.deploy(device, isLastDevice, processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)
-                        juggReporter.report {
+                        juggServer.report {
                             action = "warm_up_deploy"
                             isSuccess = result.isSuccess
                             costTime = result.costTime
@@ -413,7 +413,7 @@ class JuggManager @TestOnly constructor(
 
                     reportEventData.action = jobName
                     reportEventData.costTime = System.currentTimeMillis() - startTime
-                    juggReporter.report(reportEventData)
+                    juggServer.report(reportEventData)
                 }
             }
         }.setCancelText("Jugg: Stopping $jobName...").queue()

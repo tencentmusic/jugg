@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg
 
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.JuggMockProject
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
@@ -10,7 +10,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
-class JuggReporterTest {
+class JuggServerTest {
 
     @Test
     fun testReport() {
@@ -18,10 +18,10 @@ class JuggReporterTest {
         JuggLogger.register(project, buildDir)
         JuggLogger.listenProjectLog(project, logger)
         runBlocking {
-            val job1 = JuggReporter(project).report {
+            val job1 = JuggServer(project).report {
                 isSuccess = true
             }
-            val job2 = JuggReporter(project).report {
+            val job2 = JuggServer(project).report {
                 isSuccess = false
             }
             listOf(job1, job2).joinAll()

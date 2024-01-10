@@ -13,7 +13,7 @@ import com.intellij.ui.scale.JBUIScale
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
-import com.sickworm.intellij.jugg.server.JuggReporter
+import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,7 +21,6 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridLayout
 import java.lang.ref.WeakReference
-import java.util.function.Consumer
 import javax.swing.*
 
 /**
@@ -200,7 +199,7 @@ class JuggRunSettingsComponent : JComponent() {
             return
         }
 
-        val deferred = JuggReporter(project).reportAndUploadLogs()
+        val deferred = JuggServer(project).reportAndUploadLogs()
         deferred.invokeOnCompletion {
             val uploadResult = deferred.getCompleted()
             SwingUtilities.invokeLater {
