@@ -5,6 +5,7 @@ import com.intellij.notification.*
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.server.protocols.NotificationData
 
 /**
  * Show notification for Jugg.
@@ -12,28 +13,28 @@ import com.intellij.openapi.project.Project
 class JuggCommonNotification(private val project: Project) {
 
     fun showUpgrade(downloadUrl: String) {
-        show("Jugg is ready to upgrade", downloadUrl)
+        show(NotificationData("Jugg is ready to upgrade", "", "Download", downloadUrl))
     }
 
-    fun show(text: String, downloadUrl: String) {
+    fun show(data: NotificationData) {
         try {
-            doShow(text, downloadUrl)
+            doShow(data)
         } catch (e: Throwable) {
             // ignore, catch for test
         }
     }
 
-    private fun doShow(text: String, downloadUrl: String) {
+    private fun doShow(data: NotificationData) {
         val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup("Jugg Notification Group")
             .createNotification(
-                text, "",
+                data.title, data.content,
                 NotificationType.INFORMATION
             )
-        notification.addAction(object : AnAction("Download") {
+        notification.addAction(object : AnAction(data.buttonText) {
             override fun actionPerformed(e: AnActionEvent) {
                 // open download url
-                BrowserUtil.browse(downloadUrl)
+                BrowserUtil.browse(data.jumpUrl)
             }
         })
         notification.notify(project)

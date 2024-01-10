@@ -8,17 +8,23 @@ data class VersionData(
     val isNeedUpgrade: Boolean,
     val downloadUrl: String,
     val templateList: List<RunConfigurationTemplate>,
-    val popupText: String?,
-    val popupUrl: String?,
+    val notification: NotificationData?,
     val customConfigJson: ProjectCustomConfig?,
 ) {
     companion object {
         @Suppress("unused")
-        val empty = VersionData("", false, "", emptyList(), null, null, null)
+        val empty = VersionData("", false, "", emptyList(), null, null)
     }
 }
 
 data class ProjectCustomConfig(
     val serverUrl: String? = null,
     val buildFileList: List<String> = emptyList(),
+)
+
+data class NotificationData(
+    val title: String,
+    val content: String,
+    val buttonText: String,
+    val jumpUrl: String,
 )

@@ -25,11 +25,12 @@ class CheckUpdateHandler(
             }
             val downloadUrl = versionData.downloadUrl + prefix + "version=${currentVersion}"
             JuggCommonNotification(project).showUpgrade(downloadUrl)
+        } else if (versionData.notification != null) {
+            JuggCommonNotification(project).show(versionData.notification)
         }
+
         if (versionData.templateList.isNotEmpty()) {
             JuggSettings.compileTemplateList = versionData.templateList
-        } else if (versionData.popupText != null && versionData.popupUrl != null) {
-            JuggCommonNotification(project).show(versionData.popupText, versionData.popupUrl)
         }
     }
 }
