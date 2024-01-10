@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc2'
+def versionName = '1.2.0-rc3'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -79,11 +79,11 @@ tasks.register('buildPluginIntranet') {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1> 
-<h2>1.2.0 (2024.01.09)</h2>
+<h2>1.2.0 (2024.01.11)</h2>
 <ol>
 <li>[feature] supports detect file no change if rollback</li>
 </ol>
-<h2>1.1.13 (2024.01.05)</h2>
+<h2>1.1.13 (2024.01.10)</h2>
 <ol>
 <li>[optimize] recreate JavaCompiler once when JavaTask call failed with no error</li>
 <li>[bugfix] fix run configuration not created after Hedgehog</li>
@@ -97,6 +97,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix remote compilation error "must be the parent of project path" when ift sync path equals project path</li>
 <li>[bugfix] fix "Run configuration is invalid" when using Windows with "/" and "\\" mixed</li>
 <li>[bugfix] fix Android Studio Dolphin can not listen sync event</li>
+<li>[bugfix] fix NullPointerException when adding a new static object field</li>
 </ol>
 <h2>1.1.12 (2023.12.22)</h2>
 <ol>

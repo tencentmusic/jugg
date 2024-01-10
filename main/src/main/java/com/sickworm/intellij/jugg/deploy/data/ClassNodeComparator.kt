@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.data
 
+import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
@@ -123,12 +124,25 @@ class ClassNodeDiffResult(
                 addedMethods.isEmpty() &&
                 deletedMethods.isEmpty()
 
+    @Suppress("RedundantIf")
     val isCanHotReload
         get() = modifiedParentClass.isEmpty() &&
                 addedInterfaces.isEmpty() &&
                 deletedInterfaces.isEmpty() &&
                 deletedFields.isEmpty() &&
-                deletedMethods.isEmpty()
+                deletedMethods.isEmpty() &&
+                addedFields.filter {
+                    val isStatic = (it.access and DexConstants.ACC_STATIC) != 0
+                    if (!isStatic) {
+                        return@filter false
+                    }
+                    val isPrimitive = it.type == "Z" || it.type == "B" || it.type == "C" || it.type == "S" || it.type == "I" || it.type == "J" || it.type == "F" || it.type == "D"
+                    if (isPrimitive) {
+                        return@filter false
+                    }
+                    // non-static primitive fields can't hot reload
+                    return@filter true
+                }.isEmpty()
 
     override fun toString(): String {
         val builder = StringBuilder()
