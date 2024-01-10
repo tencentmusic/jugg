@@ -23,6 +23,7 @@ import com.sickworm.intellij.jugg.server.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.server.CheckUpdateHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -37,7 +38,7 @@ class JuggManager @TestOnly constructor(
     val pathManager: JuggPathManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val juggServer: JuggServer = JuggServer(project, pathManager),
-    private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(project, pathManager.juggRootDir),
+    private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesManager")),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
         pathManager.projectDir,
@@ -55,6 +56,7 @@ class JuggManager @TestOnly constructor(
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { deployStateListener }),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
+    private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir,  JuggLogger.getInstance(project, "CustomConfigManager")),
 ): Disposable {
 
     constructor(
@@ -66,10 +68,9 @@ class JuggManager @TestOnly constructor(
         Disposer.register(this, juggCompilerHelper)
         runTaskSafe("Init Jugg", {
             JuggRunningTask.resetHasRun(project)
-            logger.info("Init IDE API...")
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            logger.info("Create run configuration...")
             createDefaultRunConfigurationIfNoneExist()
+            loadCustomConfig()
             logger.info("Start jugg finished.")
 
             // init async
@@ -81,8 +82,29 @@ class JuggManager @TestOnly constructor(
             }
 
             logger.debug("Checking updates...")
-            juggServer.checkUpdate()
+            juggServer.checkUpdate {
+                val checkUpdateHandler = CheckUpdateHandler(
+                    project, juggServer.version, customConfigManager,
+                    JuggLogger.getInstance(project, "CheckUpdateHandler"),
+                )
+                checkUpdateHandler.handle(it)
+                loadCustomConfig()
+            }
         })
+    }
+
+    private fun loadCustomConfig() {
+        if (!customConfigManager.isConfigChanged()) {
+            return
+        }
+        customConfigManager.config?.let { config ->
+            config.serverUrl?.let {
+                juggServer.updateServerUrl(it)
+            }
+            config.buildFileList.let {
+                fileChangesHandler.updateBuildFileList(it)
+            }
+        }
     }
 
     fun initProjectInfo(isNeedReloadProjectInfo: Boolean) {
@@ -227,6 +249,10 @@ class JuggManager @TestOnly constructor(
         val task = JuggRunningTask(project, juggServer, deployTargetManager,
             processHandler, compileTask, deployTask, initIncrementalCompileTask)
         currentTask = task
+
+        // try reload custom config if changed
+        loadCustomConfig()
+
         return task
     }
 

@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.CustomConfigManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 import kotlinx.coroutines.*
@@ -40,7 +41,7 @@ import java.util.zip.ZipOutputStream
  */
 class JuggServer(
     project: Project,
-    private val pathManager: JuggPathManager? = JuggInitializer.getManager(project)?.pathManager
+    private val pathManager: JuggPathManager? = JuggInitializer.getManager(project)?.pathManager,
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
     companion object {
@@ -52,17 +53,17 @@ class JuggServer(
             return@run properties
         }
 
-        private val serverUrl: String? = properties.getProperty("jugg.reportServer")
-        private val reportEventUrl = "$serverUrl/report_event"
-        private val checkUpdateUrl = "$serverUrl/check_update"
-        private val reportIssueUrl = "$serverUrl/report_issue"
-
         private fun getVersion(): String {
             val cl = JuggServer::class.java.classLoader
             val manifest = Manifest(cl.getResourceAsStream("META-INF/MANIFEST.MF"))
             return manifest.mainAttributes.getValue("Version") ?: "unknown"
         }
     }
+
+    private var serverUrl: String? = properties.getProperty("jugg.reportServer")
+    private val reportEventUrl get() = "$serverUrl/report_event"
+    private val checkUpdateUrl get() = "$serverUrl/check_update"
+    private val reportIssueUrl get() = "$serverUrl/report_issue"
 
     private var logger: Logger = JuggLogger.getInstance(project, "JuggReporter")
 
@@ -79,8 +80,6 @@ class JuggServer(
 
     private val client = OkHttpClient()
 
-    private val checkUpdateHandler = CheckUpdateHandler(project, version, JuggLogger.getInstance(project, "CheckUpdateHandler"))
-
     init {
         logger.debug("init finished, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
     }
@@ -95,13 +94,13 @@ class JuggServer(
 
     private var reportLock = Mutex() // report only one event in the same time
 
-    fun checkUpdate() = launch {
+    fun checkUpdate(onComplete: (VersionData) -> Unit) = launch {
         if (serverUrl == null) {
             logger.debug("checkUpdate skip: serverUrl is null")
             return@launch
         }
 
-        val result = try {
+        try {
             val request: Request = Request.Builder()
                 .url("$checkUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}")
                 .get()
@@ -111,18 +110,11 @@ class JuggServer(
             val body = response.body?.string()
             logger.debug("check update response: [${response.code}] $body")
 
-            try {
-                Gson().fromJson(body, VersionData::class.java)
-            } catch (e: Exception) {
-                logger.debug("check update error when parsing JSON: ${e.message}")
-                VersionData.empty
-            }
+            val result = Gson().fromJson(body, VersionData::class.java)
+            onComplete.invoke(result)
         } catch (e: Exception) {
             logger.debug("check update error: ${e.message}")
-            VersionData.empty
         }
-
-        checkUpdateHandler.handle(result)
     }
 
     private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
@@ -179,6 +171,10 @@ class JuggServer(
                 }
             }
         }
+    }
+
+    fun updateServerUrl(url: String) {
+        serverUrl = url
     }
 
     private fun File.zipTo(destFile: File) {

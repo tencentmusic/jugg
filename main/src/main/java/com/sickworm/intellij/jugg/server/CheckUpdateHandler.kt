@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.JuggCommonNotification
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.project.CustomConfigManager
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 
 /**
@@ -12,6 +13,7 @@ import com.sickworm.intellij.jugg.server.protocols.VersionData
 class CheckUpdateHandler(
     private val project: Project,
     private val currentVersion: String,
+    private val customConfigManager: CustomConfigManager,
     private val logger: Logger
 ) {
 
@@ -31,6 +33,10 @@ class CheckUpdateHandler(
 
         if (versionData.templateList.isNotEmpty()) {
             JuggSettings.compileTemplateList = versionData.templateList
+        }
+
+        if (versionData.customConfigJson != null) {
+            customConfigManager.updateDefaultConfig(versionData.customConfigJson)
         }
     }
 }

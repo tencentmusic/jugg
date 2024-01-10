@@ -14,14 +14,15 @@ import java.io.File
  * Manage file changes in project
  */
 class FileChangesHandler(
-    private val project: Project,
+    private val projectDir: File,
     private val juggRootDir: File,
-    private val logger: Logger = JuggLogger.getInstance(project, "FileChangesManager"),
+    private val logger: Logger,
 ) :
     IFileChangesHandler
 {
 
     private var compileContext: ICompileContext? = null
+    private var buildFileList: List<File> = emptyList()
 
     override fun init(compileContext: ICompileContext) {
         this.compileContext = compileContext
@@ -29,7 +30,6 @@ class FileChangesHandler(
         val sourceDirs = compileContext.modules.values.flatMap { it.sourceDirs }
         val resourceDirs = compileContext.modules.values.flatMap { it.resourceDirs }
         val assetDirs = compileContext.modules.values.flatMap { it.assetsDirs }
-        val projectDir = project.basePath?: ""
         logger.debug("""
             |File changes scope:
             |    source dirs:
@@ -43,6 +43,13 @@ class FileChangesHandler(
 
     override fun filter(file: List<File>): List<ChangedFile> {
         return file.mapNotNull(::toChangeFile)
+    }
+
+    override fun updateBuildFileList(relativePathList: List<String>) {
+        logger.debug("updateBuildFileList: $relativePathList")
+        buildFileList = relativePathList.map {
+            File(projectDir, it)
+        }
     }
 
     private fun toChangeFile(file: File): ChangedFile? {
@@ -103,6 +110,18 @@ class FileChangesHandler(
     }
 
     private fun checkBuildGradle(file: File): ChangedFile? {
+        buildFileList.forEach {
+            if (file.absolutePath == it.absolutePath) {
+                logger.info("Detect custom build file changed: $file")
+                return ChangedFile(
+                    CompileFile.Type.Gradle,
+                    file,
+                    juggRootDir,
+                    ModuleInfo.virtualModule
+                )
+            }
+        }
+
         val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
         if (!isGradleFile) {
             return null

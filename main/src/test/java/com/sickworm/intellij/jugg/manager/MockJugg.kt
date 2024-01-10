@@ -215,7 +215,7 @@ class MockJugg {
         doReturn(getAndroidModel()).`when`(gradleBuildModule).android()
         doReturn(gradleBuildModule).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
 
-        fileChangesHandler = FileChangesHandler(project, pathManager.juggRootDir, logger)
+        fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)

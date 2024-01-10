@@ -16,6 +16,7 @@ interface IFileChangesHandler {
      */
     fun filter(file: List<File>): List<ChangedFile>
 
+    fun updateBuildFileList(relativePathList: List<String>)
 }
 
 data class ChangedFile(
