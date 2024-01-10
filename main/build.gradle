@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc3'
+def versionName = '1.2.0-rc4'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -81,7 +81,9 @@ patchPluginXml.changeNotes = """
 <h1>Change Log</h1> 
 <h2>1.2.0 (2024.01.11)</h2>
 <ol>
-<li>[feature] supports detect file no change if rollback</li>
+<li>[feature] supports detect file rollback</li>
+<li>[feature] supports custom server url and build file detection</li>
+<li>[feature] supports pull notification from server</li>
 </ol>
 <h2>1.1.13 (2024.01.10)</h2>
 <ol>
