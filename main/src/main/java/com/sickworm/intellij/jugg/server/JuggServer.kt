@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.server.protocols.VersionData
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,7 +29,13 @@ import java.util.zip.ZipOutputStream
 
 
 /**
- * report event to jugg backend
+ * Server API for Jugg
+ * 1. report event to jugg backend
+ * 2. check update
+ * 3. upload logs
+ * 4. popup action
+ * 5. get run configuration templates
+ * 6. get project custom config
  */
 class JuggServer(
     project: Project,
@@ -71,6 +78,8 @@ class JuggServer(
 
     private val client = OkHttpClient()
 
+    private val checkUpdateHandler = CheckUpdateHandler(project, version, JuggLogger.getInstance(project, "CheckUpdateHandler"))
+
     init {
         logger.debug("init finished, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
     }
@@ -85,7 +94,7 @@ class JuggServer(
 
     private var reportLock = Mutex() // report only one event in the same time
 
-    fun checkUpdate(onComplete: (VersionData) -> Unit) = launch {
+    fun checkUpdate() = launch {
         if (serverUrl == null) {
             logger.debug("checkUpdate skip: serverUrl is null")
             return@launch
@@ -105,13 +114,14 @@ class JuggServer(
                 Gson().fromJson(body, VersionData::class.java)
             } catch (e: Exception) {
                 logger.debug("check update error when parsing JSON: ${e.message}")
-                VersionData("", false, "", emptyList())
+                VersionData.empty
             }
         } catch (e: Exception) {
             logger.debug("check update error: ${e.message}")
-            VersionData("", false, "", emptyList())
+            VersionData.empty
         }
-        onComplete.invoke(result)
+
+        checkUpdateHandler.handle(result)
     }
 
     private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
@@ -296,13 +306,6 @@ data class ReportEventData(
 ) {
     constructor() : this("", "", "", "", "", "", true, 0, null)
 }
-
-data class VersionData(
-    val latestVersion: String,
-    val isNeedUpgrade: Boolean,
-    val downloadUrl: String,
-    val templateList: List<RunConfigurationTemplate>,
-)
 
 data class UploadResult(
     val isSuccess: Boolean,

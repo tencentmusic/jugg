@@ -81,21 +81,7 @@ class JuggManager @TestOnly constructor(
             }
 
             logger.debug("Checking updates...")
-            juggServer.checkUpdate { versionData ->
-                logger.debug("Check update result: $versionData")
-                if (versionData.isNeedUpgrade) {
-                    val prefix = if (versionData.downloadUrl.contains("?")) {
-                        "&"
-                    } else {
-                        "?"
-                    }
-                    val downloadUrl = versionData.downloadUrl + prefix + "version=${juggServer.version}"
-                    JuggUpgradeNotification(project).show(downloadUrl)
-                }
-                if (versionData.templateList.isNotEmpty()) {
-                    JuggSettings.compileTemplateList = versionData.templateList
-                }
-            }
+            juggServer.checkUpdate()
         })
     }
 

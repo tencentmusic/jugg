@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.execution.configurations.RunConfigurationOptions
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.io.File
 
 /**

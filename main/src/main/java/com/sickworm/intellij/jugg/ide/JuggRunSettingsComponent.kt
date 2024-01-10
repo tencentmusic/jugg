@@ -14,8 +14,8 @@ import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
-import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.protocols.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Component
 import java.awt.Dimension

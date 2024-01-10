@@ -6,7 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
-import com.sickworm.intellij.jugg.server.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.lang.ref.WeakReference
 import kotlin.reflect.KProperty
 

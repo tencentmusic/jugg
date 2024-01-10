@@ -6,21 +6,28 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 
-class JuggUpgradeNotification(private val project: Project) {
+/**
+ * Show notification for Jugg.
+ */
+class JuggCommonNotification(private val project: Project) {
 
-    fun show(downloadUrl: String) {
+    fun showUpgrade(downloadUrl: String) {
+        show("Jugg is ready to upgrade", downloadUrl)
+    }
+
+    fun show(text: String, downloadUrl: String) {
         try {
-            doShow(downloadUrl)
+            doShow(text, downloadUrl)
         } catch (e: Throwable) {
             // ignore, catch for test
         }
     }
 
-    private fun doShow(downloadUrl: String) {
+    private fun doShow(text: String, downloadUrl: String) {
         val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup("Jugg Notification Group")
             .createNotification(
-                "Jugg is ready to upgrade", "",
+                text, "",
                 NotificationType.INFORMATION
             )
         notification.addAction(object : AnAction("Download") {

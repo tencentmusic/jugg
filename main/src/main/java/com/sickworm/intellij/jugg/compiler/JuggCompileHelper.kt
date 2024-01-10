@@ -21,7 +21,7 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.protocols.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 

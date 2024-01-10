@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.server
+package com.sickworm.intellij.jugg.server.protocols
 
 import com.google.gson.TypeAdapter
 import com.google.gson.reflect.TypeToken
