@@ -56,6 +56,7 @@ class DeployDataGenerator(
         val changedMethodRef = mutableListOf<MethodNode>()
         val changedFieldRef = mutableListOf<FieldNode>()
         val changedAbstractClasses = mutableListOf<ClassNode>()
+        val deletedNormalMethodClasses = mutableListOf<ClassNode>()
         changedClasses.forEach {
             val className = it.sigName
             val oldClassNode: ClassNode? = oldClassNodes[className]
@@ -84,6 +85,13 @@ class DeployDataGenerator(
             if (result.isAddedAbstractMethodForNonAbstractClass) {
                 changedAbstractClasses.add(newClassNode)
             }
+
+            val deletedNormalMethod = result.effectMethods.filter { method ->
+                !method.name.contains("$")
+            }
+            if (deletedNormalMethod.isNotEmpty()) {
+                deletedNormalMethodClasses.add(newClassNode)
+            }
         }
 
         var overlays = changedOverlays
@@ -110,6 +118,7 @@ class DeployDataGenerator(
             deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(
                 changedClasses.map { it.classNode },
                 newClasses.map { it.classNode },
+                deletedNormalMethodClasses,
                 parsedDex.staticMethodRefs.map { it.key.owner },
                 isRecompilation,
             )

@@ -9,4 +9,8 @@ public interface DefaultInterface {
     static public void func2() {
         System.out.println("func2");
     }
+
+    default public void func3() {
+        System.out.println("func3");
+    }
 }
