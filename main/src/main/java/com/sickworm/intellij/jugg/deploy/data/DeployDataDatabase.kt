@@ -44,7 +44,8 @@ interface IDeployDataDatabase {
                                   ): Map<String, List<String>>
 
     fun findInterfacesWithDesugaredDefaultMethod(
-        classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>,
+        classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, deleteMethodClassNodes: List<ClassNode>,
+        invokeStaticRefClassNames: List<String>,
         isRecompilation: Boolean,
     ): List<String>
 }
@@ -238,6 +239,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     override fun findInterfacesWithDesugaredDefaultMethod(
         classNodes: List<ClassNode>,
         newClassNodes: List<ClassNode>,
+        deleteMethodClassNodes: List<ClassNode>,
         invokeStaticRefClassNames: List<String>,
         isRecompilation: Boolean,
     ): List<String> {
@@ -254,9 +256,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             }
             interfaceNames.addAll(result)
         }
-        if (newClassNodes.isNotEmpty() || invokeStaticRefClassNames.isNotEmpty()) {
+        if (newClassNodes.isNotEmpty() || deleteMethodClassNodes.isNotEmpty() || invokeStaticRefClassNames.isNotEmpty()) {
             val result = database.values.flatMap {
-                it.findRefsOfDesugaredDefaultMethod(newClassNodes, invokeStaticRefClassNames)
+                it.findRefsOfDesugaredDefaultMethod(newClassNodes + deleteMethodClassNodes, invokeStaticRefClassNames)
             }
             interfaceNames.addAll(result)
         }

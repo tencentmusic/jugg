@@ -278,6 +278,26 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun testFixDefaultMethodByDeleteMethodImpl() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass5")
+        var deployData = generator.buildDeployData(parsedDex, emptyList())
+        assertTrue(deployData.desugaredInterfacesWithDefaultMethods.isEmpty())
+
+        val classNode = parsedDex.classDeployItems[0].classNode
+        val addedMethods = classNode.methods.filter {
+            it.name != "func3"
+        }
+        val removeMethodParsedDex = parsedDex.updateMethods(addedMethods)
+
+        deployData = generator.buildDeployData(removeMethodParsedDex, emptyList())
+        assertTrue(deployData.desugaredInterfacesWithDefaultMethods.isNotEmpty())
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
+    }
+
+    @Test
     fun testEffectSourceByNewAbstractMethod() {
         val generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
