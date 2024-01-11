@@ -699,7 +699,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             // step 1. build dbClassNodeMap to get classId
             val dbClassNodeMap = mutableMapOf<String, Int>() // className -> classId map
             runWithTimeCost("doGetClassIds") {
-                val classNameList = mutableListOf<String>()
+                val classNameList = mutableSetOf<String>()
                 changedMethodRefs.forEach { classNameList.add(it.owner) }
                 changedFieldRefs.forEach { classNameList.add(it.owner) }
                 changedAbstractClasses.forEach { classNameList.add(it.className) }
