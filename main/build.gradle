@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc4'
+def versionName = '1.2.0-rc5'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -99,7 +99,7 @@ patchPluginXml.changeNotes = """
 <li>[feature] supports custom server url and build file detection</li>
 <li>[feature] supports pull notification from server</li>
 </ol>
-<h2>1.1.13 (2024.01.10)</h2>
+<h2>1.1.13 (2024.01.11)</h2>
 <ol>
 <li>[optimize] recreate JavaCompiler once when JavaTask call failed with no error</li>
 <li>[bugfix] fix run configuration not created after Hedgehog</li>
@@ -114,6 +114,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix "Run configuration is invalid" when using Windows with "/" and "\\" mixed</li>
 <li>[bugfix] fix Android Studio Dolphin can not listen sync event</li>
 <li>[bugfix] fix NullPointerException when adding a new static object field</li>
+<li>[bugfix] fix "AbstractMethodError" when delete a method which override the default function of interface with no redex triggered</li>
 </ol>
 <h2>1.1.12 (2023.12.22)</h2>
 <ol>
