@@ -53,6 +53,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix Android Studio Dolphin can not listen sync event</li>
 <li>[bugfix] fix NullPointerException when adding a new static object field</li>
 <li>[bugfix] fix "AbstractMethodError" when delete a method which override the default function of interface with no redex triggered</li>
+<li>[bugfix] fix "AbstractMethodError" when A trigger B redex, and B implements C which has default method</li>
 </ol>
 <h2>1.1.12 (2023.12.22)</h2>
 <ol>

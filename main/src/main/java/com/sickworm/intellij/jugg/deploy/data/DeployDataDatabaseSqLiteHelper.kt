@@ -881,7 +881,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
 
     @Synchronized
-    fun findRefsOfDefaultMethodWhenImplChanged(classNodes: List<ClassNode>): List<String> {
+    fun findRefsOfDefaultMethodWhenImplChanged(classNodes: List<ClassNode>, isRecompilation: Boolean): List<String> {
         DriverManager.getConnection(url).use { connection ->
 
             val classIds = mutableListOf<Int>()
@@ -897,16 +897,20 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            // find out subclasses of interface with default methods
             val resultIds = mutableListOf<Int>()
-            runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
-                connection.createStatement().use { statement ->
-                    val classIdsString = classIds.joinToString(",")
-                    val sql = "SELECT ref_class_id FROM default_method_invoke_refs WHERE class_id IN ($classIdsString);"
-                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                    while (resultSet.next()) {
-                        val classId = resultSet.getInt(1)
-                        resultIds.add(classId)
+
+            // we don't need to redex invoker of default method if it's recompilation (no changes)
+            if (!isRecompilation) {
+                // find out subclasses of interface with default methods
+                runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
+                    connection.createStatement().use { statement ->
+                        val classIdsString = classIds.joinToString(",")
+                        val sql = "SELECT ref_class_id FROM default_method_invoke_refs WHERE class_id IN ($classIdsString);"
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                        while (resultSet.next()) {
+                            val classId = resultSet.getInt(1)
+                            resultIds.add(classId)
+                        }
                     }
                 }
             }
@@ -923,6 +927,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
             }
+
             if (resultIds.isEmpty()) {
                 return emptyList()
             }
