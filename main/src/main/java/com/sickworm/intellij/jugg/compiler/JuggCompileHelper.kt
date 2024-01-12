@@ -110,10 +110,11 @@ class JuggCompilerHelper(
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             return CompileTaskResult(
                 isSuccess = false,
-                isGradleCompile = true,
+                isGradleCompile = false,
                 isCanFallback = false,
                 costTime = System.currentTimeMillis() - statTime,
                 failedReason = "Compile canceled",
+                incrementalFailedReason = "Compile canceled",
             )
         }
 
@@ -361,6 +362,7 @@ data class CompileTaskResult(
             isCanFallback,
             costTime = 0,
             failedReason = failedReason,
+            incrementalFailedReason = failedReason,
         )
     }
 }
