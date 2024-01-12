@@ -19,6 +19,7 @@ import java.io.PrintStream
 
 class LocalGradleCompileClient(
     private val project: Project,
+    private val localClasspathStorageDir: File,
     private val logger: Logger = JuggLogger.getInstance(project, "LocalGradleCompileClient"),
 ) : IGradleCompileClient {
 
@@ -108,7 +109,52 @@ class LocalGradleCompileClient(
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File {
         isCanceled = false
-        return File(project.basePath!!)
+
+        val projectRootPath = File(project.basePath!!)
+        if (isWindows) {
+            logger.info("fetchClasspathResult not support windows yet")
+            return projectRootPath
+        }
+
+        try {
+            // calculate root dir of project
+            var rootDir = projectRootPath
+            buildDirs.forEach { moduleBuildPathInfo ->
+                val moduleDir = moduleBuildPathInfo.moduleRootDir
+                if (!moduleDir.isChild(rootDir)) {
+                    while (true) {
+                        val parentFile = rootDir.parentFile ?: run {
+                            logger.warn("fetchClasspathResult failed, can't find parentFile of $moduleDir")
+                            return@forEach
+                        }
+                        rootDir = parentFile
+                        if (moduleDir.isChild(parentFile)) {
+                            return@forEach
+                        }
+                    }
+                }
+            }
+            val destPath = File(localClasspathStorageDir, "root").also {
+                it.mkdirs()
+            }
+            val command = SyncLocalClasspathCommand(
+                sourcePath = rootDir,
+                destPath = destPath,
+                modules = buildDirs,
+            )
+            val result = invoke(command)
+            if (result == 0) {
+                val projectRelativePath = projectRootPath.toRelativeString(rootDir.parentFile)
+                return File(destPath, projectRelativePath)
+            } else {
+                logger.warn("fetchClasspathResult failed")
+            }
+        } catch (e: Exception) {
+            logger.warn("fetchClasspathResult failed", e)
+        }
+
+        logger.warn("use project base path instead")
+        return projectRootPath
     }
 
     @Volatile

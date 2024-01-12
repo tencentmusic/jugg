@@ -93,11 +93,12 @@ tasks.register('buildPluginIntranet') {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1>
-<h2>1.2.0 (2024.01.11)</h2>
+<h2>1.2.0 (2024.01.13)</h2>
 <ol>
 <li>[feature] supports detect file rollback</li>
 <li>[feature] supports custom server url and build file detection</li>
 <li>[feature] supports pull notification from server</li>
+<li>[optimize] copy local classpath to jugg dir to avoid broken by gradle</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>

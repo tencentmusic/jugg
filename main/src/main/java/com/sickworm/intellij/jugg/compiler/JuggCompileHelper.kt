@@ -27,6 +27,7 @@ import java.io.File
 
 class JuggCompilerHelper(
     private val project: Project,
+    private val localClasspathStorageDir: File,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
     private val deployStateManager: DeployStateManager,
@@ -142,7 +143,7 @@ class JuggCompilerHelper(
         processHandler: SimpleProcessHandler,
         indicator: ProgressIndicator,
     ): GradleCompileResult {
-        val client = gradleCompileClientManager.getClient(options.isRemoteCompile)
+        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStorageDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator)
         val result = task.run()
         if (result.isSuccess) {
@@ -361,7 +362,7 @@ class JuggCompilerHelper(
      * @return classpath root dir
      */
     fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>): File? {
-        return gradleCompileClientManager.getClient(isRemote).fetchClasspathResult(buildDirs)
+        return gradleCompileClientManager.getClient(isRemote, localClasspathStorageDir).fetchClasspathResult(buildDirs)
     }
 
     override fun dispose() {
@@ -375,7 +376,7 @@ private class GradleCompileClientManager(private val project: Project): Disposab
     private var isCacheRemoteClient: Boolean? = null
     private var cacheClient: IGradleCompileClient? = null
 
-    fun getClient(isRemote: Boolean): IGradleCompileClient {
+    fun getClient(isRemote: Boolean, localClasspathStorageDir: File): IGradleCompileClient {
         val cacheClient = cacheClient
         val isCacheRemoteClient = isCacheRemoteClient
 
@@ -383,7 +384,7 @@ private class GradleCompileClientManager(private val project: Project): Disposab
             cacheClient
         } else {
             cacheClient?.dispose()
-            val newClient = if (isRemote) RemoteGradleCompileClient(project) else LocalGradleCompileClient(project)
+            val newClient = if (isRemote) RemoteGradleCompileClient(project) else LocalGradleCompileClient(project, localClasspathStorageDir)
             Disposer.register(this, newClient)
             this.cacheClient = newClient
             this.isCacheRemoteClient = isRemote

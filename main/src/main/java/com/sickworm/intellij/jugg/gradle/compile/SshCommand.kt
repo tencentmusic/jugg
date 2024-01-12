@@ -112,3 +112,40 @@ class FetchClasspathCommand(
     }
 }
 
+
+class SyncLocalClasspathCommand(
+    private val sourcePath: File,
+    private val destPath: File,
+    private val modules: List<ModuleBuildPathInfo>,
+) : BaseSshCommand() {
+
+    private var includeClasspathFilter = ""
+
+
+    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+
+    override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
+        includeClasspathFilter = modules
+            .flatMap { pathInfo ->
+                pathInfo.allBuildPathRelative.map {
+                    var path = it.path
+                    val rootPath = pathInfo.moduleRootDir.relativeTo(sourcePath).parentFile?.path
+                        ?.substringBefore(File.separatorChar) ?: ""
+                    if (rootPath.isNotEmpty()) {
+                        path = "$rootPath/**/$path"
+                    }
+
+                    val platformSeparator = File.separatorChar
+                    val remoteSeparator = if (isWindows) '\\' else '/'
+                    path = path.replace(platformSeparator, remoteSeparator)
+
+                    if (it.extension.isNotEmpty()) "--include='$path'"
+                    else "--include='$path/**'"
+                }
+            }
+            .toSet()
+            .joinToString(" ")
+
+        return super.getCommand(isNeedSetChineseLanguage, isWindows)
+    }
+}

@@ -55,9 +55,9 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
-    private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir,  JuggLogger.getInstance(project, "CustomConfigManager")),
-): Disposable {
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager.localClasspathStorageDir, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
+    private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
+    ): Disposable {
 
     constructor(
         project2: Project,
@@ -271,32 +271,30 @@ class JuggManager @TestOnly constructor(
         var allModules = compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
         val moduleBuildPathInfos = allModules.map { it.value.buildPathInfo }
 
-        if (isRemoteCompile) {
-            logger.info("Fetching remote classpath...")
-            val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
-                val originText = currentIndicator?.text
-                currentIndicator?.text = "Jugg: Fetching remote classpath..."
-                val result = juggCompilerHelper.fetchClasspathResult(true, moduleBuildPathInfos)
-                currentIndicator?.text = originText
-                return@measureTimeMillisWithResult result
-            }
-            logger.debug("fetchClasspathResult cost ${costTime2}ms")
-            logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir")
-            if (classpathRootDir == null || !classpathRootDir.exists()) {
-                logger.warn("Fetch remote classpath failed, please check log for details.")
-                return
-            }
-            // wrap local CompileContextInfo to CompileContextInfo fetched from remote
-            allModules = allModules.values
-                .map {
-                    it.copy(buildPathInfo = ModuleBuildPathInfo(
-                        classpathRootDir,
-                        File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
-                        it.buildVariant,
-                    ))
-                }
-                .associateBy { it.name }
+        logger.info("Fetching classpath...")
+        val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
+            val originText = currentIndicator?.text
+            currentIndicator?.text = "Jugg: Fetching classpath..."
+            val result = juggCompilerHelper.fetchClasspathResult(isRemoteCompile, moduleBuildPathInfos)
+            currentIndicator?.text = originText
+            return@measureTimeMillisWithResult result
         }
+        logger.debug("fetchClasspathResult cost ${costTime2}ms")
+        logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir")
+        if (classpathRootDir == null || !classpathRootDir.exists()) {
+            logger.warn("Fetch classpath failed, please check log for details.")
+            return
+        }
+        // wrap local CompileContextInfo to CompileContextInfo fetched from remote
+        allModules = allModules.values
+            .map {
+                it.copy(buildPathInfo = ModuleBuildPathInfo(
+                    classpathRootDir,
+                    File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
+                    it.buildVariant,
+                ))
+            }
+            .associateBy { it.name }
 
         val (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
             pathManager.compileRootDir.clearDir()
