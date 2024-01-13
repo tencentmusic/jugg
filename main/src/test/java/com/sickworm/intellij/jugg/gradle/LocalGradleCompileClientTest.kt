@@ -4,7 +4,6 @@ package com.sickworm.intellij.jugg.gradle
 
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
-import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
@@ -49,7 +48,7 @@ class LocalGradleCompileClientTest {
 
     @Test
     fun testCompile() {
-        val localClient = LocalGradleCompileClient(project, logger)
+        val localClient = LocalGradleCompileClient(project, buildDir, logger)
         localClient.login(juggGradleCompileOptions)
         val remoteCompileResult = localClient.compileAndFetchResult()
         assertTrue(remoteCompileResult.isSuccess)
@@ -57,7 +56,7 @@ class LocalGradleCompileClientTest {
 
     @Test
     fun testCancel() {
-        val localClient = LocalGradleCompileClient(project, logger)
+        val localClient = LocalGradleCompileClient(project, buildDir, logger)
         localClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
 
             override fun onOutput(line: String, isNeedPrint: Boolean) {
