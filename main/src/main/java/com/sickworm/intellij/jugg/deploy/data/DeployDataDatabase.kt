@@ -249,10 +249,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
 
         val interfaceNames = mutableSetOf<String>()
-        if (apkClassNodes.isNotEmpty() && !isRecompilation) {
-            // we don't need to redex invoker of default method if it's recompilation (no changes)
+        if (apkClassNodes.isNotEmpty()) {
             val result = database.values.flatMap {
-                it.findRefsOfDefaultMethodWhenImplChanged(apkClassNodes)
+                it.findRefsOfDefaultMethodWhenImplChanged(apkClassNodes, isRecompilation)
             }
             interfaceNames.addAll(result)
         }
