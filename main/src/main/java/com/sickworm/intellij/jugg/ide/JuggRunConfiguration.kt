@@ -104,23 +104,7 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
     override fun applyEditorTo(s: JuggRunConfiguration) {
         val component = component as JuggRunSettingsComponent
-        s.state?.run {
-            compileCommand = component.compileCommandTextField.text
-            outputApkName = component.outputApkNameTextField.text
-            isRemoteCompile = component.enableRemoteCompileCheckBox.isSelected
-            isSyncAllProjects = component.enableSyncAllProjectsCheckBox.isSelected
-            remoteSshUser = component.userTextField.text
-            remoteSshPassword = component.passwordTextField.password.joinToString("")
-            remoteSshIp = component.ipTextField.text
-            remoteSshPort = component.portTextField.text.toInt()
-            localToRemoteIftConfigName = component.localToRemoteIftConfigNameTextField.text
-            localToRemoteSyncPath = component.localToRemoteSyncPathTextField.text
-            remoteSyncPath = component.remoteSyncPathTextField.text
-            remoteToLocalIftConfigName = component.remoteToLocalIftConfigNameTextField.text
-            remoteToLocalSyncPath = component.remoteToLocalSyncPathTextField.text
-            httpProxyIp = component.httpProxyIpTextField.text
-            httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
-        }
+        component.updateJuggRunConfigurationOptions(s.state)
     }
 
     override fun createEditor(): JComponent {

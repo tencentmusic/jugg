@@ -80,15 +80,17 @@ class LocalGradleCompileClient(
         }
     }
 
-    override fun compileAndFetchResult(): GradleCompileResult {
+    override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
         isCanceled = false
         val juggGradleCompileOptions = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
 
-        val compileProjectCommand = CompileProjectCommand(juggGradleCompileOptions.compileCommand, project.basePath!!)
-        val compileProjectResult = invoke(compileProjectCommand)
-        if (compileProjectResult != 0) {
-            printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
-            return GradleCompileResult.failed(isCanceled, "Compile project failed $compileProjectResult")
+        if (!isOnlyFetchResult) {
+            val compileProjectCommand = CompileProjectCommand(juggGradleCompileOptions.compileCommand, project.basePath!!)
+            val compileProjectResult = invoke(compileProjectCommand)
+            if (compileProjectResult != 0) {
+                printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
+                return GradleCompileResult.failed(isCanceled, "Compile project failed $compileProjectResult")
+            }
         }
 
         // try sub dir first

@@ -21,6 +21,7 @@ class JuggGradleCompileTask(
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: SimpleProcessHandler,
     private val indicator: ProgressIndicator,
+    private val isOnlyFetchResult: Boolean,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
@@ -71,7 +72,7 @@ class JuggGradleCompileTask(
         val (costTime, result) = measureTimeMillisWithResult {
             juggGradleCompileOptions.checkConfig()
             compileClient.login(juggGradleCompileOptions)
-            compileClient.compileAndFetchResult()
+            compileClient.compileAndFetchResult(isOnlyFetchResult)
         }
         updateTimeJob.cancel()
 

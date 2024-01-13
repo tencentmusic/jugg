@@ -7,10 +7,12 @@ import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -321,6 +323,33 @@ class JuggManager @TestOnly constructor(
         AsDeployerCompat.getDevices(project)?.forEach {
             deployTargetManager.restartApp(it)
         }
+    }
+
+    fun markAsSyncedAndReInitCompiler(isNeedReloadProjectInfo: Boolean) {
+        logger.info("[test options] markAsSyncedAndReInitCompiler")
+        initProjectInfo(isNeedReloadProjectInfo)
+    }
+
+    fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
+        logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
+        runTaskSafe("Mark as Gradle Compiled", {
+            val compileOptions = JuggGradleCompileOptions.fromOptions(pathManager.projectDir.absolutePath, options)
+
+            // login and get apks
+            val result = juggCompilerHelper.gradleCompile(
+                compileOptions,
+                SimpleProcessHandler(),
+                currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                isOnlyFetchResult = true,
+            )
+            if (!result.isSuccess) {
+                logger.warn("gradleCompile(isOnlyFetchResult) failed, please check log for details.")
+                return@runTaskSafe
+            }
+
+            // re-init compiler and mark all compiled
+            initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), compileOptions.isRemoteCompile)
+        })
     }
 
     private fun reInitOnCompileContextUpdate() {

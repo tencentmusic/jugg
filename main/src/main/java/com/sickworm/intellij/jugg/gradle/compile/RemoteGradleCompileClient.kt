@@ -69,7 +69,7 @@ class RemoteGradleCompileClient(
         }
     }
 
-    override fun compileAndFetchResult(): GradleCompileResult {
+    override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
         isCanceled = false
         val channel = channel
         val gradleCompileSettings = juggGradleCompileOptions
@@ -77,22 +77,24 @@ class RemoteGradleCompileClient(
             throw JuggInternalException.notLoginYet()
         }
 
-        val syncFileCommand = SyncFileCommand(gradleCompileSettings.localSyncIftPath, gradleCompileSettings.remoteSyncRootPath)
-        val syncFileResult = invoke(channel, syncFileCommand)
-        if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
-            syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
-            printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
-        } else if (syncFileResult != 0) {
-            printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
-        }
+        if (!isOnlyFetchResult) {
+            val syncFileCommand = SyncFileCommand(gradleCompileSettings.localSyncIftPath, gradleCompileSettings.remoteSyncRootPath)
+            val syncFileResult = invoke(channel, syncFileCommand)
+            if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
+                syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
+                printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
+                return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
+            } else if (syncFileResult != 0) {
+                printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
+                return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
+            }
 
-        val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteProjectPath)
-        val compileProjectResult = invoke(channel, compileProjectCommand)
-        if (compileProjectResult != 0) {
-            printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "Compile project failed")
+            val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteProjectPath)
+            val compileProjectResult = invoke(channel, compileProjectCommand)
+            if (compileProjectResult != 0) {
+                printToStreamErrorIfCanceled("Compile project failed, please check the error message.")
+                return GradleCompileResult.failed(isCanceled, failedReason = "Compile project failed")
+            }
         }
 
 

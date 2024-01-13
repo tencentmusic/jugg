@@ -36,7 +36,7 @@ interface IGradleCompileClient : Disposable {
     @Throws(JuggException::class)
     fun login(juggGradleCompileOptions: JuggGradleCompileOptions)
 
-    fun compileAndFetchResult() : GradleCompileResult
+    fun compileAndFetchResult(isOnlyFetchResult: Boolean = false) : GradleCompileResult
 
     fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File?
 

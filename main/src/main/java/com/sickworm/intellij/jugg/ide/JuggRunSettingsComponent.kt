@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.intellij.icons.AllIcons
+import com.intellij.ide.DataManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -9,7 +9,6 @@ import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.DropDownLink
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
-import com.intellij.ui.scale.JBUIScale
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
@@ -17,7 +16,6 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.protocols.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridLayout
 import java.lang.ref.WeakReference
@@ -34,7 +32,9 @@ class JuggRunSettingsComponent : JComponent() {
     }
 
     private var selectTemplateButton: DropDownLink<String> = createSelectTemplateButton()
-    private val moreOptionsButton: DropDownLink<String> = createMoreOptionsButton()
+    private var moreOptionsButton: DropDownLink<String> = DropDownLink("More options", emptyList()).also {
+        it.border = JBUI.Borders.empty(0, 4)
+    }
     private val templateUpdateListener = {
         SwingUtilities.invokeLater {
             updateTopButtons()
@@ -127,15 +127,20 @@ class JuggRunSettingsComponent : JComponent() {
         }
     }
 
-    private fun createMoreOptionsButton(): DropDownLink<String> {
-        val popupBuilder: (DropDownLink<String>) -> JBPopup = { link ->
-            JBPopupFactory.getInstance()
-                .createPopupChooserBuilder(JuggMoreOptionsItem.options)
-                .setRenderer(MyLinkCellRenderer(link))
-                .setItemChosenCallback { selectOptions ->
-                    selectOptions.isSelected = !selectOptions.isSelected
-                }
-                .createPopup()
+    private fun createMoreOptionsButton(project: Project): DropDownLink<String> {
+        val popupBuilder: (DropDownLink<String>) -> JBPopup = { _ ->
+            val options = JuggRunConfigurationOptions()
+            updateJuggRunConfigurationOptions(options)
+
+            val title = "More Options"
+            val group = JuggMoreOptionsItem.createOptions(project, options)
+            val dataContext = DataManager.getInstance().getDataContext(moreOptionsButton)
+            val popup = JBPopupFactory.getInstance().createActionGroupPopup(
+                title, group, dataContext,
+                JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true,
+                null, -1
+            )
+            popup
         }
 
         return DropDownLink("More options", popupBuilder).also {
@@ -183,11 +188,35 @@ class JuggRunSettingsComponent : JComponent() {
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
     }
 
+    // must run after updateUi for moreOptionsButton updates
     fun initUpload(project: Project) {
         if (reportIssueActionLink.actionListeners.isEmpty()) {
             reportIssueActionLink.addActionListener {
                 doUpload(project)
             }
+            moreOptionsButton = createMoreOptionsButton(project)
+            updateTopButtons()
+        }
+    }
+
+    fun updateJuggRunConfigurationOptions(options: JuggRunConfigurationOptions?) {
+        val component = this
+        options?.also {
+            it.compileCommand = component.compileCommandTextField.text
+            it.outputApkName = component.outputApkNameTextField.text
+            it.isRemoteCompile = component.enableRemoteCompileCheckBox.isSelected
+            it.isSyncAllProjects = component.enableSyncAllProjectsCheckBox.isSelected
+            it.remoteSshUser = component.userTextField.text
+            it.remoteSshPassword = component.passwordTextField.password.joinToString("")
+            it.remoteSshIp = component.ipTextField.text
+            it.remoteSshPort = component.portTextField.text.toInt()
+            it.localToRemoteIftConfigName = component.localToRemoteIftConfigNameTextField.text
+            it.localToRemoteSyncPath = component.localToRemoteSyncPathTextField.text
+            it.remoteSyncPath = component.remoteSyncPathTextField.text
+            it.remoteToLocalIftConfigName = component.remoteToLocalIftConfigNameTextField.text
+            it.remoteToLocalSyncPath = component.remoteToLocalSyncPathTextField.text
+            it.httpProxyIp = component.httpProxyIpTextField.text
+            it.httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
         }
     }
 
@@ -252,29 +281,3 @@ class JuggRunSettingsComponent : JComponent() {
         repaint()
     }
 }
-
-/** Copied from [DropDownLink] and modified */
-private class MyLinkCellRenderer(private val link: Component) : DefaultListCellRenderer() {
-    private fun coerce(size: Dimension): Dimension {
-        size.width = size.width.coerceAtLeast(link.preferredSize.width)
-        size.height = size.height.coerceAtLeast(JBUIScale.scale(22))
-        return size
-    }
-
-    override fun getMinimumSize() = coerce(super.getMinimumSize())
-    override fun getPreferredSize() = coerce(super.getPreferredSize())
-    override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean): Component {
-        super.getListCellRendererComponent(list, value, index, selected, false)
-        border = JBUI.Borders.empty(0, 8)
-        if (value is JuggMoreOptionsItem) {
-            text = value.name
-            icon = if (value.isSelected) {
-                AllIcons.Actions.SetDefault
-            } else {
-                null
-            }
-        }
-        return this
-    }
-}
-

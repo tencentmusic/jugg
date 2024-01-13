@@ -138,13 +138,14 @@ class JuggCompilerHelper(
         )
     }
 
-    private fun gradleCompile(
+    fun gradleCompile(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
         indicator: ProgressIndicator,
+        isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStorageDir)
-        val task = JuggGradleCompileTask(project, client, options, processHandler, indicator)
+        val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
             val apkFile = result.compileOutputFile

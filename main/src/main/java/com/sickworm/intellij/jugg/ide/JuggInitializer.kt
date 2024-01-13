@@ -65,7 +65,10 @@ object JuggInitializer {
         }
     }
 
-    fun getManager(project: Project): JuggManager? {
+    fun getManager(project: Project?): JuggManager? {
+        if (project == null) {
+            return null
+        }
         return instanceSet[project.bashPathOrDefault]
     }
 }
