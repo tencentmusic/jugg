@@ -94,8 +94,19 @@ class LocalGradleCompileClient(
         }
 
         // try sub dir first
-        val subDir = File(project.basePath!!, "app/build/outputs")
-        var apkFile = subDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+        // currently only supports module located at root dir
+        val subDirName = juggGradleCompileOptions.compileCommand.split(":").getOrNull(1) ?: "app"
+        // run gradle command will put apk in subDir1
+        val subDir1 = File(project.basePath!!, "$subDirName/build/outputs")
+        // run directly in android studio will only put apk in subDir2. this dir used for test mock event
+        val subDir2 = File(project.basePath!!, "$subDirName/intermediates/apk")
+        var apkFile: File? = null
+        if (subDir1.exists()) {
+            apkFile = subDir1.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+        } else if (subDir2.exists()) {
+            apkFile = subDir2.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+        }
+
         if (apkFile == null) {
             // find in root dir
             val rootDir = File(project.basePath!!)
@@ -105,6 +116,8 @@ class LocalGradleCompileClient(
             printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
                     "in ${project.basePath}, please make sure your run configuration is right.")
             return GradleCompileResult.failed(isCanceled, "Can't find apk")
+        } else {
+            printToStreamInfo("Find apk: ${apkFile.absolutePath}")
         }
         return GradleCompileResult.success(apkFile)
     }
