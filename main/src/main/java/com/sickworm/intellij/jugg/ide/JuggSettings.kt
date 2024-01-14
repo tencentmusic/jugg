@@ -34,6 +34,8 @@ object JuggSettings {
     const val maxCompileSourceModules = 20
     /** limit max source files to compile for better performance */
     const val maxCompileSourceFiles = 60
+    /** limit min compiler error to recreate once */
+    const val minErrorToRecreateCompiler = 30
 
     /** whether deploy all res files to device after install apk */
     var isEnableWarmUpDeploy: Boolean = false

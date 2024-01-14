@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
@@ -141,11 +142,30 @@ class KotlinCompiler(
         outputParser.flush()
         logger.debug("kotlin compile result code: $exitCode")
 
-        if (exitCode == ExitCode.INTERNAL_ERROR && !hasRecreateAfterInternalError) {
-            logger.warn("kotlin compile failed with INTERNAL_ERROR, retry with recreating compiler once")
-            hasRecreateAfterInternalError = true
-            kotlinCompile = K2JVMCompilerIsolate()
-            return doModuleCompile(task, module)
+        // retry strategy
+        val errorResults = outputParser.results.sumOf {
+            if (it.isSuccess) 0 else it.getFailure().errors.size
+        }
+        var shouldRecreate = false
+        var retryReason = ""
+        if (errorResults > JuggSettings.minErrorToRecreateCompiler) {
+            // most likely kotlin compiler is not working, try to recreate once
+            retryReason = "Kotlin compile failed with too many errors(> ${JuggSettings.minErrorToRecreateCompiler})"
+            shouldRecreate = true
+        }
+        if (exitCode == ExitCode.INTERNAL_ERROR) {
+            logger.warn("Kotlin compile failed with with INTERNAL_ERROR!")
+            retryReason = "Kotlin compile failed with INTERNAL_ERROR"
+            shouldRecreate = true
+        }
+        if (shouldRecreate) {
+            logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRecreateAfterInternalError")
+            if (!hasRecreateAfterInternalError) {
+                logger.warn("\n$retryReason, retry with recreating compiler once.\n")
+                hasRecreateAfterInternalError = true
+                kotlinCompile = K2JVMCompilerIsolate()
+                return doModuleCompile(task, module)
+            }
         }
 
         try {

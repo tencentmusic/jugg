@@ -99,6 +99,7 @@ patchPluginXml.changeNotes = """
 <li>[feature] supports custom server url and build file detection</li>
 <li>[feature] supports pull notification from server</li>
 <li>[optimize] copy local classpath to jugg dir to avoid broken by gradle</li>
+<li>[optimize] retry with recreating compiler once when no error or error too much</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>

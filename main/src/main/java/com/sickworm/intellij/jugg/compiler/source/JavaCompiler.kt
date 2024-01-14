@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggException
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
@@ -81,11 +82,24 @@ class JavaCompiler(
             hasRecreateAfterInternalError = false
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
         } else {
+            // retry strategy
             val errorCount = compileItems.sumOf { it.errors.size }
+            var shouldRecreate = false
+            var retryReason = ""
+            if (errorCount > JuggSettings.minErrorToRecreateCompiler) {
+                // most likely kotlin compiler is not working, try to recreate once
+                retryReason = "Java compile failed with too many errors(> ${JuggSettings.minErrorToRecreateCompiler})"
+                shouldRecreate = true
+            }
             if (errorCount == 0) {
-                logger.warn("javaTask call failed with no error!")
+                logger.warn("Java compile failed with no error!")
+                retryReason = "Java compile failed with no error"
+                shouldRecreate = true
+            }
+            if (shouldRecreate) {
+                logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRecreateAfterInternalError")
                 if (!hasRecreateAfterInternalError) {
-                    logger.warn("java compile failed with no error, retry with recreating compiler once")
+                    logger.warn("\n$retryReason, retry with recreating compiler once.\n")
                     hasRecreateAfterInternalError = true
                     compiler = getJavaCompiler(logger)
                     return doModuleCompile(task, module)
