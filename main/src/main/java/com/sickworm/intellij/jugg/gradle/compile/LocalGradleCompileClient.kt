@@ -117,7 +117,7 @@ class LocalGradleCompileClient(
                     "in ${project.basePath}, please make sure your run configuration is right.")
             return GradleCompileResult.failed(isCanceled, "Can't find apk")
         } else {
-            printToStreamInfo("Find apk: ${apkFile.absolutePath}")
+            logger.debug("Find apk: ${apkFile.absolutePath}")
         }
         return GradleCompileResult.success(apkFile)
     }
