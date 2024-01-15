@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc7'
+def versionName = '1.2.0-rc8'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -93,7 +93,7 @@ tasks.register('buildPluginIntranet') {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1>
-<h2>1.2.0 (2024.01.14)</h2>
+<h2>1.2.0 (2024.01.15)</h2>
 <ol>
 <li>[feature] supports detect file rollback</li>
 <li>[feature] supports custom server url and build file detection</li>
@@ -102,6 +102,7 @@ patchPluginXml.changeNotes = """
 <li>[optimize] copy local classpath to jugg dir to avoid broken by gradle</li>
 <li>[optimize] retry with recreating compiler once when no error or error too much</li>
 <li>[optimize] improve speed of searching apk on local mode</li>
+<li>[bugfix] fix changed file during gradle compilation is missing after reopen project</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>

@@ -137,7 +137,7 @@ class DeployHistoryDb(
         deployItemsDir.deleteRecursively()
     }
 
-    fun resetHistoryAfterFullCompiled(modules: Map<String, ModuleInfo>) {
+    fun resetHistoryAfterFullCompiled(modules: Map<String, ModuleInfo>, startCompileTime: Long) {
         val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
             val newCommitHash = gitManager.getLastCommitHash()
             val changedFiles = mutableMapOf<String, Long>()
@@ -145,7 +145,7 @@ class DeployHistoryDb(
             // add changed files in project root
             val mainChangedFiles = gitManager.getUncommittedFiles()
                 .filter { it.exists() } // ignore deleted files
-                .associate { it.changedFilePair }
+                .associate { it.toChangedFilePair(startCompileTime) }
             changedFiles.putAll(mainChangedFiles)
 
             val submoduleGitManagers = getSubmoduleGitManagers(modules.values)
@@ -153,7 +153,7 @@ class DeployHistoryDb(
             val sumModuleChangedFile = submoduleGitManagers.values.map { submoduleGitManager ->
                 submoduleGitManager.getUncommittedFiles()
                     .filter { it.exists() } // ignore deleted files
-                    .associate { it.changedFilePair }
+                    .associate { it.toChangedFilePair(startCompileTime) }
             }
             sumModuleChangedFile.forEach {
                 changedFiles.putAll(it)
@@ -190,7 +190,7 @@ class DeployHistoryDb(
 
     fun updateHistory(sourceFiles: List<ChangedFile>) {
         val newDeployedFiles = sourceFiles.associate {
-           it.file.changedFilePair
+           it.file.toChangedFilePair()
         }
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
@@ -291,9 +291,15 @@ class DeployHistoryDb(
         return unchangedFiles
     }
 
-    private val File.changedFilePair: Pair<String, Long> get() {
+    private fun File.toChangedFilePair(startCompileTime: Long = Long.MAX_VALUE): Pair<String, Long> {
         val relativePath = relativeTo(projectDir).path
-        val crc = crc32
+        val crc = if (lastModified() <= startCompileTime) {
+            crc32
+        } else {
+            // mark file as dirty by set crc32 to 0 if file is modified after startCompileTime
+            logger.debug("File $relativePath is modified after startCompileTime, mark it as dirty.")
+            0L
+        }
         return relativePath to crc
     }
 

@@ -308,6 +308,7 @@ class JuggManager @TestOnly constructor(
             deployHistoryManager.reInitAfterFullCompiled(
                 apkInfos,
                 allModules,
+                startCompileTime,
             )
 
         }

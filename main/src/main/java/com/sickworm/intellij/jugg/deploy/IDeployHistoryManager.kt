@@ -38,7 +38,7 @@ interface IDeployHistoryManager {
      * 1. Clear deploy history
      * 2. Collect incremental compile dependencies after full build.
      */
-    fun reInitAfterFullCompiled(apkInfos: List<ApkInfo>, modules: Map<String, ModuleInfo>): CompileContextInfo
+    fun reInitAfterFullCompiled(apkInfos: List<ApkInfo>, modules: Map<String, ModuleInfo>, startCompileTime: Long): CompileContextInfo
 
     /**
      * Invoke this method to update deploy history after project complete deploying by Jugg.
