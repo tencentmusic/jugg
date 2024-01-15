@@ -42,11 +42,11 @@ class JuggRunSettingsComponent : JComponent() {
     }
 
     private val compileCommandLabel = JLabel("Compile command:")
-    val compileCommandTextField = JTextField()
+    private val compileCommandTextField = JTextField()
     private val outputApkNameLabel = JLabel("Output APK name:")
-    val outputApkNameTextField = JTextField()
-    val enableRemoteCompileCheckBox = JCheckBox("Enable iFt remote compile")
-    val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in iFT root dir)")
+    private val outputApkNameTextField = JTextField()
+    private val enableRemoteCompileCheckBox = JCheckBox("Enable iFt remote compile")
+    private val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in iFT root dir)")
 
     private val reportIssueActionLink = ActionLink("Report issues")
 
@@ -55,29 +55,29 @@ class JuggRunSettingsComponent : JComponent() {
     }
 
     private val userLabel = JLabel("SSH user:")
-    val userTextField = JTextField()
+    private val userTextField = JTextField()
     private val passwordLabel = JLabel("SSH password:")
-    val passwordTextField = JBPasswordField()
+    private val passwordTextField = JBPasswordField()
     private val ipLabel = JLabel("SSH host:")
-    val ipTextField = JTextField()
+    private val ipTextField = JTextField()
     private val portLabel = JLabel("SSH port:")
-    val portTextField = JTextField()
+    private val portTextField = JTextField()
     private val localToRemoteIftConfigNameLabel = JLabel("Local to remote IFT config name:")
-    val localToRemoteIftConfigNameTextField = JTextField()
+    private val localToRemoteIftConfigNameTextField = JTextField()
     private val localToRemoteSyncPathLabel = JLabel("Local to remote sync path:")
-    val localToRemoteSyncPathTextField = JTextField()
+    private val localToRemoteSyncPathTextField = JTextField()
     private val remoteSyncPathLabel = JLabel("Remote sync path (optional):")
-    val remoteSyncPathTextField = JBTextField().also {
+    private val remoteSyncPathTextField = JBTextField().also {
         it.emptyText.text = "default \$HOME/{Local to remote IFT config name}, e.g. /root/remote"
     }
     private val remoteToLocalIftConfigNameLabel = JLabel("Remote to local IFT config name:")
     private val remoteToLocalSyncPathLabel = JLabel("Remote to local sync path:")
-    val remoteToLocalSyncPathTextField = JTextField()
-    val remoteToLocalIftConfigNameTextField = JTextField()
+    private val remoteToLocalSyncPathTextField = JTextField()
+    private val remoteToLocalIftConfigNameTextField = JTextField()
     private val httpProxyIpLabel = JLabel("HTTP proxy host:")
-    val httpProxyIpTextField = JTextField()
+    private val httpProxyIpTextField = JTextField()
     private val httpProxyPortLabel = JLabel("HTTP proxy port:")
-    val httpProxyPortTextField = JTextField()
+    private val httpProxyPortTextField = JTextField()
 
     private val remoteComponentList = listOf<Pair<JComponent, JComponent?>>(
         Pair(tipsLabel, null),
