@@ -29,6 +29,7 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     // used to recognize whether default value has set
     // can not set default value in the string() or property(), value will be reset to default when default value is changed.
     private var hasSetDefaultValue by property(false)
+    var syncMode by string()
 
     // new options must add to the end because property persist is in order
 
@@ -55,6 +56,7 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
         httpProxyIp = template.httpProxyIp
         httpProxyPort = template.httpProxyPort
         isSyncAllProjects = template.isSyncAllProjects
+        syncMode = template.syncMode
     }
 }
 
@@ -78,7 +80,7 @@ data class JuggGradleCompileOptions(
     val remoteToLocalSyncPath: String,
     val httpProxyIp: String,
     val httpProxyPort: Int,
-    val syncMode: SyncMode = SyncMode.RSYNC,
+    val syncMode: SyncMode,
 ) {
 
 
@@ -176,6 +178,11 @@ data class JuggGradleCompileOptions(
             if (localToRemoteSyncPath.isEmpty()) {
                 errorDetails += "Run configuration argument [Local to remote sync path] is empty\n"
             }
+            if (syncMode.isRsync) {
+                if (remoteSyncPath.isEmpty()) {
+                    errorDetails += "Run configuration argument [Remote sync path] is empty\n"
+                }
+            }
             if (remoteToLocalIftConfigName.isEmpty()) {
                 errorDetails += "Run configuration argument [Remote to local IFT config] name is empty\n"
             }
@@ -217,6 +224,7 @@ data class JuggGradleCompileOptions(
                 options.remoteToLocalSyncPath ?: "",
                 options.httpProxyIp ?: "",
                 options.httpProxyPort,
+                SyncMode.values().find { it.modeName == options.syncMode } ?: SyncMode.IFT,
             )
         }
     }

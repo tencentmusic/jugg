@@ -6,7 +6,9 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.server.listType
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
+import com.sickworm.intellij.jugg.server.typeAdapter
 import java.lang.ref.WeakReference
 import kotlin.reflect.KProperty
 
@@ -121,6 +123,7 @@ object JuggSettings {
                 propertiesComponent.getValue("defaultHttpProxyIp"),
                 propertiesComponent.getInt("defaultHttpProxyPort", 0),
                 propertiesComponent.getBoolean("defaultIsSyncAllProjects"),
+                SyncMode.IFT.modeName,
             )
             defaultCompileSettingsJson = Gson().toJson(recoverTemplate)
         }

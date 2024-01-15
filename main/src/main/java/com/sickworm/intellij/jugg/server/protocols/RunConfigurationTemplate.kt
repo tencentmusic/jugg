@@ -1,13 +1,5 @@
 package com.sickworm.intellij.jugg.server.protocols
 
-import com.google.gson.TypeAdapter
-import com.google.gson.reflect.TypeToken
-import com.google.gson.stream.JsonReader
-import com.google.gson.stream.JsonWriter
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
-import java.lang.reflect.Type
-
 data class RunConfigurationTemplate(
     val templateName: String,
     val compileCommand: String?,
@@ -25,23 +17,9 @@ data class RunConfigurationTemplate(
     val httpProxyIp: String?,
     val httpProxyPort: Int,
     val isSyncAllProjects: Boolean,
+    val syncMode: String?,
 ) {
     companion object {
-
-        val listType: Type = object : TypeToken<List<RunConfigurationTemplate>>() {}.type
-
-        private val userHome = System.getProperty("user.home")
-
-        val typeAdapter = object : TypeAdapter<String?>() {
-            override fun write(p0: JsonWriter?, p1: String?) {
-                p0?.value(p1)
-            }
-
-            override fun read(p0: JsonReader?): String? {
-                val string = p0?.nextString()
-                return string?.replace("\$HOME", userHome)
-            }
-        }
 
         val default = RunConfigurationTemplate(
             "Default",
@@ -60,47 +38,7 @@ data class RunConfigurationTemplate(
             "",
             0,
             false,
+            "iFt",
         )
     }
-}
-
-fun JuggGradleCompileOptions.toRunConfigurationTemplate(): RunConfigurationTemplate {
-    val options = this
-    return RunConfigurationTemplate.default.copy(
-        isRemoteCompile = options.isRemoteCompile,
-        isSyncAllProjects = options.isSyncAllProjects,
-        remoteSshUser = options.remoteSshUser,
-        remoteSshIp = options.remoteSshIp,
-        remoteSshPassword = options.remoteSshPassword,
-        remoteSshPort = options.remoteSshPort,
-        localToRemoteIftConfigName = options.localToRemoteIftConfigName,
-        localToRemoteSyncPath = options.localToRemoteSyncPath,
-        remoteSyncPath = options.remoteSyncPath,
-        remoteToLocalIftConfigName = options.remoteToLocalIftConfigName,
-        remoteToLocalSyncPath = options.remoteToLocalSyncPath,
-        httpProxyIp = options.httpProxyIp,
-        httpProxyPort = options.httpProxyPort,
-    )
-}
-
-fun JuggRunConfigurationOptions.toRunConfigurationTemplate(): RunConfigurationTemplate {
-    val options = this
-    return RunConfigurationTemplate(
-        templateName = "Default",
-        compileCommand = options.compileCommand,
-        outputApkName = options.outputApkName,
-        isRemoteCompile = options.isRemoteCompile,
-        isSyncAllProjects = options.isSyncAllProjects,
-        remoteSshUser = options.remoteSshUser,
-        remoteSshIp = options.remoteSshIp,
-        remoteSshPassword = options.remoteSshPassword,
-        remoteSshPort = options.remoteSshPort,
-        localToRemoteIftConfigName = options.localToRemoteIftConfigName,
-        localToRemoteSyncPath = options.localToRemoteSyncPath,
-        remoteSyncPath = options.remoteSyncPath,
-        remoteToLocalIftConfigName = options.remoteToLocalIftConfigName,
-        remoteToLocalSyncPath = options.remoteToLocalSyncPath,
-        httpProxyIp = options.httpProxyIp,
-        httpProxyPort = options.httpProxyPort,
-    )
 }
