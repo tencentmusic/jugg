@@ -13,8 +13,6 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
-import java.io.IOException
-import java.io.PrintStream
 
 
 class LocalGradleCompileClient(
@@ -24,13 +22,13 @@ class LocalGradleCompileClient(
 ) : IGradleCompileClient {
 
     private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
-    @Volatile
-    private var currentRunningProcess: Process? = null
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
     private var gradleJdkPath: String? = null
     private var androidHomePath: String? = null
+
+    private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         // no need to login
@@ -179,7 +177,7 @@ class LocalGradleCompileClient(
         if (isByUser) {
             printToStreamInfo("[Jugg] user cancel")
         }
-        currentRunningProcess?.destroy()
+        cmdExecutor.release()
         isCanceled = true
     }
 
@@ -202,85 +200,11 @@ class LocalGradleCompileClient(
         }
         logger.debug("input env: $envArray")
 
-        val commandString = command.getCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
-        logger.debug("invoke command: $commandString")
-        val commands = if (isWindows) {
-            arrayOf("cmd.exe", "/c", commandString)
-        } else {
-            arrayOf("/bin/bash", "-c", commandString)
-        }
-        val process = Runtime.getRuntime().exec(
-            commands,
-            envArray.toTypedArray(),
-        )
-        currentRunningProcess = process
-
-        command.beforeInvokeCommand()
-        val commander = PrintStream(process.outputStream, false)
-
-        val errorPrintThread = object : Thread() {
-            override fun run() {
-                val reader = process.errorStream.bufferedReader(Charsets.UTF_8)
-                while (!isInterrupted) {
-                    try {
-                        val line = reader.readLine()
-                        if (line != null) {
-                            if (line.isNotEmpty()) {
-                                printToStreamError(line)
-                            }
-                        }
-                    } catch (e: IOException) {
-                        // java.io.IOException: Stream closed
-                        break
-                    }
-                }
-            }
-        }
-        errorPrintThread.start()
-
-        val reader = process.inputStream.bufferedReader(Charsets.UTF_8)
-        var result: Int
-        while (true) {
-            try {
-                val line = reader.readLine()
-                if (line != null) {
-                    if (line.isNotEmpty()) {
-                        printToStream(line)
-                    }
-                    val output = command.getInput(line)
-                    if (output != null) {
-                        logger.debug("output: $output")
-                        commander.println(output)
-                        commander.flush()
-                    }
-                    val currentResult = command.hasFinishWithResult(line)
-                    if (currentResult != null) {
-                        result = currentResult
-                        break
-                    }
-                }
-            } catch (e: IOException) {
-                // java.io.IOException: Stream closed
-                result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
-                break
-            }
-
-            if (!process.isAlive) {
-                printToStream("[Jugg] exit-status: " + process.exitValue())
-                result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
-                break
-            }
-        }
-        process.waitFor()
-        errorPrintThread.interrupt()
-        currentRunningProcess = null
+        cmdExecutor.terminalOutputListener = terminalOutputListener
+        val result = cmdExecutor.invoke(command, envArray)
 
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
         return result
-    }
-
-    private fun printToStream(line: String) {
-        terminalOutputListener.onOutput(line)
     }
 
     private fun printToStreamInfo(line: String) {
@@ -302,8 +226,7 @@ class LocalGradleCompileClient(
     }
 
     override fun dispose() {
-        currentRunningProcess?.destroy()
-        currentRunningProcess = null
+        cmdExecutor.release()
     }
 
 }

@@ -23,6 +23,8 @@ class RemoteGradleCompileClient(
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
+    private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
+
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel != null) {
             printToStreamInfo("${juggGradleCompileOptions.remoteSshIp} already login")
@@ -78,17 +80,38 @@ class RemoteGradleCompileClient(
         }
 
         if (!isOnlyFetchResult) {
-            val syncFileCommand = SyncFileCommand(gradleCompileSettings.localSyncIftPath, gradleCompileSettings.remoteSyncRootPath)
+            // 1. mkdir
+            val mkDirCommand = MkDirCommand(gradleCompileSettings.remoteSyncRootPath)
+            val mkDirResult = invoke(channel, mkDirCommand)
+            if (mkDirResult != 0) {
+                printToStreamErrorIfCanceled("Make dir failed, please check your sync client is opened.")
+                return GradleCompileResult.failed(isCanceled, failedReason = "Make dir failed")
+            }
+
+            // 2. sync source file
+            val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
+                RsyncSyncFileCommand(
+                    gradleCompileSettings,
+                    gradleCompileSettings.localSyncRsyncPath,
+                    gradleCompileSettings.remoteSyncRootRsyncPath,
+                )
+            } else {
+                SyncFileCommand(
+                    gradleCompileSettings.localSyncIftPath,
+                    gradleCompileSettings.remoteSyncRootPath,
+                )
+            }
             val syncFileResult = invoke(channel, syncFileCommand)
             if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
                 syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
                 printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
                 return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
             } else if (syncFileResult != 0) {
-                printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your iFt client is opened.")
+                printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your sync client is opened.")
                 return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
             }
 
+            // 3. compile
             val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteProjectPath)
             val compileProjectResult = invoke(channel, compileProjectCommand)
             if (compileProjectResult != 0) {
@@ -97,14 +120,38 @@ class RemoteGradleCompileClient(
             }
         }
 
+        // 4. find apk
+        val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, gradleCompileSettings.outputApkName)
+        val findOutputResult = invoke(channel, findOutputCommand)
+        if (findOutputResult != 0) {
+            printToStreamErrorIfCanceled("Find APK failed, please check your sync client is opened.")
+            return GradleCompileResult.failed(isCanceled, failedReason = "Find output failed")
+        }
+        val apkPath = findOutputCommand.apkPath
+        if (apkPath == null) {
+            printToStreamErrorIfCanceled("Find APK failed, please check your apk name is correct.")
+            return GradleCompileResult.failed(isCanceled, failedReason = "Find output failed")
+        }
 
-        val fetchOutputCommand = FetchOutputCommand(
-            gradleCompileSettings.outputApkName,
-            gradleCompileSettings.remoteToLocalProjectIftPath,
-        )
+        // fetch apk
+        val remoteSeparator = if (isRemoteWindows) '\\' else '/'
+        val fetchOutputCommand = if (gradleCompileSettings.syncMode.isRsync) {
+            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
+            RsyncFetchOutputCommand(
+                gradleCompileSettings,
+                absoluteApkPath,
+                gradleCompileSettings.remoteToLocalProjectRsyncPath,
+            )
+        } else {
+            val absoluteApkPath = gradleCompileSettings.remoteProjectPath + remoteSeparator + apkPath
+            FetchOutputCommand(
+                absoluteApkPath,
+                gradleCompileSettings.remoteToLocalProjectIftPath,
+            )
+        }
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
-            printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your iFt client is opened.")
+            printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your sync client is opened.")
             return GradleCompileResult.failed(isCanceled, failedReason = "Fetch output from remote to local failed")
         }
 
@@ -127,14 +174,23 @@ class RemoteGradleCompileClient(
             throw JuggInternalException.notLoginYet()
         }
 
-        val fetchClasspathCommand = FetchClasspathCommand(
-            gradleCompileSettings.remoteSyncRootPath,
-            gradleCompileSettings.remoteToLocalRootIftPath,
-            buildDirs
-        )
+        val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
+            RsyncFetchClasspathCommand(
+                gradleCompileSettings,
+                gradleCompileSettings.remoteSyncRootRsyncPath,
+                gradleCompileSettings.remoteToLocalRootRsyncPath,
+                buildDirs,
+            )
+        } else {
+            FetchClasspathCommand(
+                gradleCompileSettings.remoteSyncRootPath,
+                gradleCompileSettings.remoteToLocalRootIftPath,
+                buildDirs,
+            )
+        }
         val fetchClasspathResult = invoke(channel, fetchClasspathCommand)
         if (fetchClasspathResult != 0) {
-            printToStreamErrorIfCanceled("Fetch classpath failed, please check your iFt client is opened.")
+            printToStreamErrorIfCanceled("Fetch classpath failed, please check your sync client is opened.")
             return null
         }
         return File(gradleCompileSettings.remoteToLocalSyncClasspathPath)
@@ -154,6 +210,7 @@ class RemoteGradleCompileClient(
         val commander = PrintStream(channel.outputStream, true)
         commander.print(String(byteArrayOf(0x03))) // control c
         commander.flush()
+        cmdExecutor.release()
         isCanceled = true
     }
 
@@ -161,9 +218,22 @@ class RemoteGradleCompileClient(
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
 
         command.beforeInvokeCommand()
+        val result = if (command is RsyncCommand) {
+            // invoke at local and using expect login into ssh
+            cmdExecutor.terminalOutputListener = terminalOutputListener
+            cmdExecutor.invoke(command, sshLoginPassword = command.options.remoteSshPassword)
+        } else {
+            remoteInvoke(channel, command)
+        }
+
+        printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
+        return result
+    }
+
+    private fun remoteInvoke(channel: Channel, command: ISshCommand): Int {
         val commander = PrintStream(channel.outputStream, false)
         val commandString = command.getCommand(isNeedSetChineseLanguage = true, isWindows = false)
-        logger.debug("invoke command: $commandString")
+        logger.debug("Jsch invoke command: $commandString")
         commander.printlnCompat(commandString)
         commander.flush()
 
@@ -226,7 +296,6 @@ class RemoteGradleCompileClient(
             }
         }
 
-        printToStreamInfo("[Jugg] ${command::class.simpleName} exec finished with result: $result")
         return result
     }
 
@@ -264,6 +333,7 @@ class RemoteGradleCompileClient(
     override fun dispose() {
         session?.disconnect()
         channel?.disconnect()
+        cmdExecutor.release()
         session = null
         channel = null
     }

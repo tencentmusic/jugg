@@ -63,7 +63,7 @@ abstract class BaseSshCommand : ISshCommand {
     }
 
     companion object {
-        private const val RESULT_ECHO = "[Jugg] command result: "
+        private const val RESULT_ECHO = "(Jugg) command result: "
     }
 }
 

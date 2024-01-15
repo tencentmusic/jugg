@@ -78,6 +78,7 @@ data class JuggGradleCompileOptions(
     val remoteToLocalSyncPath: String,
     val httpProxyIp: String,
     val httpProxyPort: Int,
+    val syncMode: SyncMode = SyncMode.RSYNC,
 ) {
 
 
@@ -94,7 +95,7 @@ data class JuggGradleCompileOptions(
     val finalRemoteSyncPath = run {
         val finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/$localToRemoteIftConfigName" }
         if (finalPath.endsWith("/")) {
-            finalPath.substring(0, finalPath.length - 1)
+            finalPath.substring(0, finalPath.length - 1) // must remove last '/' to standardize sync path
         } else {
             finalPath
         }
@@ -106,6 +107,11 @@ data class JuggGradleCompileOptions(
     } else {
         "$localToRemoteIftConfigName/$projectSyncRootRelativePath"
     }
+    val localSyncRsyncPath get() = if (isSyncAllProjects) {
+        "$localToRemoteSyncPath/"
+    } else {
+        "$localToRemoteSyncPath/$projectSyncRootRelativePath/"
+    }
 
     /** remote project sync path, used for syncing files to remote by iFt, and fetching classpath */
     val remoteSyncRootPath get() = if (isSyncAllProjects) {
@@ -113,18 +119,26 @@ data class JuggGradleCompileOptions(
     } else {
         "$finalRemoteSyncPath/$projectSyncRootRelativePath"
     }
+    val remoteSyncRootRsyncPath get() = "$remoteSshUser@$remoteSshIp:$remoteSyncRootPath"
 
     /** remote project root path, used for compilation */
     val remoteProjectPath get() = "$finalRemoteSyncPath/$projectSyncRelativePath"
+    val remoteProjectRsyncPath get() = "$remoteSshUser@$remoteSshIp:$remoteProjectPath/"
 
     /** remote iFt path, used for fetching apk output to local */
     val remoteToLocalProjectIftPath get() = "$remoteToLocalIftConfigName/$projectSyncRelativePath"
+    val remoteToLocalProjectRsyncPath get() = "$remoteToLocalSyncPath/$projectSyncRelativePath/"
 
     /** remote iFt path, used for fetching classpath output to local */
     val remoteToLocalRootIftPath get() = if (isSyncAllProjects) {
         "$remoteToLocalIftConfigName/jugg_all_classpath"
     } else {
         "$remoteToLocalIftConfigName/$projectSyncRootRelativePath"
+    }
+    val remoteToLocalRootRsyncPath get() = if (isSyncAllProjects) {
+        "$remoteToLocalSyncPath/jugg_all_classpath/"
+    } else {
+        "$remoteToLocalSyncPath/$projectSyncRootRelativePath/"
     }
 
     /** local apk path, used for get apk output */
@@ -208,3 +222,10 @@ data class JuggGradleCompileOptions(
     }
 }
 
+enum class SyncMode(val modeName: String) {
+    IFT("iFt"),
+    RSYNC("rsync"),
+    ;
+
+    val isRsync get() = this == RSYNC
+}

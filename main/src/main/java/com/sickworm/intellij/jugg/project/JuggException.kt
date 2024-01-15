@@ -47,6 +47,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun unsupportedOs() =
             JuggException("Unsupported OS, currently only support Windows, Linux and Mac.")
+
+        fun rSyncNotSupportsWindows() =
+            JuggException("rSync not supports Windows, please use Linux or Mac.")
     }
 }
 

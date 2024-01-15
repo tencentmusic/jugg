@@ -58,13 +58,25 @@ abstract class IftSyncCommand : BaseSshCommand() {
     }
 }
 
+class MkDirCommand(
+    path: String,
+) : BaseSshCommand() {
+
+    override val baseCommand: String = """mkdir -p $path"""
+
+}
+
 class SyncFileCommand(
     localProjectIftPath: String,
     remoteProjectPath: String,
 ) : IftSyncCommand() {
 
-    override val baseCommand: String = """mkdir -p $remoteProjectPath && ft sync -s $localProjectIftPath --get $remoteProjectPath -a "-av --delete  --exclude='build/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'" """
+    override val baseCommand: String = """ft sync -s $localProjectIftPath --get $remoteProjectPath -a "$rsyncArguments" """
 
+    companion object {
+
+        const val rsyncArguments = "-av --delete --exclude='build/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'"
+    }
 }
 
 class CompileProjectCommand(
@@ -75,12 +87,34 @@ class CompileProjectCommand(
     override val baseCommand: String = """cd $projectPath && $compileCommand --console=plain"""
 }
 
+class FindOutputCommand(
+    remoteProjectPath: String,
+    outputApkName: String
+) : BaseSshCommand() {
+
+    var apkPath: String? = null
+        private set
+
+    override val baseCommand: String = "cd $remoteProjectPath && find_apk=${'$'}(find -name \"$outputApkName\" -print -quit) && echo \"\n$APK_ECHO${'$'}find_apk\n\""
+
+    override fun getInput(terminalOutputLine: String): String? {
+        if (terminalOutputLine.contains(APK_ECHO)) {
+            apkPath = terminalOutputLine.substring(APK_ECHO.length)
+        }
+        return super.getInput(terminalOutputLine)
+    }
+
+    companion object {
+        private const val APK_ECHO = "(Jugg) find apk result: "
+    }
+}
+
 class FetchOutputCommand(
-    outputApkName: String,
+    outputApkPath: String,
     remoteToLocalClasspathPath: String,
 ) : IftSyncCommand() {
 
-    override val baseCommand: String = """find_apk=${'$'}(find -name "$outputApkName" -print -quit) && ft sync -s $remoteToLocalClasspathPath/ --put ${'$'}find_apk"""
+    override val baseCommand: String = """ft sync -s $remoteToLocalClasspathPath/ --put $outputApkPath"""
 
 }
 
@@ -90,25 +124,32 @@ class FetchClasspathCommand(
     private val modules: List<ModuleBuildPathInfo>,
 ) : IftSyncCommand() {
 
-    private var includeClasspathFilter = ""
+    private var rsyncArguments = ""
 
-    override val baseCommand: String get() = """ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a "-av --delete --prune-empty-dirs --include='*/' $includeClasspathFilter --exclude='*'" """
+    override val baseCommand: String get() = """ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a "$rsyncArguments" """
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
-        includeClasspathFilter = modules
-            .flatMap { it.allBuildPathRelative }
-            .toSet()
-            .map {
-                val platformSeparator = File.separatorChar
-                val remoteSeparator = if (isWindows) '\\' else '/'
-                it.path.replace(platformSeparator, remoteSeparator) to it.extension
-            }
-            .joinToString(" ") { (path, extension) ->
-                if (extension.isNotEmpty()) "--include='$path'"
-                else "--include='$path/**'"
-            }
-
+        rsyncArguments = getRsyncArguments(modules, isWindows)
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
+    }
+
+    companion object {
+
+        fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean): String {
+            val includeClasspathFilter = modules
+                .flatMap { it.allBuildPathRelative }
+                .toSet()
+                .map {
+                    val platformSeparator = File.separatorChar
+                    val remoteSeparator = if (isWindows) '\\' else '/'
+                    it.path.replace(platformSeparator, remoteSeparator) to it.extension
+                }
+                .joinToString(" ") { (path, extension) ->
+                    if (extension.isNotEmpty()) "--include='$path'"
+                    else "--include='$path/**'"
+                }
+            return "-av --delete --prune-empty-dirs --include='*/' $includeClasspathFilter --exclude='*'"
+        }
     }
 }
 
@@ -120,7 +161,6 @@ class SyncLocalClasspathCommand(
 ) : BaseSshCommand() {
 
     private var includeClasspathFilter = ""
-
 
     override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
