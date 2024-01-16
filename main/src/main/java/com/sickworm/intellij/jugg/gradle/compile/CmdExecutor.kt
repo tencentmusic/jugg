@@ -23,6 +23,7 @@ class CmdExecutor(
                 throw JuggException.rSyncNotSupportsWindows()
             }
             arrayOf("expect", "-c", """
+                set timeout 36000
                 spawn /bin/bash -c "${commandString.replace("\"", "\\\"")}"
                 expect "assword:"
                 send "$sshLoginPassword\r"
