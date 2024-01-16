@@ -43,7 +43,7 @@ class DeployHistoryManagerTest {
         assertFalse(historyManager.hasBeenFullCompiled)
         assertNull(historyManager.tryGetContextRecoverInfoFromDb())
 
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule))
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
         assertTrue(historyManager.hasBeenFullCompiled)
         val recoverInfo1 = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo1)
@@ -109,7 +109,7 @@ class DeployHistoryManagerTest {
         gitManager.deleteGit()
         gitManager.init()
         gitManager.addAllAndCommit("first commit")
-        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule))
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
 
         val deployedFile = File(buildDir, "com/A.dex").let {
             it.parentFile.mkdirs()
