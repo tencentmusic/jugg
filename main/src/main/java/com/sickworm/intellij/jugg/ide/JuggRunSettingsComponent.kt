@@ -231,7 +231,7 @@ class JuggRunSettingsComponent : JComponent() {
             it.remoteSshUser = component.userTextField.text
             it.remoteSshPassword = component.passwordTextField.password.joinToString("")
             it.remoteSshIp = component.ipTextField.text
-            it.remoteSshPort = component.portTextField.text.toInt()
+            it.remoteSshPort = component.portTextField.text.toIntOrNull() ?: 0
             it.localToRemoteIftConfigName = component.localToRemoteIftConfigNameTextField.text
             it.localToRemoteSyncPath = component.localToRemoteSyncPathTextField.text
             it.remoteSyncPath = component.remoteSyncPathTextField.text
