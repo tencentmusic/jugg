@@ -58,7 +58,7 @@ class JuggRunSettingsComponent : JComponent() {
     private val syncModeComboBox = ComboBox(arrayOf(SyncMode.IFT.modeName, SyncMode.RSYNC.modeName))
     private val userLabel = JLabel("SSH user:")
     private val userTextField = JTextField()
-    private val passwordLabel = JLabel("SSH password:")
+    private val passwordLabel = JLabel("SSH password or key path:")
     private val passwordTextField = JBPasswordField()
     private val ipLabel = JLabel("SSH host:")
     private val ipTextField = JTextField()

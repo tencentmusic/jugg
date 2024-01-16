@@ -25,6 +25,9 @@ class RemoteGradleCompileClient(
 
     private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
 
+    private var finalPassword: String = ""
+    private var isUseKey: Boolean = false // currently no use
+
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel != null) {
             printToStreamInfo("${juggGradleCompileOptions.remoteSshIp} already login")
@@ -33,20 +36,33 @@ class RemoteGradleCompileClient(
 
         dispose()
 
-        var password = juggGradleCompileOptions.remoteSshPassword
-        if (password.isEmpty()) {
+        finalPassword = juggGradleCompileOptions.remoteSshPassword
+        if (finalPassword.isEmpty()) {
             val enteredPassword = UserAndPasswordInputDialog.showAndGetResult(
-                "SSH Password",
-                subTitle = "You will see this because password is empty in run configuration.",
+                "SSH Password or Key Path",
+                subTitle = "<html>You will see this because password is empty in run configuration.<br/>Jugg will try to use SSH key to login if keep empty.</html>",
                 isPassword = true,
             ) ?: throw JuggException.loginToRemoteFailed("User canceled.")
 
-            password = enteredPassword
+            finalPassword = enteredPassword
         }
+
+        isUseKey = false
+        val keyPathList = mutableListOf<String>()
+        convertToAbsoluteKeyPathIfSpecific(finalPassword)?.let {
+            logger.debug("found key path in user input: $it")
+            keyPathList.add(it)
+        }
+        keyPathList.addAll(searchAvailableKeys())
 
         try {
             val jsch = JSch()
-            JSch.setLogger(JschLogger { terminalOutputListener })
+            keyPathList.filter {
+                File(it).exists()
+            }.forEach {
+                jsch.addIdentitySafe(it)
+            }
+            JSch.setLogger(JschLogger())
             val session = jsch.getSession(
                 juggGradleCompileOptions.remoteSshUser,
                 juggGradleCompileOptions.remoteSshIp,
@@ -55,7 +71,7 @@ class RemoteGradleCompileClient(
                 juggGradleCompileOptions.httpProxyPort != 0) {
                 session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
             }
-            session.setPassword(password)
+            session.setPassword(finalPassword)
             session.setConfig("StrictHostKeyChecking", "no")
             session.setConfig("Charset", "UTF-8")
             session.connect()
@@ -65,9 +81,74 @@ class RemoteGradleCompileClient(
             this.session = session
             this.channel = channel
             this.juggGradleCompileOptions = juggGradleCompileOptions
+            logger.debug("login success, isUseKey: $isUseKey")
         } catch (e: JSchException) {
             printToStreamError("RemoteClient login failed", e)
             throw JuggException.loginToRemoteFailed("Please check your login info.")
+        }
+    }
+
+    private fun convertToAbsoluteKeyPathIfSpecific(passwordOrKey: String): String? {
+        if (!File(passwordOrKey).isAbsolute) {
+            // maybe it's a key path
+            val tryKeyPath = File(passwordOrKey).toHomeAbsolutePath()
+            if (File(tryKeyPath).exists()) {
+                return tryKeyPath
+            }
+        }
+        return null
+    }
+
+    private fun searchAvailableKeys(): List<String> {
+        val availableKeys = mutableSetOf<String>()
+
+        val homeDir = System.getProperty("user.home")
+        val sshDir = File(homeDir, ".ssh")
+        if (!sshDir.exists()) {
+            return emptyList()
+        }
+        val keyFiles = sshDir.listFiles { _, name ->
+            !name.endsWith(".pub")
+        }
+        val ignoreKeyFiles = setOf("config", "known_hosts", "known_hosts.old")
+        if (keyFiles != null && keyFiles.isNotEmpty()) {
+            val keysInSshDir = keyFiles
+                .filter { it.name !in ignoreKeyFiles }
+                .map { it.absolutePath }
+            logger.debug("found keys in .ssh dir: $keysInSshDir")
+            availableKeys.addAll(keysInSshDir)
+        }
+
+        val sshConfigFile = File(sshDir, "config")
+        if (sshConfigFile.exists()) {
+            val sshConfigLines = sshConfigFile.readLines()
+            val keysInConfig = sshConfigLines.mapNotNull { line ->
+                if (line.contains("IdentityFile")) {
+                    val keyPath = line.substringAfter("IdentityFile").trim()
+                    return@mapNotNull File(keyPath).toHomeAbsolutePath()
+                }
+                return@mapNotNull null
+            }
+            logger.debug("found keys in .ssh/config: $keysInConfig")
+            availableKeys.addAll(keysInConfig)
+        }
+
+        return availableKeys.toList()
+    }
+
+    private fun File.toHomeAbsolutePath(): String {
+        if (isAbsolute) {
+            return absolutePath
+        }
+        val homeDir = System.getProperty("user.home")
+        return File(homeDir, path.replace("~/", "")).absolutePath
+    }
+
+    private fun JSch.addIdentitySafe(keyPath: String) {
+        try {
+            addIdentity(keyPath)
+        } catch (e: JSchException) {
+            logger.warn("addIdentity failed, keyPath $keyPath is invalid. error: ${e.message}")
         }
     }
 
@@ -92,6 +173,7 @@ class RemoteGradleCompileClient(
             val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
                 RsyncSyncFileCommand(
                     gradleCompileSettings,
+                    convertToAbsoluteKeyPathIfSpecific(finalPassword),
                     gradleCompileSettings.localSyncRsyncPath,
                     gradleCompileSettings.remoteSyncRootRsyncPath,
                 )
@@ -139,6 +221,7 @@ class RemoteGradleCompileClient(
             val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
             RsyncFetchOutputCommand(
                 gradleCompileSettings,
+                convertToAbsoluteKeyPathIfSpecific(finalPassword),
                 absoluteApkPath,
                 gradleCompileSettings.remoteToLocalProjectRsyncPath,
             )
@@ -177,6 +260,7 @@ class RemoteGradleCompileClient(
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncFetchClasspathCommand(
                 gradleCompileSettings,
+                convertToAbsoluteKeyPathIfSpecific(finalPassword),
                 gradleCompileSettings.remoteSyncRootRsyncPath,
                 gradleCompileSettings.remoteToLocalRootRsyncPath,
                 buildDirs,
@@ -221,7 +305,7 @@ class RemoteGradleCompileClient(
         val result = if (command is RsyncCommand) {
             // invoke at local and using expect login into ssh
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            cmdExecutor.invoke(command, sshLoginPassword = command.options.remoteSshPassword)
+            cmdExecutor.invoke(command, sshLoginPassword = finalPassword)
         } else {
             remoteInvoke(channel, command)
         }
@@ -331,6 +415,7 @@ class RemoteGradleCompileClient(
     }
 
     override fun dispose() {
+        JSch.setLogger(null)
         session?.disconnect()
         channel?.disconnect()
         cmdExecutor.release()
@@ -338,34 +423,33 @@ class RemoteGradleCompileClient(
         channel = null
     }
 
-}
+    inner class JschLogger : Logger {
 
-
-class JschLogger(
-    private val terminalOutputListener: () -> IGradleCompileClient.TerminalOutputListener?,
-) : Logger {
-
-    override fun isEnabled(level: Int): Boolean {
-        return true
-    }
-
-    override fun log(level: Int, message: String) {
-        val levelMessage = name(level) + ": " + message
-        if (level >= Logger.WARN) {
-            terminalOutputListener.invoke()?.onOutputErr(levelMessage)
-        } else {
-            terminalOutputListener.invoke()?.onOutput(levelMessage)
+        override fun isEnabled(level: Int): Boolean {
+            return true
         }
-    }
 
-    private fun name(level: Int): String {
-        return when (level) {
-            Logger.DEBUG -> "DEBUG"
-            Logger.INFO -> "INFO"
-            Logger.WARN -> "WARN"
-            Logger.ERROR -> "ERROR"
-            Logger.FATAL -> "FATAL"
-            else -> "UNKNOWN"
+        override fun log(level: Int, message: String) {
+            val levelMessage = name(level) + ": " + message
+            if (level >= Logger.WARN) {
+                terminalOutputListener.onOutputErr(levelMessage)
+            } else {
+                if (message.contains("succeed") && message.contains("publickey")) {
+                    isUseKey = true
+                }
+                terminalOutputListener.onOutput(levelMessage)
+            }
+        }
+
+        private fun name(level: Int): String {
+            return when (level) {
+                Logger.DEBUG -> "DEBUG"
+                Logger.INFO -> "INFO"
+                Logger.WARN -> "WARN"
+                Logger.ERROR -> "ERROR"
+                Logger.FATAL -> "FATAL"
+                else -> "UNKNOWN"
+            }
         }
     }
 }

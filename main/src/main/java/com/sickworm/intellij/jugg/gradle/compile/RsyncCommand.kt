@@ -4,26 +4,36 @@ import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 
 
-abstract class RsyncCommand(val options: JuggGradleCompileOptions): BaseSshCommand() {
+abstract class RsyncCommand(val options: JuggGradleCompileOptions, specificKeyPath: String?): BaseSshCommand() {
 
-    protected val sshArguments = "-e 'ssh -p ${options.remoteSshPort}'"
+    private val keyPath = if (specificKeyPath.isNullOrEmpty()) "" else "-i $specificKeyPath"
 
+    protected val sshArguments = "-e 'ssh -p ${options.remoteSshPort} $keyPath'"
+
+    override fun getInput(terminalOutputLine: String): String? {
+        if (terminalOutputLine.contains("Are you sure you want to continue connecting")) {
+            return "yes"
+        }
+        return super.getInput(terminalOutputLine)
+    }
 }
 
 class RsyncSyncFileCommand(
     options: JuggGradleCompileOptions,
+    specificKeyPath: String?,
     localProjectIftPath: String,
     remoteProjectPath: String,
-) : RsyncCommand(options) {
+) : RsyncCommand(options, specificKeyPath) {
 
     override val baseCommand: String = """rsync $sshArguments ${SyncFileCommand.rsyncArguments} $localProjectIftPath $remoteProjectPath"""
 }
 
 class RsyncFetchOutputCommand(
     options: JuggGradleCompileOptions,
+    specificKeyPath: String?,
     outputApkPath: String,
     remoteToLocalClasspathPath: String,
-) : RsyncCommand(options) {
+) : RsyncCommand(options, specificKeyPath) {
 
     override val baseCommand: String = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $outputApkPath $remoteToLocalClasspathPath"""
 
@@ -31,10 +41,11 @@ class RsyncFetchOutputCommand(
 
 class RsyncFetchClasspathCommand(
     options: JuggGradleCompileOptions,
+    specificKeyPath: String?,
     private val remoteProjectPath: String,
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
-) : RsyncCommand(options) {
+) : RsyncCommand(options, specificKeyPath) {
 
     private var rsyncArguments = ""
 

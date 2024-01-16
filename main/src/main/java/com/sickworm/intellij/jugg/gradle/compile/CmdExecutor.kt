@@ -25,9 +25,10 @@ class CmdExecutor(
             arrayOf("expect", "-c", """
                 set timeout 36000
                 spawn /bin/bash -c "${commandString.replace("\"", "\\\"")}"
-                expect "assword:"
-                send "$sshLoginPassword\r"
-                expect eof
+                expect {
+                    "*yes/no" { send "yes\r"; exp_continue }
+                    "*assword:" { send "$sshLoginPassword\r"; exp_continue }
+                }
             """.trimIndent())
         } else if (isWindows) {
             arrayOf("cmd.exe", "/c", commandString)
