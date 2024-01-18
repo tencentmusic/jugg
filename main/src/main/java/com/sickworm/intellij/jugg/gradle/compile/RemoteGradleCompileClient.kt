@@ -102,6 +102,10 @@ class RemoteGradleCompileClient(
         session.setPassword(password)
         session.setConfig("StrictHostKeyChecking", "no")
         session.setConfig("Charset", "UTF-8")
+
+        // fix some servers do not return "ssh-rsa" algorithms
+        val algorithms = session.getConfig("PubkeyAcceptedAlgorithms").split(',') + "ssh-rsa"
+        session.setConfig("PubkeyAcceptedAlgorithms", algorithms.joinToString(","))
         session.connect()
         val channel = session.openChannel("shell")
         channel.connect()
