@@ -4,11 +4,11 @@ import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 
 
-abstract class RsyncCommand(val options: JuggGradleCompileOptions, specificKeyPath: String?): BaseSshCommand() {
+abstract class RsyncCommand(val options: JuggGradleCompileOptions, keyPathList: List<String>): BaseSshCommand() {
 
-    private val keyPath = if (specificKeyPath.isNullOrEmpty()) "" else "-i $specificKeyPath"
+    private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString { "-i $it" }
 
-    protected val sshArguments = "-e 'ssh -p ${options.remoteSshPort} $keyPath'"
+    protected val sshArguments = "-e 'ssh -p ${options.remoteSshPort} $keyPathArguments'"
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains("Are you sure you want to continue connecting")) {
@@ -20,20 +20,20 @@ abstract class RsyncCommand(val options: JuggGradleCompileOptions, specificKeyPa
 
 class RsyncSyncFileCommand(
     options: JuggGradleCompileOptions,
-    specificKeyPath: String?,
+    keyPathList: List<String>,
     localProjectIftPath: String,
     remoteProjectPath: String,
-) : RsyncCommand(options, specificKeyPath) {
+) : RsyncCommand(options, keyPathList) {
 
     override val baseCommand: String = """rsync $sshArguments ${SyncFileCommand.rsyncArguments} $localProjectIftPath $remoteProjectPath"""
 }
 
 class RsyncFetchOutputCommand(
     options: JuggGradleCompileOptions,
-    specificKeyPath: String?,
+    keyPathList: List<String>,
     outputApkPath: String,
     remoteToLocalClasspathPath: String,
-) : RsyncCommand(options, specificKeyPath) {
+) : RsyncCommand(options, keyPathList) {
 
     override val baseCommand: String = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $outputApkPath $remoteToLocalClasspathPath"""
 
@@ -41,11 +41,11 @@ class RsyncFetchOutputCommand(
 
 class RsyncFetchClasspathCommand(
     options: JuggGradleCompileOptions,
-    specificKeyPath: String?,
+    keyPathList: List<String>,
     private val remoteProjectPath: String,
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
-) : RsyncCommand(options, specificKeyPath) {
+) : RsyncCommand(options, keyPathList) {
 
     private var rsyncArguments = ""
 

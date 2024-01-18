@@ -26,6 +26,7 @@ class RemoteGradleCompileClient(
     private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
 
     private var finalPasswordOrKey: String = ""
+    private var keyPathList = mutableListOf<String>()
     private var isUseKey: Boolean = false // currently no use
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
@@ -38,7 +39,7 @@ class RemoteGradleCompileClient(
 
         finalPasswordOrKey = juggGradleCompileOptions.remoteSshPassword
         isUseKey = false
-        val keyPathList = mutableListOf<String>()
+        keyPathList = mutableListOf()
         convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.let {
             logger.debug("found key path in user input: $it")
             keyPathList.add(it)
@@ -204,7 +205,7 @@ class RemoteGradleCompileClient(
             val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
                 RsyncSyncFileCommand(
                     gradleCompileSettings,
-                    convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey),
+                    keyPathList,
                     gradleCompileSettings.localSyncRsyncPath,
                     gradleCompileSettings.remoteSyncRootRsyncPath,
                 )
@@ -252,7 +253,7 @@ class RemoteGradleCompileClient(
             val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
             RsyncFetchOutputCommand(
                 gradleCompileSettings,
-                convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey),
+                keyPathList,
                 absoluteApkPath,
                 gradleCompileSettings.remoteToLocalProjectRsyncPath,
             )
@@ -291,7 +292,7 @@ class RemoteGradleCompileClient(
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncFetchClasspathCommand(
                 gradleCompileSettings,
-                convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey),
+                keyPathList,
                 gradleCompileSettings.remoteSyncRootRsyncPath,
                 gradleCompileSettings.remoteToLocalRootRsyncPath,
                 buildDirs,
