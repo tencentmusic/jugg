@@ -117,10 +117,13 @@ class RemoteGradleCompileClient(
     }
 
     private fun convertToAbsoluteKeyPathIfSpecific(passwordOrKey: String): String? {
+        if (passwordOrKey.isEmpty()) {
+            return null
+        }
         if (!File(passwordOrKey).isAbsolute) {
             // maybe it's a key path
             val tryKeyPath = File(passwordOrKey).toHomeAbsolutePath()
-            if (File(tryKeyPath).exists()) {
+            if (File(tryKeyPath).isFile) {
                 return tryKeyPath
             }
         }
@@ -333,7 +336,13 @@ class RemoteGradleCompileClient(
         val result = if (command is RsyncCommand) {
             // invoke at local and using expect login into ssh
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            cmdExecutor.invoke(command, sshLoginPassword = finalPasswordOrKey)
+            val result = cmdExecutor.invoke(command, sshLoginPassword = finalPasswordOrKey)
+            if (!isCanceled && result == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {
+                logger.warn("process exit without print result, behavior may incorrect")
+                IGradleCompileClient.Error.SUCCESS
+            } else {
+                result
+            }
         } else {
             remoteInvoke(channel, command)
         }

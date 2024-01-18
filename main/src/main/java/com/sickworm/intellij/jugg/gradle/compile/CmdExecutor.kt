@@ -86,6 +86,7 @@ class CmdExecutor(
                 }
             } catch (e: IOException) {
                 // java.io.IOException: Stream closed
+                logger.debug("get IOException $e")
                 result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
                 break
             }
