@@ -16,7 +16,7 @@ class RDexForSubmoduleCompiler(
 ): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type>
-        get() = listOf(CompileFile.Type.Dex, CompileFile.Type.Java, CompileFile.Type.Kotlin)
+        get() = listOf(CompileFile.Type.DexToChangePackageName, CompileFile.Type.Java, CompileFile.Type.Kotlin)
 
     // we don't persist generated modules, it's ok to generate once for each module
     private var generatedModules = mutableSetOf<String>()
@@ -24,7 +24,7 @@ class RDexForSubmoduleCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         // if input has files, which means R file is update. we need to generate all R.dex for all module
         // if input has no files, we only generate R.dex once
-        val isRFileUpdated = task.files.any { it.type == CompileFile.Type.Dex }
+        val isRFileUpdated = task.files.any { it.type == CompileFile.Type.DexToChangePackageName }
         if (isRFileUpdated) {
             logger.debug("R file has update, going to regenerate R.dex for all modules")
             generatedModules.clear()

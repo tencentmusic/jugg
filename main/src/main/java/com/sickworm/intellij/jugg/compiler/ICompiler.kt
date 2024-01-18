@@ -97,9 +97,9 @@ data class CompileFile(
         Asset,
         Resource,
         Flat,
-        Dex,
         Gradle,
         AndroidManifest,
+        DexToChangePackageName,
         ;
 
         val isSourceFile: Boolean get() {
@@ -122,9 +122,9 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.Asset -> "asset"
                     CompileFile.Type.Resource -> "resource"
                     CompileFile.Type.Flat -> "flat"
-                    CompileFile.Type.Dex -> "dex"
                     CompileFile.Type.Gradle -> "gradle"
                     CompileFile.Type.AndroidManifest -> "manifest"
+                    CompileFile.Type.DexToChangePackageName -> "dex"
                 }
                 return@groupBy type
             }

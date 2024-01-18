@@ -143,7 +143,7 @@ class JuggCompiler(
             val rDexResult = rDexForSubmoduleCompiler.compile(
                 CompileTask(
                     files = rJavaResultOutputs.map {
-                        CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, context.tempModule)
+                        CompileFile(CompileFile.Type.DexToChangePackageName, it.file, it.baseDir, context.tempModule)
                     } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
                     outputDir = classesOutputDir,
                     parentTask = task,
