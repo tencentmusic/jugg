@@ -42,7 +42,7 @@ class LocalGradleCompileClientTest {
                 it.outputApkName = "app-debug.apk"
                 it.isRemoteCompile = false
             }
-            juggGradleCompileOptions = JuggGradleCompileOptions.fromOptions(project.name, options)
+            juggGradleCompileOptions = JuggGradleCompileOptions.fromOptions(project.name, pathManager.localClasspathStoragePathManager, options)
         }
     }
 

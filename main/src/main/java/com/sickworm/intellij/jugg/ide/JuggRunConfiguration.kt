@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
@@ -15,7 +14,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import javax.swing.JComponent
 
 /**
@@ -43,7 +41,12 @@ class JuggRunConfiguration(
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(project.basePath!!, state!!)
+        val pathManager = JuggInitializer.getManager(project)!!.pathManager
+
+        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(
+            pathManager.projectDir.absolutePath,
+            pathManager.localClasspathStoragePathManager,
+            state!!)
         return JuggRunProfileState(project, gradleCompileOptions)
     }
 }

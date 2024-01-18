@@ -147,7 +147,7 @@ class LocalGradleCompileClient(
                     }
                 }
             }
-            val destPath = File(localClasspathStorageDir, "root").also {
+            val destPath = localClasspathStorageDir.also {
                 it.mkdirs()
             }
             val command = SyncLocalClasspathCommand(

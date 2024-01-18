@@ -57,7 +57,7 @@ class JuggManager @TestOnly constructor(
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager.localClasspathStorageDir, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager.localClasspathStoragePathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
     ): Disposable {
 
@@ -334,7 +334,11 @@ class JuggManager @TestOnly constructor(
     fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
         runTaskSafe("Mark as Gradle Compiled", {
-            val compileOptions = JuggGradleCompileOptions.fromOptions(pathManager.projectDir.absolutePath, options)
+            val compileOptions = JuggGradleCompileOptions.fromOptions(
+                pathManager.projectDir.absolutePath,
+                pathManager.localClasspathStoragePathManager,
+                options,
+            )
 
             // login and get apks
             val result = juggCompilerHelper.gradleCompile(

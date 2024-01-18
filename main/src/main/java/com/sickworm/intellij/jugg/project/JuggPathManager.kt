@@ -19,5 +19,13 @@ class JuggPathManager(
     val logDir = File(juggRootDir, "log")
     val tmpDir = File(juggRootDir, "tmp").also { it.mkdirs() }
     val configDir = File(juggRootDir, "config")
-    val localClasspathStorageDir = File(juggRootDir, "classpath")
+
+    val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
+}
+
+class LocalClasspathStoragePathManager(
+    val rootDir: File,
+) {
+    val classpathDir: File = File(rootDir, "root")
+    val apkDir: File = File(rootDir, "apk")
 }

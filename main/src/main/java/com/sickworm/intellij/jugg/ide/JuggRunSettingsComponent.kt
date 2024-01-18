@@ -1,13 +1,11 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.android.tools.adtui.common.max
 import com.intellij.ide.DataManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.IdeBorderFactory
-import com.intellij.ui.border.IdeaTitledBorder
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.DropDownLink
 import com.intellij.ui.components.JBPasswordField
@@ -55,7 +53,7 @@ class JuggRunSettingsComponent : JComponent() {
     private val reportIssueActionLink = ActionLink("Report issues")
 
     private val syncModeLabel = JLabel("Sync mode: ")
-    private val syncModeComboBox = ComboBox(arrayOf(SyncMode.IFT.modeName, SyncMode.RSYNC.modeName))
+    private val syncModeComboBox = ComboBox(SyncMode.values().map { it.modeName }.toTypedArray())
     private val userLabel = JLabel("SSH user:")
     private val userTextField = JTextField()
     private val passwordLabel = JLabel("SSH password or key path:")
@@ -69,7 +67,9 @@ class JuggRunSettingsComponent : JComponent() {
     private val localToRemoteSyncPathLabel = JLabel("Local to remote sync path:")
     private val localToRemoteSyncPathTextField = JTextField()
     private val remoteSyncPathLabel = JLabel("Remote root directory (optional):")
-    private val remoteSyncPathTextField = JBTextField()
+    private val remoteSyncPathTextField = JBTextField().also {
+        it.emptyText.text = "default \$HOME/remote"
+    }
     private val remoteToLocalIftConfigNameLabel = JLabel("Remote to local IFT config name:")
     private val remoteToLocalSyncPathLabel = JLabel("Remote to local sync path:")
     private val remoteToLocalSyncPathTextField = JTextField()
@@ -100,6 +100,13 @@ class JuggRunSettingsComponent : JComponent() {
     )
 
     private val filteredRsyncLabel = listOf(localToRemoteIftConfigNameLabel, remoteToLocalIftConfigNameLabel)
+    private val filteredRsyncSimpleLabel = listOf(
+        localToRemoteIftConfigNameLabel,
+        localToRemoteSyncPathLabel,
+        remoteToLocalIftConfigNameLabel,
+        remoteToLocalSyncPathLabel,
+        enableSyncAllProjectsCheckBox,
+    )
 
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -313,9 +320,18 @@ class JuggRunSettingsComponent : JComponent() {
         }
 
         remoteCompilePanel.removeAll()
-        val isRsync = syncMode == SyncMode.RSYNC.modeName
         remoteComponentList.forEach {
-            val isFilteredByRsync = isRsync && (it.first in filteredRsyncLabel)
+            val isFilteredByRsync = when (syncMode) {
+                SyncMode.RSYNC_SIMPLE.modeName -> {
+                    it.first in filteredRsyncSimpleLabel
+                }
+                SyncMode.RSYNC.modeName -> {
+                    it.first in filteredRsyncLabel
+                }
+                else -> {
+                    false
+                }
+            }
             if (!isFilteredByRsync) {
                 it.first.parent?.let { parent ->
                     remoteCompilePanel.add(parent)
@@ -324,14 +340,6 @@ class JuggRunSettingsComponent : JComponent() {
                     remoteCompilePanel.add(pair)
                 }
             }
-        }
-
-        if (isRsync) {
-            remoteSyncPathLabel.text = "Remote root directory:"
-            remoteSyncPathTextField.emptyText.text = ""
-        } else {
-            remoteSyncPathLabel.text = "Remote root directory (optional):"
-            remoteSyncPathTextField.emptyText.text = "default \$HOME/{Local to remote IFT config name}, e.g. /root/remote"
         }
 
         revalidate()

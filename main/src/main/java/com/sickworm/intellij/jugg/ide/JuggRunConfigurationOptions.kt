@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.execution.configurations.RunConfigurationOptions
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.io.File
 
@@ -65,6 +66,7 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
  */
 data class JuggGradleCompileOptions(
     val projectRootPath: String,
+    val localClasspathStoragePath: LocalClasspathStoragePathManager,
     val compileCommand: String,
     val outputApkName: String,
     val isRemoteCompile: Boolean,
@@ -84,9 +86,13 @@ data class JuggGradleCompileOptions(
 ) {
 
 
-    private val projectSyncRelativePath get() = File(projectRootPath)
-        .relativeTo(File(localToRemoteSyncPath)).path
-        .replace(" ", "\\ ")
+    private val projectSyncRelativePath get() = if (syncMode.isRsyncSimple) {
+        File(projectRootPath).name
+    } else {
+        File(projectRootPath)
+            .relativeTo(File(localToRemoteSyncPath)).path
+            .replace(" ", "\\ ")
+    }
 
     private val projectSyncRootRelativePath: String get() = projectSyncRelativePath.substringBefore(File.separatorChar)
 
@@ -95,7 +101,7 @@ data class JuggGradleCompileOptions(
 
     /** project storage directory */
     val finalRemoteSyncPath = run {
-        val finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/$localToRemoteIftConfigName" }
+        val finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/remote" }
         if (finalPath.endsWith("/")) {
             finalPath.substring(0, finalPath.length - 1) // must remove last '/' to standardize sync path
         } else {
@@ -109,7 +115,9 @@ data class JuggGradleCompileOptions(
     } else {
         "$localToRemoteIftConfigName/$projectSyncRootRelativePath"
     }
-    val localSyncRsyncPath get() = if (isSyncAllProjects) {
+    val localSyncRsyncPath get() = if (syncMode.isRsyncSimple) {
+        "$projectRootPath/"
+    } else if (isSyncAllProjects) {
         "$localToRemoteSyncPath/"
     } else {
         "$localToRemoteSyncPath/$projectSyncRootRelativePath/"
@@ -121,15 +129,23 @@ data class JuggGradleCompileOptions(
     } else {
         "$finalRemoteSyncPath/$projectSyncRootRelativePath"
     }
-    val remoteSyncRootRsyncPath get() = "$remoteSshUser@$remoteSshIp:$remoteSyncRootPath"
+    val remoteSyncRootRsyncPath get() = if (syncMode.isRsyncSimple) {
+        "$remoteSshUser@$remoteSshIp:$finalRemoteSyncPath/$projectSyncRootRelativePath"
+    } else {
+        "$remoteSshUser@$remoteSshIp:$remoteSyncRootPath"
+    }
 
     /** remote project root path, used for compilation */
     val remoteProjectPath get() = "$finalRemoteSyncPath/$projectSyncRelativePath"
-    val remoteProjectRsyncPath get() = "$remoteSshUser@$remoteSshIp:$remoteProjectPath/"
+    val remoteProjectRsyncPath get() = "$remoteSshUser@$remoteSshIp:$remoteProjectPath/" // rsync_simple use the same path
 
     /** remote iFt path, used for fetching apk output to local */
     val remoteToLocalProjectIftPath get() = "$remoteToLocalIftConfigName/$projectSyncRelativePath"
-    val remoteToLocalProjectRsyncPath get() = "$remoteToLocalSyncPath/$projectSyncRelativePath/"
+    val remoteToLocalProjectRsyncPath get() = if (syncMode.isRsyncSimple) {
+        "${localClasspathStoragePath.apkDir.absolutePath}/"
+    } else {
+        "$remoteToLocalSyncPath/$projectSyncRelativePath/"
+    }
 
     /** remote iFt path, used for fetching classpath output to local */
     val remoteToLocalRootIftPath get() = if (isSyncAllProjects) {
@@ -137,17 +153,25 @@ data class JuggGradleCompileOptions(
     } else {
         "$remoteToLocalIftConfigName/$projectSyncRootRelativePath"
     }
-    val remoteToLocalRootRsyncPath get() = if (isSyncAllProjects) {
+    val remoteToLocalRootRsyncPath get() = if (syncMode.isRsyncSimple) {
+        "${localClasspathStoragePath.classpathDir.absolutePath}/"
+    } else if (isSyncAllProjects) {
         "$remoteToLocalSyncPath/jugg_all_classpath/"
     } else {
         "$remoteToLocalSyncPath/$projectSyncRootRelativePath/"
     }
 
     /** local apk path, used for get apk output */
-    val remoteToLocalProjectSyncPath get() = "$remoteToLocalSyncPath/$projectSyncRelativePath"
+    val remoteToLocalProjectSyncPath: String get() = if (syncMode.isRsyncSimple) {
+        localClasspathStoragePath.apkDir.absolutePath
+    } else {
+        "$remoteToLocalSyncPath/$projectSyncRelativePath"
+    }
 
     /** local classpath path, used for get classpath output */
-    val remoteToLocalSyncClasspathPath get() = if (isSyncAllProjects) {
+    val remoteToLocalSyncClasspathPath: String get() = if (syncMode.isRsyncSimple) {
+        "${localClasspathStoragePath.classpathDir.absolutePath}/$projectSyncRelativePath"
+    } else if (isSyncAllProjects) {
         "$remoteToLocalSyncPath/jugg_all_classpath/${File(finalRemoteSyncPath).name}/$projectSyncRelativePath"
     } else {
         "$remoteToLocalSyncPath/$projectSyncRootRelativePath/$projectSyncRelativePath"
@@ -172,27 +196,31 @@ data class JuggGradleCompileOptions(
             if (remoteSshPort <= 0) {
                 errorDetails += "Run configuration argument [SSH port] is invalid\n"
             }
-            if (localToRemoteIftConfigName.isEmpty()) {
-                errorDetails += "Run configuration argument [Local to remote IFT config] name is empty\n"
+
+            if (!syncMode.isRsync) {
+                if (localToRemoteIftConfigName.isEmpty()) {
+                    errorDetails += "Run configuration argument [Local to remote IFT config] name is empty\n"
+                }
+                if (remoteToLocalIftConfigName.isEmpty()) {
+                    errorDetails += "Run configuration argument [Remote to local IFT config] name is empty\n"
+                }
             }
-            if (localToRemoteSyncPath.isEmpty()) {
-                errorDetails += "Run configuration argument [Local to remote sync path] is empty\n"
-            }
-            if (syncMode.isRsync) {
+
+            if (!syncMode.isRsyncSimple) {
+                if (localToRemoteSyncPath.isEmpty()) {
+                    errorDetails += "Run configuration argument [Local to remote sync path] is empty\n"
+                }
                 if (remoteSyncPath.isEmpty()) {
                     errorDetails += "Run configuration argument [Remote sync path] is empty\n"
                 }
-            }
-            if (remoteToLocalIftConfigName.isEmpty()) {
-                errorDetails += "Run configuration argument [Remote to local IFT config] name is empty\n"
-            }
-            if (remoteToLocalSyncPath.isEmpty()) {
-                errorDetails += "Run configuration argument [Remote to local sync path] is empty\n"
-            }
-            if (!File(projectRootPath).isChild(File(localToRemoteSyncPath)) &&
-                        (projectRootPath != localToRemoteSyncPath)) {
-                errorDetails += "Run configuration argument [Local to remote IFT sync path]($localToRemoteSyncPath) " +
-                        "must be the parent of project path($projectRootPath)\n"
+                if (remoteToLocalSyncPath.isEmpty()) {
+                    errorDetails += "Run configuration argument [Remote to local sync path] is empty\n"
+                }
+                if (!File(projectRootPath).isChild(File(localToRemoteSyncPath)) &&
+                    (projectRootPath != localToRemoteSyncPath)) {
+                    errorDetails += "Run configuration argument [Local to remote IFT sync path]($localToRemoteSyncPath) " +
+                            "must be the parent of project path($projectRootPath)\n"
+                }
             }
         }
 
@@ -205,10 +233,12 @@ data class JuggGradleCompileOptions(
 
         fun fromOptions(
             projectRootPath: String,
+            localClasspathStoragePathManager: LocalClasspathStoragePathManager,
             options: JuggRunConfigurationOptions
         ): JuggGradleCompileOptions {
             return JuggGradleCompileOptions(
                 projectRootPath,
+                localClasspathStoragePathManager,
                 options.compileCommand ?: "",
                 options.outputApkName ?: "",
                 options.isRemoteCompile,
@@ -232,8 +262,11 @@ data class JuggGradleCompileOptions(
 
 enum class SyncMode(val modeName: String) {
     IFT("iFt"),
+    RSYNC_SIMPLE("rsync_simple"),
     RSYNC("rsync"),
     ;
 
-    val isRsync get() = this == RSYNC
+    val isRsync get() = this == RSYNC || this == RSYNC_SIMPLE
+
+    val isRsyncSimple get() = this == RSYNC_SIMPLE
 }

@@ -21,13 +21,14 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
 class JuggCompilerHelper(
     private val project: Project,
-    private val localClasspathStorageDir: File,
+    private val localClasspathStoragePathManager: LocalClasspathStoragePathManager,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
     private val deployStateManager: DeployStateManager,
@@ -144,7 +145,7 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
-        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStorageDir)
+        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
@@ -363,7 +364,7 @@ class JuggCompilerHelper(
      * @return classpath root dir
      */
     fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>): File? {
-        return gradleCompileClientManager.getClient(isRemote, localClasspathStorageDir).fetchClasspathResult(buildDirs)
+        return gradleCompileClientManager.getClient(isRemote, localClasspathStoragePathManager.classpathDir).fetchClasspathResult(buildDirs)
     }
 
     override fun dispose() {
