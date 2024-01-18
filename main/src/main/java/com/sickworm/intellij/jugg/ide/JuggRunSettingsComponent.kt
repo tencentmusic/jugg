@@ -86,7 +86,7 @@ class JuggRunSettingsComponent : JComponent() {
         it.layout = GridLayout(0, 1, 5, 5)
     }
     private val remoteComponentList = listOf<Pair<JComponent, JComponent?>>(
-        Pair(createPairPanel(syncModeLabel, syncModeComboBox, isMaxRight = false), null),
+        Pair(createPairPanel(syncModeLabel, syncModeComboBox, isMaxRight = false, marginHorizontal = 0), null),
         Pair(enableSyncAllProjectsCheckBox, null),
         Pair(userLabel, userTextField),
         Pair(passwordLabel, passwordTextField),
@@ -280,10 +280,11 @@ class JuggRunSettingsComponent : JComponent() {
                                 leftWidth: Int = 0,
                                 isAlignEnd: Boolean = false,
                                 isMaxRight: Boolean = true,
+                                marginHorizontal: Int = 4,
     ): JPanel {
         val jPanel = JPanel()
         jPanel.run {
-            border = JBUI.Borders.empty(0, 4)
+            border = JBUI.Borders.empty(0, marginHorizontal)
             layout = BoxLayout(this, BoxLayout.X_AXIS)
             left?.let {
                 add(left)
