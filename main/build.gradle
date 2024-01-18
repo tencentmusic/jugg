@@ -100,6 +100,7 @@ patchPluginXml.changeNotes = """
 <li>[feature] supports pull notification from server</li>
 <li>[feature] add mock events in "More options" for tests</li>
 <li>[feature] supports rsync with remote compile</li>
+<li>[feature] supports login with SSH key</li>
 <li>[optimize] copy local classpath to jugg dir to avoid broken by gradle</li>
 <li>[optimize] retry with recreating compiler once when no error or error too much</li>
 <li>[optimize] improve speed of searching apk on local mode</li>
