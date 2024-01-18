@@ -136,6 +136,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     @Synchronized
     fun saveParsedApk(parsedApk: ParsedApk, apkDiffResult: ParsedApkDiffResult): ParsedApkUpdateResult {
+        logger.debug("saveParsedApk $parsedApk")
         DriverManager.getConnection(url).use { connection ->
             val startTime = System.currentTimeMillis()
             connection.autoCommit = false
@@ -450,7 +451,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     @Synchronized
     fun diffApk(apkEntries: ApkEntries): ParsedApkDiffResult {
-
+        logger.debug("diffApk apkEntries: dexFiles ${apkEntries.dexFiles.size}")
         DriverManager.getConnection(url).use { connection ->
             val apkInfoKeys = mutableListOf<String>()
             val selectApkSQL = "SELECT * FROM apk_info;"
@@ -530,6 +531,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     @Synchronized
     fun getParsedApk(apkInfo: ApkInfo): ParsedApk? {
+        logger.debug("getParsedApk ${apkInfo.apkInfoKey}")
+
         val apkInfoKeys = getApkInfoKeys()
         if (apkInfoKeys.size != 1) {
             logger.warn("Apk info key size is not 1.")
@@ -645,6 +648,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     @Synchronized
     fun getResInfos(): List<JuggFileInfo> {
+        logger.debug("getResInfos")
+
         val selectSQL = "SELECT name, checksum FROM entry_info WHERE type = $ENTRY_TYPE_RES;"
         val resInfos = mutableListOf<JuggFileInfo>()
         DriverManager.getConnection(url).use { connection ->
@@ -664,6 +669,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     @Synchronized
     fun getClassNodes(classNames: List<String>): Map<String, ClassNode> {
+        logger.debug("getClassNodes ${classNames.size}")
+
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
                 val classNamesString = classNames.joinToString(",") { "'$it'" }
@@ -694,6 +701,9 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
     ): Map<String, List<String>> {
+        logger.debug("getEffectedClassNodes changedMethodRefs $changedMethodRefs")
+        logger.debug("getEffectedClassNodes changedFieldRefs $changedFieldRefs $changedAbstractClasses")
+        logger.debug("getEffectedClassNodes changedAbstractClasses $changedAbstractClasses")
 
         DriverManager.getConnection(url).use { connection ->
             // step 1. build dbClassNodeMap to get classId
@@ -875,6 +885,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
             }
+
+            logger.debug("getEffectedClassNodes result $effectedClassNodes")
             return effectedClassNodes
         }
     }
@@ -882,6 +894,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     @Synchronized
     fun findRefsOfDefaultMethodWhenImplChanged(classNodes: List<ClassNode>, isRecompilation: Boolean): List<String> {
+        logger.debug("findRefsOfDefaultMethodWhenImplChanged isRecompilation: $isRecompilation, classNodes ${classNodes.map { it.className }}")
+
         DriverManager.getConnection(url).use { connection ->
 
             val classIds = mutableListOf<Int>()
@@ -945,12 +959,16 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
+            logger.debug("findRefsOfDefaultMethodWhenImplChanged result $result")
             return result
         }
     }
 
     @Synchronized
     fun findRefsOfDesugaredDefaultMethod(classNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>): List<String> {
+        logger.debug("findRefsOfDesugaredDefaultMethod classNodes ${classNodes.map { it.className }}")
+        logger.debug("findRefsOfDesugaredDefaultMethod invokeStaticRefClassNames $invokeStaticRefClassNames")
+
         val checkedClasses = mutableSetOf<String>()
 
         val result = mutableListOf<String>()
@@ -1029,6 +1047,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
         }
 
+        logger.debug("findRefsOfDesugaredDefaultMethod result $result")
         return result
     }
 
