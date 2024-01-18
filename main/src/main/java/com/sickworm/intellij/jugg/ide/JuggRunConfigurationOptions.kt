@@ -101,12 +101,15 @@ data class JuggGradleCompileOptions(
 
     /** project storage directory */
     val finalRemoteSyncPath = run {
-        val finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/remote" }
-        if (finalPath.endsWith("/")) {
-            finalPath.substring(0, finalPath.length - 1) // must remove last '/' to standardize sync path
-        } else {
-            finalPath
+        var finalPath = remoteSyncPath.ifEmpty { "$remoteHomePath/remote" }
+        if (!finalPath.startsWith("/")) {
+            // relative path
+            finalPath = "$remoteHomePath/$finalPath"
         }
+        if (finalPath.endsWith("/")) {
+            finalPath = finalPath.substring(0, finalPath.length - 1) // must remove last '/' to standardize sync path
+        }
+        finalPath
     }
 
     /** local iFt path, used for syncing files to remote by iFt */
@@ -209,9 +212,6 @@ data class JuggGradleCompileOptions(
             if (!syncMode.isRsyncSimple) {
                 if (localToRemoteSyncPath.isEmpty()) {
                     errorDetails += "Run configuration argument [Local to remote sync path] is empty\n"
-                }
-                if (remoteSyncPath.isEmpty()) {
-                    errorDetails += "Run configuration argument [Remote sync path] is empty\n"
                 }
                 if (remoteToLocalSyncPath.isEmpty()) {
                     errorDetails += "Run configuration argument [Remote to local sync path] is empty\n"
