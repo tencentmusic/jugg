@@ -172,7 +172,7 @@ class RemoteGradleCompileClient(
         try {
             addIdentity(keyPath)
         } catch (e: JSchException) {
-            logger.warn("addIdentity failed, keyPath $keyPath is invalid. error: ${e.message}")
+            logger.debug("addIdentity failed, keyPath $keyPath is invalid. error: ${e.message}")
         }
     }
 
@@ -418,6 +418,7 @@ class RemoteGradleCompileClient(
 
     private fun printToStream(line: String) {
         terminalOutputListener.onOutput(line)
+        logger.debug(line)
     }
 
     private fun printToStreamInfo(line: String) {
@@ -456,12 +457,12 @@ class RemoteGradleCompileClient(
         override fun log(level: Int, message: String) {
             val levelMessage = name(level) + ": " + message
             if (level >= Logger.WARN) {
-                terminalOutputListener.onOutputErr(levelMessage)
+                printToStreamError(levelMessage)
             } else {
                 if (message.contains("succeed") && message.contains("publickey")) {
                     isUseKey = true
                 }
-                terminalOutputListener.onOutput(levelMessage)
+                printToStream(levelMessage)
             }
         }
 

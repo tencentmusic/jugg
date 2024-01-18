@@ -113,10 +113,9 @@ class CmdExecutor(
             if (line.contains("fail") || line.contains("error")) {
                 printToStreamError(line)
                 return
-            } else {
-                logger.debug(line)
             }
         }
+        logger.debug(line)
         terminalOutputListener.onOutput(line)
     }
 
