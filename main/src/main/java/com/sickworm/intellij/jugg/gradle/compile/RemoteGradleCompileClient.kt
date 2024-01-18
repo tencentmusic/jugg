@@ -25,7 +25,7 @@ class RemoteGradleCompileClient(
 
     private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
 
-    private var finalPassword: String = ""
+    private var finalPasswordOrKey: String = ""
     private var isUseKey: Boolean = false // currently no use
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
@@ -36,56 +36,80 @@ class RemoteGradleCompileClient(
 
         dispose()
 
-        finalPassword = juggGradleCompileOptions.remoteSshPassword
-        if (finalPassword.isEmpty()) {
-            val enteredPassword = UserAndPasswordInputDialog.showAndGetResult(
-                "SSH Password or Key Path",
-                subTitle = "<html>You will see this because password is empty in run configuration.<br/>Jugg will try to use SSH key to login if keep empty.</html>",
-                isPassword = true,
-            ) ?: throw JuggException.loginToRemoteFailed("User canceled.")
-
-            finalPassword = enteredPassword
-        }
-
+        finalPasswordOrKey = juggGradleCompileOptions.remoteSshPassword
         isUseKey = false
         val keyPathList = mutableListOf<String>()
-        convertToAbsoluteKeyPathIfSpecific(finalPassword)?.let {
+        convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.let {
             logger.debug("found key path in user input: $it")
             keyPathList.add(it)
         }
         keyPathList.addAll(searchAvailableKeys())
 
-        try {
-            val jsch = JSch()
-            keyPathList.filter {
-                File(it).exists()
-            }.forEach {
-                jsch.addIdentitySafe(it)
-            }
-            JSch.setLogger(JschLogger())
-            val session = jsch.getSession(
-                juggGradleCompileOptions.remoteSshUser,
-                juggGradleCompileOptions.remoteSshIp,
-                juggGradleCompileOptions.remoteSshPort)
-            if (juggGradleCompileOptions.httpProxyIp.isNotEmpty() &&
-                juggGradleCompileOptions.httpProxyPort != 0) {
-                session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
-            }
-            session.setPassword(finalPassword)
-            session.setConfig("StrictHostKeyChecking", "no")
-            session.setConfig("Charset", "UTF-8")
-            session.connect()
-            val channel = session.openChannel("shell")
-            channel.connect()
-
-            this.session = session
-            this.channel = channel
-            this.juggGradleCompileOptions = juggGradleCompileOptions
-            logger.debug("login success, isUseKey: $isUseKey")
-        } catch (e: JSchException) {
-            printToStreamError("RemoteClient login failed", e)
-            throw JuggException.loginToRemoteFailed("Please check your login info.")
+        // if key path is empty and password is empty, show dialog to input password
+        if (keyPathList.isEmpty() && finalPasswordOrKey.isEmpty()) {
+            finalPasswordOrKey = showDialogAndGetPasswordOrKey(extraTips = "and keys not found in .ssh")
         }
+
+        try {
+            doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
+        } catch (e: JSchException) {
+            if (keyPathList.isNotEmpty() && finalPasswordOrKey.isEmpty()) {
+                // use ssh key failed and password is empty, show dialog to input password
+                finalPasswordOrKey = showDialogAndGetPasswordOrKey(extraTips = "and login is failed")
+                convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.let {
+                    logger.debug("found key path in user input2: $it")
+                    keyPathList.add(it)
+                }
+                try {
+                    doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
+                } catch (e: JSchException) {
+                    // login failed
+                    printToStreamError("RemoteClient login failed", e)
+                    throw JuggException.loginToRemoteFailed("Please check your login info.")
+                }
+            } else {
+                // login failed
+                printToStreamError("RemoteClient login failed", e)
+                throw JuggException.loginToRemoteFailed("Please check your login info.")
+            }
+        }
+    }
+
+    private fun showDialogAndGetPasswordOrKey(extraTips: String): String {
+        return UserAndPasswordInputDialog.showAndGetResult(
+            "SSH Password or Key Path",
+            subTitle = "<html>You will see this because [SSH password or key path] is empty $extraTips.</html>",
+            isPassword = true,
+        ) ?: throw JuggException.loginToRemoteFailed("User canceled.")
+    }
+
+    private fun doLogin(juggGradleCompileOptions: JuggGradleCompileOptions, keyPathList: List<String>, password: String) {
+        val jsch = JSch()
+        keyPathList.filter {
+            File(it).exists()
+        }.forEach {
+            jsch.addIdentitySafe(it)
+        }
+        JSch.setLogger(JschLogger())
+        val session = jsch.getSession(
+            juggGradleCompileOptions.remoteSshUser,
+            juggGradleCompileOptions.remoteSshIp,
+            juggGradleCompileOptions.remoteSshPort)
+        if (juggGradleCompileOptions.httpProxyIp.isNotEmpty() &&
+            juggGradleCompileOptions.httpProxyPort != 0) {
+            session.setProxy(ProxyHTTP(juggGradleCompileOptions.httpProxyIp, juggGradleCompileOptions.httpProxyPort))
+        }
+        session.setPassword(password)
+        session.setConfig("StrictHostKeyChecking", "no")
+        session.setConfig("Charset", "UTF-8")
+        session.connect()
+        val channel = session.openChannel("shell")
+        channel.connect()
+
+        this.session = session
+        this.channel = channel
+        this.juggGradleCompileOptions = juggGradleCompileOptions
+        logger.debug("login success, isUseKey: $isUseKey")
     }
 
     private fun convertToAbsoluteKeyPathIfSpecific(passwordOrKey: String): String? {
@@ -173,7 +197,7 @@ class RemoteGradleCompileClient(
             val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
                 RsyncSyncFileCommand(
                     gradleCompileSettings,
-                    convertToAbsoluteKeyPathIfSpecific(finalPassword),
+                    convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey),
                     gradleCompileSettings.localSyncRsyncPath,
                     gradleCompileSettings.remoteSyncRootRsyncPath,
                 )
@@ -221,7 +245,7 @@ class RemoteGradleCompileClient(
             val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
             RsyncFetchOutputCommand(
                 gradleCompileSettings,
-                convertToAbsoluteKeyPathIfSpecific(finalPassword),
+                convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey),
                 absoluteApkPath,
                 gradleCompileSettings.remoteToLocalProjectRsyncPath,
             )
@@ -260,7 +284,7 @@ class RemoteGradleCompileClient(
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncFetchClasspathCommand(
                 gradleCompileSettings,
-                convertToAbsoluteKeyPathIfSpecific(finalPassword),
+                convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey),
                 gradleCompileSettings.remoteSyncRootRsyncPath,
                 gradleCompileSettings.remoteToLocalRootRsyncPath,
                 buildDirs,
@@ -305,7 +329,7 @@ class RemoteGradleCompileClient(
         val result = if (command is RsyncCommand) {
             // invoke at local and using expect login into ssh
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            cmdExecutor.invoke(command, sshLoginPassword = finalPassword)
+            cmdExecutor.invoke(command, sshLoginPassword = finalPasswordOrKey)
         } else {
             remoteInvoke(channel, command)
         }

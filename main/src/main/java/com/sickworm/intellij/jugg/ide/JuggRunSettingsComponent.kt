@@ -56,8 +56,10 @@ class JuggRunSettingsComponent : JComponent() {
     private val syncModeComboBox = ComboBox(SyncMode.values().map { it.modeName }.toTypedArray())
     private val userLabel = JLabel("SSH user:")
     private val userTextField = JTextField()
-    private val passwordLabel = JLabel("SSH password or key path:")
-    private val passwordTextField = JBPasswordField()
+    private val passwordLabel = JLabel("SSH password/key (optional):")
+    private val passwordTextField = JBPasswordField().also {
+        it.emptyText.text = "default use empty password and SSH keys in .ssh"
+    }
     private val ipLabel = JLabel("SSH host:")
     private val ipTextField = JTextField()
     private val portLabel = JLabel("SSH port:")
