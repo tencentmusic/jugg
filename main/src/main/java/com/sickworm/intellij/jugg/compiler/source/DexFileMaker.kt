@@ -2,10 +2,11 @@ package com.sickworm.intellij.jugg.compiler.source
 
 import com.android.tools.r8.D8Command
 import com.android.tools.r8.origin.Origin
+import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
 
-class DexFileMaker {
+class DexFileMaker(private val logger: Logger) {
 
     private val isEnableDesugaring = true
 
@@ -56,6 +57,7 @@ class DexFileMaker {
         args.addAll(filesPath)
 
         val command = D8Command.parse(args.toTypedArray(), Origin.root()).build()
+        logger.debug("D8Command: d8 ${args.joinToString(" ")}")
         com.android.tools.r8.D8.run(command) // throws exceptions
     }
 }

@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.mock.androidJar
 import com.sickworm.intellij.jugg.mock.clearBuild
+import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.stagingDir
 import org.junit.Before
 import org.junit.Test
@@ -44,7 +45,7 @@ class DexTest {
         // ART TI requires one .dex file only contains one .class file
 
         val dependencies = task.files.map { it.dependencyPaths }.flatten().toSet()
-        DexFileMaker().dex(stagingDir, classesFiles, dependencies, androidJar, JuggSettings.minApi)
+        DexFileMaker(logger).dex(stagingDir, classesFiles, dependencies, androidJar, JuggSettings.minApi)
 
         classesFiles.forEach { classFile ->
             val dexFile = classFile.changeBaseDir(stagingDir, stagingDir, "dex")

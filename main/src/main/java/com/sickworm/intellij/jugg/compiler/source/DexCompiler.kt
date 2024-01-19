@@ -15,7 +15,7 @@ class DexCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
-    private val dexFileMaker = DexFileMaker()
+    private val dexFileMaker = DexFileMaker(logger)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = context.getModuleDependencies(module, task)
