@@ -145,6 +145,7 @@ class JuggServer(
             val pathManager = pathManager ?: return@async UploadResult.fail("pathManager is null")
             // zip log directory
             val fileName = "${requestToken}_${System.currentTimeMillis()}".md5.substring(0, 8)
+            pathManager.tmpDir.mkdirs()
             val destFile = File(pathManager.tmpDir, "$fileName.zip")
             try {
                 logger.debug("reportAndUploadLogs destFile: $destFile")
