@@ -72,7 +72,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
 
         // find the first available devices
-        // TODO more elegant
         getModuleManager(project).modules.forEach { module ->
             val facet = AndroidFacet.getInstance(module) ?: return@forEach
             val deviceFutures = deployTarget.getDevices(facet) ?: return@forEach
@@ -157,7 +156,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         )
         val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate)
 
-        // TODO
         //  java.lang.IllegalAccessError: class com.sickworm.intellij.jugg.deploy.run.JuggDeployer tried to access method
         //  'void com.android.tools.deployer.MetricsRecorder.add(com.android.tools.deployer.DeployMetric)'
         //  (com.sickworm.intellij.jugg.deploy.run.JuggDeployer is in unnamed module of loader

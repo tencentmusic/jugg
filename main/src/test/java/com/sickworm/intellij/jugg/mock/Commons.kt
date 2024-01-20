@@ -145,7 +145,6 @@ fun assertCompileResult(task: CompileTask,
         exceptsOutput.addAll(expectOutput)
     }
 
-    // TODO check compiled xml outputs size
     val exceptedOutputWithoutXml = result.outputs.filter { !it.relativeFile.startsWith("res") }
     val outputWithoutXml = result.outputs.filter { !it.relativeFile.startsWith("res") }
     assertEquals(exceptedOutputWithoutXml.size, outputWithoutXml.size)

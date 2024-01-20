@@ -101,7 +101,6 @@ class JuggDeployTask(
                     idsSkippedInstall.add(applicationId)
                 }
                 if (result.needsRestart) {
-                    // TODO: fall back to using the suggested action, rather than blindly rerun
                     launchContext.killBeforeLaunch = true
                     launchContext.launchApp = true
                 }

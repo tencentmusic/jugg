@@ -6,7 +6,6 @@ import com.sickworm.intellij.jugg.compiler.ICompiler
 import com.sickworm.intellij.jugg.deploy.run.LaunchResult
 import java.io.File
 
-// TODO exception unit test
 /** Exception for notifying user */
 class JuggException(msg: String): Exception(msg) {
 
@@ -53,7 +52,6 @@ class JuggException(msg: String): Exception(msg) {
     }
 }
 
-// TODO exception unit test
 /** Exception for plugin internal error, which should not happened */
 class JuggInternalException(msg: String): Exception(msg) {
 
