@@ -129,6 +129,11 @@ data class BaseCompileContext(
         return dirs
     }
 
+    override fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
+        // moduleInfo is used for searching classpath, but deployFileManager search globally for now
+        deployFileManager.getAllDesugarClasspath(compileFiles, toDir)
+    }
+
     override fun listenUpdate(listener: OnContextUpdate) {
         synchronized(listeners) {
             if (!listeners.contains(listener)) {

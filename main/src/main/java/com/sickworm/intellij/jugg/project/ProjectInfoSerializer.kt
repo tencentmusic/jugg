@@ -76,7 +76,7 @@ private class ProjectInfoSerialize(
 
     companion object {
 
-        private const val SERIALIZE_VERSION: String = "4"
+        private const val SERIALIZE_VERSION: String = "5"
 
         fun create(modules: Map<String, ModuleInfo>): ProjectInfoSerialize {
             val stringMap = mutableMapOf<String, Int>()
@@ -108,7 +108,8 @@ private class ProjectInfoSerialize(
                     buildVariant = stringMap.getOrPut(it.buildVariant) { index++ },
                     kotlinFreeCompilerArgs = it.kotlinFreeCompilerArgs.map { arg ->
                         stringMap.getOrPut(arg) { index++ }
-                    }
+                    },
+                    minSdkVersion = stringMap.getOrPut(it.minSdkVersion ?: "null") { index++ },
                 )
             }
 
@@ -170,7 +171,8 @@ private class ProjectInfoSerialize(
                     },
                     kotlinFreeCompilerArgs = if (parts[17].isEmpty()) emptyList() else parts[17].split(",").map { arg ->
                         stringMap[arg]!!
-                    }
+                    },
+                    minSdkVersion = stringMap[parts[18]]!!.nullIfNull(),
                 )
                 moduleInfo.name to moduleInfo
             }
@@ -200,6 +202,7 @@ private class ModuleInfoSerialize(
     val moduleDependencies: List<StringIndex>,
     val libraryDependencies: List<StringIndex>,
     val kotlinFreeCompilerArgs: List<StringIndex>,
+    val minSdkVersion: StringIndex,
 ) {
 
     fun fill(stringBuilder: StringBuilder) {
@@ -220,6 +223,7 @@ private class ModuleInfoSerialize(
         stringBuilder.append(buildPathInfo.second).append(";")
         stringBuilder.append(moduleDependencies.joinToString(",")).append(";")
         stringBuilder.append(libraryDependencies.joinToString(",")).append(";")
-        stringBuilder.append(kotlinFreeCompilerArgs.joinToString(","))
+        stringBuilder.append(kotlinFreeCompilerArgs.joinToString(",")).append(";")
+        stringBuilder.append(minSdkVersion)
     }
 }

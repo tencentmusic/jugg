@@ -84,6 +84,10 @@ class SimpleCompileContext(
         return emptyList()
     }
 
+    override fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
+
+    }
+
     override fun listenUpdate(listener: OnContextUpdate) {
     }
 }

@@ -230,6 +230,8 @@ interface ICompileContext {
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
 
+    fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File)
+
     fun listenUpdate(listener: OnContextUpdate)
 }
 
@@ -249,6 +251,7 @@ data class ModuleInfo(
     val manifestFile: File?,
     val buildVariant: String,
     val compileVersion: String?,
+    val minSdkVersion: String?,
     val buildToolsVersion: String?,
     val kotlinJvmTarget: String?,
     val kotlinFreeCompilerArgs: List<String>,
@@ -285,6 +288,7 @@ data class ModuleInfo(
             manifestFile = null,
             buildVariant = DEFAULT_BUILD_VARIANT,
             compileVersion = null,
+            minSdkVersion = null,
             buildToolsVersion = null,
             kotlinJvmTarget = null,
             javaSourceCompatibility = null,

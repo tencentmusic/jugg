@@ -264,7 +264,7 @@ class DeployFileManager(
         val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces)
         files.forEach {
             val relativePath = it.file.relativeTo(it.baseDir).path
-            val destFile = File(File(toDir, relativePath), it.file.name)
+            val destFile = File(toDir, relativePath)
             it.file.copyTo(destFile, overwrite = true)
         }
     }

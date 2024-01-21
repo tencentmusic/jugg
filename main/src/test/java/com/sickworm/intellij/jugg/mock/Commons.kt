@@ -116,6 +116,7 @@ val mockModule = ModuleInfo(
     javaTargetCompatibility = "1.8",
     moduleDependencies = emptyList(),
     libraryDependencies = emptyList(),
+    minSdkVersion = "21",
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>

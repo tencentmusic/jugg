@@ -29,9 +29,6 @@ object JuggSettings {
     /** whether check checksum to make sure file is really change when file changes */
     var isCheckChecksumWhenFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
 
-    /** don't support change minApi dynamically */
-    const val minApi = IAsDeployerCompat.MIN_DEVICE_API // Android 11
-
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 20
     /** limit max source files to compile for better performance */

@@ -230,6 +230,10 @@ class CompileContextManager(
                 buildModel.android().compileSdkVersion(), buildModel) {
                 this.all { it.isDigit() }
             }
+            var minSdkVersion: String? = gradleVariableHelper.readVariable(
+                buildModel.android().defaultConfig().minSdkVersion(), buildModel) {
+                this.all { it.isDigit() }
+            }
             val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
             val kotlinFreeCompilerArgs: List<String> = buildModel.android().kotlinOptions().freeCompilerArgs()
@@ -336,7 +340,7 @@ class CompileContextManager(
                 module.name, baseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
                 manifestFile,
-                buildVariant, compileVersion, buildToolsVersion,
+                buildVariant, compileVersion, minSdkVersion, buildToolsVersion,
                 kotlinJvmTarget, kotlinFreeCompilerArgs,
                 javaSourceCompatibility, javaTargetCompatibility,
                 moduleBuildPathInfo,
