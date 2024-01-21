@@ -147,75 +147,6 @@ class DeployDataGeneratorTest {
     }
 
     @Test
-    fun testFixDefaultMethod() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-        var parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1")
-        var deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-
-        parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementBaseClass2")
-        deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-
-        parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3")
-        deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf(
-            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;",
-            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"
-        ).sorted(),
-            deployData.desugaredInterfacesWithDefaultMethods.sorted()
-        )
-
-        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
-        val compileTask = CompileTask(
-            files = listOf(
-                CompileFile(
-                    CompileFile.Type.Java,
-                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass1.java"),
-                    File(assetsAndroidDir, "app/src/main/java"),
-                    mockModule,
-                )
-            ),
-            outputDir = stagingDir,
-        )
-        val compileResult = sourceCompiler.compile(compileTask)
-        val deployItems = compileResult.outputs.map { it.toDeployItem() }
-        deployData = generator.buildDeployData(deployItems)
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-    }
-
-    @Test
-    fun testFixDefaultMethodWithCompile() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-
-        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
-        val compileTask = CompileTask(
-            files = listOf(
-                CompileFile(
-                    CompileFile.Type.Java,
-                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass1.java"),
-                    File(assetsAndroidDir, "app/src/main/java"),
-                    mockModule,
-                )
-            ),
-            outputDir = stagingDir,
-        )
-        val compileResult = sourceCompiler.compile(compileTask)
-        val deployItems = compileResult.outputs.map { it.toDeployItem() }
-        val deployData = generator.buildDeployData(deployItems)
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-    }
-
-    @Test
-    fun testFixInterfaceStaticMethod() {
-        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass1")
-        val deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-    }
-
-    @Test
     fun testGetDesugarClasspath() {
         assertDesugarClasspath(
             "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1",
@@ -274,7 +205,6 @@ class DeployDataGeneratorTest {
             parsedDex.methodRefs + parsedDexCc.methodRefs,
             parsedDex.fieldRefs + parsedDexCc.fieldRefs,
             parsedDex.subclassRefs + parsedDexCc.subclassRefs,
-            parsedDex.defaultMethodInvokeRefs + parsedDexCc.defaultMethodInvokeRefs,
         )
 
         val deployData = generator.buildDeployData(finalParsedDex, emptyList())
@@ -294,89 +224,6 @@ class DeployDataGeneratorTest {
         val classFile = getClassFile(className)
         val classpath = generator.getAllInterfacesWithDefaultMethod(listOf(classFile))
         assertContentEquals(expected.sorted(), classpath.sorted())
-    }
-
-    @Test
-    fun testFixDefaultMethodByNewStaticMethodInvocation() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-
-        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
-        val compileTask = CompileTask(
-            files = listOf(
-                CompileFile(
-                    CompileFile.Type.Java,
-                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/defaultinterface/InvokerClass2.java"),
-                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
-                    mockModule,
-                )
-            ),
-            outputDir = stagingDir,
-        )
-        val compileResult = sourceCompiler.compile(compileTask)
-        val deployItems = compileResult.outputs.map { it.toDeployItem() }
-        val deployData = generator.buildDeployData(deployItems)
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-    }
-
-    @Test
-    fun testFixDefaultMethodBySelf() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-
-        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterface")
-        val deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertTrue(deployData.desugaredInterfacesWithDefaultMethods.isNotEmpty())
-        assertEquals(listOf(
-            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseClass2;",
-            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass3;",
-            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass1;",
-            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/InvokerClass1;",
-        ).sorted(), deployData.desugaredInterfacesWithDefaultMethods.sorted())
-    }
-
-    @Test
-    fun testFixDefaultMethodByNewClasses() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-
-        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
-        val compileTask = CompileTask(
-            files = listOf(
-                CompileFile(
-                    CompileFile.Type.Java,
-                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass4.java"),
-                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
-                    mockModule,
-                )
-            ),
-            outputDir = stagingDir,
-        )
-        val compileResult = sourceCompiler.compile(compileTask)
-
-        val deployItems = compileResult.outputs.map { it.toDeployItem() }
-        val deployData = generator.buildDeployData(deployItems)
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
-    }
-
-    @Test
-    fun testFixDefaultMethodByDeleteMethodImpl() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-
-        val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass5")
-        var deployData = generator.buildDeployData(parsedDex, emptyList())
-        assertTrue(deployData.desugaredInterfacesWithDefaultMethods.isEmpty())
-
-        val classNode = parsedDex.classDeployItems[0].classNode
-        val addedMethods = classNode.methods.filter {
-            it.name != "func3"
-        }
-        val removeMethodParsedDex = parsedDex.updateMethods(addedMethods)
-
-        deployData = generator.buildDeployData(removeMethodParsedDex, emptyList())
-        assertTrue(deployData.desugaredInterfacesWithDefaultMethods.isNotEmpty())
-        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
     }
 
     @Test
@@ -503,7 +350,6 @@ class DeployDataGeneratorTest {
             parsedApk.methodRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
             parsedApk.fieldRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
             parsedApk.subclassRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
-            parsedApk.defaultMethodInvokeRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
         )
     }
 
@@ -535,7 +381,6 @@ class DeployDataGeneratorTest {
             emptyMap(),
             emptyMap(),
             emptyMap(),
-            emptyMap(),
         )
     }
 
@@ -551,7 +396,6 @@ class DeployDataGeneratorTest {
                 methodRefs = this.methodRefs,
                 fieldRefs = this.fieldRefs,
                 subclassRefs = this.subclassRefs,
-                defaultMethodInvokeRefs = this.defaultMethodInvokeRefs,
             )
         }
 }

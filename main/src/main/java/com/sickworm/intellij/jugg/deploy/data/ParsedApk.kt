@@ -17,7 +17,6 @@ class ParsedApk(
     val methodRefs: Map<MethodNode, List<String>>,
     val fieldRefs: Map<FieldNode, List<String>>,
     val subclassRefs: Map<String, List<String>>,
-    val defaultMethodInvokeRefs: Map<String, List<String>>,
 ) {
     override fun toString(): String {
         return "ParsedApk(apkInfo=${apkInfo.applicationId}, " +
@@ -26,7 +25,6 @@ class ParsedApk(
                 "overlayFiles=${overlayFiles.size}, " +
                 "methodRefs=${methodRefs.size}, " +
                 "fieldRefs=${fieldRefs.size}, " +
-                "subclassRefs=${subclassRefs.size}, " +
-                "defaultMethodInvokeRefs=${defaultMethodInvokeRefs.size})"
+                "subclassRefs=${subclassRefs.size}, "
     }
 }

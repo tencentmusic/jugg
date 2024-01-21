@@ -116,13 +116,6 @@ class DeployDataDatabaseSqLiteHelperTest {
             assertNotNull(classRefs2)
             assertContentEquals(classRefs, classRefs2)
         }
-
-        assertEquals(parsedApk.defaultMethodInvokeRefs.size, parsedApkFromDb.defaultMethodInvokeRefs.size)
-        parsedApk.defaultMethodInvokeRefs.forEach { (className, classRefs) ->
-            val classRefs2 = parsedApkFromDb.defaultMethodInvokeRefs[className]!!
-            assertNotNull(classRefs2)
-            assertContentEquals(classRefs, classRefs2)
-        }
     }
 
     @Test
@@ -202,7 +195,6 @@ class DeployDataDatabaseSqLiteHelperTest {
             finalParsedApk.methodRefs,
             finalParsedApk.fieldRefs,
             finalParsedApk.subclassRefs,
-            finalParsedApk.defaultMethodInvokeRefs,
         )
 
         // removeOverlayFiles
@@ -252,7 +244,6 @@ class DeployDataDatabaseSqLiteHelperTest {
             finalParsedApk.methodRefs,
             finalParsedApk.fieldRefs,
             finalParsedApk.subclassRefs,
-            finalParsedApk.defaultMethodInvokeRefs,
         )
 
         testGetTableSize(helper, finalParsedApk)
@@ -293,7 +284,6 @@ class DeployDataDatabaseSqLiteHelperTest {
             methodRefs.filter { classes.containsKey(it.key.owner) },
             fieldRefs.filter { classes.containsKey(it.key.owner) },
             subclassRefs.filter { classes.containsKey(it.key) },
-            defaultMethodInvokeRefs.filter { classes.containsKey(it.key) },
         )
     }
 }

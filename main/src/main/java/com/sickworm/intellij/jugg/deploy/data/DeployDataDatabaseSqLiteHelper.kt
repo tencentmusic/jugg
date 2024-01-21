@@ -115,13 +115,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 CREATE INDEX IF NOT EXISTS subclass_refs_class_id_index ON subclass_refs(class_id);
                 CREATE INDEX IF NOT EXISTS subclass_refs_ref_class_id_index ON subclass_refs(ref_class_id);
                 
-                CREATE TABLE IF NOT EXISTS default_method_invoke_refs (
-                    class_id INTEGER NOT NULL,
-                    ref_class_id INTEGER NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS default_method_invoke_refs_class_id_index ON subclass_refs(class_id);
-                CREATE INDEX IF NOT EXISTS default_method_invoke_refs_ref_class_id_index ON subclass_refs(ref_class_id);
-                
                 PRAGMA schema_version = $VERSION;
             """.trimIndent()
 
@@ -254,9 +247,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             parsedApk.subclassRefs.keys.forEach {
                 refClassNames.add(it)
             }
-            parsedApk.defaultMethodInvokeRefs.keys.forEach {
-                refClassNames.add(it)
-            }
             logger.debug("doGetClassInfo deleteDexNames: ${deleteDexNames.size}, refClassNames: ${refClassNames.size}")
 
             val selectClassSQL = if (deleteDexNames.size + refClassNames.size > 10000) {
@@ -320,15 +310,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             val deleteSubclassRefSql = "DELETE FROM subclass_refs WHERE ref_class_id=?;"
             connection.prepareStatement(deleteSubclassRefSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
-                }
-                preparedStatement.executeBatch()
-            }
-
-            val deleteDefaultMethodInvokeRefSql = "DELETE FROM default_method_invoke_refs WHERE ref_class_id=?;"
-            connection.prepareStatement(deleteDefaultMethodInvokeRefSql).use { preparedStatement ->
                 dbDeleteClasses.values.forEach {
                     preparedStatement.setInt(1, it)
                     preparedStatement.addBatch()
@@ -404,23 +385,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val sql = "INSERT INTO subclass_refs(class_id, ref_class_id) VALUES(?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
                 parsedApk.subclassRefs.forEach { (className, refClassName) ->
-                    val dbClassNode = dbClassNodeMap[className]
-                        ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
-                        return@forEach
-                    refClassName.forEach {
-                        preparedStatement.setInt(1, dbClassNode)
-                        preparedStatement.setInt(2, dbClassNodeMap[it]!!)
-                        preparedStatement.addBatch()
-                    }
-                }
-                preparedStatement.executeBatch()
-            }
-        }
-
-        runWithTimeCost("doInsertDefaultMethodInvokeRef") {
-            val sql = "INSERT INTO default_method_invoke_refs(class_id, ref_class_id) VALUES(?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.defaultMethodInvokeRefs.forEach { (className, refClassName) ->
                     val dbClassNode = dbClassNodeMap[className]
                         ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
                         return@forEach
@@ -629,20 +593,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            val defaultMethodInvokeRefs = mutableMapOf<String, MutableList<String>>()
-            val selectDefaultMethodInvokeRefSQL = "SELECT * FROM default_method_invoke_refs;"
-            connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQueryAndLog(selectDefaultMethodInvokeRefSQL)
-                while (resultSet.next()) {
-                    val classId = resultSet.getInt(1)
-                    val refClassId = resultSet.getInt(2)
-                    val className = dbClasses[classId]?.className ?: continue
-                    val refClassName = dbClasses[refClassId]?.className ?: continue
-                    defaultMethodInvokeRefs.getOrPut(className) { mutableListOf() }.add(refClassName)
-                }
-            }
-
-            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
+            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
         }
     }
 
@@ -889,166 +840,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             logger.debug("getEffectedClassNodes result $effectedClassNodes")
             return effectedClassNodes
         }
-    }
-
-
-    @Synchronized
-    fun findRefsOfDefaultMethodWhenImplChanged(classNodes: List<ClassNode>, isRecompilation: Boolean): List<String> {
-        logger.debug("findRefsOfDefaultMethodWhenImplChanged isRecompilation: $isRecompilation, classNodes ${classNodes.map { it.className }}")
-
-        DriverManager.getConnection(url).use { connection ->
-
-            val classIds = mutableListOf<Int>()
-            runWithTimeCost("doGetClassIds") {
-                val classNamesString = classNodes.joinToString(",") { "'${it.className}'" }
-                val sql = "SELECT id FROM class_info WHERE name IN ($classNamesString);"
-                connection.createStatement().use { statement ->
-                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                    while (resultSet.next()) {
-                        val classId = resultSet.getInt(1)
-                        classIds.add(classId)
-                    }
-                }
-            }
-
-            val resultIds = mutableListOf<Int>()
-
-            // we don't need to redex invoker of default method if it's recompilation (no changes)
-            if (!isRecompilation) {
-                // find out subclasses of interface with default methods
-                runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod") {
-                    connection.createStatement().use { statement ->
-                        val classIdsString = classIds.joinToString(",")
-                        val sql = "SELECT ref_class_id FROM default_method_invoke_refs WHERE class_id IN ($classIdsString);"
-                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                        while (resultSet.next()) {
-                            val classId = resultSet.getInt(1)
-                            resultIds.add(classId)
-                        }
-                    }
-                }
-            }
-
-            // find out interfaces with default methods which are invokes by classes
-            runWithTimeCost("doFindInterfacesWithDesugaredDefaultMethod2") {
-                connection.createStatement().use { statement ->
-                    val classIdsString = classIds.joinToString(",")
-                    val sql = "SELECT class_id FROM default_method_invoke_refs WHERE ref_class_id IN ($classIdsString);"
-                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                    while (resultSet.next()) {
-                        val classId = resultSet.getInt(1)
-                        resultIds.add(classId)
-                    }
-                }
-            }
-
-            if (resultIds.isEmpty()) {
-                return emptyList()
-            }
-
-            val result = mutableListOf<String>()
-            runWithTimeCost("doGetResultClassNames") {
-                val classNamesString = resultIds.joinToString(",") { "'$it'" }
-                val sql = "SELECT name FROM class_info WHERE id IN ($classNamesString);"
-                connection.createStatement().use { statement ->
-                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                    while (resultSet.next()) {
-                        val className = resultSet.getString(1)
-                        result.add(className)
-                    }
-                }
-            }
-
-            logger.debug("findRefsOfDefaultMethodWhenImplChanged result $result")
-            return result
-        }
-    }
-
-    @Synchronized
-    fun findRefsOfDesugaredDefaultMethod(classNodes: List<ClassNode>, invokeStaticRefClassNames: List<String>): List<String> {
-        logger.debug("findRefsOfDesugaredDefaultMethod classNodes ${classNodes.map { it.className }}")
-        logger.debug("findRefsOfDesugaredDefaultMethod invokeStaticRefClassNames $invokeStaticRefClassNames")
-
-        val checkedClasses = mutableSetOf<String>()
-
-        val result = mutableListOf<String>()
-
-        var toCheckInterfaces: List<String> = classNodes
-            .flatMap {
-                listOf(it.superClass) + it.interfaceNames
-            }.filter {
-                // don't filter android X classes because they may use default method.
-                // e.g. Landroidx/lifecycle/DefaultLifecycleObserver;
-                !it.isOfficialClassExceptAndroidX
-            }
-
-        DriverManager.getConnection(url).use { connection ->
-            connection.createStatement().use { statement ->
-
-                // find out classes with invocation of interface static method
-                runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs1") {
-                    if (invokeStaticRefClassNames.isNotEmpty()) {
-                        // find interfaces with desugared default method class which has suffix of "$-CC;"
-                        val defaultInterfaces = invokeStaticRefClassNames.map {
-                            if (it.endsWith(desugarDefaultInterfaceSuffix)) {
-                                it
-                            } else {
-                                it.desugarDefaultInterfaceName
-                            }
-                        }
-                        .distinct()
-
-                        defaultInterfaces.chunked(10000).forEach { subDefaultInterfaces ->
-                            val defaultInterfacesString = subDefaultInterfaces
-                                .joinTo(StringBuilder(subDefaultInterfaces.size * 60), ",") { "'$it'" }.toString()
-                            val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
-                            val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                            while (resultSet.next()) {
-                                val name = resultSet.getString(1)
-                                val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
-                                result.add(interfaceName)
-                            }
-                            checkedClasses.addAll(toCheckInterfaces)
-                        }
-                    }
-                }
-
-                // find out classes implements interface with default method (only new classes is needed, old classes can be found by findRefsOfDefaultMethodWhenImplChanged)
-                runWithTimeCost("findInterfacesWithDesugaredDefaultMethodForRefs2") {
-                    while (toCheckInterfaces.isNotEmpty()) {
-                        // find interfaces with desugared default method class which has suffix of "$-CC;"
-                        val defaultInterfaces = toCheckInterfaces.map { it.desugarDefaultInterfaceName }
-                        val defaultInterfacesString = defaultInterfaces.joinToString(",") { "'$it'" }
-                        val sql = "SELECT name FROM class_info WHERE name IN ($defaultInterfacesString);"
-                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                        while (resultSet.next()) {
-                            val name = resultSet.getString(1)
-                            val interfaceName = name.interfaceNameFromDesugaredDefaultMethodClass
-                            result.add(interfaceName)
-                        }
-                        checkedClasses.addAll(toCheckInterfaces)
-
-                        // find classes' super class and interfaces
-                        val toCheckInterfacesString = toCheckInterfaces.joinToString(",") { "'$it'" }
-                        val sql2 = "SELECT super_name, interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
-                        val newToCheckInterfaces = mutableSetOf<String>()
-                        val resultSet2: ResultSet = statement.executeQueryAndLog(sql2)
-                        while (resultSet2.next()) {
-                            val superClassName = resultSet.getString(1)
-                            val superInterfaceNames = resultSet.getString(2).toInterfaceList()
-                            newToCheckInterfaces.add(superClassName)
-                            newToCheckInterfaces.addAll(superInterfaceNames)
-                        }
-                        toCheckInterfaces = newToCheckInterfaces.filter {
-                            !checkedClasses.contains(it) && !it.isOfficialClassExceptAndroidX
-                        }
-                    }
-                }
-            }
-        }
-
-        logger.debug("findRefsOfDesugaredDefaultMethod result $result")
-        return result
     }
 
     @Synchronized

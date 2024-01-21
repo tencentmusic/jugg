@@ -41,6 +41,7 @@ class DeployDataGenerator(
                         changedOverlays: List<DeployItem>,
                         isWarmUp: Boolean = false,
                         isNeedCheckRecompile: Boolean = true,
+                        @Suppress("UNUSED_PARAMETER")
                         isRecompilation: Boolean = false,
     ): JuggDeployData {
         val startTime = System.currentTimeMillis()
@@ -111,26 +112,11 @@ class DeployDataGenerator(
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }
-        val interfacesWithDesugaredDefaultMethod = if (isNeedCheckRecompile) {
-            deployDataDatabase.findInterfacesWithDesugaredDefaultMethod(
-                changedClasses.map { it.classNode },
-                newClasses.map { it.classNode },
-                deletedNormalMethodClasses,
-                parsedDex.staticMethodRefs.map { it.key.owner },
-                isRecompilation,
-            )
-        } else {
-            emptyList()
-        }
-        if (interfacesWithDesugaredDefaultMethod.isNotEmpty()) {
-            logger.debug("interfaces with desugared default method: $interfacesWithDesugaredDefaultMethod")
-        }
 
         val apks = deployDataDatabase.getApkInfos()
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
             effectedSourceAndClassNodes.keys.toList(),
-            interfacesWithDesugaredDefaultMethod,
             overlays, parsedDex,
             isFullRes, isWarmUp,
         )

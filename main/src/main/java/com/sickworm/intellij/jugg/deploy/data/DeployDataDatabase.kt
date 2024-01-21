@@ -44,13 +44,6 @@ interface IDeployDataDatabase {
                                   changedAbstractClasses: List<ClassNode>,
                                   ): Map<String, List<String>>
 
-    @Deprecated("delete")
-    fun findInterfacesWithDesugaredDefaultMethod(
-        classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, deleteMethodClassNodes: List<ClassNode>,
-        invokeStaticRefClassNames: List<String>,
-        isRecompilation: Boolean,
-    ): List<String>
-
     fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
 }
 
@@ -237,45 +230,6 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         }
 
         return effectClassNodesMap
-    }
-
-    @Deprecated("delete")
-    @Synchronized
-    override fun findInterfacesWithDesugaredDefaultMethod(
-        classNodes: List<ClassNode>,
-        newClassNodes: List<ClassNode>,
-        deleteMethodClassNodes: List<ClassNode>,
-        invokeStaticRefClassNames: List<String>,
-        isRecompilation: Boolean,
-    ): List<String> {
-
-        // we don't need to check deployed class node because we already handle it
-        val incrementalClassNodes = incDeployedDatabase.getClassNodes(classNodes.map { it.className })
-        val apkClassNodes = classNodes.filter { !incrementalClassNodes.containsKey(it.className) }
-
-        val interfaceNames = mutableSetOf<String>()
-        if (apkClassNodes.isNotEmpty()) {
-            val result = database.values.flatMap {
-                it.findRefsOfDefaultMethodWhenImplChanged(apkClassNodes, isRecompilation)
-            }
-            interfaceNames.addAll(result)
-        }
-        if (newClassNodes.isNotEmpty() || deleteMethodClassNodes.isNotEmpty() || invokeStaticRefClassNames.isNotEmpty()) {
-            val result = database.values.flatMap {
-                it.findRefsOfDesugaredDefaultMethod(newClassNodes + deleteMethodClassNodes, invokeStaticRefClassNames)
-            }
-            interfaceNames.addAll(result)
-        }
-
-        // we don't need to check deployed interfaces because we already handle it
-        val deployedClassNodes = mutableSetOf<String>()
-        deployedClassNodes.addAll(incDeployedDatabase.getClassNodes(interfaceNames).keys)
-        classNodes.forEach {
-            deployedClassNodes.add(it.className)
-        }
-        return interfaceNames.filter {
-            !deployedClassNodes.contains(it)
-        }
     }
 
     override fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String> {

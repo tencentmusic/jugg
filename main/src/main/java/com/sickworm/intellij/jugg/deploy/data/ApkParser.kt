@@ -31,7 +31,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             parse(apkInfo, apkFile, includeEntries)
         }
         if (parsedApks.isEmpty()) {
-            return ParsedApk(apkInfo, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+            return ParsedApk(apkInfo, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
         }
         if (parsedApks.size == 1) {
             return parsedApks[0]
@@ -42,7 +42,6 @@ class ApkParser: CoroutineScope by CoroutineScope(
         val methodRefs = mutableMapOf<MethodNode, List<String>>()
         val fieldRefs = mutableMapOf<FieldNode, List<String>>()
         val subclassRefs = mutableMapOf<String, List<String>>()
-        val defaultMethodInvokeRefs = mutableMapOf<String, List<String>>()
         parsedApks.forEach {
             classes.putAll(it.classes)
             dexFiles.putAll(it.dexFiles)
@@ -50,9 +49,8 @@ class ApkParser: CoroutineScope by CoroutineScope(
             methodRefs.putAll(it.methodRefs)
             fieldRefs.putAll(it.fieldRefs)
             subclassRefs.putAll(it.subclassRefs)
-            defaultMethodInvokeRefs.putAll(it.defaultMethodInvokeRefs)
         }
-        return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
+        return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
 
     }
 
@@ -65,7 +63,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
         parseDex(apkFile, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs, includeEntries)
 
         val apkOverlays = includeEntries ?: parseEntries(apkInfo)
-        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
+        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs)
     }
 
     fun parseDex(deployItems: List<DeployItem>): ParsedDex {
@@ -91,7 +89,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             }
             ClassDeployItem(it, classes.first().value)
         }
-        return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
+        return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs)
     }
 
     fun parseDexFiles(dexFiles: List<File>): ParsedDex {
@@ -215,12 +213,9 @@ data class ParsedDex(
     val methodRefs: Map<MethodNode, List<String>>,
     val fieldRefs: Map<FieldNode, List<String>>,
     val subclassRefs: Map<String, List<String>>,
-    val defaultMethodInvokeRefs: Map<String, List<String>>,
 ) {
 
-    val staticMethodRefs get() = methodRefs.filter { it.key.access and DexConstants.ACC_STATIC != 0 }
-
     companion object {
-        val EMPTY = ParsedDex(emptyList(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
+        val EMPTY = ParsedDex(emptyList(), emptyMap(), emptyMap(), emptyMap())
     }
 }

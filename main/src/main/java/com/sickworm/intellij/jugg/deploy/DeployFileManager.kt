@@ -250,7 +250,7 @@ class DeployFileManager(
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
             getEffectedSourceFiles(juggDeployData.effectedSourceFileNames, compiledFilesThisTime),
-            getDesugarInterfaceWithDefaultMethodFiles(juggDeployData.desugaredInterfacesWithDefaultMethods)
+            emptyList(),
         )
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("find recompile files cost: $costTime ms")
