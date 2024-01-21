@@ -49,7 +49,7 @@ class JavaCompileTest {
 
     val classDepTask = CompileTask.singleJavaFile(File(assetsJavaDir, "com/sickworm/intellij/jugg/test/JavaFileWithClassDep.java"),
         stagingDir,
-        dependencies = listOf(assetsClassDir.absolutePath)
+        dependencies = listOf(File(assetsDir, "class/classpath").absolutePath)
     )
     @Test
     fun javaCompileWithClassDep() {

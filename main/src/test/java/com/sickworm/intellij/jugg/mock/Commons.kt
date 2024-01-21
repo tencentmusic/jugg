@@ -42,7 +42,6 @@ val assetsDir = File("src/test/assets").absoluteFile
 val assetsJavaDir = File(assetsDir, "java")
 val assetsKotlinDir = File(assetsDir, "kotlin")
 val assetsLibDir = File(assetsDir, "libs")
-val assetsClassDir = File(assetsDir, "class")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
