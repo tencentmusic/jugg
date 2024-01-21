@@ -1052,6 +1052,78 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
+    fun getAllInterfacesOfClass(interfaces: List<String>, staticInvocations: List<String>, incDeployNodes: Map<String, ClassNode>): Set<String> {
+        logger.debug("getAllDefaultInterfacesOfClass interfaces $interfaces, staticInvocations $staticInvocations")
+
+        val result = interfaces.toMutableSet() // TODO we need to filter interface in APK if supports multiple APKs
+        val checkedClasses = mutableSetOf<String>()
+        var toCheckInterfaces = interfaces
+
+        DriverManager.getConnection(url).use { connection ->
+            runWithTimeCost("getAllInterfacesOfClass") {
+                connection.createStatement().use { statement ->
+                    while (toCheckInterfaces.isNotEmpty()) {
+                        val newToCheckInterfaces = mutableSetOf<String>()
+
+                        // search in IncDeployNodes first
+                        val dbCheckInterfaces = mutableListOf<String>()
+                        toCheckInterfaces.forEach {
+                            if (incDeployNodes.containsKey(it)) {
+                                logger.debug("getAllDefaultInterfacesOfClass found in incDeployNodes $it")
+                                result.addAll(incDeployNodes[it]!!.interfaceNames)
+                                newToCheckInterfaces.addAll(incDeployNodes[it]!!.interfaceNames)
+                            } else {
+                                dbCheckInterfaces.add(it)
+                            }
+                        }
+
+                        val toCheckInterfacesString = dbCheckInterfaces.joinToString(",") { "'$it'" }
+                        val sql = "SELECT interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                        while (resultSet.next()) {
+                            val interfaceNames = resultSet.getString(1).toInterfaceList()
+                            result.addAll(interfaceNames)
+                            newToCheckInterfaces.addAll(interfaceNames)
+                        }
+
+                        checkedClasses.addAll(toCheckInterfaces)
+                        toCheckInterfaces = newToCheckInterfaces.filter {
+                            !checkedClasses.contains(it)
+                        }
+                    }
+                }
+            }
+
+            result.addAll(staticInvocations) // TODO we need to filter interface in APK if supports multiple APKs
+
+            logger.debug("getAllDefaultInterfacesOfClass result $result")
+            return result
+        }
+    }
+
+    @Synchronized
+    fun filterDefaultInterfaces(suspectInterfaceNames: Collection<String>): Set<String> {
+        logger.debug("filterDefaultInterfaces suspectInterfacesName $suspectInterfaceNames")
+
+        val result = mutableSetOf<String>()
+        DriverManager.getConnection(url).use { connection ->
+            runWithTimeCost("filterDefaultInterfaces") {
+                val allInterfacesString = suspectInterfaceNames.joinToString(",") { "'${it.desugarDefaultInterfaceName}'" }
+                val sql = "SELECT name FROM class_info WHERE name IN ($allInterfacesString);"
+                connection.createStatement().use { statement ->
+                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                    while (resultSet.next()) {
+                        val name = resultSet.getString(1)
+                        result.add(name.interfaceNameFromDesugaredDefaultMethodClass)
+                    }
+                }
+            }
+
+            return result
+        }
+    }
+
+    @Synchronized
     fun getApkInfoKeys(): List<String> {
         val selectSQL = "SELECT * FROM apk_info;"
         val keys = mutableListOf<String>()

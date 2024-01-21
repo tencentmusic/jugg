@@ -257,6 +257,18 @@ class DeployFileManager(
         return recompileFiles
     }
 
+    @Synchronized
+    fun getAllDesugarClasspath(compileFiles: List<CompileFile>, toDir: File) {
+        val filteredClassFiles = compileFiles.filter { it.type == CompileFile.Type.Class }
+        val defaultInterfaces = deployDataGenerator.getAllInterfacesWithDefaultMethod(filteredClassFiles)
+        val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces)
+        files.forEach {
+            val relativePath = it.file.relativeTo(it.baseDir).path
+            val destFile = File(File(toDir, relativePath), it.file.name)
+            it.file.copyTo(destFile, overwrite = true)
+        }
+    }
+
     /**
      * Get source files that effected by [compiledFiles].
      * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
@@ -313,9 +325,9 @@ class DeployFileManager(
                     val relativePath = iterator.next()
                     val destFile = File(classPath, relativePath)
                     if (destFile.exists()) {
-                        logger.debug("found desugared class file: $destFile")
+                        logger.debug("found interface with default method file: $destFile")
                         iterator.remove()
-                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, moduleInfo)
+                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, classPath, moduleInfo)
                         redexClassesFiles.add(changedFile)
                     }
                 }
@@ -323,7 +335,7 @@ class DeployFileManager(
         }
         if (interfaceRelativePaths.isEmpty()) {
             val costTime = System.currentTimeMillis() - startTime
-            logger.debug("find desugared class files cost: $costTime ms")
+            logger.debug("find interface with default method files cost: $costTime ms")
             return redexClassesFiles
         }
 
@@ -351,7 +363,7 @@ class DeployFileManager(
                     ZipFile(libraryFile).use { zipFile ->
                         val entry = zipFile.getEntry(relativePath)
                         if (entry != null) {
-                            logger.debug("found desugared class file in library ${libraryFile.absolutePath}/${relativePath}")
+                            logger.debug("found default method file in library ${libraryFile.absolutePath}/${relativePath}")
                             val destFile = File(tmpDir, relativePath)
                             destFile.parentFile?.mkdirs()
                             zipFile.getInputStream(entry).use { inputStream ->
@@ -365,18 +377,18 @@ class DeployFileManager(
                         }
                     }
                 } catch (e: Exception) {
-                    logger.warn("getDesugarInterfaceWithDefaultMethodFiles: failed to find desugared class file in " +
+                    logger.warn("getDesugarInterfaceWithDefaultMethodFiles: failed to find interface with default method file in " +
                             "library ${libraryFile.absolutePath}/${relativePath}, error: ${e.message}")
                 }
             }
         }
 
         if (interfaceRelativePaths.isNotEmpty()) {
-            logger.warn("failed to find desugar class files: $interfaceRelativePaths")
+            logger.warn("failed to find interface with default method files: $interfaceRelativePaths")
         }
 
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("find desugared class files cost: $costTime ms")
+        logger.debug("find interface with default method files cost: $costTime ms")
         return redexClassesFiles
     }
 

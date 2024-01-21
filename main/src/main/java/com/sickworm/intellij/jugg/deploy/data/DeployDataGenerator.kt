@@ -2,10 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.compiler.FieldNode
-import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -141,6 +138,20 @@ class DeployDataGenerator(
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("buildDeployData finish, cost ${costTime}ms.")
         return juggDeployData
+    }
+
+    fun getAllInterfacesWithDefaultMethod(classFiles: List<CompileFile>): List<String> {
+        val files = classFiles.map { it.file }
+        val parser = ClassFileParser(files)
+        parser.parse()
+        return getAllInterfacesWithDefaultMethod(
+            parser.interfaces.toList(), parser.staticInvocationRefs.toList()
+        )
+    }
+
+    @TestOnly
+    fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String> {
+        return deployDataDatabase.getAllInterfacesWithDefaultMethod(interfaces, staticInvocations)
     }
 
     @Synchronized

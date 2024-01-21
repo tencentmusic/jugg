@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -43,11 +44,14 @@ interface IDeployDataDatabase {
                                   changedAbstractClasses: List<ClassNode>,
                                   ): Map<String, List<String>>
 
+    @Deprecated("delete")
     fun findInterfacesWithDesugaredDefaultMethod(
         classNodes: List<ClassNode>, newClassNodes: List<ClassNode>, deleteMethodClassNodes: List<ClassNode>,
         invokeStaticRefClassNames: List<String>,
         isRecompilation: Boolean,
     ): List<String>
+
+    fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
 }
 
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
@@ -235,6 +239,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return effectClassNodesMap
     }
 
+    @Deprecated("delete")
     @Synchronized
     override fun findInterfacesWithDesugaredDefaultMethod(
         classNodes: List<ClassNode>,
@@ -272,13 +277,29 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             !deployedClassNodes.contains(it)
         }
     }
+
+    override fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String> {
+        val result = mutableSetOf<String>()
+        val incStaticInvocationResult = incDeployedDatabase.tryFindDefaultInterfaces(emptyList(), staticInvocations)
+        result.addAll(incStaticInvocationResult)
+
+        database.values.forEach {
+            val allInterfaces = it.getAllInterfacesOfClass(interfaces, staticInvocations, incDeployedDatabase.deployedClasses)
+            val incInterfaceResult = incDeployedDatabase.tryFindDefaultInterfaces(allInterfaces, emptyList())
+            result.addAll(incInterfaceResult)
+            val apkInterfaceResult = it.filterDefaultInterfaces(allInterfaces)
+            result.addAll(apkInterfaceResult)
+        }
+        return result.toList()
+    }
 }
 
 class IncrementalDeployDataDatabase(private val logger: Logger) {
 
-    private val deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
+    val deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()
     private val deployedOverlays: MutableMap<String, JuggFileInfo> = mutableMapOf()
 
+    // TODO remove dirty refs for these data for more clear (no side effect for now)
     private val methodRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
     private val fieldRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
     private val subclassRefs: MutableMap<String, MutableList<String>> = mutableMapOf()
@@ -405,6 +426,38 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         }
 
         return effectClassNodesMap
+    }
+
+    /**
+     * @return Pair<List<founded default interfaces>, List<founded interfaces>>
+     */
+    fun tryFindDefaultInterfaces(interfaces: Collection<String>, staticInvocations: Collection<String>): List<String> {
+        val result = mutableListOf<String>()
+
+        staticInvocations.forEach {
+            val hasDefaultMethods = deployedClasses.contains(it.desugarDefaultInterfaceName)
+            if (hasDefaultMethods) {
+                result.add(it)
+            }
+        }
+
+        var toCheckInterfaces = interfaces
+        while (toCheckInterfaces.isNotEmpty()) {
+            val newToCheckClasses = mutableListOf<String>()
+
+            toCheckInterfaces.forEach { interfaceName ->
+                val hasDefaultMethods = deployedClasses.contains(interfaceName.desugarDefaultInterfaceName)
+                if (hasDefaultMethods) {
+                    result.add(interfaceName)
+                }
+                deployedClasses[interfaceName]?.let { classNode ->
+                    newToCheckClasses.addAll(classNode.interfaceNames)
+                }
+            }
+            toCheckInterfaces = newToCheckClasses
+        }
+
+        return result
     }
 
     private val MethodNode.matchKey get() = "${owner}.${name}${desc}"

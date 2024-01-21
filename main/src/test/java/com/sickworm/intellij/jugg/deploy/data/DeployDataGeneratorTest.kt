@@ -3,10 +3,10 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
+import com.sickworm.intellij.jugg.deploy.classNameToPath
 import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.deploy.sigFormatToPackage
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
@@ -24,10 +24,14 @@ class DeployDataGeneratorTest {
     private val abcParsedDexMock: ParsedDex get() = getParsedDex("com.example.myapplication.ABC")
     private val abdClassNode get() = abcParsedDexMock.classDeployItems[0].classNode
 
+    private lateinit var generator: DeployDataGenerator
+
     @Before
     fun assemble() {
         clearBuild()
         parsedApk = ApkParser().parse(projectInfo.apkInfo)
+        generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
     }
 
     @Test
@@ -206,12 +210,90 @@ class DeployDataGeneratorTest {
 
     @Test
     fun testFixInterfaceStaticMethod() {
-        val generator = DeployDataGenerator(logger, buildDir)
-        generator.init(projectInfo.apkInfos, emptyList())
-
         val parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass1")
         val deployData = generator.buildDeployData(parsedDex, emptyList())
         assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;"), deployData.desugaredInterfacesWithDefaultMethods)
+    }
+
+    @Test
+    fun testGetDesugarClasspath() {
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+        )
+
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass3",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+        )
+
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementBaseClass2",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+        )
+
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass1",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+        )
+    }
+
+    @Test
+    fun testGetDesugarClasspathByIncAddInterfaceExtend() {
+        var parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterface")
+        parsedDex = parsedDex.updates(interfaceNames = listOf(
+            "Lcom/sickworm/jugg/demo/testcase/newinterfacemethod/Interface;"
+        ))
+        val deployData = generator.buildDeployData(parsedDex, emptyList())
+        generator.commitDeployedData(deployData)
+
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass1",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+            "Lcom/sickworm/jugg/demo/testcase/newinterfacemethod/Interface;", // new interface
+        )
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass1",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+        )
+    }
+
+    @Test
+    fun testGetDesugarClasspathByIncAddNewInterface() {
+        var parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterface")
+        val newClassName = "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface2;"
+        parsedDex = parsedDex.updates(className = newClassName)
+
+        var parsedDexCc = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterface$-CC")
+        val newClassNameCc = "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface2$-CC;"
+        parsedDexCc = parsedDexCc.updates(className = newClassNameCc)
+
+        val finalParsedDex = ParsedDex(
+            parsedDex.classDeployItems + parsedDexCc.classDeployItems,
+            parsedDex.methodRefs + parsedDexCc.methodRefs,
+            parsedDex.fieldRefs + parsedDexCc.fieldRefs,
+            parsedDex.subclassRefs + parsedDexCc.subclassRefs,
+            parsedDex.defaultMethodInvokeRefs + parsedDexCc.defaultMethodInvokeRefs,
+        )
+
+        val deployData = generator.buildDeployData(finalParsedDex, emptyList())
+        generator.commitDeployedData(deployData)
+
+        val classpathByInterface = generator.getAllInterfacesWithDefaultMethod(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface2;"), emptyList())
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface2;"), classpathByInterface)
+
+        val classpathByStaticInvoke = generator.getAllInterfacesWithDefaultMethod(emptyList(), listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface2;"))
+        assertContentEquals(listOf("Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface2;"), classpathByStaticInvoke)
+
+        val classpathByIncorrectName = generator.getAllInterfacesWithDefaultMethod(listOf("error"), listOf("error2"))
+        assertContentEquals(emptyList(), classpathByIncorrectName)
+    }
+
+    private fun assertDesugarClasspath(className: String, vararg expected: String) {
+        val classFile = getClassFile(className)
+        val classpath = generator.getAllInterfacesWithDefaultMethod(listOf(classFile))
+        assertContentEquals(expected.sorted(), classpath.sorted())
     }
 
     @Test
@@ -383,6 +465,32 @@ class DeployDataGeneratorTest {
         assertEquals(listOf("JavaInvoker.java", "KtInvoker.kt"), deployData.effectedSourceFileNames.sorted())
     }
 
+    private fun getClassFile(className: String): CompileFile {
+        val relativePath = className.classNameToPath
+        val baseJavaDir = assetsAndroidDir.resolve("app/build/intermediates/javac/debug/classes")
+        val baseKotlinDir = assetsAndroidDir.resolve("app/build/tmp/kotlin-classes/debug")
+        if (File(baseJavaDir, relativePath).exists()) {
+            val file = File(baseJavaDir, relativePath)
+            return CompileFile(
+                CompileFile.Type.Class,
+                file,
+                baseJavaDir,
+                mockModule,
+            )
+        }
+        if (File(baseKotlinDir, relativePath).exists()) {
+            val file = File(baseKotlinDir, relativePath)
+            return CompileFile(
+                CompileFile.Type.Class,
+                file,
+                baseKotlinDir,
+                mockModule,
+            )
+        }
+
+        throw IllegalArgumentException("class $className not found")
+    }
+
     private fun getParsedDex(className: String): ParsedDex {
         val classSigName = className.classSigName
         return ParsedDex(
@@ -400,16 +508,24 @@ class DeployDataGeneratorTest {
     }
 
     private fun ParsedDex.updateMethods(methods: List<MethodNode>): ParsedDex {
+        return updates(methods = methods)
+    }
+
+    private fun ParsedDex.updates(
+        className: String = this.classDeployItems[0].classNode.className,
+        methods: List<MethodNode> = this.classDeployItems[0].classNode.methods,
+        interfaceNames: List<String> = this.classDeployItems[0].classNode.interfaceNames,
+    ): ParsedDex {
         val oldClassNode = this.classDeployItems[0]
         val newClassNode = ClassDeployItem(
             oldClassNode.deployItem,
             ClassNode(
                 oldClassNode.classNode.dexFileName,
-                oldClassNode.classNode.className,
+                className,
                 oldClassNode.classNode.access,
                 methods,
                 oldClassNode.classNode.fields,
-                oldClassNode.classNode.interfaceNames,
+                interfaceNames,
                 oldClassNode.classNode.superClass,
                 oldClassNode.classNode.source,
             )
