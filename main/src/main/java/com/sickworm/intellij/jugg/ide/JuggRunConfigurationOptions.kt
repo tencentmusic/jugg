@@ -258,6 +258,12 @@ data class JuggGradleCompileOptions(
             )
         }
     }
+
+    fun toSafeString(): String {
+        val string = toString()
+        val replacePasswordDesc = if (remoteSshPassword.isNotEmpty()) "(has_password)" else "(no_password)"
+        return string.replace("remoteSshPassword=$remoteSshPassword", "remoteSshPassword=$replacePasswordDesc")
+    }
 }
 
 enum class SyncMode(val modeName: String) {

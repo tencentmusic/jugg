@@ -232,7 +232,7 @@ class JuggManager @TestOnly constructor(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
     ): JuggRunningTask {
-        logger.debug("Create running task: $options")
+        logger.debug("Create running task: ${options.toSafeString()}")
 
         val startCompileTime = System.currentTimeMillis()
         val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->

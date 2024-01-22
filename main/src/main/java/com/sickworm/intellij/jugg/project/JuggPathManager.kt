@@ -28,4 +28,8 @@ class LocalClasspathStoragePathManager(
 ) {
     val classpathDir: File = File(rootDir, "root")
     val apkDir: File = File(rootDir, "apk")
+
+    override fun toString(): String {
+        return "LocalClasspathStoragePathManager(rootDir=$rootDir)"
+    }
 }
