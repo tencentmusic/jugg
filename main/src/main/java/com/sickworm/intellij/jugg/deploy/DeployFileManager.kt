@@ -112,7 +112,8 @@ class DeployFileManager(
                 }
             }
         }
-        sourceFileManager.updateFiles(emptyList(), files)
+
+        sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
     }
 
     @Synchronized
