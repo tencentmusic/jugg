@@ -29,12 +29,13 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     var isSyncAllProjects by property(false)
     // used to recognize whether default value has set
     // can not set default value in the string() or property(), value will be reset to default when default value is changed.
-    private var hasSetDefaultValue by property(false)
+    @Suppress("MemberVisibilityCanBePrivate") // set to private seems not work
+    var hasSetDefaultValue by property(false)
     var syncMode by string()
 
     // new options must add to the end because property persist is in order
 
-    init {
+    fun updateDefaultOptionIfNeeded() {
         if (!hasSetDefaultValue) {
             setOption(JuggSettings.defaultCompileSettings)
             hasSetDefaultValue = true
@@ -236,6 +237,7 @@ data class JuggGradleCompileOptions(
             localClasspathStoragePathManager: LocalClasspathStoragePathManager,
             options: JuggRunConfigurationOptions
         ): JuggGradleCompileOptions {
+            options.updateDefaultOptionIfNeeded()
             return JuggGradleCompileOptions(
                 projectRootPath,
                 localClasspathStoragePathManager,

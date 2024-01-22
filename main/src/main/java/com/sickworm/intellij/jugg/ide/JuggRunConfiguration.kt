@@ -36,7 +36,6 @@ class JuggRunConfiguration(
     }
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> {
-        editor.resetEditorFrom(state!!, project)
         return editor
     }
 
@@ -100,7 +99,8 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
         }
     }
 
-    fun resetEditorFrom(options: JuggRunConfigurationOptions, project: Project) {
+    private fun resetEditorFrom(options: JuggRunConfigurationOptions, project: Project) {
+        options.updateDefaultOptionIfNeeded()
         (component as JuggRunSettingsComponent).updateUi(options)
         (component as JuggRunSettingsComponent).initUpload(project)
     }
