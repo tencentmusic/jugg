@@ -20,9 +20,7 @@ class SourceFileManager(private val logger: Logger, dbDir: File) {
             logger.warn("init error", e)
         }
         val costTime = System.currentTimeMillis() - startTime
-        if (costTime >= 100) {
-            logger.debug("source file db init cost ${costTime}ms")
-        }
+        logger.debug("source file db init cost ${costTime}ms")
     }
 
     @Synchronized
