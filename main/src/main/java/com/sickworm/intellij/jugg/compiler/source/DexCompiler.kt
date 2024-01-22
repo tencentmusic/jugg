@@ -18,15 +18,11 @@ class DexCompiler(
     private val dexFileMaker = DexFileMaker(logger)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        var dependencies: List<String> = emptyList()
         val classpathDir = context.tempModuleDir
         val costTime = measureTimeMillis {
             classpathDir.mkdirs()
             classpathDir.clearDir()
             context.getAllDesugarClasspath(task.files, module, classpathDir)
-            dependencies = classpathDir.listFilesRecursively().toList().map {
-                it.absolutePath
-            }
         }
         logger.debug("getAllDesugarClasspath cost $costTime ms")
 

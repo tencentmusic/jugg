@@ -259,10 +259,10 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getAllDesugarClasspath(compileFiles: List<CompileFile>, toDir: File) {
+    fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
         val filteredClassFiles = compileFiles.filter { it.type == CompileFile.Type.Class }
         val defaultInterfaces = deployDataGenerator.getAllInterfacesWithDefaultMethod(filteredClassFiles)
-        val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces)
+        val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces, moduleInfo)
         files.forEach {
             val relativePath = it.file.relativeTo(it.baseDir).path
             val destFile = File(toDir, relativePath)
@@ -300,7 +300,59 @@ class DeployFileManager(
         return unCompiledEffectedFiles
     }
 
-    private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>): List<ChangedFile> {
+    private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>, moduleInfo: ModuleInfo): List<ChangedFile> {
+        val dependModules = moduleInfo.moduleDependencies.mapNotNull {
+            moduleInfos[it.moduleName]
+        }
+        val dependLibraries = moduleInfo.libraryDependencies.map {
+            it.file
+        }
+        // search in module dependency first
+        val foundInterfaces = getDesugarInterfaceWithDefaultMethodFiles(interfaceNames, dependModules, dependLibraries)
+        if (foundInterfaces.size >= interfaceNames.size) {
+            logger.debug("Found all interface with default method files in module(${moduleInfo.name}) dependencies")
+            return foundInterfaces
+        }
+
+        val remainInterfaces = interfaceNames.filter {
+            val expectFileName = File(it.classNameToPath).name
+            foundInterfaces.any { foundInterface ->
+                foundInterface.file.name == expectFileName
+            }.not()
+        }
+        logger.debug("Failed to find interface with default method files in module(${moduleInfo.name}) dependencies: $remainInterfaces")
+
+        val allDependModules = moduleInfos.values.toList()
+        val allDependLibraries = mutableSetOf<File>()
+        moduleInfos.values.forEach { moduleInfoIt ->
+            moduleInfoIt.libraryDependencies.forEach {
+                allDependLibraries.add(it.file)
+            }
+        }
+
+        // search in all module last
+        val foundInterfacesInAllModules = getDesugarInterfaceWithDefaultMethodFiles(
+            remainInterfaces, allDependModules, allDependLibraries.toList())
+
+        if (foundInterfacesInAllModules.size >= remainInterfaces.size) {
+            logger.debug("Found all interface with default method files in all dependencies")
+            return foundInterfaces + foundInterfacesInAllModules
+        }
+
+        val lastRemainInterface = remainInterfaces.filter {
+            val expectFileName = File(it.classNameToPath).name
+            foundInterfacesInAllModules.any { foundInterface ->
+                foundInterface.file.name == expectFileName
+            }.not()
+        }
+        logger.warn("Failed to find interface with default method files in all dependencies: $lastRemainInterface, compilation result may be wrong.")
+
+        return foundInterfaces + foundInterfacesInAllModules
+    }
+
+    private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>,
+                                                          dependModules: List<ModuleInfo>,
+                                                          dependLibraries: List<File>): List<ChangedFile> {
         if (interfaceNames.isEmpty()) {
             logger.debug("getDesugarInterfaceWithDefaultMethodFiles: no desugar interface with default method files")
             return emptyList()
@@ -316,7 +368,7 @@ class DeployFileManager(
         logger.debug("getDesugarInterfaceWithDefaultMethodFiles: interfaceRelativePaths $interfaceRelativePaths")
 
         val redexClassesFiles = mutableListOf<ChangedFile>()
-        moduleInfos.values.forEach moduleLoop@{ moduleInfo ->
+        dependModules.forEach moduleLoop@{ moduleInfo ->
             moduleInfo.buildPathInfo.allClassPath.forEach {  classPath ->
                 if (!classPath.isDirectory) {
                     return@forEach
@@ -340,15 +392,9 @@ class DeployFileManager(
             return redexClassesFiles
         }
 
-        val libraryFiles = mutableSetOf<File>()
-        moduleInfos.values.forEach { moduleInfo ->
-            moduleInfo.libraryDependencies.forEach {
-                libraryFiles.add(it.file)
-            }
-        }
-        logger.debug("getDesugarInterfaceWithDefaultMethodFiles: libraryPaths ${libraryFiles.size}")
+        logger.debug("getDesugarInterfaceWithDefaultMethodFiles: libraryPaths ${dependLibraries.size}")
 
-        libraryFiles.forEach libraryLoop@{ libraryFile ->
+        dependLibraries.forEach libraryLoop@{ libraryFile ->
             if (!libraryFile.isFile || libraryFile.extension != "jar") {
                 return@libraryLoop
             }
@@ -385,7 +431,7 @@ class DeployFileManager(
         }
 
         if (interfaceRelativePaths.isNotEmpty()) {
-            logger.warn("failed to find interface with default method files: $interfaceRelativePaths")
+            logger.debug("failed to find interface with default method files: $interfaceRelativePaths")
         }
 
         val costTime = System.currentTimeMillis() - startTime
