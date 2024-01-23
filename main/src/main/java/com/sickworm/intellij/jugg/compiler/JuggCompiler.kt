@@ -43,6 +43,7 @@ class JuggCompiler(
         this,
     )
 
+    @Synchronized
     override fun doCompile(task: CompileTask): CompileResult {
         var compileResult = CompileResult(task, emptyList(), emptyList())
         val overlayOutputDir = File(task.outputDir, "overlays")
@@ -207,11 +208,13 @@ class JuggCompiler(
         return compileResult
     }
 
+    @Synchronized
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // no need to implement
         return CompileResult(task, emptyList(), emptyList())
     }
 
+    @Synchronized
     override fun warmUp() {
         sourceCompiler.warmUp()
         resourceOverlayCompiler.warmUp()

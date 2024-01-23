@@ -354,7 +354,6 @@ class JuggCompilerHelper(
         }
     }
 
-    @Synchronized
     fun warmUp() {
         juggCompiler?.warmUp()
     }
