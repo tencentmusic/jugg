@@ -37,7 +37,10 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
     fun updateDefaultOptionIfNeeded() {
         if (!hasSetDefaultValue) {
-            setOption(JuggSettings.defaultCompileSettings)
+            if (compileCommand.isNullOrEmpty() && outputApkName.isNullOrEmpty()) {
+                // fix run configuration is overridden after old version upgraded
+                setOption(JuggSettings.defaultCompileSettings)
+            }
             hasSetDefaultValue = true
         }
     }

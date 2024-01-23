@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc20'
+def versionName = '1.2.0-rc21'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -111,6 +111,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix sourceFileManager deleted rollback files</li>
 <li>[bugfix] fix d8 "Compilation failed to complete: java.lang.NoSuchMethodError: 'com.android.tools.r8.jetbrains.kotlinx.metadata.jvm.KotlinClassMetadata"</li>
 <li>[bugfix] fix "error: unresolved reference" for newly added R id after source compilation</li>
+<li>[bugfix] fix run configuration is overridden after old version upgraded</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>
