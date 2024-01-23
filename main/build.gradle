@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc18'
+def versionName = '1.2.0-rc19'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -109,6 +109,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix dex error "com.android.tools.r8.CompilationFailedException: Compilation failed to complete"</li>
 <li>[bugfix] fix RunConfiguration may reset after reopen project</li>
 <li>[bugfix] fix sourceFileManager deleted rollback files</li>
+<li>[bugfix] fix d8 "Compilation failed to complete: java.lang.NoSuchMethodError: 'com.android.tools.r8.jetbrains.kotlinx.metadata.jvm.KotlinClassMetadata"</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>
