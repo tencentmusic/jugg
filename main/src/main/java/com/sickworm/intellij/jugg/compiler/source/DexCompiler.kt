@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import java.io.File
 import kotlin.system.measureTimeMillis
 
 class DexCompiler(
@@ -18,7 +19,7 @@ class DexCompiler(
     private val dexFileMaker = DexFileMaker(logger)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val classpathDir = context.tempModuleDir
+        val classpathDir = File(context.tempCompileDir, "classpath")
         val costTime = measureTimeMillis {
             classpathDir.mkdirs()
             classpathDir.clearDir()
@@ -29,7 +30,7 @@ class DexCompiler(
         val files = task.files.map { it.file }
 
         try {
-            val tempOutput = context.tempCompileDir
+            val tempOutput = File(context.tempCompileDir, "output")
             tempOutput.clearDir()
             val minApi = module.minSdkVersion?.toIntOrNull() ?: run {
                 // if minSdkVersion is null
