@@ -70,10 +70,10 @@ class ArscCompiler(
         try {
             styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
         } catch (e: Exception) {
-            logger.warn("generateStyleableFile failed, may not be fatal problem", e)
+            logger.debug("generateStyleableFile failed, may not be fatal problem", e)
         }
         if (styleableFile == null) {
-            logger.warn("generateStyleableFile failed, start aapt2 with no styleableFile")
+            logger.debug("generateStyleableFile failed, start aapt2 with no styleableFile")
         }
 
         val command = """

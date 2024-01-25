@@ -56,7 +56,7 @@ class StyleableFileGenerator(
         ZipFile(rFile).use { jarFile ->
             val rStyleableEntry = jarFile.getEntry(rStyleableEntryName)
             if (rStyleableEntry == null) {
-                logger.warn("generateStyleableFile failed, $rStyleableEntryName not found in ${rFile.absolutePath}")
+                logger.debug("generateStyleableFile failed, $rStyleableEntryName not found in ${rFile.absolutePath}")
                 return null
             }
 
