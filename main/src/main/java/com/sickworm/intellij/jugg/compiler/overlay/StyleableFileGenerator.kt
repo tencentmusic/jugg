@@ -3,9 +3,9 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import org.jetbrains.annotations.TestOnly
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.tree.ClassNode
-import org.objectweb.asm.tree.FieldNode
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
+import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
+import com.sickworm.intellij.jugg.org.objectweb.asm.tree.FieldNode
 import java.io.BufferedOutputStream
 import java.io.File
 import java.util.zip.ZipFile

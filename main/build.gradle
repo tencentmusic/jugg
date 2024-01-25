@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.0-rc23'
+def versionName = '1.2.0-rc24'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -313,8 +313,6 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.4.2"
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'
-
-    implementation 'org.ow2.asm:asm:9.2'
 
     // backend
     implementation "com.squareup.okhttp3:okhttp:4.9.1"

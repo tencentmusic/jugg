@@ -10,7 +10,7 @@ import com.googlecode.d2j.reader.Op
 import com.googlecode.d2j.visitors.*
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
-import org.objectweb.asm.*
+import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import com.sickworm.intellij.jugg.deploy.packageNameToPath
 import java.io.File
 

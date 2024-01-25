@@ -11,8 +11,8 @@ import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.clearBuild
 import org.junit.Before
 import org.junit.Test
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.tree.ClassNode
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
+import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
