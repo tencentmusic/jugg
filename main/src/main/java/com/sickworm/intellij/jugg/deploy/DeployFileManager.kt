@@ -160,6 +160,12 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun isNoFileChanges(): Boolean {
+        val undeployedFiles = getUndeployedFiles()
+        return undeployedFiles.all { it.hasCompiledOnce }
+    }
+
+    @Synchronized
     fun getStagingFiles(): List<CompileOutput> {
         return stagingFiles.values.toList()
     }

@@ -6,10 +6,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkReader
-import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.deploy.DeployStateManager
-import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
@@ -34,6 +31,7 @@ class JuggCompilerHelper(
     private val deployStateManager: DeployStateManager,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
+    private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,
     private val compileContextManager: CompileContextManager,
     private val fileChangesHandler: IFileChangesHandler,
     private val deployStateListenerGetter: () -> JuggStateListener,
@@ -153,6 +151,8 @@ class JuggCompilerHelper(
             val apkReader = ApkReader(apkFile, logger)
             val apkInfo = apkReader.getApkInfo()
             deployTargetManager.setApks(listOf(apkInfo))
+            // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
+            deployHistoryManager.lastDeployOverlayIds = emptyMap()
         }
         return result
     }
@@ -231,9 +231,9 @@ class JuggCompilerHelper(
 
         // read all undeployed files
         val undeployedFiles = deployFileManager.getUndeployedFiles()
-        if (undeployedFiles.all { it.hasCompiledOnce }) {
+        if (deployFileManager.isNoFileChanges()) {
             val deviceName = deployTargetManager.getDeviceNameList()
-            if (JuggRunningTask.isFirstTimeRun(project, deviceName)) {
+            if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
                 logger.info("No file changes, but it's first time run or canceled last compilation" +
                         ", will run with incremental compile.")
             } else {

@@ -109,11 +109,12 @@ class JuggDeployerHelper(
         logger.debug("Jugg deploy state: $deployState")
 
         var finalIsFallbackAllHotFix = isFallbackAllHotFix
+        var deployData: JuggDeployData = JuggDeployData.forInstall(emptyList())
         return try {
             if (isInstall) {
                 val apks = deployTargetManager.getApks()
                 logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
-                val deployData = JuggDeployData.forInstall(apks)
+                deployData = JuggDeployData.forInstall(apks)
                 val launchResult = runTask(device, deployData)
                 if (isLastDevice) {
                     logger.debug("Installing finished, update info after install.")
@@ -148,7 +149,7 @@ class JuggDeployerHelper(
                     }
                 }
 
-                var deployData = deployFileManager.getDeployData(isWarmUp)
+                deployData = deployFileManager.getDeployData(isWarmUp)
                 finalIsFallbackAllHotFix = isFallbackAllHotFix ||
                         (JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty())
                 if (finalIsFallbackAllHotFix) {
@@ -271,7 +272,7 @@ class JuggDeployerHelper(
                 logger.debug(e)
             }
 
-            DeployTaskResult(isSuccess = false, isCanFallback = !isInstall, costTime = costTime(), failedReason = reason)
+            DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = !isInstall, costTime = costTime(), failedReason = reason)
         }
     }
 

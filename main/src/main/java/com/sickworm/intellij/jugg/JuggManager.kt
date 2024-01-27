@@ -56,8 +56,9 @@ class JuggManager @TestOnly constructor(
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
+    private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager.localClasspathStoragePathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, compileContextManager, fileChangesHandler, { deployStateListener }),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager.localClasspathStoragePathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, { deployStateListener }),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
     ): Disposable {
 
@@ -69,7 +70,6 @@ class JuggManager @TestOnly constructor(
     fun init() {
         Disposer.register(this, juggCompilerHelper)
         runTaskSafe("Init Jugg", {
-            JuggRunningTask.resetHasRun(project)
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             createDefaultRunConfigurationIfNoneExist()
             loadCustomConfig()
@@ -113,7 +113,7 @@ class JuggManager @TestOnly constructor(
         runTaskSafe("Init Project Info", {
             if (isNeedReloadProjectInfo) {
                 // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
-                JuggRunningTask.resetHasRun(project)
+                juggRunningTaskStatusManager.resetHasRun()
             }
 
             if (!deployStateManager.deployState.isReadyIncCompile) {
@@ -249,7 +249,7 @@ class JuggManager @TestOnly constructor(
             runTaskSafe("Init Incremental Compile", ::action)
         }
         val task = JuggRunningTask(project, juggServer, deployTargetManager,
-            processHandler, compileTask, deployTask, initIncrementalCompileTask)
+            juggRunningTaskStatusManager, processHandler, compileTask, deployTask, initIncrementalCompileTask)
         currentTask = task
 
         // try reload custom config if changed

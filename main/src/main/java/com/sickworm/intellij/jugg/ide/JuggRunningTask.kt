@@ -10,9 +10,9 @@ import com.intellij.openapi.progress.util.ProgressIndicatorListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
-import com.jetbrains.rd.util.concurrentMapOf
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -30,6 +30,7 @@ class JuggRunningTask(
     private val project: Project,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
+    private val statusManager: IJuggRunningTaskStatusManager,
     private val processHandler: SimpleProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
     private val deployTask: (device: IDevice, forceInstall: Boolean, isLastDevice: Boolean) -> DeployTaskResult,
@@ -44,6 +45,8 @@ class JuggRunningTask(
 
     var isRunning: Boolean = false
         private set
+
+    private var isNeedResetHasRun: Boolean = false
 
     override fun run(indicator: ProgressIndicator) {
         val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
@@ -63,10 +66,14 @@ class JuggRunningTask(
             logger.warn("Run stop unexpected with ${e::class.java}:\n$sw\nRun stop unexpected.")
         } finally {
             isRunning = false
-            if (processHandler.isCanceled && !processHandler.isCanceledByNextTask) {
-                resetHasRun(project)
+            val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
+            if (isCanceled) {
+                isNeedResetHasRun = true
+            }
+            if (isNeedResetHasRun) {
+                statusManager.resetHasRun()
             } else {
-                setHasRun(project, deployTargetManager.getDeviceNameList())
+                statusManager.setHasRun(deployTargetManager.getDeviceNameList())
             }
             JuggLogger.stopListenProjectLog(project, loggerListener)
             stop(indicator)
@@ -78,7 +85,7 @@ class JuggRunningTask(
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                if (isFirstTimeRun(project)) {
+                if (statusManager.isFirstTimeRun()) {
                     it.activate(null)
                 }
                 it.setIcon(icon)
@@ -123,6 +130,7 @@ class JuggRunningTask(
             logger.warn("No device found. Stop $deployType.")
             failedAndActiveRunWindowIfNotCanceled()
             if (compileTaskResult.isGradleCompile) {
+                isNeedResetHasRun = true
                 initIncrementalCompileTask.invoke()
             }
             return
@@ -138,8 +146,21 @@ class JuggRunningTask(
             totalDeployTime += deployTaskResult.costTime
         }
 
+        val deployType = when {
+            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.INSTALL } -> {
+                JuggDeployData.DeployType.INSTALL
+            }
+            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.HOT_FIX } -> {
+                JuggDeployData.DeployType.HOT_FIX
+            }
+            else -> {
+                JuggDeployData.DeployType.HOT_RELOAD
+            }
+        }
+
         if (deployTaskResultList.any { !it.isSuccess }) {
             // not all device is success
+            logger.debug("Not all device is deploying success.")
             if (!deployTaskResultList.all { it.isCanFallback }) {
                 // not all device can fall back
                 if (compileTaskResult.isGradleCompile) {
@@ -157,21 +178,15 @@ class JuggRunningTask(
                 notifyFallback(project, failedReason)
                 doRun(indicator, true)
             }
+
+            if (deployType == JuggDeployData.DeployType.INSTALL) {
+                // install failed, set flag, next time installing directly
+                isNeedResetHasRun = true
+            }
             return
         }
 
         val totalTime = compileTaskResult.costTime + totalDeployTime
-        val deployType = when {
-            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.INSTALL } -> {
-                JuggDeployData.DeployType.INSTALL
-            }
-            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.HOT_FIX } -> {
-                JuggDeployData.DeployType.HOT_FIX
-            }
-            else -> {
-                JuggDeployData.DeployType.HOT_RELOAD
-            }
-        }
         when (deployType) {
             JuggDeployData.DeployType.INSTALL -> {
                 logger.info("\nGradle BUILD_AND_INSTALL SUCCESSFUL in ${totalTime / 1000}s.")
@@ -221,6 +236,7 @@ class JuggRunningTask(
             notifyLaunched(compileTaskResult.isGradleCompile, deployTaskResult.deployType, suffix)
         }
 
+        logger.debug("deployDevice: ${device.desc}, isMultipleDevices=$isMultipleDevices, isLastDevice=$isLastDevice, deployTaskResult=$deployTaskResult")
         return deployTaskResult
     }
 
@@ -275,28 +291,6 @@ class JuggRunningTask(
     }
 
     companion object {
-        private var isFirstTimeRun = concurrentMapOf<String, String?>()
-
-        fun isFirstTimeRun(project: Project, runningDevice: String? = null): Boolean {
-            val key = project.bashPathOrDefault
-            if (runningDevice == null) {
-                // don't check device
-                return !isFirstTimeRun.containsKey(key)
-            }
-
-            val lastRunningDevice = isFirstTimeRun[key]
-            return lastRunningDevice != runningDevice
-        }
-
-        fun setHasRun(project: Project, runningDevice: String?) {
-            val key = project.bashPathOrDefault
-            this.isFirstTimeRun[key] = runningDevice ?: "null"
-        }
-
-        fun resetHasRun(project: Project) {
-            val key = project.bashPathOrDefault
-            isFirstTimeRun.remove(key)
-        }
 
         fun notifyFallback(project: Project, reason: String) {
             val text = "Fallback to gradle compile. Reason: $reason"
@@ -318,5 +312,5 @@ private val IDevice.desc: String get() {
             "model: ${model}, " +
             "version: ${version}, " +
             "isOnline: ${isOnline}, " +
-            "clients: ${clients.size}, "
+            "clients: ${clients.size}"
 }

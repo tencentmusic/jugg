@@ -32,6 +32,8 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.mockito.Mockito.*
 import java.io.File
@@ -57,6 +59,7 @@ class MockJugg {
     lateinit var deployHistoryManager: IDeployHistoryManager
     lateinit var deployFileManager: DeployFileManager
     lateinit var deployStateManager: DeployStateManager
+    val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     private val adbDeviceHelper = AdbDeviceHelper()
 
@@ -219,7 +222,7 @@ class MockJugg {
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
-        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir)
+        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir, coroutineScope)
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
             moduleManager, projectBuildModel, logger)
@@ -294,6 +297,7 @@ class MockJugg {
     private fun renewManager() {
         juggManager = JuggManager(
             project,
+            coroutineScope = coroutineScope,
             pathManager = pathManager,
             fileChangesHandler = fileChangesHandler,
             fileChangesDetector = fileChangesDetector,
