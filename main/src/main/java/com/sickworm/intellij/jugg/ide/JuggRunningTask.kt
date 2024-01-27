@@ -196,6 +196,8 @@ class JuggRunningTask(
         compileTaskResult: CompileTaskResult,
         detailMap: MutableMap<String, String>,
     ): DeployTaskResult {
+        logger.debug("deployDevice: ${device.desc}, isMultipleDevices=$isMultipleDevices, isLastDevice=$isLastDevice")
+
         val suffix = if (isMultipleDevices) " on [${device.name}]" else ""
         if (compileTaskResult.isGradleCompile) {
             logger.info("Launching app$suffix...")
@@ -304,4 +306,17 @@ class JuggRunningTask(
             }
         }
     }
+}
+
+private val IDevice.desc: String get() {
+    // property name is gotten from IDevice
+    val manufacturer = getProperty("ro.product.manufacturer") ?: "null"
+    val model = getProperty("ro.product.model") ?: "null"
+    return "Device: " +
+            "name: ${name}, " +
+            "manufacturer: ${manufacturer}, " +
+            "model: ${model}, " +
+            "version: ${version}, " +
+            "isOnline: ${isOnline}, " +
+            "clients: ${clients.size}, "
 }
