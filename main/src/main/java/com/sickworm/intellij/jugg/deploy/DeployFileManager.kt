@@ -13,6 +13,8 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.getInstance
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
@@ -25,7 +27,8 @@ class DeployFileManager(
     private val logger: Logger,
     private val tmpDir: File,
     databaseDir: File,
-) {
+    coroutineScope: CoroutineScope,
+): CoroutineScope by coroutineScope {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -83,7 +86,9 @@ class DeployFileManager(
             compiledFiles.remove(it.file.stdPath)
         }
 
-        sourceFileManager.updateFiles(newFiles, emptyList())
+        launch {
+            sourceFileManager.updateFiles(newFiles, emptyList())
+        }
     }
 
     @Synchronized
@@ -113,7 +118,9 @@ class DeployFileManager(
             }
         }
 
-        sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
+        launch {
+            sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
+        }
     }
 
     @Synchronized

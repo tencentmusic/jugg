@@ -26,18 +26,18 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.CheckUpdateHandler
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
+import java.lang.Runnable
 import kotlin.system.measureTimeMillis
 
 
 class JuggManager @TestOnly constructor(
     val project: Project,
     val pathManager: JuggPathManager,
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val juggServer: JuggServer = JuggServer(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
@@ -51,6 +51,7 @@ class JuggManager @TestOnly constructor(
         JuggLogger.getInstance(project, "DeployFileManager"),
         pathManager.tmpDir,
         pathManager.historyDir,
+        coroutineScope,
     ),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
@@ -60,7 +61,7 @@ class JuggManager @TestOnly constructor(
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { deployStateListener }),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager.localClasspathStoragePathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, { deployStateListener }),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
-    ): Disposable {
+    ): Disposable, CoroutineScope by coroutineScope {
 
     constructor(
         project2: Project,
@@ -465,6 +466,7 @@ class JuggManager @TestOnly constructor(
 
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
+        coroutineScope.cancel()
     }
 
 }
