@@ -46,6 +46,7 @@ object JuggInitializer {
         val juggManager = JuggManager(project, pathManager)
         juggManager.init()
         instanceSet[projectDir] = juggManager
+        initOrRefresh(project, isNeedReloadProjectInfo = false)
     }
 
     @Synchronized
