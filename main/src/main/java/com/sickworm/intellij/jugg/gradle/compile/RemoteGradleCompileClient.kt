@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.BufferedInputStream
 import java.io.File
+import java.io.InputStream
 import java.io.PrintStream
 
 class RemoteGradleCompileClient(
@@ -19,6 +20,7 @@ class RemoteGradleCompileClient(
 
     private var session: Session? = null
     private var channel: Channel? = null
+    private var inputStream: InputStream? = null
     private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
@@ -53,7 +55,7 @@ class RemoteGradleCompileClient(
 
         try {
             doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
-        } catch (e: JSchException) {
+        } catch (e: Exception) {
             if (keyPathList.isNotEmpty() && finalPasswordOrKey.isEmpty()) {
                 // use ssh key failed and password is empty, show dialog to input password
                 finalPasswordOrKey = showDialogAndGetPasswordOrKey(extraTips = "and login is failed")
@@ -63,17 +65,23 @@ class RemoteGradleCompileClient(
                 }
                 try {
                     doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
-                } catch (e: JSchException) {
+                } catch (e: Exception) {
                     // login failed
-                    printToStreamError("RemoteClient login failed", e)
-                    throw JuggException.loginToRemoteFailed("Please check your login info.")
+                    onLoginFailed(e)
                 }
             } else {
                 // login failed
-                printToStreamError("RemoteClient login failed", e)
-                throw JuggException.loginToRemoteFailed("Please check your login info.")
+                onLoginFailed(e)
             }
         }
+    }
+
+    private fun onLoginFailed(e: Exception) {
+        inputStream = null
+        channel = null
+        session = null
+        printToStreamError("RemoteClient login failed", e)
+        throw JuggException.loginToRemoteFailed("Please check your login info.")
     }
 
     private fun showDialogAndGetPasswordOrKey(extraTips: String): String {
@@ -108,7 +116,9 @@ class RemoteGradleCompileClient(
         val algorithms = session.getConfig("PubkeyAcceptedAlgorithms").split(',') + "ssh-rsa"
         session.setConfig("PubkeyAcceptedAlgorithms", algorithms.joinToString(","))
         session.connect()
+
         val channel = session.openChannel("shell")
+        this.inputStream = BufferedInputStream(channel.inputStream)
         channel.connect()
 
         this.session = session
@@ -359,8 +369,12 @@ class RemoteGradleCompileClient(
         commander.printlnCompat(commandString)
         commander.flush()
 
+        val inputStream = inputStream ?: run {
+            logger.warn("InputStream is null, current state is unexpected, exit.")
+            return IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
+        }
         val buffer = StringBuilder()
-        val bufferedInputStream = BufferedInputStream(channel.inputStream)
+        val bufferedInputStream = BufferedInputStream(inputStream)
         val result: Int
         var lastInterruptCode: Int = IGradleCompileClient.Error.SUCCESS // avoid popup dialog on every chat entered
         whileRoot@while (true) {
@@ -455,11 +469,14 @@ class RemoteGradleCompileClient(
 
     override fun dispose() {
         JSch.setLogger(null)
-        session?.disconnect()
+        inputStream?.close()
         channel?.disconnect()
-        cmdExecutor.release()
-        session = null
+        session?.disconnect()
+        inputStream = null
         channel = null
+        session = null
+
+        cmdExecutor.release()
     }
 
     inner class JschLogger : Logger {

@@ -96,6 +96,7 @@ patchPluginXml.changeNotes = """
 <h2>1.2.1 (2024.01.27)</h2>
 <ol>
 <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
+<li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
 </ol>
 <h2>1.2.0 (2024.01.23)</h2>
 <ol>
