@@ -65,7 +65,7 @@ class JuggServer(
     private val checkUpdateUrl get() = "$serverUrl/check_update"
     private val reportIssueUrl get() = "$serverUrl/report_issue"
 
-    private var logger: Logger = JuggLogger.getInstance(project, "JuggReporter")
+    private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
 
     private val username: String = System.getProperty("user.name")
 
