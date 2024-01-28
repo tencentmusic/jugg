@@ -76,7 +76,10 @@ class JuggManager @TestOnly constructor(
             loadCustomConfig()
             logger.info("Start jugg finished.")
 
-            // init async
+            // init project info async
+            initProjectInfo(isNeedReloadProjectInfo = false)
+
+            // init deployment service async
             JuggDeploymentService.postWithLock {
                 val costTime = measureTimeMillis {
                     preInit()
