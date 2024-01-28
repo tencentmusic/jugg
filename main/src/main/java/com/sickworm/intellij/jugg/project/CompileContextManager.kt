@@ -230,7 +230,7 @@ class CompileContextManager(
                 buildModel.android().compileSdkVersion(), buildModel) {
                 this.all { it.isDigit() }
             }
-            var minSdkVersion: String? = gradleVariableHelper.readVariable(
+            val minSdkVersion: String? = gradleVariableHelper.readVariable(
                 buildModel.android().defaultConfig().minSdkVersion(), buildModel) {
                 this.all { it.isDigit() }
             }
