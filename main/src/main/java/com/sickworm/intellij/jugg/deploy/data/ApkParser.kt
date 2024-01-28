@@ -199,8 +199,8 @@ data class JuggFileInfo(
 }
 
 val String.isDexEntry get() = this.startsWith("classes") && this.endsWith(".dex")
-val String.isResEntry get() = this.startsWith("res/") || this == "resources.arsc"
-val String.isAssetEntry get() = this.startsWith("assets/")
+val String.isResEntry get() = this.startsWith("res/") || this == "resources.arsc" // use '/' for it's the path in zip
+val String.isAssetEntry get() = this.startsWith("assets/") // use '/' for it's the path in zip
 
 data class ApkEntries(
     val apkInfo: ApkInfo,
