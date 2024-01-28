@@ -12,7 +12,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -23,6 +22,7 @@ import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.server.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.CheckUpdateHandler
@@ -74,6 +74,7 @@ class JuggManager @TestOnly constructor(
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             createDefaultRunConfigurationIfNoneExist()
             loadCustomConfig()
+            ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             logger.info("Start jugg finished.")
 
             // init project info async

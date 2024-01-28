@@ -249,6 +249,14 @@ class CompileContextManager(
                 buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT
             }
 
+            val minifyEnabled = buildModel.android().buildTypes()
+                .find { it.name() == buildVariant }?.minifyEnabled()
+            @Suppress("SENSELESS_COMPARISON")
+            if (minifyEnabled.toString() != null && minifyEnabled.toString() != "null") {
+                // just log it
+                logger.debug("module ${module.name} find minifyEnabled: $buildVariant -> $minifyEnabled")
+            }
+
             var manifestFile: File? = null
             val manifestProperties = androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
             if (manifestProperties != null) {
