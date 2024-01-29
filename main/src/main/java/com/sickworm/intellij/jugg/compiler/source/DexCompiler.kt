@@ -35,13 +35,22 @@ class DexCompiler(
             val minApi = module.minSdkVersion?.toIntOrNull() ?: run {
                 // if minSdkVersion is null
                 // use min(module.minSdkVersion) as DEX min API
-                // use 21 as if all minSdkVersion is null
                 val otherMinApis = context.modules.values.mapNotNull {
                     it.minSdkVersion?.toIntOrNull()
                 }
                 val otherMinApi = otherMinApis.minOrNull()
-                val finalMinApi = if (otherMinApi != null && otherMinApi > 0) otherMinApi else 21
-                logger.debug("get minSdkVersion failed(minSdkVersion=${module.minSdkVersion}, otherMinApis=${otherMinApis}), use $finalMinApi as DEX min API.")
+                val isEnableDesugared = context.isEnableDesugared
+                val finalMinApi = when {
+                    // context shows that project is enabled desugar,
+                    // but other module's minSdkVersion >= 26 (disable desugar).
+                    // use 21 to enable desugar
+                    (isEnableDesugared && otherMinApi != null && otherMinApi >= 26) -> 21
+                    // use other module's minSdkVersion as DEX min API
+                    (otherMinApi != null && otherMinApi > 0) -> otherMinApi
+                    isEnableDesugared -> 21 // use 21 to enable desugar
+                    else -> 31 // use 31 to disable desugar
+                }
+                logger.debug("get minSdkVersion failed(minSdkVersion=${module.minSdkVersion}, otherMinApis=${otherMinApis}), isEnableDesugared = $isEnableDesugared use $finalMinApi as DEX min API.")
                 finalMinApi
             }
             dexFileMaker.dex(tempOutput, files, listOf(classpathDir.absolutePath), context.androidJar, minApi)

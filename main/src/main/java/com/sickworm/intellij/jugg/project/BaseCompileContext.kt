@@ -39,6 +39,10 @@ data class BaseCompileContext(
         }
     }
 
+    override val isEnableDesugared: Boolean by lazy {
+        deployFileManager.isEnableDesugared()
+    }
+
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)
 

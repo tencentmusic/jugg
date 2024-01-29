@@ -45,6 +45,8 @@ interface IDeployDataDatabase {
                                   ): Map<String, List<String>>
 
     fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
+
+    fun isEnableDesugared(): Boolean
 }
 
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
@@ -245,6 +247,12 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             result.addAll(apkInterfaceResult)
         }
         return result.toList()
+    }
+
+    override fun isEnableDesugared(): Boolean {
+        return database.values.any {
+            it.isEnableDesugared()
+        }
     }
 }
 

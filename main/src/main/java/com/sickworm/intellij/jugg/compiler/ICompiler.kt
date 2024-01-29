@@ -226,6 +226,8 @@ interface ICompileContext {
         buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
     )
 
+    val isEnableDesugared: Boolean
+
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>

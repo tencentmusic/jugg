@@ -452,6 +452,10 @@ class DeployFileManager(
         return redexClassesFiles
     }
 
+    fun isEnableDesugared(): Boolean {
+        return deployDataGenerator.isEnableDesugared()
+    }
+
     // I have forgotten why I need both stdAbsPath and stdPath, but it seems to be ok to use stdAbsPath only.
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
 }

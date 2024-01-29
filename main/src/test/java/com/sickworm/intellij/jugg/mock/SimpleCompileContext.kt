@@ -17,6 +17,8 @@ class SimpleCompileContext(
     override val deployedFiles: List<CompileOutput>,
 ) : ICompileContext {
 
+    override val isEnableDesugared: Boolean = true
+
     private val finalRFiles: List<String> by lazy {
         return@lazy modules.mapNotNull { module ->
             val rFile = module.value.buildPathInfo.rFilePath

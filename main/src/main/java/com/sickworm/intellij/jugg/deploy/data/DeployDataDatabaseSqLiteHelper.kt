@@ -6,10 +6,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
-import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceSuffix
-import com.sickworm.intellij.jugg.deploy.interfaceNameFromDesugaredDefaultMethodClass
-import com.sickworm.intellij.jugg.deploy.isOfficialClassExceptAndroidX
+import com.sickworm.intellij.jugg.deploy.*
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -25,7 +22,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     private var hasInit = false
 
     companion object {
-        private const val VERSION = 7
+        private const val VERSION = 8
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -68,7 +65,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             val createTableSQL = """
                 CREATE TABLE IF NOT EXISTS apk_info (
                     key TEXT NOT NULL PRIMARY KEY,
-                    next_class_id INTEGER NOT NULL
+                    next_class_id INTEGER NOT NULL,
+                    is_enable_desugar BOOL NOT NULL
                 );
                 
                 CREATE TABLE IF NOT EXISTS entry_info (
@@ -155,21 +153,32 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
         var nextClassId = 1
         runWithTimeCost("doInsertApkInfo") {
-            val querySql = "SELECT next_class_id FROM apk_info;"
+            var oldIsEnableDesugar = true
+
+            val querySql = "SELECT next_class_id, is_enable_desugar FROM apk_info;"
             connection.createStatement().use { preparedStatement ->
                 val resultSet: ResultSet = preparedStatement.executeQueryAndLog(querySql)
                 while (resultSet.next()) {
                     nextClassId = max(nextClassId, resultSet.getInt(1))
+                    oldIsEnableDesugar = resultSet.getBoolean(2)
                 }
             }
             val deleteSql = "DELETE FROM apk_info;"
             connection.createStatement().use { preparedStatement ->
                 preparedStatement.executeUpdate(deleteSql)
             }
-            val sql = "INSERT INTO apk_info(key, next_class_id) VALUES(?, ?);"
+
+            val newIsEnableDesugar = if (apkDiffResult.isFullUpdate) {
+                parsedApk.classes.keys.any { it.endsWith(desugarDefaultInterfaceSuffix) }
+            } else {
+                oldIsEnableDesugar
+            }
+
+            val sql = "INSERT INTO apk_info(key, next_class_id, is_enable_desugar) VALUES(?, ?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
                 preparedStatement.setString(1, parsedApk.apkInfo.apkInfoKey)
                 preparedStatement.setInt(2, nextClassId)
+                preparedStatement.setBoolean(3, newIsEnableDesugar)
                 preparedStatement.executeUpdate()
             }
         }
@@ -489,6 +498,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 addedDexFiles = addedDexFiles,
                 removedDexFiles = removedDexFiles,
                 updatedDexFiles = updatedDexFiles,
+                isFullUpdate = dbDexFiles.isEmpty(),
             )
         }
     }
@@ -912,6 +922,27 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             return result
         }
+    }
+
+    @Synchronized
+    fun isEnableDesugared(): Boolean {
+        logger.debug("isEnableDesugared")
+
+        var isEnableDesugared = true
+        DriverManager.getConnection(url).use { connection ->
+            runWithTimeCost("isEnableDesugared") {
+                val sql = "SELECT is_enable_desugar FROM apk_info;"
+                connection.createStatement().use { statement ->
+                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                    while (resultSet.next()) {
+                        isEnableDesugared = resultSet.getBoolean(1)
+                    }
+                }
+            }
+        }
+
+        logger.debug("isEnableDesugared $isEnableDesugared")
+        return isEnableDesugared
     }
 
     @Synchronized

@@ -16,6 +16,8 @@ data class ParsedApkDiffResult(
     val addedDexFiles: Map<String, JuggFileInfo> = emptyMap(),
     val removedDexFiles: Map<String, JuggFileInfo> = emptyMap(),
     val updatedDexFiles: Map<String, JuggFileInfo> = emptyMap(),
+
+    val isFullUpdate: Boolean = false,
 ) {
 
     constructor(apkEntries: ApkEntries) : this(
@@ -27,6 +29,7 @@ data class ParsedApkDiffResult(
         addedDexFiles = apkEntries.dexFiles,
         removedDexFiles = emptyMap(),
         updatedDexFiles = emptyMap(),
+        isFullUpdate = true,
     )
 
     override fun toString(): String {

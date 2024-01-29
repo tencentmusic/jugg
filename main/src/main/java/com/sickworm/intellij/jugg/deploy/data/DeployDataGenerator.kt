@@ -158,6 +158,11 @@ class DeployDataGenerator(
         deployDataDatabase.commitDeployedData(juggDeployData)
     }
 
+    @Synchronized
+    fun isEnableDesugared(): Boolean {
+        return deployDataDatabase.isEnableDesugared()
+    }
+
     private val String.isInnerClass: Boolean
         get() = contains('$')
 }
