@@ -350,7 +350,7 @@ class JuggCompilerHelper(
         return if (isSuccess) {
             CompileTaskResult.incrementalSuccess()
         } else {
-            CompileTaskResult.incrementalFailed(false, "Compile failed: $compileResult")
+            CompileTaskResult.incrementalFailed(false, "Compile failed")
         }
     }
 
