@@ -39,6 +39,11 @@ object JuggInitializer {
             return
         }
 
+        if (instanceSet.containsKey(projectDir)) {
+            logger.debug("Jugg already init on ${projectDir}, exit init")
+            return
+        }
+
         val pathManager = JuggPathManager(project, File(projectDir))
         JuggLogger.register(project, pathManager.logDir)
         tryGetProjectLogger(project)?.info("Start Init Jugg on ${project.basePath}")
