@@ -66,9 +66,14 @@ class ArscCompiler(
             resApkFile = latestResApkFile
         }
 
-        val styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
+        var styleableFile: File? = null
+        try {
+            styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
+        } catch (e: Exception) {
+            logger.debug("generateStyleableFile failed, may not be fatal problem", e)
+        }
         if (styleableFile == null) {
-            logger.warn("generateStyleableFile failed, start aapt2 with no styleableFile")
+            logger.debug("generateStyleableFile failed, start aapt2 with no styleableFile")
         }
 
         val command = """

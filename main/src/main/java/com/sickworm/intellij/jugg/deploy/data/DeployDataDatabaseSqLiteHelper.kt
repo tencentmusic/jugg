@@ -19,8 +19,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
-    private var hasInit = false
-
     companion object {
         private const val VERSION = 8
 
@@ -31,14 +29,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun init() {
-        if (hasInit) {
-            if (dbFile.exists()) {
-                return
-            } else {
-                hasInit = false
-            }
-        }
+    fun init(isRecreate: Boolean = false) {
         dbFile.parentFile?.mkdirs()
         SqLiteDriverLoader.load(logger)
 
@@ -54,8 +45,11 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         logger.debug("Database version is not match, expect: ${VERSION}, actual: ${version}. recreate database.")
                         connection.close()
                         statement.close()
-                        recreateDatabase()
-                        init()
+                        if (isRecreate) {
+                            logger.warn("database already recreated, but version is not match, may be fatal problem.")
+                        } else {
+                            recreateDatabase()
+                        }
                         return
                     }
                 }
@@ -121,7 +115,6 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
         }
 
-        hasInit = true
         logger.debug("Init database ${dbFile.name} success.")
     }
 
@@ -978,8 +971,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     @Synchronized
     fun recreateDatabase() {
         dbFile.delete()
-        hasInit = false
-        init()
+        init(isRecreate = true)
     }
 
     private inline fun <T, R> T.runWithTimeCost(name: String, block: T.() -> R): R {

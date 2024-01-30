@@ -99,7 +99,7 @@ patchPluginXml.changeNotes = """
 <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
 <li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
 </ol>
-<h2>1.2.0 (2024.01.23)</h2>
+<h2>1.2.0 (2024.01.25)</h2>
 <ol>
 <li>[feature] supports detect file rollback</li>
 <li>[feature] supports custom server url and build file detection</li>
@@ -119,6 +119,8 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix "error: unresolved reference" for newly added R id after source compilation</li>
 <li>[bugfix] fix run configuration is overridden after old version upgraded</li>
 <li>[bugfix] fix deadlock when "Waiting Jugg initializing finish" before "Warm Up Compile"</li>
+<li>[bugfix] fix Chipmunk 'java.lang.IllegalArgumentException' on dexing class file</li>
+<li>[bugfix] fix database unable to reinit after full compilation if broken</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>

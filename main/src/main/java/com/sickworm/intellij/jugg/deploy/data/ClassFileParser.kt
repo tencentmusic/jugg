@@ -3,10 +3,10 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.sickworm.intellij.jugg.deploy.classSigName
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassVisitor
-import org.objectweb.asm.MethodVisitor
-import org.objectweb.asm.Opcodes
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.MethodVisitor
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import java.util.concurrent.ConcurrentHashMap
 
 class ClassFileParser(
