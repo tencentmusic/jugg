@@ -17,8 +17,9 @@ class GradleVariableHelper(private val logger: Logger) {
         logger.debug("init")
         val repositorySearchFactory = CachingRepositorySearchFactory()
         try {
+            @Suppress("IncorrectParentDisposable")
             psContext = PsContextImpl(
-                PsProjectImpl(project, repositorySearchFactory), { },
+                PsProjectImpl(project, repositorySearchFactory), project,
                 disableAnalysis = false,
                 disableResolveModels = false,
                 cachingRepositorySearchFactory = repositorySearchFactory

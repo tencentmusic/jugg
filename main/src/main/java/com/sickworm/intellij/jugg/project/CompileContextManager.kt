@@ -361,7 +361,6 @@ class CompileContextManager(
 
         }
 
-        gradleVariableHelper.release()
         if (directoryNotFoundModules.isNotEmpty()) {
             logger.debug("ignore modules (module directory not found): ${directoryNotFoundModules.joinToString(", ")}")
         }
