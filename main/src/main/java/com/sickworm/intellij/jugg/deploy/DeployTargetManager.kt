@@ -86,4 +86,17 @@ class DeployTargetManager(
         return apks.first().applicationId
     }
 
+    override fun dumpErrorLogs(): String {
+        val stringBuilder = StringBuilder()
+        stringBuilder.append("[Dump error logs start]\n")
+        val devices = getDevices()
+        stringBuilder.append("Devices: ${devices.map { it.name }}\n")
+        devices.forEach { device ->
+            stringBuilder.append("[Dump Device: ${device.name} start]\n")
+            stringBuilder.append(AdbCmdHelper(device, logger).dumpErrorLog())
+            stringBuilder.append("\n[Dump Device: ${device.name} end]\n")
+        }
+        stringBuilder.append("[Dump error logs end]\n")
+        return stringBuilder.toString()
+    }
 }

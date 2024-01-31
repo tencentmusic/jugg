@@ -8,7 +8,6 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.CustomConfigManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 import kotlinx.coroutines.*
@@ -40,7 +39,7 @@ import java.util.zip.ZipOutputStream
  * 6. get project custom config
  */
 class JuggServer(
-    project: Project,
+    private val project: Project,
     private val pathManager: JuggPathManager? = JuggInitializer.getManager(project)?.pathManager,
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
@@ -155,13 +154,25 @@ class JuggServer(
                     logger.warn(errorMessage)
                     return@async UploadResult.fail(errorMessage)
                 }
-                logDir.zipTo(destFile)
+
+                logger.debug("start dump logcatErrorLogs")
+                val logcatErrorLog = JuggInitializer.getManager(project)?.dumpLogcatErrorLogs() ?: "null"
+                val logcatFile = File(pathManager.tmpDir, "logcat.log")
+                if (logcatFile.exists()) {
+                    logcatFile.delete()
+                }
+                logcatFile.writeText(logcatErrorLog)
+                logger.debug("dump logcatErrorLogs finished")
+
+                zipTo(destFile, listOf(logDir, logcatFile))
                 val uploadResult = uploadFile(destFile)
                 if (!uploadResult.isSuccess) {
                     logger.warn("reportAndUploadLogs failed: ${uploadResult.errorMessage}")
                 } else {
                     logger.debug("reportAndUploadLogs success")
                 }
+
+                logcatFile.delete()
                 return@async uploadResult.copy(reportId = fileName)
             } catch (e: Exception) {
                 logger.warn("reportAndUploadLogs error", e)
@@ -178,7 +189,7 @@ class JuggServer(
         serverUrl = url
     }
 
-    private fun File.zipTo(destFile: File) {
+    private fun zipTo(destFile: File, sourceFiles: List<File>) {
         if (destFile.exists()) {
             destFile.delete()
         }
@@ -186,16 +197,28 @@ class JuggServer(
 
         destFile.outputStream().use { output ->
             ZipOutputStream(output).use { zip ->
-                this.listFiles()?.forEach {
-                    try {
-                        val path = it.relativeTo(this).path
-                        zip.putNextEntry(ZipEntry(path))
-                        it.inputStream().use { input ->
-                            input.copyTo(zip)
+                sourceFiles.forEach { sourceFile ->
+
+                    fun writeZip(it: File, path: String) {
+                        try {
+                            zip.putNextEntry(ZipEntry(path))
+                            it.inputStream().use { input ->
+                                input.copyTo(zip)
+                            }
+                        } catch (e: Exception) {
+                            // exception when zip .lck on windows, just ignore
+                            logger.warn("add zip entry $it failed", e)
                         }
-                    } catch (e: Exception) {
-                        // exception when zip .lck on windows, just ignore
-                        logger.warn("add zip entry $it failed", e)
+                    }
+
+                    if (sourceFile.isDirectory) {
+                        sourceFile.listFiles()?.forEach {
+                            val path = it.relativeTo(sourceFile).path
+                            writeZip(it, path)
+                        }
+                    } else if (sourceFile.isFile) {
+                        val path = sourceFile.name
+                        writeZip(sourceFile, path)
                     }
                 }
             }

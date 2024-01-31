@@ -362,6 +362,10 @@ class JuggManager @TestOnly constructor(
         })
     }
 
+    fun dumpLogcatErrorLogs(): String {
+        return deployTargetManager.dumpErrorLogs()
+    }
+
     private fun reInitOnCompileContextUpdate() {
         deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
         juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)

@@ -25,6 +25,8 @@ interface IDeployTargetManager {
 
     fun getPackageName(): String
 
+    fun dumpErrorLogs(): String = ""
+
     val hasDevice: Boolean
         get() = getDevices().isNotEmpty()
 

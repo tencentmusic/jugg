@@ -81,6 +81,10 @@ class AdbCmdHelper(
         return false
     }
 
+    fun dumpErrorLog(limit: Int = 10000): String {
+        return execAdbShellCmd("logcat '*:E' -t$limit")
+    }
+
     private fun execAdbShellCmd(cmd: String): String {
         try {
             logger.info("%s", "adb in: adb shell $cmd")
