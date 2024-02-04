@@ -93,14 +93,14 @@ tasks.register('buildPluginIntranet') {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1>
-<h2>1.2.1 (2024.01.31)</h2>
+<h2>1.2.1 (2024.02.05)</h2>
 <ol>
 <li>[feature] dump logcat while report issues</li>
 <li>[feature] install directly if install failed last time and no file changes</li>
 <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
 <li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
 </ol>
-<h2>1.2.0 (2024.01.25)</h2>
+<h2>1.2.0 (2024.02.04)</h2>
 <ol>
 <li>[feature] supports detect file rollback</li>
 <li>[feature] supports custom server url and build file detection</li>
@@ -122,6 +122,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix deadlock when "Waiting Jugg initializing finish" before "Warm Up Compile"</li>
 <li>[bugfix] fix Chipmunk 'java.lang.IllegalArgumentException' on dexing class file</li>
 <li>[bugfix] fix database unable to reinit after full compilation if broken</li>
+<li>[bugfix] fix custom changed build file is gone after sync project</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>
