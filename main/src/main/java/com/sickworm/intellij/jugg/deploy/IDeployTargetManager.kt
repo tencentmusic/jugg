@@ -4,7 +4,7 @@ import com.android.ddmlib.*
 import com.android.tools.idea.run.ApkInfo
 
 /**
- * Manage device list，application state
+ * Manage device and operation of application on device.
  */
 interface IDeployTargetManager {
 

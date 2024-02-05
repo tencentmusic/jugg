@@ -8,9 +8,6 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 
-/**
- * Manage device, run config, built apk.
- */
 class DeployTargetManager(
     private val project: Project,
 ): IDeployTargetManager {
