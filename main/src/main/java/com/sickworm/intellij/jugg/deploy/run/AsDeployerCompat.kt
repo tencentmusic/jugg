@@ -187,6 +187,10 @@ object AsDeployerCompat : IAsDeployerCompat {
             }
         }
     }
+
+    override fun getSuggestRunConfiguration(project: Project): List<SuggestRunConfiguration> {
+        return impl.getSuggestRunConfiguration(project)
+    }
 }
 
 private class CompatImpl(
@@ -245,6 +249,10 @@ class IdeVersion(
             return compareTo(other) == 0
         }
         return super.equals(other)
+    }
+
+    override fun hashCode(): Int {
+        return mainVersion.hashCode()
     }
 
     override fun toString(): String {
