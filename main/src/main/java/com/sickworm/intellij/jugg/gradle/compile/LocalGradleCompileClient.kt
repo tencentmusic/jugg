@@ -91,25 +91,39 @@ class LocalGradleCompileClient(
             }
         }
 
-        // try sub dir first
-        // currently only supports module located at root dir
-        val subDirName = juggGradleCompileOptions.compileCommand.split(":").getOrNull(1) ?: "app"
-        // run gradle command will put apk in subDir1
-        val subDir1 = File(project.basePath!!, "$subDirName/build/outputs")
-        // run directly in android studio will only put apk in subDir2. this dir used for test mock event
-        val subDir2 = File(project.basePath!!, "$subDirName/intermediates/apk")
+        val outputApkNameOrPath = juggGradleCompileOptions.outputApkName
+        val findOutputCommand = FindOutputCommand(project.basePath!!, outputApkNameOrPath)
+
         var apkFile: File? = null
-        if (subDir1.exists()) {
-            apkFile = subDir1.findFilesRecursively(juggGradleCompileOptions.outputApkName)
-        } else if (subDir2.exists()) {
-            apkFile = subDir2.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+        if (findOutputCommand.findPath.isEmpty()) {
+            // old logic, find apk by name
+
+            // try sub dir first
+            // currently only supports module located at root dir
+            val subDirName = juggGradleCompileOptions.compileCommand.split(":").getOrNull(1) ?: "app"
+            // run gradle command will put apk in subDir1
+            val subDir1 = File(project.basePath!!, "$subDirName/build/outputs")
+            // run directly in android studio will only put apk in subDir2. this dir used for test mock event
+            val subDir2 = File(project.basePath!!, "$subDirName/intermediates/apk")
+            if (subDir1.exists()) {
+                apkFile = subDir1.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+            } else if (subDir2.exists()) {
+                apkFile = subDir2.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+            }
+
+            if (apkFile == null) {
+                // find in root dir
+                val rootDir = File(project.basePath!!)
+                apkFile = rootDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+            }
+        } else {
+            // new logic, find apk by path, faster
+            val subDir = File(project.basePath!!, findOutputCommand.findPath)
+            if (subDir.exists()) {
+                apkFile = subDir.findFilesRecursively(findOutputCommand.findName)
+            }
         }
 
-        if (apkFile == null) {
-            // find in root dir
-            val rootDir = File(project.basePath!!)
-            apkFile = rootDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
-        }
         if (apkFile == null) {
             printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
                     "in ${project.basePath}, please make sure your run configuration is right.")

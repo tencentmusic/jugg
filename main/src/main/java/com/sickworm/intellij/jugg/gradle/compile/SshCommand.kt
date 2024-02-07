@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
 import java.io.File
+import kotlin.math.max
 
 abstract class IftSyncCommand : BaseSshCommand() {
 
@@ -89,13 +90,26 @@ class CompileProjectCommand(
 
 class FindOutputCommand(
     remoteProjectPath: String,
-    outputApkName: String
+    outputApkNameOrPath: String
 ) : BaseSshCommand() {
 
     var apkPath: String? = null
         private set
 
-    override val baseCommand: String = "cd $remoteProjectPath && find_apk=${'$'}(find -name \"$outputApkName\" -print -quit) && echo \"\n$APK_ECHO${'$'}find_apk\n\""
+    val findPath = run {
+        val unixIndex = outputApkNameOrPath.lastIndexOf('/')
+        val windowsIndex = outputApkNameOrPath.lastIndexOf('\\')
+        val index = max(unixIndex, windowsIndex)
+        if (index == -1) {
+            ""
+        } else {
+            outputApkNameOrPath.substring(0, index + 1)
+        }
+    }
+
+    val findName = outputApkNameOrPath.substring(findPath.length)
+
+    override val baseCommand: String = "cd $remoteProjectPath && find_apk=${'$'}(find $findPath -name \"$findName\" -print -quit) && echo \"\n$APK_ECHO${'$'}find_apk\n\""
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains(APK_ECHO)) {
