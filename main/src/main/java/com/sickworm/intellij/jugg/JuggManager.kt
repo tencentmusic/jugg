@@ -72,7 +72,6 @@ class JuggManager @TestOnly constructor(
         Disposer.register(this, juggCompilerHelper)
         runTaskSafe("Init Jugg", {
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
-            createDefaultRunConfigurationIfNoneExist()
             loadCustomConfig()
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             logger.info("Start jugg finished.")
@@ -137,18 +136,55 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    private fun createDefaultRunConfigurationIfNoneExist() {
-        val defaultName = "jugg:app"
+    fun onSyncEvent(syncEvent: SyncEvent) {
+        logger.debug("onSyncEvent: $syncEvent")
+        when (syncEvent) {
+            SyncEvent.SUCCEEDED -> {
+                tryCreateDefaultRunConfiguration()
+                initProjectInfo(isNeedReloadProjectInfo = true)
+            }
+            SyncEvent.SKIPPED -> {
+                tryCreateDefaultRunConfiguration()
+            }
+            else -> {
+            }
+        }
+    }
+
+    private fun tryCreateDefaultRunConfiguration() {
         val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
-        logger.debug("JuggConfigurationType currentList: ${currentList.map { it.name} }")
-        if (currentList.isNotEmpty()) {
+        val currentListNames = currentList.map { it.name }
+        logger.debug("JuggConfigurationType currentList: $currentListNames")
+
+        val suggestRunConfiguration = AsDeployerCompat.getSuggestRunConfigurations(currentListNames, project,
+            logger.getInstance("GetSuggestRunConfigurations"))
+        logger.debug("Suggest run configurations: $suggestRunConfiguration")
+        if (suggestRunConfiguration.isEmpty()) {
+            logger.debug("No suggest run configuration")
             return
         }
-        val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
-        val settings = RunManager.getInstance(project).createConfiguration(defaultName, factory)
-        settings.isActivateToolWindowBeforeRun = false
-        RunManager.getInstance(project).addConfiguration(settings)
-        RunManager.getInstance(project).selectedConfiguration = settings
+
+        val settingsList = suggestRunConfiguration.map { suggest ->
+            val factory: ConfigurationFactory = JuggConfigurationType.getInstance().configurationFactories[0]
+            val settings = RunManager.getInstance(project).createConfiguration(suggest.runConfigName, factory)
+            (settings.configuration as JuggRunConfiguration).state?.let {
+                it.compileCommand = suggest.compileCommand
+                it.outputApkName = suggest.outputApkPath
+                it.hasSetDefaultValue = true
+                it.setDefaultRemoteOption()
+            }
+            settings.isActivateToolWindowBeforeRun = false
+            settings
+        }
+        settingsList.forEach {
+            RunManager.getInstance(project).addConfiguration(it)
+        }
+
+        // select if first created
+        if (currentList.isEmpty() && settingsList.isNotEmpty()) {
+            val settings = settingsList[0]
+            RunManager.getInstance(project).selectedConfiguration = settings
+        }
     }
 
     private fun recoverDeployContext(isNeedReloadProjectInfo: Boolean) {

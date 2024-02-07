@@ -45,9 +45,15 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
         }
     }
 
-    private fun setOption(template: RunConfigurationTemplate) {
-        compileCommand = template.compileCommand
-        outputApkName = template.outputApkName
+    fun setDefaultRemoteOption() {
+        setOption(JuggSettings.defaultCompileSettings, true)
+    }
+
+    private fun setOption(template: RunConfigurationTemplate, isDefaultOnly: Boolean = false) {
+        if (!isDefaultOnly) {
+            compileCommand = template.compileCommand
+            outputApkName = template.outputApkName
+        }
         isRemoteCompile = template.isRemoteCompile
         remoteSshUser = template.remoteSshUser
         remoteSshPassword = template.remoteSshPassword

@@ -9,6 +9,7 @@ import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.run.*
 import com.android.utils.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 
@@ -57,6 +58,12 @@ interface IAsDeployerCompat {
     fun parseApks(paths: List<String>): List<Apk>
 
     fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>)
+
+    /**
+     * Get suggest run configuration from [AndroidRunConfigurationType]
+     */
+    fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger): List<SuggestRunConfiguration>
+
 
     fun getModuleManager(project: Project): ModuleManager {
         // ModuleManager rewrite by Kotlin after Android Studio Giraffe

@@ -8,6 +8,8 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
+import com.android.tools.idea.gradle.project.model.AndroidModuleModel
+import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
 import com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxAction
@@ -16,10 +18,14 @@ import com.android.tools.idea.run.ui.BaseAction
 import com.android.tools.idea.run.util.DebuggerRedefiner
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
+import com.intellij.execution.RunManager
+import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
+import java.io.File
 import java.util.*
 
 /**
@@ -229,5 +235,99 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
         runConfiguration.putUserData(DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE, true)
+    }
+
+    override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>,
+                                             project: Project,
+                                             logger: Logger,
+    ): List<SuggestRunConfiguration> {
+        val result = mutableListOf<SuggestRunConfiguration>()
+
+        val existsModuleForRunConfig = existsRunConfigNames.map {
+            SuggestRunConfiguration.getModuleNameByRunConfigName(it)
+        }.toSet()
+
+        val androidConfigSettings = RunManager.getInstance(project)
+            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
+
+        // compat with old jugg config. if project has old config "jugg:app" and the module have none app module,
+        // ignore suggest to avoid duplicate configs
+        val hasOldConfigs = androidConfigSettings.all { it.name != "app" }
+                && existsModuleForRunConfig.any { it == "app" }
+        if (hasOldConfigs) {
+            logger.debug("getSuggestRunConfigurations: detect old jugg config, ignore suggest")
+            return emptyList()
+        }
+
+        androidConfigSettings.forEach { configSettings ->
+            val suggestRunConfig = getSuggestRunConfiguration(configSettings, project, logger)
+            if (suggestRunConfig == null) {
+                logger.debug("getSuggestRunConfigurations: runConfig ${configSettings.name} suggestRunConfig " +
+                        "is null, ignore")
+                return@forEach
+            }
+            if (suggestRunConfig.moduleName in existsModuleForRunConfig) {
+                logger.debug("getSuggestRunConfigurations: runConfig ${configSettings.name} already has relative " +
+                        "Jugg config ${suggestRunConfig.runConfigName}, ignore")
+                return@forEach
+            }
+            logger.debug("getSuggestRunConfigurations: add suggest runConfig $suggestRunConfig")
+            result.add(suggestRunConfig)
+        }
+
+        if (result.isEmpty() && existsRunConfigNames.isEmpty()) {
+            logger.debug("getSuggestRunConfigurations: no suggest run config and no exists run config, use default")
+            return listOf(SuggestRunConfiguration.DEFAULT)
+        }
+
+        return result
+    }
+
+    private fun getSuggestRunConfiguration(settings: RunnerAndConfigurationSettings,
+                                           project: Project,
+                                           logger: Logger,
+    ): SuggestRunConfiguration? {
+        try {
+            // get build module
+            val runConfig = settings.configuration as AndroidRunConfiguration
+            val module = runConfig.modules.first()
+            val gradleAndroidModel = AndroidModuleModel.get(module) as? GradleAndroidModel
+            logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
+            gradleAndroidModel ?: return null
+
+            // get compile command
+            val moduleName = gradleAndroidModel.moduleName.split('.').last()
+            val taskName = gradleAndroidModel.mainArtifact.assembleTaskName
+            val compileCommand = "./gradlew :$moduleName:$taskName"
+
+            // get apk
+            val projectPath = project.basePath!!
+            val buildVariant = gradleAndroidModel.selectedVariant.buildType
+            val moduleRelativePath = gradleAndroidModel.rootDirPath.relativeTo(File(projectPath)).path
+            val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$buildVariant/*.apk"
+            logger.debug("getSuggestRunConfiguration use guess path: $apkPath")
+
+            return SuggestRunConfiguration(moduleName, compileCommand, apkPath)
+        } catch (e: Throwable) {
+            logger.debug("getSuggestRunConfiguration for ${settings.name} error, ignore", e)
+            return null
+        }
+    }
+
+    private fun GradleAndroidModel.getDesc(): String {
+        return "GradleAndroidModel: " +
+                "moduleName: ${moduleName}, " +
+                "rootDirPath: ${rootDirPath}, " +
+                "variantNames: ${variantNames}, " +
+                "minSdkVersion: ${minSdkVersion}, " +
+                "isDebuggable: ${isDebuggable}, " +
+                "variant: ${selectedVariant.name}, " +
+                "agpVersion: ${androidProject.agpVersion}, " +
+                "allApplicationIds: ${allApplicationIds}, " +
+                "isBaseSplit: ${isBaseSplit}, " +
+                "assembleTaskName: ${mainArtifact.assembleTaskName}, " +
+                "selectedVariant: ${selectedVariant}, " +
+                "mainArtifact: ${mainArtifact}, " +
+                ""
     }
 }

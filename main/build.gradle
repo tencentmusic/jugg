@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.1-rc2'
+def versionName = '1.2.1-rc3'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -93,8 +93,9 @@ tasks.register('buildPluginIntranet') {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1>
-<h2>1.2.1 (2024.02.05)</h2>
+<h2>1.2.1 (2024.02.08)</h2>
 <ol>
+<li>[feature] one-click access optimize: auto-detect compile command and output apk path</li>
 <li>[feature] dump logcat while report issues</li>
 <li>[feature] install directly if install failed last time and no file changes</li>
 <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>

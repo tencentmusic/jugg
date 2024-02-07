@@ -45,7 +45,7 @@ class JuggRunSettingsComponent : JComponent() {
 
     private val compileCommandLabel = JLabel("Compile command:")
     private val compileCommandTextField = JTextField()
-    private val outputApkNameLabel = JLabel("Output APK name:")
+    private val outputApkNameLabel = JLabel("Output APK name/path:")
     private val outputApkNameTextField = JTextField()
     private val enableRemoteCompileCheckBox = JCheckBox("Enable remote compile")
     private val enableSyncAllProjectsCheckBox = JCheckBox("Enable multiple projects mode (sync and fetch all projects in [Local to remote sync path])")

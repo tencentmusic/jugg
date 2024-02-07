@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.ide
 import com.android.tools.idea.gradle.project.sync.GradleSyncListener
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.logger.JuggLogger
 
 
 /**
@@ -13,35 +12,27 @@ class JuggGradleSyncListener : GradleSyncListener {
 
     private val ideaLogger = Logger.getInstance("JuggGradleSyncListener")
 
-    private fun tryGetProjectLogger(project: Project) = try {
-        JuggLogger.getInstance(project, "JuggGradleSyncListener")
-    } catch (e: Exception) {
-        null
-    }
-
     override fun syncStarted(project: Project) {
         disableRootListener()
         ideaLogger.info("syncStarted $project")
-        tryGetProjectLogger(project)?.info("syncStarted")
+        JuggInitializer.onSyncEvent(project, SyncEvent.STARTED)
     }
 
     override fun syncSucceeded(project: Project) {
         ideaLogger.info("syncSucceeded $project")
-        JuggInitializer.initOrRefresh(project)
-        tryGetProjectLogger(project)?.info("syncSucceeded")
+        JuggInitializer.onSyncEvent(project, SyncEvent.SUCCEEDED)
     }
 
     override fun syncSkipped(project: Project) {
         disableRootListener()
         ideaLogger.info("syncSkipped $project")
-        tryGetProjectLogger(project)?.info("syncSkipped")
+        JuggInitializer.onSyncEvent(project, SyncEvent.SKIPPED)
     }
 
     override fun syncFailed(project: Project, errorMessage: String) {
         disableRootListener()
         ideaLogger.info("syncFailed $project $errorMessage")
-        JuggInitializer.initOrRefresh(project)
-        tryGetProjectLogger(project)?.info("syncFailed $errorMessage")
+        JuggInitializer.onSyncEvent(project, SyncEvent.FAILED)
     }
 
     private fun disableRootListener() {

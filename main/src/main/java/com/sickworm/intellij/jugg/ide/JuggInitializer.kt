@@ -22,13 +22,9 @@ object JuggInitializer {
 
 
     @Synchronized
-    fun initOrRefresh(project: Project, isNeedReloadProjectInfo: Boolean = true) {
+    fun onSyncEvent(project: Project, syncEvent: SyncEvent) {
         val juggManager = instanceSet[project.basePath]
-        if (juggManager != null) {
-            juggManager.initProjectInfo(isNeedReloadProjectInfo)
-            return
-        }
-        init(project)
+        juggManager?.onSyncEvent(syncEvent)
     }
 
     @Synchronized
@@ -76,6 +72,13 @@ object JuggInitializer {
         }
         return instanceSet[project.bashPathOrDefault]
     }
+}
+
+enum class SyncEvent {
+    STARTED,
+    SKIPPED,
+    SUCCEEDED,
+    FAILED
 }
 
 val Project.bashPathOrDefault get() = basePath ?: "null"
