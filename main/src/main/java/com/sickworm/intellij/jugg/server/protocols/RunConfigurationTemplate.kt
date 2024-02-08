@@ -23,8 +23,8 @@ data class RunConfigurationTemplate(
 
         val default = RunConfigurationTemplate(
             "Default",
-            "./gradlew :app:assembleDebug",
-            "app-*debug.apk",
+            "",
+            "",
             false,
             "",
             "",
@@ -38,7 +38,7 @@ data class RunConfigurationTemplate(
             "",
             0,
             false,
-            "iFt",
+            "rsync_simple",
         )
     }
 }
