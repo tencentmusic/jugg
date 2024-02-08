@@ -302,10 +302,21 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
             // get apk
             val projectPath = project.basePath!!
-            val buildVariant = gradleAndroidModel.selectedVariant.buildType
+            val buildType = gradleAndroidModel.selectedVariant.buildType
+            var productFlavorPath = ""
+            if (gradleAndroidModel.selectedVariant.productFlavors.isNotEmpty()) {
+                gradleAndroidModel.selectedVariant.productFlavors.forEach { flavor ->
+                    if (productFlavorPath.isEmpty()) {
+                        productFlavorPath = flavor
+                    } else {
+                        productFlavorPath += flavor.replaceFirstChar { it.uppercaseChar() }
+                    }
+                }
+                productFlavorPath += "/"
+            }
             val moduleRelativePath = gradleAndroidModel.rootDirPath.relativeTo(File(projectPath)).path
-            val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$buildVariant/*.apk"
-            logger.debug("getSuggestRunConfiguration use guess path: $apkPath")
+            val apkPath = moduleRelativePath.replace("\\", "/") + "/build/outputs/apk/$productFlavorPath$buildType/*.apk"
+            logger.debug("getSuggestRunConfiguration use apk output path: $apkPath")
 
             return SuggestRunConfiguration(moduleName, compileCommand, apkPath)
         } catch (e: Throwable) {
@@ -322,12 +333,13 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 "minSdkVersion: ${minSdkVersion}, " +
                 "isDebuggable: ${isDebuggable}, " +
                 "variant: ${selectedVariant.name}, " +
+                "buildType: ${selectedVariant.buildType}, " +
+                "productFlavors: ${selectedVariant.productFlavors}, " +
                 "agpVersion: ${androidProject.agpVersion}, " +
                 "allApplicationIds: ${allApplicationIds}, " +
                 "isBaseSplit: ${isBaseSplit}, " +
                 "assembleTaskName: ${mainArtifact.assembleTaskName}, " +
                 "selectedVariant: ${selectedVariant}, " +
-                "mainArtifact: ${mainArtifact}, " +
                 ""
     }
 }
