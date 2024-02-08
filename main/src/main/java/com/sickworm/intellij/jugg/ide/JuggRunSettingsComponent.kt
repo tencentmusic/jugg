@@ -118,9 +118,9 @@ class JuggRunSettingsComponent : JComponent() {
         JuggSettings.templateListUpdateListener = WeakReference(templateUpdateListener)
         add(Box.createVerticalStrut(5))
 
-        addPair(compileCommandLabel, compileCommandTextField, leftWidth = 140)
+        addPair(compileCommandLabel, compileCommandTextField, leftWidth = 180)
         add(Box.createVerticalStrut(5))
-        addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 140)
+        addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 180)
         add(Box.createVerticalStrut(5))
 
         addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 260, isAlignEnd = true)
