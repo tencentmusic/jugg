@@ -27,33 +27,16 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
     var httpProxyIp by string()
     var httpProxyPort by property(0)
     var isSyncAllProjects by property(false)
-    // used to recognize whether default value has set
-    // can not set default value in the string() or property(), value will be reset to default when default value is changed.
-    @Suppress("MemberVisibilityCanBePrivate") // set to private seems not work
+
+    @Suppress("unused")
+    @Deprecated("No longer use")
     var hasSetDefaultValue by property(false)
+
     var syncMode by string()
 
     // new options must add to the end because property persist is in order
 
-    fun updateDefaultOptionIfNeeded() {
-        if (!hasSetDefaultValue) {
-            if (compileCommand.isNullOrEmpty() && outputApkName.isNullOrEmpty()) {
-                // fix run configuration is overridden after old version upgraded
-                setOption(JuggSettings.defaultCompileSettings)
-            }
-            hasSetDefaultValue = true
-        }
-    }
-
-    fun setDefaultRemoteOption() {
-        setOption(JuggSettings.defaultCompileSettings, true)
-    }
-
-    private fun setOption(template: RunConfigurationTemplate, isDefaultOnly: Boolean = false) {
-        if (!isDefaultOnly) {
-            compileCommand = template.compileCommand
-            outputApkName = template.outputApkName
-        }
+    fun setDefaultRemoteOption(template: RunConfigurationTemplate) {
         isRemoteCompile = template.isRemoteCompile
         remoteSshUser = template.remoteSshUser
         remoteSshPassword = template.remoteSshPassword
@@ -246,7 +229,6 @@ data class JuggGradleCompileOptions(
             localClasspathStoragePathManager: LocalClasspathStoragePathManager,
             options: JuggRunConfigurationOptions
         ): JuggGradleCompileOptions {
-            options.updateDefaultOptionIfNeeded()
             return JuggGradleCompileOptions(
                 projectRootPath,
                 localClasspathStoragePathManager,

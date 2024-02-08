@@ -170,8 +170,7 @@ class JuggManager @TestOnly constructor(
             (settings.configuration as JuggRunConfiguration).state?.let {
                 it.compileCommand = suggest.compileCommand
                 it.outputApkName = suggest.outputApkPath
-                it.hasSetDefaultValue = true
-                it.setDefaultRemoteOption()
+                it.setDefaultRemoteOption(JuggSettings.defaultCompileSettings)
             }
             settings.isActivateToolWindowBeforeRun = false
             settings
