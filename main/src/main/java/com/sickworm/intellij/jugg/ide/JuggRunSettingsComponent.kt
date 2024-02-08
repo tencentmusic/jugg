@@ -33,14 +33,8 @@ class JuggRunSettingsComponent : JComponent() {
         it.layout = BoxLayout(it, BoxLayout.X_AXIS)
     }
 
-    private var selectTemplateButton: DropDownLink<String> = createSelectTemplateButton()
     private var moreOptionsButton: DropDownLink<String> = DropDownLink("More options", emptyList()).also {
         it.border = JBUI.Borders.empty(0, 4)
-    }
-    private val templateUpdateListener = {
-        SwingUtilities.invokeLater {
-            updateTopButtons()
-        }
     }
 
     private val compileCommandLabel = JLabel("Compile command:")
@@ -115,7 +109,6 @@ class JuggRunSettingsComponent : JComponent() {
 
         add(topButtonsContainer)
         updateTopButtons()
-        JuggSettings.templateListUpdateListener = WeakReference(templateUpdateListener)
         add(Box.createVerticalStrut(5))
 
         addPair(compileCommandLabel, compileCommandTextField, leftWidth = 180)
@@ -175,9 +168,7 @@ class JuggRunSettingsComponent : JComponent() {
 
     private fun updateTopButtons() {
         topButtonsContainer.removeAll()
-        selectTemplateButton = createSelectTemplateButton()
         topButtonsContainer.add(Box.createHorizontalGlue())
-        topButtonsContainer.add(selectTemplateButton)
         topButtonsContainer.add(moreOptionsButton)
     }
 
