@@ -19,7 +19,6 @@ import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Dimension
 import java.awt.GridLayout
-import java.lang.ref.WeakReference
 import javax.swing.*
 import kotlin.math.max
 
@@ -132,19 +131,6 @@ class JuggRunSettingsComponent : JComponent() {
         updateRemoteUi(enableRemoteCompileCheckBox.isSelected, syncModeComboBox.selectedItem?.toString())
     }
 
-    private fun createSelectTemplateButton(): DropDownLink<String> {
-        return DropDownLink(
-            "Choose template",
-            JuggSettings.compileTemplateList.map { it.templateName}) { selectedTemplateName ->
-            val selectedTemplate = JuggSettings.compileTemplateList.find { it.templateName == selectedTemplateName }
-            if (selectedTemplate != null) {
-                updateUi(selectedTemplate)
-            }
-        }.also {
-            it.border = JBUI.Borders.empty(0, 4)
-        }
-    }
-
     private fun createMoreOptionsButton(project: Project): DropDownLink<String> {
         val popupBuilder: (DropDownLink<String>) -> JBPopup = { _ ->
             val options = JuggRunConfigurationOptions()
@@ -172,15 +158,11 @@ class JuggRunSettingsComponent : JComponent() {
         topButtonsContainer.add(moreOptionsButton)
     }
 
-    private fun updateUi(settings: RunConfigurationTemplate) {
-        updateUi(settings, isTemplate = true)
-    }
-
     fun updateUi(settings: JuggRunConfigurationOptions) {
-        updateUi(settings.toRunConfigurationTemplate(), isTemplate = false)
+        updateUi(settings.toRunConfigurationTemplate())
     }
 
-    private fun updateUi(settings: RunConfigurationTemplate, isTemplate: Boolean) {
+    private fun updateUi(settings: RunConfigurationTemplate) {
         compileCommandTextField.text = settings.compileCommand
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
@@ -192,12 +174,7 @@ class JuggRunSettingsComponent : JComponent() {
         }
         enableSyncAllProjectsCheckBox.isSelected = settings.isSyncAllProjects
         userTextField.text = settings.remoteSshUser
-        if (isTemplate) {
-            passwordTextField.text = ""
-            passwordTextField.emptyText.text = settings.remoteSshPassword ?: ""
-        } else {
-            passwordTextField.text = settings.remoteSshPassword
-        }
+        passwordTextField.text = settings.remoteSshPassword
         ipTextField.text = settings.remoteSshIp
         portTextField.text = settings.remoteSshPort.toString()
         httpProxyIpTextField.text = settings.httpProxyIp ?: ""

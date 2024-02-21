@@ -45,8 +45,6 @@ object JuggSettings {
      */
     const val isQuickFallbackToHotFix: Boolean = true
 
-    var templateListUpdateListener: WeakReference<() -> Unit> = WeakReference(null)
-
     /**
      * Use this for Jugg run configuration arguments if first set.
      */
@@ -97,7 +95,6 @@ object JuggSettings {
         set(value) {
             compileTemplateListCache = null // don't save it directly, because value won't be processed by typeAdapter
             compileTemplateListJson = Gson().toJson(value)
-            templateListUpdateListener.get()?.invoke()
         }
 
     init {
