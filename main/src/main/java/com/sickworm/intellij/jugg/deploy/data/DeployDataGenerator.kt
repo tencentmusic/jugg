@@ -103,11 +103,10 @@ class DeployDataGenerator(
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }
 
-        val includeClassNames = changedClasses.map { it.sigName }.toSet()
         val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
-            deployDataDatabase.getEffectedSourceAndClass(includeClassNames, changedMethodRef, changedFieldRef, changedAbstractClasses)
+            deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef, changedAbstractClasses)
         } else {
-            emptyMap()
+            emptyList()
         }
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
@@ -116,7 +115,7 @@ class DeployDataGenerator(
         val apks = deployDataDatabase.getApkInfos()
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
-            effectedSourceAndClassNodes.keys.toList(),
+            effectedSourceAndClassNodes,
             overlays, parsedDex,
             isFullRes, isWarmUp,
         )

@@ -38,11 +38,10 @@ interface IDeployDataDatabase {
     /**
      * @return Map<source file name, List<class name>>
      */
-    fun getEffectedSourceAndClass(includeClassNames: Set<String>,
-                                  changedMethodRefs: List<MethodNode>,
+    fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>,
                                   changedFieldRefs: List<FieldNode>,
                                   changedAbstractClasses: List<ClassNode>,
-                                  ): Map<String, List<String>>
+                                  ): List<EffectedClassNode>
 
     fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
 
@@ -190,23 +189,24 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun getEffectedSourceAndClass(
-        includeClassNames: Set<String>,
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
-    ): Map<String, List<String>> {
+    ): List<EffectedClassNode> {
         if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty() && changedAbstractClasses.isEmpty()) {
-            return emptyMap()
+            return emptyList()
         }
 
         val incrementalEffectClassNodes = incDeployedDatabase.getEffectedSourceAndClass(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
-        val effectClassNodesMap = incrementalEffectClassNodes.toMutableMap()
+        val effectClassNodesMap: MutableMap<String, EffectedClassNode> = incrementalEffectClassNodes.associateBy { it.className }.toMutableMap()
         database.values.forEach { helper ->
             try {
                 val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
                 apkEffectClassNodesMap.forEach addNode@{
                     // use incremental first
-                    effectClassNodesMap.putIfAbsent(it.key, it.value)
+                    val oldNode = effectClassNodesMap[it.className]
+                    val node = oldNode?.copy(effectedByClasses = oldNode.effectedByClasses + it.effectedByClasses) ?: it
+                    effectClassNodesMap[it.className] = node
                 }
             } catch (e: Exception) {
                 logger.warn("Failed to find effected source and classes, Exception: ${e.message}")
@@ -215,23 +215,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             }
         }
 
-        // filter class names that already included
-        effectClassNodesMap.keys.forEach { source ->
-            val filteredClassNodes = effectClassNodesMap[source]!!.filter {
-                !includeClassNames.contains(it)
-            }
-            effectClassNodesMap[source] = filteredClassNodes
-        }
-
-        effectClassNodesMap.iterator().let { iterator ->
-            iterator.forEach {
-                if (it.value.isEmpty()) {
-                    iterator.remove()
-                }
-            }
-        }
-
-        return effectClassNodesMap
+        return effectClassNodesMap.values.toList()
     }
 
     override fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String> {
@@ -317,8 +301,8 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>,
                                   changedFieldRefs: List<FieldNode>,
                                   changedAbstractClasses: List<ClassNode>,
-    ): Map<String, List<String>> {
-        val effectClassNodesMap = mutableMapOf<String, MutableList<String>>()
+    ): List<EffectedClassNode> {
+        val effectClassNodesMap = mutableMapOf<String, EffectedClassNode>()
 
         // changedMethodRefs and changedMethodRefs of subclasses
         val changedMethodRefsWithSubclasses = changedMethodRefs.toMutableList()
@@ -355,7 +339,10 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
             methodRefs[it.matchKey]?.forEach { className ->
                 deployedClasses[className]?.let { classNode ->
                     logger.debug("found effected source ${classNode.source} in class ${classNode.className}, ref method ${it.matchKey}")
-                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
+                    val effectedClassNode = effectClassNodesMap[classNode.className] ?: EffectedClassNode(classNode.className, classNode.source, emptyList())
+                    effectClassNodesMap[classNode.className] = effectedClassNode.copy(
+                        effectedByClasses = effectedClassNode.effectedByClasses + it.owner
+                    )
                 }
             }
         }
@@ -363,7 +350,10 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
             fieldRefs[it.matchKey]?.forEach { className ->
                 deployedClasses[className]?.let { classNode ->
                     logger.debug("found effected source ${classNode.source} in class ${classNode.className}, ref field ${it.matchKey}")
-                    effectClassNodesMap.getOrPut(classNode.source) { mutableListOf() }.add(classNode.className)
+                    val effectedClassNode = effectClassNodesMap[classNode.className] ?: EffectedClassNode(classNode.className, classNode.source, emptyList())
+                    effectClassNodesMap[classNode.className] = effectedClassNode.copy(
+                        effectedByClasses = effectedClassNode.effectedByClasses + it.owner
+                    )
                 }
             }
         }
@@ -378,7 +368,10 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
                             newToCheckChangedAbstractClasses.add(subclassNode)
                         } else {
                             logger.debug("found effected source ${subclassNode.source} in class ${subclassNode.className}, ref class ${superClassNode.className}")
-                            effectClassNodesMap.getOrPut(subclassNode.source) { mutableListOf() }.add(subclassNode.className)
+                            val effectedClassNode = effectClassNodesMap[subclassNode.className] ?: EffectedClassNode(subclassNode.className, subclassNode.source, emptyList())
+                            effectClassNodesMap[subclassNode.className] = effectedClassNode.copy(
+                                effectedByClasses = effectedClassNode.effectedByClasses + superClassNode.className
+                            )
                             newToCheckChangedAbstractClasses.add(subclassNode)
                         }
                     }
@@ -387,7 +380,7 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
             toCheckChangedAbstractClasses = newToCheckChangedAbstractClasses
         }
 
-        return effectClassNodesMap
+        return effectClassNodesMap.values.toList()
     }
 
     /**

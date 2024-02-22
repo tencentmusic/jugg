@@ -654,7 +654,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
-    ): Map<String, List<String>> {
+    ): List<EffectedClassNode> {
         logger.debug("getEffectedClassNodes changedMethodRefs $changedMethodRefs")
         logger.debug("getEffectedClassNodes changedFieldRefs $changedFieldRefs $changedAbstractClasses")
         logger.debug("getEffectedClassNodes changedAbstractClasses $changedAbstractClasses")
@@ -679,7 +679,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     }
                 }
             }
-            val refClassIds = mutableSetOf<Int>() // result of effected class ids
+            val refClassIds = mutableMapOf<Int, MutableList<Int>>() // Map<effected class ids, List<effect by class ids>>
 
 
             // step 2. get all subclasses of [changedMethodRefs] to supports invoke-virtual
@@ -709,7 +709,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                                     val subclassMethodNode = MethodNodeDb(refClassId, superClassMethodNode.name, superClassMethodNode.desc)
                                     newSubclassMethodNode.add(subclassMethodNode)
                                     changedMethodRefsWithSubclasses.add(subclassMethodNode)
-                                    refClassIds.add(subclassMethodNode.classId)
+                                    refClassIds.getOrPut(subclassMethodNode.classId) { mutableListOf() }.add(classId)
                                 }
                         }
                     }
@@ -753,12 +753,13 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     // avoid Exception: [SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))
                     methodClassIdsStringList.chunked(900).forEach {
                         val methodClassIdsString = it.joinToString(" OR ")
-                        val sql = "SELECT ref_class_id FROM method_refs WHERE $methodClassIdsString;"
+                        val sql = "SELECT class_id, ref_class_id FROM method_refs WHERE $methodClassIdsString;"
                         connection.createStatement().use { statement ->
                             val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                             while (resultSet.next()) {
                                 val classId = resultSet.getInt(1)
-                                refClassIds.add(classId)
+                                val refClassId = resultSet.getInt(2)
+                                refClassIds.getOrPut(refClassId) { mutableListOf() }.add(classId)
                             }
                         }
                     }
@@ -774,12 +775,13 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         val fieldClassIdsString = fieldNode.joinToString(" OR ") {
                             "(class_id=${dbClassNodeMap[it.owner]!!} AND name='${it.name}' AND type='${it.type}')"
                         }
-                        val sql2 = "SELECT ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
+                        val sql2 = "SELECT class_id, ref_class_id FROM field_refs WHERE $fieldClassIdsString;"
                         connection.createStatement().use { statement ->
                             val resultSet: ResultSet = statement.executeQueryAndLog(sql2)
                             while (resultSet.next()) {
                                 val classId = resultSet.getInt(1)
-                                refClassIds.add(classId)
+                                val refClassId = resultSet.getInt(2)
+                                refClassIds.getOrPut(refClassId) { mutableListOf() }.add(classId)
                             }
                         }
                     }
@@ -793,17 +795,18 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val superClassIdsString = currentSuperClassIds.joinToString(",") {
                         "$it"
                     }
-                    val getSubclassesSql = "SELECT ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
-                    val newSubclassIds = mutableListOf<Int>()
+                    val getSubclassesSql = "SELECT class_id, ref_class_id FROM subclass_refs WHERE class_id IN ($superClassIdsString);"
+                    val newSubclassIds = mutableMapOf<Int, MutableList<Int>>()
                     connection.createStatement().use { statement ->
                         val resultSet: ResultSet = statement.executeQueryAndLog(getSubclassesSql)
                         while (resultSet.next()) {
-                            val refClassId = resultSet.getInt(1)
-                            newSubclassIds.add(refClassId)
+                            val classId = resultSet.getInt(1)
+                            val refClassId = resultSet.getInt(2)
+                            newSubclassIds.getOrPut(refClassId) { mutableListOf() }.add(classId)
                         }
                     }
 
-                    val newSubclassIdsString = newSubclassIds.joinToString(",")
+                    val newSubclassIdsString = newSubclassIds.keys.joinToString(",")
                     val getAccessClassIds = "SELECT id, access FROM class_info WHERE id IN ($newSubclassIdsString);"
                     connection.createStatement().use { statement ->
                         val resultSet: ResultSet = statement.executeQueryAndLog(getAccessClassIds)
@@ -812,31 +815,53 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                             val access = resultSet.getInt(2)
                             val isAbstract = access and DexConstants.ACC_ABSTRACT != 0
                             if (!isAbstract) {
-                                refClassIds.add(id)
+                                refClassIds.getOrPut(id) { mutableListOf() }.addAll(newSubclassIds[id]!!)
                                 newSubclassIds.remove(id)
                             }
                         }
                     }
 
-                    currentSuperClassIds = newSubclassIds
+                    currentSuperClassIds = newSubclassIds.keys.toList()
                 }
             }
 
             // step 5. get all effected class nodes by [refClassIds]
             if (refClassIds.isEmpty()) {
-                return emptyMap()
+                return emptyList()
             }
-            val effectedClassNodes = mutableMapOf<String, MutableList<String>>()
+            val effectedClassNodes = mutableListOf<EffectedClassNode>()
             runWithTimeCost("doGetClassNodes") {
-                val refClassIdsString = refClassIds.joinToString(",")
-                val sql = "SELECT name, source FROM class_info WHERE id IN ($refClassIdsString);"
+                val allClassIds = mutableSetOf<Int>()
+                refClassIds.forEach { (effectClassId, effectByClassIds) ->
+                    allClassIds.add(effectClassId)
+                    allClassIds.addAll(effectByClassIds)
+                }
+                val allClassIdsString = allClassIds.joinToString(",")
+
+                val idNameMap = mutableMapOf<Int, String>()
+                val idSourceMap = mutableMapOf<Int, String>()
+                val sql = "SELECT id, name, source FROM class_info WHERE id IN ($allClassIdsString);"
                 connection.createStatement().use { statement ->
                     val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                     while (resultSet.next()) {
-                        val className = resultSet.getString(1)
-                        val source = resultSet.getString(2)
-                        effectedClassNodes.getOrPut(source) { mutableListOf() }.add(className)
+                        val id = resultSet.getInt(1)
+                        val className = resultSet.getString(2)
+                        val source = resultSet.getString(3)
+
+                        if (refClassIds.containsKey(id)) {
+                            idSourceMap[id] = source
+                        }
+                        idNameMap[id] = className
                     }
+                }
+
+                refClassIds.forEach { (effectClassId, effectByClassIds) ->
+                    val className = idNameMap[effectClassId]!!
+                    val classSource = idSourceMap[effectClassId]!!
+                    val effectedByClasses = effectByClassIds.map {
+                        idNameMap[it]!!
+                    }
+                    effectedClassNodes.add(EffectedClassNode(className, classSource, effectedByClasses))
                 }
             }
 

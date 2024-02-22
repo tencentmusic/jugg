@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.classNameToPath
 import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
@@ -399,3 +400,5 @@ class DeployDataGeneratorTest {
             )
         }
 }
+
+private val JuggDeployData.effectedSourceFileNames get() = effectedClassNodes.map { it.sourceFileName }.distinct()

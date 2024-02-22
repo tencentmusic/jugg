@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
+import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -266,7 +267,7 @@ class DeployFileManager(
 
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
-            getEffectedSourceFiles(juggDeployData.effectedSourceFileNames, compiledFilesThisTime),
+            getEffectedSourceFiles(juggDeployData.effectedClassNodes, compiledFilesThisTime),
             emptyList(),
         )
         val costTime = System.currentTimeMillis() - startTime
@@ -290,7 +291,9 @@ class DeployFileManager(
      * Get source files that effected by [compiledFiles].
      * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
      */
-    private fun getEffectedSourceFiles(effectedSourceFiles: List<String>, compiledFilesThisTime: List<ChangedFile>): List<File> {
+    private fun getEffectedSourceFiles(effectClassNodes: List<EffectedClassNode>, compiledFilesThisTime: List<ChangedFile>): List<File> {
+        val effectedSourceFiles = effectClassNodes.map { it.sourceFileName }.distinct()
+
         if (effectedSourceFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no effected source files")
             return emptyList()

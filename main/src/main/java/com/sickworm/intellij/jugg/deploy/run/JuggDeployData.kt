@@ -7,6 +7,7 @@ import com.android.tools.idea.protobuf.ByteString
 import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ClassNode
+import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.outerClassName
 
@@ -22,8 +23,8 @@ data class JuggDeployData(
     val hotFixModifiedClasses: List<ClassDeployItem>,
     /** exists deploying classes, and compatible with JVM-TI Apply Changes */
     val hotReloadModifiedClasses: List<ClassDeployItem>,
-    /** effected source files names(from source flag in .dex file) that need to be recompiled. */
-    val effectedSourceFileNames: List<String>,
+    /** effected class nodes that need to be recompiled. */
+    val effectedClassNodes: List<EffectedClassNode>,
     /** modified files that will place into /assets or /res. */
     val overlays: List<DeployItem>,
     /** parsed class nodes and method & field references. */
@@ -101,6 +102,7 @@ data class JuggDeployData(
             }
         }
         if (isFull) {
+            val effectedSourceFileNames: List<String> = effectedClassNodes.map { it.sourceFileName }.distinct()
             if (effectedSourceFileNames.isNotEmpty()) {
                 builder.append("effected source files:\n    ")
                 builder.append(effectedSourceFileNames.toString())
