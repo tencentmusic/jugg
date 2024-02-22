@@ -81,7 +81,7 @@ class AdbCmdHelper(
         return false
     }
 
-    fun dumpErrorLog(limit: Int = 10000): String {
+    fun dumpErrorLog(limit: Int = 100000): String {
         return execAdbShellCmd("logcat '*:E' -t$limit")
     }
 
