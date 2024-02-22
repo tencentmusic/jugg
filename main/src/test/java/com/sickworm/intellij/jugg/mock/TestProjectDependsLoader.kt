@@ -32,10 +32,10 @@ object TestProjectDependsLoader {
         fragment-1.0.0
         documentfile-1.0.0
         interpolator-1.0.0
-        jetified-core-ktx-1.2.0
+        jetified-core-ktx-1.0.2
         cursoradapter-1.0.0
         legacy-support-core-ui-1.0.0
-        core-1.2.0
+        core-1.0.2
         drawerlayout-1.0.0
         versionedparcelable-1.1.0
         localbroadcastmanager-1.0.0

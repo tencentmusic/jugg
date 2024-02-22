@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestProjectDependsLoader
 import org.junit.Test
 import kotlin.test.assertNotNull
@@ -16,6 +17,7 @@ class IntellijLibraryConfigParserTest {
 
     @Suppress("RedundantNullableReturnType")
     fun loadLibraryConfigInTest(): List<String>? {
+        AssembleAndroidProjectOnce.ensure()
         return TestProjectDependsLoader.parse()
     }
 }
