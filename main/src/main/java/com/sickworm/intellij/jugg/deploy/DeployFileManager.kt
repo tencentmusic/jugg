@@ -258,7 +258,7 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getRecompileFiles(compiledFilesThisTime: List<ChangedFile>, isRecompilation: Boolean): RecompileFiles {
+    fun getRecompileFiles(isRecompilation: Boolean): RecompileFiles {
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
@@ -267,8 +267,9 @@ class DeployFileManager(
 
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
-            getEffectedSourceFiles(juggDeployData.effectedClassNodes, compiledFilesThisTime),
+            getEffectedSourceFiles(juggDeployData.effectedClassNodes),
             emptyList(),
+            juggDeployData,
         )
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("find recompile files cost: $costTime ms")
@@ -291,7 +292,7 @@ class DeployFileManager(
      * Get source files that effected by [compiledFiles].
      * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
      */
-    private fun getEffectedSourceFiles(effectClassNodes: List<EffectedClassNode>, compiledFilesThisTime: List<ChangedFile>): List<File> {
+    private fun getEffectedSourceFiles(effectClassNodes: List<EffectedClassNode>): List<File> {
         val effectedSourceFiles = effectClassNodes.map { it.sourceFileName }.distinct()
 
         if (effectedSourceFiles.isEmpty()) {
@@ -307,16 +308,13 @@ class DeployFileManager(
             logger.warn("missing source files: $missingFiles")
         }
 
-        val compiledFilesThisTimeSet = compiledFilesThisTime.map { it.file.stdPath }.toSet()
-        val unCompiledEffectedFiles = sourceFiles.filter { !compiledFilesThisTimeSet.contains(it.stdPath) }
-        if (unCompiledEffectedFiles.isEmpty()) {
+        if (sourceFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no uncompiled source files")
             return emptyList()
         }
 
-        logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $unCompiledEffectedFiles")
-
-        return unCompiledEffectedFiles
+        logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $sourceFiles")
+        return sourceFiles
     }
 
     private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>, moduleInfo: ModuleInfo): List<ChangedFile> {
@@ -469,6 +467,7 @@ class DeployFileManager(
 class RecompileFiles(
     val effectedSourceFiles: List<File>,
     val redexClasses: List<ChangedFile>,
+    val juggDeployData: JuggDeployData,
 )
 
 private val crc32 = CRC32()

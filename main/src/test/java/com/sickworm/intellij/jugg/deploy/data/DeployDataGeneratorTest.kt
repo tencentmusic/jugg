@@ -313,6 +313,74 @@ class DeployDataGeneratorTest {
         assertEquals(listOf("JavaInvoker.java", "KtInvoker.kt"), deployData.effectedSourceFileNames.sorted())
     }
 
+    @Test
+    fun testEffectSourceByAddingKotlinDefaultParamOnTopLevelFunction() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/TopLevelClass1.kt"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    mockModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/InvokeClass2.kt"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    mockModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+        assertEquals(listOf("InvokeClass2.kt"), deployData.effectedSourceFileNames.sorted())
+    }
+
+    @Test
+    fun testEffectSourceByAddingKotlinDefaultParamOnTopLevelFunction2() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/TopLevelClass3.kt"),
+                    File(assetsAndroidModifySourceDir, "app/src/main/java"),
+                    mockModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+                CompileFile(
+                    CompileFile.Type.Kotlin,
+                    File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/InvokeClass4.kt"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    mockModule,
+                    dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
+                ),
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = sourceCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+        assertEquals(listOf("InvokeClass4.kt"), deployData.effectedSourceFileNames.sorted())
+    }
+
     private fun getClassFile(className: String): CompileFile {
         val relativePath = className.classNameToPath
         val baseJavaDir = assetsAndroidDir.resolve("app/build/intermediates/javac/debug/classes")

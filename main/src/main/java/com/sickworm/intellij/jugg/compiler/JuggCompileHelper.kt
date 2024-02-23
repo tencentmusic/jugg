@@ -6,6 +6,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkReader
+import com.sickworm.intellij.jugg.compiler.source.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
@@ -14,6 +15,7 @@ import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -324,14 +326,51 @@ class JuggCompilerHelper(
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
             val isRecompilation = compiledFilesThisTime.isNotEmpty()
-            val recompileFiles = deployFileManager.getRecompileFiles(undeployedFiles + compiledFilesThisTime, isRecompilation)
+            val recompileFiles = deployFileManager.getRecompileFiles(isRecompilation)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()
             val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
-            if (changedFiles.isNotEmpty()) {
-                logger.info("Compile success, but found effected source files, continue compile. Files: ${changedFiles.map { it.file.name }}")
-                nextCompileFiles.addAll(changedFiles)
+
+            TimeLogger.start("CheckEffectByTopLevelClass")
+            val compiledFilesThisTimeSet = compiledFilesThisTime.map { it.file.absolutePath }.toSet()
+            val undeployedFilesSet = undeployedFiles.map { it.file.absolutePath }.toSet()
+            val unCompiledEffectedFiles = changedFiles.filter { changedFile ->
+                if (compiledFilesThisTimeSet.contains(changedFile.file.absolutePath)) {
+                    return@filter false
+                }
+
+                if (undeployedFilesSet.contains(changedFile.file.absolutePath)) {
+                    // check whether the file has top level class changed.
+                    // if so, it should be recompiled through it's in compiledFilesThisTimeSet
+                    logger.debug("CheckEffectByTopLevelClass ${changedFile.file.name} is in compiledFilesThisTimeSet and effected, check recompile")
+                    val kmModuleMerger = KmModuleMergerForCompilation(changedFile.module.buildPathInfo.kotlinClassPath)
+                    kmModuleMerger.loadAndMerge()
+                    val extensionClasses = kmModuleMerger.getExtensionClasses().toSet()
+                    if (extensionClasses.isNotEmpty()) {
+                        logger.debug("CheckEffectByTopLevelClass extensionClasses: $extensionClasses, effectNodes: ${recompileFiles.juggDeployData.effectedClassNodes}")
+                        recompileFiles.juggDeployData.effectedClassNodes
+                            .filter {
+                                it.sourceFileName == changedFile.file.name
+                            }.forEach {
+                                it.effectedByClasses.forEach { effectedByClass ->
+                                    if (extensionClasses.contains(effectedByClass)) {
+                                        logger.debug("CheckEffectByTopLevelClass ${changedFile.file.name} is in compiledFilesThisTimeSet, but it's effected by top level class, force recompile")
+                                        return@filter true
+                                    }
+                                }
+                            }
+                    }
+                    logger.debug("${changedFile.file.name} is in compiledFilesThisTimeSet and effected, no need recompile")
+                    return@filter false
+                }
+                return@filter true
+            }
+            TimeLogger.end("CheckEffectByTopLevelClass", logger)
+
+            if (unCompiledEffectedFiles.isNotEmpty()) {
+                logger.info("Compile success, but found effected source files, continue compile. Files: ${unCompiledEffectedFiles.map { it.file.name }}")
+                nextCompileFiles.addAll(unCompiledEffectedFiles)
             }
 
             val redexClasses = recompileFiles.redexClasses.map {

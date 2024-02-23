@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler.source
 
-import com.sickworm.intellij.jugg.project.JuggInternalException
 import kotlinx.metadata.jvm.KmModule
 import kotlinx.metadata.jvm.KotlinClassHeader
 import kotlinx.metadata.jvm.KotlinModuleMetadata
@@ -36,6 +35,13 @@ class KmModuleMergerForCompilation(
         }
     }
 
+    fun getExtensionClasses(): List<String> {
+        val result = mutableListOf<String>()
+        kmModuleFileMap.values.forEach { merger ->
+            result.addAll(merger.getExtensionClasses())
+        }
+        return result
+    }
 }
 
 /**
@@ -75,6 +81,17 @@ class KmModuleMerger {
             it.parentFile?.mkdirs()
             it.writeBytes(metadata.bytes)
         }
+    }
+
+    fun getExtensionClasses(): List<String> {
+        val result = mutableListOf<String>()
+        kmModule.packageParts.forEach { (_, value) ->
+            value.fileFacades.forEach { facade ->
+                val className = "L$facade;"
+                result.add(className)
+            }
+        }
+        return result
     }
 
     override fun toString(): String {
