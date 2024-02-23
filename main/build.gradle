@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.1-rc5'
+def versionName = '1.2.1-rc6'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -101,6 +101,7 @@ patchPluginXml.changeNotes = """
 <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
 <li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
 <li>[bugfix] fix NoSuchMethodError when add an optional argument to a top level function, and compile declaration file and invoke file together</li>
+<li>[bugfix] fix NoSuchMethodError for expand compilation not work properly</li>
 </ol>
 <h2>1.2.0 (2024.02.04)</h2>
 <ol>

@@ -336,7 +336,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     preparedStatement.setInt(6, it.access)
                     preparedStatement.setString(7, it.methods.toMethodString())
                     preparedStatement.setString(8, it.fields.toFieldString())
-                    val classId = nextClassId++
+                    val classId = updatedClasses[it.className] ?: nextClassId++ // reuse id, or method_refs/field_refs/subclass_refs will be wrong
                     preparedStatement.setInt(9, classId)
                     preparedStatement.addBatch()
                     dbClassNodeMap[it.className] = classId
