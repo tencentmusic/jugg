@@ -291,7 +291,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             // get build module
             val runConfig = settings.configuration as AndroidRunConfiguration
             val module = runConfig.modules.first()
-            val gradleAndroidModel = AndroidModuleModel.get(module) as? GradleAndroidModel
+            val gradleAndroidModel = GradleAndroidModel.get(module)
             logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
             gradleAndroidModel ?: return null
 
