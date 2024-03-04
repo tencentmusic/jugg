@@ -212,7 +212,7 @@ class JuggDeployerHelper(
                 }
 
                 val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
-                val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH")
+                val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
                 val isClassNotFoundException = reason.contains("Class not found")
                 // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
                 val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
