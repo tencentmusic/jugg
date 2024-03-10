@@ -150,7 +150,7 @@ class CompileContextManager(
         logger.debug("getAllModulesByModuleManager isNeedReloadProjectInfo: $isNeedReloadProjectInfo, isFirstTimeLoad: $isFirstTimeLoad")
         var modules: Map<String, ModuleInfo>? = null
         if (!isNeedReloadProjectInfo) {
-            val cacheModules = projectInfoSerializer.load()
+            val cacheModules = projectInfoSerializer.load()?.modules
             logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
             if (cacheModules != null) {
                 modules = cacheModules
@@ -177,7 +177,7 @@ class CompileContextManager(
             }
             modules = doGetAllModulesByModuleManager(gradleVariableHelper)
             gradleVariableHelper.release()
-            projectInfoSerializer.save(modules)
+            projectInfoSerializer.save(JuggProjectInfo(modules))
         }
         return modules
     }

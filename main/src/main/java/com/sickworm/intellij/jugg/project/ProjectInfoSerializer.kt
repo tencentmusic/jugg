@@ -10,23 +10,23 @@ import java.io.File
 
 class ProjectInfoSerializer(private val dataFile: File, private val logger: Logger) {
 
-    private var memoryCache: Map<String, ModuleInfo>? = null
+    private var memoryCache: JuggProjectInfo? = null
 
     @Synchronized
-    fun save(modules: Map<String, ModuleInfo>) {
+    fun save(projectInfo: JuggProjectInfo) {
         val startTime = System.currentTimeMillis()
 
         dataFile.parentFile?.mkdirs()
-        val serializeText = ProjectInfoSerialize.create(modules).serialize()
+        val serializeText = ProjectInfoSerialize.create(projectInfo.modules).serialize()
         dataFile.writeText(serializeText)
-        memoryCache = modules
+        memoryCache = projectInfo
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("Save project info to ${dataFile.absolutePath} cost $costTime ms")
     }
 
     @Synchronized
-    fun load(): Map<String, ModuleInfo>? {
+    fun load(): JuggProjectInfo? {
         if (!dataFile.exists()) {
             return null
         }
@@ -123,7 +123,7 @@ private class ProjectInfoSerialize(
             )
         }
 
-        fun deserialize(text: String): Map<String, ModuleInfo> {
+        fun deserialize(text: String): JuggProjectInfo {
             val lines = text.split("\n")
             val serializeVersion = lines[0]
             if (serializeVersion != SERIALIZE_VERSION) {
@@ -138,7 +138,7 @@ private class ProjectInfoSerialize(
 
             val moduleInfosSize = lines[2 + stringListSize].toInt()
             val moduleInfoStrings = lines.subList(3 + stringListSize, 3 + stringListSize + moduleInfosSize)
-            return moduleInfoStrings.associate {
+            val modules = moduleInfoStrings.associate {
                 val parts = it.split(";")
                 val moduleInfo = ModuleInfo(
                     name = stringMap[parts[0]]!!,
@@ -176,6 +176,7 @@ private class ProjectInfoSerialize(
                 )
                 moduleInfo.name to moduleInfo
             }
+            return JuggProjectInfo(modules)
         }
 
         private fun String.nullIfNull(): String? = if (this == "null") null else this
