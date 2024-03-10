@@ -188,7 +188,7 @@ class MockJugg {
             }
 
             override fun getDevices(): List<IDevice> {
-                return listOf(this@MockJugg.getDevice())
+                return adbDeviceHelper.getDeviceList()
             }
 
             override fun startApp(device: IDevice): Boolean {
@@ -280,18 +280,6 @@ class MockJugg {
         doReturn(virtualFile.name).`when`(module).name
 
         return module
-    }
-
-    private fun getDevice(): IDevice {
-        val deviceList = adbDeviceHelper.getDeviceList()
-            .filter { it.state == IDevice.DeviceState.ONLINE }
-        if (deviceList.isEmpty()) {
-            throw JuggException.deviceNotFound()
-        }
-        if (deviceList.size > 1) {
-            throw JuggException.multipleDeviceFound()
-        }
-        return deviceList.first()
     }
 
     private fun renewManager() {
