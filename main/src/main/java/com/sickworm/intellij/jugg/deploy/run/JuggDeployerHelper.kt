@@ -195,7 +195,7 @@ class JuggDeployerHelper(
                 // seems like a bug of some devices e.g. OPPO Reno.
                 val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
                 // seems like a bug of deploy service, just retry
-                val isInstrumentationFailed = reason.contains("INSTRUMENTATION_FAILED")
+                val isInstrumentationFailed = reason.contains("INSTRUMENTATION_FAILED") || reason.contains("IOException occurred")
 
                 val isClassModifiedError = (!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError)
                 if (isClassModifiedError || isInstrumentationFailed) {
