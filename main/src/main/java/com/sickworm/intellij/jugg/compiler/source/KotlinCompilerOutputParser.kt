@@ -98,8 +98,21 @@ class KotlinCompilerOutputParser(
         // src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/ #soft wrap
         // testcase/CaseKtSmartCast.kt:9:26: error: smart cast to 'MutableList<String>' is impossible, #soft wrap
         // because 'class2.dataList' is a public API property declared in different module
+        // e.g.2.
+        // error: the Android extensions ('kotlin-android-extensions') compiler plugin is no longer supported.  #soft wrap
+        // Please use kotlin parcelize and view binding. #soft wrap
+        // More information: https://goo.gle/kotlin-android-extensions-deprecation
         val contents = errorRegex.find(message)
         val filePath = contents?.groups?.get(1)?.value?: ""
+        if (filePath.isEmpty()) {
+            // a common error, not a specific file error, like e.g.2.
+            // add it to all files
+            files.forEach {
+                innerErrors.getOrPut(it) { mutableListOf() }.add(-1L to message)
+            }
+            return message
+        }
+
         val line = contents?.groups?.get(2)?.value?.toLongOrNull()?: -1L
         val file = files.find { it.file.absolutePath.endsWith(filePath) }
         if (file == null) {
