@@ -319,11 +319,10 @@ dependencies {
 
     // for K2JVMCompiler
     implementation "org.jetbrains.kotlin:kotlin-compiler-embeddable"
-    implementation "org.jetbrains.kotlin:kotlin-android-extensions"
     // kotlinx-metadata-jvm:
     // 0.2.0 depends kotlin-stdlib:1.4.10
     // 0.3.0 depends kotlin-stdlib:1.5.0
-    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.4.2"
+    implementation "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.9.0"
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'
 
@@ -340,6 +339,6 @@ dependencies {
     testImplementation "org.mockito:mockito-core:5.4.0"
     testImplementation "org.mockito:mockito-inline:5.2.0"
     testImplementation "org.mockito.kotlin:mockito-kotlin:5.0.0"
-    testImplementation "org.jetbrains.kotlin:kotlin-test:1.7.22"
+    testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
     testImplementation "org.json:json:20230618"
 }

@@ -1,8 +1,8 @@
+@file:OptIn(UnstableMetadataApi::class)
+
 package com.sickworm.intellij.jugg.compiler.source
 
-import kotlinx.metadata.jvm.KmModule
-import kotlinx.metadata.jvm.KotlinClassHeader
-import kotlinx.metadata.jvm.KotlinModuleMetadata
+import kotlinx.metadata.jvm.*
 import java.io.File
 
 /**
@@ -56,10 +56,13 @@ class KmModuleMerger {
      */
     fun merge(kmModuleFile: File) {
         val bytes = kmModuleFile.readBytes()
-        val metadata = KotlinModuleMetadata.read(bytes)
-            ?: // kotlin_module isEmpty, ignore
+        val metadata = try {
+            KotlinModuleMetadata.read(bytes)
+        } catch (e: Exception) {
+            // kotlin_module isEmpty, ignore
             return
-        val kmModule = metadata.toKmModule()
+        }
+        val kmModule = metadata.kmModule
         this.kmModule.merge(kmModule)
     }
 
@@ -67,19 +70,10 @@ class KmModuleMerger {
      * write kotlin module metadata to file
      */
     fun writeTo(destFile: File) {
-        val version = KotlinClassHeader.COMPATIBLE_METADATA_VERSION
-        val writer = KotlinModuleMetadata.Writer()
-        // annotations are not writable
-        // optionalAnnotationClasses are not writable
-        kmModule.packageParts.entries.forEach {
-            writer.visitPackageParts(it.key, it.value.fileFacades, it.value.multiFileClassParts)
-        }
-
-        val metadata = writer.write(version)
-
+        val metadata = KotlinModuleMetadata(kmModule, JvmMetadataVersion.LATEST_STABLE_SUPPORTED).write()
         destFile.also {
             it.parentFile?.mkdirs()
-            it.writeBytes(metadata.bytes)
+            it.writeBytes(metadata)
         }
     }
 
@@ -96,7 +90,6 @@ class KmModuleMerger {
 
     override fun toString(): String {
         val builder = StringBuilder()
-        builder.appendLine("annotations: ${kmModule.annotations}")
         builder.appendLine("optionalAnnotationClasses: ${kmModule.optionalAnnotationClasses}")
         builder.appendLine("packageParts:")
         kmModule.packageParts.forEach { (key, value) ->
@@ -108,16 +101,6 @@ class KmModuleMerger {
             }
         }
         return builder.toString()
-    }
-
-    private fun KmModule.clone(): KmModule {
-        val module = KmModule()
-        // annotations are not writable
-        // optionalAnnotationClasses are not writable
-        this.packageParts.entries.forEach {
-            module.visitPackageParts(it.key, it.value.fileFacades, it.value.multiFileClassParts)
-        }
-        return module
     }
 
     private fun KmModule.merge(ktModule: KmModule) {
