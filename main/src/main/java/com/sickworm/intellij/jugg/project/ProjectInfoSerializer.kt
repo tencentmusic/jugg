@@ -79,6 +79,17 @@ private class ProjectInfoSerialize(
         private const val SERIALIZE_VERSION: String = "6"
 
         fun create(modules: Map<String, ModuleInfo>): ProjectInfoSerialize {
+            val cacheToStringMap = mutableMapOf<Long, String>()
+            fun Long.cacheToStringMap(): String {
+                var result = cacheToStringMap[this]
+                if (result != null) {
+                    return result
+                }
+                result = this.toString()
+                cacheToStringMap[this] = result
+                return result
+            }
+
             val stringMap = mutableMapOf<String, Int>()
             var index = 0
             val moduleInfos = modules.values.map {
@@ -102,8 +113,14 @@ private class ProjectInfoSerialize(
                     moduleDependencies = it.moduleDependencies.map { moduleDependency ->
                         stringMap.getOrPut(moduleDependency.moduleName) { index++ }
                     },
-                    libraryDependencies = it.libraryDependencies.map { libraryDependency ->
-                        stringMap.getOrPut(libraryDependency.file.absolutePath) { index++ }
+                    libraryDependencies = it.libraryDependencies.let { libraryDependencies ->
+                        val result = java.util.ArrayList<StringIndex>(libraryDependencies.size * 3)
+                        libraryDependencies.forEach { libraryDependency ->
+                            result.add(stringMap.getOrPut(libraryDependency.file.absolutePath) { index++ })
+                            result.add(stringMap.getOrPut(libraryDependency.lastModifiedTime.cacheToStringMap()) { index++ })
+                            result.add(stringMap.getOrPut(libraryDependency.crc32.cacheToStringMap()) { index++ })
+                        }
+                        result
                     },
                     buildVariant = stringMap.getOrPut(it.buildVariant) { index++ },
                     kotlinFreeCompilerArgs = it.kotlinFreeCompilerArgs.map { arg ->
@@ -136,6 +153,17 @@ private class ProjectInfoSerialize(
                 stringMap[index.toString()] = s
             }
 
+            val cacheToLongMap = mutableMapOf<String, Long>()
+            fun String.cacheToLong(): Long {
+                var result = cacheToLongMap[this]
+                if (result != null) {
+                    return result
+                }
+                result = this.toLong()
+                cacheToLongMap[this] = result
+                return result
+            }
+
             val moduleInfosSize = lines[2 + stringListSize].toInt()
             val moduleInfoStrings = lines.subList(3 + stringListSize, 3 + stringListSize + moduleInfosSize)
             val modules = moduleInfoStrings.associate {
@@ -164,10 +192,17 @@ private class ProjectInfoSerialize(
                             moduleName = stringMap[moduleDependency]!!
                         )
                     },
-                    libraryDependencies = if (parts[16].isEmpty()) emptyList() else parts[16].split(":").map { libraryDependency ->
-                        LibraryDependency(
-                            file = File(stringMap[libraryDependency]!!)
-                        )
+                    libraryDependencies = if (parts[16].isEmpty()) emptyList() else parts[16].split(":").let { stringList ->
+                        val result = mutableListOf<LibraryDependency>()
+                        stringList.indices.step(3).forEach { index ->
+                            val dependency = LibraryDependency(
+                                file = File(stringMap[stringList[index]]!!),
+                                lastModifiedTime = stringMap[stringList[index + 1]]!!.cacheToLong(),
+                                crc32 = stringMap[stringList[index + 2]]!!.cacheToLong(),
+                            )
+                            result.add(dependency)
+                        }
+                        return@let result
                     },
                     kotlinFreeCompilerArgs = if (parts[17].isEmpty()) emptyList() else parts[17].split(":").map { arg ->
                         stringMap[arg]!!

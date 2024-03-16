@@ -4,6 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
@@ -309,6 +310,8 @@ data class ModuleDependency(
 
 data class LibraryDependency(
     val file: File,
+    val lastModifiedTime: Long = file.lastModified(),
+    val crc32: Long = file.crc32
 ) {
 
     val isValid get() = file.exists()
