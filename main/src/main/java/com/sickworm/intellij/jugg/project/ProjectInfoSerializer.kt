@@ -76,7 +76,7 @@ private class ProjectInfoSerialize(
 
     companion object {
 
-        private const val SERIALIZE_VERSION: String = "5"
+        private const val SERIALIZE_VERSION: String = "6"
 
         fun create(modules: Map<String, ModuleInfo>): ProjectInfoSerialize {
             val stringMap = mutableMapOf<String, Int>()
@@ -139,14 +139,14 @@ private class ProjectInfoSerialize(
             val moduleInfosSize = lines[2 + stringListSize].toInt()
             val moduleInfoStrings = lines.subList(3 + stringListSize, 3 + stringListSize + moduleInfosSize)
             val modules = moduleInfoStrings.associate {
-                val parts = it.split(";")
+                val parts = it.split("\r")
                 val moduleInfo = ModuleInfo(
                     name = stringMap[parts[0]]!!,
                     moduleRootDir = File(stringMap[parts[1]]!!),
                     projectRootDir = File(stringMap[parts[2]]!!),
-                    sourceDirs = if (parts[3].isEmpty()) emptyList() else parts[3].split(",").map { dir -> File(stringMap[dir]!!) },
-                    resourceDirs = if (parts[4].isEmpty()) emptyList() else parts[4].split(",").map { dir -> File(stringMap[dir]!!) },
-                    assetsDirs = if (parts[5].isEmpty()) emptyList() else parts[5].split(",").map { dir -> File(stringMap[dir]!!) },
+                    sourceDirs = if (parts[3].isEmpty()) emptyList() else parts[3].split(":").map { dir -> File(stringMap[dir]!!) },
+                    resourceDirs = if (parts[4].isEmpty()) emptyList() else parts[4].split(":").map { dir -> File(stringMap[dir]!!) },
+                    assetsDirs = if (parts[5].isEmpty()) emptyList() else parts[5].split(":").map { dir -> File(stringMap[dir]!!) },
                     manifestFile = if (parts[6].isEmpty()) null else File(stringMap[parts[6]]!!),
                     buildVariant = stringMap[parts[7]]!!,
                     compileVersion = stringMap[parts[8]]!!.nullIfNull(),
@@ -159,17 +159,17 @@ private class ProjectInfoSerialize(
                         File(stringMap[parts[14]]!!),
                         stringMap[parts[7]]!!,
                     ),
-                    moduleDependencies = if (parts[15].isEmpty()) emptyList() else parts[15].split(",").map { moduleDependency ->
+                    moduleDependencies = if (parts[15].isEmpty()) emptyList() else parts[15].split(":").map { moduleDependency ->
                         ModuleDependency(
                             moduleName = stringMap[moduleDependency]!!
                         )
                     },
-                    libraryDependencies = if (parts[16].isEmpty()) emptyList() else parts[16].split(",").map { libraryDependency ->
+                    libraryDependencies = if (parts[16].isEmpty()) emptyList() else parts[16].split(":").map { libraryDependency ->
                         LibraryDependency(
                             file = File(stringMap[libraryDependency]!!)
                         )
                     },
-                    kotlinFreeCompilerArgs = if (parts[17].isEmpty()) emptyList() else parts[17].split(",").map { arg ->
+                    kotlinFreeCompilerArgs = if (parts[17].isEmpty()) emptyList() else parts[17].split(":").map { arg ->
                         stringMap[arg]!!
                     },
                     minSdkVersion = stringMap[parts[18]]!!.nullIfNull(),
@@ -207,24 +207,24 @@ private class ModuleInfoSerialize(
 ) {
 
     fun fill(stringBuilder: StringBuilder) {
-        stringBuilder.append(name).append(";")
-        stringBuilder.append(projectRootDir).append(";")
-        stringBuilder.append(rootDir).append(";")
-        stringBuilder.append(sourceDirs.joinToString(",")).append(";")
-        stringBuilder.append(resourceDirs.joinToString(",")).append(";")
-        stringBuilder.append(assetsDirs.joinToString(",")).append(";")
-        stringBuilder.append(manifestFile).append(";")
-        stringBuilder.append(buildVariant).append(";")
-        stringBuilder.append(compileVersion).append(";")
-        stringBuilder.append(buildToolsVersion).append(";")
-        stringBuilder.append(kotlinJvmTarget).append(";")
-        stringBuilder.append(javaSourceCompatibility).append(";")
-        stringBuilder.append(javaTargetCompatibility).append(";")
-        stringBuilder.append(buildPathInfo.first).append(";")
-        stringBuilder.append(buildPathInfo.second).append(";")
-        stringBuilder.append(moduleDependencies.joinToString(",")).append(";")
-        stringBuilder.append(libraryDependencies.joinToString(",")).append(";")
-        stringBuilder.append(kotlinFreeCompilerArgs.joinToString(",")).append(";")
+        stringBuilder.append(name).append("\r")
+        stringBuilder.append(projectRootDir).append("\r")
+        stringBuilder.append(rootDir).append("\r")
+        stringBuilder.append(sourceDirs.joinToString(":")).append("\r")
+        stringBuilder.append(resourceDirs.joinToString(":")).append("\r")
+        stringBuilder.append(assetsDirs.joinToString(":")).append("\r")
+        stringBuilder.append(manifestFile).append("\r")
+        stringBuilder.append(buildVariant).append("\r")
+        stringBuilder.append(compileVersion).append("\r")
+        stringBuilder.append(buildToolsVersion).append("\r")
+        stringBuilder.append(kotlinJvmTarget).append("\r")
+        stringBuilder.append(javaSourceCompatibility).append("\r")
+        stringBuilder.append(javaTargetCompatibility).append("\r")
+        stringBuilder.append(buildPathInfo.first).append("\r")
+        stringBuilder.append(buildPathInfo.second).append("\r")
+        stringBuilder.append(moduleDependencies.joinToString(":")).append("\r")
+        stringBuilder.append(libraryDependencies.joinToString(":")).append("\r")
+        stringBuilder.append(kotlinFreeCompilerArgs.joinToString(":")).append("\r")
         stringBuilder.append(minSdkVersion)
     }
 }
