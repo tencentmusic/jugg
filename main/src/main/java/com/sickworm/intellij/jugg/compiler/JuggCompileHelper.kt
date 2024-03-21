@@ -16,11 +16,8 @@ import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -36,6 +33,7 @@ class JuggCompilerHelper(
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,
     private val compileContextManager: CompileContextManager,
     private val fileChangesHandler: IFileChangesHandler,
+    private val dependencyChangeManager: IDependencyChangeManager,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
@@ -145,6 +143,7 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
+        dependencyChangeManager.onStartBuilding()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
         val result = task.run()
@@ -156,6 +155,7 @@ class JuggCompilerHelper(
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
         }
+        dependencyChangeManager.onEndBuilding(result.isSuccess)
         return result
     }
 
