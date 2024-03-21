@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 
 /**
@@ -15,10 +14,12 @@ class JuggPathManager(
     constructor(project2: Project, projectDir: File) : this(project2, projectDir, File("$projectDir/build/jugg"))
 
     val compileRootDir = File(juggRootDir, "build")
-    val historyDir = File(juggRootDir, "database")
+    val databaseDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
     val tmpDir = File(juggRootDir, "tmp")
     val configDir = File(juggRootDir, "config")
+
+    val projectInfosDir = File(databaseDir, "project_infos.db")
 
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
 }

@@ -30,7 +30,6 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -221,8 +220,8 @@ class MockJugg {
         fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
-        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir, coroutineScope)
+        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.databaseDir, logger)
+        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.databaseDir, coroutineScope)
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
             moduleManager, projectBuildModel, logger)

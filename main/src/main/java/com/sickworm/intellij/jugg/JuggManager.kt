@@ -44,13 +44,13 @@ class JuggManager @TestOnly constructor(
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
         pathManager.projectDir,
-        pathManager.historyDir,
+        pathManager.databaseDir,
         JuggLogger.getInstance(project, "DeployHistoryManager")
     ),
     private val deployFileManager: DeployFileManager = DeployFileManager(
         JuggLogger.getInstance(project, "DeployFileManager"),
         pathManager.tmpDir,
-        pathManager.historyDir,
+        pathManager.databaseDir,
         coroutineScope,
     ),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager),
