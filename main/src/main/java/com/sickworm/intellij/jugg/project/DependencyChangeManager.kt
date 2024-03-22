@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
+import com.google.gson.Gson
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -34,6 +35,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     enum class ChangeStatus {
         NO_CHANGE,
+        CHANGED_NOT_SYNCED,
         CHANGED_AND_REBUILD,
         CHANGED_AND_INCREMENTAL_COMPILE,
     }
@@ -63,7 +65,9 @@ fun IDependencyChangeManager.Companion.create(logger: Logger): IDependencyChange
 
 private class DependencyChangeManager(private val logger: Logger): IDependencyChangeManager {
 
-    override var changeStatus: IDependencyChangeManager.ChangeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+    override val changeStatus get() = compareInfo.changeStatus
+
+    private var hasInit: Boolean = false
 
     private var currentBuildDependencies: JuggProjectInfo? = null
 
@@ -80,28 +84,71 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     private var changedLibraries: List<File> = emptyList()
 
     private var compareInfo = object {
+        val VERSION = 1
+
+        var version = 1
+        var changeStatus: IDependencyChangeManager.ChangeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+            set(value) { field = value ; writeToFile() }
         var startSyncingTime = 0L
+            set(value) { field = value ; writeToFile() }
         var endSyncingTime = 0L
+            set(value) { field = value ; writeToFile() }
         var startBuildingTime = 0L
+            set(value) { field = value ; writeToFile() }
         var endBuildingTime = 0L
+            set(value) { field = value ; writeToFile() }
         var lastBuildChangedTime = 0L
+            set(value) { field = value ; writeToFile() }
+
         val isBuilding get() = startBuildingTime > endBuildingTime
         val isSyncing get() = startSyncingTime > endSyncingTime
+
+        var compareInfoCacheFile: File? = null
+        private fun writeToFile() {
+            compareInfoCacheFile?.parentFile?.mkdirs()
+            compareInfoCacheFile?.writeText(Gson().toJson(this))
+        }
     }
 
 
     @Synchronized
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
-        logger.debug("init dependency change manager")
+        logger.debug("init dependency change manager hasInit: $hasInit")
+        if (hasInit) {
+            return
+        }
 
+        cacheDirectory.mkdirs()
         currentBuildDependencies = JuggProjectInfo(compileContext.modules)
         val fullBuildCacheFile = File(cacheDirectory, "full_build_project_infos.dat")
         projectInfoSerializer = ProjectInfoSerializer(fullBuildCacheFile, logger)
 
         diffDependency()
+
+        val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
+        if (compareInfoCacheFile.exists()) {
+            logger.debug("load compare info cache")
+            try {
+                val cacheCompareInfo = Gson().fromJson(compareInfoCacheFile.readText(), compareInfo::class.java)
+                if (cacheCompareInfo.version != compareInfo.VERSION) {
+                    throw IllegalArgumentException("compare info cache version not match: " +
+                            "${cacheCompareInfo.version} != ${compareInfo.version}")
+                }
+                compareInfo = cacheCompareInfo
+            } catch (e: Exception) {
+                logger.debug("incorrect compare info cache: $e")
+            }
+        } else {
+            logger.debug("no compare info cache")
+        }
+        compareInfo.compareInfoCacheFile = compareInfoCacheFile
+
+        hasInit = true
     }
 
+    @Synchronized
     override fun tryShowChangConfirmDialog(project: Project) {
+        if (!hasInit) return
         logger.debug("show change confirm dialog")
         if (compareInfo.isBuilding || compareInfo.isSyncing) {
             logger.debug("skip show change confirm dialog, is building or syncing")
@@ -113,8 +160,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 val isConfirmed =DependencyConfirmDialog(project, changedLibraries).showAndGet()
                 onConfirmIncrementalCompile(isConfirmed)
             } else {
-                val hasBuildChanged = compareInfo.lastBuildChangedTime > 0
-                if (hasBuildChanged) {
+                val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
+                if (isBuildChangedAfterBuild) {
                     NoDependencyConfirmDialog(project).showAndGet()
                 }
             }
@@ -129,17 +176,26 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     @Synchronized
     override fun onUpdateChangedBuildFiles(files: List<File>) {
+        if (!hasInit) return
         logger.debug("on build file changed: $files")
-        compareInfo.lastBuildChangedTime = files.maxOf { it.lastModified() }
+        val buildChangedTime = files.maxOf { it.lastModified() }
+        if (compareInfo.lastBuildChangedTime != buildChangedTime) {
+            logger.debug("build changed time changed: ${compareInfo.lastBuildChangedTime.timeStampToTime()} " +
+                    "-> ${buildChangedTime.timeStampToTime()}")
+            compareInfo.lastBuildChangedTime = buildChangedTime
+            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED
+        }
     }
 
     override fun onStartSyncing() {
+        if (!hasInit) return
         logger.debug("on sync start")
         compareInfo.startSyncingTime = System.currentTimeMillis()
     }
 
     @Synchronized
     override fun onEndSyncing(isSuccess: Boolean, newContext: ICompileContext) {
+        if (!hasInit) return
         logger.debug("on sync finished, isSuccess $isSuccess")
         compareInfo.endSyncingTime = System.currentTimeMillis()
         if (!isSuccess) {
@@ -148,13 +204,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         currentBuildDependencies = JuggProjectInfo(newContext.modules)
         updateFullBuildDependency(isEndSyncing = true)
-        val hasDependenciesChanged = currentBuildDependencies != fullBuildDependencies
-        logger.debug("has dependencies changed $hasDependenciesChanged")
-        if (hasDependenciesChanged) {
-            diffDependency()
-        }
+        diffDependency()
 
-        changeStatus = if (changedLibraries.isEmpty()) {
+        compareInfo.changeStatus = if (changedLibraries.isEmpty()) {
             // mark as no change if diffDependency() found no library changed
             IDependencyChangeManager.ChangeStatus.NO_CHANGE
         } else {
@@ -174,11 +226,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         val hasBuildTime = startBuildingTime > 0
         val hasBuildChanged = lastBuildChangedTime > 0
         val hasSyncTime = startSyncingTime > 0
-        val faultTolerantTime = 500
-
-        // set 0.5s as fault-tolerant time to in case
-        // build changed time callback is later than sync start time
-        val isSyncLaterThanBuildChanged = hasSyncTime && (startSyncingTime + faultTolerantTime > lastBuildChangedTime)
+        val isSyncLaterThanBuildChanged = hasSyncTime && (startSyncingTime > lastBuildChangedTime)
         val isBuildLaterThanSync = hasSyncTime && hasBuildTime && (endBuildingTime > endSyncingTime)
         val isSyncLaterThenBuild = hasSyncTime && hasBuildTime && (endSyncingTime > endBuildingTime)
         val isBuildLaterThanBuildChanged = hasBuildTime && (endBuildingTime > lastBuildChangedTime)
@@ -278,12 +326,14 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     @Synchronized
     override fun onStartBuilding() {
+        if (!hasInit) return
         logger.debug("on start rebuilding")
         compareInfo.startBuildingTime = System.currentTimeMillis()
     }
 
     @Synchronized
     override fun onEndBuilding(isSuccess: Boolean) {
+        if (!hasInit) return
         logger.debug("on end building, isSuccess: $isSuccess")
         compareInfo.endBuildingTime = System.currentTimeMillis()
         updateFullBuildDependency(isEndBuilding = true)
@@ -291,9 +341,10 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     @Synchronized
     override fun onConfirmIncrementalCompile(isConfirmed: Boolean) {
+        if (!hasInit) return
         logger.debug("on mark as incremental compile, changeStatus: $changeStatus")
         if (isConfirmed && changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_AND_REBUILD) {
-            changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_AND_INCREMENTAL_COMPILE
+            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_AND_INCREMENTAL_COMPILE
         }
     }
 

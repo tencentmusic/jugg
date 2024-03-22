@@ -143,23 +143,17 @@ class JuggManager @TestOnly constructor(
             SyncEvent.SUCCEEDED -> {
                 tryCreateDefaultRunConfiguration()
                 initProjectInfo(isNeedReloadProjectInfo = true)
-                if (deployStateManager.deployState.isReadyIncCompile) {
-                    dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
-                    dependencyChangeManager.tryShowChangConfirmDialog(project)
-                }
+                dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
+                dependencyChangeManager.tryShowChangConfirmDialog(project)
             }
             SyncEvent.SKIPPED -> {
                 tryCreateDefaultRunConfiguration()
             }
             SyncEvent.STARTED -> {
-                if (deployStateManager.deployState.isReadyIncCompile) {
-                    dependencyChangeManager.onStartSyncing()
-                }
+                dependencyChangeManager.onStartSyncing()
             }
             SyncEvent.FAILED -> {
-                if (deployStateManager.deployState.isReadyIncCompile) {
-                    dependencyChangeManager.onEndSyncing(false, compileContextManager.compileContext)
-                }
+                dependencyChangeManager.onEndSyncing(false, compileContextManager.compileContext)
             }
         }
     }
@@ -388,9 +382,9 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    fun markAsSyncedAndReInitCompiler(isNeedReloadProjectInfo: Boolean) {
+    fun markAsSyncedAndReInitCompiler() {
         logger.info("[test options] markAsSyncedAndReInitCompiler")
-        initProjectInfo(isNeedReloadProjectInfo)
+        onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
     fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
