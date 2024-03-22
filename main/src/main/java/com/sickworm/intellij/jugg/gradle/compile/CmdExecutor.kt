@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.IOException
 import java.io.PrintStream
+import java.nio.charset.Charset
 
 
 class CmdExecutor(
@@ -45,7 +46,12 @@ class CmdExecutor(
         val commander = PrintStream(process.outputStream, false)
         val errorPrintThread = object : Thread() {
             override fun run() {
-                val reader = process.errorStream.bufferedReader(Charsets.UTF_8)
+                val charset = if (isWindows && Charset.isSupported("GBK")) {
+                    Charset.forName("GBK")
+                } else {
+                    Charsets.UTF_8
+                }
+                val reader = process.errorStream.bufferedReader(charset)
                 while (!isInterrupted) {
                     try {
                         val line = reader.readLine()
