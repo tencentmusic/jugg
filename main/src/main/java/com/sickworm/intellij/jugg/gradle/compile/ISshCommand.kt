@@ -45,7 +45,8 @@ abstract class BaseSshCommand : ISshCommand {
             baseCommand
         }
         val command = if (isWindows) {
-            "$fixedBaseCommand && (echo. & echo ${RESULT_ECHO}0& echo.) || (echo. & echo ${RESULT_ECHO}1& echo.)"
+            val escapeResultEcho = RESULT_ECHO.replace("(", "^(").replace(")", "^)")
+            "$fixedBaseCommand && (echo. & echo ${escapeResultEcho}0& echo.) || (echo. & echo ${escapeResultEcho}1& echo.)"
         } else {
             "$fixedBaseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
         }

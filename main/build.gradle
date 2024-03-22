@@ -106,6 +106,7 @@ patchPluginXml.changeNotes = """
 <h2>1.2.2 (2024.03.16)</h2>
 <ol>
 <li>[feature] supports Kotlin 1.9</li>
+<li>[bugfix] fix Windows local build failed by escape '(' and ')'</li>
 </ol>
 <h2>1.2.1 (2024.02.27)</h2>
 <ol>
