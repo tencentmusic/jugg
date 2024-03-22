@@ -7,12 +7,17 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.ui.dsl.builder.RowLayout
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.ui.JBUI
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import javax.swing.Action
 import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
  * Used to manage the change of dependencies for library incremental compilation & deployment.
@@ -98,9 +103,21 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     override fun tryShowChangConfirmDialog(project: Project) {
         logger.debug("show change confirm dialog")
+        if (compareInfo.isBuilding || compareInfo.isSyncing) {
+            logger.debug("skip show change confirm dialog, is building or syncing")
+            return
+        }
+
         ApplicationManager.getApplication().invokeLater {
-            val isConfirmed = ConfirmDependencyDialog(project).showAndGet()
-            onConfirmIncrementalCompile(isConfirmed)
+            if (changedLibraries.isNotEmpty()) {
+                val isConfirmed =DependencyConfirmDialog(project, changedLibraries).showAndGet()
+                onConfirmIncrementalCompile(isConfirmed)
+            } else {
+                val hasBuildChanged = compareInfo.lastBuildChangedTime > 0
+                if (hasBuildChanged) {
+                    NoDependencyConfirmDialog(project).showAndGet()
+                }
+            }
         }
     }
 
@@ -285,10 +302,10 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 }
 
-private class ConfirmDependencyDialog(project: Project): DialogWrapper(project) {
+private class DependencyConfirmDialog(project: Project, private val changedLibraries: List<File>): DialogWrapper(project) {
 
     init {
-        title = "Sample"
+        title = "Hey! Jugg Found Some Libraries Changed"
         init()
     }
 
@@ -296,26 +313,82 @@ private class ConfirmDependencyDialog(project: Project): DialogWrapper(project) 
         return createDialog()
     }
 
+    override fun createActions(): Array<Action> {
+        setCancelButtonText("No, Fallback to Gradle Build")
+        setOKButtonText("Yes, Incremental Compile These Changes")
+        return super.createActions()
+    }
+
     private fun createDialog(): DialogPanel {
+        val changedList = changedLibraries.map {
+            val path = it.absolutePath
+            if (path.contains("${File.separator}transformed${File.separator}")) {
+                path.substringAfter("${File.separator}transformed${File.separator}")
+                    .substringBefore(File.separator)
+            } else if (path.contains("${File.separator}files-2.1${File.separator}")) {
+                it.nameWithoutExtension
+            } else {
+                path
+            }
+        }.toSet()
         return panel {
-            row("Row1 label:") {
-                textField()
-                label("Some text")
+            row {
+                label("Jugg found some dependencies changed.")
             }
-
-            row("Row2:") {
-                label("This text is aligned with previous row")
+            row {
+                label("Do you want to incremental compile the changed libraries?")
             }
-
-            row("Row3:") {
-                label("Rows 3 and 4 are in common parent grid")
-                textField()
-            }.layout(RowLayout.PARENT_GRID)
-
-            row("Row4:") {
-                textField()
-                label("Rows 3 and 4 are in common parent grid")
-            }.layout(RowLayout.PARENT_GRID)
+            row {
+                label("Caution: This may cause unexpected build result, if there are more changes about gradle build.").bold()
+            }
+            row {
+                label("Please check the gradle change carefully before you make a decision.").bold()
+            }
+            row {
+                label("Changed libraries:")
+            }
+            changedList.forEach {
+                row {
+                    label(it).bold()
+                }
+            }
         }
     }
 }
+
+private class NoDependencyConfirmDialog(project: Project): DialogWrapper(project) {
+
+    init {
+        title = "Jugg: Oops, No Library Changes Found"
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent {
+        val mainPanel = JPanel(GridBagLayout())
+        val content = """<html>
+            |<p>Jugg found build file is changed, but no dependencies change is found.</p>
+            |<p>Do you want to ignore build files changed?</p>
+            |<p><b>Caution: This may cause unexpected build result!</b></p>
+            |</html>""".trimMargin()
+
+        val constraints = GridBagConstraints()
+        constraints.gridx = 0
+        constraints.gridy = 0
+        constraints.fill = GridBagConstraints.HORIZONTAL
+
+        constraints.insets = JBUI.insetsBottom(12)
+        constraints.gridwidth = 1
+        mainPanel.add(JBLabel(content), constraints)
+        constraints.gridy++
+
+        return mainPanel
+    }
+
+    override fun createActions(): Array<Action> {
+        setCancelButtonText("No, Fallback to Gradle Build")
+        setOKButtonText("Yes, Ignore This Build Changes")
+        return super.createActions()
+    }
+
+}
+
