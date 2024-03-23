@@ -7,9 +7,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.LibraryDependency
-import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -357,20 +355,11 @@ private class DependencyConfirmDialog(project: Project, private val changedLibra
 
     init {
         title = "Hey! Jugg Found Some Libraries Changed"
+        isResizable = false
         init()
     }
 
     override fun createCenterPanel(): JComponent {
-        return createDialog()
-    }
-
-    override fun createActions(): Array<Action> {
-        setCancelButtonText("No, Fallback to Gradle Build")
-        setOKButtonText("Yes, Incremental Compile These Changes")
-        return super.createActions()
-    }
-
-    private fun createDialog(): DialogPanel {
         val changedList = changedLibraries.map {
             val path = it.absolutePath
             if (path.contains("${File.separator}transformed${File.separator}")) {
@@ -382,28 +371,34 @@ private class DependencyConfirmDialog(project: Project, private val changedLibra
                 path
             }
         }.toSet()
-        return panel {
-            row {
-                label("Jugg found some dependencies changed.")
-            }
-            row {
-                label("Do you want to incremental compile the changed libraries?")
-            }
-            row {
-                label("Caution: This may cause unexpected build result, if there are more changes about gradle build.").bold()
-            }
-            row {
-                label("Please check the gradle change carefully before you make a decision.").bold()
-            }
-            row {
-                label("Changed libraries:")
-            }
-            changedList.forEach {
-                row {
-                    label(it).bold()
-                }
-            }
-        }
+
+        val mainPanel = JPanel(GridBagLayout())
+
+        val constraints = GridBagConstraints()
+        constraints.gridx = 0
+        constraints.gridy = 0
+        constraints.fill = GridBagConstraints.HORIZONTAL
+        constraints.insets = JBUI.insetsBottom(12)
+        constraints.gridwidth = 1
+        val text = JBLabel(
+            """<html>
+            |<p>Do you want to <b>incremental compile</b> these changed libraries?</p>
+            |<ul>
+            |${changedList.joinToString("\n") { "<li>$it</li>" }}
+            |</ul>
+            |<p><b>Caution: This may cause unexpected build result, Please check the change carefully<br>before you make a decision.</b></p>
+            |</html>
+            |""".trimMargin()
+        )
+        mainPanel.add(text, constraints)
+
+        return mainPanel
+    }
+
+    override fun createActions(): Array<Action> {
+        setCancelButtonText("No, Fallback to Gradle Build")
+        setOKButtonText("Yes, Incremental Compile These Changes")
+        return super.createActions()
     }
 }
 
@@ -411,16 +406,12 @@ private class NoDependencyConfirmDialog(project: Project): DialogWrapper(project
 
     init {
         title = "Jugg: Oops, No Library Changes Found"
+        isResizable = false
         init()
     }
 
     override fun createCenterPanel(): JComponent {
         val mainPanel = JPanel(GridBagLayout())
-        val content = """<html>
-            |<p>Jugg found build file is changed, but no dependencies change is found.</p>
-            |<p>Do you want to ignore build files changed?</p>
-            |<p><b>Caution: This may cause unexpected build result!</b></p>
-            |</html>""".trimMargin()
 
         val constraints = GridBagConstraints()
         constraints.gridx = 0
@@ -429,15 +420,21 @@ private class NoDependencyConfirmDialog(project: Project): DialogWrapper(project
 
         constraints.insets = JBUI.insetsBottom(12)
         constraints.gridwidth = 1
-        mainPanel.add(JBLabel(content), constraints)
-        constraints.gridy++
+        val text = JBLabel(
+            """<html>
+            |<p>Do you want to <b>ignore</b> build files changed?<br>
+            |<b>Caution: This may cause unexpected build result!</b></p>
+            |</html>
+            |""".trimMargin()
+        )
+        mainPanel.add(text, constraints)
 
         return mainPanel
     }
 
     override fun createActions(): Array<Action> {
         setCancelButtonText("No, Fallback to Gradle Build")
-        setOKButtonText("Yes, Ignore This Build Changes")
+        setOKButtonText("Yes, Ignore Build Changes")
         return super.createActions()
     }
 
