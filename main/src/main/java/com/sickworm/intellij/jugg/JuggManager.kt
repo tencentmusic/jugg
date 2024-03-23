@@ -118,16 +118,11 @@ class JuggManager @TestOnly constructor(
         // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
         juggRunningTaskStatusManager.resetHasRun()
 
-        if (!deployStateManager.deployState.isReadyIncCompile) {
-            logger.debug("Deploy state is not ready inc compile")
-        } else {
-            logger.debug("Deploy state is ready inc compile")
-            val isSuccess = compileContextManager.refreshCompileContext()
-            if (isSuccess) {
-                reInitOnCompileContextUpdate()
-                dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
-                dependencyChangeManager.tryShowChangConfirmDialog(project)
-            }
+        val isSuccess = compileContextManager.refreshCompileContext()
+        if (isSuccess) {
+            reInitOnCompileContextUpdate()
+            dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
+            dependencyChangeManager.tryShowChangConfirmDialog(project)
         }
     }
 
