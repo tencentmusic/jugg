@@ -204,7 +204,6 @@ class JuggManager @TestOnly constructor(
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
-        dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
         // step 3: recover changed files
         processFileChanged(deployContextRecoverInfo.changedFiles)
         // step 4: update deploy state
@@ -429,6 +428,7 @@ class JuggManager @TestOnly constructor(
         val costTime = measureTimeMillis {
             compileContextManager.initFullBuildInfo(compileContextInfo, false)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles, startCompileTime)
+            dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
             reInitOnCompileContextUpdate()
         }
         logger.debug("Init compile cost ${costTime}ms")
