@@ -108,6 +108,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
     }
 
+    private var nextStartSyncingTime = 0L
+    private var nextStartBuildingTime = 0L
 
     @Synchronized
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
@@ -188,17 +190,19 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun onStartSyncing() {
         if (!hasInit) return
         logger.debug("on sync start")
-        compareInfo.startSyncingTime = System.currentTimeMillis()
+        nextStartSyncingTime = System.currentTimeMillis()
     }
 
     @Synchronized
     override fun onEndSyncing(isSuccess: Boolean, newContext: ICompileContext) {
         if (!hasInit) return
         logger.debug("on sync finished, isSuccess $isSuccess")
-        compareInfo.endSyncingTime = System.currentTimeMillis()
         if (!isSuccess) {
             return
         }
+
+        compareInfo.startSyncingTime = nextStartSyncingTime
+        compareInfo.endSyncingTime = System.currentTimeMillis()
 
         currentBuildDependencies = JuggProjectInfo(newContext.modules)
         updateFullBuildDependency(isEndSyncing = true)
@@ -326,13 +330,18 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun onStartBuilding() {
         if (!hasInit) return
         logger.debug("on start rebuilding")
-        compareInfo.startBuildingTime = System.currentTimeMillis()
+        nextStartBuildingTime = System.currentTimeMillis()
     }
 
     @Synchronized
     override fun onEndBuilding(isSuccess: Boolean) {
         if (!hasInit) return
         logger.debug("on end building, isSuccess: $isSuccess")
+        if (!isSuccess) {
+            return
+        }
+
+        compareInfo.startBuildingTime = nextStartBuildingTime
         compareInfo.endBuildingTime = System.currentTimeMillis()
         updateFullBuildDependency(isEndBuilding = true)
     }
