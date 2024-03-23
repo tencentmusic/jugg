@@ -78,7 +78,7 @@ class JuggManager @TestOnly constructor(
             logger.info("Start jugg finished.")
 
             // init project info async
-            initProjectInfo(isNeedReloadProjectInfo = false)
+            runTaskSafe("Init project info", ::recoverDeployContext)
 
             // init deployment service async
             JuggDeploymentService.postWithLock {
@@ -114,27 +114,21 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    fun initProjectInfo(isNeedReloadProjectInfo: Boolean) {
-        runTaskSafe("Init Project Info", {
-            if (isNeedReloadProjectInfo) {
-                // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
-                juggRunningTaskStatusManager.resetHasRun()
-            }
+    private fun onSyncSuccess() {
+        // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
+        juggRunningTaskStatusManager.resetHasRun()
 
-            if (!deployStateManager.deployState.isReadyIncCompile) {
-                logger.debug("Deploy state is not ready inc compile")
-                recoverDeployContext(isNeedReloadProjectInfo)
-            } else {
-                logger.debug("Deploy state is ready inc compile, isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
-                if (!isNeedReloadProjectInfo) {
-                    return@runTaskSafe
-                }
-                val isSuccess = compileContextManager.refreshCompileContext()
-                if (isSuccess) {
-                    reInitOnCompileContextUpdate()
-                }
+        if (!deployStateManager.deployState.isReadyIncCompile) {
+            logger.debug("Deploy state is not ready inc compile")
+        } else {
+            logger.debug("Deploy state is ready inc compile")
+            val isSuccess = compileContextManager.refreshCompileContext()
+            if (isSuccess) {
+                reInitOnCompileContextUpdate()
+                dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
+                dependencyChangeManager.tryShowChangConfirmDialog(project)
             }
-        })
+        }
     }
 
     fun onSyncEvent(syncEvent: SyncEvent) {
@@ -142,9 +136,7 @@ class JuggManager @TestOnly constructor(
         when (syncEvent) {
             SyncEvent.SUCCEEDED -> {
                 tryCreateDefaultRunConfiguration()
-                initProjectInfo(isNeedReloadProjectInfo = true)
-                dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
-                dependencyChangeManager.tryShowChangConfirmDialog(project)
+                runTaskSafe("Update project info", ::onSyncSuccess)
             }
             SyncEvent.SKIPPED -> {
                 tryCreateDefaultRunConfiguration()
@@ -193,7 +185,7 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun recoverDeployContext(isNeedReloadProjectInfo: Boolean) {
+    private fun recoverDeployContext() {
         logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
@@ -207,7 +199,8 @@ class JuggManager @TestOnly constructor(
 
         // step 1: recover compile context
         initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles,
-            isNeedReloadProjectInfo, false, null)
+            isNeedWarmUpDeploy = false, startCompileTime = null
+        )
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
@@ -370,7 +363,7 @@ class JuggManager @TestOnly constructor(
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
-        initCompile(compileContextInfo, emptyList(), false,
+        initCompile(compileContextInfo, emptyList(),
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
@@ -426,16 +419,15 @@ class JuggManager @TestOnly constructor(
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
-        isNeedReloadProjectInfo: Boolean,
         isNeedWarmUpDeploy: Boolean,
         startCompileTime: Long?,
     ) {
-        logger.info("Init compile... isNeedReloadProjectInfo=$isNeedReloadProjectInfo")
+        logger.info("Init compile...")
 
         deployStateManager.isBuildFileChanged = false
 
         val costTime = measureTimeMillis {
-            compileContextManager.initFullBuildInfo(compileContextInfo, isNeedReloadProjectInfo)
+            compileContextManager.initFullBuildInfo(compileContextInfo, false)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles, startCompileTime)
             reInitOnCompileContextUpdate()
         }
