@@ -93,7 +93,7 @@ class MockJugg {
     fun loadFromHistory() {
         renewComponents()
         renewManager()
-        juggManager.initProjectInfo(false)
+        juggManager.recoverDeployContext()
         deployFileManager.reset()
     }
 

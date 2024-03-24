@@ -180,7 +180,8 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun recoverDeployContext() {
+    @TestOnly
+    fun recoverDeployContext() {
         logger.debug("Start recover deploy context")
 
         val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
