@@ -76,7 +76,7 @@ private class ProjectInfoSerialize(
 
     companion object {
 
-        private const val SERIALIZE_VERSION: String = "6"
+        private const val SERIALIZE_VERSION: String = "7"
 
         fun create(modules: Map<String, ModuleInfo>): ProjectInfoSerialize {
             val cacheToStringMap = mutableMapOf<Long, String>()
@@ -194,11 +194,12 @@ private class ProjectInfoSerialize(
                     },
                     libraryDependencies = if (parts[16].isEmpty()) emptyList() else parts[16].split(":").let { stringList ->
                         val result = mutableListOf<LibraryDependency>()
-                        stringList.indices.step(3).forEach { index ->
+                        stringList.indices.step(4).forEach { index ->
                             val dependency = LibraryDependency(
-                                file = File(stringMap[stringList[index]]!!),
-                                lastModifiedTime = stringMap[stringList[index + 1]]!!.cacheToLong(),
-                                crc32 = stringMap[stringList[index + 2]]!!.cacheToLong(),
+                                name = stringMap[stringList[index]]!!,
+                                file = File(stringMap[stringList[index + 1]]!!),
+                                lastModifiedTime = stringMap[stringList[index + 2]]!!.cacheToLong(),
+                                crc32 = stringMap[stringList[index + 3]]!!.cacheToLong(),
                             )
                             result.add(dependency)
                         }

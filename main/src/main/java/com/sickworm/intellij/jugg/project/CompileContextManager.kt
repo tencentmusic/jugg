@@ -345,7 +345,8 @@ class CompileContextManager(
                             val key = "${ioFile.absolutePath}:${ioFile.lastModified()}"
                             var libraryDependency = dependencyCacheMap[key]
                             if (libraryDependency == null) {
-                                libraryDependency = LibraryDependency(file.toIoFile())
+                                val name = it.libraryName ?: "NoName: ${ioFile.absolutePath}"
+                                libraryDependency = LibraryDependency(name, ioFile)
                                 dependencyCacheMap[key] = libraryDependency
                             } else {
                                 hitCacheCount++

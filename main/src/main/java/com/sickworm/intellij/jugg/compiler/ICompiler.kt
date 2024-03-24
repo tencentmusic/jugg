@@ -309,6 +309,7 @@ data class ModuleDependency(
 )
 
 data class LibraryDependency(
+    val name: String,
     val file: File,
     val lastModifiedTime: Long = file.lastModified(),
     val crc32: Long = file.crc32

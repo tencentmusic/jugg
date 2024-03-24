@@ -29,7 +29,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun tryShowChangConfirmDialog(project: Project)
 
-    fun getChangedLibraries(): List<File>
+    fun getChangedLibraries(): List<LibraryDependency>
 
     enum class ChangeStatus {
         NO_CHANGE,
@@ -79,7 +79,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             field = value
             projectInfoSerializer.save(value!!)
         }
-    private var changedLibraries: List<File> = emptyList()
+    private var changedLibraries: List<LibraryDependency> = emptyList()
 
     private var compareInfo = object {
         val VERSION = 1
@@ -157,7 +157,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         ApplicationManager.getApplication().invokeLater {
             if (changedLibraries.isNotEmpty()) {
-                val isConfirmed =DependencyConfirmDialog(project, changedLibraries).showAndGet()
+                val isConfirmed = DependencyConfirmDialog(project, changedLibraries).showAndGet()
                 onConfirmIncrementalCompile(isConfirmed)
             } else {
                 val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
@@ -169,7 +169,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun getChangedLibraries(): List<File> {
+    override fun getChangedLibraries(): List<LibraryDependency> {
         logger.debug("get changed libraries: $changedLibraries")
         return changedLibraries
     }
@@ -312,15 +312,15 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             return@run result
         }
 
-        val changedLibraries = mutableListOf<File>()
+        val changedLibraries = mutableListOf<LibraryDependency>()
         currentDependMap.forEach { (path, libraryDependency) ->
             val fullCompileDepend = fullCompileDependMap[path]
             if (fullCompileDepend == null) {
                 logger.debug("found new library: $libraryDependency")
-                changedLibraries.add(libraryDependency.file)
+                changedLibraries.add(libraryDependency)
             } else if (libraryDependency.crc32 != fullCompileDepend.crc32) {
                 logger.debug("found changed library: $libraryDependency")
-                changedLibraries.add(libraryDependency.file)
+                changedLibraries.add(libraryDependency)
             }
         }
         this.changedLibraries = changedLibraries
@@ -360,7 +360,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 }
 
-private class DependencyConfirmDialog(project: Project, private val changedLibraries: List<File>): DialogWrapper(project) {
+private class DependencyConfirmDialog(project: Project, private val changedLibraries: List<LibraryDependency>): DialogWrapper(project) {
 
     init {
         title = "Hey! Jugg Found Some Libraries Changed"
@@ -370,15 +370,7 @@ private class DependencyConfirmDialog(project: Project, private val changedLibra
 
     override fun createCenterPanel(): JComponent {
         val changedList = changedLibraries.map {
-            val path = it.absolutePath
-            if (path.contains("${File.separator}transformed${File.separator}")) {
-                path.substringAfter("${File.separator}transformed${File.separator}")
-                    .substringBefore(File.separator)
-            } else if (path.contains("${File.separator}files-2.1${File.separator}")) {
-                it.nameWithoutExtension
-            } else {
-                path
-            }
+            it.name
         }.toSet()
 
         val mainPanel = JPanel(GridBagLayout())
