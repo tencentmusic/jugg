@@ -48,10 +48,13 @@ class CommonConfirmDialog(
         if (cancelButtonText != null) {
             setCancelButtonText(cancelButtonText)
         }
-        if (!isShowCancelButton) {
-            cancelAction.isEnabled = false
-        }
-        return super.createActions()
+        return super.createActions().filter {
+            if (!isShowCancelButton) {
+                it != cancelAction
+            } else {
+                true
+            }
+        }.toTypedArray()
     }
 
     companion object {
