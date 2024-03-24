@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.io.File
@@ -27,7 +28,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
-    fun tryShowChangConfirmDialog(project: Project)
+    fun tryShowChangConfirmDialog()
 
     fun getChangedLibraries(): List<LibraryDependency>
 
@@ -147,7 +148,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun tryShowChangConfirmDialog(project: Project) {
+    override fun tryShowChangConfirmDialog() {
         if (!hasInit) return
         logger.debug("show change confirm dialog")
         if (compareInfo.isBuilding || compareInfo.isSyncing) {
@@ -156,13 +157,52 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
 
         ApplicationManager.getApplication().invokeLater {
+            val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
+
             if (changedLibraries.isNotEmpty()) {
-                val isConfirmed = DependencyConfirmDialog(project, changedLibraries).showAndGet()
+                logger.debug("show change confirm dialog, changedLibraries: $changedLibraries")
+                val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                    title = "Jugg: Hey! Found Some Libraries Changed",
+                    content = """<html>
+                        |<p>Do you want to <b>incremental compile</b> these changed libraries?</p>
+                        |<ul>
+                        |${changedLibraries.joinToString("\n") { "<li>${it.name}</li>" }}
+                        |</ul>
+                        |<p><b>Caution: This may cause unexpected build result, Please check the change carefully<br>
+                        |before you make a decision.</b></p>
+                        |</html>
+                        |""".trimMargin(),
+                    okButtonText = "Yes, Incremental Compile!",
+                    cancelButtonText = "No, Fallback to Gradle Later",
+                )
                 onConfirmIncrementalCompile(isConfirmed)
-            } else {
-                val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
-                if (isBuildChangedAfterBuild) {
-                    NoDependencyConfirmDialog(project).showAndGet()
+            } else if (isBuildChangedAfterBuild) {
+                if (fullBuildDependencies == null) {
+                    logger.debug("show change confirm dialog, fullBuildDependencies is null")
+                    CommonConfirmDialog.showAndGetResult(
+                        title = "Jugg: Dependency Incremental Compile Not Available",
+                        content = """<html>
+                        |<p>Please fallback to gradle once to <b>enable dependency incremental compile.</b><br>
+                        |This happens when Jugg upgraded or cache deleted.</p>
+                        |</p>
+                        |</html>
+                        |""".trimMargin(),
+                        okButtonText = "OK, I got it!",
+                        isShowCancelButton = false,
+                    )
+                } else {
+                    logger.debug("show no change confirm dialog")
+                    val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                        title = "Jugg: Oops, No Library Changes Found",
+                        content = """<html>
+                        |<p>Do you want to <b>ignore</b> build files changed?<br>
+                        |<b>Caution: This may cause unexpected build result!</b></p>
+                        |</html>
+                        |""".trimMargin(),
+                        okButtonText = "Yes, Ignore Build File Changes!",
+                        cancelButtonText = "No, Fallback to Gradle Later",
+                    )
+                    onConfirmIncrementalCompile(isConfirmed)
                 }
             }
         }
@@ -360,49 +400,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 }
 
-private class DependencyConfirmDialog(project: Project, private val changedLibraries: List<LibraryDependency>): DialogWrapper(project) {
-
-    init {
-        title = "Hey! Jugg Found Some Libraries Changed"
-        isResizable = false
-        init()
-    }
-
-    override fun createCenterPanel(): JComponent {
-        val changedList = changedLibraries.map {
-            it.name
-        }.toSet()
-
-        val mainPanel = JPanel(GridBagLayout())
-
-        val constraints = GridBagConstraints()
-        constraints.gridx = 0
-        constraints.gridy = 0
-        constraints.fill = GridBagConstraints.HORIZONTAL
-        constraints.insets = JBUI.insetsBottom(12)
-        constraints.gridwidth = 1
-        val text = JBLabel(
-            """<html>
-            |<p>Do you want to <b>incremental compile</b> these changed libraries?</p>
-            |<ul>
-            |${changedList.joinToString("\n") { "<li>$it</li>" }}
-            |</ul>
-            |<p><b>Caution: This may cause unexpected build result, Please check the change carefully<br>before you make a decision.</b></p>
-            |</html>
-            |""".trimMargin()
-        )
-        mainPanel.add(text, constraints)
-
-        return mainPanel
-    }
-
-    override fun createActions(): Array<Action> {
-        setCancelButtonText("No, Fallback to Gradle Build")
-        setOKButtonText("Yes, Incremental Compile These Changes")
-        return super.createActions()
-    }
-}
-
 private class NoDependencyConfirmDialog(project: Project): DialogWrapper(project) {
 
     init {
@@ -440,4 +437,5 @@ private class NoDependencyConfirmDialog(project: Project): DialogWrapper(project
     }
 
 }
+
 

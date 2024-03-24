@@ -6,12 +6,16 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
+import javax.swing.Action
 import javax.swing.JComponent
 import javax.swing.JPanel
 
 class CommonConfirmDialog(
     titleArg: String,
     content: String,
+    private val okButtonText: String?,
+    private val cancelButtonText: String?,
+    private val isShowCancelButton: Boolean,
 ) : DialogWrapper(true) {
 
     private val mainPanel: JPanel = JPanel(GridBagLayout())
@@ -37,12 +41,30 @@ class CommonConfirmDialog(
         return mainPanel
     }
 
+    override fun createActions(): Array<Action> {
+        if (okButtonText != null) {
+            setOKButtonText(okButtonText)
+        }
+        if (cancelButtonText != null) {
+            setCancelButtonText(cancelButtonText)
+        }
+        if (!isShowCancelButton) {
+            cancelAction.isEnabled = false
+        }
+        return super.createActions()
+    }
+
     companion object {
 
-        fun showAndGetResult(title: String, content: String): Boolean {
+        fun showAndGetResult(title: String,
+                             content: String,
+                             okButtonText: String? = null,
+                             cancelButtonText: String? = null,
+                             isShowCancelButton: Boolean = true,
+        ): Boolean {
             var result = false
             ApplicationManager.getApplication().invokeAndWait {
-                val dialog = CommonConfirmDialog(title, content)
+                val dialog = CommonConfirmDialog(title, content, okButtonText, cancelButtonText, isShowCancelButton)
                 result = dialog.showAndGet()
             }
             return result

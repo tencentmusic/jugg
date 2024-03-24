@@ -122,7 +122,7 @@ class JuggManager @TestOnly constructor(
         if (isSuccess) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
-            dependencyChangeManager.tryShowChangConfirmDialog(project)
+            dependencyChangeManager.tryShowChangConfirmDialog()
         }
     }
 
