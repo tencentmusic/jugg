@@ -15,10 +15,7 @@ class StyleableFileGenerator(
 ) {
 
     fun generateStyleableFile(context: ICompileContext, outputDir: File): File? {
-        val applicationModules = context.modules.values.filter { module ->
-            val rFile = module.buildPathInfo.rFilePath
-            return@filter rFile.exists()
-        }
+        val applicationModules = context.applicationModules
         if (applicationModules.isEmpty()) {
             logger.warn("generateStyleableFile failed, no application module found")
             return null

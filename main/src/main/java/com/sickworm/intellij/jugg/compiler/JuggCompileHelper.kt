@@ -278,7 +278,7 @@ class JuggCompilerHelper(
         }
 
         val compileFiles = undeployedFiles.map {
-            CompileFile(it.type, it.file, it.baseDir, it.module)
+            CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
         }
 
         deployStateListener.onFileStatesUpdate(compileFiles.map {

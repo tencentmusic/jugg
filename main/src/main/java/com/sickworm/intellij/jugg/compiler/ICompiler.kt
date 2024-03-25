@@ -82,7 +82,8 @@ data class CompileFile(
     val file: File,
     val baseDir: File,
     val module: ModuleInfo,
-    val dependencyPaths: List<String> = emptyList() // extra dependency paths, default use module's dependencies in CompileContext
+    val extraInfo: Map<String, Any> = emptyMap(),
+    val dependencyPaths: List<String> = emptyList(), // extra dependency paths, default use module's dependencies in CompileContext
 ) {
 
     val relativeFile get() = file.absoluteFile.relativeTo(baseDir)
@@ -226,6 +227,11 @@ interface ICompileContext {
         name = "temp_module",
         buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
     )
+
+    val applicationModules get() = modules.values.filter { module ->
+        val rFile = module.buildPathInfo.rFilePath
+        return@filter rFile.exists()
+    }
 
     val isEnableDesugared: Boolean
 

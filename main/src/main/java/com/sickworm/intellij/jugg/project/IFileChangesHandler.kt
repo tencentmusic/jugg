@@ -24,12 +24,12 @@ data class ChangedFile(
     val file: File,
     val baseDir: File,
     val module: ModuleInfo,
-    var compiledTimes: Int = 0,
+    val extraInfo: Map<String, Any> = emptyMap(),
 ) {
 
-    val hasCompiledOnce: Boolean get() = compiledTimes > 0
+    var compiledTimes: Int = 0
 
-    val isSourceFile: Boolean get() = type.isSourceFile
+    val hasCompiledOnce: Boolean get() = compiledTimes > 0
 
     override fun toString(): String {
         return """
