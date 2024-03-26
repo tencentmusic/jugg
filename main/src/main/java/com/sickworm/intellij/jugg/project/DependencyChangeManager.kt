@@ -99,9 +99,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         var lastBuildChangedTime = 0L
             set(value) { field = value ; writeToFile() }
 
-        val isBuilding get() = startBuildingTime > endBuildingTime
-        val isSyncing get() = startSyncingTime > endSyncingTime
-
         var compareInfoCacheFile: File? = null
         private fun writeToFile() {
             compareInfoCacheFile?.parentFile?.mkdirs()
@@ -111,6 +108,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     private var nextStartSyncingTime = 0L
     private var nextStartBuildingTime = 0L
+
+    private val isBuilding get() = nextStartSyncingTime != 0L
+    private val isSyncing get() = nextStartBuildingTime != 0L
 
     @Synchronized
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
@@ -151,7 +151,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun tryShowChangConfirmDialog() {
         if (!hasInit) return
         logger.debug("show change confirm dialog")
-        if (compareInfo.isBuilding || compareInfo.isSyncing) {
+        if (isBuilding || isSyncing) {
             logger.debug("skip show change confirm dialog, is building or syncing")
             return
         }
@@ -238,11 +238,13 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (!hasInit) return
         logger.debug("on sync finished, isSuccess $isSuccess")
         if (!isSuccess) {
+            nextStartSyncingTime = 0L
             return
         }
 
         compareInfo.startSyncingTime = nextStartSyncingTime
         compareInfo.endSyncingTime = System.currentTimeMillis()
+        nextStartSyncingTime = 0L
 
         currentBuildDependencies = JuggProjectInfo(newContext.modules)
         updateFullBuildDependency(isEndSyncing = true)
@@ -378,11 +380,13 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (!hasInit) return
         logger.debug("on end building, isSuccess: $isSuccess")
         if (!isSuccess) {
+            nextStartBuildingTime = 0L
             return
         }
 
         compareInfo.startBuildingTime = nextStartBuildingTime
         compareInfo.endBuildingTime = System.currentTimeMillis()
+        nextStartBuildingTime = 0L
         updateFullBuildDependency(isEndBuilding = true)
     }
 
