@@ -48,13 +48,13 @@ class DexCompileTest {
                 File(assetsLibDir, "reactive-streams-1.0.3.jar"),
                 assetsLibDir,
                 mockModule,
-            ).withJarDexFileName("#org.reactivestreams#reactive-streams.dex"),
+            ).withDependencyName("Gradle: org.reactivestreams:reactive-streams:1.0.3@aar"),
             CompileFile(
                 CompileFile.Type.Class,
                 File(assetsLibDir, "rxjava-3.0.12.jar"),
                 assetsLibDir,
                 mockModule,
-            ).withJarDexFileName("#io.reactivex.rxjava3#rxjava.dex")
+            ).withDependencyName("Gradle: io.reactivex.rxjava3:rxjava:3.0.12@aar"),
         ),
         stagingDir,
     )

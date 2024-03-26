@@ -132,7 +132,11 @@ fun List<CompileFile>.desc(): String {
             }
             .mapValues {
                 it.value.map { file ->
-                    file.file.name
+                    if (file.isDependency) {
+                        file.dependencyName + "/" + file.file.name
+                    } else {
+                        file.file.name
+                    }
                 }
             }
         val valueContent = value.entries.joinToString("\n    ", prefix = "    ") {

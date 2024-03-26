@@ -5,12 +5,9 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
-import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -37,8 +34,8 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
     enum class ChangeStatus {
         NO_CHANGE,
         CHANGED_NOT_SYNCED,
-        CHANGED_AND_REBUILD,
-        CHANGED_AND_INCREMENTAL_COMPILE,
+        REBUILD,
+        INCREMENTAL_COMPILE,
     }
 
     companion object
@@ -165,16 +162,19 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         ApplicationManager.getApplication().invokeLater {
             val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
 
+            val libraryNames = changedLibraries.map { it.name }.toSet()
+
             if (changedLibraries.isNotEmpty()) {
                 logger.debug("show change confirm dialog, changedLibraries: $changedLibraries")
                 val isConfirmed = CommonConfirmDialog.showAndGetResult(
                     title = "Jugg: Hey! Found Some Libraries Changed",
                     content = """<html>
-                        |<p>Do you want to <b>incremental compile</b> these changed libraries?</p>
+                        |<p>Do you want to <b>incremental compile</b> these changed libraries?
                         |<ul>
-                        |${changedLibraries.joinToString("\n") { "<li>${it.name}</li>" }}
+                        |${libraryNames.joinToString("\n") { "<li>${it}</li>" }}
                         |</ul>
-                        |<p><b>Caution: This may cause unexpected build result, Please check the change carefully<br>
+                        |</p>
+                        |<p><b>Caution: This may cause unexpected build result, Please check changes carefully<br>
                         |before you make a decision.</b></p>
                         |</html>
                         |""".trimMargin(),
@@ -228,20 +228,21 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     file = it.file,
                     baseDir = it.file,
                     module = tempModule,
-                )
+                ).withDependencyName(it.name)
             } else {
                 ChangedFile(
                     type = CompileFile.Type.Class,
                     file = it.file,
                     baseDir = it.file.parentFile!!,
                     module = tempModule,
-                )
+                ).withDependencyName(it.name)
             }
         }
 
         logger.debug("changed files: $changedFiles")
         return changedFiles
     }
+
 
     @Synchronized
     override fun onUpdateChangedBuildFiles(files: List<File>) {
@@ -284,7 +285,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             // mark as no change if diffDependency() found no library changed
             IDependencyChangeManager.ChangeStatus.NO_CHANGE
         } else {
-            IDependencyChangeManager.ChangeStatus.CHANGED_AND_REBUILD
+            IDependencyChangeManager.ChangeStatus.REBUILD
         }
         logger.debug("on sync finished, changeStatus: $changeStatus, changedLibraries: $changedLibraries")
     }
@@ -297,9 +298,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     private fun isFullBuildDependency(isEndSyncing: Boolean, isEndBuilding: Boolean): Boolean = compareInfo.run {
-        val hasBuildTime = startBuildingTime > 0
+        val hasBuildTime = startBuildingTime > 0 && endBuildingTime > 0
         val hasBuildChanged = lastBuildChangedTime > 0
-        val hasSyncTime = startSyncingTime > 0
+        val hasSyncTime = startSyncingTime > 0 && endSyncingTime > 0
         val isSyncLaterThanBuildChanged = hasSyncTime && (startSyncingTime > lastBuildChangedTime)
         val isBuildLaterThanSync = hasSyncTime && hasBuildTime && (endBuildingTime > endSyncingTime)
         val isSyncLaterThenBuild = hasSyncTime && hasBuildTime && (endSyncingTime > endBuildingTime)
@@ -424,8 +425,10 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun onConfirmIncrementalCompile(isConfirmed: Boolean) {
         if (!hasInit) return
         logger.debug("on mark as incremental compile, changeStatus: $changeStatus")
-        if (isConfirmed && changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_AND_REBUILD) {
-            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_AND_INCREMENTAL_COMPILE
+        if (isConfirmed) {
+            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+        } else {
+            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.REBUILD
         }
     }
 

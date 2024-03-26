@@ -164,14 +164,17 @@ class JuggCompilerHelper(
      * We need to do it here because file may not change on disk when AsyncFileListener callback
      */
     private fun checkFilesRollback() {
+        val forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
                 it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
             }
             // unnecessary to check if file size is small and no build file changed
-            val isShouldCheck = uncompiledFiles.size > 20 || changedBuildFile != null
-            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, changedBuildFile: ${changedBuildFile != null}, isShouldCheck: $isShouldCheck")
+            val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null && !forceIncrementalCompile)
+            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, changedBuildFile: ${changedBuildFile != null}, " +
+                    "forceIncrementalCompile: $forceIncrementalCompile, isShouldCheck: $isShouldCheck")
 
             if (isShouldCheck) {
                 try {
@@ -199,7 +202,7 @@ class JuggCompilerHelper(
         val changedBuildFile = deployFileManager.getUncompiledFiles().find {
             it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
         }
-        if (changedBuildFile != null) {
+        if (changedBuildFile != null && !forceIncrementalCompile) {
             deployStateManager.isBuildFileChanged = true
             deployStateManager.whatBuildFileChanged = changedBuildFile.file.name
             logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")
@@ -233,9 +236,10 @@ class JuggCompilerHelper(
 
         // read all undeployed files
         val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
-        if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_AND_INCREMENTAL_COMPILE) {
+        if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             val undeployedLibraries = dependencyChangeManager.getChangedLibrarySources()
             undeployedFiles.addAll(undeployedLibraries)
+            undeployedFiles.removeIf { it.type == CompileFile.Type.Gradle }
             logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
         }
 

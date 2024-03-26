@@ -116,6 +116,7 @@ private class ProjectInfoSerialize(
                     libraryDependencies = it.libraryDependencies.let { libraryDependencies ->
                         val result = java.util.ArrayList<StringIndex>(libraryDependencies.size * 3)
                         libraryDependencies.forEach { libraryDependency ->
+                            result.add(stringMap.getOrPut(libraryDependency.name) { index++ })
                             result.add(stringMap.getOrPut(libraryDependency.file.absolutePath) { index++ })
                             result.add(stringMap.getOrPut(libraryDependency.lastModifiedTime.cacheToStringMap()) { index++ })
                             result.add(stringMap.getOrPut(libraryDependency.crc32.cacheToStringMap()) { index++ })

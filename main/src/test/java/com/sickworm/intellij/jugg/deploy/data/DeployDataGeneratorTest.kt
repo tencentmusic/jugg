@@ -468,7 +468,7 @@ class DeployDataGeneratorTest {
                     File(assetsLibDir, "rxjava-3.0.12.jar"),
                     File(assetsLibDir, "rxjava-3.0.12.jar"),
                     mockModule,
-                ).withJarDexFileName("#io.reactivex.rxjava3#rxjava.dex")
+                ).withDependencyName("Gradle: io.reactivex.rxjava3:rxjava:3.0.12@aar")
             ),
             outputDir = stagingDir,
         )
