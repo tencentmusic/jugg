@@ -163,15 +163,15 @@ open class DeployItem(
 
 class ClassDeployItem(
     val deployItem: DeployItem,
-    val classNode: ClassNode
+    val classNodes: List<ClassNode>
 ) {
+
+    val isMultipleDex: Boolean get() = classNodes.size > 1
 
     val name: String get() = deployItem.name
     val type: CompileOutput.Type get() = deployItem.type
     val checksum: Long get() = deployItem.checksum
     val content: ByteArray get() = deployItem.content
-
-    val sigName get() = classNode.className
 
     fun toIncompleteDexClass(): DexClass {
         return DexClass(name, checksum, content, null)

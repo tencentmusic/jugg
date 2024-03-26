@@ -47,7 +47,9 @@ class DeployDataGenerator(
         val startTime = System.currentTimeMillis()
 
         val changedClasses = parsedDex.classDeployItems
-        val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.map { it.sigName })
+        val oldClassNodes = deployDataDatabase.getClassNodes(changedClasses.flatMap {
+            it.classNodes.map(ClassNode::className)
+        })
         val newClasses = mutableListOf<ClassDeployItem>()
         val hotReloadModifiedClasses = mutableListOf<ClassDeployItem>()
         val hotFixModifiedClasses = mutableListOf<ClassDeployItem>()
@@ -56,7 +58,14 @@ class DeployDataGenerator(
         val changedAbstractClasses = mutableListOf<ClassNode>()
         val deletedNormalMethodClasses = mutableListOf<ClassNode>()
         changedClasses.forEach {
-            val className = it.sigName
+            if (it.isMultipleDex) {
+                logger.debug("deploy dex ${it.name} is multiple dex, need hot fix.")
+                hotFixModifiedClasses.add(it)
+                return@forEach
+            }
+
+            val newClassNode = it.classNodes.first()
+            val className = newClassNode.className
             val oldClassNode: ClassNode? = oldClassNodes[className]
             if (oldClassNode == null) {
                 newClasses.add(it)
@@ -64,7 +73,6 @@ class DeployDataGenerator(
             }
 
             // compare class node difference
-            val newClassNode = it.classNode
             val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
             if (result.isCanHotReload) {
                 // no breaking changes, hot reload

@@ -1,12 +1,11 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.googlecode.d2j.DexConstants
-import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
 import com.sickworm.intellij.jugg.compiler.overlay.DexPackageRenamer
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
 import com.sickworm.intellij.jugg.deploy.data.ApkParser
-import com.sickworm.intellij.jugg.deploy.data.DexFileNodeCollector
+import com.sickworm.intellij.jugg.deploy.data.classNode
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.clearBuild
 import org.junit.Before
