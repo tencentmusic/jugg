@@ -232,7 +232,13 @@ class JuggCompilerHelper(
         }
 
         // read all undeployed files
-        val undeployedFiles = deployFileManager.getUndeployedFiles()
+        val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
+        if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_AND_INCREMENTAL_COMPILE) {
+            val undeployedLibraries = dependencyChangeManager.getChangedLibrarySources()
+            undeployedFiles.addAll(undeployedLibraries)
+            logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
+        }
+
         if (deployFileManager.isNoFileChanges()) {
             val deviceName = deployTargetManager.getDeviceNameList()
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {

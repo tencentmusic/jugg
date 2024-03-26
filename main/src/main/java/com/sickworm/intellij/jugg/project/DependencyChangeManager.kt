@@ -9,6 +9,8 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -30,7 +32,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun tryShowChangConfirmDialog()
 
-    fun getChangedLibraries(): List<LibraryDependency>
+    fun getChangedLibrarySources(): List<ChangedFile>
 
     enum class ChangeStatus {
         NO_CHANGE,
@@ -67,6 +69,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override val changeStatus get() = compareInfo.changeStatus
 
     private var hasInit: Boolean = false
+
+    private lateinit var tempModule: ModuleInfo
 
     private var currentBuildDependencies: JuggProjectInfo? = null
 
@@ -118,6 +122,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (hasInit) {
             return
         }
+
+        this.tempModule = compileContext.tempModule
 
         cacheDirectory.mkdirs()
         currentBuildDependencies = JuggProjectInfo(compileContext.modules)
@@ -209,9 +215,32 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun getChangedLibraries(): List<LibraryDependency> {
+    override fun getChangedLibrarySources(): List<ChangedFile> {
         logger.debug("get changed libraries: $changedLibraries")
-        return changedLibraries
+
+        val changedFiles = changedLibraries.mapNotNull {
+            if (it.isAndroidManifest) {
+                // TODO check AndroidManifest.xml changes
+                null
+            } else if (it.isRes) {
+                ChangedFile(
+                    type = CompileFile.Type.Resource,
+                    file = it.file,
+                    baseDir = it.file,
+                    module = tempModule,
+                )
+            } else {
+                ChangedFile(
+                    type = CompileFile.Type.Class,
+                    file = it.file,
+                    baseDir = it.file.parentFile!!,
+                    module = tempModule,
+                )
+            }
+        }
+
+        logger.debug("changed files: $changedFiles")
+        return changedFiles
     }
 
     @Synchronized
@@ -242,6 +271,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             return
         }
 
+        tempModule = newContext.tempModule
         compareInfo.startSyncingTime = nextStartSyncingTime
         compareInfo.endSyncingTime = System.currentTimeMillis()
         nextStartSyncingTime = 0L
