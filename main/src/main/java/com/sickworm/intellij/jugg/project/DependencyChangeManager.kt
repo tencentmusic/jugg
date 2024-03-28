@@ -331,7 +331,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         // situation 1: build changed -> sync finished -> build finished
         if (isEndBuilding) {
             if (isBuildLaterThanSync) {
-                logger.debug("isFullBuildDependency true, hit situation 1")
+                logger.debug("isFullBuildDependency true, hit situation 1: build changed -> sync finished -> build finished")
                 return true
             }
         }
@@ -339,7 +339,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         // situation 2: build changed -> build finished -> sync finished
         if (isEndSyncing) {
             if (isSyncLaterThenBuild) {
-                logger.debug("isFullBuildDependency true, hit situation 2")
+                logger.debug("isFullBuildDependency true, hit situation 2: build changed -> build finished -> sync finished")
                 return true
             }
         }
@@ -348,7 +348,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (isEndSyncing) {
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasBuildChanged) {
-                logger.debug("isFullBuildDependency true, hit situation 3")
+                logger.debug("isFullBuildDependency true, hit situation 3: sync finished (no build file changes)")
                 return true
             }
         }
@@ -357,7 +357,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (isOnInit) {
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasSyncTime && !hasBuildChanged) {
-                logger.debug("isFullBuildDependency true, hit situation 4")
+                logger.debug("isFullBuildDependency true, hit situation 4: first init, no full dependency")
                 return true
             }
         }
