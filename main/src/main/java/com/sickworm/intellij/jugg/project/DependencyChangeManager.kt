@@ -127,8 +127,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         val fullBuildCacheFile = File(cacheDirectory, "full_build_project_infos.dat")
         projectInfoSerializer = ProjectInfoSerializer(fullBuildCacheFile, logger)
 
-        diffDependency()
-
         val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
         if (compareInfoCacheFile.exists()) {
             logger.debug("load compare info cache")
@@ -146,6 +144,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             logger.debug("no compare info cache")
         }
         compareInfo.compareInfoCacheFile = compareInfoCacheFile
+
+        updateFullBuildDependency(isOnInit = true)
+        diffDependency()
 
         hasInit = true
     }
@@ -189,7 +190,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                         title = "Jugg: Dependency Incremental Compile Not Available",
                         content = """<html>
                         |<p>Please fallback to gradle once to <b>enable dependency incremental compile.</b><br>
-                        |This happens when Jugg upgraded or cache deleted.</p>
+                        |This should not happened. Please report issues.</p>
                         |</p>
                         |</html>
                         |""".trimMargin(),
@@ -290,14 +291,14 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         logger.debug("on sync finished, changeStatus: $changeStatus, changedLibraries: $changedLibraries")
     }
 
-    private fun updateFullBuildDependency(isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
-        if (isFullBuildDependency(isEndSyncing, isEndBuilding)) {
+    private fun updateFullBuildDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
+        if (isFullBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
             logger.debug("update full build dependency")
             fullBuildDependencies = currentBuildDependencies
         }
     }
 
-    private fun isFullBuildDependency(isEndSyncing: Boolean, isEndBuilding: Boolean): Boolean = compareInfo.run {
+    private fun isFullBuildDependency(isOnInit: Boolean, isEndSyncing: Boolean, isEndBuilding: Boolean): Boolean = compareInfo.run {
         val hasBuildTime = startBuildingTime > 0 && endBuildingTime > 0
         val hasBuildChanged = lastBuildChangedTime > 0
         val hasSyncTime = startSyncingTime > 0 && endSyncingTime > 0
@@ -307,7 +308,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         val isBuildLaterThanBuildChanged = hasBuildTime && (endBuildingTime > lastBuildChangedTime)
 
         logger.debug("""condition: 
-            |isEndSyncing=$isEndSyncing, isEndBuilding=$isEndBuilding
+            |isOnInit=$isOnInit, isEndSyncing=$isEndSyncing, isEndBuilding=$isEndBuilding
             |isSyncLaterThanBuildChanged=$isSyncLaterThanBuildChanged, isBuildLaterThanSync=$isBuildLaterThanSync, isSyncLaterThenBuild=$isSyncLaterThenBuild
             |hasBuildTime=$hasBuildTime, hasBuildChanged=$hasBuildChanged, hasSyncTime=$hasSyncTime
         """.trimMargin())
@@ -348,6 +349,15 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasBuildChanged) {
                 logger.debug("isFullBuildDependency true, hit situation 3")
+                return true
+            }
+        }
+
+        // situation 4: first init, no full dependency
+        if (isOnInit) {
+            @Suppress("KotlinConstantConditions")
+            if (!hasBuildTime && !hasSyncTime && !hasBuildChanged) {
+                logger.debug("isFullBuildDependency true, hit situation 4")
                 return true
             }
         }
