@@ -234,15 +234,6 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Jugg compiler not init")
         }
 
-        // read all undeployed files
-        val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
-        if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
-            val undeployedLibraries = dependencyChangeManager.getChangedLibrarySources()
-            undeployedFiles.addAll(undeployedLibraries)
-            undeployedFiles.removeIf { it.type == CompileFile.Type.Gradle }
-            logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
-        }
-
         if (deployFileManager.isNoFileChanges()) {
             val deviceName = deployTargetManager.getDeviceNameList()
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
@@ -256,6 +247,24 @@ class JuggCompilerHelper(
                 }
                 return CompileTaskResult.incrementalFailed(isConfirmFallback, "No file changes")
             }
+        }
+
+        // read all undeployed files
+        val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
+        if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+            // user select libraries incremental compile, add them to undeployed files
+            val undeployedLibraries = dependencyChangeManager.getChangedLibrarySources()
+            undeployedFiles.addAll(undeployedLibraries)
+            logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
+
+            // remove gradle files from undeployed files, it can not be compiled
+            val gradleFiles = undeployedFiles.filter { it.type == CompileFile.Type.Gradle }
+            undeployedFiles.removeAll(gradleFiles)
+
+            // mark gradle files as compiled, to detect isNoFileChanges()
+            deployFileManager.updateUncompiledFiles(gradleFiles.map {
+                CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
+            }, emptyList())
         }
 
         return doIncrementalCompile(compiler, undeployedFiles, processHandler)
