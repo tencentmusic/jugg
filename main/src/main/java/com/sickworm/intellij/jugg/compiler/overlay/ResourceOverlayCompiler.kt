@@ -39,7 +39,7 @@ class ResourceOverlayCompiler(
             task,
         )
         val resourceResult = resourceCompiler.compile(resourceTask)
-        if (!resourceResult.isAllSuccess) {
+        if (!resourceResult.isAllSuccess || resourceResult.outputs.isEmpty()) {
             return CompileResult(
                 task,
                 resourceResult.details,

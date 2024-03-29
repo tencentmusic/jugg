@@ -71,6 +71,10 @@ class ResourceCompiler(
                 emptyList()
             }
         }
+        if (resFiles.isEmpty()) {
+            return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+        }
+
         val filesString = resFiles.joinToString(" ") {
             it.file.absolutePath
         }
