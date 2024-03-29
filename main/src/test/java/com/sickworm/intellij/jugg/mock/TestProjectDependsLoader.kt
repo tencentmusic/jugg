@@ -46,27 +46,29 @@ object TestProjectDependsLoader {
     val depends = """
         androidx.lifecycle/lifecycle-common/2.0.0
         junit/junit/4.12
-        org.jetbrains.kotlin/kotlin-stdlib-common/1.7.0
+        org.jetbrains.kotlin/kotlin-stdlib-common/1.7.22
         org.hamcrest/hamcrest-library/1.3
-        org.jetbrains.kotlin/kotlin-stdlib/1.7.0
+        org.jetbrains.kotlin/kotlin-stdlib/1.7.22
         javax.inject/javax.inject/1
         com.squareup/javawriter/2.1.1
         androidx.constraintlayout/constraintlayout-solver/1.1.3
         net.sf.kxml/kxml2/2.3.0
         org.hamcrest/hamcrest-integration/1.3
-        org.jetbrains.kotlin/kotlin-android-extensions-runtime/1.7.0
+        org.jetbrains.kotlin/kotlin-android-extensions-runtime/1.7.22
         com.google.code.findbugs/jsr305/2.0.1
         androidx.arch.core/core-common/2.0.0
         org.jetbrains/annotations/13.0
         androidx.collection/collection/1.0.0
         org.hamcrest/hamcrest-core/1.3
         androidx.annotation/annotation/1.1.0
-        org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.7.0
+        org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.7.22
     """.trimIndent()
 
     private var cache: List<String>? = null
 
     fun parse(): List<String> {
+        AssembleAndroidProjectOnce.ensure()
+
         cache?.let {
             return it
         }
@@ -80,7 +82,7 @@ object TestProjectDependsLoader {
                 throw IllegalArgumentException("depends dir not exists: $dependDir")
             }
             dependDir.listFilesRecursively().filter { file ->
-                file.extension == "jar"
+                file.extension == "jar" && !file.name.endsWith("-javadoc.jar") && !file.name.endsWith("-sources.jar")
             }
         }.map {
             it.absolutePath

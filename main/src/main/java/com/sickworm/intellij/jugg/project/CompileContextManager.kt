@@ -45,7 +45,7 @@ class CompileContextManager(
     private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger)
 
     /** Init after [initCompileContext] */
-    val compileContext: BaseCompileContext
+    val compileContext: ICompileContext
         get() {
             return compileContextInside?: throw JuggInternalException.compilerContextNotInit()
         }
@@ -110,7 +110,7 @@ class CompileContextManager(
                 return@map name to module
             }
         }.toMap()
-        compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
+        compileContextInside?.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
     private fun initCompileContext(isNeedReloadProjectInfo: Boolean) {

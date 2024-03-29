@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import java.io.File
 
-class SimpleCompileContext(
+data class SimpleCompileContext(
     override val logger: Logger,
     override val tempCompileDir: File,
     override val tempModuleDir: File,

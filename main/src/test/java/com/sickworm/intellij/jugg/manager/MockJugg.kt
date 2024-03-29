@@ -209,22 +209,17 @@ class MockJugg {
             }
         }
 
-        val moduleManager = mock(ModuleManager::class.java)
-        val modules = emptyArray<Module>()
-        doReturn(modules).`when`(moduleManager).modules
-        val projectBuildModel = mock(ProjectBuildModel::class.java)
-        val gradleBuildModule = mock(GradleBuildModel::class.java)
-        doReturn(getAndroidModel()).`when`(gradleBuildModule).android()
-        doReturn(gradleBuildModule).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
-
         fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.databaseDir, logger)
         deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.databaseDir, coroutineScope)
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
-        compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
-            moduleManager, projectBuildModel, logger)
+
+        compileContextManager = mock(CompileContextManager::class.java)
+        doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
+        doReturn(File(pathManager.compileRootDir, "staging")).`when`(compileContextManager).stagingDir
+        doReturn(context.modules).`when`(compileContextManager).getAllModulesByModuleManager(false)
 
         val juggServer = JuggServer(project)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { JuggStateListener.emptyImpl }, logger) {

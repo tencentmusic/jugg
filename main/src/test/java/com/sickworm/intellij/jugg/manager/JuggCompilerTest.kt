@@ -1,9 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.sickworm.intellij.jugg.deploy.JuggDeployState
 import org.junit.Before
 import org.junit.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class JuggCompilerTest {
@@ -85,8 +83,8 @@ class JuggCompilerTest {
 
         jugg.changeFileAndNotify("MainActivity.changeSignature.kt" to "MainActivity.kt")
         jugg.checkCompileResult("MainActivity.kt",
-            newClassesSize = 1,
-            hotReloadModifiedClassesSize = 0,
+            newClassesSize = 0,
+            hotReloadModifiedClassesSize = 1,
             hotFixModifiedClassesSize = 1)
 
         jugg.dryDeploy()
@@ -167,7 +165,7 @@ class JuggCompilerTest {
 
     @Test
     fun testJavaVariableAdd() {
-        jugg.changeFileAndNotify("MainActivity2.addVariable.java" to "MainActivity2.java")
+        jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
     }
 }

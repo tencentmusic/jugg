@@ -17,7 +17,6 @@ class IntellijLibraryConfigParserTest {
 
     @Suppress("RedundantNullableReturnType")
     fun loadLibraryConfigInTest(): List<String>? {
-        AssembleAndroidProjectOnce.ensure()
         return TestProjectDependsLoader.parse()
     }
 }
