@@ -23,13 +23,26 @@ fun CompileFile.withDependencyName(name: String): CompileFile {
 }
 
 
-// e.g. Gradle: org.reactivestreams:reactive-streams:1.0.3 -> #org.reactivestreams#reactive-streams.dex
+// e.g. org.reactivestreams:reactive-streams:1.0.3 -> #org.reactivestreams#reactive-streams.dex
 private fun dependencyNameToDexFileName(libraryName: String): String {
     try {
-        libraryName.substringAfter(": ").split(":").also {
-            return "#${it[0]}#${it[1]}.dex"
+        if (libraryName.contains(":")) {
+            // e.g. org.reactivestreams:reactive-streams:1.0.3 -> #org.reactivestreams#reactive-streams.dex
+            val (group, name, _) = libraryName.split(":")
+            return "#$group#$name.dex"
+        } else {
+            // e.g. ./app/libs/library2.v2.jar -> #app#libs#library2#library2.v2.dex
+            return libraryName
+                .replace(".", "")
+                .replace("/", "#")
+                .replace("\\", "#")
+                .replace(".jar", "") + ".dex"
         }
     } catch (e: Exception) {
-        return libraryName.replace(" ", "").replace(":", "#")
+        return libraryName
+            .replace(".", "")
+            .replace("/", "#")
+            .replace("\\", "#")
+            .replace(".jar", "") + ".dex"
     }
 }

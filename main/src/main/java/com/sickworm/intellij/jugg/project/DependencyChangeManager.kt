@@ -163,7 +163,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         ApplicationManager.getApplication().invokeLater {
             val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
 
-            val libraryNames = changedLibraries.map { it.name }.toSet()
+            val libraryNames = changedLibraries.map { it.nameWithoutPrefix }.toSet()
 
             if (changedLibraries.isNotEmpty()) {
                 logger.debug("show change confirm dialog, changedLibraries: $changedLibraries")
@@ -229,14 +229,14 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     file = it.file,
                     baseDir = it.file,
                     module = tempModule,
-                ).withDependencyName(it.name)
+                ).withDependencyName(it.nameWithoutPrefix)
             } else {
                 ChangedFile(
                     type = CompileFile.Type.Class,
                     file = it.file,
                     baseDir = it.file.parentFile!!,
                     module = tempModule,
-                ).withDependencyName(it.name)
+                ).withDependencyName(it.nameWithoutPrefix)
             }
         }
 
