@@ -1,7 +1,13 @@
 package com.sickworm.intellij.jugg.manager
 
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import com.sickworm.intellij.jugg.project.ChangedFile
 import org.junit.Before
 import org.junit.Test
+import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JuggCompilerTest {
@@ -167,5 +173,30 @@ class JuggCompilerTest {
     fun testJavaVariableAdd() {
         jugg.changeFileAndNotify("MainActivity2.java" to "MainActivity2.java")
         jugg.checkCompileResult("MainActivity2.java", hotReloadModifiedClassesSize = 1)
+    }
+
+    @Test
+    fun testCompileResDir() {
+        val file = ChangedFile(
+            CompileFile.Type.Resource,
+            File(assetsAndroidDir, "app/src/main/res"),
+            File(assetsAndroidDir, "app/src/main/res"),
+            jugg.compileContextManager.compileContext.tempModule,
+        )
+        jugg.deployFileManager.addChangedFile(listOf(file))
+        jugg.juggManager.compileChanges()
+
+        assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
+        var deployData = jugg.deployFileManager.getDeployData()
+        assertTrue(deployData.isFullRes)
+        jugg.dryDeploy()
+
+        jugg.deployFileManager.addChangedFile(listOf(file))
+        jugg.juggManager.compileChanges()
+        assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
+        deployData = jugg.deployFileManager.getDeployData()
+        println("deployData.overlays.size ${deployData.overlays.size}")
+        assertFalse(deployData.isFullRes)
+        assertTrue(deployData.overlays.size > 10) // 10 is just an approximate number
     }
 }
