@@ -78,6 +78,14 @@ class ResourceOverlayCompiler(
     private fun filterResources(resource: List<CompileOutput>, sourceFiles: List<CompileFile>): List<CompileOutput> {
         val resourceNameToPathMap = resource.groupBy { it.relativeFile.name }
 
+        val filePathSet: Set<String> = sourceFiles.flatMap { compileFile ->
+            if (compileFile.file.isDirectory) {
+                compileFile.file.listFilesRecursively().map { it.relativeTo(it.parentFile).path }
+            } else {
+                listOf(compileFile.relativeFile.path)
+            }
+        }.toSet()
+
         val finalOverlays = resource.toMutableList()
         resourceNameToPathMap.forEach rootLoop@{ (resourceName, outputs) ->
             if (outputs.size == 1) {
@@ -89,11 +97,7 @@ class ResourceOverlayCompiler(
                 }
                 val relativePath = output.relativeFile.path.substringAfter(File.separator)
 
-                val sourceFile = sourceFiles.find {
-                    val sourceResourceConfigPath = it.relativeFile.path
-                    sourceResourceConfigPath == relativePath
-                }
-                val isCreateByAapt2 = sourceFile == null
+                val isCreateByAapt2 = !filePathSet.contains(relativePath)
                 if (!isCreateByAapt2) {
                     return@forEach
                 }
