@@ -325,7 +325,7 @@ data class LibraryDependency(
     val crc32: Long = file.crc32
 ) {
 
-    val nameWithoutPrefix get() = name.substringAfter("Gradle: ")
+    val nameWithoutPrefix get() = name.substringAfter(": ")
 
     val isValid get() = file.exists()
 
