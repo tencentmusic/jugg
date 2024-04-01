@@ -164,17 +164,16 @@ class JuggCompilerHelper(
      * We need to do it here because file may not change on disk when AsyncFileListener callback
      */
     private fun checkFilesRollback() {
-        val forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
                 it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
             }
             // unnecessary to check if file size is small and no build file changed
-            val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null && !forceIncrementalCompile)
-            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, changedBuildFile: ${changedBuildFile != null}, " +
-                    "forceIncrementalCompile: $forceIncrementalCompile, isShouldCheck: $isShouldCheck")
+            val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null)
+            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, " +
+                    "changedBuildFile: ${changedBuildFile != null}, " +
+                    "isShouldCheck: $isShouldCheck")
 
             if (isShouldCheck) {
                 try {
@@ -198,13 +197,20 @@ class JuggCompilerHelper(
             }
         }
 
+        val forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+
         // we need to double-check because file may roll back to not changed
         val changedBuildFile = deployFileManager.getUncompiledFiles().find {
             it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
         }
-        if (changedBuildFile != null && !forceIncrementalCompile) {
+        val isNeedRebuild = changedBuildFile != null
+        val changedManifestFile = deployFileManager.getUncompiledFiles().find {
+            it.type == CompileFile.Type.AndroidManifest
+        }
+        val isCanLibraryIncrementalCompile = changedManifestFile == null && forceIncrementalCompile
+        if (isNeedRebuild && !isCanLibraryIncrementalCompile) {
             deployStateManager.isBuildFileChanged = true
-            deployStateManager.whatBuildFileChanged = changedBuildFile.file.name
+            deployStateManager.whatBuildFileChanged = changedBuildFile?.file?.name ?: "null"
             logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")
         } else {
             deployStateManager.isBuildFileChanged = false
