@@ -199,4 +199,29 @@ class JuggCompilerTest {
         assertFalse(deployData.isFullRes)
         assertTrue(deployData.overlays.size > 10) // 10 is just an approximate number
     }
+
+    @Test
+    fun testAssetDir() {
+        val file = ChangedFile(
+            CompileFile.Type.Asset,
+            File(assetsAndroidDir, "app/src/main/assets"),
+            File(assetsAndroidDir, "app/src/main/assets"),
+            jugg.compileContextManager.compileContext.tempModule,
+        )
+        jugg.deployFileManager.addChangedFile(listOf(file))
+        jugg.juggManager.compileChanges()
+
+        assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
+        var deployData = jugg.deployFileManager.getDeployData()
+        assertTrue(deployData.isFullRes)
+        jugg.dryDeploy()
+
+        jugg.deployFileManager.addChangedFile(listOf(file))
+        jugg.juggManager.compileChanges()
+        assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
+        deployData = jugg.deployFileManager.getDeployData()
+        println("deployData.overlays.size ${deployData.overlays.size}")
+        assertFalse(deployData.isFullRes)
+        assertTrue(deployData.overlays.size > 1)
+    }
 }

@@ -238,6 +238,26 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     module = tempModule,
                 ).withDependencyName(it.nameWithoutPrefix)
             }
+        }.toMutableList()
+
+        // Guess assets dir. Jugg may not support aar that only contains assets. (need to be confirmed)
+        val guessAssetsDirs: List<File> = changedLibraries.mapNotNull {
+            val parentFile = it.file.parentFile ?: return@mapNotNull null
+            val assetDir = File(parentFile, "assets")
+            if (assetDir.exists() && assetDir.isDirectory && assetDir.listFiles()?.isNotEmpty() == true) {
+                return@mapNotNull assetDir
+            }
+            return@mapNotNull null
+        }
+        guessAssetsDirs.toSet().forEach {
+            changedFiles.add(
+                ChangedFile(
+                    type = CompileFile.Type.Asset,
+                    file = it,
+                    baseDir = it,
+                    module = tempModule,
+                )
+            )
         }
 
         logger.debug("changed files: $changedFiles")
