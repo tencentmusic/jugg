@@ -245,7 +245,7 @@ class DeployFileManager(
                 // filter out module not in moduleInfos
                 moduleInfos[it.value.module.name] != null
                         // global build file belongs to virtual module, and virtual module is not in moduleInfos
-                        && it.value.module.name != ModuleInfo.virtualModule.name
+                        || it.value.module.name == ModuleInfo.virtualModule.name
             }.mapValues {
                 val newModuleInfo = moduleInfos[it.value.module.name]!!
                 it.value.copy(module = newModuleInfo)

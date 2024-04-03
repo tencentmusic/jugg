@@ -13,7 +13,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '1.2.1-rc7'
+def versionName = '1.2.1-rc8'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
@@ -103,7 +103,8 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix NoSuchMethodError when add an optional argument to a top level function, and compile declaration file and invoke file together</li>
 <li>[bugfix] fix NoSuchMethodError for expand compilation not work properly</li>
 <li>[bugfix] fix auto-detect compile command and output apk path failed on Hedgehog and above</li>
-<li>[bugfix] fix remote login failed when too many ssh keys exists</li>
+<li>(rc8) [bugfix] fix remote login failed when too many ssh keys exists</li>
+<li>(rc8) [bugfix] fix changes of gradle files in project root missing, after reopen project and sync</li>
 </ol>
 <h2>1.2.0 (2024.02.04)</h2>
 <ol>
