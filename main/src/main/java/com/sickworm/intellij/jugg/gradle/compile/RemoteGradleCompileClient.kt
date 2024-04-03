@@ -47,12 +47,29 @@ class RemoteGradleCompileClient(
             keyPathList.add(it)
         }
         keyPathList.addAll(searchAvailableKeys())
+        keyPathList = keyPathList.distinct().toMutableList()
 
         // if key path is empty and password is empty, show dialog to input password
         if (keyPathList.isEmpty() && finalPasswordOrKey.isEmpty()) {
             finalPasswordOrKey = showDialogAndGetPasswordOrKey(extraTips = "and keys not found in .ssh")
         }
 
+        // first, if finalPasswordOrKey is not empty, try without extra keyPathList
+        if (finalPasswordOrKey.isNotEmpty()) {
+            try {
+                val keyList = mutableListOf<String>()
+                convertToAbsoluteKeyPathIfSpecific(finalPasswordOrKey)?.let {
+                    keyList.add(it)
+                }
+                doLogin(juggGradleCompileOptions, keyList, finalPasswordOrKey)
+                logger.debug("login success with password")
+                return
+            } catch (e: Exception) {
+                logger.debug("login failed with password", e)
+            }
+        }
+
+        // login failed or finalPasswordOrKey is empty, try with extra keyPathList
         try {
             doLogin(juggGradleCompileOptions, keyPathList, finalPasswordOrKey)
         } catch (e: Exception) {

@@ -93,7 +93,7 @@ tasks.register('buildPluginIntranet') {
 
 patchPluginXml.changeNotes = """
 <h1>Change Log</h1>
-<h2>1.2.1 (2024.02.27)</h2>
+<h2>1.2.1 (2024.04.03)</h2>
 <ol>
 <li>[feature] one-click access optimize: auto-detect compile command and output apk path</li>
 <li>[feature] dump logcat while report issues</li>
@@ -103,6 +103,7 @@ patchPluginXml.changeNotes = """
 <li>[bugfix] fix NoSuchMethodError when add an optional argument to a top level function, and compile declaration file and invoke file together</li>
 <li>[bugfix] fix NoSuchMethodError for expand compilation not work properly</li>
 <li>[bugfix] fix auto-detect compile command and output apk path failed on Hedgehog and above</li>
+<li>[bugfix] fix remote login failed when too many ssh keys exists</li>
 </ol>
 <h2>1.2.0 (2024.02.04)</h2>
 <ol>
