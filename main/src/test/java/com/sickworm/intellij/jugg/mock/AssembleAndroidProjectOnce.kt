@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.mock
 
+import java.io.File
+
 object AssembleAndroidProjectOnce {
 
-    private var hasAssemble = false
+    private var hasAssemble = File("${System.getProperty("user.home")}/.jugg_test_do_not_assemble").exists()
 
     fun ensure() {
         if (!hasAssemble) {
