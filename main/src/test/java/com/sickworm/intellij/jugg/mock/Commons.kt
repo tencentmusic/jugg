@@ -84,7 +84,7 @@ val context get() = SimpleCompileContext(
     androidJar = androidJar,
     modules = mapOf(mockModule.name to mockModule.copy(
         name = "app",
-        libraryDependencies = TestProjectDependsLoader.parse().map{ LibraryDependency(File(it).name, File(it)) }
+        libraryDependencies = TestProjectDependsLoader.parse()
     )),
     apkInfos = projectInfo.apkInfos,
     projectDir = projectInfo.projectRoot,

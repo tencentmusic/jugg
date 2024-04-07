@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import java.io.File
 
@@ -37,7 +38,6 @@ object TestProjectDependsLoader {
         legacy-support-core-ui-1.0.0
         core-1.0.2
         drawerlayout-1.0.0
-        versionedparcelable-1.1.0
         localbroadcastmanager-1.0.0
         lifecycle-runtime-2.0.0
         slidingpanelayout-1.0.0
@@ -64,16 +64,16 @@ object TestProjectDependsLoader {
         org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.7.22
     """.trimIndent()
 
-    private var cache: List<String>? = null
+    private var cache: List<LibraryDependency>? = null
 
-    fun parse(): List<String> {
+    fun parse(): List<LibraryDependency> {
         AssembleAndroidProjectOnce.ensure()
 
         cache?.let {
             return it
         }
 
-        val result = mutableListOf<String>()
+        val result = mutableListOf<LibraryDependency>()
 
         val dependsRootDir = File(userHome, ".gradle/caches/modules-2/files-2.1")
         result += depends.split("\n").flatMap {
@@ -83,9 +83,9 @@ object TestProjectDependsLoader {
             }
             dependDir.listFilesRecursively().filter { file ->
                 file.extension == "jar" && !file.name.endsWith("-javadoc.jar") && !file.name.endsWith("-sources.jar")
+            }.map { file ->
+                LibraryDependency("Gradle: " + it.replace("/", ":"), file)
             }
-        }.map {
-            it.absolutePath
         }
 
         val transformedDependsRootDir = File(userHome, ".gradle/caches/transforms-3")
@@ -97,11 +97,14 @@ object TestProjectDependsLoader {
             .associateBy { it.parentFile.name }
         result += transformedDepends.split("\n").flatMap {
             val dependDir = allTransformedDepends[it] ?: throw IllegalArgumentException("depends dir not exists: $it")
-            dependDir.listFilesRecursively()
-        }.map {
-            it.absolutePath
+            dependDir.listFilesRecursively().map { file ->
+                val version = it.substringAfterLast('-')
+                val artifact = it.substringBeforeLast('-')
+                LibraryDependency("Gradle: mock_group:$artifact:$version", file)
+            }
         }
 
+        cache = result
         return result
     }
 
