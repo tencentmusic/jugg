@@ -4,6 +4,12 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 
 private const val KEY_DEPENDENCY_NAME = "dependency_name"
 
+val ChangedFile.dependencyName: String
+    get() = extraInfo[KEY_DEPENDENCY_NAME] as String
+
+val ChangedFile.jarDexFileName: String
+    get() = dependencyNameToDexFileName(dependencyName)
+
 val CompileFile.isDependency: Boolean
     get() = extraInfo.containsKey(KEY_DEPENDENCY_NAME)
 
@@ -33,15 +39,17 @@ private fun dependencyNameToDexFileName(libraryName: String): String {
         } else {
             // e.g. ./app/libs/library2.v2.jar -> #app#libs#library2#library2.v2.dex
             return libraryName
-                .replace(".", "")
+                .replace("./", "#")
                 .replace("/", "#")
+                .replace(".\\", "#")
                 .replace("\\", "#")
                 .replace(".jar", "") + ".dex"
         }
     } catch (e: Exception) {
         return libraryName
-            .replace(".", "")
+            .replace("./", "#")
             .replace("/", "#")
+            .replace(".\\", "#")
             .replace("\\", "#")
             .replace(".jar", "") + ".dex"
     }

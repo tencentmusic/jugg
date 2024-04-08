@@ -3,20 +3,11 @@ package com.sickworm.intellij.jugg.project
 import com.google.gson.Gson
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.ui.components.JBLabel
-import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import javax.swing.Action
-import javax.swing.JComponent
-import javax.swing.JPanel
 
 /**
  * Used to manage the change of dependencies for library incremental compilation & deployment.
@@ -29,7 +20,9 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun tryShowChangConfirmDialog()
 
-    fun getChangedLibrarySources(): List<ChangedFile>
+    fun getNewLibraryFiles(): List<ChangedFile>
+
+    fun getRemovedLibraryFiles(): List<ChangedFile>
 
     enum class ChangeStatus {
         NO_CHANGE,
@@ -81,7 +74,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             field = value
             projectInfoSerializer.save(value!!)
         }
-    private var changedLibraries: List<LibraryDependency> = emptyList()
+    private var diffResult = DependencyDiffResult.createEmpty()
 
     private var compareInfo = object {
         val VERSION = 1
@@ -163,16 +156,15 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         ApplicationManager.getApplication().invokeLater {
             val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
 
-            val libraryNames = changedLibraries.map { it.nameWithoutPrefix }.toSet()
-
-            if (changedLibraries.isNotEmpty()) {
-                logger.debug("show change confirm dialog, changedLibraries: $changedLibraries")
+            if (diffResult.newLibraryDependencies.isNotEmpty() || diffResult.removedLibraryDependencies.isNotEmpty()) {
+                logger.debug("show change confirm dialog, newLibraries: ${diffResult.newLibraryDependencies}, " +
+                        "removedLibraries: ${diffResult.removedLibraryDependencies}")
                 val isConfirmed = CommonConfirmDialog.showAndGetResult(
                     title = "Jugg: Hey! Found Some Libraries Changed",
                     content = """<html>
                         |<p>Do you want to <b>incremental compile</b> these changed libraries?
                         |<ul>
-                        |${libraryNames.joinToString("\n") { "<li>${it}</li>" }}
+                        |${diffResult.toHtmlChangeList().joinToString("\n") { "<li>${it}</li>" }}
                         |</ul>
                         |</p>
                         |<p><b>Caution: This may cause unexpected build result, Please check changes carefully<br>
@@ -216,10 +208,10 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun getChangedLibrarySources(): List<ChangedFile> {
-        logger.debug("get changed libraries: $changedLibraries")
+    override fun getNewLibraryFiles(): List<ChangedFile> {
+        logger.debug("get new libraries: ${diffResult.newLibraryDependencies}")
 
-        val changedFiles = changedLibraries.mapNotNull {
+        val changedFiles = diffResult.newLibraryDependencies.mapNotNull {
             if (it.isAndroidManifest) {
                 // TODO check AndroidManifest.xml changes
                 null
@@ -241,7 +233,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }.toMutableList()
 
         // Guess assets dir. Jugg may not support aar that only contains assets. (need to be confirmed)
-        val guessAssetsDirs: List<File> = changedLibraries.mapNotNull {
+        val guessAssetsDirs: List<File> = diffResult.newLibraryDependencies.mapNotNull {
             val parentFile = it.file.parentFile ?: return@mapNotNull null
             val assetDir = File(parentFile, "assets")
             if (assetDir.exists() && assetDir.isDirectory && assetDir.listFiles()?.isNotEmpty() == true) {
@@ -264,6 +256,29 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         return changedFiles
     }
 
+    override fun getRemovedLibraryFiles(): List<ChangedFile> {
+        logger.debug("get removed libraries: ${diffResult.removedLibraryDependencies}")
+
+        val changedFiles = diffResult.removedLibraryDependencies.mapNotNull {
+            if (it.isAndroidManifest) {
+                // no need
+                null
+            } else if (it.isRes) {
+                // no need
+                null
+            } else {
+                ChangedFile(
+                    type = CompileFile.Type.Class,
+                    file = it.file,
+                    baseDir = it.file.parentFile!!,
+                    module = tempModule,
+                ).withDependencyName(it.nameWithoutPrefix)
+            }
+        }
+
+        logger.debug("removed changed files: $changedFiles")
+        return changedFiles
+    }
 
     @Synchronized
     override fun onUpdateChangedBuildFiles(files: List<File>) {
@@ -302,13 +317,13 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         updateFullBuildDependency(isEndSyncing = true)
         diffDependency()
 
-        compareInfo.changeStatus = if (changedLibraries.isEmpty()) {
+        compareInfo.changeStatus = if (diffResult.newLibraryDependencies.isEmpty()) {
             // mark as no change if diffDependency() found no library changed
             IDependencyChangeManager.ChangeStatus.NO_CHANGE
         } else {
             IDependencyChangeManager.ChangeStatus.REBUILD
         }
-        logger.debug("on sync finished, changeStatus: $changeStatus, changedLibraries: $changedLibraries")
+        logger.debug("on sync finished, changeStatus: $changeStatus, diffResult: $diffResult")
     }
 
     private fun updateFullBuildDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
@@ -396,37 +411,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             return
         }
 
-        val currentDependMap = run {
-            val result = mutableMapOf<String, LibraryDependency>()
-            currentBuildDependencies.modules.values.forEach { moduleInfo ->
-                moduleInfo.libraryDependencies.forEach {
-                    result[it.file.absolutePath] = it
-                }
-            }
-            return@run result
-        }
-        val fullCompileDependMap = run {
-            val result = mutableMapOf<String, LibraryDependency>()
-            fullBuildDependencies.modules.values.forEach { moduleInfo ->
-                moduleInfo.libraryDependencies.forEach {
-                    result[it.file.absolutePath] = it
-                }
-            }
-            return@run result
-        }
-
-        val changedLibraries = mutableListOf<LibraryDependency>()
-        currentDependMap.forEach { (path, libraryDependency) ->
-            val fullCompileDepend = fullCompileDependMap[path]
-            if (fullCompileDepend == null) {
-                logger.debug("found new library: $libraryDependency")
-                changedLibraries.add(libraryDependency)
-            } else if (libraryDependency.crc32 != fullCompileDepend.crc32) {
-                logger.debug("found changed library: $libraryDependency")
-                changedLibraries.add(libraryDependency)
-            }
-        }
-        this.changedLibraries = changedLibraries
+        diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+        logger.debug("diffDependency result $diffResult")
     }
 
     @Synchronized

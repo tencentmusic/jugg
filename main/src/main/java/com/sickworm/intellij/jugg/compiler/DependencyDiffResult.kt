@@ -55,6 +55,9 @@ data class DependencyDiffResult(
             return "<font color=\"#2ECC71\">($desc)</font>"
         }
 
+        fun createEmpty(): DependencyDiffResult {
+            return create(JuggProjectInfo(emptyMap()), JuggProjectInfo(emptyMap()))
+        }
 
         fun create(
             currentBuildDependencies: JuggProjectInfo,

@@ -259,7 +259,7 @@ class JuggCompilerHelper(
         val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
         if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             // user select libraries incremental compile, add them to undeployed files
-            val undeployedLibraries = dependencyChangeManager.getChangedLibrarySources()
+            val undeployedLibraries = dependencyChangeManager.getNewLibraryFiles()
             undeployedFiles.addAll(undeployedLibraries)
             logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
 

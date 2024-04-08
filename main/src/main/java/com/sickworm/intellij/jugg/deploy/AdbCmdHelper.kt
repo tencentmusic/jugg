@@ -85,6 +85,10 @@ class AdbCmdHelper(
         return execAdbShellCmd("logcat '*:E' -t$limit")
     }
 
+    fun deleteDeployedDexFile(packageName: String, filePath: String) {
+        execAdbShellCmd("run-as $packageName rm /data/data/$packageName/code_cache/.overlay/$filePath")
+    }
+
     private fun execAdbShellCmd(cmd: String): String {
         try {
             logger.info("%s", "adb in: adb shell $cmd")

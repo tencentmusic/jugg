@@ -7,13 +7,14 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.deploy.DeployStateManager
-import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.compiler.jarDexFileName
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -33,6 +34,7 @@ class JuggDeployerHelper(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployStateManager: DeployStateManager,
+    private val dependencyChangeManager: IDependencyChangeManager,
     private val juggServer: JuggServer,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
@@ -58,6 +60,31 @@ class JuggDeployerHelper(
             AndroidDeployType.APPLY_CHANGES_AND_RESTART_ACTIVITY
         } else {
             AndroidDeployType.APPLY_CHANGES
+        }
+
+        if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+            // TODO reset changeStatus after deploy
+            val removedDexFiles = dependencyChangeManager.getRemovedLibraryFiles()
+                .map(ChangedFile::jarDexFileName)
+                .toSet()
+            if (removedDexFiles.isNotEmpty()) {
+                TimeLogger.start("remove dex")
+                logger.info("Library incremental compile, going to delete removed libraries dex: $removedDexFiles")
+                removedDexFiles.forEach { dexFileName ->
+                    data.apks.forEach {
+                        val packageName = it.applicationId
+                        logger.debug("delete $packageName - $dexFileName")
+                        try {
+                            AdbCmdHelper(device, logger).deleteDeployedDexFile(packageName, dexFileName)
+                        } catch (e: Exception) {
+                            logger.debug("delete $packageName - $dexFileName failed", e)
+                            logger.warn("delete $packageName - $dexFileName failed, reason:\n$e")
+                        }
+                    }
+                }
+                logger.info("Delete removed libraries dex finished.")
+                TimeLogger.end("remove dex", logger)
+            }
         }
 
         val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
