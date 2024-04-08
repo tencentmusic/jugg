@@ -4,7 +4,7 @@ import com.sickworm.intellij.jugg.project.JuggProjectInfo
 
 data class DependencyDiffResult(
     val currentBuildDependencies: JuggProjectInfo,
-    val fullBuildDependencies: JuggProjectInfo,
+    val lastBuildDependencies: JuggProjectInfo,
     val addedLibraries: List<UpdatedLibraryDependency>,
     val removedLibraries: List<UpdatedLibraryDependency>,
     val updatedLibraries: List<UpdatedLibraryDependency>,
@@ -61,9 +61,9 @@ data class DependencyDiffResult(
 
         fun create(
             currentBuildDependencies: JuggProjectInfo,
-            fullBuildDependencies: JuggProjectInfo,
+            lastBuildDependencies: JuggProjectInfo,
         ): DependencyDiffResult {
-            val fullBuildDependenciesSet: Map<String, LibraryDependencySet> = fullBuildDependencies.modules
+            val lastBuildDependenciesSet: Map<String, LibraryDependencySet> = lastBuildDependencies.modules
                 .flatMap { it.value.libraryDependencies }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.nameWithoutPrefix }
@@ -76,19 +76,19 @@ data class DependencyDiffResult(
                 .mapValues { LibraryDependencySet(it.key, it.value) }
 
             // find out the libraries that have been added
-            val addedLibraries = (currentBuildDependenciesSet.keys - fullBuildDependenciesSet.keys).map {
+            val addedLibraries = (currentBuildDependenciesSet.keys - lastBuildDependenciesSet.keys).map {
                 UpdatedLibraryDependency(currentBuildDependenciesSet[it], null)
             }.toMutableList()
 
             // find out the libraries that have been removed
-            val removedLibraries = (fullBuildDependenciesSet.keys - currentBuildDependenciesSet.keys).map {
-                UpdatedLibraryDependency(null, fullBuildDependenciesSet[it])
+            val removedLibraries = (lastBuildDependenciesSet.keys - currentBuildDependenciesSet.keys).map {
+                UpdatedLibraryDependency(null, lastBuildDependenciesSet[it])
             }.toMutableList()
 
             // find out the libraries that contents have been updated
-            val contentChangedLibraries = fullBuildDependenciesSet.keys.intersect(currentBuildDependenciesSet.keys)
-                .filter { fullBuildDependenciesSet[it] != currentBuildDependenciesSet[it] }
-                .map { UpdatedLibraryDependency(currentBuildDependenciesSet[it]!!, fullBuildDependenciesSet[it]) }
+            val contentChangedLibraries = lastBuildDependenciesSet.keys.intersect(currentBuildDependenciesSet.keys)
+                .filter { lastBuildDependenciesSet[it] != currentBuildDependenciesSet[it] }
+                .map { UpdatedLibraryDependency(currentBuildDependenciesSet[it]!!, lastBuildDependenciesSet[it]) }
 
             // find out the libraries that version have been updated
             val versionChangedLibraries = mutableListOf<UpdatedLibraryDependency>()
@@ -117,7 +117,7 @@ data class DependencyDiffResult(
             val updatedLibraries = contentChangedLibraries + versionChangedLibraries
 
             return DependencyDiffResult(
-                fullBuildDependencies = fullBuildDependencies,
+                lastBuildDependencies = lastBuildDependencies,
                 currentBuildDependencies = currentBuildDependencies,
                 addedLibraries = addedLibraries,
                 removedLibraries = removedLibraries,

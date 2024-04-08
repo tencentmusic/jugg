@@ -63,7 +63,6 @@ class JuggDeployerHelper(
         }
 
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
-            // TODO reset changeStatus after deploy
             val removedDexFiles = dependencyChangeManager.getRemovedLibraryFiles()
                 .map(ChangedFile::jarDexFileName)
                 .toSet()

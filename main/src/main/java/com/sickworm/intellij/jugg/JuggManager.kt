@@ -385,12 +385,14 @@ class JuggManager @TestOnly constructor(
             )
 
             // login and get apks
+            dependencyChangeManager.onStartBuilding()
             val result = juggCompilerHelper.gradleCompile(
                 compileOptions,
                 SimpleProcessHandler(),
                 currentIndicator ?: DumbProgressIndicator.INSTANCE,
                 isOnlyFetchResult = true,
             )
+            dependencyChangeManager.onEndBuilding(result.isSuccess)
             if (!result.isSuccess) {
                 logger.warn("gradleCompile(isOnlyFetchResult) failed, please check log for details.")
                 return@runTaskSafe

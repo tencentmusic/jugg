@@ -57,7 +57,10 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
+        dependencyChangeManager.onStartBuilding()
         val result = doCompile(options, processHandler, indicator, isForceInstall)
+        dependencyChangeManager.onEndBuilding(result.isSuccess)
+
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             logger.warn("Compile canceled.")
             return result.copy(
@@ -143,7 +146,6 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
-        dependencyChangeManager.onStartBuilding()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
         val result = task.run()
@@ -155,7 +157,6 @@ class JuggCompilerHelper(
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
         }
-        dependencyChangeManager.onEndBuilding(result.isSuccess)
         return result
     }
 

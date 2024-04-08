@@ -65,7 +65,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     private var currentBuildDependencies: JuggProjectInfo? = null
 
     private lateinit var projectInfoSerializer: ProjectInfoSerializer
-    private var fullBuildDependencies: JuggProjectInfo? = null
+    private var lastBuildDependencies: JuggProjectInfo? = null
         get() {
             field = projectInfoSerializer.load()
             return field
@@ -176,8 +176,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 )
                 onConfirmIncrementalCompile(isConfirmed)
             } else if (isBuildChangedAfterBuild) {
-                if (fullBuildDependencies == null) {
-                    logger.debug("show change confirm dialog, fullBuildDependencies is null")
+                if (lastBuildDependencies == null) {
+                    logger.debug("show change confirm dialog, lastBuildDependencies is null")
                     CommonConfirmDialog.showAndGetResult(
                         title = "Jugg: Dependency Incremental Compile Not Available",
                         content = """<html>
@@ -329,7 +329,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     private fun updateFullBuildDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
         if (isFullBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
             logger.debug("update full build dependency")
-            fullBuildDependencies = currentBuildDependencies
+            lastBuildDependencies = currentBuildDependencies
         }
     }
 
@@ -402,8 +402,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     private fun diffDependency() {
-        val fullBuildDependencies = fullBuildDependencies ?: run {
-            logger.debug("fullBuildDependencies is null, exit diffDependency")
+        val lastBuildDependencies = lastBuildDependencies ?: run {
+            logger.debug("lastBuildDependencies is null, exit diffDependency")
             return
         }
         val currentBuildDependencies = currentBuildDependencies ?: run {
@@ -411,7 +411,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             return
         }
 
-        diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+        diffResult = DependencyDiffResult.create(currentBuildDependencies, lastBuildDependencies)
         logger.debug("diffDependency result $diffResult")
     }
 
