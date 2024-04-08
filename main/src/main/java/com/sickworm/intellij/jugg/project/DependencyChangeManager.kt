@@ -93,6 +93,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         var lastBuildChangedTime = 0L
             set(value) { field = value ; writeToFile() }
 
+        var isLastSyncUpdate = false
+            set(value) { field = value ; writeToFile() }
+
         var compareInfoCacheFile: File? = null
         private fun writeToFile() {
             compareInfoCacheFile?.parentFile?.mkdirs()
@@ -351,7 +354,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             |startSyncingTime=${startSyncingTime.timeStampToTime()}, endSyncingTime=${endSyncingTime.timeStampToTime()}
             |startBuildingTime=${startBuildingTime.timeStampToTime()}, endBuildingTime=${endBuildingTime.timeStampToTime()}
             |lastBuildChangedTime=${lastBuildChangedTime.timeStampToTime()}
-            |isBuilding=$isBuilding, isSyncing=$isSyncing
+            |isBuilding=$isBuilding, isSyncing=$isSyncing, isLastSyncUpdate=$isLastSyncUpdate
         """.trimMargin())
 
         if (hasBuildChanged && !isSyncLaterThanBuildChanged) {
@@ -371,28 +374,22 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             }
         }
 
-        // situation 2: build changed -> build finished -> sync finished
+        // situation 2: build changed -> build finished -> first time sync finished
         if (isEndSyncing) {
             if (isSyncLaterThenBuild) {
-                logger.debug("isFullBuildDependency true, hit situation 2: build changed -> build finished -> sync finished")
-                return true
+                if (!isLastSyncUpdate) {
+                    logger.debug("isFullBuildDependency true, hit situation 2: build changed -> build finished -> first time sync finished")
+                    isLastSyncUpdate = true
+                    return true
+                }
             }
         }
 
-        // situation 3: sync finished (no build file changes)
-        if (isEndSyncing) {
-            @Suppress("KotlinConstantConditions")
-            if (!hasBuildTime && !hasBuildChanged) {
-                logger.debug("isFullBuildDependency true, hit situation 3: sync finished (no build file changes)")
-                return true
-            }
-        }
-
-        // situation 4: first init, no full dependency
+        // situation 3: first init, no full dependency
         if (isOnInit) {
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasSyncTime && !hasBuildChanged) {
-                logger.debug("isFullBuildDependency true, hit situation 4: first init, no full dependency")
+                logger.debug("isFullBuildDependency true, hit situation 3: first init, no full dependency")
                 return true
             }
         }
