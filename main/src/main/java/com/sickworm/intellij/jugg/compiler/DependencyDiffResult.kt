@@ -40,6 +40,10 @@ data class DependencyDiffResult(
         return result
     }
 
+    override fun toString(): String {
+        return toHtmlChangeList().joinToString("\n")
+    }
+
     companion object {
 
         private const val NEW_TAG = "<font color=\"#2ECC71\">(new)</font>"
