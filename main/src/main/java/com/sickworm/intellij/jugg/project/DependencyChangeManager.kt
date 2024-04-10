@@ -124,7 +124,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         projectInfoSerializer = ProjectInfoSerializer(fullBuildCacheFile, logger)
 
         val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
-        if (compareInfoCacheFile.exists()) {
+        if (compareInfoCacheFile.exists() && lastBuildDependencies != null) {
             logger.debug("load compare info cache")
             try {
                 val cacheCompareInfo = Gson().fromJson(compareInfoCacheFile.readText(), compareInfo::class.java)
@@ -338,7 +338,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     private fun isFullBuildDependency(isOnInit: Boolean, isEndSyncing: Boolean, isEndBuilding: Boolean): Boolean = compareInfo.run {
         val hasBuildTime = startBuildingTime > 0 && endBuildingTime > 0
-        val hasBuildChanged = lastBuildChangedTime > 0
+        val hasBuildChangedTime = lastBuildChangedTime > 0
         val hasSyncTime = startSyncingTime > 0 && endSyncingTime > 0
         val isSyncLaterThanBuildChanged = hasSyncTime && (startSyncingTime > lastBuildChangedTime)
         val isBuildLaterThanSync = hasSyncTime && hasBuildTime && (endBuildingTime > endSyncingTime)
@@ -348,7 +348,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         logger.debug("""condition: 
             |isOnInit=$isOnInit, isEndSyncing=$isEndSyncing, isEndBuilding=$isEndBuilding
             |isSyncLaterThanBuildChanged=$isSyncLaterThanBuildChanged, isBuildLaterThanSync=$isBuildLaterThanSync, isSyncLaterThenBuild=$isSyncLaterThenBuild
-            |hasBuildTime=$hasBuildTime, hasBuildChanged=$hasBuildChanged, hasSyncTime=$hasSyncTime
+            |hasBuildTime=$hasBuildTime, hasBuildChangedTime=$hasBuildChangedTime, hasSyncTime=$hasSyncTime
         """.trimMargin())
         logger.debug("""state: 
             |startSyncingTime=${startSyncingTime.timeStampToTime()}, endSyncingTime=${endSyncingTime.timeStampToTime()}
@@ -357,11 +357,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             |isBuilding=$isBuilding, isSyncing=$isSyncing, isLastSyncUpdate=$isLastSyncUpdate
         """.trimMargin())
 
-        if (hasBuildChanged && !isSyncLaterThanBuildChanged) {
+        if (hasBuildChangedTime && !isSyncLaterThanBuildChanged) {
             logger.debug("not sync yet after build changed, skip update full build dependency")
             return false
         }
-        if (hasBuildChanged && !isBuildLaterThanBuildChanged) {
+        if (hasBuildChangedTime && !isBuildLaterThanBuildChanged) {
             logger.debug("not build yet after build changed, skip update full build dependency")
             return false
         }
@@ -388,7 +388,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         // situation 3: first init, no full dependency
         if (isOnInit) {
             @Suppress("KotlinConstantConditions")
-            if (!hasBuildTime && !hasSyncTime && !hasBuildChanged) {
+            if (!hasBuildTime && !hasSyncTime && !hasBuildChangedTime) {
                 logger.debug("isFullBuildDependency true, hit situation 3: first init, no full dependency")
                 return true
             }
