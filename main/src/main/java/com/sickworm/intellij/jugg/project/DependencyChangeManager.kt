@@ -157,7 +157,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
 
         ApplicationManager.getApplication().invokeLater {
-            val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
+            val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > 0 &&
+                    compareInfo.startBuildingTime > 0 &&
+                    compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
 
             if (diffResult.newLibraryDependencies.isNotEmpty() || diffResult.removedLibraryDependencies.isNotEmpty()) {
                 logger.debug("show change confirm dialog, newLibraries: ${diffResult.newLibraryDependencies}, " +
