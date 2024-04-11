@@ -21,7 +21,7 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
 
         // find the first available devices
-        val deviceFutures = deployTarget.getDevices(project) ?: return null
+        val deviceFutures = deployTarget.getDevices(project)
         val devices = deviceFutures.ifReady
         if (!devices.isNullOrEmpty()) {
             return devices
