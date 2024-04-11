@@ -7,6 +7,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import org.jetbrains.annotations.NotNull;
 
+// deprecated for hot reload not correctly working
 public class PluginLoadListener implements DynamicPluginListener {
 
     private final Logger logger = Logger.getInstance("JuggPluginLoadListener");
@@ -19,17 +20,18 @@ public class PluginLoadListener implements DynamicPluginListener {
     @Override
     public void pluginLoaded(@NotNull IdeaPluginDescriptor pluginDescriptor) {
         logger.info("pluginLoaded");
-        Project[] openedProjects = ProjectManager.getInstance().getOpenProjects();
-        logger.info("get opened projects: " + openedProjects.length);
-        for (Project project : openedProjects) {
-            JuggInitializer.INSTANCE.init(project);
-        }
+//        Project[] openedProjects = ProjectManager.getInstance().getOpenProjects();
+//        logger.info("get opened projects: " + openedProjects.length);
+//        for (Project project : openedProjects) {
+//            JuggInitializer.INSTANCE.init(project);
+//        }
     }
 
     @Override
     public void beforePluginUnload(@NotNull IdeaPluginDescriptor pluginDescriptor, boolean isUpdate) {
         logger.info("beforePluginUnload");
-        JuggInitializer.INSTANCE.releaseAll();
+        // user reports that other plugins update is also callback here
+//        JuggInitializer.INSTANCE.releaseAll();
     }
 
     @Override

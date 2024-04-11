@@ -1,16 +1,18 @@
 <h1>Change Log</h1>
-<h2>1.2.1 (2024.04.08)</h2>
+<h2>1.2.1 (2024.04.11)</h2>
 <ol>
     <li>[feature] one-click access optimize: auto-detect compile command and output apk path</li>
     <li>[feature] dump logcat while report issues</li>
     <li>[feature] install directly if install failed last time and no file changes</li>
     <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
     <li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
+    <li>(rc9) [optimize] default config has different name to avoid overriding the normal config on next time scan</li>
     <li>[bugfix] fix NoSuchMethodError when add an optional argument to a top level function, and compile declaration file and invoke file together</li>
     <li>[bugfix] fix NoSuchMethodError for expand compilation not work properly</li>
     <li>[bugfix] fix auto-detect compile command and output apk path failed on Hedgehog and above</li>
     <li>(rc8) [bugfix] fix remote login failed when too many ssh keys exists</li>
     <li>(rc8) [bugfix] fix changes of gradle files in project root missing, after reopen project and sync</li>
+    <li>(rc9) [bugfix] fix jugg released when other plugin updates</li>
 </ol>
 <h2>1.2.0 (2024.02.04)</h2>
 <ol>
