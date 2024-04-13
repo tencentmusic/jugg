@@ -1,12 +1,16 @@
 package com.sickworm.intellij.jugg.compiler.manifest
 
-import com.android.utils.forEach
 import org.w3c.dom.Element
-import org.w3c.dom.Node
 import org.xml.sax.InputSource
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.StringReader
 import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.OutputKeys
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
+
 
 class XmlParser {
 
@@ -33,48 +37,20 @@ class XmlNode(
     val node: Element
 ) {
 
-    override fun toString(): String {
-        val builder = StringBuilder()
-        printNode(builder, node, 0)
-        return builder.toString()
-    }
+    val isEmpty: Boolean
+        get() = node.childNodes.length == 0
 
-    private fun printNode(builder: StringBuilder, node: Element, currentDepth: Int): String {
-        builder
-            .append(indent(currentDepth))
-            .append("<")
-            .append(node.nodeName)
-            .append("\n")
-
-        node.attributes?.forEach {
-            builder
-                .append(indent(currentDepth + 1))
-                .append(it.nodeName)
-                .append("=\"")
-                .append(it.nodeValue)
-                .append("\"")
-                .append("\n")
-        }
-
-        builder
-            .append(indent(currentDepth + 1))
-            .append(">")
-            .append("\n")
-
-        node.childNodes.forEach { child ->
-            if (child.nodeType == Node.ELEMENT_NODE) {
-                printNode(builder, child as Element, currentDepth + 1)
-            }
-        }
-
-        builder
-            .append(indent(currentDepth))
-            .append("</")
-            .append(node.nodeName)
-            .append(">")
-            .append("\n")
-
-        return builder.toString()
+    fun printXml(): String {
+        val out = ByteArrayOutputStream()
+        val tf = TransformerFactory.newInstance().newTransformer()
+        tf.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes")
+        tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8")
+        tf.setOutputProperty(OutputKeys.INDENT, "yes")
+        tf.transform(DOMSource(node), StreamResult(out))
+        return out.toString("UTF-8")
+            .lines()
+            .filter { it.trim().isNotEmpty() }
+            .joinToString("\n")
     }
 
     private fun indent(level: Int): String = " ".repeat(level * 2)

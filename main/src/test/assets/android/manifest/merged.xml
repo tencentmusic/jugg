@@ -1,0 +1,1720 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.sickworm.intellij.jugg"
+          android:installLocation="auto"
+          android:versionCode="999"
+          android:versionName="5.999.0.0" >
+
+    <uses-sdk
+            android:maxSdkVersion="28"
+            android:minSdkVersion="21"
+            android:targetSdkVersion="31" />
+
+    <uses-permission android:name="com.sickworm.intellij.jugg.WNS_PUSH_BROADCAST" />
+
+    <permission
+            android:name="com.sickworm.intellij.jugg.WNS_PUSH_BROADCAST"
+            android:protectionLevel="signature" >
+    </permission> <!-- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature android:name="android.hardware.camera" />
+    <uses-feature android:name="android.hardware.camera.autofocus" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FLASHLIGHT" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.GET_TASKS" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.BROADCAST_STICKY" />
+    <uses-permission
+            android:name="com.samsung.android.sdk.professionalaudio.permission.START_MONITOR_SERVICE"
+            android:exported="false" />
+    <uses-permission android:name="com.samsung.android.providers.context.permission.WRITE_USE_APP_FEATURE_SURVEY" />
+    <permission
+            android:name="com.sickworm.intellij.jugg.permission.MIPUSH_RECEIVE"
+            android:protectionLevel="signature" />
+
+    <uses-permission android:name="com.sickworm.intellij.jugg.permission.MIPUSH_RECEIVE" />
+    <uses-permission android:name="com.android.vending.BILLING" />
+    <uses-permission android:name="android.permission.BIND_JOB_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.SYSTEM_OVERLAY_WINDOW" />
+    <uses-permission android:name="android.permission.GET_PACKAGE_SIZE" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" /> <!-- end -->
+    <supports-screens
+            android:anyDensity="true"
+            android:largeScreens="true"
+            android:normalScreens="true" />
+
+    <queries>
+        <package android:name="com.sickworm.intellij.jugg" />
+        <package android:name="com.whatsapp" />
+        <package android:name="jp.naver.line.android" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="com.google.android.webview" />
+        <package android:name="com.sickworm.intellij.jugg.mobileqq" />
+        <package android:name="com.sickworm.intellij.jugg.mm" />
+        <package android:name="com.facebook.katana" /> <!-- For browser content -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+
+            <category android:name="android.intent.category.BROWSABLE" />
+
+            <data android:scheme="https" />
+        </intent> <!-- End of browser content -->
+        <!-- For CustomTabsService -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+
+        <package android:name="com.hihonor.android.magicx.media.audioengine" />
+    </queries>
+
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" /> <!-- Required to registerUI a SyncStatusObserver to display a "syncing..." progress indicator. -->
+    <uses-permission android:name="android.permission.READ_SYNC_STATS" /> <!-- Required to enable our SyncAdapter after it's created. -->
+    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" /> <!-- Required because we're manually creating a new account. -->
+    <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS" />
+    <uses-permission android:name="android.permission.WIFI_STATE_CHANGED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="com.coloros.mcs.permission.RECIEVE_MCS_MESSAGE" />
+    <uses-permission android:name="com.heytap.mcs.permission.RECIEVE_MCS_MESSAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <uses-feature
+            android:name="android.hardware.camera.front"
+            android:required="false" />
+    <uses-feature
+            android:name="android.hardware.camera.flash"
+            android:required="false" />
+    <uses-feature
+            android:name="android.hardware.screen.landscape"
+            android:required="false" />
+    <uses-feature
+            android:name="android.hardware.wifi"
+            android:required="false" /> <!-- Required by older versions of Google Play services to create IID tokens -->
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE" />
+    <uses-permission android:name="com.huawei.android.launcher.permission.CHANGE_BADGE" />
+    <uses-permission android:name="com.huawei.android.launcher.permission.READ_SETTINGS" />
+    <uses-permission android:name="com.huawei.android.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.oppo.launcher.permission.READ_SETTINGS" />
+    <uses-permission android:name="com.oppo.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+    <application
+            android:name="com.sickworm.intellij.jugg.DebugJuggApplication"
+            android:allowBackup="false"
+            android:allowTaskReparenting="true"
+            android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+            android:configChanges="uiMode"
+            android:debuggable="true"
+            android:fullBackupContent="@xml/appsflyer_backup_rules"
+            android:hardwareAccelerated="true"
+            android:icon="@mipmap/jugg_logo"
+            android:label="@string/app_name"
+            android:largeHeap="true"
+            android:networkSecurityConfig="@xml/network_security_config"
+            android:resizeableActivity="false"
+            android:supportsRtl="true"
+            android:theme="@style/juggTheme"
+            android:usesCleartextTraffic="true" >
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.splash.ui.SplashBaseActivity"
+                android:alwaysRetainTaskState="true"
+                android:configChanges="uiMode"
+                android:exported="true"
+                android:label="@string/app_name"
+                android:screenOrientation="portrait"
+                android:theme="@style/AppTheme.Launcher"
+                android:windowSoftInputMode="adjustPan" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <uses-library
+                android:name="org.apache.http.legacy"
+                android:required="false" />
+
+        <meta-data
+                android:name="com.facebook.sdk.AutoLogAppEventsEnabled"
+                android:value="false" />
+        <meta-data
+                android:name="android.max_aspect"
+                android:value="2.4" />
+        <meta-data
+                android:name="android.notch_support"
+                android:value="true" />
+        <meta-data
+                android:name="notch.config"
+                android:value="portrait|landscape" />
+        <meta-data
+                android:name="android.vendor.home_indicator"
+                android:value="dark_dim" />
+        <meta-data
+                android:name="android.vendor.full_screen"
+                android:value="true" /> <!-- end -->
+        <meta-data
+                android:name="isMidasGdprOn"
+                android:value="false" />
+        <meta-data
+                android:name="isReprovideTimerOn"
+                android:value="true" />
+
+        <provider
+                android:name="androidx.startup.InitializationProvider"
+                android:authorities="com.sickworm.intellij.jugg.androidx-startup"
+                android:exported="false" >
+            <meta-data
+                    android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+                    android:value="androidx.startup" />
+        </provider>
+        <provider
+                android:name="androidx.core.content.FileProvider"
+                android:authorities="com.sickworm.intellij.jugg.fileprovider.1000366"
+                android:exported="false"
+                android:grantUriPermissions="true" >
+            <meta-data
+                    android:name="android.support.FILE_PROVIDER_PATHS"
+                    android:resource="@xml/file_paths" />
+        </provider>
+        <receiver
+                android:name="com.appsflyer.MultipleInstallBroadcastReceiver"
+                android:exported="true" >
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
+            </intent-filter>
+        </receiver>
+        <meta-data
+                android:name="android.vivo_multidisplay_support"
+                android:value="true" />
+        <meta-data
+                android:name="com.google.android.gms.ads.AD_MANAGER_APP"
+                android:value="true" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.intent.IntentHandleActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="true"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:theme="@style/AppTheme.Launcher"
+                android:windowSoftInputMode="adjustPan" >
+            <intent-filter android:autoVerify="true" >
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                        android:host="jugg.onelink.me"
+                        android:pathPrefix="/JAsNjkf"
+                        android:scheme="https" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="com.sickworm.intellij.jugg.action.PUSH" />
+                <action android:name="com.sickworm.intellij.jugg.action.PLAYER" />
+                <action android:name="com.sickworm.intellij.jugg.action.LIVE_AND_ROOM" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="jugg" />
+            </intent-filter>
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.main.ui.MainTabActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:theme="@style/juggTheme"
+                android:windowSoftInputMode="adjustNothing" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.common.dex.DexActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:process=":nodex"
+                android:screenOrientation="portrait"
+                android:theme="@style/PermissionTheme" />
+
+        <provider
+                android:name="com.sickworm.intellij.jugg.solinker.SoLinkerContentProvider"
+                android:authorities="com.sickworm.intellij.jugg.SoLinkerContentProvider"
+                android:enabled="false"
+                android:exported="false"
+                android:multiprocess="true" /> <!-- end -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.loginbusiness.loginview.JuggLoginActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:launchMode="singleTop"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.loginbusiness.loginview.phone.PhoneInputActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:launchMode="singleTop"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan|stateVisible" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.loginbusiness.loginview.phone.PhoneVerificationActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustNothing|stateVisible" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.loginbusiness.loginview.countryselect.CountrySelectActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.ConfigMainNewActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.ConfigReserveContainerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.ConfigContainerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.ConfigSubContainerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.ConfigAboutActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.AnimationTestActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" /> <!-- Server Settings -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.ServerSetting"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.LogContainerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.config.ui.component.UIComponentActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.searchUser.ui.RecommendUserActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserInfoEditActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" /> <!-- end -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.SelectLocationActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UploadBGMActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserInfoMngActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" /> <!-- end -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserChrousAndUploadObbsActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.NewUserPageActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.DuetListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.FollowFansActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserFriendsActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.FriendShowActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <!-- 用户相册页 -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserPhotoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserMemberPartyListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.room.InterestRoomInfoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserPhotoViewActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.qrcode.ui.QRCodeCaptureActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.qrcode.ui.QRCodeLoginActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" /> <!-- qrcode activity  end -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserOpusListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.UserCollectionActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.user.ui.ContactFriendsActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.business.finish.PartyFinishActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.ui.page.PartyInfoActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.ui.page.DatingRoomActivity"
+                android:configChanges="uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:theme="@style/TranslucentNoAnimActivity"
+                android:windowSoftInputMode="adjustNothing" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.business.gamecenter.pvp.match.PvpMatchContainerActivity"
+                android:configChanges="uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:theme="@style/TranslucentNoAnimActivity"
+                android:windowSoftInputMode="adjustNothing" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.friendktv.manage.PartyManageActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.member.MemberManageActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.party.member.MemberKickedActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.debug.DebugSocialPartyActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.live.ui.LiveActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:theme="@style/TranslucentNoAnimFullActivity"
+                android:windowSoftInputMode="adjustNothing" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.live.ui.LiveSongFolderActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.billboard.container.BillboardHcActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.CommonListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.VodHcActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.VodSingerListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.VodRankActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.VodCategoryActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.VodChildChartSelectActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.rank.ui.HistoryActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.localaccompany.pages.LocalAccompanyManageActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.localaccompany.pages.LocalAccompanyManageEditActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.billboard.container.BillboardSingleActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:hardwareAccelerated="true"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.billboard.container.ChorusDetailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:hardwareAccelerated="true"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.billboard.container.StarChorusDetailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.vodpage.container.activity.VodRecSongListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.rank.ui.EntertainmentHistoryActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.SpFollowMailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.SpCloseAnnouncementActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.mail.MailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustNothing" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.maillist.MailListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.MailBigImageActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.strangermail.StrangerMailListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.opus.OpusListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.mail.ui.gift.GiftMailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.inviting.ui.InvitingActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.chorus.invite.InviteChorusActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" >
+        </activity>
+
+        <service
+                android:name="com.sickworm.intellij.jugg.process.impl.MainProcessService"
+                android:exported="false" />
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.web.hippy.ui.HippyInstanceActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:theme="@style/hippy_activity_style"
+                android:windowSoftInputMode="adjustPan" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.web.h5.ui.WebViewContainerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:hardwareAccelerated="false"
+                android:theme="@style/web_transparent_style"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.web.h5.process.WebViewProcessContainerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:hardwareAccelerated="false"
+                android:process=":webView"
+                android:theme="@style/web_transparent_style"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.web.hippy.debug.HippyProjectListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.web.hippy.debug.HippyDebugConfigActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+
+        <service
+                android:name="com.sickworm.intellij.jugg.web.h5.process.WebIPCService"
+                android:exported="false"
+                android:process=":webView" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.recording.ui.practice.RecordingPracticeActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.recording.ui.practice.PracticeListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.recording.ui.main.RecordingActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.recording.ui.cutlyric.CutLyricActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.prerecord.ui.PrerecordActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.prerecord.ui.SponsorChorusActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.prerecord.ui.SongRecordAddLricActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="stateAlwaysHidden" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.addvideo.VideoRecordingActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.publish.ui.SongPublishActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.local.ui.SongEditActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.local.ui.LocalSongActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.diagnose.DiagnoseActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.widget.lbs.POIListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.record.module.publish.ui.UserUploadTipDialogActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:theme="@style/Theme.AppCompat.k_coin_dialog_style"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.centauri.oversea.business.pay.CTIProxyActivity"
+                android:configChanges="keyboard|keyboardHidden|screenSize|orientation"
+                android:launchMode="singleTop"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service
+                android:name="com.centauri.oversea.newnetwork.service.CTINetDetectService"
+                android:process=":networkDetector" />
+        <activity
+                android:name="com.centauri.oversea.business.h5.CTIWebActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:process=":remoteWeb" />
+        <service android:name="com.centauri.oversea.business.h5.WebService" />
+
+        <activity
+                android:name="com.old.jugg.pay.ui.GlobalKCoinPayActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" >
+        </activity>
+        <activity
+                android:name="com.old.jugg.pay.ui.GlobalKCoinSubPayActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" >
+        </activity>
+        <activity
+                android:name="com.old.jugg.pay.ui.NewGlobalKCoinPayActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.jugg.pay.bridge.GooglePayBridgeActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:launchMode="singleTask"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.jugg.pay.bridge.NewH5PayBridgeActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:launchMode="singleTask"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.jugg.pay.bridge.GoogleSubscribePayBridgeActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:launchMode="singleTask"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.debug.DebugDestroyActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.debug.DebugFlowActivity"
+                android:exported="false" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.wxapi.WXEntryActivity"
+                android:configChanges="screenSize|screenLayout"
+                android:exported="true"
+                android:launchMode="singleTask"
+                android:noHistory="true" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.nearby.ui.NearbyUserInfoEditActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_offactivity.activity.HollowActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:excludeFromRecents="true"
+                android:exported="false"
+                android:finishOnTaskLaunch="false"
+                android:launchMode="singleInstance"
+                android:process=":push"
+                android:taskAffinity=""
+                android:theme="@style/HideActivity" >
+        </activity>
+
+        <receiver
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_wakeup.daemon_receiver.MonitorReceiver"
+                android:exported="true"
+                android:process=":push" >
+            <intent-filter android:priority="0x7FFFFFFF" >
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter android:priority="0x7FFFFFFF" >
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.SCREEN_OFF" />
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_MOUNTED" />
+                <action android:name="android.intent.action.MEDIA_UNMOUNTED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REMOVED" />
+
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_wakeup.daemon_account.AccountProvider"
+                android:authorities="com.sickworm.intellij.jugg"
+                android:exported="false"
+                android:process=":push" />
+        <service
+                android:name="com.sickworm.intellij.jugg.business.source.push_fcm.JuggFirebaseMessagingService"
+                android:exported="true"
+                android:process=":push" >
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <receiver
+                android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver"
+                android:exported="true"
+                android:permission="com.google.android.c2dm.permission.SEND"
+                android:process=":push" >
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
+        <service
+                android:name="com.google.firebase.messaging.FirebaseMessagingService"
+                android:directBootAware="true"
+                android:enabled="false"
+                android:exported="false" >
+            <intent-filter android:priority="-500" >
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_wakeup.daemon_job.JobSchedulerService"
+                android:enabled="true"
+                android:exported="true"
+                android:permission="android.permission.BIND_JOB_SERVICE"
+                android:process=":push" />
+        <service
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_wakeup.daemon_account.SyncService"
+                android:exported="true"
+                android:process=":push" >
+
+            <!--
+            This intent filter is required. It allows the system to launch our sync service
+            as needed.
+            -->
+            <intent-filter>
+                <action android:name="android.content.SyncAdapter" />
+            </intent-filter>
+            <!-- This points to a required XML file which describes our SyncAdapter. -->
+            <meta-data
+                    android:name="android.content.SyncAdapter"
+                    android:resource="@xml/syncadapter" />
+        </service>
+        <service
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_wakeup.daemon_account.AccountService"
+                android:exported="true"
+                android:process=":push" >
+
+            <!-- Required filter used by the system to launch our account service. -->
+            <intent-filter>
+                <action android:name="android.accounts.AccountAuthenticator" />
+            </intent-filter>
+            <!-- This points to an XMLf ile which describes our account service. -->
+            <meta-data
+                    android:name="android.accounts.AccountAuthenticator"
+                    android:resource="@xml/authenticator" />
+        </service>
+        <service
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_foreground.ForegroundCoreService"
+                android:exported="false"
+                android:process=":push" />
+        <service
+                android:name="com.sickworm.intellij.jugg.service.PushMainService"
+                android:exported="false"
+                android:process=":push" >
+        </service>
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_foreground.ForegroundEmptyActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:excludeFromRecents="true"
+                android:exported="true"
+                android:launchMode="singleInstance"
+                android:process=":push"
+                android:screenOrientation="portrait"
+                android:theme="@style/Theme.TransparentFullScreen" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.business.push_strategy.push_style.music_lock_style.MusicLockActivity"
+                android:excludeFromRecents="true"
+                android:exported="false"
+                android:launchMode="singleInstance"
+                android:noHistory="true"
+                android:process=":push"
+                android:screenOrientation="portrait"
+                android:taskAffinity="com.package.name.lockscreen"
+                android:theme="@style/LockScreenTheme" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.business.push_strategy.push_style.music_lock_style.MusicLockActivity2"
+                android:excludeFromRecents="true"
+                android:exported="false"
+                android:launchMode="singleInstance"
+                android:noHistory="true"
+                android:process=":push"
+                android:screenOrientation="portrait"
+                android:taskAffinity="com.package.name.lockscreen"
+                android:theme="@style/LockScreenTheme" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.business.push_strategy.push_style.dh_style.ui.LowActivePushActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:launchMode="singleInstance"
+                android:process=":push"
+                android:theme="@style/transparent_fullScreen"
+                android:windowSoftInputMode="adjustResize" >
+            <intent-filter>
+                <action android:name="com.sickworm.intellij.jugg.action.low.active.PUSH" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+                android:name="com.sickworm.intellij.jugg.daemon.daemon_wakeup.daemon_alarm.AlarmReceiver"
+                android:exported="true"
+                android:process=":push" >
+            <intent-filter>
+                <action android:name="alarm.push.timer.action" />
+            </intent-filter>
+        </receiver> <!-- Notify Module Start -->
+        <receiver
+                android:name="com.sickworm.intellij.jugg.business.push_strategy.PushNotificationRemoveReceiver"
+                android:exported="false"
+                android:process=":push" >
+            <intent-filter>
+                <action android:name="push.click.action" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.business.push_setting.NotificationJumpActivity"
+                android:exported="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.NOTIFICATION_PREFERENCES" />
+            </intent-filter>
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.business.debug.PushDebugActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait" /> <!-- MV -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.detail.ui.DetailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:theme="@style/ActivityTopBottomTheme"
+                android:windowSoftInputMode="adjustResize" /> <!-- gift billboard activity -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.detail.ui.GiftBillboardActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.search.ui.SearchBaseActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize|stateHidden" >
+        </activity>
+        <!-- <activity -->
+        <!-- android:name="com.sickworm.intellij.jugg.module.searchFriends.ui.SearchFriendsActivity" -->
+        <!-- android:configChanges="keyboardHidden|orientation|screenSize|screenLayout" -->
+        <!--  -->
+        <!-- android:screenOrientation="portrait" -->
+        <!-- android:windowSoftInputMode="adjustResize" > -->
+        <!-- </activity> -->
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.searchFriends.ui.NewSearchFriendsActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustResize|stateHidden" >
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.module.search.ui.MusicNotFoundActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.share.ShareLoadingVideoActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
+                android:exported="false"
+                android:theme="@style/ShareNoTitle"
+                android:windowSoftInputMode="adjustResize" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.pickphoto.CropActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.pickphoto.PickPhotoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.pickphoto.multipick.RecordPreviewPictureChooseActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.pickphoto.multipick.photo.dynamic.DynamicPreviewActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.album.ui.AlbumListActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.album.ui.AlbumEditActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.album.ui.AlbumAddSongActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.album.ui.AlbumDownloadActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.album.ui.AlbumDetailActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+                android:exported="false"
+                android:screenOrientation="portrait" />
+
+        <service
+                android:name="com.sickworm.intellij.jugg.module_partylive_common.service.PartyLiveForegroundService"
+                android:exported="false" />
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.module_partylive_common.create.RoomCreateActivity"
+                android:exported="false"
+                android:hardwareAccelerated="true"
+                android:launchMode="singleTask"
+                android:screenOrientation="portrait"
+                android:theme="@style/TranslucentAnimActivity"
+                android:windowSoftInputMode="adjustNothing" />
+
+        <service
+                android:name="com.sickworm.intellij.jugg.common.media.service.KaraPlayerServiceKt"
+                android:exported="false" />
+
+        <receiver
+                android:name="com.sickworm.intellij.jugg.common.media.strategy.HeadsetPlugReceiver"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="android.intent.action.HEADSET_PLUG" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver> <!-- end -->
+        <receiver
+                android:name="com.sickworm.intellij.jugg.common.media.service.KaraMediaButtonReceiver"
+                android:enabled="true"
+                android:exported="false" >
+            <intent-filter android:priority="2147483647" >
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
+        <service
+                android:name="com.sickworm.intellij.jugg.recordsdk.media.KaraRecordService"
+                android:exported="false" >
+        </service>
+        <service android:name="com.sickworm.intellij.jugg.floatwindowservice.service.FloatService" />
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.safemode.fix.SafeModeActivity"
+                android:configChanges="uiMode"
+                android:process=":safe_mode"
+                android:screenOrientation="portrait"
+                android:theme="@style/AppTheme.Launcher" >
+        </activity>
+
+        <service
+                android:name="com.sickworm.intellij.jugg.safemode.fix.SafeModeService"
+                android:process=":safe_mode" >
+        </service>
+        <service
+                android:name="com.kwai.koom.javaoom.analysis.HeapAnalyzeService"
+                android:process=":heap_analysis" />
+        <service
+                android:name="com.sickworm.intellij.jugg.imageservice.ImageProcessService"
+                android:exported="false"
+                android:process=":imageservice" />
+        <service
+                android:name="com.sickworm.intellij.jugg.wns.service.WnsMain"
+                android:exported="false"
+                android:label="ConnectionService"
+                android:process=":service" >
+            <intent-filter>
+                <action android:name="com.sickworm.intellij.jugg.wns.service.WnsMain" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+                android:name="com.facebook.sdk.ApplicationId"
+                android:value="@string/facebook_app_id" />
+
+        <provider
+                android:name="com.facebook.FacebookContentProvider"
+                android:authorities="com.facebook.app.FacebookContentProvider273829592974656"
+                android:exported="true" />
+
+        <meta-data
+                android:name="com.facebook.sdk.ApplicationId"
+                android:value="@string/facebook_app_id" />
+
+        <activity
+                android:name="com.facebook.FacebookActivity"
+                android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+                android:exported="false"
+                android:label="@string/app_name"
+                android:theme="@style/com_facebook_activity_theme" />
+        <activity
+                android:name="com.facebook.CustomTabActivity"
+                android:exported="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="@string/fb_login_protocol_scheme" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                        android:host="cct.com.sickworm.intellij.jugg"
+                        android:scheme="fbconnect" />
+            </intent-filter>
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.connect.common.AssistActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+                android:exported="false"
+                android:screenOrientation="behind"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:windowSoftInputMode="adjustPan" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.tauth.AuthActivity"
+                android:configChanges="screenSize|screenLayout"
+                android:exported="true"
+                android:launchMode="singleTask"
+                android:noHistory="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="110156298833" />
+            </intent-filter>
+        </activity>
+        <activity
+                android:name="com.sickworm.intellij.jugg.base.util.UtilsTransActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:exported="false"
+                android:multiprocess="true"
+                android:theme="@style/ActivityTranslucent"
+                android:windowSoftInputMode="stateHidden|stateAlwaysHidden" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.ui.design.demo.UIDesignActivity"
+                android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar" />
+
+        <provider
+                android:name="com.sickworm.intellij.jugg.rmonitor.launch.AppLaunchMonitorInstaller"
+                android:authorities="com.sickworm.intellij.jugg.rmonitor-installer"
+                android:exported="false" />
+
+        <receiver
+                android:name="com.sickworm.intellij.jugg.rmonitor.natmem.NatMemReceiver"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="com.sickworm.intellij.jugg.rmonitor.natmem.USAGE_DUMP" />
+                <action android:name="com.sickworm.intellij.jugg.rmonitor.natmem.LEAK_DUMP" />
+            </intent-filter>
+        </receiver>
+        <activity
+                android:name="com.sickworm.intellij.jugg.rtmp.video.TXScreenCapture$TXScreenCaptureAssistantActivity"
+                android:theme="@android:style/Theme.Translucent" />
+        <activity android:name="com.sickworm.intellij.jugg.recordtestkit.AudioEffectActivity" />
+        <activity
+                android:name="com.sickworm.intellij.jugg.liteav.video.TXScreenCapture$TXScreenCaptureAssistantActivity"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
+
+        <service
+                android:name="com.sickworm.intellij.jugg.base.os.clock.JobClockReceiver"
+                android:exported="false"
+                android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service
+                android:name="com.sickworm.intellij.jugg.capmock.ui.service.CapService"
+                android:enabled="true"
+                android:process=":capmock" />
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.capmock.ui.activity.CapSettingsActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:exported="true"
+                android:icon="@drawable/server_ic_folder_back"
+                android:label="@string/capmock_server_title_activity_cap_tools_main"
+                android:launchMode="singleInstance"
+                android:process=":capmock"
+                android:screenOrientation="unspecified"
+                android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" >
+        </activity>
+
+        <activity-alias
+                android:name="com.sickworm.intellij.jugg.capmock.server.SettingActivity"
+                android:enabled="true"
+                android:exported="true"
+                android:icon="@drawable/server_ic_folder_back"
+                android:label="CapMock设置"
+                android:targetActivity="com.sickworm.intellij.jugg.capmock.ui.activity.CapSettingsActivity" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+                android:name="com.sickworm.intellij.jugg.capmock.ui.activity.CapUidSettingActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:launchMode="singleInstance"
+                android:process=":capmock"
+                android:screenOrientation="unspecified" />
+        <activity android:name="com.facebook.CustomTabMainActivity" />
+
+        <meta-data
+                android:name="com.bumptech.glide.integration.webp.WebpGlideModule"
+                android:value="GlideModule" />
+
+        <activity
+                android:name="com.twitter.sdk.android.tweetui.PlayerActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:theme="@style/MediaTheme" />
+        <activity
+                android:name="com.twitter.sdk.android.tweetui.GalleryActivity"
+                android:theme="@style/MediaTheme" />
+        <activity
+                android:name="com.twitter.sdk.android.tweetcomposer.ComposerActivity"
+                android:exported="false"
+                android:windowSoftInputMode="adjustResize|stateVisible" />
+
+        <service
+                android:name="com.twitter.sdk.android.tweetcomposer.TweetUploadService"
+                android:enabled="true"
+                android:exported="false" />
+
+        <activity
+                android:name="com.twitter.sdk.android.core.identity.OAuthActivity"
+                android:configChanges="orientation|screenSize"
+                android:excludeFromRecents="true"
+                android:exported="false" />
+        <!--
+         The initialization ContentProvider will call FacebookSdk.sdkInitialize automatically
+         with the application context. This config is merged in with the host app's manifest,
+         but there can only be one provider with the same authority activated at any given
+         point; so if the end user has two or more different apps that use Facebook SDK, only the
+         first one will be able to use the provider. To work around this problem, we use the
+         following placeholder in the authority to identify each host application as if it was
+         a completely different provider.
+        -->
+        <provider
+                android:name="com.facebook.internal.FacebookInitProvider"
+                android:authorities="com.sickworm.intellij.jugg.FacebookInitProvider"
+                android:exported="false" />
+
+        <receiver
+                android:name="com.facebook.CurrentAccessTokenExpirationBroadcastReceiver"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="com.facebook.sdk.ACTION_CURRENT_ACCESS_TOKEN_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="com.facebook.AuthenticationTokenManager$CurrentAuthenticationTokenChangedBroadcastReceiver"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="com.facebook.sdk.ACTION_CURRENT_AUTHENTICATION_TOKEN_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+                android:name="com.journeyapps.barcodescanner.CaptureActivity"
+                android:clearTaskOnLaunch="true"
+                android:screenOrientation="sensorLandscape"
+                android:stateNotNeeded="true"
+                android:theme="@style/zxing_CaptureTheme"
+                android:windowSoftInputMode="stateAlwaysHidden" />
+        <activity
+                android:name="com.google.android.gms.auth.api.signin.internal.SignInHubActivity"
+                android:excludeFromRecents="true"
+                android:exported="false"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!--
+            Service handling Google Sign-In user revocation. For apps that do not integrate with
+            Google Sign-In, this service will never be started.
+        -->
+        <service
+                android:name="com.google.android.gms.auth.api.signin.RevocationBoundService"
+                android:exported="true"
+                android:permission="com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION"
+                android:visibleToInstantApps="true" />
+        <service
+                android:name="com.google.firebase.components.ComponentDiscoveryService"
+                android:directBootAware="true"
+                android:exported="false" >
+            <meta-data
+                    android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar"
+                    android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                    android:name="com.google.firebase.components:com.google.firebase.iid.Registrar"
+                    android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                    android:name="com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar"
+                    android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                    android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar"
+                    android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                    android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar"
+                    android:value="com.google.firebase.components.ComponentRegistrar" />
+        </service>
+
+        <activity
+                android:name="com.google.android.gms.common.api.GoogleApiActivity"
+                android:exported="false"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <receiver
+                android:name="com.google.android.gms.measurement.AppMeasurementReceiver"
+                android:enabled="true"
+                android:exported="false" >
+        </receiver>
+
+        <service
+                android:name="com.google.android.gms.measurement.AppMeasurementService"
+                android:enabled="true"
+                android:exported="false" />
+        <service
+                android:name="com.google.android.gms.measurement.AppMeasurementJobService"
+                android:enabled="true"
+                android:exported="false"
+                android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <activity
+                android:name="com.facebook.ads.AudienceNetworkActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:exported="false"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <provider
+                android:name="com.facebook.ads.AudienceNetworkContentProvider"
+                android:authorities="com.sickworm.intellij.jugg.AudienceNetworkContentProvider"
+                android:exported="false" /> <!-- Include the AdActivity and InAppPurchaseActivity configChanges and themes. -->
+        <activity
+                android:name="com.google.android.gms.ads.AdActivity"
+                android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
+                android:exported="false"
+                android:theme="@android:style/Theme.Translucent" />
+
+        <service
+                android:name="com.google.android.gms.ads.AdService"
+                android:enabled="true"
+                android:exported="false" />
+
+        <meta-data
+                android:name="com.google.android.gms.version"
+                android:value="@integer/google_play_services_version" />
+
+        <service
+                android:name="androidx.work.impl.background.systemalarm.SystemAlarmService"
+                android:directBootAware="false"
+                android:enabled="@bool/enable_system_alarm_service_default"
+                android:exported="false" />
+        <service
+                android:name="androidx.work.impl.background.systemjob.SystemJobService"
+                android:directBootAware="false"
+                android:enabled="@bool/enable_system_job_service_default"
+                android:exported="true"
+                android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service
+                android:name="androidx.work.impl.foreground.SystemForegroundService"
+                android:directBootAware="false"
+                android:enabled="@bool/enable_system_foreground_service_default"
+                android:exported="false" />
+
+        <receiver
+                android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver"
+                android:directBootAware="false"
+                android:enabled="true"
+                android:exported="false" />
+        <receiver
+                android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy"
+                android:directBootAware="false"
+                android:enabled="false"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy"
+                android:directBootAware="false"
+                android:enabled="false"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="android.intent.action.BATTERY_OKAY" />
+                <action android:name="android.intent.action.BATTERY_LOW" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy"
+                android:directBootAware="false"
+                android:enabled="false"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="android.intent.action.DEVICE_STORAGE_LOW" />
+                <action android:name="android.intent.action.DEVICE_STORAGE_OK" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy"
+                android:directBootAware="false"
+                android:enabled="false"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver"
+                android:directBootAware="false"
+                android:enabled="false"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver"
+                android:directBootAware="false"
+                android:enabled="@bool/enable_system_alarm_service_default"
+                android:exported="false" >
+            <intent-filter>
+                <action android:name="androidx.work.impl.background.systemalarm.UpdateProxies" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver"
+                android:directBootAware="false"
+                android:enabled="true"
+                android:exported="true"
+                android:permission="android.permission.DUMP" >
+            <intent-filter>
+                <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS" />
+            </intent-filter>
+        </receiver>
+
+        <service
+                android:name="androidx.room.MultiInstanceInvalidationService"
+                android:directBootAware="true"
+                android:exported="false" />
+        <service
+                android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+                android:exported="false" >
+            <meta-data
+                    android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+                    android:value="cct" />
+        </service>
+        <service
+                android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+                android:exported="false"
+                android:permission="android.permission.BIND_JOB_SERVICE" >
+        </service>
+
+        <receiver
+                android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+                android:exported="false" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTLandingPageActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_landing_page" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTPlayableLandingPageActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_landing_page" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTVideoLandingPageActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_landing_page" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTVideoLandingPageLink2Activity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_landing_page" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTRewardVideoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_full_screen_new" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTRewardExpressVideoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_full_screen_new" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTFullScreenVideoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_full_screen_new" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTFullScreenExpressVideoActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_full_screen_new" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTInterstitialActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_full_screen_interaction" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTInterstitialExpressActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_full_screen_interaction" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTDelegateActivity"
+                android:launchMode="standard"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTWebsiteActivity"
+                android:launchMode="standard"
+                android:screenOrientation="portrait"
+                android:theme="@style/tt_privacy_landing_page" />
+        <activity
+                android:name="com.bytedance.sdk.openadsdk.activity.TTAppOpenAdActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize"
+                android:launchMode="standard"
+                android:theme="@style/tt_app_open_ad_no_animation" />
+
+        <service android:name="com.bytedance.sdk.openadsdk.multipro.aidl.BinderPoolService" />
+
+        <activity android:name="com.bytedance.sdk.openadsdk.adapter.PangleAdInterstitialActivity" /> <!-- The activities will be merged into the manifest of the hosting app. -->
+        <activity
+                android:name="com.google.android.play.core.missingsplits.PlayCoreMissingSplitsActivity"
+                android:enabled="false"
+                android:exported="false"
+                android:launchMode="singleInstance"
+                android:process=":playcore_missing_splits_activity"
+                android:stateNotNeeded="true" />
+        <activity
+                android:name="com.google.android.play.core.common.PlayCoreDialogWrapperActivity"
+                android:enabled="false"
+                android:exported="false"
+                android:stateNotNeeded="true"
+                android:theme="@style/Theme.PlayCore.Transparent" /> <!-- The service will be merged into the manifest of the hosting app. -->
+        <service
+                android:name="com.google.android.play.core.assetpacks.AssetPackExtractionService"
+                android:enabled="false"
+                android:exported="true" />
+
+        <activity
+                android:name="com.anythink.core.activity.AnyThinkGdprAuthActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:launchMode="singleTask"
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+        <activity
+                android:name="com.anythink.basead.ui.AdLandscapeActivity"
+                android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+                android:screenOrientation="sensorLandscape"
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+        <activity
+                android:name="com.anythink.basead.ui.AdPortraitActivity"
+                android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+                android:screenOrientation="sensorPortrait"
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+        <activity
+                android:name="com.anythink.basead.ui.AdLandscapeTranslucentActivity"
+                android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+                android:screenOrientation="sensorLandscape"
+                android:theme="@style/anythink_myoffer_half_screen" />
+        <activity
+                android:name="com.anythink.basead.ui.AdPortraitTranslucentActivity"
+                android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+                android:screenOrientation="sensorPortrait"
+                android:theme="@style/anythink_myoffer_half_screen" />
+        <activity
+                android:name="com.anythink.core.basead.ui.web.WebLandPageActivity"
+                android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+                android:launchMode="singleTop"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
+        <activity
+                android:name="com.anythink.basead.ui.RewardExitConfirmDialogActivity"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
+        <activity
+                android:name="com.anythink.expressad.reward.player.ATRewardVideoActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:excludeFromRecents="true"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
+        <activity
+                android:name="com.mbridge.msdk.reward.player.MBRewardVideoActivity"
+                android:configChanges="orientation|keyboardHidden|screenSize"
+                android:excludeFromRecents="true"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+                android:name="com.mbridge.msdk.interstitial.view.MBInterstitialActivity"
+                android:configChanges="orientation|screenSize"
+                android:excludeFromRecents="true" />
+
+        <meta-data
+                android:name="com.google.android.play.billingclient.version"
+                android:value="4.0.0" />
+
+        <activity
+                android:name="com.android.billingclient.api.ProxyBillingActivity"
+                android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+                android:exported="false"
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" /> <!-- mbridge base activity -->
+        <activity
+                android:name="com.mbridge.msdk.activity.MBCommonActivity"
+                android:configChanges="keyboard|orientation"
+                android:excludeFromRecents="true"
+                android:exported="false"
+                android:screenOrientation="portrait"
+                android:theme="@style/mbridge_transparent_common_activity_style" /> <!-- integration rewardVideo if aggregation nativeX pls add start -->
+        <activity android:name="com.mbridge.msdk.out.LoadingActivity" />
+    </application>
+
+</manifest>
