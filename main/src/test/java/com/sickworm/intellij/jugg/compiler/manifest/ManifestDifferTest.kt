@@ -5,19 +5,29 @@ import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
 
-class ManifestDifferTest {
+open class ManifestDifferTest {
 
-    private val mergedFile = File(assetsDir, "android/manifest/merged.xml")
+    val mergedFile = File(assetsDir, "android/manifest/merged.xml")
     private val mergedFileText = mergedFile.readText()
 
     @Test
-    fun testEquals() {
+    open fun testFileEquals() {
         val changedManifestFile = ChangedManifestFile(mergedFile, mergedFile)
         val diffResult = ManifestDiffer().diff(changedManifestFile)
         val diffContent = diffResult.diffElement.toXmlString()
         println(diffContent)
         assertEquals("<manifest>\n</manifest>".trimLines(), diffContent.trimLines())
     }
+
+    @Test
+    fun testEquals() {
+        diff(
+            newXml = mergedFileText,
+            oldXml = mergedFileText,
+            expectDiffResult = "<manifest>\n</manifest>",
+        )
+    }
+
 
     @Test
     fun testEmpty() {
@@ -530,7 +540,7 @@ class ManifestDifferTest {
         )
     }
 
-    private fun diff(newXml: String, oldXml: String, expectDiffResult: String) {
+    open fun diff(newXml: String, oldXml: String, expectDiffResult: String): ManifestDiffResult.DiffElement {
         val newNode = XmlParser().parse(newXml)
         val oldNode = XmlParser().parse(oldXml)
         val diffResult = ManifestDiffer().diff(newNode, oldNode)
@@ -542,6 +552,7 @@ class ManifestDifferTest {
         println("diff cost ${costTime}ms")
 
         assertEquals(expectDiffResult.trimLines(), diffContent.trimLines())
+        return diffResult
     }
 
     private fun String.trimLines(): String {
