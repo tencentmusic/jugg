@@ -1,6 +1,5 @@
-package com.sickworm.intellij.jugg.compile.manifest
+package com.sickworm.intellij.jugg.compiler.manifest
 
-import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.mock.assetsDir
 import org.junit.Test
 import java.io.File
