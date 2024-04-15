@@ -194,7 +194,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                         okButtonText = "OK, I got it!",
                         isShowCancelButton = false,
                     )
-                } else {
+                } else if (compareInfo.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED) {
                     logger.debug("show no change confirm dialog")
                     val isConfirmed = CommonConfirmDialog.showAndGetResult(
                         title = "Jugg: Oops, No Library Changes Found",
