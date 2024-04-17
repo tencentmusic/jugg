@@ -25,10 +25,7 @@ class DexCompiler(
 
         val minApi = run {
             // use min(applicationModule.minSdkVersion) as DEX min API
-            val applicationMinApis = context.applicationModules.mapNotNull {
-                it.minSdkVersion?.toIntOrNull()
-            }
-            val applicationMinApi = applicationMinApis.minOrNull()
+            val applicationMinApi = context.applicationModule?.minSdkVersion?.toIntOrNull()
             val isEnableDesugared = context.isEnableDesugared
             val finalMinApi = when {
                 // context shows that project is enabled desugar,
@@ -40,7 +37,7 @@ class DexCompiler(
                 isEnableDesugared -> 21 // use 21 to enable desugar
                 else -> 31 // use 31 to disable desugar
             }
-            logger.debug("get minSdkVersion applicationMinApis=${applicationMinApis}), isEnableDesugared = $isEnableDesugared" +
+            logger.debug("get minSdkVersion applicationModule=${context.applicationModule?.name}), isEnableDesugared = $isEnableDesugared" +
                     ", use $finalMinApi as DEX min API.")
             finalMinApi
         }

@@ -15,16 +15,12 @@ class StyleableFileGenerator(
 ) {
 
     fun generateStyleableFile(context: ICompileContext, outputDir: File): File? {
-        val applicationModules = context.applicationModules
-        if (applicationModules.isEmpty()) {
+        val selectedApplicationModule = context.applicationModule
+        if (selectedApplicationModule == null) {
             logger.warn("generateStyleableFile failed, no application module found")
             return null
         }
-        val selectedApplicationModule = applicationModules.maxByOrNull {
-            val rFile = it.buildPathInfo.rFilePath
-            return@maxByOrNull rFile.length()
-        } ?: applicationModules.first()
-        logger.debug("found ${applicationModules.size} application modules, select: ${selectedApplicationModule.name}")
+        logger.debug("application module: ${selectedApplicationModule.name}")
 
         val manifestFile = selectedApplicationModule.manifestFile
         if (manifestFile == null || !manifestFile.exists()) {

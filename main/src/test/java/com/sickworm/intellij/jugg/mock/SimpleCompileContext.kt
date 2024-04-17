@@ -17,6 +17,8 @@ data class SimpleCompileContext(
     override val deployedFiles: List<CompileOutput>,
 ) : ICompileContext {
 
+    override val applicationModule: ModuleInfo = modules.values.first()
+
     override val isEnableDesugared: Boolean = true
 
     private val finalRFiles: List<String> by lazy {

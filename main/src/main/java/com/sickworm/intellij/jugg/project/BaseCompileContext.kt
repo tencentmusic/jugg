@@ -2,7 +2,10 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
+import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import java.io.File
@@ -37,6 +40,51 @@ data class BaseCompileContext(
         }.sortedBy {
             -File(it).length() // sort by file size, to let the biggest R.jar go first
         }
+    }
+
+    override val applicationModule: ModuleInfo? by lazy {
+        val applicationModules = modules.values.filter { module ->
+            val rFile = module.buildPathInfo.rFilePath
+            return@filter rFile.exists()
+        }
+        if (applicationModules.isEmpty()) {
+            logger.debug("get application module failed, no module has R.jar")
+            return@lazy null
+        }
+        if (applicationModules.size == 1) {
+            logger.debug("get application module returns ${applicationModules.first().name}, with only one has R.jar")
+            return@lazy applicationModules.first()
+        }
+
+        logger.debug("get application module has multiple modules has R.jar, ${applicationModules.joinToString { it.name }}")
+
+        val apkFile = apkInfos.firstOrNull()?.files?.firstOrNull()?.apkFile
+        if (apkFile == null || !apkFile.exists()) {
+            logger.debug("get application module failed, apk file not found, something wrong. Use first module as application module.")
+            return@lazy applicationModules.first()
+        }
+        val packageNameInApk = ApkReader(apkFile, logger).getPackageName()
+        logger.debug("get application module by package name in APK: $packageNameInApk")
+
+        applicationModules.forEach {
+            val mergedManifest = it.buildPathInfo.mergedManifest
+            if (!mergedManifest.exists()) {
+                logger.debug("get application module failed, ${it.name}'s merged manifest not found, ignore")
+                return@forEach
+            }
+            val mergedManifestXmlNode = XmlParser().parse(mergedManifest)
+            val packageNameInManifest = mergedManifestXmlNode.node["package"]
+            if (packageNameInManifest == packageNameInApk) {
+                logger.debug("get application module auto match success, ${it.name} has same package name $packageNameInManifest")
+                return@lazy it
+            } else {
+                logger.debug("get application module, ${it.name} has different package name $packageNameInManifest, continue.")
+                return@forEach
+            }
+        }
+
+        logger.debug("get application module auto match failed, use first module as application module.")
+        return@lazy applicationModules.first()
     }
 
     override val isEnableDesugared: Boolean by lazy {
