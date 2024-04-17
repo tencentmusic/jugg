@@ -291,10 +291,10 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         logger.debug("on build file changed: $files")
         val buildChangedTime = files.maxOf { it.lastModified() }
         if (compareInfo.lastBuildChangedTime != buildChangedTime) {
-            logger.debug("build changed time changed: ${compareInfo.lastBuildChangedTime.timeStampToTime()} " +
-                    "-> ${buildChangedTime.timeStampToTime()}")
             compareInfo.lastBuildChangedTime = buildChangedTime
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED
+            logger.debug("build changed time changed: ${compareInfo.lastBuildChangedTime.timeStampToTime()} " +
+                    "-> ${buildChangedTime.timeStampToTime()}, changeStatus: $changeStatus")
         }
     }
 
@@ -322,19 +322,14 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         updateFullBuildDependency(isEndSyncing = true)
         diffDependency()
 
-        compareInfo.changeStatus = if (diffResult.newLibraryDependencies.isEmpty()) {
-            // mark as no change if diffDependency() found no library changed
-            IDependencyChangeManager.ChangeStatus.NO_CHANGE
-        } else {
-            IDependencyChangeManager.ChangeStatus.REBUILD
-        }
         logger.debug("on sync finished, changeStatus: $changeStatus, diffResult: $diffResult")
     }
 
     private fun updateFullBuildDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
         if (isFullBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
-            logger.debug("update full build dependency")
             lastBuildDependencies = currentBuildDependencies
+            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+            logger.debug("update full build dependency, changeStatus: $changeStatus")
         }
     }
 
@@ -357,6 +352,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             |startBuildingTime=${startBuildingTime.timeStampToTime()}, endBuildingTime=${endBuildingTime.timeStampToTime()}
             |lastBuildChangedTime=${lastBuildChangedTime.timeStampToTime()}
             |isBuilding=$isBuilding, isSyncing=$isSyncing, isLastSyncUpdate=$isLastSyncUpdate
+            |changeStatus=$changeStatus
         """.trimMargin())
 
         if (hasBuildChangedTime && !isSyncLaterThanBuildChanged) {
@@ -439,12 +435,12 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     @Synchronized
     override fun onConfirmIncrementalCompile(isConfirmed: Boolean) {
         if (!hasInit) return
-        logger.debug("on mark as incremental compile, changeStatus: $changeStatus")
         if (isConfirmed) {
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
         } else {
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.REBUILD
         }
+        logger.debug("on mark as incremental compile, changeStatus: $changeStatus")
     }
 
     private fun Long.timeStampToTime(): String {
