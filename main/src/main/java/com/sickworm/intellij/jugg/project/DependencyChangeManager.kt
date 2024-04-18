@@ -106,8 +106,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     private var nextStartSyncingTime = 0L
     private var nextStartBuildingTime = 0L
 
-    private val isBuilding get() = nextStartSyncingTime != 0L
-    private val isSyncing get() = nextStartBuildingTime != 0L
+    private val isBuilding get() = nextStartBuildingTime != 0L
+    private val isSyncing get() = nextStartSyncingTime != 0L
 
     @Synchronized
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
