@@ -27,7 +27,7 @@ class ArscCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes = listOf(CompileFile.Type.Flat)
+    override val supportedTypes = listOf(CompileFile.Type.Flat, CompileFile.Type.AndroidManifest)
 
     override val isNeedOutputDirEmpty = true
 
@@ -110,8 +110,9 @@ class ArscCompiler(
             loadTable()
         }
 
-        val flatFiles = task.files.map { it.file }
-        val result = incLinkCompile(flatFiles, task.outputDir)
+        val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }
+        val androidManifestFile = task.files.find { it.type == CompileFile.Type.AndroidManifest }?.file
+        val result = incLinkCompile(flatFiles, androidManifestFile, task.outputDir)
 
         if (result.isEmpty()) {
             // reload
@@ -137,11 +138,13 @@ class ArscCompiler(
         return CompileResult(task, emptyList(), emptyList())
     }
 
-    private fun incLinkCompile(flatFiles: List<File>, outputDir: File): List<CompileOutput> {
+    private fun incLinkCompile(flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
         val rFileDir = File(outputDir, "rjava")
         val overlayDir = File(outputDir, "overlays")
         rFileDir.mkdirs()
         overlayDir.mkdirs()
+
+        val manifestName = androidManifest?.absolutePath ?: "no_need_compile_manifest"
 
         val flatFilesArg = flatFiles.joinToString(separator = "\n") { it.absolutePath }
         val commandArg = """
@@ -149,7 +152,7 @@ class ArscCompiler(
             |-o $overlayDir
             |--output-to-dir
             |--java $rFileDir
-            |--manifest no_support_manifest_yet
+            |--manifest $manifestName
         """.trimMargin().replace("\n", " ")
         val command = "$commandArg $flatFilesArg"
 

@@ -23,7 +23,7 @@ class ApkReader(
         return getManifest().packageName()
     }
 
-    private fun getManifest(): ManifestActivityInfo {
+    fun getManifest(): ManifestActivityInfo {
         manifestCache?.let {
             return it
         }

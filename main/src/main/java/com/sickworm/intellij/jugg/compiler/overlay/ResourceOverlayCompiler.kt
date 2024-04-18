@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.manifest.AndroidManifestCompiler
 import java.io.File
 
 /**
@@ -23,35 +24,69 @@ class ResourceOverlayCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes = listOf(CompileFile.Type.Resource)
+    override val supportedTypes = listOf(CompileFile.Type.Resource, CompileFile.Type.AndroidManifest)
 
     override val isNeedPrintProgress: Boolean = true
 
     private val resourceCompiler = ResourceCompiler(context, this)
 
+    private val androidManifestCompiler = AndroidManifestCompiler(context, this)
+
     private val arscCompiler = ArscCompiler(context, this)
 
     override fun doCompile(task: CompileTask): CompileResult {
-        // compile to .flat
-        val resourceTask = CompileTask(
-            task.files,
-            context.tempCompileDir,
+        val androidManifestTask = CompileTask(
+            task.files.filter { it.type == CompileFile.Type.AndroidManifest },
+            File(context.tempCompileDir, "merged_manifest"),
             task,
         )
-        val resourceResult = resourceCompiler.compile(resourceTask)
-        if (!resourceResult.isAllSuccess || resourceResult.outputs.isEmpty()) {
-            return CompileResult(
-                task,
-                resourceResult.details,
-                resourceResult.outputs,
-            )
+        val resourceTask = CompileTask(
+            task.files.filter { it.type == CompileFile.Type.Resource },
+            File(context.tempCompileDir, "flat"),
+            task,
+        )
+
+        // merge AndroidManifest.xml
+        var androidManifestResult = CompileResult(androidManifestTask, emptyList(), emptyList())
+        if (androidManifestTask.files.isNotEmpty()) {
+            androidManifestResult = androidManifestCompiler.compile(androidManifestTask)
+            if (!androidManifestResult.isAllSuccess || androidManifestResult.outputs.isEmpty()) {
+                val resourceDetails: List<Result<CompileFile, CompileError>> = resourceTask.files.map {
+                    Result.failure(CompileError(it, listOf(-1L to "Failed to compile AndroidManifest.xml")))
+                }
+                return CompileResult(
+                    task,
+                    androidManifestResult.details + resourceDetails,
+                    androidManifestResult.outputs,
+                )
+            }
         }
 
-        // build .arsc
+        // compile to .flat
+        var resourceResult = CompileResult(resourceTask, emptyList(), emptyList())
+        if (resourceTask.files.isNotEmpty()) {
+            resourceResult = resourceCompiler.compile(resourceTask)
+            if (!resourceResult.isAllSuccess || resourceResult.outputs.isEmpty()) {
+                return CompileResult(
+                    task,
+                    androidManifestResult.details + resourceResult.details,
+                    androidManifestResult.outputs + resourceResult.outputs,
+                )
+            }
+        }
+
+        // build .flat .arsc and AndroidManifest.xml
+        val compileFiles = resourceResult.outputs.map {
+            CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
+        }.toMutableList()
+        val manifestFile = androidManifestResult.outputs.firstOrNull()?.file
+        if (manifestFile != null) {
+            compileFiles.add(CompileFile(CompileFile.Type.AndroidManifest,
+                manifestFile, manifestFile.parentFile, context.tempModule))
+        }
+
         val arscTask = CompileTask(
-            resourceResult.outputs.map {
-                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
-            },
+            compileFiles,
             task.outputDir,
             task,
         )
@@ -88,6 +123,28 @@ class ResourceOverlayCompiler(
 
         val finalOverlays = resource.toMutableList()
         resourceNameToPathMap.forEach rootLoop@{ (resourceName, outputs) ->
+            if (resourceName == "AndroidManifest.xml") {
+                val output = outputs.first()
+                if (output.relativeFile.path == "AndroidManifest.xml") {
+                    val isNeedOutputManifest = sourceFiles.any { it.type == CompileFile.Type.AndroidManifest }
+                    if (!isNeedOutputManifest) {
+                        // don't output AndroidManifest.xml if no changes, output it will trigger APK repackage
+                        finalOverlays.remove(output)
+                        return@rootLoop
+                    }
+                }
+            } else if (resourceName == "resources.arsc") {
+                val output = outputs.first()
+                if (output.relativeFile.path == "resources.arsc") {
+                    val isOnlyManifest = sourceFiles.all { it.type == CompileFile.Type.AndroidManifest }
+                    if (isOnlyManifest) {
+                        // don't output resources.arsc if no changes
+                        finalOverlays.remove(output)
+                        return@rootLoop
+                    }
+                }
+            }
+
             if (outputs.size == 1) {
                 return@rootLoop
             }

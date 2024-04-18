@@ -59,7 +59,6 @@ class JuggCompilerHelper(
     ): CompileTaskResult {
         dependencyChangeManager.onStartBuilding()
         val result = doCompile(options, processHandler, indicator, isForceInstall)
-        dependencyChangeManager.onEndBuilding(result.isSuccess)
 
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             logger.warn("Compile canceled.")
@@ -168,7 +167,7 @@ class JuggCompilerHelper(
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
-                it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+                it.type == CompileFile.Type.Gradle
             }
             // unnecessary to check if file size is small and no build file changed
             val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null)
@@ -202,14 +201,10 @@ class JuggCompilerHelper(
 
         // we need to double-check because file may roll back to not changed
         val changedBuildFile = deployFileManager.getUncompiledFiles().find {
-            it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+            it.type == CompileFile.Type.Gradle
         }
         val isNeedRebuild = changedBuildFile != null
-        val changedManifestFile = deployFileManager.getUncompiledFiles().find {
-            it.type == CompileFile.Type.AndroidManifest
-        }
-        val isCanLibraryIncrementalCompile = changedManifestFile == null && forceIncrementalCompile
-        if (isNeedRebuild && !isCanLibraryIncrementalCompile) {
+        if (isNeedRebuild && !forceIncrementalCompile) {
             deployStateManager.isBuildFileChanged = true
             deployStateManager.whatBuildFileChanged = changedBuildFile?.file?.name ?: "null"
             logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")

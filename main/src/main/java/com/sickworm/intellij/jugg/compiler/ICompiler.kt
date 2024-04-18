@@ -157,7 +157,7 @@ data class CompileOutput(
     enum class Type {
         Class,
         Dex,
-        Res,
+        Res, // includes res/**, AndroidManifest.xml, resource.arsc, and all other files except *.dex, asset/**, lib/**
         Asset,
         Java;
     }
@@ -232,10 +232,7 @@ interface ICompileContext {
         buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
     )
 
-    val applicationModules get() = modules.values.filter { module ->
-        val rFile = module.buildPathInfo.rFilePath
-        return@filter rFile.exists()
-    }
+    val applicationModule: ModuleInfo?
 
     val isEnableDesugared: Boolean
 

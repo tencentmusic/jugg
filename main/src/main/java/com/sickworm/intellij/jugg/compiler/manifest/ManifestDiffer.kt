@@ -12,17 +12,22 @@ class ManifestDiffer {
 
     fun diff(changedManifestFile: ChangedManifestFile): ManifestDiffResult {
         val newNode = XmlParser().parse(changedManifestFile.newFile)
-        val oldNode = XmlParser().parse(changedManifestFile.oldFile)
+        val oldNode = changedManifestFile.oldFile?.let { XmlParser().parse(it) }
         val diffElement = diff(newNode, oldNode)
         return ManifestDiffResult(changedManifestFile, diffElement)
     }
 
-    fun diff(newNode: XmlNode, oldNode: XmlNode): ManifestDiffResult.DiffElement {
+    fun diff(newNode: XmlNode, oldNode: XmlNode?): ManifestDiffResult.DiffElement {
+        preprocess(newNode)
+        if (oldNode != null) {
+            preprocess(oldNode)
+        }
+
         val builderFactory = DocumentBuilderFactory.newInstance()
         val doc = builderFactory.newDocumentBuilder().newDocument()
 
         val holderNode = ManifestDiffResult.DiffElement(doc.createElement("holder"), true)
-        diffNode(holderNode, newNode.node, oldNode.node)
+        diffNode(holderNode, newNode.node, oldNode?.node)
 
         if (holderNode.isNothingToUpdate) {
             // return empty node
@@ -62,6 +67,27 @@ class ManifestDiffer {
             parentDiffElement.changedChildren.add(currentDiffElement)
         } else {
             // total equals, won't add to changedChildren
+        }
+    }
+
+    private fun preprocess(node: XmlNode) {
+        val packageName = node.node["package"] ?: throw IllegalStateException("package name is required in AndroidManifest.xml")
+        preprocess(node.node, packageName)
+    }
+
+    private fun preprocess(node: Node, packageName: String) {
+        node.attributes?.forEach {
+            if (it.nodeName == "android:name") {
+                val name = it.nodeValue
+                if (name != null && name.startsWith(".")) {
+                    it.nodeValue = packageName + name
+                    return
+                }
+            }
+        }
+
+        node.childNodes.forEach {
+            preprocess(it, packageName)
         }
     }
 
@@ -116,7 +142,7 @@ class ManifestNodeMatcher(
 
 data class ChangedManifestFile(
     val newFile: File,
-    val oldFile: File,
+    val oldFile: File?,
 )
 
 class ManifestDiffResult(
@@ -130,7 +156,7 @@ class ManifestDiffResult(
     override fun toString(): String {
         return "ChangedManifestFile(" +
                 "newFile=$newFile, exists: ${newFile.exists()}; " +
-                "oldFile=$oldFile, exists: ${oldFile.exists()}; " +
+                "oldFile=$oldFile, exists: ${oldFile?.exists()}; " +
                 "diffElement=${diffElement.toXmlString()}, isEmpty: ${diffElement.isNothingToUpdate}"
     }
 

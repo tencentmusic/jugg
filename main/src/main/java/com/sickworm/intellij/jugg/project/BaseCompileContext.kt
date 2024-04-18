@@ -56,15 +56,8 @@ data class BaseCompileContext(
             return@lazy applicationModules.first()
         }
 
+        logger.debug("get application module package name in APK: $packageName")
         logger.debug("get application module has multiple modules has R.jar, ${applicationModules.joinToString { it.name }}")
-
-        val apkFile = apkInfos.firstOrNull()?.files?.firstOrNull()?.apkFile
-        if (apkFile == null || !apkFile.exists()) {
-            logger.debug("get application module failed, apk file not found, something wrong. Use first module as application module.")
-            return@lazy applicationModules.first()
-        }
-        val packageNameInApk = ApkReader(apkFile, logger).getPackageName()
-        logger.debug("get application module by package name in APK: $packageNameInApk")
 
         applicationModules.forEach {
             val mergedManifest = it.buildPathInfo.mergedManifest
@@ -74,7 +67,7 @@ data class BaseCompileContext(
             }
             val mergedManifestXmlNode = XmlParser().parse(mergedManifest)
             val packageNameInManifest = mergedManifestXmlNode.node["package"]
-            if (packageNameInManifest == packageNameInApk) {
+            if (packageNameInManifest == packageName) {
                 logger.debug("get application module auto match success, ${it.name} has same package name $packageNameInManifest")
                 return@lazy it
             } else {

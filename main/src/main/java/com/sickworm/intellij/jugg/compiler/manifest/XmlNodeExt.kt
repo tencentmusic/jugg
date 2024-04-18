@@ -6,6 +6,10 @@ import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 
 val Node.uniqueKey: String get() {
+    if (nodeName == "manifest" || nodeName == "application" || nodeName == "uses-sdk") { // they are unique
+        return nodeName
+    }
+
     val name = this["android:name"]
     if (name != null) {
         return "$nodeName:$name"

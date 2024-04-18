@@ -19,6 +19,7 @@ class JuggCompiler(
         CompileFile.Type.Asset,
         CompileFile.Type.Resource,
         CompileFile.Type.Class,
+        CompileFile.Type.AndroidManifest
     )
 
     private val assetOverlayCompiler = AssetOverlayCompiler(context, this)
