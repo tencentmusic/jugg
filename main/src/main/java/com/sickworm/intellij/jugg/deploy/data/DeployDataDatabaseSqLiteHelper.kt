@@ -627,21 +627,25 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->
-                val classNamesString = classNames.joinToString(",") { "'$it'" }
-                val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields FROM class_info WHERE name IN ($classNamesString);"
                 val classes = mutableMapOf<String, ClassNode>()
-                val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
-                while (resultSet.next()) {
-                    val className = resultSet.getString(1)
-                    val interfaceNames = resultSet.getString(2).toInterfaceList()
-                    val superName = resultSet.getString(3)
-                    val source = resultSet.getString(4)
-                    val dexFileName = resultSet.getString(5)
-                    val access = resultSet.getInt(6)
-                    val methodInfos = resultSet.getString(7).toMethodList(className)
-                    val fieldInfos = resultSet.getString(8).toFieldList(className)
-                    val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source)
-                    classes[className] = classNode
+
+                // avoid Exception: [SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long)
+                classNames.chunked(2000).forEach { subClassNames ->
+                    val classNamesString = subClassNames.joinToString(",") { "'$it'" }
+                    val selectClassSQL = "SELECT name, interface_names, super_name, source, entry_info_name, access, methods, fields FROM class_info WHERE name IN ($classNamesString);"
+                    val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
+                    while (resultSet.next()) {
+                        val className = resultSet.getString(1)
+                        val interfaceNames = resultSet.getString(2).toInterfaceList()
+                        val superName = resultSet.getString(3)
+                        val source = resultSet.getString(4)
+                        val dexFileName = resultSet.getString(5)
+                        val access = resultSet.getInt(6)
+                        val methodInfos = resultSet.getString(7).toMethodList(className)
+                        val fieldInfos = resultSet.getString(8).toFieldList(className)
+                        val classNode = ClassNode(dexFileName, className, access, methodInfos, fieldInfos, interfaceNames, superName, source)
+                        classes[className] = classNode
+                    }
                 }
 
                 return classes
