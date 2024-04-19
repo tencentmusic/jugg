@@ -8,6 +8,8 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
+import com.android.tools.idea.gradle.model.IdeAndroidArtifact
+import com.android.tools.idea.gradle.model.IdeAndroidProject
 import com.android.tools.idea.gradle.project.model.AndroidModuleModel
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
@@ -292,7 +294,11 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             val runConfig = settings.configuration as AndroidRunConfiguration
             val module = runConfig.modules.first()
             val gradleAndroidModel = GradleAndroidModel.get(module)
-            logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
+            try {
+                logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
+            } catch (e: Exception) {
+                logger.warn("print gradleAndroidModel failed", e)
+            }
             gradleAndroidModel ?: return null
 
             // get compile command
@@ -338,8 +344,36 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 "agpVersion: ${androidProject.agpVersion}, " +
                 "allApplicationIds: ${allApplicationIds}, " +
                 "isBaseSplit: ${isBaseSplit}, " +
-                "assembleTaskName: ${mainArtifact.assembleTaskName}, " +
-                "selectedVariant: ${selectedVariant}, " +
+                "mainArtifact: ${mainArtifact.getDesc()}, " +
+                "androidProject: ${androidProject.getDesc()}, " +
+                ""
+    }
+
+    private fun IdeAndroidArtifact.getDesc(): String {
+        return "IdeAndroidArtifact: " +
+                "assembleTaskName: $assembleTaskName, " +
+                "ideSetupTaskNames: $ideSetupTaskNames, " +
+                "applicationId: $applicationId, " +
+                "unresolvedDependencies: $unresolvedDependencies, " +
+                "signingConfigName: $signingConfigName, " +
+                "isSigned: $isSigned, " +
+                "buildInformation: $buildInformation" +
+                ""
+    }
+
+    private fun IdeAndroidProject.getDesc(): String {
+        return "IdeAndroidProject: " +
+                "name: $name, " +
+                "productFlavors: ${productFlavors.map { it.productFlavor.name }}, " + // very much useful info
+                "variantNames: $variantNames, " +
+                "compileTarget: $compileTarget, " +
+                "bootClasspath: $bootClasspath, " +
+                "signingConfigs: ${signingConfigs.map { it.name }}, " + // sensitive info
+                "javaCompileOptions: $javaCompileOptions, " +
+                "viewBindingOptions: $viewBindingOptions, " +
+                "namespace: $namespace, " +
+                "agpFlags: $agpFlags, " +
+                "variantsBuildInformation: ${variantsBuildInformation.map { it.variantName }}, " +
                 ""
     }
 }
