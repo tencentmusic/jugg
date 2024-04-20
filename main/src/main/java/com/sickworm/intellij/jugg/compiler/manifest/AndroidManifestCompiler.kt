@@ -46,7 +46,7 @@ class AndroidManifestCompiler(
                 ChangedManifestFile(it.file, relativeManifestFile)
             }
 
-            AndroidManifestMerger().merge(finalMergedManifest, changedManifestFileList, outputManifestFile)
+            AndroidManifestMerger(logger).merge(finalMergedManifest, changedManifestFileList, outputManifestFile)
         } catch (e: Throwable) {
             logger.debug("Compile AndroidManifest.xml failed", e)
             val reason = "Compile AndroidManifest.xml failed, got exception: $e"

@@ -4,6 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -222,6 +223,8 @@ interface ICompileContext {
     val projectDir: File
     /** all deployed files */
     val deployedFiles: List<CompileOutput>
+    /** APK singing config */
+    val signingConfig: SigningConfig?
 
     val packageName get() = apkInfos.firstOrNull()?.applicationId
 

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.manifest
 
 import com.sickworm.intellij.jugg.mock.buildDir
+import com.sickworm.intellij.jugg.mock.logger
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -13,7 +14,7 @@ class AndroidManifestMergerTest : ManifestDifferTest() {
     override fun testFileEquals() {
         val changedManifestFile = ChangedManifestFile(mergedFile, mergedFile)
         val outputFile = File(buildDir, "out/AndroidManifest.xml")
-        AndroidManifestMerger().merge(mergedFile, listOf(changedManifestFile), outputFile)
+        AndroidManifestMerger(logger).merge(mergedFile, listOf(changedManifestFile), outputFile)
 
         val newLines = XmlParser().parse(outputFile).printXml().lines()
         val oldLines = XmlParser().parse(mergedFile).printXml().lines()
@@ -34,7 +35,7 @@ class AndroidManifestMergerTest : ManifestDifferTest() {
 
         val oldFullNode = XmlParser().parse(mergedFile)
         val newFullNode = XmlParser().parse(mergedFile)
-        AndroidManifestMerger().merge(newFullNode, listOf(diffResult))
+        AndroidManifestMerger(logger).merge(newFullNode, listOf(diffResult))
         File(buildDir, "out/AndroidManifest.xml").writeText(newFullNode.printXml())
         super.diff(newFullNode.printXml(), oldFullNode.printXml(), expectDiffResult)
 

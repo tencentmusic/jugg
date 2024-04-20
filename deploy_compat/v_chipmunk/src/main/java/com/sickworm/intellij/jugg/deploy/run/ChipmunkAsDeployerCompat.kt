@@ -10,7 +10,7 @@ import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.gradle.model.IdeAndroidArtifact
 import com.android.tools.idea.gradle.model.IdeAndroidProject
-import com.android.tools.idea.gradle.project.model.AndroidModuleModel
+import com.android.tools.idea.gradle.model.IdeSigningConfig
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
@@ -353,7 +353,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return "IdeAndroidArtifact: " +
                 "assembleTaskName: $assembleTaskName, " +
                 "ideSetupTaskNames: $ideSetupTaskNames, " +
-                "applicationId: $applicationId, " +
                 "unresolvedDependencies: $unresolvedDependencies, " +
                 "signingConfigName: $signingConfigName, " +
                 "isSigned: $isSigned, " +
@@ -368,12 +367,45 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 "variantNames: $variantNames, " +
                 "compileTarget: $compileTarget, " +
                 "bootClasspath: $bootClasspath, " +
-                "signingConfigs: ${signingConfigs.map { it.name }}, " + // sensitive info
+                "signingConfigs: ${signingConfigs.map { it.getDesc() }}, " +
                 "javaCompileOptions: $javaCompileOptions, " +
                 "viewBindingOptions: $viewBindingOptions, " +
                 "namespace: $namespace, " +
                 "agpFlags: $agpFlags, " +
                 "variantsBuildInformation: ${variantsBuildInformation.map { it.variantName }}, " +
                 ""
+    }
+
+    private fun IdeSigningConfig.getDesc(): String {
+        return "IdeSigningConfig(name=$name, " +
+                "storeFile=${if (storeFile == null) "null" else if (!storeFile!!.exists()) "not exists" else "exists"}, " +
+                "storePassword=${if (storePassword == null) "null" else "not null"}, " +
+                "keyAlias=${if (keyAlias == null) "null" else "not null"}"
+    }
+
+    override fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig> {
+        val androidConfigSettings = RunManager.getInstance(project)
+            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
+        logger.debug("getSigningConfigList androidConfigSettings size ${androidConfigSettings.size}")
+        return androidConfigSettings.mapNotNull { settings ->
+            val runConfig = settings.configuration as AndroidRunConfiguration
+            val module = runConfig.modules.first()
+            val gradleAndroidModel = GradleAndroidModel.get(module)
+            if (gradleAndroidModel == null) {
+                logger.debug("getSigningConfigList gradleAndroidModel of module ${module.name} is null")
+                return@mapNotNull null
+            }
+            val androidRunConfig = AndroidRunConfig(
+                gradleAndroidModel.androidProject.signingConfigs.map { config ->
+                    SigningConfig(gradleAndroidModel.androidProject.name,
+                        variantName = config.name,
+                        keystore = config.storeFile,
+                        storePassword = config.storePassword,
+                        keyAlias = config.keyAlias,
+                    )
+                },
+            )
+            return@mapNotNull androidRunConfig
+        }
     }
 }

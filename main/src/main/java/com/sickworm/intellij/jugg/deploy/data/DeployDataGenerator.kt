@@ -126,6 +126,7 @@ class DeployDataGenerator(
             effectedSourceAndClassNodes,
             overlays, parsedDex,
             isFullRes, isWarmUp,
+            isNeedUpdateAndroidManifest = changedOverlays.any { it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml" }
         )
 
         val costTime = System.currentTimeMillis() - startTime

@@ -141,6 +141,7 @@ class CompileContextManager(
             modules = modules,
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
+            signingConfigList = AsDeployerCompat.getAndroidRunConfigList(project, logger).flatMap { it.signingConfigList },
         )
 
         compileContextInside = context

@@ -195,5 +195,9 @@ class ManifestDiffResult(
 
             return stringBuilder.toString()
         }
+
+        override fun toString(): String {
+            return toXmlString()
+        }
     }
 }

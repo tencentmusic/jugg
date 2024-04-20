@@ -2,11 +2,11 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import java.io.File
 
@@ -19,6 +19,7 @@ data class BaseCompileContext(
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
     private val deployFileManager: DeployFileManager,
+    private val signingConfigList: List<SigningConfig>,
 ): ICompileContext {
 
     private val androidJarApi: String = getSuggestedPlatformApi(modules)
@@ -78,6 +79,29 @@ data class BaseCompileContext(
 
         logger.debug("get application module auto match failed, use first module as application module.")
         return@lazy applicationModules.first()
+    }
+
+    override val signingConfig: SigningConfig? get() {
+        var applicationModuleName = applicationModule?.name
+        if (applicationModuleName == null) {
+            logger.debug("get signing config failed, no application module found.")
+            return null
+        }
+        if (applicationModuleName.contains(".")) {
+            applicationModuleName = applicationModuleName.split(".")[1]
+        }
+
+        val relativeSigningConfig = signingConfigList.find {
+            it.moduleName == applicationModuleName && it.variantName == applicationModule?.buildVariant
+        }
+        if (relativeSigningConfig == null) {
+            logger.debug("get signing config failed, no signing config found for $applicationModuleName. " +
+                    "Available: ${signingConfigList.map { it.moduleName }}")
+            return null
+        }
+
+        logger.debug("get signing config by $applicationModuleName success (don't print it out for security)")
+        return relativeSigningConfig
     }
 
     override val isEnableDesugared: Boolean by lazy {

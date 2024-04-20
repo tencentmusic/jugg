@@ -191,6 +191,10 @@ object AsDeployerCompat : IAsDeployerCompat {
     override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger): List<SuggestRunConfiguration> {
         return impl.getSuggestRunConfigurations(existsRunConfigNames, project, logger)
     }
+
+    override fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig> {
+        return impl.getAndroidRunConfigList(project, logger)
+    }
 }
 
 private class CompatImpl(

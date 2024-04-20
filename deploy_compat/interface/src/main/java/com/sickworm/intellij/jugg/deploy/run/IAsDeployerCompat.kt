@@ -64,6 +64,7 @@ interface IAsDeployerCompat {
      */
     fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger): List<SuggestRunConfiguration>
 
+    fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig>
 
     fun getModuleManager(project: Project): ModuleManager {
         // ModuleManager rewrite by Kotlin after Android Studio Giraffe

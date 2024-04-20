@@ -35,6 +35,8 @@ data class JuggDeployData(
     private val isWarmUp: Boolean,
     /** just install the apks only */
     val isInstall: Boolean = false,
+    /** is need update AndroidManifest.xml in APK */
+    val isNeedUpdateAndroidManifest: Boolean = false,
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&

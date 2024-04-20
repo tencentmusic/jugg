@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mock
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import java.io.File
 
 data class SimpleCompileContext(
@@ -31,6 +32,14 @@ data class SimpleCompileContext(
             }
         }
     }
+
+    override val signingConfig: SigningConfig = SigningConfig(
+        moduleName = "app",
+        variantName = "debug",
+        keystore = File(System.getProperty("user.home"), ".android/debug.keystore"),
+        storePassword = "android",
+        keyAlias = "androiddebugkey",
+    )
 
     init {
         tempModule.buildPathInfo.moduleRootDir.clearDir()

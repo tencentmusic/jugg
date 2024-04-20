@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.manifest
 
+import com.intellij.openapi.diagnostic.Logger
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import java.io.File
@@ -20,7 +21,7 @@ import java.io.File
  *
  * Standard merge way: [com.android.manifmerger.ManifestMerger2]
  */
-class AndroidManifestMerger {
+class AndroidManifestMerger(private val logger: Logger) {
 
     /**
      * @throws Exception if merge failed
@@ -29,6 +30,7 @@ class AndroidManifestMerger {
         val fullNode = XmlParser().parse(mergedManifestFile)
         val diffElements = changedManifestFiles.map {
             val diffResult = ManifestDiffer().diff(it)
+            logger.debug("Diff result: $diffResult")
             diffResult.diffElement
         }
         merge(fullNode, diffElements)
