@@ -90,7 +90,7 @@ class MockJugg {
     }
 
     fun loadFromHistory() {
-        renewComponents()
+        renewComponents(isMockCompileContextManager = false)
         renewManager()
         juggManager.recoverDeployContext()
         deployFileManager.reset()
@@ -169,7 +169,7 @@ class MockJugg {
         juggManager.compileChanges()
     }
 
-    private fun renewComponents() {
+    private fun renewComponents(isMockCompileContextManager: Boolean = true) {
         project = JuggMockProject(projectDir)
         pathManager = JuggPathManager(project, projectDir, File(projectDir, "build/jugg"))
         JuggLogger.register(project, pathManager.logDir)
@@ -216,10 +216,17 @@ class MockJugg {
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
-        compileContextManager = mock(CompileContextManager::class.java)
-        doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
-        doReturn(File(pathManager.compileRootDir, "staging")).`when`(compileContextManager).stagingDir
-        doReturn(context.modules).`when`(compileContextManager).getAllModulesByModuleManager(false)
+        if (isMockCompileContextManager) {
+            compileContextManager = mock(CompileContextManager::class.java)
+            doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
+            doReturn(File(pathManager.compileRootDir, "staging")).`when`(compileContextManager).stagingDir
+            doReturn(context.modules).`when`(compileContextManager).getAllModulesByModuleManager(false)
+        } else {
+            val moduleManager = mock(ModuleManager::class.java)
+            val projectBuildModel = mock(ProjectBuildModel::class.java)
+            compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
+                moduleManager = moduleManager, projectBuildModel = projectBuildModel)
+        }
 
         val juggServer = JuggServer(project)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, { JuggStateListener.emptyImpl }, logger) {
