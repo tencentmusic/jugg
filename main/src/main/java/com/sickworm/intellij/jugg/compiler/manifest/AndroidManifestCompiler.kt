@@ -35,12 +35,18 @@ class AndroidManifestCompiler(
         try {
             val changedManifestFileList = task.files.map {
                 val module = it.module
-                val relativeManifestFile = if (module == context.tempModule) {
+                val relativeManifestFile: File?
+                if (module == context.tempModule) {
                     // AndroidManifest in libraries
                     TODO()
                 } else {
                     // AndroidManifest in gradle module
-                    findMergedManifestFile(module)
+                    relativeManifestFile = findMergedManifestFile(module)
+                    if (relativeManifestFile == null) {
+                        logger.warn("AndroidManifest.xml compile failed, Merged manifest file in ${module.simpleName} not found.")
+                        logger.warn("Fallback to gradle once may fix this.")
+                        return createErrorCompileResult(task, "Merged AndroidManifest.xml not found in module ${module.name}")
+                    }
                 }
 
                 ChangedManifestFile(it.file, relativeManifestFile)
@@ -85,9 +91,6 @@ class AndroidManifestCompiler(
         if (manifestFile.exists()) {
             return manifestFile
         }
-
-        logger.warn("${manifestFile.absolutePath} not found, compile result may not correct.")
-        logger.warn("Fallback to gradle once will fix this.")
         return null
     }
 }

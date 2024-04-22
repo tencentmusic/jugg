@@ -72,7 +72,7 @@ class JuggCompiler(
         // compile resource
         val resourceCompileTask = CompileTask(
             files = task.files.filter {
-                it.type == CompileFile.Type.Resource
+                it.type == CompileFile.Type.Resource || it.type == CompileFile.Type.AndroidManifest
             },
             outputDir = task.outputDir,
             parentTask = task,

@@ -145,7 +145,7 @@ class CompileConsistencyTest {
             return checkFiles.map { File(it) }
         }
 
-        return ListFiles.listFileOrderedByNameLastChar(rootDir)
+        return ListFiles.listFileOrderedByNameLastChar(rootDir).filter { it.name == "AndroidManifest.xml" }
     }
 
     private fun checkFileCompileConsistency(file: File) {

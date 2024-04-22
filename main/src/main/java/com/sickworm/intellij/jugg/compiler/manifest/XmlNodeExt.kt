@@ -59,9 +59,20 @@ inline fun NodeList.find(condition: (Node) -> Boolean): Node? {
 }
 
 
-fun Node.importChildNotDeep(child: Node): Node {
-    val importedNode = ownerDocument.importNode(child, false)
-    return appendChild(importedNode)
+fun Element.importChildNotDeep(child: Element, isExcludeToolsAttribute: Boolean): Element {
+    val importedNode = ownerDocument.importNode(child, false) as Element
+    if (isExcludeToolsAttribute) {
+        val toolsAttributes = mutableSetOf<Node>()
+        importedNode.attributes?.forEach {
+            if (it.nodeName.startsWith("tools:")) {
+                toolsAttributes.add(it)
+            }
+        }
+        toolsAttributes.forEach {
+            importedNode.removeAttribute(it.nodeName)
+        }
+    }
+    return appendChild(importedNode) as Element
 }
 
 fun ManifestDiffResult.DiffElement.diffAttributes(oldNode: Element?) {

@@ -71,15 +71,15 @@ class ManifestDiffer {
     }
 
     private fun preprocess(node: XmlNode) {
-        val packageName = node.node["package"] ?: throw IllegalStateException("package name is required in AndroidManifest.xml")
+        val packageName = node.node["package"]
         preprocess(node.node, packageName)
     }
 
-    private fun preprocess(node: Node, packageName: String) {
+    private fun preprocess(node: Node, packageName: String?) {
         node.attributes?.forEach {
             if (it.nodeName == "android:name") {
                 val name = it.nodeValue
-                if (name != null && name.startsWith(".")) {
+                if (name != null && name.startsWith(".") && packageName != null) {
                     it.nodeValue = packageName + name
                     return
                 }
@@ -157,7 +157,7 @@ class ManifestDiffResult(
         return "ChangedManifestFile(" +
                 "newFile=$newFile, exists: ${newFile.exists()}; " +
                 "oldFile=$oldFile, exists: ${oldFile?.exists()}; " +
-                "diffElement=${diffElement.toXmlString()}, isEmpty: ${diffElement.isNothingToUpdate}"
+                "\ndiffElement=isEmpty: ${diffElement.isNothingToUpdate}, content:\n${diffElement.toXmlString()}"
     }
 
     class DiffElement(

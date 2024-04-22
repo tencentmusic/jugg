@@ -105,7 +105,7 @@ class ResourceOverlayCompiler(
 
         return CompileResult(
             task,
-            resourceResult.details,
+            androidManifestResult.details + resourceResult.details,
             finalOutputs
         )
     }
@@ -123,6 +123,15 @@ class ResourceOverlayCompiler(
 
         val finalOverlays = resource.toMutableList()
         resourceNameToPathMap.forEach rootLoop@{ (resourceName, outputs) ->
+            if (resourceName == "Manifest.java") {
+                outputs.forEach {
+                    // ignore Manifest.java for I didn't see it in Android Studio too
+                    if (it.type == CompileOutput.Type.Java) {
+                        finalOverlays.remove(it)
+                        return@rootLoop
+                    }
+                }
+            }
             if (resourceName == "AndroidManifest.xml") {
                 val output = outputs.first()
                 if (output.relativeFile.path == "AndroidManifest.xml") {
