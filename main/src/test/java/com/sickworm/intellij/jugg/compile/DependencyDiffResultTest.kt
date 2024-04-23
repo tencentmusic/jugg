@@ -139,6 +139,28 @@ class DependencyDiffResultTest {
         assertEquals(originLibrary2.crc32, diffResult.updatedLibraries.last().oldDependency!!.libraries.last().crc32)
     }
 
+    @Test
+    fun testUpdateDependencyWithPackageName() {
+        val removeManifestLibrary = fullBuildDependencies.modules.first().value.libraryDependencies.find { it.isAndroidManifest }!!
+        val removeJarLibrary = fullBuildDependencies.modules.first().value.libraryDependencies.find { it.name == removeManifestLibrary.name }!!
+        val addManifestLibrary = removeManifestLibrary.copy(name = "com.sickworm.intellij.jugg:lib:1.0", crc32 = removeManifestLibrary.crc32 + 1)
+        val addJarLibrary = removeJarLibrary.copy(name = "com.sickworm.intellij.jugg:lib:1.0", crc32 = removeJarLibrary.crc32 + 1)
+        val currentBuildDependencies = createBuildDependencies(
+            newLibraries = listOf(addJarLibrary, addManifestLibrary),
+            removedLibraries = listOf(removeJarLibrary, removeManifestLibrary),
+        )
+
+        val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
+        assertEquals(0, diffResult.addedLibraries.size)
+        assertEquals(0, diffResult.removedLibraries.size)
+        assertEquals(1, diffResult.updatedLibraries.size)
+
+        assertEquals(addManifestLibrary.crc32, diffResult.updatedLibraries.first().dependency!!.libraries.find { it.isAndroidManifest }!!.crc32)
+        assertEquals(removeManifestLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { it.isAndroidManifest }!!.crc32)
+        assertEquals(addJarLibrary.crc32, diffResult.updatedLibraries.first().dependency!!.libraries.find { !it.isAndroidManifest }!!.crc32)
+        assertEquals(removeJarLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { !it.isAndroidManifest }!!.crc32)
+    }
+
     private fun String.updateVersion(newVersion: String): String {
         val name = this.substringBeforeLast(":")
         return "$name:$newVersion"

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
 import com.sickworm.intellij.jugg.project.JuggProjectInfo
 
 data class DependencyDiffResult(
@@ -89,7 +90,7 @@ data class DependencyDiffResult(
                 UpdatedLibraryDependency(null, lastBuildDependenciesSet[it])
             }.toMutableList()
 
-            // find out the libraries that contents have been updated
+            // find out the libraries that contents have been updated by file name equals
             val contentChangedLibraries = lastBuildDependenciesSet.keys.intersect(currentBuildDependenciesSet.keys)
                 .filter { lastBuildDependenciesSet[it] != currentBuildDependenciesSet[it] }
                 .map { UpdatedLibraryDependency(currentBuildDependenciesSet[it]!!, lastBuildDependenciesSet[it]) }
@@ -118,7 +119,40 @@ data class DependencyDiffResult(
                 }
             }
 
-            val updatedLibraries = contentChangedLibraries + versionChangedLibraries
+            // find out the libraries that contents have been updated by package name in AndroidManifest.xml
+            val contentAndFileNameChangedLibraries = mutableListOf<UpdatedLibraryDependency>()
+            val removedLibrariesWithPackageName = removedLibraries.associateBy {
+                val manifestDependency = it.oldDependency!!.libraries.find { it.isAndroidManifest }
+                if (manifestDependency == null) {
+                    return@associateBy ""
+                }
+                val packageName = XmlAndroidManifestInfo.parse(manifestDependency.file).packageName
+                return@associateBy packageName
+            }
+            addedLibraries.iterator().let { iterator ->
+                while (iterator.hasNext()) {
+                    val addedLibrary = iterator.next()
+                    val manifestDependency = addedLibrary.dependency!!.libraries.find { it.isAndroidManifest }
+                    if (manifestDependency != null) {
+                        val packageName = XmlAndroidManifestInfo.parse(manifestDependency.file).packageName
+                        if (packageName != null) {
+                            val relativeRemovedDependency = removedLibrariesWithPackageName[packageName]
+                            if (relativeRemovedDependency != null) {
+                                iterator.remove()
+                                removedLibraries.remove(relativeRemovedDependency)
+                                contentAndFileNameChangedLibraries.add(
+                                    UpdatedLibraryDependency(
+                                        addedLibrary.dependency,
+                                        relativeRemovedDependency.oldDependency!!
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            val updatedLibraries = contentChangedLibraries + versionChangedLibraries + contentAndFileNameChangedLibraries
 
             return DependencyDiffResult(
                 lastBuildDependencies = lastBuildDependencies,

@@ -89,18 +89,28 @@ object TestProjectDependsLoader {
         }
 
         val transformedDependsRootDir = File(userHome, ".gradle/caches/transforms-3")
-        val allTransformedDepends = transformedDependsRootDir
+        val allTransformedDepends: MutableMap<String, MutableList<File>> = mutableMapOf()
+        transformedDependsRootDir
             .walkTopDown()
             .filter {
-                it.isDirectory && it.name == "jars"
+                (it.isDirectory && it.name == "jars") || (it.name == "AndroidManifest.xml")
             }
-            .associateBy { it.parentFile.name }
-        result += transformedDepends.split("\n").flatMap {
-            val dependDir = allTransformedDepends[it] ?: throw IllegalArgumentException("depends dir not exists: $it")
-            dependDir.listFilesRecursively().map { file ->
-                val version = it.substringAfterLast('-')
-                val artifact = it.substringBeforeLast('-')
-                LibraryDependency("Gradle: mock_group:$artifact:$version", file)
+            .forEach {
+                allTransformedDepends.getOrPut(it.parentFile.name) { mutableListOf(it) }.add(it)
+            }
+        transformedDepends.split("\n").forEach {
+            val depends = allTransformedDepends[it] ?: throw IllegalArgumentException("depends dir not exists: $it")
+            val version = it.substringAfterLast('-')
+            val artifact = it.substringBeforeLast('-')
+            val name = "Gradle: mock_group:$artifact:$version"
+            depends.forEach { depend ->
+                if (depend.isDirectory) {
+                    depend.listFilesRecursively().map { file ->
+                        result.add(LibraryDependency(name, file))
+                    }
+                } else {
+                    result.add(LibraryDependency(name, depend))
+                }
             }
         }
 

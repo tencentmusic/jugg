@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.manifest
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.gradle.compile.crc32
 import java.io.File
 
 /**
@@ -33,23 +34,36 @@ class AndroidManifestCompiler(
         outputManifestFile.delete()
 
         try {
-            val changedManifestFileList = task.files.map {
+            val changedManifestFileList = task.files.mapNotNull {
                 val module = it.module
-                val relativeManifestFile: File?
                 if (module == context.tempModule) {
                     // AndroidManifest in libraries
-                    TODO()
+                    val relativeManifestFile = it.oldManifest
+                    if (relativeManifestFile != null) {
+                        if (it.file.crc32 == relativeManifestFile.crc32) {
+                            logger.debug("library AndroidManifest.xml in not changed, skip." +
+                                    "(${it.file.absolutePath} == ${relativeManifestFile.absolutePath}")
+                            return@mapNotNull null
+                        }
+                    }
+
+                    return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile)
                 } else {
                     // AndroidManifest in gradle module
-                    relativeManifestFile = findMergedManifestFile(module)
+                    val relativeManifestFile = findMergedManifestFile(module)
                     if (relativeManifestFile == null) {
                         logger.warn("AndroidManifest.xml compile failed, Merged manifest file in ${module.simpleName} not found.")
                         logger.warn("Fallback to gradle once may fix this.")
                         return createErrorCompileResult(task, "Merged AndroidManifest.xml not found in module ${module.name}")
                     }
+                    return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile)
                 }
 
-                ChangedManifestFile(it.file, relativeManifestFile)
+            }
+
+            if (changedManifestFileList.isEmpty()) {
+                logger.debug("All AndroidManifest.xml in libraries are not changed, skip merge.")
+                return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
             }
 
             AndroidManifestMerger(logger).merge(finalMergedManifest, changedManifestFileList, outputManifestFile)

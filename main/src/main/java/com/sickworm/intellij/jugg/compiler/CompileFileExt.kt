@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.project.ChangedFile
+import java.io.File
 
 private const val KEY_DEPENDENCY_NAME = "dependency_name"
+private const val KEY_OLD_DEPENDENCY_MANIFEST = "relative_old_dependency_manifest"
 
 val ChangedFile.dependencyName: String
     get() = extraInfo[KEY_DEPENDENCY_NAME] as String
@@ -26,6 +28,24 @@ fun ChangedFile.withDependencyName(name: String): ChangedFile {
 
 fun CompileFile.withDependencyName(name: String): CompileFile {
     return copy(extraInfo = extraInfo + (KEY_DEPENDENCY_NAME to name))
+}
+
+
+val CompileFile.oldManifest: File?
+    get() = extraInfo[KEY_OLD_DEPENDENCY_MANIFEST] as? File
+
+fun ChangedFile.withOldManifest(file: File?): ChangedFile {
+    if (file == null) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_MANIFEST to file))
+}
+
+fun CompileFile.withOldManifest(file: File?): CompileFile {
+    if (file == null) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_MANIFEST to file))
 }
 
 

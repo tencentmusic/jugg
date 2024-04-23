@@ -50,7 +50,7 @@ class ResourceOverlayCompiler(
         var androidManifestResult = CompileResult(androidManifestTask, emptyList(), emptyList())
         if (androidManifestTask.files.isNotEmpty()) {
             androidManifestResult = androidManifestCompiler.compile(androidManifestTask)
-            if (!androidManifestResult.isAllSuccess || androidManifestResult.outputs.isEmpty()) {
+            if (!androidManifestResult.isAllSuccess) {
                 val resourceDetails: List<Result<CompileFile, CompileError>> = resourceTask.files.map {
                     Result.failure(CompileError(it, listOf(-1L to "Failed to compile AndroidManifest.xml")))
                 }

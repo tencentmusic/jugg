@@ -216,9 +216,25 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun getNewLibraryFiles(): List<ChangedFile> {
         logger.debug("get new libraries: ${diffResult.newLibraryDependencies}")
 
+        val relativeOldManifest: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
+            val newManifest = it.dependency?.libraries?.find(LibraryDependency::isAndroidManifest)
+            val oldManifest = it.oldDependency?.libraries?.find(LibraryDependency::isAndroidManifest)
+            if (newManifest != null && oldManifest != null) {
+                newManifest.file.absolutePath  to oldManifest.file
+            } else {
+                null
+            }
+        }.toMap()
+
         val changedFiles = diffResult.newLibraryDependencies.mapNotNull {
             if (it.isAndroidManifest) {
-                // TODO check AndroidManifest.xml changes
+                ChangedFile(
+                    type = CompileFile.Type.AndroidManifest,
+                    file = it.file,
+                    baseDir = it.file,
+                    module = tempModule,
+                ).withDependencyName(it.nameWithoutPrefix)
+                    .withOldManifest(relativeOldManifest[it.file.absolutePath])
                 null
             } else if (it.isRes) {
                 ChangedFile(
