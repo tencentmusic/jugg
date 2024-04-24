@@ -393,7 +393,9 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             }
             val androidRunConfig = AndroidRunConfig(
                 gradleAndroidModel.androidProject.signingConfigs.map { config ->
-                    SigningConfig(gradleAndroidModel.androidProject.name,
+                    val moduleName: String = gradleAndroidModel.moduleName
+                    val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
+                    SigningConfig(simpleName,
                         variantName = config.name,
                         keystore = config.storeFile,
                         storePassword = config.storePassword,
