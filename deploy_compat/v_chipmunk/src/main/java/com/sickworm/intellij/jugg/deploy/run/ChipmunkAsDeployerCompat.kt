@@ -361,9 +361,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
 
     private fun IdeAndroidProject.getDesc(): String {
         return "IdeAndroidProject: " +
-                "name: $name, " +
-                "productFlavors: ${productFlavors.map { it.productFlavor.name }}, " + // very much useful info
-                "variantNames: $variantNames, " +
                 "compileTarget: $compileTarget, " +
                 "bootClasspath: $bootClasspath, " +
                 "signingConfigs: ${signingConfigs.map { it.getDesc() }}, " +
