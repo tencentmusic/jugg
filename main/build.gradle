@@ -90,7 +90,7 @@ tasks.register('buildPluginIntranet') {
     }
 }
 
-patchPluginXml.changeNotes = new File("../change_log.html").getText('UTF-8')
+patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log.html").getText('UTF-8')
 
 runIde {
     // default 11_0_11b1341.57 and will get Access Denied
