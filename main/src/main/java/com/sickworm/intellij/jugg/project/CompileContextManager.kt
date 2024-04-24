@@ -369,7 +369,6 @@ class CompileContextManager(
                     }
                 }
             }
-            TimeLogger.end("getDependencies", logger)
 
             if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty() && libraryDependencies.isEmpty()) {
                 noSourceModules.add(module.name)
