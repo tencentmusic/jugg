@@ -365,7 +365,7 @@ data class ModuleBuildPathInfo(
     /** kotlin classpath for java library */
     private val kotlinClassPathForJavaLibrary get() = File(buildDir, "classes/kotlin/main")
 
-    val mergedManifest get() = File(buildDir, "intermediates/merged_manifest/$buildVariant/AndroidManifest.xml")
+    val mergedManifest get() = File(buildDir, "intermediates/merged_manifests/$buildVariant/AndroidManifest.xml")
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary)
 
