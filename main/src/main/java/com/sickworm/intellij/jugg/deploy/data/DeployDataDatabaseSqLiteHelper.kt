@@ -870,11 +870,17 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         }
     }
 
+    /**
+     * Get all interfaces of a class
+     * @return Map<Interfaces, Parent>
+     */
     @Synchronized
-    fun getAllInterfacesOfClass(interfaces: List<String>, staticInvocations: List<String>, incDeployNodes: Map<String, ClassNode>): Set<String> {
+    fun getAllInterfacesOfClass(interfaces: List<String>, staticInvocations: List<String>, incDeployNodes: Map<String, ClassNode>): Map<String, String?> {
         logger.debug("getAllDefaultInterfacesOfClass interfaces $interfaces, staticInvocations $staticInvocations")
 
-        val result = interfaces.toMutableSet() // TODO we need to filter interface in APK if supports multiple APKs
+        // TODO we need to filter interface in APK if supports multiple APKs
+        val result: MutableMap<String, String?> = interfaces.associateWith { null }.toMutableMap()
+
         val checkedClasses = mutableSetOf<String>()
         var toCheckInterfaces = interfaces
 
@@ -889,7 +895,9 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         toCheckInterfaces.forEach {
                             if (incDeployNodes.containsKey(it)) {
                                 logger.debug("getAllDefaultInterfacesOfClass found in incDeployNodes $it")
-                                result.addAll(incDeployNodes[it]!!.interfaceNames)
+                                incDeployNodes[it]!!.interfaceNames.forEach { interfaceName ->
+                                    result[interfaceName] = it
+                                }
                                 newToCheckInterfaces.addAll(incDeployNodes[it]!!.interfaceNames)
                             } else {
                                 dbCheckInterfaces.add(it)
@@ -897,11 +905,14 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         }
 
                         val toCheckInterfacesString = dbCheckInterfaces.joinToString(",") { "'$it'" }
-                        val sql = "SELECT interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
+                        val sql = "SELECT name, interface_names FROM class_info WHERE name IN ($toCheckInterfacesString);"
                         val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                         while (resultSet.next()) {
-                            val interfaceNames = resultSet.getString(1).toInterfaceList()
-                            result.addAll(interfaceNames)
+                            val className = resultSet.getString(1)
+                            val interfaceNames = resultSet.getString(2).toInterfaceList()
+                            interfaceNames.forEach {
+                                result[it] = className
+                            }
                             newToCheckInterfaces.addAll(interfaceNames)
                         }
 
@@ -913,9 +924,12 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            result.addAll(staticInvocations) // TODO we need to filter interface in APK if supports multiple APKs
+            // TODO we need to filter interface in APK if supports multiple APKs
+            staticInvocations.forEach {
+                result[it] = null
+            }
 
-            logger.debug("getAllDefaultInterfacesOfClass result $result")
+            logger.debug("getAllDefaultInterfacesOfClass result ${result.keys}")
             return result
         }
     }
