@@ -296,7 +296,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             val gradleAndroidModel = GradleAndroidModel.get(module)
             try {
                 logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.warn("print gradleAndroidModel failed", e)
             }
             gradleAndroidModel ?: return null
@@ -352,7 +352,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
     private fun IdeAndroidArtifact.getDesc(): String {
         return "IdeAndroidArtifact: " +
                 "assembleTaskName: $assembleTaskName, " +
-                "ideSetupTaskNames: $ideSetupTaskNames, " +
                 "unresolvedDependencies: $unresolvedDependencies, " +
                 "signingConfigName: $signingConfigName, " +
                 "isSigned: $isSigned, " +
