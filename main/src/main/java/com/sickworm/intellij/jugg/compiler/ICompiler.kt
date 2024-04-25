@@ -353,7 +353,15 @@ data class ModuleBuildPathInfo(
     /** java class path */
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
     /** after gradle 4.1.1, R.class not storage in buildClassPath */
-    val rFilePath get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant/R.jar")
+
+    private val rFilePathDir get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant")
+
+    // compatible with gradle 8.x, which path like merged_manifests/debug/processDebugResources/R.jar
+    val rFilePath get() = File(rFilePathDir, "R.jar").takeIf(File::exists)
+        ?: File(rFilePathDir, "process${buildVariant.camel}Resources/R.jar").takeIf(File::exists)
+        ?: rFilePathDir.listFilesRecursively().find { it.name == "R.jar" }
+        ?: File(rFilePathDir, "R.jar")
+
     /** kotlin class path */
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
 
@@ -365,14 +373,26 @@ data class ModuleBuildPathInfo(
     /** kotlin classpath for java library */
     private val kotlinClassPathForJavaLibrary get() = File(buildDir, "classes/kotlin/main")
 
-    val mergedManifest get() = File(buildDir, "intermediates/merged_manifests/$buildVariant/AndroidManifest.xml")
+    private val mergedManifestDir get() = File(buildDir, "intermediates/merged_manifests/$buildVariant")
+
+    // compatible with gradle 8.x, which path like merged_manifests/debug/processDebugManifest/AndroidManifest.xml
+    val mergedManifest get() = File(mergedManifestDir, "AndroidManifest.xml").takeIf(File::exists)
+        ?: File(mergedManifestDir, "process${buildVariant.camel}Manifest/AndroidManifest.xml").takeIf(File::exists)
+        ?: mergedManifestDir.listFilesRecursively().find { it.name == "AndroidManifest.xml" }
+        ?: File(mergedManifestDir, "AndroidManifest.xml")
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary)
 
-    val allBuildPathRelative get() = (allClassPath + generatedSourcePath + mergedManifest).map { it.relativeTo(moduleRootDir) }
+    val allBuildPathRelative get() = listOf(javaClassPathNew, javaClassPathOld, rFilePathDir, kotlinClassPath,
+        javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary, generatedSourcePath, mergedManifestDir).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 
+
+    private val String.camel: String get() {
+        return this.replaceFirstChar { it.uppercaseChar() }
+
+    }
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
