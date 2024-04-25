@@ -43,8 +43,9 @@ class XmlNode(
     fun printXml(): String {
         val out = ByteArrayOutputStream()
         val tf = TransformerFactory.newInstance().newTransformer()
-        tf.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes")
+        tf.setOutputProperty(OutputKeys.VERSION, "1.0")
         tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8")
+        tf.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no")
         tf.setOutputProperty(OutputKeys.INDENT, "yes")
         tf.transform(DOMSource(node), StreamResult(out))
         return out.toString("UTF-8")

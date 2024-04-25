@@ -161,27 +161,32 @@ class JuggDeployerHelper(
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
                 }
 
-                var isRecoverWithReinstall = false
-
+                deployData = deployFileManager.getDeployData(isWarmUp)
+                var isNeedReinstallApk = false
                 if (deployData.isNeedUpdateAndroidManifest) {
-                    val androidManifest = deployData.overlays.find {
-                        it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
-                    }!!
                     logger.info("Need resign APK to update AndroidManifest.xml.")
                     logger.info("Resigning APK...")
                     TimeLogger.start("insertFileAndResignApk")
+                    val androidManifest = deployData.overlays.find {
+                        it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
+                    }!!
+                    val resourceArsc = deployData.overlays.find {
+                        it.type == CompileOutput.Type.Res && it.name == "resources.arsc"
+                    }!!
                     val (isSuccess, failedReason) = insertFileAndResignApk(
-                        deployData.apks, compileContextManager.compileContext, listOf(androidManifest))
+                        deployData.apks, compileContextManager.compileContext, listOf(androidManifest, resourceArsc))
                     if (!isSuccess) {
                         return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason)
                     }
                     logger.info("Resign APK file finished, cost ${TimeLogger.getCostTime("insertFileAndResignApk")}ms.")
-                    isRecoverWithReinstall = true
+                    isNeedReinstallApk = true
                 }
 
-                if (!deployStateManager.getDeployState(device).isReadyDeploy) {
+                var isRecoverWithReinstall = false
+                if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy) {
                     if (deployStateManager.getDeployState(device).isReadyIncCompile) {
-                        val (isSuccess, isReinstalled) = recoverDeployState(device, isNeedTryDeyDeployFirst = true)
+                        val (isSuccess, isReinstalled) = recoverDeployState(device,
+                            isNeedTryDeyDeployFirst = !isNeedReinstallApk, isInstallUpdateApk = isNeedReinstallApk)
                         if (!isSuccess) {
                             logger.info("Try recover deploy state failed.")
                             return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Try recover deploy state failed.")
@@ -195,7 +200,11 @@ class JuggDeployerHelper(
                     }
                 }
 
-                deployData = deployFileManager.getDeployData(isWarmUp)
+                // get deploy data again after resigning apk (trigger full res deploy)
+                if (isRecoverWithReinstall) {
+                    deployData = deployFileManager.getDeployData(isWarmUp)
+                }
+
                 finalIsFallbackAllHotFix = isFallbackAllHotFix ||
                         (JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty())
                 if (finalIsFallbackAllHotFix) {
@@ -335,8 +344,10 @@ class JuggDeployerHelper(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      * @return <isSuccess, isReinstalled>
      */
-    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean): Pair<Boolean, Boolean> {
-        logger.info("App not ready to deploy, recover deploy state from history.")
+    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean, isInstallUpdateApk: Boolean = false): Pair<Boolean, Boolean> {
+        if (!isInstallUpdateApk) {
+            logger.info("App not ready to deploy, recover deploy state from history.")
+        }
 
         // dry deploy first, if success, no need to reinstall and recover
         if (isNeedTryDeyDeployFirst) {
@@ -350,12 +361,16 @@ class JuggDeployerHelper(
                 logger.debug("Dry deploy failed and isCanReinstall=false, exit dry deploy.")
                 return false to false
             }
+        } else if (isInstallUpdateApk) {
+            logger.info("App updated, start reinstalling app...")
         } else {
             logger.warn("Deploy state not match, start reinstalling app...")
         }
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
+        logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
+
         val costTime = measureTimeMillis {
             runTask(device, deployData)
         }
@@ -445,8 +460,8 @@ class JuggDeployerHelper(
         val apkFile = apkInfos.first().files.first().apkFile
         val signingConfig = compileContext.signingConfig
         if (signingConfig == null || signingConfig.isInvalid) {
-            logger.warn("Signing config not found, unable rewrite APK with files: ${files.map { it.name }}.")
-            return false to "signing config not found"
+            logger.warn("Unable to update APK, signing config not found.")
+            return false to "AndroidManifest.xml changed and signing config not found"
         }
         val modifier = ApkFileModifier(apkFile, signingConfig, compileContext.androidHome, logger.getInstance("ApkFileModifier"))
         try {

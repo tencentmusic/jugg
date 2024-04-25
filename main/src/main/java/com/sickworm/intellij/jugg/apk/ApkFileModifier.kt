@@ -10,6 +10,7 @@ import org.apache.tools.zip.ZipOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.util.zip.CRC32
 import java.util.zip.ZipInputStream
 
 class ApkFileModifier(
@@ -56,19 +57,33 @@ class ApkFileModifier(
         TimeLogger.start("insertFiles")
         tmpUpdateApkFile.delete()
 
-        val remainInsertFiles: Map<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
+        val remainInsertFiles: MutableMap<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
         val buf = ByteArray(4096)
 
         ZipInputStream(FileInputStream(apkFile)).use { oldApkStream ->
             ZipOutputStream(FileOutputStream(tmpUpdateApkFile)).use { newApkStream ->
                 var entry = oldApkStream.nextEntry
                 while (entry != null) {
-                    newApkStream.putNextEntry(ZipEntry(entry.name))
+                    // ZipInputStream will ready some empty entries, and ZipFile.entries() will not
+                    if (entry.name.isNullOrEmpty()) {
+                        entry = oldApkStream.nextEntry
+                        continue
+                    }
 
                     val replaceContent = remainInsertFiles[entry.name]
                     if (replaceContent != null) {
+                        val newEntry = ZipEntry(entry)
+                        newEntry.size = replaceContent.size.toLong()
+                        newEntry.crc = CRC32().run {
+                            reset()
+                            update(replaceContent)
+                            value
+                        }
+                        newApkStream.putNextEntry(newEntry)
                         newApkStream.write(replaceContent)
+                        remainInsertFiles.remove(entry.name)
                     } else {
+                        newApkStream.putNextEntry(ZipEntry(entry))
                         var len: Int
                         while ((oldApkStream.read(buf).also { len = it }) > 0) {
                             newApkStream.write(buf, 0, len)
@@ -77,6 +92,12 @@ class ApkFileModifier(
 
                     newApkStream.closeEntry()
                     entry = oldApkStream.nextEntry
+                }
+
+                remainInsertFiles.forEach {
+                    newApkStream.putNextEntry(ZipEntry(it.key))
+                    newApkStream.write(it.value)
+                    newApkStream.closeEntry()
                 }
             }
         }
@@ -118,7 +139,7 @@ class ApkFileModifier(
         val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true)
         val exitCode = CmdExecutor(cmd.terminalOutputListener, cmd.logger).invoke(cmd)
         if (exitCode != 0) {
-            throw IllegalStateException("resign APK failed, exit code: $exitCode")
+            throw IllegalStateException("AndroidManifest.xml changed and resign APK failed, exit code: $exitCode")
         }
         TimeLogger.end("resignApk", logger)
     }

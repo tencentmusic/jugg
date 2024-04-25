@@ -82,25 +82,34 @@ data class BaseCompileContext(
     }
 
     override val signingConfig: SigningConfig? get() {
-        var applicationModuleName = applicationModule?.name
-        if (applicationModuleName == null) {
+        val applicationModule = applicationModule
+        if (applicationModule == null) {
             logger.debug("get signing config failed, no application module found.")
             return null
         }
-        if (applicationModuleName.contains(".")) {
-            applicationModuleName = applicationModuleName.split(".")[1]
-        }
 
-        val relativeSigningConfig = signingConfigList.find {
-            it.moduleName == applicationModuleName && it.variantName == applicationModule?.buildVariant
+        logger.debug("available signingConfigList: ${signingConfigList.map { "${it.moduleName}(${it.variantName})"}}")
+        val applicationModuleName = applicationModule.simpleName
+        val findConfigLog = "${applicationModuleName}(${applicationModule.buildVariant})"
+        logger.debug("trying to find config $findConfigLog")
+
+        val relativeSigningConfig = signingConfigList.filter {
+            it.moduleName == applicationModuleName
+        }.let { list ->
+            list.find {
+                // first find full match, e.g. debug to debug
+                it.variantName == applicationModule.buildVariant
+            } ?: list.find {
+                // then find partial match, e.g. developmentFreeDebug to debug
+                applicationModule.buildVariant.contains(it.variantName, ignoreCase = true)
+            }
         }
         if (relativeSigningConfig == null) {
-            logger.debug("get signing config failed, no signing config found for $applicationModuleName. " +
-                    "Available: ${signingConfigList.map { it.moduleName }}")
+            logger.debug("get signing config failed, no signing config found")
             return null
         }
 
-        logger.debug("get signing config by $applicationModuleName success (don't print it out for security)")
+        logger.debug("get signing config by $findConfigLog success (don't print it out for security)")
         return relativeSigningConfig
     }
 

@@ -142,16 +142,6 @@ class ResourceOverlayCompiler(
                         return@rootLoop
                     }
                 }
-            } else if (resourceName == "resources.arsc") {
-                val output = outputs.first()
-                if (output.relativeFile.path == "resources.arsc") {
-                    val isOnlyManifest = sourceFiles.all { it.type == CompileFile.Type.AndroidManifest }
-                    if (isOnlyManifest) {
-                        // don't output resources.arsc if no changes
-                        finalOverlays.remove(output)
-                        return@rootLoop
-                    }
-                }
             }
 
             if (outputs.size == 1) {

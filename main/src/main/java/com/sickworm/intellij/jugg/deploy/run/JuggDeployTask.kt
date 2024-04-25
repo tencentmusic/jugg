@@ -67,7 +67,7 @@ class JuggDeployTask(
             }
 
             override fun info(msgFormat: String?, vararg args: Any?) {
-                if (msgFormat?.contains("LOG_ERR") == true) {
+                if (type == AndroidDeployType.INSTALL && msgFormat?.contains("LOG_ERR") == true) {
                     warning(msgFormat, *args)
                 } else {
                     verbose(msgFormat, *args)

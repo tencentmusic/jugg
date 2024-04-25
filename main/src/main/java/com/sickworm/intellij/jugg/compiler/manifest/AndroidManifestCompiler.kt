@@ -75,7 +75,7 @@ class AndroidManifestCompiler(
         }
 
         if (!outputManifestFile.exists()) {
-            val reason = "Compile AndroidManifest.xml failed, file generate failed."
+            val reason = "Compile AndroidManifest.xml failed, file generate failed"
             return createErrorCompileResult(task, reason)
         }
 

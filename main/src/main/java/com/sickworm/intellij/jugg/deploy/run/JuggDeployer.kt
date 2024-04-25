@@ -50,6 +50,7 @@ class JuggDeployer(
             if (installMode == InstallMode.DELTA) {
                 installMode = InstallMode.DELTA_NO_SKIP
             }
+            logger.info("going to install apks: $apks")
             result.skippedInstall = !AsDeployerCompat.install(
                 adb, service, installer, logger,
                 packageName, apks, options, installMode,
