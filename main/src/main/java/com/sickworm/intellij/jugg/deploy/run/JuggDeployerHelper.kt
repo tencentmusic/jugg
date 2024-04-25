@@ -91,8 +91,7 @@ class JuggDeployerHelper(
 
         val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
 
-        val consolePrinter = ConsolePrinter(logger)
-        val launchContext = LaunchContext(consolePrinter, device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
+        val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
         val launchResult = task.run(launchContext)
         dependencyChangeManager.onEndBuilding(launchResult.success)
         if (!launchResult.success) {
