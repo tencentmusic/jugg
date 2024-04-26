@@ -6,11 +6,9 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.IdeBorderFactory
-import com.intellij.ui.components.ActionLink
-import com.intellij.ui.components.DropDownLink
-import com.intellij.ui.components.JBPasswordField
-import com.intellij.ui.components.JBTextField
+import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
+import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -34,6 +32,11 @@ class JuggRunSettingsComponent : JComponent() {
 
     private var moreOptionsButton: DropDownLink<String> = DropDownLink("More options", emptyList()).also {
         it.border = JBUI.Borders.empty(0, 4)
+    }
+
+    private val tipsContainer = JPanel().also {
+        it.border = JBUI.Borders.empty(0, 4)
+        it.layout = BoxLayout(it, BoxLayout.X_AXIS)
     }
 
     private val compileCommandLabel = JLabel("Compile command:")
@@ -106,6 +109,7 @@ class JuggRunSettingsComponent : JComponent() {
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
 
+        add(tipsContainer)
         add(topButtonsContainer)
         updateTopButtons()
         add(Box.createVerticalStrut(5))
@@ -158,11 +162,11 @@ class JuggRunSettingsComponent : JComponent() {
         topButtonsContainer.add(moreOptionsButton)
     }
 
-    fun updateUi(settings: JuggRunConfigurationOptions) {
-        updateUi(settings.toRunConfigurationTemplate())
+    fun updateUi(settings: JuggRunConfigurationOptions, configName: String) {
+        updateUi(settings.toRunConfigurationTemplate(), configName)
     }
 
-    private fun updateUi(settings: RunConfigurationTemplate) {
+    private fun updateUi(settings: RunConfigurationTemplate, configName: String) {
         compileCommandTextField.text = settings.compileCommand
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
@@ -184,6 +188,17 @@ class JuggRunSettingsComponent : JComponent() {
         remoteSyncPathTextField.text = settings.remoteSyncPath
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
+
+        tipsContainer.removeAll()
+        if (configName == SuggestRunConfiguration.DEFAULT.runConfigName) {
+            val tipsLabel = JBLabel()
+            tipsLabel.text = "<html><font color=\"#F39C12\">" +
+                    "Jugg create this default config because auto detection failed. " +
+                    "<br>Suggestion: re-sync or reopen project to detect again." +
+                    "</font></html>"
+            val panel = createPairPanel(tipsLabel, null)
+            tipsContainer.add(panel)
+        }
     }
 
     // must run after updateUi for moreOptionsButton updates

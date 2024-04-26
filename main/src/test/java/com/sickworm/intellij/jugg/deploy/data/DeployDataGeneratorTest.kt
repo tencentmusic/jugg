@@ -172,6 +172,15 @@ class DeployDataGeneratorTest {
     }
 
     @Test
+    fun testGetDesugarClasspathCrossInterface() {
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClass4",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface4;",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
+        )
+    }
+
+    @Test
     fun testGetDesugarClasspathByIncAddInterfaceExtend() {
         var parsedDex = getParsedDex("com.sickworm.jugg.demo.testcase.defaultinterface.DefaultInterface")
         parsedDex = parsedDex.updates(interfaceNames = listOf(

@@ -94,14 +94,9 @@ class JuggConfigurationType : ConfigurationTypeBase(
 class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
     override fun resetEditorFrom(s: JuggRunConfiguration) {
-        s.state?.let {
-            resetEditorFrom(it, s.project)
-        }
-    }
-
-    private fun resetEditorFrom(options: JuggRunConfigurationOptions, project: Project) {
-        (component as JuggRunSettingsComponent).updateUi(options)
-        (component as JuggRunSettingsComponent).initUpload(project)
+        val state = s.state ?: return
+        (component as JuggRunSettingsComponent).updateUi(state, s.name)
+        (component as JuggRunSettingsComponent).initUpload(s.project)
     }
 
     override fun applyEditorTo(s: JuggRunConfiguration) {

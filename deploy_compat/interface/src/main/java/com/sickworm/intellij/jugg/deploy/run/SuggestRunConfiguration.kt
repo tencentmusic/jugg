@@ -4,10 +4,8 @@ data class SuggestRunConfiguration(
     val moduleName: String,
     val compileCommand: String,
     val outputApkPath: String,
+    val runConfigName: String = "$RUN_CONFIG_PREFIX$moduleName",
 ) {
-
-    val runConfigName: String
-        get() = "$RUN_CONFIG_PREFIX$moduleName"
 
     companion object {
 
@@ -22,6 +20,7 @@ data class SuggestRunConfiguration(
                 moduleName = "app",
                 compileCommand = "./gradlew :app:assembleDebug",
                 outputApkPath = "app/build/outputs/apk/debug/*.apk",
+                runConfigName = "jugg:default"
             )
     }
 }

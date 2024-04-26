@@ -224,11 +224,28 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         result.addAll(incStaticInvocationResult)
 
         database.values.forEach {
-            val allInterfaces = it.getAllInterfacesOfClass(interfaces, staticInvocations, incDeployedDatabase.deployedClasses)
-            val incInterfaceResult = incDeployedDatabase.tryFindDefaultInterfaces(allInterfaces, emptyList())
+            val allInterfacesMap = it.getAllInterfacesOfClass(interfaces, staticInvocations, incDeployedDatabase.deployedClasses)
+            val incInterfaceResult = incDeployedDatabase.tryFindDefaultInterfaces(allInterfacesMap.keys, emptyList())
             result.addAll(incInterfaceResult)
-            val apkInterfaceResult = it.filterDefaultInterfaces(allInterfaces)
+            val apkInterfaceResult = it.filterDefaultInterfaces(allInterfacesMap.keys)
             result.addAll(apkInterfaceResult)
+
+            // finds all parent interfaces
+            apkInterfaceResult.forEach { interfaceName ->
+                var forbidDeadLoopCount = 1000 // avoid dead loop, but I don't think it will trigger :)
+                var currentInterfaceName: String? = interfaceName
+                while (forbidDeadLoopCount > 0 && currentInterfaceName != null) {
+                    forbidDeadLoopCount--
+                    currentInterfaceName = allInterfacesMap[currentInterfaceName]
+                    if (currentInterfaceName != null) {
+                        result.add(currentInterfaceName)
+                    }
+                }
+
+                if (forbidDeadLoopCount == 0) {
+                    logger.warn("Dead loop detected when finding all parent interfaces for $interfaceName")
+                }
+            }
         }
         return result.toList()
     }
