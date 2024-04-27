@@ -42,7 +42,9 @@ data class DependencyDiffResult(
     }
 
     override fun toString(): String {
-        return toHtmlChangeList().joinToString("\n")
+        return "DependencyDiffResult: " +
+                "added: ${addedLibraries.size}, removed: ${removedLibraries.size}, updated: ${updatedLibraries.size}" +
+                ", HtmlChangeList:\n" + toHtmlChangeList().joinToString("\n")
     }
 
     companion object {
