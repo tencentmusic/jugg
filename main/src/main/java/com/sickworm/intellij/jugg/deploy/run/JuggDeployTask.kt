@@ -63,6 +63,11 @@ class JuggDeployTask(
         // only print warning and error
         val logger = object : LogWrapper(logger) {
             init {
+                if (type == AndroidDeployType.INSTALL) {
+                    alwaysLogAsDebug(false)
+                } else {
+                    alwaysLogAsDebug(true)
+                }
                 allowVerbose(true)
             }
 
