@@ -142,7 +142,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         compareInfo.compareInfoCacheFile = compareInfoCacheFile
 
         updateFullBuildDependency(isOnInit = true)
-        diffDependency()
 
         hasInit = true
     }
@@ -336,20 +335,20 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         currentBuildDependencies = JuggProjectInfo(newContext.modules)
         updateFullBuildDependency(isEndSyncing = true)
-        diffDependency()
 
         logger.debug("on sync finished, changeStatus: $changeStatus, diffResult: $diffResult")
     }
 
     private fun updateFullBuildDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
-        if (isFullBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
+        if (isNeedUpdateLastBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
             lastBuildDependencies = currentBuildDependencies
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
             logger.debug("update full build dependency, changeStatus: $changeStatus")
+            diffDependency()
         }
     }
 
-    private fun isFullBuildDependency(isOnInit: Boolean, isEndSyncing: Boolean, isEndBuilding: Boolean): Boolean = compareInfo.run {
+    private fun isNeedUpdateLastBuildDependency(isOnInit: Boolean, isEndSyncing: Boolean, isEndBuilding: Boolean): Boolean = compareInfo.run {
         val hasBuildTime = startBuildingTime > 0 && endBuildingTime > 0
         val hasBuildChangedTime = lastBuildChangedTime > 0
         val hasSyncTime = startSyncingTime > 0 && endSyncingTime > 0
@@ -383,7 +382,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         // situation 1: build changed -> sync finished -> build finished
         if (isEndBuilding) {
             if (isBuildLaterThanSync) {
-                logger.debug("isFullBuildDependency true, hit situation 1: build changed -> sync finished -> build finished")
+                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 1: build changed -> sync finished -> build finished")
                 return true
             }
         }
@@ -392,7 +391,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (isEndSyncing) {
             if (isSyncLaterThenBuild) {
                 if (!isLastSyncUpdate) {
-                    logger.debug("isFullBuildDependency true, hit situation 2: build changed -> build finished -> first time sync finished")
+                    logger.debug("isNeedUpdateLastBuildDependency true, hit situation 2: build changed -> build finished -> first time sync finished")
                     isLastSyncUpdate = true
                     return true
                 }
@@ -403,12 +402,20 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (isOnInit) {
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasSyncTime && !hasBuildChangedTime) {
-                logger.debug("isFullBuildDependency true, hit situation 3: first init, no full dependency")
+                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 3: first init, no full dependency")
                 return true
             }
         }
 
-        logger.debug("isFullBuildDependency situation none")
+        // situation 4: after incremental compile
+        if (isEndBuilding) {
+            if (changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 4: after incremental compile")
+                return true
+            }
+        }
+
+        logger.debug("isNeedUpdateLastBuildDependency situation none")
         return false
     }
 
@@ -460,6 +467,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     private fun Long.timeStampToTime(): String {
-        return SimpleDateFormat("HH:mm:ss.SSS").format(Date(this))
+        return SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date(this))
     }
 }
