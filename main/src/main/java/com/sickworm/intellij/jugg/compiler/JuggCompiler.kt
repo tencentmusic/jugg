@@ -159,8 +159,9 @@ class JuggCompiler(
                     emptyList()
                 )
             }
-            // we don't need to add R.dex to compile result, because R fields has been inlined
-//            compileResult += rDexResult.copy(task = task)
+            // we need to add R.dex to compile result, because R.styleable fields won't inlined
+            // other classes it's ok to not deployed, but I prefer to deploy all classes for consistency
+            compileResult += rDexResult.copy(task = task)
         }
 
         // compile source

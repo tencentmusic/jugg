@@ -107,6 +107,7 @@ class ArscCompiler(
             throw JuggInternalException.contextInvalidToCompileArsc()
         }
         if (!hasLoaded || !aapt2Invoker.isAlive()) {
+            logger.debug("aapt2 not loaded or dead, loadTable again. hasLoaded: $hasLoaded, isAlive: ${aapt2Invoker.isAlive()}")
             loadTable()
         }
 
