@@ -474,6 +474,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private var currentIndicator: ProgressIndicator? = null
+    private var retryGapMill = 5_000L
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         object : Task.Backgroundable(project, jobName, false) {
@@ -508,6 +509,20 @@ class JuggManager @TestOnly constructor(
                     reportEventData.action = jobName
                     reportEventData.costTime = System.currentTimeMillis() - startTime
                     juggServer.report(reportEventData)
+
+                    if (!reportEventData.isSuccess) {
+                        if (jobName == "Init project info") {
+                            // compatible with com.intellij.serviceContainer.AlreadyDisposedException: Already disposed: Module: 'xxx' (disposed)
+                            logger.debug("retry $jobName after ${retryGapMill}ms") // maybe
+                            launch {
+                                delay(retryGapMill)
+                                retryGapMill *= 2
+                                runTaskSafe(jobName, action, isNeedShowIndicator)
+                            }
+                        }
+                    } else {
+                        retryGapMill = 5_000L
+                    }
                 }
             }
         }.setCancelText("Jugg: Stopping $jobName...").queue()
