@@ -149,7 +149,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     @Synchronized
     override fun tryShowChangConfirmDialog() {
         if (!hasInit) return
-        logger.debug("show change confirm dialog")
+        logger.debug("try show change confirm dialog")
         if (isBuilding || isSyncing) {
             logger.debug("skip show change confirm dialog, is building or syncing")
             return
@@ -206,7 +206,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                         cancelButtonText = "No, Fallback to Gradle Later",
                     )
                     onConfirmIncrementalCompile(isConfirmed)
+                } else {
+                    logger.debug("skip show change confirm dialog, no changes and isBuildChangedAfterBuild")
                 }
+            } else {
+                logger.debug("skip show change confirm dialog, no changes")
             }
         }
     }
@@ -314,7 +318,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     override fun onStartSyncing() {
-        if (!hasInit) return
         logger.debug("on sync start")
         nextStartSyncingTime = System.currentTimeMillis()
     }
@@ -329,6 +332,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
 
         tempModule = newContext.tempModule
+        if (nextStartSyncingTime == 0L) {
+            logger.debug("on sync finished, but nextStartSyncingTime is 0, maybe time order is wrong, " +
+                    "use current time as nextStartSyncingTime")
+            nextStartSyncingTime = System.currentTimeMillis()
+        }
         compareInfo.startSyncingTime = nextStartSyncingTime
         compareInfo.endSyncingTime = System.currentTimeMillis()
         nextStartSyncingTime = 0L
@@ -435,7 +443,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     @Synchronized
     override fun onStartBuilding() {
-        if (!hasInit) return
         logger.debug("on start rebuilding")
         nextStartBuildingTime = System.currentTimeMillis()
     }
