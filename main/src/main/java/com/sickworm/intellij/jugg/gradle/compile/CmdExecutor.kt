@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.project.JuggException
+import kotlinx.coroutines.*
 import java.io.IOException
 import java.io.PrintStream
 import java.nio.charset.Charset
@@ -69,9 +70,11 @@ class CmdExecutor(
         }
         errorPrintThread.start()
 
+        var isShouldBreak = false
+        var timeOutJob: Job? = null
         val reader = process.inputStream.bufferedReader(Charsets.UTF_8)
-        var result: Int
-        while (true) {
+        var result: Int = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
+        while (!isShouldBreak) {
             try {
                 val line = reader.readLine()
                 if (line != null) {
@@ -93,16 +96,24 @@ class CmdExecutor(
             } catch (e: IOException) {
                 // java.io.IOException: Stream closed
                 logger.debug("get IOException $e")
-                result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
                 break
             }
 
             if (!process.isAlive) {
-                printToStream("[Jugg] exit-status: " + process.exitValue())
-                result = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
-                break
+                // process is exited, maybe it's canceled by user
+                // but process may not print all out, wait for max 200ms
+                if (timeOutJob == null) {
+                    printToStream("[Jugg] exit-status: " + process.exitValue())
+                    timeOutJob = CoroutineScope(Dispatchers.IO).launch {
+                        delay(200)
+                        logger.debug("Command result not received and process is exited for 200ms, break loop")
+                        reader.close()
+                        isShouldBreak = true
+                    }
+                }
             }
         }
+        timeOutJob?.cancel()
         process.waitFor()
         errorPrintThread.interrupt()
         currentRunningProcess = null
