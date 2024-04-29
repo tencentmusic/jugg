@@ -443,7 +443,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     @Synchronized
     override fun onStartBuilding() {
-        logger.debug("on start rebuilding")
+        logger.debug("on start building")
         nextStartBuildingTime = System.currentTimeMillis()
     }
 
@@ -456,6 +456,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             return
         }
 
+        if (nextStartBuildingTime == 0L) {
+            logger.debug("on end building, but nextStartBuildingTime is 0, maybe time order is wrong, " +
+                    "use current time as nextStartBuildingTime")
+            nextStartBuildingTime = System.currentTimeMillis()
+        }
         compareInfo.startBuildingTime = nextStartBuildingTime
         compareInfo.endBuildingTime = System.currentTimeMillis()
         nextStartBuildingTime = 0L

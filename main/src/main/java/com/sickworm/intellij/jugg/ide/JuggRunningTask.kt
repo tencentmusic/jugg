@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -30,6 +31,7 @@ class JuggRunningTask(
     private val project: Project,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
+    private val dependencyChangeManager: IDependencyChangeManager,
     private val statusManager: IJuggRunningTaskStatusManager,
     private val processHandler: SimpleProcessHandler,
     private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
@@ -46,11 +48,11 @@ class JuggRunningTask(
     var isRunning: Boolean = false
         private set
 
-    private var isNeedResetHasRun: Boolean = false
-
     override fun run(indicator: ProgressIndicator) {
         val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
+        var isNeedResetHasRun = false
         try {
+            dependencyChangeManager.onStartBuilding()
             JuggLogger.recreateLogFileIfDeleted(project)
             JuggLogger.listenProjectLog(project, loggerListener)
             juggServer.onCompile()
@@ -58,12 +60,15 @@ class JuggRunningTask(
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
-            doRun(indicator, false)
+            val runResult = doRun(indicator, false)
+            isNeedResetHasRun = runResult.isNeedResetHasRun
+            dependencyChangeManager.onEndBuilding(runResult.isDeploySuccess)
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)
             e.printStackTrace(pw)
             logger.warn("Run stop unexpected with ${e::class.java}:\n$sw\nRun stop unexpected.")
+            dependencyChangeManager.onEndBuilding(false)
         } finally {
             isRunning = false
             val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
@@ -100,7 +105,7 @@ class JuggRunningTask(
         indicator.isIndeterminate = true
     }
 
-    private fun doRun(indicator: ProgressIndicator, isForceGradleCompile: Boolean) {
+    private fun doRun(indicator: ProgressIndicator, isForceGradleCompile: Boolean): RunResult {
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
 
@@ -117,7 +122,7 @@ class JuggRunningTask(
 
         if (!compileTaskResult.isSuccess) {
             failedAndActiveRunWindowIfNotCanceled()
-            return
+            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = false, isDeploySuccess = false)
         }
 
         val devices = deployTargetManager.getDevices()
@@ -129,11 +134,12 @@ class JuggRunningTask(
             }
             logger.warn("No device found. Stop $deployType.")
             failedAndActiveRunWindowIfNotCanceled()
+
             if (compileTaskResult.isGradleCompile) {
-                isNeedResetHasRun = true
                 initIncrementalCompileTask.invoke()
             }
-            return
+            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
+                isDeploySuccess = false, isNeedResetHasRun = compileTaskResult.isGradleCompile)
         }
 
         var totalDeployTime = 0L
@@ -158,7 +164,9 @@ class JuggRunningTask(
             }
         }
 
-        if (deployTaskResultList.any { !it.isSuccess }) {
+        val isAllSuccess = deployTaskResultList.all { it.isSuccess }
+        if (!isAllSuccess) {
+
             // not all device is success
             logger.debug("Not all device is deploying success.")
             if (!deployTaskResultList.all { it.isCanFallback }) {
@@ -167,6 +175,11 @@ class JuggRunningTask(
                     initIncrementalCompileTask.invoke()
                 }
                 failedAndActiveRunWindowIfNotCanceled()
+
+                // install failed, set flag, next time installing directly
+                val isNeedResetHasRun = deployType == JuggDeployData.DeployType.INSTALL
+                return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
+                    isDeploySuccess = false, isNeedResetHasRun = isNeedResetHasRun)
             } else {
                 // fallback to gradle compile
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
@@ -176,14 +189,8 @@ class JuggRunningTask(
                     deployTaskResultList.joinToString(", ") { it.failedReason ?: "See log for details." }
                 }
                 notifyFallback(project, failedReason)
-                doRun(indicator, true)
+                return doRun(indicator, true)
             }
-
-            if (deployType == JuggDeployData.DeployType.INSTALL) {
-                // install failed, set flag, next time installing directly
-                isNeedResetHasRun = true
-            }
-            return
         }
 
         val totalTime = compileTaskResult.costTime + totalDeployTime
@@ -201,6 +208,8 @@ class JuggRunningTask(
         if (compileTaskResult.isGradleCompile) {
             initIncrementalCompileTask.invoke()
         }
+
+        return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true, isDeploySuccess = true)
     }
 
     private fun deployDevice(
@@ -301,6 +310,13 @@ class JuggRunningTask(
         }
     }
 }
+
+private data class RunResult(
+    val isGradleCompile: Boolean,
+    val isCompileSuccess: Boolean,
+    val isDeploySuccess: Boolean,
+    val isNeedResetHasRun: Boolean = false,
+)
 
 private val IDevice.desc: String get() {
     // property name is gotten from IDevice

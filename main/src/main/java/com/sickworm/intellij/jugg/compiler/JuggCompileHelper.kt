@@ -57,7 +57,6 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
-        dependencyChangeManager.onStartBuilding()
         val result = doCompile(options, processHandler, indicator, isForceInstall)
 
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {

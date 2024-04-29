@@ -93,7 +93,6 @@ class JuggDeployerHelper(
 
         val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
         val launchResult = task.run(launchContext)
-        dependencyChangeManager.onEndBuilding(launchResult.success)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
         }
