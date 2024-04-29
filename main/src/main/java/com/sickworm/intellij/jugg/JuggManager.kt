@@ -201,7 +201,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
-        processFileChanged(deployContextRecoverInfo.changedFiles)
+        processFileChanged(deployContextRecoverInfo.changedFiles, isFromRecover = true)
         // step 4: update deploy state
         updateDeployState()
 
@@ -220,7 +220,7 @@ class JuggManager @TestOnly constructor(
         return deployState
     }
 
-    private fun processFileChanged(changedFiles: List<File>) {
+    private fun processFileChanged(changedFiles: List<File>, isFromRecover: Boolean) {
         val deletedFiles = changedFiles.filter { !it.exists() }
         if (deletedFiles.isNotEmpty()) {
             deployFileManager.removeChangedFile(deletedFiles)
@@ -240,7 +240,7 @@ class JuggManager @TestOnly constructor(
         })
 
         val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.Gradle }
-        if (isBuildFileChanged) {
+        if (isBuildFileChanged || isFromRecover) {
             val allBuildFiles = deployFileManager.getUndeployedFiles()
                 .filter { it.type == CompileFile.Type.Gradle }
                 .map { it.file }
@@ -433,7 +433,7 @@ class JuggManager @TestOnly constructor(
 
         fileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>) {
-                processFileChanged(changedFiles)
+                processFileChanged(changedFiles, isFromRecover = false)
             }
         })
 

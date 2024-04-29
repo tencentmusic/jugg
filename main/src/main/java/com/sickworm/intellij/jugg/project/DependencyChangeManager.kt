@@ -307,8 +307,17 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     @Synchronized
     override fun onUpdateChangedBuildFiles(files: List<File>) {
         if (!hasInit) return
-        logger.debug("on build file changed: $files")
+        logger.debug("on update change build files: $files")
         val buildChangedTime = files.maxOf { it.lastModified() }
+
+        if (files.isEmpty() && compareInfo.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED) {
+            logger.debug("build changed files is empty and changeStatus is CHANGED_NOT_SYNCED, " +
+                    "reset lastBuildChangedTime to 0, and reset changeStatus to NO_CHANGE")
+            compareInfo.lastBuildChangedTime = 0
+            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+            return
+        }
+
         if (compareInfo.lastBuildChangedTime != buildChangedTime) {
             compareInfo.lastBuildChangedTime = buildChangedTime
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED
