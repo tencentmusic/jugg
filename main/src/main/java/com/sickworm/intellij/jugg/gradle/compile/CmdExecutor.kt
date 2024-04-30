@@ -44,14 +44,14 @@ class CmdExecutor(
         )
         currentRunningProcess = process
 
+        val charset = if (isWindows && Charset.isSupported("GBK")) {
+            Charset.forName("GBK")
+        } else {
+            Charsets.UTF_8
+        }
         val commander = PrintStream(process.outputStream, false)
         val errorPrintThread = object : Thread() {
             override fun run() {
-                val charset = if (isWindows && Charset.isSupported("GBK")) {
-                    Charset.forName("GBK")
-                } else {
-                    Charsets.UTF_8
-                }
                 val reader = process.errorStream.bufferedReader(charset)
                 while (!isInterrupted) {
                     try {
@@ -72,7 +72,7 @@ class CmdExecutor(
 
         var isShouldBreak = false
         var timeOutJob: Job? = null
-        val reader = process.inputStream.bufferedReader(Charsets.UTF_8)
+        val reader = process.inputStream.bufferedReader(charset)
         var result: Int = IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED
         while (!isShouldBreak) {
             try {
