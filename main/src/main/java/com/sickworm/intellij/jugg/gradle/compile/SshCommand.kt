@@ -82,10 +82,23 @@ class SyncFileCommand(
 
 class CompileProjectCommand(
     compileCommand: String,
-    projectPath: String,
+    private val projectPath: String,
 ) : BaseSshCommand() {
 
-    override val baseCommand: String = """cd $projectPath && $compileCommand --console=plain"""
+    override val baseCommand: String = """cd $projectPath && $compileCommand"""
+
+    override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
+        val command = super.getCommand(isNeedSetChineseLanguage, isWindows)
+        if (isWindows) {
+            // some Windows version can not switch disk by cd, here we do some compatible things
+            if (projectPath.matches("[A-Za-z]+:.*".toRegex())) {
+                val gotoDiskCmd = projectPath.substringBefore(":") + ":"
+                return """$gotoDiskCmd && $command"""
+            }
+        }
+
+        return command
+    }
 }
 
 class FindOutputCommand(
