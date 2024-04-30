@@ -37,7 +37,7 @@ class ResourceOverlayCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         val androidManifestTask = CompileTask(
             task.files.filter { it.type == CompileFile.Type.AndroidManifest },
-            File(context.tempCompileDir, "merged_manifest"),
+            File(context.tempCompileDir, "merged_manifests"),
             task,
         )
         val resourceTask = CompileTask(

@@ -348,11 +348,11 @@ data class ModuleBuildPathInfo(
 
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
-    /** on gradle 3.2.1 has different java class path */
+    /** on AGP 3.2.1 has different java class path */
     private val javaClassPathOld get() = File(buildDir, "intermediates/javac/$buildVariant/compileDebugJavaWithJavac/classes")
     /** java class path */
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
-    /** after gradle 4.1.1, R.class not storage in buildClassPath */
+    /** after AGP 4.1.1, R.class not storage in buildClassPath */
 
     private val rFilePathDir get() = File(buildDir, "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$buildVariant")
 
@@ -373,21 +373,32 @@ data class ModuleBuildPathInfo(
     /** kotlin classpath for java library */
     private val kotlinClassPathForJavaLibrary get() = File(buildDir, "classes/kotlin/main")
 
-    private val mergedManifestDir get() = File(buildDir, "intermediates/merged_manifests/$buildVariant")
+    // compatible with AGP 3.x 4.x
+    private val oldLibraryMergedManifestDir get() = File(buildDir, "intermediates/library_manifest/$buildVariant")
+    private val libraryMergedManifestDir get() = File(buildDir, "intermediates/merged_manifest/$buildVariant")
+    // in AGP 8.x, application module has both merged_manifests and merged_manifest directory,
+    // so it cannot use to detect application module
+    private val applicationMergedManifestDir get() = File(buildDir, "intermediates/merged_manifests/$buildVariant")
 
     // compatible with gradle 8.x, which path like merged_manifests/debug/processDebugManifest/AndroidManifest.xml
-    val mergedManifest get() = File(mergedManifestDir, "AndroidManifest.xml").takeIf(File::exists)
-        ?: File(mergedManifestDir, "process${buildVariant.camel}Manifest/AndroidManifest.xml").takeIf(File::exists)
-        ?: mergedManifestDir.listFilesRecursively().find { it.name == "AndroidManifest.xml" }
-        ?: File(mergedManifestDir, "AndroidManifest.xml")
+    val mergedManifest get() = listOf(oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir)
+        .firstNotNullOfOrNull { it.findManifestInDir() } ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary)
 
+    // use to fetch all class path after full build
     val allBuildPathRelative get() = listOf(javaClassPathNew, javaClassPathOld, rFilePathDir, kotlinClassPath,
-        javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary, generatedSourcePath, mergedManifestDir).map { it.relativeTo(moduleRootDir) }
+        javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary, generatedSourcePath,
+        oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir
+    ).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 
+    private fun File.findManifestInDir(): File? {
+        return File(this, "AndroidManifest.xml").takeIf(File::exists)
+            ?: File(this, "process${buildVariant.camel}Manifest/AndroidManifest.xml").takeIf(File::exists)
+            ?: this.listFilesRecursively().find { it.name == "AndroidManifest.xml" }
+    }
 
     private val String.camel: String get() {
         return this.replaceFirstChar { it.uppercaseChar() }
