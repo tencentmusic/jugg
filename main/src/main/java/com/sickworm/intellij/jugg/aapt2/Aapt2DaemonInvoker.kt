@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.copyResource
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isLinux
 import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.*
 import java.util.*
@@ -14,9 +15,11 @@ import java.util.*
  * invoke aapt2-inclink with custom build
  */
 class Aapt2DaemonInvoker(
-    private val logger: Logger,
+    parentLogger: Logger,
     private val aapt2: File = getEmbeddedAapt2(),
     ) {
+
+    private val logger: Logger = parentLogger.getInstance("Aapt2DaemonInvoker")
 
     private var process: Process? = null
     private var outputReader: OutputReader? = null
@@ -31,6 +34,7 @@ class Aapt2DaemonInvoker(
         }
         this.process = process
         outputReader = OutputReader(process.inputStream, process.errorStream, logger)
+        outputReader?.init()
     }
 
     @Synchronized
@@ -48,13 +52,14 @@ class Aapt2DaemonInvoker(
         process.outputStream.write("${params.replace(" ", "\n")}\n\n".toByteArray()) // double \n for commands end
         process.outputStream.flush()
 
-        return outputReader!!.read()
+        return outputReader?.read() ?: Aapt2Result("", "")
     }
 
     @Synchronized
     fun release() {
         logger.debug("exit aapt2 daemon")
         process?.destroy()
+        outputReader?.release()
     }
 
     private fun readLine(stream: InputStream): String {
@@ -76,10 +81,16 @@ class Aapt2DaemonInvoker(
         @Volatile
         private var outputBuilder = StringBuilder()
 
-        init {
-            Thread {
-                readOutput(inputStream)
-            }.start()
+        private var readOutputThread = Thread {
+            readOutput(inputStream)
+        }
+
+        fun init() {
+            readOutputThread.start()
+        }
+
+        fun release() {
+            readOutputThread.interrupt()
         }
 
         fun read(): Aapt2Result {
@@ -93,11 +104,16 @@ class Aapt2DaemonInvoker(
             val sc = Scanner(stream)
 
             var readLine = 0
-            while (sc.hasNextLine()) {
-                val line = sc.nextLine()
-                outputBuilder.appendLine(line)
-                logger.debug("std output: $line")
-                readLine++
+            while (sc.hasNextLine() && !Thread.interrupted()) {
+                try {
+                    val line = sc.nextLine()
+                    outputBuilder.appendLine(line)
+                    logger.debug("std output: $line")
+                    readLine++
+                } catch (e: Exception) {
+                    logger.debug("readOutputThread interrupted")
+                    break
+                }
             }
             logger.debug("output lines: $readLine")
         }
