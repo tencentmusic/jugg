@@ -42,7 +42,9 @@ class JuggCompilerHelper(
 
     var juggCompiler: JuggCompiler? = null
         set(value) {
-            field?.dispose()
+            field?.let {
+                Disposer.dispose(it)
+            }
             field = value
         }
 

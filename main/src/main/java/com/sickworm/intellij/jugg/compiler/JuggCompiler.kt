@@ -220,4 +220,8 @@ class JuggCompiler(
         sourceCompiler.warmUp()
         resourceOverlayCompiler.warmUp()
     }
+
+    override fun dispose() {
+        logger.debug("dispose")
+    }
 }
