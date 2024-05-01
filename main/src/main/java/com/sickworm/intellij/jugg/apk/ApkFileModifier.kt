@@ -5,13 +5,11 @@ import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import org.apache.tools.zip.ZipEntry
-import org.apache.tools.zip.ZipOutputStream
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.util.zip.CRC32
-import java.util.zip.ZipInputStream
+import java.net.URI
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
 
 class ApkFileModifier(
     private val apkFile: File,
@@ -54,55 +52,22 @@ class ApkFileModifier(
     }
 
     private fun copyAndInsertFiles() {
-        TimeLogger.start("insertFiles")
+        TimeLogger.start("copyApkFile")
         tmpUpdateApkFile.delete()
+        apkFile.copyTo(tmpUpdateApkFile)
+        TimeLogger.end("copyApkFile", logger)
 
-        val remainInsertFiles: MutableMap<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
-        val buf = ByteArray(4096)
-
-        ZipInputStream(FileInputStream(apkFile)).use { oldApkStream ->
-            ZipOutputStream(FileOutputStream(tmpUpdateApkFile)).use { newApkStream ->
-                var entry = oldApkStream.nextEntry
-                while (entry != null) {
-                    // ZipInputStream will ready some empty entries, and ZipFile.entries() will not
-                    if (entry.name.isNullOrEmpty()) {
-                        entry = oldApkStream.nextEntry
-                        continue
-                    }
-
-                    val replaceContent = remainInsertFiles[entry.name]
-                    if (replaceContent != null) {
-                        val newEntry = ZipEntry(entry)
-                        newEntry.size = replaceContent.size.toLong()
-                        newEntry.crc = CRC32().run {
-                            reset()
-                            update(replaceContent)
-                            value
-                        }
-                        newApkStream.putNextEntry(newEntry)
-                        newApkStream.write(replaceContent)
-                        remainInsertFiles.remove(entry.name)
-                    } else {
-                        newApkStream.putNextEntry(ZipEntry(entry))
-                        var len: Int
-                        while ((oldApkStream.read(buf).also { len = it }) > 0) {
-                            newApkStream.write(buf, 0, len)
-                        }
-                    }
-
-                    newApkStream.closeEntry()
-                    entry = oldApkStream.nextEntry
-                }
-
-                remainInsertFiles.forEach {
-                    newApkStream.putNextEntry(ZipEntry(it.key))
-                    newApkStream.write(it.value)
-                    newApkStream.closeEntry()
-                }
+        TimeLogger.start("insertFiles")
+        val zipProperties = mapOf("create" to "false")
+        val zipDisk: URI = URI.create("jar:" + tmpUpdateApkFile.toURI().toString())
+        FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
+            insertFiles.forEach { (path, content) ->
+                val pathInZipFile: Path = zipFileSystem.getPath(path)
+                Files.delete(pathInZipFile)
+                Files.copy(content.inputStream(), pathInZipFile)
             }
         }
-
-        TimeLogger.end("copyAndInsertFiles", logger)
+        TimeLogger.end("insertFiles", logger)
     }
 
     private fun alignApk() {
