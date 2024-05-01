@@ -42,8 +42,8 @@ class AndroidManifestCompilerTest {
         val compileResult = compiler.compile(compileTask)
 
         assertTrue(compileResult.isAllSuccess)
-        assertEquals(1, compileResult.outputs.size)
-        val outputFile = compileResult.outputs.first()
+        assertEquals(2, compileResult.outputs.size)
+        val outputFile = compileResult.outputs.find { it.file.name == "AndroidManifest.xml" }!!
         assertTrue(outputFile.file.exists())
 
         val manifest = ManifestActivityInfo.parseBinaryFromStream(outputFile.file.inputStream())
@@ -85,8 +85,8 @@ class AndroidManifestCompilerTest {
         val compileResult = compiler.compile(compileTask)
 
         assertTrue(compileResult.isAllSuccess)
-        assertEquals(1, compileResult.outputs.size)
-        val outputFile = compileResult.outputs.first()
+        assertEquals(2, compileResult.outputs.size)
+        val outputFile = compileResult.outputs.find { it.file.name == "AndroidManifest.xml" }!!
         assertTrue(outputFile.file.exists())
 
 
@@ -154,8 +154,8 @@ class AndroidManifestCompilerTest {
         val compileResult = compiler.compile(compileTask)
 
         assertTrue(compileResult.isAllSuccess)
-        assertEquals(1, compileResult.outputs.size)
-        val outputFile = compileResult.outputs.first()
+        assertEquals(2, compileResult.outputs.size)
+        val outputFile = compileResult.outputs.find { it.file.name == "AndroidManifest.xml" }!!
         assertTrue(outputFile.file.exists())
 
 
