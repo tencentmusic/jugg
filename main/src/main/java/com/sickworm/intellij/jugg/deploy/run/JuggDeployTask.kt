@@ -63,20 +63,12 @@ class JuggDeployTask(
         // only print warning and error
         val logger = object : LogWrapper(logger) {
             init {
-                if (type == AndroidDeployType.INSTALL) {
-                    alwaysLogAsDebug(false)
-                } else {
-                    alwaysLogAsDebug(true)
-                }
+                alwaysLogAsDebug(true)
                 allowVerbose(true)
             }
 
             override fun info(msgFormat: String?, vararg args: Any?) {
-                if (type == AndroidDeployType.INSTALL && msgFormat?.contains("LOG_ERR") == true) {
-                    warning(msgFormat, *args)
-                } else {
-                    verbose(msgFormat, *args)
-                }
+                verbose(msgFormat, *args)
             }
         }
         val device = launchContext.device
