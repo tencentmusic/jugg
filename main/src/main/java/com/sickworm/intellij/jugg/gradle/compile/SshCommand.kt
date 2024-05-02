@@ -85,7 +85,7 @@ class CompileProjectCommand(
     private val projectPath: String,
 ) : BaseSshCommand() {
 
-    override val baseCommand: String = """cd $projectPath && $compileCommand"""
+    override val baseCommand: String = """cd $projectPath && $compileCommand --console=plain"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         val command = super.getCommand(isNeedSetChineseLanguage, isWindows)
