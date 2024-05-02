@@ -188,8 +188,8 @@ object AsDeployerCompat : IAsDeployerCompat {
         }
     }
 
-    override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger): List<SuggestRunConfiguration> {
-        return impl.getSuggestRunConfigurations(existsRunConfigNames, project, logger)
+    override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger, isNeedDefaultRunConfig: Boolean): List<SuggestRunConfiguration> {
+        return impl.getSuggestRunConfigurations(existsRunConfigNames, project, logger, isNeedDefaultRunConfig)
     }
 }
 

@@ -62,7 +62,7 @@ interface IAsDeployerCompat {
     /**
      * Get suggest run configuration from [AndroidRunConfigurationType]
      */
-    fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger): List<SuggestRunConfiguration>
+    fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger, isNeedDefaultRunConfig: Boolean): List<SuggestRunConfiguration>
 
 
     fun getModuleManager(project: Project): ModuleManager {

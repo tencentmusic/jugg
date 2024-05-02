@@ -17,11 +17,13 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
+import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ChangedFileInfo
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.server.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
@@ -74,6 +76,7 @@ class JuggManager @TestOnly constructor(
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             loadCustomConfig()
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
+            tryCreateRunConfigurations(isSyncFinished = false)
             logger.info("Start jugg finished.")
 
             // init project info async
@@ -140,27 +143,45 @@ class JuggManager @TestOnly constructor(
         logger.debug("onSyncEvent: $syncEvent")
         when (syncEvent) {
             SyncEvent.SUCCEEDED -> {
-                tryCreateDefaultRunConfiguration()
+                tryCreateRunConfigurations(isSyncFinished = true)
                 initProjectInfo(isNeedReloadProjectInfo = true)
             }
             SyncEvent.SKIPPED -> {
-                tryCreateDefaultRunConfiguration()
+                tryCreateRunConfigurations(isSyncFinished = false)
             }
             else -> {
             }
         }
     }
 
-    private fun tryCreateDefaultRunConfiguration() {
+    @Synchronized
+    private fun tryCreateRunConfigurations(isSyncFinished: Boolean, maxRetryCount: Int = 5) {
+        TimeLogger.start("tryCreateDefaultRunConfiguration")
         val currentList = RunManager.getInstance(project).getConfigurationSettingsList(JuggConfigurationType::class.java)
         val currentListNames = currentList.map { it.name }
         logger.debug("JuggConfigurationType currentList: $currentListNames")
 
-        val suggestRunConfiguration = AsDeployerCompat.getSuggestRunConfigurations(currentListNames, project,
-            logger.getInstance("GetSuggestRunConfigurations"))
+        val currentListNamesExceptDefault = currentList.filter { it.name != SuggestRunConfiguration.DEFAULT.runConfigName }
+        if (currentListNamesExceptDefault.isNotEmpty() && !isSyncFinished) {
+            logger.debug("Not sync finished and exits non-default configs is not empty, skip create default run configuration")
+            return
+        }
+
+        val suggestRunConfiguration = AsDeployerCompat.getSuggestRunConfigurations(
+            currentListNames, project,
+            logger.getInstance("GetSuggestRunConfigurations"),
+            isNeedDefaultRunConfig = maxRetryCount <= 0,
+        )
         logger.debug("Suggest run configurations: $suggestRunConfiguration")
         if (suggestRunConfiguration.isEmpty()) {
             logger.debug("No suggest run configuration")
+            if (currentListNamesExceptDefault.isEmpty() && isSyncFinished && maxRetryCount > 0) {
+                logger.debug("No current run configuration, retry after 2s")
+                launch {
+                    delay(2000)
+                    tryCreateRunConfigurations(isSyncFinished = true, maxRetryCount = maxRetryCount - 1)
+                }
+            }
             return
         }
 
@@ -179,11 +200,13 @@ class JuggManager @TestOnly constructor(
             RunManager.getInstance(project).addConfiguration(it)
         }
 
-        // select if first created
-        if (currentList.isEmpty() && settingsList.isNotEmpty()) {
-            val settings = settingsList[0]
+        // select if first created except default
+        val settingsListExceptDefault = settingsList.filter { it.name != SuggestRunConfiguration.DEFAULT.runConfigName }
+        if (currentListNamesExceptDefault.isEmpty() && settingsListExceptDefault.isNotEmpty()) {
+            val settings = settingsListExceptDefault[0]
             RunManager.getInstance(project).selectedConfiguration = settings
         }
+        TimeLogger.end("tryCreateDefaultRunConfiguration", logger)
     }
 
     private fun recoverDeployContext(isNeedReloadProjectInfo: Boolean) {

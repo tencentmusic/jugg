@@ -8,7 +8,6 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
-import com.android.tools.idea.gradle.project.model.AndroidModuleModel
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
@@ -237,9 +236,11 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         runConfiguration.putUserData(DeviceAndSnapshotComboBoxAction.DEPLOYS_TO_LOCAL_DEVICE, true)
     }
 
-    override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>,
-                                             project: Project,
-                                             logger: Logger,
+    override fun getSuggestRunConfigurations(
+        existsRunConfigNames: List<String>,
+        project: Project,
+        logger: Logger,
+        isNeedDefaultRunConfig: Boolean,
     ): List<SuggestRunConfiguration> {
         val result = mutableListOf<SuggestRunConfiguration>()
 
@@ -247,10 +248,18 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             SuggestRunConfiguration.getModuleNameByRunConfigName(it)
         }.toSet()
 
-        val androidConfigSettings = RunManager.getInstance(project)
-            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
+        // returns empty with new created project, have to use allConfigurationsList and filter by myself
+//        var androidConfigSettings = RunManager.getInstance(project)
+//            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
+//        logger.debug("androidConfigSettings ${androidConfigSettings.map { it.name }}")
 
-        // compat with old jugg config. if project has old config "jugg:app" and the module have none app module,
+        val allConfigSettings = RunManager.getInstance(project).allSettings
+        logger.debug("allConfigSettings ${allConfigSettings.map { "${it.name}(${it.type})" }}")
+        val androidConfigSettings = allConfigSettings.filter { it.type is AndroidRunConfigurationType }
+        logger.debug("androidConfigSettings ${androidConfigSettings.map { it.name }}")
+
+
+        // compatible with old jugg config. if project has old config "jugg:app" and the module have none app module,
         // ignore suggest to avoid duplicate configs
         val hasOldConfigs = androidConfigSettings.all { it.name != "app" }
                 && existsModuleForRunConfig.any { it == "app" }
@@ -275,7 +284,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             result.add(suggestRunConfig)
         }
 
-        if (result.isEmpty() && existsRunConfigNames.isEmpty()) {
+        if (result.isEmpty() && existsRunConfigNames.isEmpty() && isNeedDefaultRunConfig) {
             logger.debug("getSuggestRunConfigurations: no suggest run config and no exists run config, use default")
             return listOf(SuggestRunConfiguration.DEFAULT)
         }
