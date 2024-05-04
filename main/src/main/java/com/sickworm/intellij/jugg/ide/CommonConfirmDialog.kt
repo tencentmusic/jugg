@@ -4,11 +4,9 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import javax.swing.Action
-import javax.swing.JComponent
-import javax.swing.JPanel
+import java.awt.*
+import javax.swing.*
+
 
 class CommonConfirmDialog(
     titleArg: String,
@@ -18,20 +16,20 @@ class CommonConfirmDialog(
     private val isShowCancelButton: Boolean,
 ) : DialogWrapper(true) {
 
-    private val mainPanel: JPanel = JPanel(GridBagLayout())
+    private val mainPanel: JPanel = JPanel(BorderLayout())
 
     init {
         title = titleArg
 
-        val constraints = GridBagConstraints()
-        constraints.gridx = 0
-        constraints.gridy = 0
-        constraints.fill = GridBagConstraints.HORIZONTAL
+        val jLabel = JBLabel(content)
+        val jScrollPane = JScrollPane(jLabel)
+        jScrollPane.border = null
 
-        constraints.insets = JBUI.insetsBottom(12)
-        constraints.gridwidth = 1
-        mainPanel.add(JBLabel(content), constraints)
-        constraints.gridy++
+        // maximumSize not worked, preferredSize won't auto size
+//        val screenSize = Toolkit.getDefaultToolkit().screenSize
+//        mainPanel.preferredSize = Dimension(screenSize.width / 2, screenSize.height / 2)
+        mainPanel.add(jScrollPane)
+        mainPanel.add(jScrollPane, BorderLayout.CENTER)
 
         isResizable = true
         init()
