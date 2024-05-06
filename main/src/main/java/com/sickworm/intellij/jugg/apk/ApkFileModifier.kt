@@ -58,7 +58,8 @@ class ApkFileModifier(
         TimeLogger.end("copyApkFile", logger)
 
         TimeLogger.start("insertFiles")
-        val zipProperties = mapOf("create" to "false")
+        // ref: https://download.java.net/java/early_access/valhalla/docs/api/jdk.zipfs/module-summary.html
+        val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
         val zipDisk: URI = URI.create("jar:" + tmpUpdateApkFile.toURI().toString())
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->
