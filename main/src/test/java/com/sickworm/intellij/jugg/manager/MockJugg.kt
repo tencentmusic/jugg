@@ -28,10 +28,7 @@ import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.*
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.FileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -59,6 +56,7 @@ class MockJugg {
     lateinit var deployHistoryManager: IDeployHistoryManager
     lateinit var deployFileManager: DeployFileManager
     lateinit var deployStateManager: DeployStateManager
+    lateinit var dependencyChangeManager: IDependencyChangeManager
     val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     private val adbDeviceHelper = AdbDeviceHelper()
@@ -92,9 +90,9 @@ class MockJugg {
     }
 
     fun loadFromHistory() {
-        renewComponents()
+        renewComponents(isMockCompileContextManager = false)
         renewManager()
-        juggManager.initProjectInfo(false)
+        juggManager.recoverDeployContext()
         deployFileManager.reset()
     }
 
@@ -171,7 +169,7 @@ class MockJugg {
         juggManager.compileChanges()
     }
 
-    private fun renewComponents() {
+    private fun renewComponents(isMockCompileContextManager: Boolean = true) {
         project = JuggMockProject(projectDir)
         pathManager = JuggPathManager(project, projectDir, File(projectDir, "build/jugg"))
         JuggLogger.register(project, pathManager.logDir)
@@ -188,7 +186,7 @@ class MockJugg {
             }
 
             override fun getDevices(): List<IDevice> {
-                return listOf(this@MockJugg.getDevice())
+                return adbDeviceHelper.getDeviceList()
             }
 
             override fun startApp(device: IDevice): Boolean {
@@ -210,25 +208,28 @@ class MockJugg {
             }
         }
 
-        val moduleManager = mock(ModuleManager::class.java)
-        val modules = emptyArray<Module>()
-        doReturn(modules).`when`(moduleManager).modules
-        val projectBuildModel = mock(ProjectBuildModel::class.java)
-        val gradleBuildModule = mock(GradleBuildModel::class.java)
-        doReturn(getAndroidModel()).`when`(gradleBuildModule).android()
-        doReturn(gradleBuildModule).`when`(projectBuildModel).getModuleBuildModel(any<Module>())
-
         fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.historyDir, logger)
-        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.historyDir, coroutineScope)
+        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.databaseDir, logger)
+        deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.databaseDir, coroutineScope)
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
-        compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
-            moduleManager, projectBuildModel, logger)
+        dependencyChangeManager = IDependencyChangeManager.create(logger)
+
+        if (isMockCompileContextManager) {
+            compileContextManager = mock(CompileContextManager::class.java)
+            doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
+            doReturn(File(pathManager.compileRootDir, "staging")).`when`(compileContextManager).stagingDir
+            doReturn(context.modules).`when`(compileContextManager).getAllModulesByModuleManager(false)
+        } else {
+            val moduleManager = mock(ModuleManager::class.java)
+            val projectBuildModel = mock(ProjectBuildModel::class.java)
+            compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
+                moduleManager = moduleManager, projectBuildModel = projectBuildModel)
+        }
 
         val juggServer = JuggServer(project)
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, juggServer, { JuggStateListener.emptyImpl }, logger) {
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, { JuggStateListener.emptyImpl }, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
                 downloader.makeSureComponentIsInPlace()
@@ -240,58 +241,6 @@ class MockJugg {
         }
 
         JuggLogger.listenProjectLog(project, logger)
-    }
-
-    private fun getAndroidModel(): AndroidModel {
-        val compileSdkVersion = mock(ResolvedPropertyModel::class.java)
-        `when`(compileSdkVersion.valueAsString()).thenReturn(androidBuildTools.name.substring(0, 2))
-
-        val buildToolsVersion = mock(ResolvedPropertyModel::class.java)
-        `when`(buildToolsVersion.valueAsString()).thenReturn(androidBuildTools.name)
-
-        val compileOptionsModel = mock(CompileOptionsModel::class.java)
-        val languageLevelPropertyModel = mock(LanguageLevelPropertyModel::class.java)
-        `when`(languageLevelPropertyModel.toLanguageLevel()).thenReturn(LanguageLevel.JDK_1_8) // TODO read from build.gradle
-        `when`(compileOptionsModel.sourceCompatibility()).thenReturn(languageLevelPropertyModel)
-        `when`(compileOptionsModel.targetCompatibility()).thenReturn(languageLevelPropertyModel)
-
-        val kotlinOptionsModel = mock(KotlinOptionsModel::class.java)
-        val jvmTarget = mock(LanguageLevelPropertyModel::class.java)
-        `when`(jvmTarget.toLanguageLevel()).thenReturn(LanguageLevel.JDK_1_8) // TODO read from build.gradle
-        `when`(kotlinOptionsModel.jvmTarget()).thenReturn(jvmTarget)
-
-        val androidModel = mock(AndroidModel::class.java)
-        `when`(androidModel.sourceSets()).thenReturn(mutableListOf())
-        `when`(androidModel.buildToolsVersion()).thenReturn(buildToolsVersion)
-        `when`(androidModel.compileSdkVersion()).thenReturn(compileSdkVersion)
-        `when`(androidModel.compileOptions()).thenReturn(compileOptionsModel)
-        `when`(androidModel.kotlinOptions()).thenReturn(kotlinOptionsModel)
-
-        return androidModel
-    }
-
-    private fun getModel(file: File): Module {
-        val virtualFile = MockIoVirtualFile(file)
-        val manager = MockModuleRootManager(virtualFile)
-        val module = mock(Module::class.java)
-        doReturn(manager).`when`(module).getComponent(ModuleRootManager::class.java)
-        doReturn(mock(FacetManager::class.java)).`when`(module).getComponent(FacetManager::class.java)
-        doReturn(virtualFile).`when`(module).moduleFile
-        doReturn(virtualFile.name).`when`(module).name
-
-        return module
-    }
-
-    private fun getDevice(): IDevice {
-        val deviceList = adbDeviceHelper.getDeviceList()
-            .filter { it.state == IDevice.DeviceState.ONLINE }
-        if (deviceList.isEmpty()) {
-            throw JuggException.deviceNotFound()
-        }
-        if (deviceList.size > 1) {
-            throw JuggException.multipleDeviceFound()
-        }
-        return deviceList.first()
     }
 
     private fun renewManager() {
@@ -307,6 +256,7 @@ class MockJugg {
             juggDeployerHelper = juggDeployerHelper,
             deployStateManager = deployStateManager,
             deployHistoryManager = deployHistoryManager,
+            dependencyChangeManager = dependencyChangeManager,
         )
         juggManager.deployStateListener = juggStateListener
 

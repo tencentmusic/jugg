@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.mock.assetsDir
+import com.sickworm.intellij.jugg.mock.assetsLibDir
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertContentEquals
@@ -11,75 +12,118 @@ class ClassFileParserTest {
 
     @Test
     fun testInterfaces() {
-        assertInterfaces(
+        assertResult(
             listOf(
                 File(testClassesDir, "com/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseClass2.class"),
             ),
-            listOf(
+            expectedInterfaces = listOf(
                 "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
             )
         )
 
-        assertInterfaces(
+        assertResult(
             listOf(
                 File(testClassesDir, "com/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3.class"),
             ),
-            listOf(
+            expectedInterfaces = listOf(
                 "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
             )
         )
 
 
-        assertInterfaces(
+        assertResult(
             listOf(
                 File(testClassesDir, "com/sickworm/jugg/demo/testcase/defaultinterface/ImplementClass3.class"),
             ),
-            listOf(
+            expectedInterfaces = listOf(
                 "Lcom/sickworm/jugg/demo/testcase/defaultinterface/ImplementBaseInterface3;",
             )
         )
     }
 
-    private fun assertInterfaces(classFiles: List<File>, expected: List<String>) {
-        val classParser = ClassFileParser(classFiles)
-        classParser.parse()
-        assert(classParser.interfaces.isNotEmpty())
-
-        assertContentEquals(
-            expected,
-            classParser.interfaces
-        )
-    }
-
     @Test
     fun testStaticInvocations() {
-        assertStaticInvocations(
+        assertResult(
             listOf(
                 File(testClassesDir, "com/example/myapplication/StaticInvoke.class"),
             ),
-            listOf(
+            expectedStaticInvocations = listOf(
                 "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
                 "Lcom/example/myapplication/ABCBaseCC;",
             ),
         )
 
-        assertStaticInvocations(
+        assertResult(
             listOf(
                 File(testClassesDir, "com/sickworm/jugg/demo/testcase/defaultinterface/InvokerClass1.class"),
             ),
-            listOf(
+            expectedStaticInvocations = listOf(
                 "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterface;",
             ),
         )
 
     }
 
-    private fun assertStaticInvocations(classFiles: List<File>, expected: List<String>) {
+    @Test
+    fun testJars() {
+        assertResult(
+            listOf(
+                File(assetsLibDir, "rxjava-3.0.12.jar"),
+            ),
+            expectedInterfaces = listOf(
+                "Ljava/lang/annotation/Annotation;",
+                "Lorg/reactivestreams/Publisher;",
+                "Lorg/reactivestreams/Subscriber;",
+                "Ljava/lang/Runnable;",
+                "Ljava/util/concurrent/Callable;",
+                "Ljava/util/Comparator;",
+                "Lorg/reactivestreams/Subscription;",
+                "Ljava/util/function/BiConsumer;",
+                "Ljava/util/concurrent/Future;",
+                "Ljava/util/Iterator;",
+                "Ljava/lang/Iterable;",
+                "Ljava/util/concurrent/ThreadFactory;",
+                "Ljava/lang/Comparable;",
+                "Ljava/io/Serializable;",
+                "Ljava/util/List;",
+                "Ljava/util/RandomAccess;",
+                "Lorg/reactivestreams/Processor;",
+            ),
+            expectedStaticInvocations = listOf(
+                "Ljava/lang/Enum;",
+                "Ljava/util/Objects;",
+                "Ljava/lang/Boolean;",
+                "Ljava/lang/Math;",
+                "Ljava/lang/Integer;",
+                "Ljava/lang/Long;",
+                "Ljava/util/Spliterators;",
+                "Ljava/util/stream/StreamSupport;",
+                "Ljava/lang/Thread;",
+                "Ljava/lang/System;",
+                "Ljava/util/Collections;",
+                "Ljava/util/Arrays;",
+                "Ljava/lang/Character;",
+                "Ljava/lang/String;",
+                "Ljava/lang/Runtime;",
+                "Ljava/util/concurrent/Executors;",
+                "Ljava/lang/reflect/Array;",
+            ),
+        )
+    }
+
+    private fun assertResult(classFiles: List<File>,
+                             expectedInterfaces: List<String> = emptyList(),
+                             expectedStaticInvocations: List<String> = emptyList()) {
         val classParser = ClassFileParser(classFiles)
         classParser.parse()
-        assert(classParser.staticInvocationRefs.isNotEmpty())
+
         assertContentEquals(
-            expected,
+            expectedInterfaces,
+            classParser.interfaces
+        )
+
+        assertContentEquals(
+            expectedStaticInvocations,
             classParser.staticInvocationRefs
         )
     }

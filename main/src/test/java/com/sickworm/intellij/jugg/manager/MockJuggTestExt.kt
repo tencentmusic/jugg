@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.mock.*
 import java.io.File
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -75,8 +76,9 @@ fun MockJugg.checkCompileResult(
     assertEquals(0, deployFileManager.getUncompiledFiles().size)
     val deployData = deployFileManager.getDeployData()
     assertEquals(1, deployData.apks.size)
-    assertEquals(newClassesSize, deployData.newClasses.size)
-    assertEquals(hotFixModifiedClassesSize, deployData.hotFixModifiedClasses.size)
-    assertEquals(hotReloadModifiedClassesSize, deployData.hotReloadModifiedClasses.size)
+    assertEquals(
+        listOf(newClassesSize, hotFixModifiedClassesSize, hotReloadModifiedClassesSize).joinToString(),
+        listOf(deployData.newClasses.size, deployData.hotFixModifiedClasses.size, deployData.hotReloadModifiedClasses.size).joinToString()
+    )
     assertEquals(overlaysSize, deployData.overlays.size)
 }

@@ -8,18 +8,18 @@ import com.android.tools.idea.gradle.structure.model.PsProjectImpl
 import com.android.tools.idea.gradle.structure.model.meta.maybeValue
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.logger.TimeLogger
 
 class GradleVariableHelper(private val logger: Logger) {
 
-    private var psContext: PsContextImpl? = null
-
-    fun init(project: Project) {
-        logger.debug("init")
+    private val psContext: PsContextImpl? by lazy {
+        TimeLogger.start("GradleVariableHelper.init")
         val repositorySearchFactory = CachingRepositorySearchFactory()
+        var psContext: PsContextImpl? = null
         try {
             @Suppress("IncorrectParentDisposable")
             psContext = PsContextImpl(
-                PsProjectImpl(project, repositorySearchFactory), project,
+                PsProjectImpl(project!!, repositorySearchFactory), project!!,
                 disableAnalysis = false,
                 disableResolveModels = false,
                 cachingRepositorySearchFactory = repositorySearchFactory
@@ -28,6 +28,14 @@ class GradleVariableHelper(private val logger: Logger) {
             // failed in test
             logger.warn("init failed", e)
         }
+        TimeLogger.end("GradleVariableHelper.init", logger)
+        return@lazy psContext
+    }
+
+    private var project: Project? = null
+
+    fun init(project: Project) {
+        this.project = project
     }
 
     fun readVariable(property: ResolvedPropertyModel, model: GradleBuildModel, isValid: String.() -> Boolean): String? {

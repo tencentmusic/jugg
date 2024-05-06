@@ -85,7 +85,7 @@ class JuggMoreOptionsItem(
                             "<html>This will reload project info and re-init, but dependencies won't update without sync.<br>Are you sure to continue?</html>"
                         )
                         if (isConfirmed) {
-                            JuggInitializer.getManager(project)?.markAsSyncedAndReInitCompiler(true)
+                            JuggInitializer.getManager(project)?.markAsSyncedAndReInitCompiler()
                         }
                     }
                 ),

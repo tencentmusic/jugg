@@ -16,11 +16,8 @@ import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -36,6 +33,7 @@ class JuggCompilerHelper(
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,
     private val compileContextManager: CompileContextManager,
     private val fileChangesHandler: IFileChangesHandler,
+    private val dependencyChangeManager: IDependencyChangeManager,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
@@ -62,6 +60,7 @@ class JuggCompilerHelper(
         isForceInstall: Boolean,
     ): CompileTaskResult {
         val result = doCompile(options, processHandler, indicator, isForceInstall)
+
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             logger.warn("Compile canceled.")
             return result.copy(
@@ -169,11 +168,13 @@ class JuggCompilerHelper(
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
-                it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+                it.type == CompileFile.Type.Gradle
             }
             // unnecessary to check if file size is small and no build file changed
-            val isShouldCheck = uncompiledFiles.size > 20 || changedBuildFile != null
-            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, changedBuildFile: ${changedBuildFile != null}, isShouldCheck: $isShouldCheck")
+            val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null)
+            logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, " +
+                    "changedBuildFile: ${changedBuildFile != null}, " +
+                    "isShouldCheck: $isShouldCheck")
 
             if (isShouldCheck) {
                 try {
@@ -197,13 +198,16 @@ class JuggCompilerHelper(
             }
         }
 
+        val forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+
         // we need to double-check because file may roll back to not changed
         val changedBuildFile = deployFileManager.getUncompiledFiles().find {
-            it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+            it.type == CompileFile.Type.Gradle
         }
-        if (changedBuildFile != null) {
+        val isNeedRebuild = changedBuildFile != null
+        if (isNeedRebuild && !forceIncrementalCompile) {
             deployStateManager.isBuildFileChanged = true
-            deployStateManager.whatBuildFileChanged = changedBuildFile.file.name
+            deployStateManager.whatBuildFileChanged = changedBuildFile?.file?.name ?: "null"
             logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")
         } else {
             deployStateManager.isBuildFileChanged = false
@@ -233,8 +237,6 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Jugg compiler not init")
         }
 
-        // read all undeployed files
-        val undeployedFiles = deployFileManager.getUndeployedFiles()
         if (deployFileManager.isNoFileChanges()) {
             val deviceName = deployTargetManager.getDeviceNameList()
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
@@ -248,6 +250,24 @@ class JuggCompilerHelper(
                 }
                 return CompileTaskResult.incrementalFailed(isConfirmFallback, "No file changes")
             }
+        }
+
+        // read all undeployed files
+        val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
+        if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+            // user select libraries incremental compile, add them to undeployed files
+            val undeployedLibraries = dependencyChangeManager.getNewLibraryFiles()
+            undeployedFiles.addAll(undeployedLibraries)
+            logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
+
+            // remove gradle files from undeployed files, it can not be compiled
+            val gradleFiles = undeployedFiles.filter { it.type == CompileFile.Type.Gradle }
+            undeployedFiles.removeAll(gradleFiles)
+
+            // mark gradle files as compiled, to detect isNoFileChanges()
+            deployFileManager.updateUncompiledFiles(gradleFiles.map {
+                CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
+            }, emptyList())
         }
 
         return doIncrementalCompile(compiler, undeployedFiles, processHandler)
@@ -280,7 +300,7 @@ class JuggCompilerHelper(
         }
 
         val compileFiles = undeployedFiles.map {
-            CompileFile(it.type, it.file, it.baseDir, it.module)
+            CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
         }
 
         deployStateListener.onFileStatesUpdate(compileFiles.map {

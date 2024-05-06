@@ -3,7 +3,10 @@ package com.sickworm.intellij.jugg.project
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
+import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import java.io.File
 
@@ -16,6 +19,7 @@ data class BaseCompileContext(
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
     private val deployFileManager: DeployFileManager,
+    private val signingConfigList: List<SigningConfig>,
 ): ICompileContext {
 
     private val androidJarApi: String = getSuggestedPlatformApi(modules)
@@ -37,6 +41,76 @@ data class BaseCompileContext(
         }.sortedBy {
             -File(it).length() // sort by file size, to let the biggest R.jar go first
         }
+    }
+
+    override val applicationModule: ModuleInfo? by lazy {
+        val applicationModules = modules.values.filter { module ->
+            val rFile = module.buildPathInfo.rFilePath
+            return@filter rFile.exists()
+        }
+        if (applicationModules.isEmpty()) {
+            logger.debug("get application module failed, no module has R.jar")
+            return@lazy null
+        }
+        if (applicationModules.size == 1) {
+            logger.debug("get application module returns ${applicationModules.first().name}, with only one has R.jar")
+            return@lazy applicationModules.first()
+        }
+
+        logger.debug("get application module package name in APK: $packageName")
+        logger.debug("get application module has multiple modules has R.jar, ${applicationModules.joinToString { it.name }}")
+
+        applicationModules.forEach {
+            val mergedManifest = it.buildPathInfo.mergedManifest
+            if (!mergedManifest.exists()) {
+                logger.debug("get application module failed, ${it.name}'s merged manifest not found, ignore")
+                return@forEach
+            }
+            val mergedManifestXmlNode = XmlParser().parse(mergedManifest)
+            val packageNameInManifest = mergedManifestXmlNode.node["package"]
+            if (packageNameInManifest == packageName) {
+                logger.debug("get application module auto match success, ${it.name} has same package name $packageNameInManifest")
+                return@lazy it
+            } else {
+                logger.debug("get application module, ${it.name} has different package name $packageNameInManifest, continue.")
+                return@forEach
+            }
+        }
+
+        logger.debug("get application module auto match failed, use first module as application module.")
+        return@lazy applicationModules.first()
+    }
+
+    override val signingConfig: SigningConfig? get() {
+        val applicationModule = applicationModule
+        if (applicationModule == null) {
+            logger.debug("get signing config failed, no application module found.")
+            return null
+        }
+
+        logger.debug("available signingConfigList: ${signingConfigList.map { "${it.moduleName}(${it.variantName})"}}")
+        val applicationModuleName = applicationModule.simpleName
+        val findConfigLog = "${applicationModuleName}(${applicationModule.buildVariant})"
+        logger.debug("trying to find config $findConfigLog")
+
+        val relativeSigningConfig = signingConfigList.filter {
+            it.moduleName == applicationModuleName
+        }.let { list ->
+            list.find {
+                // first find full match, e.g. debug to debug
+                it.variantName == applicationModule.buildVariant
+            } ?: list.find {
+                // then find partial match, e.g. developmentFreeDebug to debug
+                applicationModule.buildVariant.contains(it.variantName, ignoreCase = true)
+            }
+        }
+        if (relativeSigningConfig == null) {
+            logger.debug("get signing config failed, no signing config found")
+            return null
+        }
+
+        logger.debug("get signing config by $findConfigLog success (don't print it out for security)")
+        return relativeSigningConfig
     }
 
     override val isEnableDesugared: Boolean by lazy {

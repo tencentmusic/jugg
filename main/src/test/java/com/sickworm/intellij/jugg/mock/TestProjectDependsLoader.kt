@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import java.io.File
 
@@ -37,7 +38,6 @@ object TestProjectDependsLoader {
         legacy-support-core-ui-1.0.0
         core-1.0.2
         drawerlayout-1.0.0
-        versionedparcelable-1.1.0
         localbroadcastmanager-1.0.0
         lifecycle-runtime-2.0.0
         slidingpanelayout-1.0.0
@@ -46,32 +46,34 @@ object TestProjectDependsLoader {
     val depends = """
         androidx.lifecycle/lifecycle-common/2.0.0
         junit/junit/4.12
-        org.jetbrains.kotlin/kotlin-stdlib-common/1.7.0
+        org.jetbrains.kotlin/kotlin-stdlib-common/1.7.22
         org.hamcrest/hamcrest-library/1.3
-        org.jetbrains.kotlin/kotlin-stdlib/1.7.0
+        org.jetbrains.kotlin/kotlin-stdlib/1.7.22
         javax.inject/javax.inject/1
         com.squareup/javawriter/2.1.1
         androidx.constraintlayout/constraintlayout-solver/1.1.3
         net.sf.kxml/kxml2/2.3.0
         org.hamcrest/hamcrest-integration/1.3
-        org.jetbrains.kotlin/kotlin-android-extensions-runtime/1.7.0
+        org.jetbrains.kotlin/kotlin-android-extensions-runtime/1.7.22
         com.google.code.findbugs/jsr305/2.0.1
         androidx.arch.core/core-common/2.0.0
         org.jetbrains/annotations/13.0
         androidx.collection/collection/1.0.0
         org.hamcrest/hamcrest-core/1.3
         androidx.annotation/annotation/1.1.0
-        org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.7.0
+        org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.7.22
     """.trimIndent()
 
-    private var cache: List<String>? = null
+    private var cache: List<LibraryDependency>? = null
 
-    fun parse(): List<String> {
+    fun parse(): List<LibraryDependency> {
+        AssembleAndroidProjectOnce.ensure()
+
         cache?.let {
             return it
         }
 
-        val result = mutableListOf<String>()
+        val result = mutableListOf<LibraryDependency>()
 
         val dependsRootDir = File(userHome, ".gradle/caches/modules-2/files-2.1")
         result += depends.split("\n").flatMap {
@@ -80,26 +82,39 @@ object TestProjectDependsLoader {
                 throw IllegalArgumentException("depends dir not exists: $dependDir")
             }
             dependDir.listFilesRecursively().filter { file ->
-                file.extension == "jar"
+                file.extension == "jar" && !file.name.endsWith("-javadoc.jar") && !file.name.endsWith("-sources.jar")
+            }.map { file ->
+                LibraryDependency("Gradle: " + it.replace("/", ":"), file)
             }
-        }.map {
-            it.absolutePath
         }
 
         val transformedDependsRootDir = File(userHome, ".gradle/caches/transforms-3")
-        val allTransformedDepends = transformedDependsRootDir
+        val allTransformedDepends: MutableMap<String, MutableList<File>> = mutableMapOf()
+        transformedDependsRootDir
             .walkTopDown()
             .filter {
-                it.isDirectory && it.name == "jars"
+                (it.isDirectory && it.name == "jars") || (it.name == "AndroidManifest.xml")
             }
-            .associateBy { it.parentFile.name }
-        result += transformedDepends.split("\n").flatMap {
-            val dependDir = allTransformedDepends[it] ?: throw IllegalArgumentException("depends dir not exists: $it")
-            dependDir.listFilesRecursively()
-        }.map {
-            it.absolutePath
+            .forEach {
+                allTransformedDepends.getOrPut(it.parentFile.name) { mutableListOf(it) }.add(it)
+            }
+        transformedDepends.split("\n").forEach {
+            val depends = allTransformedDepends[it] ?: throw IllegalArgumentException("depends dir not exists: $it")
+            val version = it.substringAfterLast('-')
+            val artifact = it.substringBeforeLast('-')
+            val name = "Gradle: mock_group:$artifact:$version"
+            depends.forEach { depend ->
+                if (depend.isDirectory) {
+                    depend.listFilesRecursively().map { file ->
+                        result.add(LibraryDependency(name, file))
+                    }
+                } else {
+                    result.add(LibraryDependency(name, depend))
+                }
+            }
         }
 
+        cache = result
         return result
     }
 

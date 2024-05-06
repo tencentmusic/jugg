@@ -14,13 +14,16 @@ class DexFileMaker(private val logger: Logger) {
             classpath: Collection<String>,
             androidJar: File,
             minApi: Int,
+            isFilePerClass: Boolean = true,
     ) {
         outputDir.mkdirs()
 
         // see https://developer.android.com/studio/command-line/d8
         val args = mutableListOf<String>()
 
-        args.add("--file-per-class")
+        if (isFilePerClass) {
+            args.add("--file-per-class")
+        }
 
         args.add("--lib")
         args.add(androidJar.absolutePath)

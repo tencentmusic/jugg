@@ -2,21 +2,24 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.IdeInfo
+import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.deploy.DeployStateManager
-import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.apk.ApkFileModifier
+import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.jarDexFileName
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -33,6 +36,8 @@ class JuggDeployerHelper(
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployStateManager: DeployStateManager,
+    private val dependencyChangeManager: IDependencyChangeManager,
+    private val compileContextManager: CompileContextManager,
     private val juggServer: JuggServer,
     private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
@@ -60,10 +65,33 @@ class JuggDeployerHelper(
             AndroidDeployType.APPLY_CHANGES
         }
 
+        if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+            val removedDexFiles = dependencyChangeManager.getRemovedLibraryFiles()
+                .map(ChangedFile::jarDexFileName)
+                .toSet()
+            if (removedDexFiles.isNotEmpty()) {
+                TimeLogger.start("remove dex")
+                logger.info("Library incremental compile, going to delete removed libraries dex: $removedDexFiles")
+                removedDexFiles.forEach { dexFileName ->
+                    data.apks.forEach {
+                        val packageName = it.applicationId
+                        logger.debug("delete $packageName - $dexFileName")
+                        try {
+                            AdbCmdHelper(device, logger).deleteDeployedDexFile(packageName, dexFileName)
+                        } catch (e: Exception) {
+                            logger.debug("delete $packageName - $dexFileName failed", e)
+                            logger.warn("delete $packageName - $dexFileName failed, reason:\n$e")
+                        }
+                    }
+                }
+                logger.info("Delete removed libraries dex finished.")
+                TimeLogger.end("remove dex", logger)
+            }
+        }
+
         val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
 
-        val consolePrinter = ConsolePrinter(logger)
-        val launchContext = LaunchContext(consolePrinter, device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
+        val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
         val launchResult = task.run(launchContext)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
@@ -132,10 +160,32 @@ class JuggDeployerHelper(
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
                 }
 
+                deployData = deployFileManager.getDeployData(isWarmUp)
+                var isNeedReinstallApk = false
+                if (deployData.isNeedUpdateAndroidManifest) {
+                    logger.info("Need resign APK to update AndroidManifest.xml.")
+                    logger.info("Resigning APK...")
+                    TimeLogger.start("insertFileAndResignApk")
+                    val androidManifest = deployData.overlays.find {
+                        it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
+                    }!!
+                    val resourceArsc = deployData.overlays.find {
+                        it.type == CompileOutput.Type.Res && it.name == "resources.arsc"
+                    }!!
+                    val (isSuccess, failedReason) = insertFileAndResignApk(
+                        deployData.apks, compileContextManager.compileContext, listOf(androidManifest, resourceArsc))
+                    if (!isSuccess) {
+                        return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason)
+                    }
+                    logger.info("Resign APK file finished, cost ${TimeLogger.getCostTime("insertFileAndResignApk")}ms.")
+                    isNeedReinstallApk = true
+                }
+
                 var isRecoverWithReinstall = false
-                if (!deployStateManager.getDeployState(device).isReadyDeploy) {
+                if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy) {
                     if (deployStateManager.getDeployState(device).isReadyIncCompile) {
-                        val (isSuccess, isReinstalled) = recoverDeployState(device, isNeedTryDeyDeployFirst = true)
+                        val (isSuccess, isReinstalled) = recoverDeployState(device,
+                            isNeedTryDeyDeployFirst = !isNeedReinstallApk, isInstallUpdateApk = isNeedReinstallApk)
                         if (!isSuccess) {
                             logger.info("Try recover deploy state failed.")
                             return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = "Try recover deploy state failed.")
@@ -149,7 +199,11 @@ class JuggDeployerHelper(
                     }
                 }
 
-                deployData = deployFileManager.getDeployData(isWarmUp)
+                // get deploy data again after resigning apk (trigger full res deploy)
+                if (isRecoverWithReinstall) {
+                    deployData = deployFileManager.getDeployData(isWarmUp)
+                }
+
                 finalIsFallbackAllHotFix = isFallbackAllHotFix ||
                         (JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty())
                 if (finalIsFallbackAllHotFix) {
@@ -289,8 +343,10 @@ class JuggDeployerHelper(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      * @return <isSuccess, isReinstalled>
      */
-    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean): Pair<Boolean, Boolean> {
-        logger.info("App not ready to deploy, recover deploy state from history.")
+    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean, isInstallUpdateApk: Boolean = false): Pair<Boolean, Boolean> {
+        if (!isInstallUpdateApk) {
+            logger.info("App not ready to deploy, recover deploy state from history.")
+        }
 
         // dry deploy first, if success, no need to reinstall and recover
         if (isNeedTryDeyDeployFirst) {
@@ -304,12 +360,16 @@ class JuggDeployerHelper(
                 logger.debug("Dry deploy failed and isCanReinstall=false, exit dry deploy.")
                 return false to false
             }
+        } else if (isInstallUpdateApk) {
+            logger.info("App updated, start reinstalling app...")
         } else {
             logger.warn("Deploy state not match, start reinstalling app...")
         }
 
         // recover deploy state for device
         val deployData = JuggDeployData.forInstall(deployTargetManager.getApks())
+        logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
+
         val costTime = measureTimeMillis {
             runTask(device, deployData)
         }
@@ -385,6 +445,38 @@ class JuggDeployerHelper(
         logger.info("App not launched, please check the app is started and debuggable, and adb is not occupied by other process")
         return false
     }
+
+    /**
+     * @return <isSuccess, failedReason>
+     */
+    private fun insertFileAndResignApk(apkInfos: List<ApkInfo>, compileContext: ICompileContext, files: List<DeployItem>): Pair<Boolean, String> {
+        if (apkInfos.size > 1) {
+            throw JuggException.notSupportMultiApk()
+        }
+        if (apkInfos.first().files.size > 1) {
+            throw JuggException.notSupportMultiApk()
+        }
+        val apkFile = apkInfos.first().files.first().apkFile
+        val signingConfig = compileContext.signingConfig
+        if (signingConfig == null || signingConfig.isInvalid) {
+            logger.warn("Unable to update APK, signing config not found.")
+            return false to "AndroidManifest.xml changed and signing config not found"
+        }
+        val modifier = ApkFileModifier(apkFile, signingConfig, compileContext.androidHome, logger.getInstance("ApkFileModifier"))
+        try {
+            files.forEach {
+                modifier.addFile(it.name, it.content)
+            }
+            modifier.insertAndResign()
+            return true to ""
+        } catch (e: Exception) {
+            logger.debug("unexpected error when insert file and resign apk", e)
+            logger.warn("Insert file and resign apk failed, reason: ${e.message}")
+            modifier.clearOnError()
+            return false to "rewrite APK failed"
+        }
+    }
+
 
     companion object {
         private val runTaskLock = Object()

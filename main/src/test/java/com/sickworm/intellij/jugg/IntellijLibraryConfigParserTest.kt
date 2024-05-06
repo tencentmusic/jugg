@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.sickworm.intellij.jugg.compiler.LibraryDependency
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestProjectDependsLoader
 import org.junit.Test
@@ -17,7 +18,6 @@ class IntellijLibraryConfigParserTest {
 
     @Suppress("RedundantNullableReturnType")
     fun loadLibraryConfigInTest(): List<String>? {
-        AssembleAndroidProjectOnce.ensure()
-        return TestProjectDependsLoader.parse()
+        return TestProjectDependsLoader.parse().map { it.file.absolutePath }
     }
 }

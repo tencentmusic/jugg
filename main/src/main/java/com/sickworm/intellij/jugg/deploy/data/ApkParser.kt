@@ -83,11 +83,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 defaultMethodInvokeRefs,
                 false,
             )
-            if (classes.size != 1) {
-                // it must be only one class in one dex
-                throw JuggInternalException.dexFileNotContainsOnlyOneClass(classes.size)
-            }
-            ClassDeployItem(it, classes.first().value)
+            ClassDeployItem(it, classes.values.toList())
         }
         return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs)
     }

@@ -14,11 +14,11 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
-import org.jetbrains.kotlin.idea.base.util.runReadActionInSmartMode
 import java.io.File
 import kotlin.system.measureTimeMillis
 
@@ -41,11 +41,11 @@ class CompileContextManager(
 ) {
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
-    private val projectInfoJsonFile = File(pathManager.historyDir, "project_infos.db/project_infos.dat")
+    private val projectInfoJsonFile = File(pathManager.projectInfosDir, "project_infos.dat")
     private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger)
 
     /** Init after [initCompileContext] */
-    val compileContext: BaseCompileContext
+    val compileContext: ICompileContext
         get() {
             return compileContextInside?: throw JuggInternalException.compilerContextNotInit()
         }
@@ -110,7 +110,7 @@ class CompileContextManager(
                 return@map name to module
             }
         }.toMap()
-        compileContext.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
+        compileContextInside?.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
     private fun initCompileContext(isNeedReloadProjectInfo: Boolean) {
@@ -141,6 +141,7 @@ class CompileContextManager(
             modules = modules,
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
+            signingConfigList = AsDeployerCompat.getAndroidRunConfigList(project, logger).flatMap { it.signingConfigList },
         )
 
         compileContextInside = context
@@ -150,7 +151,7 @@ class CompileContextManager(
         logger.debug("getAllModulesByModuleManager isNeedReloadProjectInfo: $isNeedReloadProjectInfo, isFirstTimeLoad: $isFirstTimeLoad")
         var modules: Map<String, ModuleInfo>? = null
         if (!isNeedReloadProjectInfo) {
-            val cacheModules = projectInfoSerializer.load()
+            val cacheModules = projectInfoSerializer.load()?.modules
             logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
             if (cacheModules != null) {
                 modules = cacheModules
@@ -177,13 +178,31 @@ class CompileContextManager(
             }
             modules = doGetAllModulesByModuleManager(gradleVariableHelper)
             gradleVariableHelper.release()
-            projectInfoSerializer.save(modules)
+            projectInfoSerializer.save(JuggProjectInfo(modules))
         }
         return modules
     }
 
     private fun doGetAllModulesByModuleManager(gradleVariableHelper: GradleVariableHelper): Map<String, ModuleInfo> {
+        TimeLogger.start("initModuleRoots")
         logger.debug("Start init module roots")
+
+        // use old cache to speed up library info reading
+        val dependencyCacheMap = run {
+            val result = mutableMapOf<String, LibraryDependency>()
+            val oldModules = projectInfoSerializer.load()?.modules
+            oldModules?.values?.forEach { moduleInfo ->
+                moduleInfo.libraryDependencies.forEach {
+                    val key = "${it.file.absolutePath}:${it.lastModifiedTime}"
+                    if (!result.containsKey(key)) {
+                        result[key] = it
+                    }
+                }
+            }
+            result
+        }
+        var totalCount = 0
+        var hitCacheCount = 0
 
         val modules = mutableMapOf<String, ModuleInfo>()
         val addedModules = mutableSetOf<String>()
@@ -315,6 +334,7 @@ class CompileContextManager(
             // 4. find dependencies
             val moduleDependencies = mutableListOf<ModuleDependency>()
             val libraryDependencies = mutableListOf<LibraryDependency>()
+
             moduleRootManager.orderEntries.forEach {
                 when (it) {
                     is ModuleOrderEntry -> {
@@ -322,7 +342,18 @@ class CompileContextManager(
                     }
                     is LibraryOrderEntry -> {
                         it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
-                            libraryDependencies.add(LibraryDependency(file.toIoFile()))
+                            val ioFile = file.toIoFile()
+                            val key = "${ioFile.absolutePath}:${ioFile.lastModified()}"
+                            var libraryDependency = dependencyCacheMap[key]
+                            if (libraryDependency == null) {
+                                val name = it.libraryName ?: "NoName: ${ioFile.absolutePath}"
+                                libraryDependency = LibraryDependency(name, ioFile)
+                                dependencyCacheMap[key] = libraryDependency
+                            } else {
+                                hitCacheCount++
+                            }
+                            libraryDependencies.add(libraryDependency)
+                            totalCount++
                         }
                     }
                     is ModuleJdkOrderEntry -> {
@@ -378,7 +409,9 @@ class CompileContextManager(
         }
         logger.debug(addedModules.joinToString("\n"))
 
+        logger.debug("getLibraryDependencies total $totalCount, hitCacheCount $hitCacheCount, unHitCacheCount ${totalCount - hitCacheCount}")
         logger.debug("total ${modules.size} modules loaded")
+        TimeLogger.end("initModuleRoots", logger)
         return modules
     }
 

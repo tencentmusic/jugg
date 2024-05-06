@@ -58,7 +58,7 @@ class DeployTargetManager(
             AdbCmdHelper(device, logger).startDefaultApp(getPackageName(), apks, isRestart = true)
             true
         } catch (e: Exception) {
-            logger.error("restartApp failed", e)
+            logger.error("RestartApp failed, got exception: ", e)
             false
         }
     }
@@ -67,7 +67,7 @@ class DeployTargetManager(
         return try {
             AdbCmdHelper(device, logger).isAppForeground(getPackageName())
         } catch (e: Exception) {
-            logger.error("isAppForeground failed", e)
+            logger.error("isAppForeground failed, got exception:", e)
             false
         }
     }

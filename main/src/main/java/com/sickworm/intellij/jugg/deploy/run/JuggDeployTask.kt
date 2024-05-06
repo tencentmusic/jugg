@@ -72,7 +72,6 @@ class JuggDeployTask(
             }
         }
         val device = launchContext.device
-        val printer = launchContext.consolePrinter
         val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
         val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
@@ -111,7 +110,6 @@ class JuggDeployTask(
         if (idsSkippedInstall.isEmpty()) {
             val content =
                 String.format("%s successfully finished in %s.", deployType, StringUtil.formatDuration(duration))
-            printer.stdout(content)
             logger.info("%s", content)
         } else {
             val title =
@@ -120,7 +118,6 @@ class JuggDeployTask(
                 idsSkippedInstall,
                 idsSkippedInstall.size == packages.size
             )
-            printer.stdout(content)
             logger.info("%s. %s", title, content)
         }
         return LaunchResult(true, 0, null, overlayIds)
@@ -256,24 +253,12 @@ enum class AndroidDeployType {
  * @see [com.android.tools.idea.run.tasks.LaunchContext]
  */
 class LaunchContext(
-    val consolePrinter: ConsolePrinter,
     val device: IDevice,
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false
-}
-
-class ConsolePrinter(private val logger: Logger) {
-
-    fun stdout(message: String) {
-        logger.debug(message)
-    }
-
-    fun stderr(message: String) {
-        logger.error(message)
-    }
 }
 
 

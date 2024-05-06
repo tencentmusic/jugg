@@ -324,6 +324,47 @@ class ResourceCompileTest {
         checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = false)
     }
 
+    @Test
+    fun compileResourceDirOverlay() {
+        val task = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource,
+                    File(assetsAndroidDir, "app/src/main/res"),
+                    File(assetsAndroidDir, "app/src/main/res"),
+                    mockModule
+                ),
+            ),
+            stagingDir
+        )
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+
+        val result = resourceOverlayCompiler.compile(task)
+        checkArscResult(task, result, 27, isRJavaChanged = false)
+    }
+
+    @Test
+    fun compileResourceEmptyDirOverlay() {
+        val emptyResDir = File(buildDir, "empty_res")
+        emptyResDir.deleteRecursively()
+        emptyResDir.mkdirs()
+
+        val task = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource,
+                    emptyResDir,
+                    emptyResDir,
+                    mockModule
+                ),
+            ),
+            stagingDir
+        )
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+
+        val result = resourceOverlayCompiler.compile(task)
+        assertTrue(result.isAllSuccess)
+        assertTrue(result.outputs.isEmpty())
+    }
+
     private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int, isRJavaChanged: Boolean) {
         assertEquals(task.files.size, result.details.size)
         assertTrue(result.isAllSuccess)

@@ -8,6 +8,7 @@ import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.absolutePathString
+import kotlin.io.path.name
 
 object ListFiles {
 
@@ -42,6 +43,10 @@ object ListFiles {
                 }
 
                 if (file.absolutePathString().contains("/res/") && fileName.endsWith(".xml")) {
+                    fileListPerDir.orderAdd(file.toFile())
+                }
+
+                if (file.name == "AndroidManifest.xml") {
                     fileListPerDir.orderAdd(file.toFile())
                 }
                 return FileVisitResult.CONTINUE

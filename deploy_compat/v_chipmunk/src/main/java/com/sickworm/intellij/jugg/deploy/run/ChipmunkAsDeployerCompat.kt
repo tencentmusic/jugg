@@ -8,6 +8,9 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.flags.StudioFlags
+import com.android.tools.idea.gradle.model.IdeAndroidArtifact
+import com.android.tools.idea.gradle.model.IdeAndroidProject
+import com.android.tools.idea.gradle.model.IdeSigningConfig
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
@@ -301,7 +304,11 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             val runConfig = settings.configuration as AndroidRunConfiguration
             val module = runConfig.modules.first()
             val gradleAndroidModel = GradleAndroidModel.get(module)
-            logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
+            try {
+                logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
+            } catch (e: Throwable) {
+                logger.warn("print gradleAndroidModel failed", e)
+            }
             gradleAndroidModel ?: return null
 
             // get compile command
@@ -347,8 +354,66 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 "agpVersion: ${androidProject.agpVersion}, " +
                 "allApplicationIds: ${allApplicationIds}, " +
                 "isBaseSplit: ${isBaseSplit}, " +
-                "assembleTaskName: ${mainArtifact.assembleTaskName}, " +
-                "selectedVariant: ${selectedVariant}, " +
+                "mainArtifact: ${mainArtifact.getDesc()}, " +
+                "androidProject: ${androidProject.getDesc()}, " +
                 ""
+    }
+
+    private fun IdeAndroidArtifact.getDesc(): String {
+        return "IdeAndroidArtifact: " +
+                "assembleTaskName: $assembleTaskName, " +
+                "unresolvedDependencies: $unresolvedDependencies, " +
+                "signingConfigName: $signingConfigName, " +
+                "isSigned: $isSigned, " +
+                "buildInformation: $buildInformation" +
+                ""
+    }
+
+    private fun IdeAndroidProject.getDesc(): String {
+        return "IdeAndroidProject: " +
+                "compileTarget: $compileTarget, " +
+                "bootClasspath: $bootClasspath, " +
+                "signingConfigs: ${signingConfigs.map { it.getDesc() }}, " +
+                "javaCompileOptions: $javaCompileOptions, " +
+                "viewBindingOptions: $viewBindingOptions, " +
+                "namespace: $namespace, " +
+                "agpFlags: $agpFlags, " +
+                "variantsBuildInformation: ${variantsBuildInformation.map { it.variantName }}, " +
+                ""
+    }
+
+    private fun IdeSigningConfig.getDesc(): String {
+        return "IdeSigningConfig(name=$name, " +
+                "storeFile=${if (storeFile == null) "null" else if (!storeFile!!.exists()) "not exists" else "exists"}, " +
+                "storePassword=${if (storePassword == null) "null" else "not null"}, " +
+                "keyAlias=${if (keyAlias == null) "null" else "not null"}"
+    }
+
+    override fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig> {
+        val androidConfigSettings = RunManager.getInstance(project)
+            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
+        logger.debug("getSigningConfigList androidConfigSettings size ${androidConfigSettings.size}")
+        return androidConfigSettings.mapNotNull { settings ->
+            val runConfig = settings.configuration as AndroidRunConfiguration
+            val module = runConfig.modules.first()
+            val gradleAndroidModel = GradleAndroidModel.get(module)
+            if (gradleAndroidModel == null) {
+                logger.debug("getSigningConfigList gradleAndroidModel of module ${module.name} is null")
+                return@mapNotNull null
+            }
+            val androidRunConfig = AndroidRunConfig(
+                gradleAndroidModel.androidProject.signingConfigs.map { config ->
+                    val moduleName: String = gradleAndroidModel.moduleName
+                    val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
+                    SigningConfig(simpleName,
+                        variantName = config.name,
+                        keystore = config.storeFile,
+                        storePassword = config.storePassword,
+                        keyAlias = config.keyAlias,
+                    )
+                },
+            )
+            return@mapNotNull androidRunConfig
+        }
     }
 }

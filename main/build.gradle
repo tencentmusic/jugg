@@ -1,3 +1,9 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+
+import java.nio.file.Files
+import java.nio.file.Paths
+
 plugins {
     id 'java'
     id 'org.jetbrains.intellij'
@@ -88,6 +94,13 @@ tasks.register('buildPluginIntranet') {
             }
         }
     }
+}
+
+if (!file('src/main/config/final/config.properties').exists()) {
+    File sourceFile = file("src/main/config/intranet/config.properties")
+    File destFile = file("src/main/config/final/config.properties")
+    destFile.parentFile.mkdirs()
+    Files.copy(Paths.get(sourceFile.path), Paths.get(destFile.path))
 }
 
 patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log.html").getText('UTF-8')

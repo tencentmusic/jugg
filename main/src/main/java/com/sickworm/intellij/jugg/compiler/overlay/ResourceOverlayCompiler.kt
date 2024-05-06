@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.manifest.AndroidManifestCompiler
 import java.io.File
 
 /**
@@ -23,35 +24,69 @@ class ResourceOverlayCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes = listOf(CompileFile.Type.Resource)
+    override val supportedTypes = listOf(CompileFile.Type.Resource, CompileFile.Type.AndroidManifest)
 
     override val isNeedPrintProgress: Boolean = true
 
     private val resourceCompiler = ResourceCompiler(context, this)
 
+    private val androidManifestCompiler = AndroidManifestCompiler(context, this)
+
     private val arscCompiler = ArscCompiler(context, this)
 
     override fun doCompile(task: CompileTask): CompileResult {
-        // compile to .flat
-        val resourceTask = CompileTask(
-            task.files,
-            context.tempCompileDir,
+        val androidManifestTask = CompileTask(
+            task.files.filter { it.type == CompileFile.Type.AndroidManifest },
+            File(context.tempCompileDir, "merged_manifests"),
             task,
         )
-        val resourceResult = resourceCompiler.compile(resourceTask)
-        if (!resourceResult.isAllSuccess) {
-            return CompileResult(
-                task,
-                resourceResult.details,
-                resourceResult.outputs,
-            )
+        val resourceTask = CompileTask(
+            task.files.filter { it.type == CompileFile.Type.Resource },
+            File(context.tempCompileDir, "flat"),
+            task,
+        )
+
+        // merge AndroidManifest.xml
+        var androidManifestResult = CompileResult(androidManifestTask, emptyList(), emptyList())
+        if (androidManifestTask.files.isNotEmpty()) {
+            androidManifestResult = androidManifestCompiler.compile(androidManifestTask)
+            if (!androidManifestResult.isAllSuccess) {
+                val resourceDetails: List<Result<CompileFile, CompileError>> = resourceTask.files.map {
+                    Result.failure(CompileError(it, listOf(-1L to "Failed to compile AndroidManifest.xml")))
+                }
+                return CompileResult(
+                    task,
+                    androidManifestResult.details + resourceDetails,
+                    androidManifestResult.outputs,
+                )
+            }
         }
 
-        // build .arsc
+        // compile to .flat
+        var resourceResult = CompileResult(resourceTask, emptyList(), emptyList())
+        if (resourceTask.files.isNotEmpty()) {
+            resourceResult = resourceCompiler.compile(resourceTask)
+            if (!resourceResult.isAllSuccess || resourceResult.outputs.isEmpty()) {
+                return CompileResult(
+                    task,
+                    androidManifestResult.details + resourceResult.details,
+                    androidManifestResult.outputs + resourceResult.outputs,
+                )
+            }
+        }
+
+        // build .flat .arsc and AndroidManifest.xml
+        val compileFiles = resourceResult.outputs.map {
+            CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
+        }.toMutableList()
+        val manifestFile = androidManifestResult.outputs.firstOrNull()?.file
+        if (manifestFile != null) {
+            compileFiles.add(CompileFile(CompileFile.Type.AndroidManifest,
+                manifestFile, manifestFile.parentFile, context.tempModule))
+        }
+
         val arscTask = CompileTask(
-            resourceResult.outputs.map {
-                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
-            },
+            compileFiles,
             task.outputDir,
             task,
         )
@@ -70,7 +105,7 @@ class ResourceOverlayCompiler(
 
         return CompileResult(
             task,
-            resourceResult.details,
+            androidManifestResult.details + resourceResult.details,
             finalOutputs
         )
     }
@@ -78,8 +113,37 @@ class ResourceOverlayCompiler(
     private fun filterResources(resource: List<CompileOutput>, sourceFiles: List<CompileFile>): List<CompileOutput> {
         val resourceNameToPathMap = resource.groupBy { it.relativeFile.name }
 
+        val filePathSet: Set<String> = sourceFiles.flatMap { compileFile ->
+            if (compileFile.file.isDirectory) {
+                compileFile.file.listFilesRecursively().map { it.relativeTo(it.parentFile).path }
+            } else {
+                listOf(compileFile.relativeFile.path)
+            }
+        }.toSet()
+
         val finalOverlays = resource.toMutableList()
         resourceNameToPathMap.forEach rootLoop@{ (resourceName, outputs) ->
+            if (resourceName == "Manifest.java") {
+                outputs.forEach {
+                    // ignore Manifest.java for I didn't see it in Android Studio too
+                    if (it.type == CompileOutput.Type.Java) {
+                        finalOverlays.remove(it)
+                        return@rootLoop
+                    }
+                }
+            }
+            if (resourceName == "AndroidManifest.xml") {
+                val output = outputs.first()
+                if (output.relativeFile.path == "AndroidManifest.xml") {
+                    val isNeedOutputManifest = sourceFiles.any { it.type == CompileFile.Type.AndroidManifest }
+                    if (!isNeedOutputManifest) {
+                        // don't output AndroidManifest.xml if no changes, output it will trigger APK repackage
+                        finalOverlays.remove(output)
+                        return@rootLoop
+                    }
+                }
+            }
+
             if (outputs.size == 1) {
                 return@rootLoop
             }
@@ -89,11 +153,7 @@ class ResourceOverlayCompiler(
                 }
                 val relativePath = output.relativeFile.path.substringAfter(File.separator)
 
-                val sourceFile = sourceFiles.find {
-                    val sourceResourceConfigPath = it.relativeFile.path
-                    sourceResourceConfigPath == relativePath
-                }
-                val isCreateByAapt2 = sourceFile == null
+                val isCreateByAapt2 = !filePathSet.contains(relativePath)
                 if (!isCreateByAapt2) {
                     return@forEach
                 }

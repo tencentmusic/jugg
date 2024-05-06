@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.android.tools.idea.gradle.structure.configurables.ui.properties.renderAnyTo
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
@@ -55,7 +54,28 @@ class ResourceCompiler(
         val outputDir = task.outputDir.absolutePath + "/" + subDir
         File(outputDir).mkdirs()
 
-        val filesString = task.files.joinToString(" ") {
+        val dirToFilesMap = task.files
+            .filter { it.file.isDirectory }
+            .associate {
+                it.file to it.file.listFilesRecursively()
+            }
+
+        val resFiles: List<CompileFile> = task.files.flatMap {
+            if (it.file.isFile) {
+                listOf(it)
+            } else if (dirToFilesMap.containsKey(it.file)) {
+                dirToFilesMap[it.file]!!.map { file ->
+                    CompileFile(CompileFile.Type.Resource, file, it.baseDir, context.tempModule)
+                }
+            } else {
+                emptyList()
+            }
+        }
+        if (resFiles.isEmpty()) {
+            return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+        }
+
+        val filesString = resFiles.joinToString(" ") {
             it.file.absolutePath
         }
 
@@ -72,28 +92,47 @@ class ResourceCompiler(
             )
         }
 
-        val detailsAndOutputs = task.files.map {
+        val outputs = resFiles.map {
             val folderName = it.file.parentFile!!.name
             val extension = if (folderName.startsWith("values")) "arsc"
             else it.file.extension
             val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
             val outputFile = File(outputDir, fileName)
-            val output = CompileOutput(CompileOutput.Type.Res, outputFile, File(outputDir))
-            val detail: Result<CompileFile, CompileError> =
-                if (outputFile.exists() && outputFile.length() > 0) {
-                    Result.success(it)
-                } else {
-                    Result.failure(CompileError(it, listOf(0L to "compile flat failed")))
-                }
-
-            return@map detail to output
+            return@map CompileOutput(CompileOutput.Type.Res, outputFile, File(outputDir))
         }
 
-        return CompileResult(
-            task,
-            detailsAndOutputs.map { it.first },
-            detailsAndOutputs.filter { it.first.isSuccess }.map { it.second }
-        )
+        val details = task.files.map { compileFile ->
+            fun toResult(file: File): Result<CompileFile, CompileError> {
+                val folderName = file.parentFile!!.name
+                val extension = if (folderName.startsWith("values")) "arsc"
+                    else file.extension
+                val fileName = "${folderName}_${file.nameWithoutExtension}.$extension.flat"
+                val outputFile = File(outputDir, fileName)
+                return if (outputFile.exists() && outputFile.length() > 0) {
+                    Result.success(compileFile)
+                } else {
+                    Result.failure(CompileError(compileFile, listOf(0L to "res file compile to flat failed")))
+                }
+            }
+
+            if (compileFile.file.isFile) {
+                return@map toResult(compileFile.file)
+            } else if (dirToFilesMap.containsKey(compileFile.file)) {
+                val details = dirToFilesMap[compileFile.file]!!.map {
+                    toResult(it)
+                }
+                val isSuccess = details.all { it.isSuccess }
+                if (isSuccess) {
+                    return@map Result.success(compileFile)
+                } else {
+                    return@map Result.failure(CompileError(compileFile, listOf(0L to "res dir compile to flat failed")))
+                }
+            } else {
+                return@map Result.failure(CompileError(compileFile, listOf(0L to "compile file not found $compileFile")))
+            }
+        }
+
+        return CompileResult(task, details, outputs)
     }
 
     override fun dispose() {

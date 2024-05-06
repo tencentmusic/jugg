@@ -19,6 +19,7 @@ class JuggCompiler(
         CompileFile.Type.Asset,
         CompileFile.Type.Resource,
         CompileFile.Type.Class,
+        CompileFile.Type.AndroidManifest
     )
 
     private val assetOverlayCompiler = AssetOverlayCompiler(context, this)
@@ -71,7 +72,7 @@ class JuggCompiler(
         // compile resource
         val resourceCompileTask = CompileTask(
             files = task.files.filter {
-                it.type == CompileFile.Type.Resource
+                it.type == CompileFile.Type.Resource || it.type == CompileFile.Type.AndroidManifest
             },
             outputDir = task.outputDir,
             parentTask = task,

@@ -5,8 +5,10 @@ import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import org.apache.tools.zip.ZipFile
 import java.io.File
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
@@ -27,7 +29,7 @@ class ArscCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes = listOf(CompileFile.Type.Flat)
+    override val supportedTypes = listOf(CompileFile.Type.Flat, CompileFile.Type.AndroidManifest)
 
     override val isNeedOutputDirEmpty = true
 
@@ -49,20 +51,21 @@ class ArscCompiler(
         logger.debug("aapt2 loadTable start")
         val startTime = System.currentTimeMillis()
 
-        val deployedManifestFile = context.deployedFiles.find { it.relativeFile.path == "AndroidManifest.xml" }
         val deployedArsc = context.deployedFiles.find { it.relativeFile.path == ARSC_FILE_NAME }
-        val isNeedLoadLatestResApk = deployedManifestFile != null && deployedArsc != null
-        logger.debug("isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedManifestFile: $deployedManifestFile, deployedArsc: $deployedArsc")
-        if (deployedArsc != null && deployedManifestFile == null) {
-            logger.warn("loadTable deployedManifestFile not found, but deployedArsc found, may be fatal problem")
-            return false
-        }
+        val isNeedLoadLatestResApk = deployedArsc != null
+        logger.debug("isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedArsc: $deployedArsc")
 
         var resApkFile: File = context.apkFile!!
         if (isNeedLoadLatestResApk) {
+            var manifestFile = context.deployedFiles.find { it.relativeFile.path == "AndroidManifest.xml" }?.file
+            if (manifestFile == null) {
+                manifestFile = File(context.tempCompileDir, "AndroidManifest.xml")
+                context.apkFile!!.extractFile("AndroidManifest.xml", manifestFile)
+            }
+
             val latestResApkFile = File(context.tempCompileDir, "res.apk")
             // zip deployedManifestFile and deployedArsc to res.apk
-            zipFiles(listOf(deployedManifestFile!!.file, deployedArsc!!.file), latestResApkFile)
+            zipFiles(listOf(manifestFile, deployedArsc!!.file), latestResApkFile)
             resApkFile = latestResApkFile
         }
 
@@ -111,8 +114,9 @@ class ArscCompiler(
             loadTable()
         }
 
-        val flatFiles = task.files.map { it.file }
-        val result = incLinkCompile(flatFiles, task.outputDir)
+        val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }
+        val androidManifestFile = task.files.find { it.type == CompileFile.Type.AndroidManifest }?.file
+        val result = incLinkCompile(flatFiles, androidManifestFile, task.outputDir)
 
         if (result.isEmpty()) {
             // reload
@@ -138,11 +142,13 @@ class ArscCompiler(
         return CompileResult(task, emptyList(), emptyList())
     }
 
-    private fun incLinkCompile(flatFiles: List<File>, outputDir: File): List<CompileOutput> {
+    private fun incLinkCompile(flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
         val rFileDir = File(outputDir, "rjava")
         val overlayDir = File(outputDir, "overlays")
         rFileDir.mkdirs()
         overlayDir.mkdirs()
+
+        val manifestName = androidManifest?.absolutePath ?: "no_need_compile_manifest"
 
         val flatFilesArg = flatFiles.joinToString(separator = "\n") { it.absolutePath }
         val commandArg = """
@@ -150,7 +156,7 @@ class ArscCompiler(
             |-o $overlayDir
             |--output-to-dir
             |--java $rFileDir
-            |--manifest no_support_manifest_yet
+            |--manifest $manifestName
         """.trimMargin().replace("\n", " ")
         val command = "$commandArg $flatFilesArg"
 
@@ -195,6 +201,16 @@ class ArscCompiler(
             zipOutputStream.closeEntry()
         }
         zipOutputStream.close()
+    }
+
+    private fun File.extractFile(zipEntryName: String, destFile: File) {
+        ZipFile(this).use { zipFile ->
+            val entry = zipFile.getEntry(zipEntryName)
+            if (entry != null) {
+                destFile.parentFile?.mkdirs()
+                destFile.outputStream().use { zipFile.getInputStream(entry).copyTo(it) }
+            }
+        }
     }
 
 }

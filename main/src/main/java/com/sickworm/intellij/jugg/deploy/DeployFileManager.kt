@@ -203,6 +203,15 @@ class DeployFileManager(
         deployedFiles.putAll(stagingFiles)
         stagingFiles.clear()
         compiledFiles.clear()
+
+        // remove gradle files for library incremental compile is finished
+        val removeGradleFiles = uncompiledFiles.filter {
+            it.value.type == CompileFile.Type.Gradle
+        }
+        removeGradleFiles.keys.forEach {
+            logger.debug("remove gradle file: $it")
+            uncompiledFiles.remove(it)
+        }
     }
 
     @TestOnly

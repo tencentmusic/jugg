@@ -22,12 +22,15 @@ interface ISshCommand {
      * @param terminalOutputLine the output ends with '\n' and without '\n' from terminal
      * @return the result of command, null if not reach end
      */
-    fun hasFinishWithResult(terminalOutputLine: String): Int?
+    fun hasFinishWithResult(terminalOutputLine: String): Int? = null
 
     /**
      * @return should interrupt like receiving user input Username:, Pin+Token:
      */
     fun shouldInterrupted(currentChar: Int, buffer: StringBuilder): Int? = null
+
+    /** won't print command if isSecureCmd=true */
+    val isSecureCommand: Boolean get() = false
 }
 
 abstract class BaseSshCommand : ISshCommand {

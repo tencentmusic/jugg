@@ -76,15 +76,16 @@ val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
     }
 }
 
-val intellijLibraryDir = File("$assetsAndroidDir/.idea/libraries")
-
 val context get() = SimpleCompileContext(
     logger = logger,
     tempCompileDir = tempCompileDir,
     tempModuleDir = File(buildDir, "temp_module"),
     androidHome = androidHome,
     androidJar = androidJar,
-    modules = mapOf(mockModule.name to mockModule),
+    modules = mapOf(mockModule.name to mockModule.copy(
+        name = "app",
+        libraryDependencies = TestProjectDependsLoader.parse()
+    )),
     apkInfos = projectInfo.apkInfos,
     projectDir = projectInfo.projectRoot,
     deployedFiles = emptyList(),
@@ -94,7 +95,7 @@ val mockParentDisposable = Disposable { }
 
 private val appModuleDir = File(projectInfo.projectRoot, "app")
 
-val mockModule = ModuleInfo(
+val mockModule get() = ModuleInfo(
     name = "mock_module",
     moduleRootDir = appModuleDir,
     projectRootDir = projectInfo.projectRoot,

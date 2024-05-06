@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.source.DexCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.deploy.classNameToPath
 import com.sickworm.intellij.jugg.deploy.classSigName
@@ -10,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -422,7 +424,7 @@ class DeployDataGeneratorTest {
             parsedApk.classes.filter { it.key == classSigName }.map {
                 ClassDeployItem(
                     DeployItem(it.key, CompileOutput.Type.Dex, 0, byteArrayOf()),
-                    it.value,
+                    listOf(it.value),
                 )
             },
             parsedApk.methodRefs.filter { it.value.contains(classSigName) }.mapValues { listOf(classSigName) },
@@ -443,7 +445,7 @@ class DeployDataGeneratorTest {
         val oldClassNode = this.classDeployItems[0]
         val newClassNode = ClassDeployItem(
             oldClassNode.deployItem,
-            ClassNode(
+            listOf(ClassNode(
                 oldClassNode.classNode.dexFileName,
                 className,
                 oldClassNode.classNode.access,
@@ -452,7 +454,7 @@ class DeployDataGeneratorTest {
                 interfaceNames,
                 oldClassNode.classNode.superClass,
                 oldClassNode.classNode.source,
-            )
+            ))
         )
         return ParsedDex(
             listOf(newClassNode),
@@ -462,13 +464,41 @@ class DeployDataGeneratorTest {
         )
     }
 
+    @Test
+    fun testJars() {
+        val generator = DeployDataGenerator(logger, buildDir)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val dexCompiler = DexCompiler(context, mockParentDisposable)
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    CompileFile.Type.Class,
+                    File(assetsLibDir, "rxjava-3.0.12.jar"),
+                    File(assetsLibDir, "rxjava-3.0.12.jar"),
+                    mockModule,
+                ).withDependencyName("Gradle: io.reactivex.rxjava3:rxjava:3.0.12@aar")
+            ),
+            outputDir = stagingDir,
+        )
+        val compileResult = dexCompiler.compile(compileTask)
+        assertTrue(compileResult.isAllSuccess)
+        assertTrue(compileResult.outputs.isNotEmpty())
+
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val deployData = generator.buildDeployData(deployItems)
+        assertEquals(0, deployData.newClasses.size)
+        assertEquals(1, deployData.hotFixModifiedClasses.size)
+        assertEquals(0, deployData.hotReloadModifiedClasses.size)
+    }
+
     private val ParsedApk.toParsedDex: ParsedDex
         get() {
             return ParsedDex(
                 classDeployItems = this.classes.values.map {
                     ClassDeployItem(
                         DeployItem(it.className, CompileOutput.Type.Dex, 0, byteArrayOf()),
-                        it,
+                        listOf(it),
                     )
                 },
                 methodRefs = this.methodRefs,
@@ -479,3 +509,11 @@ class DeployDataGeneratorTest {
 }
 
 private val JuggDeployData.effectedSourceFileNames get() = effectedClassNodes.map { it.sourceFileName }.distinct()
+
+val ClassDeployItem.classNode: ClassNode
+    get() {
+        if (classNodes.size != 1) {
+            throw JuggInternalException.dexFileNotContainsOnlyOneClass(classNodes.size)
+        }
+        return classNodes.first()
+    }

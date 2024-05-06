@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
+import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
@@ -19,9 +20,6 @@ class DeployHistoryDb(
     dbDir: File,
     private val logger: Logger,
 ) {
-
-    /** Used to generate hash of a file */
-    private val crc32Digest = CRC32()
 
     /** File to store deploy history */
     private val deployHistoryFile = File(dbDir, "deploy_history.json")
@@ -303,19 +301,6 @@ class DeployHistoryDb(
         return relativePath to crc
     }
 
-    private val File.crc32: Long get() {
-        if (!exists()) {
-            return -1L
-        }
-        if (isDirectory) {
-            return -2L
-        }
-        return crc32Digest.run {
-            reset()
-            update(readBytes())
-            value
-        }
-    }
 }
 
 /**
