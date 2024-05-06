@@ -141,7 +141,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
         compareInfo.compareInfoCacheFile = compareInfoCacheFile
 
-        updateFullBuildDependency(isOnInit = true)
+        updateDiffDependency(isOnInit = true)
 
         hasInit = true
     }
@@ -351,16 +351,18 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         nextStartSyncingTime = 0L
 
         currentBuildDependencies = JuggProjectInfo(newContext.modules)
-        updateFullBuildDependency(isEndSyncing = true)
+        updateDiffDependency(isEndSyncing = true)
 
         logger.debug("on sync finished, changeStatus: $changeStatus, diffResult: $diffResult")
     }
 
-    private fun updateFullBuildDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
+    private fun updateDiffDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
         if (isNeedUpdateLastBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
             lastBuildDependencies = currentBuildDependencies
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
             logger.debug("update full build dependency, changeStatus: $changeStatus")
+            diffDependency()
+        } else if (isOnInit || isEndSyncing) {
             diffDependency()
         }
     }
@@ -473,7 +475,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         compareInfo.startBuildingTime = nextStartBuildingTime
         compareInfo.endBuildingTime = System.currentTimeMillis()
         nextStartBuildingTime = 0L
-        updateFullBuildDependency(isEndBuilding = true)
+        updateDiffDependency(isEndBuilding = true)
     }
 
     @Synchronized
