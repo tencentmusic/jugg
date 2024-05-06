@@ -25,7 +25,7 @@ class AndroidManifestCompiler(
             ?: return createErrorCompileResult(task, "application module not found")
         val finalMergedManifest = applicationModule.buildPathInfo.mergedManifest
         if (!finalMergedManifest.exists()) {
-            val reason = "APK merged manifest(${finalMergedManifest}) not exists, fallback to gradle once may fix this."
+            val reason = "APK merged manifest(${finalMergedManifest}) not exists, fallback to gradle once may fix this"
             return createErrorCompileResult(task, reason)
         }
 
