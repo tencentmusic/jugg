@@ -62,7 +62,9 @@ class CmdExecutor(
                         val line = reader.readLine()
                         if (line != null) {
                             if (line.isNotEmpty()) {
-                                printToStreamError(line)
+                                if (command.isCanOutput(line)) {
+                                    printToStreamError(line)
+                                }
                             }
                         }
                     } catch (e: IOException) {
@@ -83,7 +85,9 @@ class CmdExecutor(
                 val line = reader.readLine()
                 if (line != null) {
                     if (line.isNotEmpty()) {
-                        printToStream(line)
+                        if (command.isCanOutput(line)) {
+                            printToStream(line)
+                        }
                     }
                     val output = command.getInput(line)
                     if (output != null) {

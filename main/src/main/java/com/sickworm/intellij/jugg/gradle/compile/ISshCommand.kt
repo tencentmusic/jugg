@@ -29,6 +29,11 @@ interface ISshCommand {
      */
     fun shouldInterrupted(currentChar: Int, buffer: StringBuilder): Int? = null
 
+    /**
+     * @return true if the output should not print
+     */
+    fun isCanOutput(line: String): Boolean = true
+
     /** won't print command if isSecureCmd=true */
     val isSecureCommand: Boolean get() = false
 }
