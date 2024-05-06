@@ -1,4 +1,11 @@
 <h1>Change Log</h1>
+<h2>2.0.0 (2024.05.06)</h2>
+<ol>
+    <li>[feature] supports library incremental compilation!</li>
+    <li>[feature] supports AndroidManifest.xml incremental compilation!</li>
+    <li>[feature] compatible with gradle 8.x</li>
+    <li>[bugfix] fix SQLite exception: [SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long) when deploy too much classes</li>
+</ol>
 <h2>1.2.2 (2024.05.02)</h2>
 <ol>
     <li>[feature] supports Kotlin 1.9</li>
@@ -16,14 +23,14 @@
     <li>[feature] install directly if install failed last time and no file changes</li>
     <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
     <li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
-    <li>(rc9) [optimize] default config has different name to avoid overriding the normal config on next time scan</li>
+    <li>[optimize] default config has different name to avoid overriding the normal config on next time scan</li>
     <li>[bugfix] fix NoSuchMethodError when add an optional argument to a top level function, and compile declaration file and invoke file together</li>
     <li>[bugfix] fix NoSuchMethodError for expand compilation not work properly</li>
     <li>[bugfix] fix auto-detect compile command and output apk path failed on Hedgehog and above</li>
-    <li>(rc8) [bugfix] fix remote login failed when too many ssh keys exists</li>
-    <li>(rc8) [bugfix] fix changes of gradle files in project root missing, after reopen project and sync</li>
-    <li>(rc9) [bugfix] fix jugg released when other plugin updates</li>
-    <li>(rc10) [bugfix] fix AbstractMethodError caused by desugar default interface failure, when the default interface is the parent interface of the modified class</li>
+    <li>[bugfix] fix remote login failed when too many ssh keys exists</li>
+    <li>[bugfix] fix changes of gradle files in project root missing, after reopen project and sync</li>
+    <li>[bugfix] fix jugg released when other plugin updates</li>
+    <li>[bugfix] fix AbstractMethodError caused by desugar default interface failure, when the default interface is the parent interface of the modified class</li>
 </ol>
 <h2>1.2.0 (2024.02.04)</h2>
 <ol>
