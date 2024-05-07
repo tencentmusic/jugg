@@ -12,25 +12,27 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 
 class GradleVariableHelper(private val logger: Logger) {
 
-    private val psContext: PsContextImpl? by lazy {
-        TimeLogger.start("GradleVariableHelper.init")
-        val repositorySearchFactory = CachingRepositorySearchFactory()
-        var psContext: PsContextImpl? = null
-        try {
-            @Suppress("IncorrectParentDisposable")
-            psContext = PsContextImpl(
-                PsProjectImpl(project!!, repositorySearchFactory), project!!,
-                disableAnalysis = false,
-                disableResolveModels = false,
-                cachingRepositorySearchFactory = repositorySearchFactory
-            )
-        } catch (e: Exception) {
-            // failed in test
-            logger.warn("init failed", e)
-        }
-        TimeLogger.end("GradleVariableHelper.init", logger)
-        return@lazy psContext
-    }
+//    private val psContext: PsContextImpl? by lazy {
+//        TimeLogger.start("GradleVariableHelper.init")
+//        val repositorySearchFactory = CachingRepositorySearchFactory()
+//        var psContext: PsContextImpl? = null
+//        try {
+//            @Suppress("IncorrectParentDisposable")
+//            psContext = PsContextImpl(
+//                PsProjectImpl(project!!, repositorySearchFactory), project!!,
+//                disableAnalysis = false,
+//                disableResolveModels = false,
+//                cachingRepositorySearchFactory = repositorySearchFactory
+//            )
+//        } catch (e: Exception) {
+//            // failed in test
+//            logger.warn("init failed", e)
+//        }
+//        TimeLogger.end("GradleVariableHelper.init", logger)
+//        return@lazy psContext
+//    }
+    // stop using it for saving time
+    private val psContext: PsContextImpl? = null
 
     private var project: Project? = null
 
