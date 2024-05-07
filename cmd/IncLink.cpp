@@ -433,50 +433,65 @@ class IncLinker: private Linker {
       return 1;
     }
 
-    // TODO output manifest
-    // bool error = false;
-    // {
-    //   // AndroidManifest.xml has no resource name, but the CallSite is built from the name
-    //   // (aka, which package the AndroidManifest.xml is coming from).
-    //   // So we give it a package name so it can see local resources.
-    //   manifest_xml_->file.name.package = context_->GetCompilationPackage();
+    // output manifest
+    // Load the AndroidManifest.xml
+    FileInputStream fin(options_.manifest_path);
+    if (!fin.HadError()) {
+      // file exists, only compile it when we need it
+      std::unique_ptr<xml::XmlResource> manifest_xml =
+          LoadXml(options_.manifest_path, context_->GetDiagnostics());
+      if (!manifest_xml) {
+        context_->GetDiagnostics()->Error(DiagMessage() << "failed to load AndroidManifest.xml");
+        return 1;
+      }
 
-    //   XmlReferenceLinker manifest_linker;
-    //   if (options_.merge_only || manifest_linker.Consume(context_, manifest_xml_)) {
-    //     if (options_.generate_proguard_rules_path &&
-    //         !proguard::CollectProguardRulesForManifest(manifest_xml_, &proguard_keep_set_)) {
-    //       error = true;
-    //     }
+      bool error = false;
+      {
+        // AndroidManifest.xml has no resource name, but the CallSite is built from the name
+        // (aka, which package the AndroidManifest.xml is coming from).
+        // So we give it a package name so it can see local resources.
+        manifest_xml->file.name.package = context_->GetCompilationPackage();
 
-    //     if (options_.generate_main_dex_proguard_rules_path &&
-    //         !proguard::CollectProguardRulesForManifest(manifest_xml_,
-    //                                                    &proguard_main_dex_keep_set, true)) {
-    //       error = true;
-    //     }
+        XmlReferenceLinker manifest_linker;
+        if (options_.merge_only || manifest_linker.Consume(context_, manifest_xml.get())) {
+          if (options_.generate_proguard_rules_path &&
+              !proguard::CollectProguardRulesForManifest(manifest_xml.get(), &proguard_keep_set_)) {
+            error = true;
+          }
 
-    //     if (options_.generate_java_class_path) {
-    //       if (!WriteManifestJavaFile(manifest_xml_)) {
-    //         error = true;
-    //       }
-    //     }
+          if (options_.generate_main_dex_proguard_rules_path &&
+              !proguard::CollectProguardRulesForManifest(manifest_xml.get(),
+                                                        &proguard_main_dex_keep_set, true)) {
+            error = true;
+          }
 
-    //     if (options_.no_xml_namespaces) {
-    //       // PackageParser will fail if URIs are removed from
-    //       // AndroidManifest.xml.
-    //       XmlNamespaceRemover namespace_remover(true /* keepUris */);
-    //       if (!namespace_remover.Consume(context_, manifest_xml_)) {
-    //         error = true;
-    //       }
-    //     }
-    //   } else {
-    //     error = true;
-    //   }
-    // }
+          if (options_.generate_java_class_path) {
+            if (!WriteManifestJavaFile(manifest_xml.get())) {
+              error = true;
+            }
+          }
 
-    // if (error) {
-    //   context_->GetDiagnostics()->Error(DiagMessage() << "failed processing manifest");
-    //   return 1;
-    // }
+          if (options_.no_xml_namespaces) {
+            // PackageParser will fail if URIs are removed from
+            // AndroidManifest.xml.
+            XmlNamespaceRemover namespace_remover(true /* keepUris */);
+            if (!namespace_remover.Consume(context_, manifest_xml.get())) {
+              error = true;
+            }
+          }
+        } else {
+          error = true;
+        }
+
+        if (error) {
+          context_->GetDiagnostics()->Error(DiagMessage() << "failed processing manifest");
+          return 1;
+        }
+
+        manifest_xml_ = std::move(manifest_xml);
+      }
+
+    }
 
     if (!WriteApk(archive_writer.get(), &proguard_keep_set_, manifest_xml_.get(), &final_table_)) {
       return 1;
