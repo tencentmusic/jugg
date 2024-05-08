@@ -438,20 +438,29 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             return false
         }
 
-        // situation 1: build changed -> sync finished -> build finished
+        // situation 1: after incremental compile
+        if (isEndBuilding) {
+            if (changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 1: after incremental compile")
+                lastBuildDependencies = currentBuildDependencies
+                return true
+            }
+        }
+
+        // situation 2: build changed -> sync finished -> build finished
         if (isEndBuilding) {
             if (isBuildLaterThanSync) {
-                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 1: build changed -> sync finished -> build finished")
+                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 2: build changed -> sync finished -> build finished")
                 fullBuildDependencies = currentBuildDependencies
                 return true
             }
         }
 
-        // situation 2: build changed -> build finished -> first time sync finished
+        // situation 3: build changed -> build finished -> first time sync finished
         if (isEndSyncing) {
             if (isSyncLaterThenBuild) {
                 if (!isLastSyncUpdate) {
-                    logger.debug("isNeedUpdateLastBuildDependency true, hit situation 2: build changed -> build finished -> first time sync finished")
+                    logger.debug("isNeedUpdateLastBuildDependency true, hit situation 3: build changed -> build finished -> first time sync finished")
                     isLastSyncUpdate = true
                     fullBuildDependencies = currentBuildDependencies
                     return true
@@ -459,21 +468,12 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             }
         }
 
-        // situation 3: first init, no full dependency
+        // situation 4: first init, no full dependency
         if (isOnInit) {
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasSyncTime && !hasBuildChangedTime) {
-                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 3: first init, no full dependency")
+                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 4: first init, no full dependency")
                 fullBuildDependencies = currentBuildDependencies
-                return true
-            }
-        }
-
-        // situation 4: after incremental compile
-        if (isEndBuilding) {
-            if (changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
-                logger.debug("isNeedUpdateLastBuildDependency true, hit situation 4: after incremental compile")
-                lastBuildDependencies = currentBuildDependencies
                 return true
             }
         }
