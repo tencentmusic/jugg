@@ -365,6 +365,78 @@ class ResourceCompileTest {
         assertTrue(result.outputs.isEmpty())
     }
 
+    @Test
+    fun compileResourceDirOverlayWithOldRes() {
+        val newResDir = File(buildDir, "new_res")
+        newResDir.deleteRecursively()
+        newResDir.mkdirs()
+        val oldResDir = File(assetsAndroidDir, "app/src/main/res")
+        oldResDir.copyRecursively(newResDir)
+
+        val task = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Resource,
+                    newResDir,
+                    newResDir,
+                    mockModule
+                ).withDependencyName("mock_new_res")
+                    .withOldRes(oldResDir),
+            ),
+            stagingDir
+        )
+        // test same res
+        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
+        var result = resourceOverlayCompiler.compile(task)
+        assertTrue(result.isAllSuccess)
+        assertEquals(0, result.outputs.size)
+
+        // test update res
+        val oldFileList = listOf(
+            "layout/activity_main.xml",
+            "layout/test_styleable_layout.xml",
+        )
+        oldFileList.forEach { oldFile ->
+            File(newResDir, oldFile).also {
+                it.writeText(it.readText() + "\n<!-- test -->")
+            }
+        }
+        task.outputDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        assertTrue(result.isAllSuccess)
+        assertEquals(
+            listOf(
+                "resources.arsc",
+                "res/layout/activity_main.xml",
+                "res/layout/test_styleable_layout.xml",
+            ).sorted(),
+            result.outputs.map { it.relativeFile.path.replace('\\', '/') }.sorted()
+        )
+
+        // test incremental res
+        val newFileList = listOf(
+            "layout/activity_main_new.xml",
+            "layout/test_styleable_layout_new.xml",
+        )
+        oldFileList.forEachIndexed { index, oldFile ->
+            File(oldResDir, oldFile).copyTo(File(newResDir, newFileList[index]))
+        }
+
+        task.outputDir.clearDir()
+        result = resourceOverlayCompiler.compile(task)
+        assertTrue(result.isAllSuccess)
+        assertEquals(
+            listOf(
+                "${projectInfo.packageName.replace('.', '/')}/R.java",
+                "resources.arsc",
+                "res/layout/activity_main.xml",
+                "res/layout/test_styleable_layout.xml",
+                "res/layout/activity_main_new.xml",
+                "res/layout/test_styleable_layout_new.xml",
+            ).sorted(),
+            result.outputs.map { it.relativeFile.path.replace('\\', '/') }.sorted()
+        )
+    }
+
     private fun checkArscResult(task: CompileTask, result: CompileResult, exceptOverlayOutputSize: Int, isRJavaChanged: Boolean) {
         assertEquals(task.files.size, result.details.size)
         assertTrue(result.isAllSuccess)

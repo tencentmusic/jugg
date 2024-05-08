@@ -37,7 +37,8 @@ data class ChangedFile(
                 type=$type,
                 file=$file,
                 baseDir=$baseDir,
-                module=${module.name}
+                module=${module.name},
+                extraInfo=${extraInfo},
             )
         """.trimIndent()
     }

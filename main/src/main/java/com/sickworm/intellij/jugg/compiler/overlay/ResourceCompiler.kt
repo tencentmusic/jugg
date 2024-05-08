@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.gradle.compile.crc32
 import java.io.File
 
 /**
@@ -54,11 +55,8 @@ class ResourceCompiler(
         val outputDir = task.outputDir.absolutePath + "/" + subDir
         File(outputDir).mkdirs()
 
-        val dirToFilesMap = task.files
-            .filter { it.file.isDirectory }
-            .associate {
-                it.file to it.file.listFilesRecursively()
-            }
+        // if compile file is a directory, compile all files in the directory
+        val dirToFilesMap: Map<File, List<File>> = createDirToResFileMap(task.files)
 
         val resFiles: List<CompileFile> = task.files.flatMap {
             if (it.file.isFile) {
@@ -133,6 +131,34 @@ class ResourceCompiler(
         }
 
         return CompileResult(task, details, outputs)
+    }
+
+    private fun createDirToResFileMap(compileFiles: List<CompileFile>): Map<File, List<File>> {
+        return compileFiles
+            .filter { it.file.isDirectory }
+            .associate { compileFile ->
+                val allResFiles = compileFile.file.listFilesRecursively()
+                val relativeOldResDirectory = compileFile.oldRes
+                val relativeOldFiles = relativeOldResDirectory?.listFilesRecursively()
+                if (relativeOldResDirectory == null || relativeOldFiles.isNullOrEmpty()) {
+                    logger.debug("${compileFile.dependencyName} has none relative old res files")
+                    return@associate compileFile.file to allResFiles
+                } else {
+                    // filter no changed files
+                    logger.debug("${compileFile.dependencyName} has relative old res files: ${compileFile.oldRes}")
+                    val checksumMap = relativeOldFiles.associate {
+                        it.relativeTo(relativeOldResDirectory).path to it.crc32
+                    }
+                    val filteredResFiles = allResFiles.filter {
+                        val relativePath = it.relativeTo(compileFile.file).path
+                        val oldChecksum = checksumMap[relativePath] ?: return@filter true
+                        return@filter it.crc32 != oldChecksum
+                    }
+                    logger.debug("${compileFile.dependencyName} full res files: ${allResFiles.size}, " +
+                            "filtered res files: ${filteredResFiles.size}")
+                    return@associate compileFile.file to filteredResFiles
+                }
+            }
     }
 
     override fun dispose() {

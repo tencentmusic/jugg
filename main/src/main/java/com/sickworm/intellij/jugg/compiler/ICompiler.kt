@@ -332,6 +332,8 @@ data class LibraryDependency(
     val isRes get() = file.name == "res"
 
     val isAndroidManifest get() = file.name == "AndroidManifest.xml"
+
+    val isJar get() = file.extension == "jar"
 }
 
 data class ModuleBuildPathInfo(

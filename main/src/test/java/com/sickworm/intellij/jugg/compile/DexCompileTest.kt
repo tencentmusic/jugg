@@ -2,10 +2,13 @@ package com.sickworm.intellij.jugg.compile
 
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
+import com.sickworm.intellij.jugg.deploy.data.ApkParser
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class DexCompileTest {
 
@@ -22,13 +25,13 @@ class DexCompileTest {
                 CompileFile.Type.Class,
                 File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/com/example/myapplication/MainActivity2.class"),
                 File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/"),
-                mockModule,
+                context.tempModule,
             ),
             CompileFile(
                 CompileFile.Type.Class,
                 File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/com/example/myapplication/ABC.class"),
                 File(assetsAndroidDir, "app/build/intermediates/javac/debug/classes/"),
-                mockModule,
+                context.tempModule,
             )
         ),
         stagingDir,
@@ -47,14 +50,14 @@ class DexCompileTest {
                 CompileFile.Type.Class,
                 File(assetsLibDir, "reactive-streams-1.0.3.jar"),
                 assetsLibDir,
-                mockModule,
-            ).withDependencyName("Gradle: org.reactivestreams:reactive-streams:1.0.3@aar"),
+                context.tempModule,
+            ).withDependencyName("org.reactivestreams:reactive-streams:1.0.3@aar"),
             CompileFile(
                 CompileFile.Type.Class,
                 File(assetsLibDir, "rxjava-3.0.12.jar"),
                 assetsLibDir,
-                mockModule,
-            ).withDependencyName("Gradle: io.reactivex.rxjava3:rxjava:3.0.12@aar"),
+                context.tempModule,
+            ).withDependencyName("io.reactivex.rxjava3:rxjava:3.0.12@aar"),
         ),
         stagingDir,
     )
@@ -71,6 +74,50 @@ class DexCompileTest {
         val task = jarsTask + classTask
         val result = dexCompiler.compile(task)
         assertCompileResult(task, result)
+    }
+
+    @Test
+    fun compileJarsWithOldJar() {
+        val jarTask = CompileTask(
+            listOf(
+                CompileFile(
+                    CompileFile.Type.Class,
+                    File(assetsLibDir, "rxjava-3.1.8.jar"),
+                    assetsLibDir,
+                    context.tempModule,
+                ).withDependencyName("io.reactivex.rxjava3:rxjava:3.1.8@aar")
+                    .withOldJar(File(assetsLibDir, "rxjava-3.0.12.jar")),
+            ),
+            stagingDir,
+        )
+
+        val result = dexCompiler.compile(jarTask)
+        assertCompileResult(jarTask, result)
+
+        val parsedDex = ApkParser().parseDexFiles(result.outputs.map { it.file })
+        assertEquals(1, parsedDex.classDeployItems.size)
+        assertEquals(true, parsedDex.classDeployItems.first().isMultipleDex)
+        assertEquals(362 + 8, parsedDex.classDeployItems.first().classNodes.size) // 362 is changed classes, 8 is desugared classes
+    }
+
+    @Test
+    fun compileJarsWithSameOldJar() {
+        val jarTask = CompileTask(
+            listOf(
+                CompileFile(
+                    CompileFile.Type.Class,
+                    File(assetsLibDir, "rxjava-3.0.12.jar"),
+                    assetsLibDir,
+                    context.tempModule,
+                ).withDependencyName("io.reactivex.rxjava3:rxjava:3.1.8@aar")
+                    .withOldJar(File(assetsLibDir, "rxjava-3.0.12.jar")),
+            ),
+            stagingDir,
+        )
+
+        val result = dexCompiler.compile(jarTask)
+        assertTrue(result.isAllSuccess)
+        assertEquals(0, result.outputs.size)
     }
 
     private fun assertCompileResult(task: CompileTask, result: CompileResult) {

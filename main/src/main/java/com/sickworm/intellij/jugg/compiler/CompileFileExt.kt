@@ -5,6 +5,10 @@ import java.io.File
 
 private const val KEY_DEPENDENCY_NAME = "dependency_name"
 private const val KEY_OLD_DEPENDENCY_MANIFEST = "relative_old_dependency_manifest"
+private const val KEY_OLD_DEPENDENCY_JAR = "relative_old_dependency_jar"
+private const val KEY_OLD_DEPENDENCY_RES = "relative_old_dependency_res"
+
+// name extension
 
 val ChangedFile.dependencyName: String
     get() = extraInfo[KEY_DEPENDENCY_NAME] as String
@@ -16,7 +20,7 @@ val CompileFile.isDependency: Boolean
     get() = extraInfo.containsKey(KEY_DEPENDENCY_NAME)
 
 val CompileFile.dependencyName: String
-    get() = extraInfo[KEY_DEPENDENCY_NAME] as String
+    get() = extraInfo[KEY_DEPENDENCY_NAME] as? String ?: "unknown_dependency"
 
 val CompileFile.jarDexFileName: String
     get() = dependencyNameToDexFileName(dependencyName)
@@ -30,6 +34,7 @@ fun CompileFile.withDependencyName(name: String): CompileFile {
     return copy(extraInfo = extraInfo + (KEY_DEPENDENCY_NAME to name))
 }
 
+// relative manifest extension
 
 val CompileFile.oldManifest: File?
     get() = extraInfo[KEY_OLD_DEPENDENCY_MANIFEST] as? File
@@ -46,6 +51,44 @@ fun CompileFile.withOldManifest(file: File?): CompileFile {
         return copy()
     }
     return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_MANIFEST to file))
+}
+
+// relative jar extension
+
+val CompileFile.oldJar: File?
+    get() = extraInfo[KEY_OLD_DEPENDENCY_JAR] as? File
+
+fun ChangedFile.withOldJar(file: File?): ChangedFile {
+    if (file == null) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_JAR to file))
+}
+
+fun CompileFile.withOldJar(file: File?): CompileFile {
+    if (file == null) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_JAR to file))
+}
+
+// relative resources extension
+
+val CompileFile.oldRes: File?
+    get() = extraInfo[KEY_OLD_DEPENDENCY_RES] as? File
+
+fun ChangedFile.withOldRes(file: File?): ChangedFile {
+    if (file == null) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_RES to file))
+}
+
+fun CompileFile.withOldRes(file: File?): CompileFile {
+    if (file == null) {
+        return copy()
+    }
+    return copy(extraInfo = extraInfo + (KEY_OLD_DEPENDENCY_RES to file))
 }
 
 

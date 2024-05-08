@@ -13,13 +13,18 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: Logg
     private var memoryCache: JuggProjectInfo? = null
 
     @Synchronized
-    fun save(projectInfo: JuggProjectInfo) {
+    fun save(projectInfo: JuggProjectInfo?) {
         val startTime = System.currentTimeMillis()
 
-        dataFile.parentFile?.mkdirs()
-        val serializeText = ProjectInfoSerialize.create(projectInfo.modules).serialize()
-        dataFile.writeText(serializeText)
-        memoryCache = projectInfo
+        if (projectInfo == null) {
+            memoryCache = null
+            dataFile.delete()
+        } else {
+            dataFile.parentFile?.mkdirs()
+            val serializeText = ProjectInfoSerialize.create(projectInfo.modules).serialize()
+            dataFile.writeText(serializeText)
+            memoryCache = projectInfo
+        }
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("Save project info to ${dataFile.absolutePath} cost $costTime ms")

@@ -62,17 +62,24 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     private lateinit var tempModule: ModuleInfo
 
-    private var currentBuildDependencies: JuggProjectInfo? = null
+    private lateinit var fullBuildProjectInfoSerializer: ProjectInfoSerializer
+    private lateinit var lastBuildProjectInfoSerializer: ProjectInfoSerializer
 
-    private lateinit var projectInfoSerializer: ProjectInfoSerializer
-    private var lastBuildDependencies: JuggProjectInfo? = null
+    private var currentBuildDependencies: JuggProjectInfo? = null
+    private var fullBuildDependencies: JuggProjectInfo?
         get() {
-            field = projectInfoSerializer.load()
-            return field
+            return fullBuildProjectInfoSerializer.load()
         }
         set(value) {
-            field = value
-            projectInfoSerializer.save(value!!)
+            lastBuildDependencies = null
+            fullBuildProjectInfoSerializer.save(value)
+        }
+    private var lastBuildDependencies: JuggProjectInfo?
+        get() {
+            return lastBuildProjectInfoSerializer.load() ?: fullBuildDependencies
+        }
+        set(value) {
+            lastBuildProjectInfoSerializer.save(value)
         }
     private var diffResult = DependencyDiffResult.createEmpty()
 
@@ -120,11 +127,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         cacheDirectory.mkdirs()
         currentBuildDependencies = JuggProjectInfo(compileContext.modules)
-        val fullBuildCacheFile = File(cacheDirectory, "full_build_project_infos.dat")
-        projectInfoSerializer = ProjectInfoSerializer(fullBuildCacheFile, logger)
+        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.dat"), logger)
+        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.dat"), logger)
 
         val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
-        if (compareInfoCacheFile.exists() && lastBuildDependencies != null) {
+        if (compareInfoCacheFile.exists() && lastBuildDependencies != null && fullBuildDependencies != null) {
             logger.debug("load compare info cache")
             try {
                 val cacheCompareInfo = Gson().fromJson(compareInfoCacheFile.readText(), compareInfo::class.java)
@@ -180,8 +187,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 )
                 onConfirmIncrementalCompile(isConfirmed)
             } else if (isBuildChangedAfterBuild) {
-                if (lastBuildDependencies == null) {
-                    logger.debug("show change confirm dialog, lastBuildDependencies is null")
+                if (lastBuildDependencies == null || fullBuildDependencies == null) {
+                    logger.debug("show change confirm dialog, lastBuildDependencies or fullBuildDependencies is null")
                     CommonConfirmDialog.showAndGetResult(
                         title = "Jugg: Dependency Incremental Compile Not Available",
                         content = """<html>
@@ -219,6 +226,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun getNewLibraryFiles(): List<ChangedFile> {
         logger.debug("get new libraries: ${diffResult.newLibraryDependencies}")
 
+        // relative path to old manifest file
         val relativeOldManifest: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
             val newManifest = it.dependency?.libraries?.find(LibraryDependency::isAndroidManifest)
             val oldManifest = it.oldDependency?.libraries?.find(LibraryDependency::isAndroidManifest)
@@ -228,6 +236,37 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 null
             }
         }.toMap()
+
+        // relative path to old res directory
+        val relativeOldRes: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
+            val newRes = it.dependency?.libraries?.find(LibraryDependency::isRes)
+            val oldRes = it.oldDependency?.libraries?.find(LibraryDependency::isRes)
+            if (newRes != null && oldRes != null) {
+                newRes.file.absolutePath to oldRes.file
+            } else {
+                null
+            }
+        }.toMap()
+
+        // relative path to old jar file
+        // diff with full build dependencies, because library dex are in one file, which can not incremental update
+        val relativeOldJar: MutableMap<String, File> = mutableMapOf()
+        if (currentBuildDependencies != null && fullBuildDependencies != null) {
+            val fullDiffResult = DependencyDiffResult.create(
+                lastBuildDependencies = fullBuildDependencies!!,
+                currentBuildDependencies = currentBuildDependencies!!,
+            )
+            fullDiffResult.updatedLibraries.forEach {
+                val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
+                val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
+                if (newJar != null && oldJar != null) {
+                    relativeOldJar[newJar.file.absolutePath] = oldJar.file
+                }
+            }
+        } else {
+            logger.debug("CurrentBuildDependencies or fullBuildDependencies is null, which should not happened.")
+            logger.debug("Incremental diff result disabled.")
+        }
 
         val changedFiles = diffResult.newLibraryDependencies.mapNotNull {
             if (it.isAndroidManifest) {
@@ -246,6 +285,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     baseDir = it.file,
                     module = tempModule,
                 ).withDependencyName(it.nameWithoutPrefix)
+                    .withOldRes(relativeOldRes[it.file.absolutePath])
             } else {
                 ChangedFile(
                     type = CompileFile.Type.Class,
@@ -253,6 +293,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     baseDir = it.file.parentFile!!,
                     module = tempModule,
                 ).withDependencyName(it.nameWithoutPrefix)
+                    .withOldJar(relativeOldJar[it.file.absolutePath])
             }
         }.toMutableList()
 
@@ -358,7 +399,6 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     private fun updateDiffDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
         if (isNeedUpdateLastBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
-            lastBuildDependencies = currentBuildDependencies
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
             logger.debug("update full build dependency, changeStatus: $changeStatus")
             diffDependency()
@@ -402,6 +442,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (isEndBuilding) {
             if (isBuildLaterThanSync) {
                 logger.debug("isNeedUpdateLastBuildDependency true, hit situation 1: build changed -> sync finished -> build finished")
+                fullBuildDependencies = currentBuildDependencies
                 return true
             }
         }
@@ -412,6 +453,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 if (!isLastSyncUpdate) {
                     logger.debug("isNeedUpdateLastBuildDependency true, hit situation 2: build changed -> build finished -> first time sync finished")
                     isLastSyncUpdate = true
+                    fullBuildDependencies = currentBuildDependencies
                     return true
                 }
             }
@@ -422,6 +464,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             @Suppress("KotlinConstantConditions")
             if (!hasBuildTime && !hasSyncTime && !hasBuildChangedTime) {
                 logger.debug("isNeedUpdateLastBuildDependency true, hit situation 3: first init, no full dependency")
+                fullBuildDependencies = currentBuildDependencies
                 return true
             }
         }
@@ -430,6 +473,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (isEndBuilding) {
             if (changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
                 logger.debug("isNeedUpdateLastBuildDependency true, hit situation 4: after incremental compile")
+                lastBuildDependencies = currentBuildDependencies
                 return true
             }
         }
