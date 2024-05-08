@@ -72,7 +72,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 427, isRJavaChanged = false)
+        checkArscResult(task, result, 428, isRJavaChanged = false)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -377,13 +377,10 @@ class ResourceCompileTest {
         }
 
         val resFiles = result.outputs.filter { it.type == CompileOutput.Type.Res }
-        assertEquals(exceptOverlayOutputSize, resFiles.size - 2) // arsc and manifest are not included
+        assertEquals(exceptOverlayOutputSize, resFiles.size - 1) // arsc is not included
 
         val arscFile = resFiles.filter { it.relativeFile.path == ARSC_FILE_NAME }
         assertEquals(1, arscFile.size)
-
-        val manifestFile = resFiles.filter { it.relativeFile.path == "AndroidManifest.xml" }
-        assertEquals(1, manifestFile.size)
 
         result.outputs.forEach {
             assertTrue(it.file.exists())
