@@ -71,7 +71,8 @@ class JuggDeployerHelper(
                 .toSet()
             if (removedDexFiles.isNotEmpty()) {
                 TimeLogger.start("remove dex")
-                logger.info("Library incremental compile, going to delete removed libraries dex: $removedDexFiles")
+                logger.info("Library incremental compile, going to delete removed libraries dex:\n" +
+                        removedDexFiles.joinToString("\n    ", prefix = "    "))
                 removedDexFiles.forEach { dexFileName ->
                     data.apks.forEach {
                         val packageName = it.applicationId
@@ -204,8 +205,9 @@ class JuggDeployerHelper(
                     deployData = deployFileManager.getDeployData(isWarmUp)
                 }
 
-                finalIsFallbackAllHotFix = isFallbackAllHotFix ||
-                        (JuggSettings.isQuickFallbackToHotFix && deployData.hotFixModifiedClasses.isNotEmpty())
+                val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||
+                        dependencyChangeManager.getRemovedLibraryFiles().isNotEmpty()
+                finalIsFallbackAllHotFix = isFallbackAllHotFix || (JuggSettings.isQuickFallbackToHotFix && isClassNeedHotFix)
                 if (finalIsFallbackAllHotFix) {
                     deployData = deployData.toFallbackToHotFixData()
                 }

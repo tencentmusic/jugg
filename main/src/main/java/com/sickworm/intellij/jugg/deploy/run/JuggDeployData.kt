@@ -37,13 +37,13 @@ data class JuggDeployData(
     val isInstall: Boolean = false,
     /** is need update AndroidManifest.xml in APK */
     val isNeedUpdateAndroidManifest: Boolean = false,
+    /** is restart app after deployment */
+    var isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty(),
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&
             hotReloadModifiedClasses.isEmpty() &&
             overlays.isEmpty()
-
-    val isNeedRestartApp get() = hotFixModifiedClasses.isNotEmpty()
 
     // for now, we always restart activity excepts warm up and restart app
     val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp && !isEmpty
@@ -59,6 +59,7 @@ data class JuggDeployData(
         return this.copy(
             hotFixModifiedClasses = this.hotFixModifiedClasses + this.hotReloadModifiedClasses,
             hotReloadModifiedClasses = emptyList(),
+            isNeedRestartApp = true,
         )
     }
 

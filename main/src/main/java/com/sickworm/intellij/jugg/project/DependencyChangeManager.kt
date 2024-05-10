@@ -16,6 +16,15 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     val changeStatus: ChangeStatus
 
+    val isNeedCompilation: Boolean get() {
+        if (changeStatus == ChangeStatus.INCREMENTAL_COMPILE) {
+            if (getNewLibraryFiles().isEmpty() && getRemovedLibraryFiles().isEmpty()) {
+                return true
+            }
+        }
+        return false
+    }
+
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
     fun tryShowChangConfirmDialog()
@@ -82,6 +91,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
             lastBuildProjectInfoSerializer.save(value)
         }
     private var diffResult = DependencyDiffResult.createEmpty()
+    private var diffResultWithFull = DependencyDiffResult.createEmpty()
 
     private var compareInfo = object {
         val VERSION = 1
@@ -251,43 +261,39 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         // relative path to old jar file
         // diff with full build dependencies, because library dex are in one file, which can not incremental update
         val relativeOldJar: MutableMap<String, File> = mutableMapOf()
-        if (currentBuildDependencies != null && fullBuildDependencies != null) {
-            val fullDiffResult = DependencyDiffResult.create(
-                lastBuildDependencies = fullBuildDependencies!!,
-                currentBuildDependencies = currentBuildDependencies!!,
-            )
-            fullDiffResult.updatedLibraries.forEach {
-                val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
-                val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
-                if (newJar != null && oldJar != null) {
-                    relativeOldJar[newJar.file.absolutePath] = oldJar.file
-                }
+        diffResultWithFull.updatedLibraries.forEach {
+            val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
+            val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
+            if (newJar != null && oldJar != null) {
+                relativeOldJar[newJar.file.absolutePath] = oldJar.file
             }
-        } else {
-            logger.debug("CurrentBuildDependencies or fullBuildDependencies is null, which should not happened.")
-            logger.debug("Incremental diff result disabled.")
         }
 
+        val revertLibraries = getRevertLibraries()
         val changedFiles = diffResult.newLibraryDependencies.mapNotNull {
             if (it.isAndroidManifest) {
-                ChangedFile(
+                return@mapNotNull ChangedFile(
                     type = CompileFile.Type.AndroidManifest,
                     file = it.file,
                     baseDir = it.file,
                     module = tempModule,
                 ).withDependencyName(it.nameWithoutPrefix)
                     .withOldManifest(relativeOldManifest[it.file.absolutePath])
-                null
             } else if (it.isRes) {
-                ChangedFile(
+                return@mapNotNull ChangedFile(
                     type = CompileFile.Type.Resource,
                     file = it.file,
                     baseDir = it.file,
                     module = tempModule,
                 ).withDependencyName(it.nameWithoutPrefix)
                     .withOldRes(relativeOldRes[it.file.absolutePath])
-            } else {
-                ChangedFile(
+            } else if (it.isJar) {
+                val isRevertLibrary = revertLibraries.any { revert -> revert.file.absolutePath == it.file.absolutePath }
+                if (isRevertLibrary) {
+                    logger.debug("skip revert library: ${it.file.absolutePath}")
+                    return@mapNotNull null
+                }
+                return@mapNotNull ChangedFile(
                     type = CompileFile.Type.Class,
                     file = it.file,
                     baseDir = it.file.parentFile!!,
@@ -295,6 +301,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 ).withDependencyName(it.nameWithoutPrefix)
                     .withOldJar(relativeOldJar[it.file.absolutePath])
             }
+
+            logger.debug("skip unknown type library: $it")
+            return@mapNotNull null
         }.toMutableList()
 
         // Guess assets dir. Jugg may not support aar that only contains assets. (need to be confirmed)
@@ -324,25 +333,45 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun getRemovedLibraryFiles(): List<ChangedFile> {
         logger.debug("get removed libraries: ${diffResult.removedLibraryDependencies}")
 
-        val changedFiles = diffResult.removedLibraryDependencies.mapNotNull {
-            if (it.isAndroidManifest) {
-                // no need
-                null
-            } else if (it.isRes) {
-                // no need
-                null
-            } else {
-                ChangedFile(
+        val removedLibraryFiles = mutableListOf<ChangedFile>()
+        // delete removed library
+        diffResult.removedLibraryDependencies.forEach {
+            if (!it.isJar) {
+                return@forEach
+            }
+            val changedFile = ChangedFile(
+                type = CompileFile.Type.Class,
+                file = it.file,
+                baseDir = it.file.parentFile!!,
+                module = tempModule,
+            ).withDependencyName(it.nameWithoutPrefix)
+            removedLibraryFiles.add(changedFile)
+        }
+
+        // delete reverted library
+        removedLibraryFiles.addAll(getRevertLibraries())
+
+        logger.debug("removed library files: $removedLibraryFiles")
+        return removedLibraryFiles
+    }
+
+    private fun getRevertLibraries(): List<ChangedFile> {
+        val revertLibraries = mutableListOf<ChangedFile>()
+        diffResult.newLibraryDependencies.forEach { newDependency ->
+            val fullDiff = diffResultWithFull.newLibraryDependencies.find { newDependency.nameWithoutPrefix == it.nameWithoutPrefix }
+            if (fullDiff == null) {
+                // not exists in diffResultWithFull, which means it is a reverted library
+                val changedFile = ChangedFile(
                     type = CompileFile.Type.Class,
-                    file = it.file,
-                    baseDir = it.file.parentFile!!,
+                    file = newDependency.file,
+                    baseDir = newDependency.file.parentFile!!,
                     module = tempModule,
-                ).withDependencyName(it.nameWithoutPrefix)
+                ).withDependencyName(newDependency.nameWithoutPrefix)
+                revertLibraries.add(changedFile)
             }
         }
 
-        logger.debug("removed changed files: $changedFiles")
-        return changedFiles
+        return revertLibraries
     }
 
     @Synchronized
@@ -483,6 +512,10 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     private fun diffDependency() {
+        val fullBuildDependencies = fullBuildDependencies ?: run {
+            logger.debug("fullBuildDependencies is null, exit diffDependency")
+            return
+        }
         val lastBuildDependencies = lastBuildDependencies ?: run {
             logger.debug("lastBuildDependencies is null, exit diffDependency")
             return
@@ -493,7 +526,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
 
         diffResult = DependencyDiffResult.create(currentBuildDependencies, lastBuildDependencies)
+        diffResultWithFull = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
         logger.debug("diffDependency result $diffResult")
+        logger.debug("diffDependency result with full $diffResultWithFull")
     }
 
     @Synchronized

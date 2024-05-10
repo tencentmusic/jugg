@@ -237,7 +237,7 @@ class JuggCompilerHelper(
             return CompileTaskResult.incrementalFailed(true, "Jugg compiler not init")
         }
 
-        if (deployFileManager.isNoFileChanges()) {
+        if (deployFileManager.isNoFileChanges() && !dependencyChangeManager.isNeedCompilation) {
             val deviceName = deployTargetManager.getDeviceNameList()
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
                 logger.info("No file changes, but it's first time run or last compilation not finished" +
