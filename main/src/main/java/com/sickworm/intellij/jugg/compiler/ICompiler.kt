@@ -118,6 +118,9 @@ fun List<CompileFile>.desc(): String {
     return compileFilesMap.entries.joinToString("\n") { entry ->
         val value = entry.value
             .groupBy {
+                if (it.isDependency) {
+                    return@groupBy "library"
+                }
                 val type = when (it.type) {
                     CompileFile.Type.Java -> "source"
                     CompileFile.Type.Kotlin -> "source"
@@ -134,11 +137,11 @@ fun List<CompileFile>.desc(): String {
             .mapValues {
                 it.value.map { file ->
                     if (file.isDependency) {
-                        file.dependencyName + "/" + file.file.name
+                        file.dependencyName
                     } else {
                         file.file.name
                     }
-                }
+                }.distinct()
             }
         val valueContent = value.entries.joinToString("\n    ", prefix = "    ") {
             "${it.key}: ${it.value}"
@@ -461,7 +464,11 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             val finishContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
                 "classes to DEX"
             } else {
-                "[" + task.files.joinToString(", ") { it.file.name } + "]"
+                val itemNames = task.files.map {
+                    val prefix = if (it.isDependency) "${it.dependencyName}/" else ""
+                    prefix + it.file.name
+                }
+                "[" + itemNames.joinToString(", ") + "]"
             }
             if (result.isAllSuccess) {
                 logger.info("Compile $finishContent finished, cost ${costTime}ms.")
