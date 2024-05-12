@@ -551,6 +551,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     "use current time as nextStartBuildingTime")
             nextStartBuildingTime = System.currentTimeMillis()
         }
+        compareInfo.isLastSyncUpdate = false
         compareInfo.startBuildingTime = nextStartBuildingTime
         compareInfo.endBuildingTime = System.currentTimeMillis()
         nextStartBuildingTime = 0L
