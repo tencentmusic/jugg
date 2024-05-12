@@ -117,7 +117,7 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun onSyncSuccess() {
+    private fun updateProjectInfo() {
         // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
         juggRunningTaskStatusManager.resetHasRun()
 
@@ -125,7 +125,11 @@ class JuggManager @TestOnly constructor(
         if (isSuccess) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
-            dependencyChangeManager.tryShowChangConfirmDialog()
+            warmUpCompile(isNeedWarmUpDeploy = false)
+            launch {
+                // do it async to let warmUpCompile run
+                dependencyChangeManager.tryShowChangConfirmDialog()
+            }
         }
     }
 
@@ -134,7 +138,7 @@ class JuggManager @TestOnly constructor(
         when (syncEvent) {
             SyncEvent.SUCCEEDED -> {
                 tryCreateRunConfigurations(isSyncFinished = true)
-                runTaskSafe("Update project info", ::onSyncSuccess)
+                runTaskSafe("Update project info", ::updateProjectInfo)
             }
             SyncEvent.SKIPPED -> {
                 tryCreateRunConfigurations(isSyncFinished = false)
