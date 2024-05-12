@@ -229,8 +229,6 @@ class JuggManager @TestOnly constructor(
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
         processFileChanged(deployContextRecoverInfo.changedFiles)
-        // step 4: update deploy state
-        updateDeployState()
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
