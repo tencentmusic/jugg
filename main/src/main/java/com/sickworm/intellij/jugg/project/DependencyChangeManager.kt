@@ -98,25 +98,40 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         var version = 1
         var changeStatus: IDependencyChangeManager.ChangeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
         var startSyncingTime = 0L
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
         var endSyncingTime = 0L
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
         var startBuildingTime = 0L
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
         var endBuildingTime = 0L
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
         var lastBuildChangedTime = 0L
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
 
         var isLastSyncUpdate = false
-            set(value) { field = value ; writeToFile() }
+            set(value) { field = value ; autoSaveIfEnabled() }
+
+        private var enableAutoSave: Boolean = true
+        private fun autoSaveIfEnabled() {
+            if (!enableAutoSave) {
+                return
+            }
+            writeToFile()
+        }
 
         var compareInfoCacheFile: File? = null
         private fun writeToFile() {
             compareInfoCacheFile?.parentFile?.mkdirs()
             compareInfoCacheFile?.writeText(Gson().toJson(this))
+        }
+
+        fun transaction(block: () -> Unit) {
+            enableAutoSave = false
+            block()
+            enableAutoSave = true
+            writeToFile()
         }
     }
 
@@ -382,15 +397,19 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (files.isEmpty() && compareInfo.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED) {
             logger.debug("build changed files is empty and changeStatus is CHANGED_NOT_SYNCED, " +
                     "reset lastBuildChangedTime to 0, and reset changeStatus to NO_CHANGE")
-            compareInfo.lastBuildChangedTime = 0
-            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+            compareInfo.transaction {
+                compareInfo.lastBuildChangedTime = 0
+                compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+            }
             return
         }
 
         val buildChangedTime = files.maxOfOrNull { it.lastModified() } ?: 0
         if (compareInfo.lastBuildChangedTime != buildChangedTime) {
-            compareInfo.lastBuildChangedTime = buildChangedTime
-            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED
+            compareInfo.transaction {
+                compareInfo.lastBuildChangedTime = buildChangedTime
+                compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED
+            }
             logger.debug("build changed time changed: ${compareInfo.lastBuildChangedTime.timeStampToTime()} " +
                     "-> ${buildChangedTime.timeStampToTime()}, changeStatus: $changeStatus")
         }
@@ -416,8 +435,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     "use current time as nextStartSyncingTime")
             nextStartSyncingTime = System.currentTimeMillis()
         }
-        compareInfo.startSyncingTime = nextStartSyncingTime
-        compareInfo.endSyncingTime = System.currentTimeMillis()
+
+        compareInfo.transaction {
+            compareInfo.startSyncingTime = nextStartSyncingTime
+            compareInfo.endSyncingTime = System.currentTimeMillis()
+        }
         nextStartSyncingTime = 0L
 
         currentBuildDependencies = JuggProjectInfo(newContext.modules)
@@ -551,9 +573,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     "use current time as nextStartBuildingTime")
             nextStartBuildingTime = System.currentTimeMillis()
         }
-        compareInfo.isLastSyncUpdate = false
-        compareInfo.startBuildingTime = nextStartBuildingTime
-        compareInfo.endBuildingTime = System.currentTimeMillis()
+        compareInfo.transaction {
+            compareInfo.isLastSyncUpdate = false
+            compareInfo.startBuildingTime = nextStartBuildingTime
+            compareInfo.endBuildingTime = System.currentTimeMillis()
+        }
         nextStartBuildingTime = 0L
         updateDiffDependency(isEndBuilding = true)
     }
