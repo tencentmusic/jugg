@@ -84,6 +84,9 @@ class ResourceOverlayCompiler(
             compileFiles.add(CompileFile(CompileFile.Type.AndroidManifest,
                 manifestFile, manifestFile.parentFile, context.tempModule))
         }
+        if (compileFiles.isEmpty()) {
+            return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+        }
 
         val arscTask = CompileTask(
             compileFiles,
@@ -101,7 +104,7 @@ class ResourceOverlayCompiler(
             )
         }
 
-        val finalOutputs = filterResources(arscResult.outputs, task.files)
+        val finalOutputs = filterResources(arscResult.outputs, task.files, isNeedOutputManifest = manifestFile != null)
 
         return CompileResult(
             task,
@@ -110,7 +113,7 @@ class ResourceOverlayCompiler(
         )
     }
 
-    private fun filterResources(resource: List<CompileOutput>, sourceFiles: List<CompileFile>): List<CompileOutput> {
+    private fun filterResources(resource: List<CompileOutput>, sourceFiles: List<CompileFile>, isNeedOutputManifest: Boolean): List<CompileOutput> {
         val resourceNameToPathMap = resource.groupBy { it.relativeFile.name }
 
         val filePathSet: Set<String> = sourceFiles.flatMap { compileFile ->
@@ -135,7 +138,6 @@ class ResourceOverlayCompiler(
             if (resourceName == "AndroidManifest.xml") {
                 val output = outputs.first()
                 if (output.relativeFile.path == "AndroidManifest.xml") {
-                    val isNeedOutputManifest = sourceFiles.any { it.type == CompileFile.Type.AndroidManifest }
                     if (!isNeedOutputManifest) {
                         // don't output AndroidManifest.xml if no changes, output it will trigger APK repackage
                         finalOverlays.remove(output)
