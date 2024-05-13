@@ -134,6 +134,7 @@ class CompileContextManager(
         }
 
         val context = BaseCompileContext(
+            project = project,
             logger = JuggLogger.getInstance(project, "Compiler"),
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
@@ -141,7 +142,6 @@ class CompileContextManager(
             modules = modules,
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
-            signingConfigList = AsDeployerCompat.getAndroidRunConfigList(project, logger).flatMap { it.signingConfigList },
         )
 
         compileContextInside = context

@@ -2,15 +2,18 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import java.io.File
 
-data class BaseCompileContext(
+class BaseCompileContext(
+    private val project: Project,
     override val logger: Logger,
     override var tempCompileDir: File,
     override var tempModuleDir: File,
@@ -19,11 +22,13 @@ data class BaseCompileContext(
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
     private val deployFileManager: DeployFileManager,
-    private val signingConfigList: List<SigningConfig>,
 ): ICompileContext {
 
     private val androidJarApi: String = getSuggestedPlatformApi(modules)
     override val androidJar: File = File(androidHome, "platforms/android-$androidJarApi/android.jar")
+
+    private val signingConfigList: List<SigningConfig> get() =
+        AsDeployerCompat.getAndroidRunConfigList(project, logger).flatMap { it.signingConfigList }
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
