@@ -302,7 +302,11 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         try {
             // get build module
             val runConfig = settings.configuration as AndroidRunConfiguration
-            val module = runConfig.modules.first()
+            val module = runConfig.modules.firstOrNull()
+            if (module == null) {
+                logger.debug("getSuggestRunConfiguration module of runConfig ${runConfig.name} is null")
+                return null
+            }
             val gradleAndroidModel = GradleAndroidModel.get(module)
             try {
                 logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
@@ -394,26 +398,35 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
         logger.debug("getSigningConfigList androidConfigSettings size ${androidConfigSettings.size}")
         return androidConfigSettings.mapNotNull { settings ->
-            val runConfig = settings.configuration as AndroidRunConfiguration
-            val module = runConfig.modules.first()
-            val gradleAndroidModel = GradleAndroidModel.get(module)
-            if (gradleAndroidModel == null) {
-                logger.debug("getSigningConfigList gradleAndroidModel of module ${module.name} is null")
+            try {
+                val runConfig = settings.configuration as AndroidRunConfiguration
+                val module = runConfig.modules.firstOrNull()
+                if (module == null) {
+                    logger.debug("getSigningConfigList module of runConfig ${runConfig.name} is null")
+                    return@mapNotNull null
+                }
+                val gradleAndroidModel = GradleAndroidModel.get(module)
+                if (gradleAndroidModel == null) {
+                    logger.debug("getSigningConfigList gradleAndroidModel of module ${module.name} is null")
+                    return@mapNotNull null
+                }
+                val androidRunConfig = AndroidRunConfig(
+                    gradleAndroidModel.androidProject.signingConfigs.map { config ->
+                        val moduleName: String = gradleAndroidModel.moduleName
+                        val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
+                        SigningConfig(simpleName,
+                            variantName = config.name,
+                            keystore = config.storeFile,
+                            storePassword = config.storePassword,
+                            keyAlias = config.keyAlias,
+                        )
+                    },
+                )
+                return@mapNotNull androidRunConfig
+            } catch (e: Throwable) {
+                logger.debug("getSigningConfigList for ${settings.name} error, ignore", e)
                 return@mapNotNull null
             }
-            val androidRunConfig = AndroidRunConfig(
-                gradleAndroidModel.androidProject.signingConfigs.map { config ->
-                    val moduleName: String = gradleAndroidModel.moduleName
-                    val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
-                    SigningConfig(simpleName,
-                        variantName = config.name,
-                        keystore = config.storeFile,
-                        storePassword = config.storePassword,
-                        keyAlias = config.keyAlias,
-                    )
-                },
-            )
-            return@mapNotNull androidRunConfig
         }
     }
 }
