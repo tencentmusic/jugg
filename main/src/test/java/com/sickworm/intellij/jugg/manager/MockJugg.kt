@@ -171,7 +171,7 @@ class MockJugg {
 
     private fun renewComponents(isMockCompileContextManager: Boolean = true) {
         project = JuggMockProject(projectDir)
-        pathManager = JuggPathManager(project, projectDir, File(projectDir, "build/jugg"))
+        pathManager = JuggPathManager(project, projectDir)
         JuggLogger.register(project, pathManager.logDir)
 
         juggStateListener = mock(JuggStateListener::class.java)

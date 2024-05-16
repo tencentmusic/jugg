@@ -110,6 +110,11 @@ class FileChangesHandler(
     }
 
     private fun checkBuildGradle(file: File): ChangedFile? {
+        val isInJuggDir = file.isChild(juggRootDir)
+        if (isInJuggDir) {
+            return null
+        }
+
         buildFileList.forEach {
             if (file.absolutePath == it.absolutePath) {
                 logger.info("Detect custom build file changed: $file")

@@ -253,7 +253,11 @@ class RemoteGradleCompileClient(
             }
 
             // 3. compile
-            val compileProjectCommand = CompileProjectCommand(gradleCompileSettings.compileCommand, gradleCompileSettings.remoteProjectPath)
+            val compileProjectCommand = CompileProjectCommand(
+                gradleCompileSettings.compileCommand,
+                gradleCompileSettings.remoteProjectPath,
+                gradleCompileSettings.initGradleFileRelativePath,
+            )
             val compileProjectResult = invoke(channel, compileProjectCommand)
             if (compileProjectResult != 0) {
                 printToStreamErrorIfCanceled("Compile project failed, please check the error message.")

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.execution.configurations.RunConfigurationOptions
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.io.File
@@ -60,6 +61,7 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 data class JuggGradleCompileOptions(
     val projectRootPath: String,
     val localClasspathStoragePath: LocalClasspathStoragePathManager,
+    val initGradleFileRelativePath: String,
     val compileCommand: String,
     val outputApkName: String,
     val isRemoteCompile: Boolean,
@@ -225,13 +227,13 @@ data class JuggGradleCompileOptions(
     companion object {
 
         fun fromOptions(
-            projectRootPath: String,
-            localClasspathStoragePathManager: LocalClasspathStoragePathManager,
+            pathManager: JuggPathManager,
             options: JuggRunConfigurationOptions
         ): JuggGradleCompileOptions {
             return JuggGradleCompileOptions(
-                projectRootPath,
-                localClasspathStoragePathManager,
+                projectRootPath = pathManager.projectDir.absolutePath,
+                localClasspathStoragePath = pathManager.localClasspathStoragePathManager,
+                initGradleFileRelativePath = pathManager.initGradleFileRelativePath,
                 options.compileCommand ?: "",
                 options.outputApkName ?: "",
                 options.isRemoteCompile,

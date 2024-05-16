@@ -83,7 +83,11 @@ class LocalGradleCompileClient(
         val juggGradleCompileOptions = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
 
         if (!isOnlyFetchResult) {
-            val compileProjectCommand = CompileProjectCommand(juggGradleCompileOptions.compileCommand, project.basePath!!)
+            val compileProjectCommand = CompileProjectCommand(
+                juggGradleCompileOptions.compileCommand,
+                project.basePath!!,
+                juggGradleCompileOptions.initGradleFileRelativePath,
+            )
             val compileProjectResult = invoke(compileProjectCommand)
             if (compileProjectResult != 0) {
                 printToStreamErrorIfCanceled("Compile project failed, please check the error message.")

@@ -9,9 +9,8 @@ import java.io.File
 class JuggPathManager(
     val project: Project,
     val projectDir: File,
-    val juggRootDir: File,
 ) {
-    constructor(project2: Project, projectDir: File) : this(project2, projectDir, File("$projectDir/build/jugg"))
+    val juggRootDir = File("$projectDir/build/jugg")
 
     val compileRootDir = File(juggRootDir, "build")
     val databaseDir = File(juggRootDir, "database")
@@ -22,6 +21,15 @@ class JuggPathManager(
     val projectInfosDir = File(databaseDir, "project_infos.db")
 
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
+
+    private val gradleDir = File(juggRootDir, "gradle")
+    val initGradleFilePath = File(gradleDir, "init.gradle")
+    val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
+
+    companion object {
+        const val RSYNC_PUSH_GRADLE_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' --include='/build/jugg/gradle' --include='/build/jugg/gradle/**' --exclude='/build/**'"
+        const val RSYNC_FETCH_GRADLE_DIR_ARGUMENTS = "--include='build/jugg/gradle/**'"
+    }
 }
 
 class LocalClasspathStoragePathManager(

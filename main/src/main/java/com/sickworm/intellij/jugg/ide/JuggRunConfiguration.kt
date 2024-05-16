@@ -41,11 +41,7 @@ class JuggRunConfiguration(
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
         val pathManager = JuggInitializer.getManager(project)!!.pathManager
-
-        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(
-            pathManager.projectDir.absolutePath,
-            pathManager.localClasspathStoragePathManager,
-            state!!)
+        val gradleCompileOptions = JuggGradleCompileOptions.fromOptions(pathManager, state!!)
         return JuggRunProfileState(project, gradleCompileOptions)
     }
 }

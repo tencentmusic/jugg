@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.ide;
 import com.intellij.ide.plugins.DynamicPluginListener;
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
+//import com.intellij.openapi.project.Project;
+//import com.intellij.openapi.project.ProjectManager;
 import org.jetbrains.annotations.NotNull;
 
 // deprecated for hot reload not correctly working

@@ -24,7 +24,7 @@ import java.io.File
 
 class JuggCompilerHelper(
     private val project: Project,
-    private val localClasspathStoragePathManager: LocalClasspathStoragePathManager,
+    private val pathManager: JuggPathManager,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
     private val deployStateManager: DeployStateManager,
@@ -146,7 +146,9 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
-        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, localClasspathStoragePathManager.classpathDir)
+        writeInitGradleFile()
+
+        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
@@ -158,6 +160,15 @@ class JuggCompilerHelper(
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
         }
         return result
+    }
+
+    private fun writeInitGradleFile() {
+        val initGradleFile = pathManager.initGradleFilePath
+        initGradleFile.parentFile.mkdirs()
+        JuggCompilerHelper::class.java.getResource("/assets/init.gradle")!!.openStream().use { ins ->
+            val text = ins.reader().readText()
+            initGradleFile.writeText(text)
+        }
     }
 
     /**
@@ -424,7 +435,7 @@ class JuggCompilerHelper(
      * @return classpath root dir
      */
     fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>): File? {
-        return gradleCompileClientManager.getClient(isRemote, localClasspathStoragePathManager.classpathDir).fetchClasspathResult(buildDirs)
+        return gradleCompileClientManager.getClient(isRemote, pathManager.localClasspathStoragePathManager.classpathDir).fetchClasspathResult(buildDirs)
     }
 
     override fun dispose() {

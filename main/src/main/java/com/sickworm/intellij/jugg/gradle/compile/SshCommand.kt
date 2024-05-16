@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 import kotlin.math.max
 
@@ -75,17 +76,24 @@ class SyncFileCommand(
     override val baseCommand: String = """ft sync -s $localProjectIftPath --get $remoteProjectPath -a "$rsyncArguments" """
 
     companion object {
-
-        const val rsyncArguments = "-av --delete --exclude='build/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/'  --exclude='buildSrc/.gradle/' --exclude='*.iml' --exclude='.git/objects/'"
+        @Suppress("ConstPropertyName")
+        const val rsyncArguments = "-av --delete --delete-excluded ${JuggPathManager.RSYNC_PUSH_GRADLE_DIR_ARGUMENTS} --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='/.idea/' --exclude='*.iml' --exclude='.git/objects/'"
     }
 }
 
 class CompileProjectCommand(
-    compileCommand: String,
+    private val compileCommand: String,
     private val projectPath: String,
+    private val initGradleFileRelativePath: String,
 ) : BaseSshCommand() {
 
-    override val baseCommand: String = """cd $projectPath && $compileCommand --console=plain"""
+    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w:]+"""))
+        private set
+
+    override val baseCommand: String = run {
+        val suffix = if (isNormalGradleCommand) " --console=plain -I $initGradleFileRelativePath" else ""
+        return@run "cd $projectPath && $compileCommand$suffix"
+    }
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         val command = super.getCommand(isNeedSetChineseLanguage, isWindows)
@@ -175,7 +183,7 @@ class FetchClasspathCommand(
                     if (extension.isNotEmpty()) "--include='$path'"
                     else "--include='$path/**'"
                 }
-            return "-av --delete --prune-empty-dirs --include='*/' $includeClasspathFilter --exclude='*'"
+            return "-av --delete --delete-excluded --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_GRADLE_DIR_ARGUMENTS} $includeClasspathFilter --exclude='*'"
         }
     }
 }
@@ -189,7 +197,7 @@ class SyncLocalClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --delete-excluded --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_GRADLE_DIR_ARGUMENTS} --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
