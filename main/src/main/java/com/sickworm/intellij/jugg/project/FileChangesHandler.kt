@@ -88,7 +88,7 @@ class FileChangesHandler(
                     "java" -> CompileFile.Type.Java
                     "kt" -> CompileFile.Type.Kotlin
                     else -> {
-                        logger.warn("file ${file.name} has invalid extension, ignore")
+                        logger.debug("source file ${file.name} has invalid extension, ignore")
                         return null
                     }
                 }
