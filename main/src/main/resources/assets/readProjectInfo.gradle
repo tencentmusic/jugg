@@ -1,0 +1,276 @@
+// use to read variables in gradle environment
+// usage: ./gradlew :app:assembleDebug -I readProjectInfo.gradle
+
+import groovy.json.JsonBuilder
+import groovy.json.JsonGenerator
+
+private void readAndSave() {
+    File recordFile = new File(rootProject.rootDir, "build/jugg/gradle/gradle_project_info.json")
+    try {
+        println("Jugg: readProjectInfo.gradle execute start")
+        long startTime = System.currentTimeMillis()
+        deleteRecordFile()
+        ProjectInfo projectInfo = getProjectInfo()
+        writeRecordFile(projectInfo)
+        long costTime = System.currentTimeMillis() - startTime
+        println("Jugg: readProjectInfo.gradle execute success, cost: ${costTime}ms, output file: $recordFile")
+    } catch (Throwable e) {
+        println("Jugg: readProjectInfo.gradle execute failed: $e")
+        printException(e)
+    }
+}
+
+private void printException(Throwable e) {
+    def outputStream = new ByteArrayOutputStream()
+    e.printStackTrace(new PrintStream(outputStream))
+    def result = outputStream.toString()
+    def lines = result.split('\n')
+    for (String line : lines) {
+        if (line.contains("readProjectInfo.gradle")) {
+            println(line)
+        }
+    }
+}
+
+private void deleteRecordFile() {
+    File recordFile = new File(rootProject.rootDir, "build/jugg/gradle/gradle_project_info.json")
+    recordFile.delete()
+}
+
+private void writeRecordFile(ProjectInfo projectInfo) {
+    long startTime = System.currentTimeMillis()
+
+    JsonGenerator generator = new JsonGenerator.Options()
+            .excludeFieldsByName('contentHash', 'originalClassName')
+            .excludeNulls()
+            .build()
+    JsonBuilder builder = new JsonBuilder(projectInfo, generator)
+    String result = builder.toString()
+
+    File recordFile = new File(rootProject.rootDir, "build/jugg/gradle/gradle_project_info.json")
+    recordFile.getParentFile().mkdirs()
+    recordFile.createNewFile()
+    recordFile.write(result)
+
+    long costTime = System.currentTimeMillis() - startTime
+    println("Jugg: writeRecordFile cost: ${costTime}ms")
+}
+
+private ProjectInfo getProjectInfo() {
+    ProjectInfo projectInfo = new ProjectInfo()
+    projectInfo.applicationModuleName = guessApplicationModule()
+
+    println("Jugg: Print task info:")
+    println(getGradle().getStartParameter().toString())
+    println("Jugg: rootProject.subprojects.size ${rootProject.subprojects.size()}")
+
+    projectInfo.modules = new HashMap<>()
+    Map<Dependency, List<Integer>> allDependenciesMap = new HashMap<>()
+    List<DependencyInfo> allDependencies = new ArrayList<>()
+    rootProject.subprojects { Project project ->
+        // Cannot get property 'android' on null object, if app has no android extension
+        ModuleInfo moduleInfo = getModuleInfo(project, allDependenciesMap, allDependencies)
+        if (moduleInfo != null && moduleInfo.moduleName != null) {
+            projectInfo.modules.put(moduleInfo.moduleName, moduleInfo)
+        }
+    }
+    projectInfo.dependencies = allDependencies
+
+    return projectInfo
+}
+
+private String guessApplicationModule() {
+    List<List<String>> argsList = getGradle().getStartParameter().getTaskRequests().args
+    for (List<String> args : argsList) {
+        for (String arg : args) {
+            String moduleName = arg
+            if (arg.startsWith(":")) {
+                moduleName = arg.substring(1)
+            }
+            if (moduleName.contains(":")) {
+                moduleName = moduleName.split(":")[0]
+                Project module = rootProject.subprojects.find { it.name == moduleName }
+                if (module != null) {
+                    if (module.plugins.hasPlugin("com.android.application")) {
+                        println("Jugg: guess applicationModuleName " + moduleName)
+                        return moduleName
+                    }
+                }
+            }
+        }
+    }
+
+    println("Jugg: guess applicationModuleName failed")
+    return null
+}
+
+private ModuleInfo getModuleInfo(Project project, Map<Dependency, List<Integer>> allDependenciesMap, List<DependencyInfo> allDependencies) {
+    ModuleInfo moduleInfo = new ModuleInfo()
+    moduleInfo.moduleName = project.name
+    if (project.plugins.hasPlugin("com.android.application")) {
+        moduleInfo.moduleType = "application"
+    } else if (project.plugins.hasPlugin("com.android.library")) {
+        moduleInfo.moduleType = "library"
+    } else if (project.plugins.hasPlugin("java-library")) {
+        moduleInfo.moduleType = "javaLibrary"
+    } else {
+        moduleInfo.moduleType = "other"
+    }
+
+    if (moduleInfo.moduleType == "other" || moduleInfo.moduleType == "javaLibrary") {
+        return moduleInfo
+    }
+
+    try {
+        // com.android.build.gradle.internal.dsl.DefaultConfig
+        def defaultConfig = project.android.defaultConfig
+        moduleInfo.minSdkVersion = defaultConfig.minSdkVersion == null ? 0 : defaultConfig.minSdkVersion.apiLevel
+        moduleInfo.targetSdkVersion = defaultConfig.targetSdkVersion == null ? 0 : defaultConfig.targetSdkVersion.apiLevel
+        if (defaultConfig.manifestPlaceholders != null) {
+            moduleInfo.manifestPlaceholders = new HashMap<>()
+            defaultConfig.manifestPlaceholders.each { String key, value ->
+                moduleInfo.manifestPlaceholders.put(key, value.toString())
+            }
+        }
+        moduleInfo.dependencies = getDependencies(project, allDependenciesMap, allDependencies)
+    } catch (Throwable e) {
+        println("Jugg: getModuleInfo for ${project.name} failed: $e")
+        printException(e)
+    }
+
+    return moduleInfo
+}
+
+private List<DependencyInfo> getDependencies(Project project, Map<Dependency, List<Integer>> allDependenciesMap, List<DependencyInfo> allDependencies) {
+    List<Integer> result = new ArrayList<>()
+
+    Set<String> allNames = project.configurations.getNames()
+    List<String> filterNames = ["implementation", "runtimeOnly", "compileOnly", "api", "annotationProcessor", "kapt"]
+    filterNames.forEach { filterName ->
+        Set<String> names = allNames.findAll {
+            return isEndsWithIgnoreFirstChar(it, filterName)
+        }
+        names.forEach { name ->
+            //noinspection ConfigurationAvoidance
+            DependencySet dependencies = project.configurations.findByName(name).dependencies
+            dependencies.forEach { Dependency dependency ->
+                if (allDependenciesMap.containsKey(dependency)) {
+                    result.addAll(allDependenciesMap.get(dependency))
+                } else {
+                    List<DependencyInfo> dependencyInfoList = getDependencyInfo(filterName, name, dependency)
+                    int currentIndex = allDependencies.size()
+                    dependencyInfoList.forEach {
+                        it.index = currentIndex++
+                    }
+
+                    allDependencies.addAll(dependencyInfoList)
+                    List<Integer> libraryIndexes = dependencyInfoList.collect {it.index }
+                    allDependenciesMap.put(dependency, libraryIndexes)
+                    result.addAll(libraryIndexes)
+                }
+            }
+        }
+    }
+
+    return result
+}
+
+private static boolean isEndsWithIgnoreFirstChar(String string, String suffix) {
+    if (string == null || suffix == null) {
+        return false
+    }
+    if (string.length() < suffix.length()) {
+        return false
+    }
+    for (int i = 1; i < suffix.length(); i++) {
+        if (string.charAt(string.length() - suffix.length() + i) != suffix.charAt(i)) {
+            return false
+        }
+    }
+
+    char firstChar = string.charAt(string.length() - suffix.length())
+    if (firstChar >= 'A' && firstChar <= 'Z') {
+        firstChar += 0x20
+    }
+    char suffixFirstChar = suffix.charAt(0)
+    if (suffixFirstChar >= 'A' && suffixFirstChar <= 'Z') {
+        suffixFirstChar += 0x20
+    }
+    if (firstChar != suffixFirstChar) {
+        return false
+    }
+
+    return true
+}
+
+private List<Dependency> getDependencyInfo(String filterName, String name, Dependency dependency) {
+    List<Dependency> result = new ArrayList<>()
+
+    DependencyInfo dependencyInfo = new DependencyInfo()
+    dependencyInfo.declareType = filterName
+    dependencyInfo.fullDeclareType = name
+    dependencyInfo.name = dependency.name
+    if (dependency instanceof ExternalModuleDependency) {
+        dependencyInfo.dependType = "external"
+        dependencyInfo.group = dependency.group
+        dependencyInfo.version = dependency.version
+        dependencyInfo.files = ((ExternalModuleDependency) dependency).artifacts.forEach {
+            it.url.toString()
+        }
+        result.add(dependencyInfo)
+    } else if (dependency instanceof ProjectDependency) {
+        if (dependency.group != null && dependency.group.contains(".")) {
+            dependencyInfo.group = dependency.group.substring(dependency.group.lastIndexOf(".") + 1)
+        }
+        dependencyInfo.dependType = "module"
+        result.add(dependencyInfo)
+    } else if (dependency instanceof FileCollectionDependency) {
+        dependencyInfo.dependType = "fileCollection"
+        ((SelfResolvingDependency) dependency).resolve().forEach {
+            DependencyInfo dependencyInfoSub = new DependencyInfo()
+            dependencyInfoSub.declareType = filterName
+            dependencyInfoSub.fullDeclareType = name
+            dependencyInfoSub.name = it.relativePath(rootProject.rootDir)
+            dependencyInfoSub.files = [dependencyInfoSub.name]
+            result.add(dependencyInfoSub)
+        }
+    } else {
+        dependencyInfo.dependType = "other"
+        result.add(dependencyInfo)
+    }
+
+    return result
+}
+
+class ProjectInfo {
+    String applicationModuleName = null
+    Map<String, ModuleInfo> modules = null
+    List<DependencyInfo> dependencies = null
+}
+
+class ModuleInfo {
+    String moduleName = null
+    String moduleType = null // application, library, javaLibrary, other
+    int minSdkVersion = 0
+    int targetSdkVersion = 0
+    Map<String, String> manifestPlaceholders = null
+    List<Integer> dependencies = null
+}
+
+class DependencyInfo {
+    int index = 0
+    String declareType = null // implementation, compileOnly, kapt etc.
+    String fullDeclareType = null // implementation, debugImplementation, compileOnly, developmentFreeCompileOnly, kapt, releaseKapt etc.
+    String dependType = null // external, fileCollection, module, other
+    String group = null
+    String name = null
+    String version = null
+    List<String> files = null
+}
+
+// task not ready
+//gradle.projectsEvaluated {
+//}
+gradle.taskGraph.whenReady {
+    readAndSave()
+}

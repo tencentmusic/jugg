@@ -20,7 +20,7 @@ class IsNormalGradleCommandTest {
         )
 
         testMap.forEach { (command, isNormalGradleCommand) ->
-            val compileProjectCommand = CompileProjectCommand(command, "init.gradle", "/root/projects/projectABC")
+            val compileProjectCommand = CompileProjectCommand(command, "readProjectInfo.gradle", "/root/projects/projectABC")
             assertEquals(isNormalGradleCommand, compileProjectCommand.isNormalGradleCommand, "command: $command")
         }
     }

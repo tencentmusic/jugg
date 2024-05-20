@@ -165,7 +165,7 @@ class JuggCompilerHelper(
     private fun writeInitGradleFile() {
         val initGradleFile = pathManager.initGradleFilePath
         initGradleFile.parentFile.mkdirs()
-        JuggCompilerHelper::class.java.getResource("/assets/init.gradle")!!.openStream().use { ins ->
+        JuggCompilerHelper::class.java.getResource("/assets/readProjectInfo.gradle")!!.openStream().use { ins ->
             val text = ins.reader().readText()
             initGradleFile.writeText(text)
         }

@@ -23,7 +23,7 @@ class JuggPathManager(
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
 
     private val gradleDir = File(juggRootDir, "gradle")
-    val initGradleFilePath = File(gradleDir, "init.gradle")
+    val initGradleFilePath = File(gradleDir, "readProjectInfo.gradle")
     val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
     companion object {
