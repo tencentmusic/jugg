@@ -158,6 +158,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
         val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
+        ClassStringPool.clear()
     }
 
     fun parseEntries(apkInfo: ApkInfo): ApkEntries {
