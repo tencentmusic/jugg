@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis

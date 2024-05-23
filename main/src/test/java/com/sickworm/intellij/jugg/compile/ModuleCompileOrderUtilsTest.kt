@@ -1,11 +1,10 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.sickworm.intellij.jugg.compiler.ModuleCompileOrderUtils
-import com.sickworm.intellij.jugg.compiler.ModuleDependency
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ModuleDependency
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.mock.mockModule
 import org.junit.Test
-import kotlin.system.measureTimeMillis
 import kotlin.test.assertContentEquals
 
 class ModuleCompileOrderUtilsTest {

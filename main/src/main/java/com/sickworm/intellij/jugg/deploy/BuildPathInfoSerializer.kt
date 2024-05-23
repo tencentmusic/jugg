@@ -2,8 +2,8 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 class BuildPathInfoSerializer(private val dataFile: File, private val logger: Logger) {

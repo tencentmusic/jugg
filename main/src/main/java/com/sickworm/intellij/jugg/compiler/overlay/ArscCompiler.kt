@@ -4,11 +4,11 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import org.apache.tools.zip.ZipFile
 import java.io.File
 import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**

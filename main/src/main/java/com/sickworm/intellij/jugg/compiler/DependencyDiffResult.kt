@@ -1,7 +1,8 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
-import com.sickworm.intellij.jugg.project.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 
 data class DependencyDiffResult(
     val currentBuildDependencies: JuggProjectInfo,

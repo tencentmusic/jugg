@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.RDexForSubmoduleCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 class JuggCompiler(

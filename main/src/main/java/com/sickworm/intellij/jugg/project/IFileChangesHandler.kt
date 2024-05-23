@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.project
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 /**

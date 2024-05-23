@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import java.io.File
 

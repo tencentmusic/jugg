@@ -13,6 +13,7 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
@@ -363,7 +364,8 @@ class JuggManager @TestOnly constructor(
                     classpathRootDir,
                     File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
                     it.buildVariant,
-                ))
+                )
+                )
             }
             .associateBy { it.name }
 

@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+
 object ModuleCompileOrderUtils {
 
     /**

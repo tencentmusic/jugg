@@ -1,7 +1,5 @@
 package com.sickworm.intellij.jugg
 
-import com.sickworm.intellij.jugg.compiler.LibraryDependency
-import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestProjectDependsLoader
 import org.junit.Test
 import kotlin.test.assertNotNull

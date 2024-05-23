@@ -5,9 +5,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggException
-import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler

@@ -1,9 +1,9 @@
 package com.sickworm.intellij.jugg.compiler.source
 
 import com.intellij.openapi.Disposable
-import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 class SourceCompiler(

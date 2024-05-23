@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 
 /**
  * Compile asset file to deployable files.

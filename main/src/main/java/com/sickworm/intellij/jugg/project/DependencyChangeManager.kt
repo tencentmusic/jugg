@@ -4,7 +4,11 @@ import com.google.gson.Gson
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -152,8 +156,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         cacheDirectory.mkdirs()
         currentBuildDependencies = JuggProjectInfo(compileContext.modules)
-        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.dat"), logger)
-        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.dat"), logger)
+        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.dat"), logger::debug)
+        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.dat"), logger::debug)
 
         val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
         if (compareInfoCacheFile.exists() && lastBuildDependencies != null && fullBuildDependencies != null) {

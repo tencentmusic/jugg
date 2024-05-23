@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig

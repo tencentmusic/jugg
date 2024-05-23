@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode

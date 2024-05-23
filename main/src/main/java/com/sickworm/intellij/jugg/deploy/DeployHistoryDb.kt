@@ -3,14 +3,13 @@ package com.sickworm.intellij.jugg.deploy
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
-import java.util.zip.CRC32
 
 /**
  * Record deploy history, persist records for recovery the next time the project is opened.

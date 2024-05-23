@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
-import com.sickworm.intellij.jugg.compiler.LibraryDependency
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import java.io.File
 

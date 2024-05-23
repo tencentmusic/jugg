@@ -1,14 +1,9 @@
-package com.sickworm.intellij.jugg.project
+package com.sickworm.intellij.jugg.project.data
 
-import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.LibraryDependency
-import com.sickworm.intellij.jugg.compiler.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.compiler.ModuleDependency
-import com.sickworm.intellij.jugg.compiler.ModuleInfo
 import java.io.File
 
 
-class ProjectInfoSerializer(private val dataFile: File, private val logger: Logger) {
+class ProjectInfoSerializer(private val dataFile: File, private val logger: (String) -> Unit) {
 
     private var memoryCache: JuggProjectInfo? = null
 
@@ -27,7 +22,7 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: Logg
         }
 
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("Save project info to ${dataFile.absolutePath} cost $costTime ms")
+        logger("Save project info to ${dataFile.absolutePath} cost $costTime ms")
     }
 
     @Synchronized
@@ -44,11 +39,11 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: Logg
             val dataString = dataFile.readText()
             val modules = ProjectInfoSerialize.deserialize(dataString)
             val costTime = System.currentTimeMillis() - startTime
-            logger.debug("Load project info to ${dataFile.absolutePath} cost $costTime ms")
+            logger("Load project info to ${dataFile.absolutePath} cost $costTime ms")
             memoryCache = modules
             return modules
         } catch (e: Exception) {
-            logger.warn("Failed to load project info from ${dataFile.absolutePath}", e)
+            logger("Failed to load project info from ${dataFile.absolutePath}, $e")
             return null
         }
     }

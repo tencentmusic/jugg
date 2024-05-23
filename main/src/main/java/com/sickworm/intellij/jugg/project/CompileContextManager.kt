@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.data.*
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData
 import org.jetbrains.jps.model.java.JavaResourceRootType
@@ -42,7 +43,7 @@ class CompileContextManager(
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
     private val projectInfoJsonFile = File(pathManager.projectInfosDir, "project_infos.dat")
-    private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger)
+    private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger::debug)
 
     /** Init after [initCompileContext] */
     val compileContext: ICompileContext
