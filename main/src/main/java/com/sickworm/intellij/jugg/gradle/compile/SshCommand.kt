@@ -77,7 +77,7 @@ class SyncFileCommand(
 
     companion object {
         @Suppress("ConstPropertyName")
-        const val rsyncArguments = "-av --delete --delete-excluded ${JuggPathManager.RSYNC_PUSH_GRADLE_DIR_ARGUMENTS} --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='/.idea/' --exclude='*.iml' --exclude='.git/objects/'"
+        const val rsyncArguments = "-av --delete ${JuggPathManager.RSYNC_PUSH_GRADLE_DIR_ARGUMENTS} --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='/.idea/' --exclude='*.iml' --exclude='.git/objects/'"
     }
 }
 
@@ -183,7 +183,7 @@ class FetchClasspathCommand(
                     if (extension.isNotEmpty()) "--include='$path'"
                     else "--include='$path/**'"
                 }
-            return "-av --delete --delete-excluded --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_GRADLE_DIR_ARGUMENTS} $includeClasspathFilter --exclude='*'"
+            return "-av --delete --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_GRADLE_DIR_ARGUMENTS} $includeClasspathFilter --exclude='*'"
         }
     }
 }
@@ -197,7 +197,7 @@ class SyncLocalClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --delete-excluded --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_GRADLE_DIR_ARGUMENTS} --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_GRADLE_DIR_ARGUMENTS} --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
