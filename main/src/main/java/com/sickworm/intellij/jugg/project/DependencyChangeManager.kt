@@ -156,8 +156,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         cacheDirectory.mkdirs()
         currentBuildDependencies = JuggProjectInfo(compileContext.modules)
-        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.dat"), logger::debug)
-        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.dat"), logger::debug)
+        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.json"), logger::debug)
+        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.json"), logger::debug)
 
         val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
         if (compareInfoCacheFile.exists() && lastBuildDependencies != null && fullBuildDependencies != null) {

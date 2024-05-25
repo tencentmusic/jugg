@@ -1,11 +1,28 @@
 package com.sickworm.intellij.jugg.project.data
 
+import com.google.gson.GsonBuilder
+import com.google.gson.TypeAdapter
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonWriter
 import java.io.File
 
 
 class ProjectInfoSerializer(private val dataFile: File, private val logger: (String) -> Unit) {
 
     private var memoryCache: JuggProjectInfo? = null
+
+    private val gson = GsonBuilder()
+        .registerTypeAdapter(File::class.java, object : TypeAdapter<File>() {
+            override fun write(p0: JsonWriter?, p1: File?) {
+                p0?.value(p1?.path)
+            }
+
+            override fun read(p0: JsonReader?): File {
+                return File(p0?.nextString() ?: "")
+            }
+
+        })
+        .create()
 
     @Synchronized
     fun save(projectInfo: JuggProjectInfo?) {
@@ -16,7 +33,8 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: (Str
             dataFile.delete()
         } else {
             dataFile.parentFile?.mkdirs()
-            val serializeText = ProjectInfoSerialize.create(projectInfo.modules).serialize()
+            val juggProjectInfoSerialize = JuggProjectInfoSerialize.serialize(projectInfo)
+            val serializeText = gson.toJson(juggProjectInfoSerialize)
             dataFile.writeText(serializeText)
             memoryCache = projectInfo
         }
@@ -37,231 +55,16 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: (Str
         try {
             val startTime = System.currentTimeMillis()
             val dataString = dataFile.readText()
-            val modules = ProjectInfoSerialize.deserialize(dataString)
+            val juggProjectInfoSerialize = gson.fromJson(dataString, JuggProjectInfoSerialize::class.java)
+            val juggProjectInfo = JuggProjectInfoSerialize.deserialize(juggProjectInfoSerialize)
             val costTime = System.currentTimeMillis() - startTime
             logger("Load project info to ${dataFile.absolutePath} cost $costTime ms")
-            memoryCache = modules
-            return modules
+            memoryCache = juggProjectInfo
+            return juggProjectInfo
         } catch (e: Exception) {
             logger("Failed to load project info from ${dataFile.absolutePath}, $e")
+            memoryCache = null
             return null
         }
-    }
-}
-
-private class ProjectInfoSerialize(
-    val serializeVersion: String = SERIALIZE_VERSION,
-    val stringList: List<String>,
-    val moduleInfos: List<ModuleInfoSerialize>,
-) {
-
-    fun serialize(): String {
-        val stringBuilder = StringBuilder()
-        stringBuilder.append(serializeVersion)
-        stringBuilder.append("\n")
-        stringBuilder.append(stringList.size)
-        stringBuilder.append("\n")
-        stringList.forEach { string ->
-            stringBuilder.append(string)
-            stringBuilder.append("\n")
-        }
-        stringBuilder.append(moduleInfos.size)
-        stringBuilder.append("\n")
-        moduleInfos.forEach {
-            it.fill(stringBuilder)
-            stringBuilder.append("\n")
-        }
-        return stringBuilder.toString()
-    }
-
-    companion object {
-
-        private const val SERIALIZE_VERSION: String = "7"
-
-        fun create(modules: Map<String, ModuleInfo>): ProjectInfoSerialize {
-            val cacheToStringMap = mutableMapOf<Long, String>()
-            fun Long.cacheToStringMap(): String {
-                var result = cacheToStringMap[this]
-                if (result != null) {
-                    return result
-                }
-                result = this.toString()
-                cacheToStringMap[this] = result
-                return result
-            }
-
-            val stringMap = mutableMapOf<String, Int>()
-            var index = 0
-            val moduleInfos = modules.values.map {
-                ModuleInfoSerialize(
-                    name = stringMap.getOrPut(it.name) { index++ },
-                    projectRootDir = stringMap.getOrPut(it.moduleRootDir.absolutePath) { index++ },
-                    rootDir = stringMap.getOrPut(it.projectRootDir.absolutePath) { index++ },
-                    sourceDirs = it.sourceDirs.map { dir -> stringMap.getOrPut(dir.absolutePath) { index++ } },
-                    resourceDirs = it.resourceDirs.map { dir -> stringMap.getOrPut(dir.absolutePath) { index++ } },
-                    assetsDirs = it.assetsDirs.map { dir -> stringMap.getOrPut(dir.absolutePath) { index++ } },
-                    manifestFile = stringMap.getOrPut(it.manifestFile?.absolutePath ?: "null") { index++ },
-                    compileVersion = stringMap.getOrPut(it.compileVersion ?: "null") { index++ },
-                    buildToolsVersion = stringMap.getOrPut(it.buildToolsVersion ?: "null") { index++ },
-                    kotlinJvmTarget = stringMap.getOrPut(it.kotlinJvmTarget ?: "null") { index++ },
-                    javaSourceCompatibility = stringMap.getOrPut(it.javaSourceCompatibility ?: "null") { index++ },
-                    javaTargetCompatibility = stringMap.getOrPut(it.javaTargetCompatibility ?: "null") { index++ },
-                    buildPathInfo = Pair(
-                        stringMap.getOrPut(it.buildPathInfo.projectRootDir.absolutePath) { index++ },
-                        stringMap.getOrPut(it.buildPathInfo.moduleRootDir.absolutePath) { index++ }
-                    ),
-                    moduleDependencies = it.moduleDependencies.map { moduleDependency ->
-                        stringMap.getOrPut(moduleDependency.moduleName) { index++ }
-                    },
-                    libraryDependencies = it.libraryDependencies.let { libraryDependencies ->
-                        val result = java.util.ArrayList<StringIndex>(libraryDependencies.size * 3)
-                        libraryDependencies.forEach { libraryDependency ->
-                            result.add(stringMap.getOrPut(libraryDependency.name) { index++ })
-                            result.add(stringMap.getOrPut(libraryDependency.file.absolutePath) { index++ })
-                            result.add(stringMap.getOrPut(libraryDependency.lastModifiedTime.cacheToStringMap()) { index++ })
-                            result.add(stringMap.getOrPut(libraryDependency.crc32.cacheToStringMap()) { index++ })
-                        }
-                        result
-                    },
-                    buildVariant = stringMap.getOrPut(it.buildVariant) { index++ },
-                    kotlinFreeCompilerArgs = it.kotlinFreeCompilerArgs.map { arg ->
-                        stringMap.getOrPut(arg) { index++ }
-                    },
-                    minSdkVersion = stringMap.getOrPut(it.minSdkVersion ?: "null") { index++ },
-                )
-            }
-
-            val stringList = ArrayList<String>(stringMap.size)
-            stringMap.forEach { (string, index) ->
-                stringList.add(index, string)
-            }
-            return ProjectInfoSerialize(
-                stringList = stringList,
-                moduleInfos = moduleInfos,
-            )
-        }
-
-        fun deserialize(text: String): JuggProjectInfo {
-            val lines = text.split("\n")
-            val serializeVersion = lines[0]
-            if (serializeVersion != SERIALIZE_VERSION) {
-                throw IllegalArgumentException("Unsupported serialize version: $serializeVersion")
-            }
-            val stringListSize = lines[1].toInt()
-            val stringList = lines.subList(2, 2 + stringListSize)
-            val stringMap = mutableMapOf<String, String>()
-            stringList.forEachIndexed { index, s ->
-                stringMap[index.toString()] = s
-            }
-
-            val cacheToLongMap = mutableMapOf<String, Long>()
-            fun String.cacheToLong(): Long {
-                var result = cacheToLongMap[this]
-                if (result != null) {
-                    return result
-                }
-                result = this.toLong()
-                cacheToLongMap[this] = result
-                return result
-            }
-
-            val moduleInfosSize = lines[2 + stringListSize].toInt()
-            val moduleInfoStrings = lines.subList(3 + stringListSize, 3 + stringListSize + moduleInfosSize)
-            val modules = moduleInfoStrings.associate {
-                val parts = it.split("\r")
-                val moduleInfo = ModuleInfo(
-                    name = stringMap[parts[0]]!!,
-                    moduleRootDir = File(stringMap[parts[1]]!!),
-                    projectRootDir = File(stringMap[parts[2]]!!),
-                    sourceDirs = if (parts[3].isEmpty()) emptyList() else parts[3].split(":").map { dir -> File(stringMap[dir]!!) },
-                    resourceDirs = if (parts[4].isEmpty()) emptyList() else parts[4].split(":").map { dir -> File(stringMap[dir]!!) },
-                    assetsDirs = if (parts[5].isEmpty()) emptyList() else parts[5].split(":").map { dir -> File(stringMap[dir]!!) },
-                    manifestFile = if (parts[6].isEmpty()) null else File(stringMap[parts[6]]!!),
-                    buildVariant = stringMap[parts[7]]!!,
-                    compileVersion = stringMap[parts[8]]!!.nullIfNull(),
-                    buildToolsVersion = stringMap[parts[9]]!!.nullIfNull(),
-                    kotlinJvmTarget = stringMap[parts[10]]!!.nullIfNull(),
-                    javaSourceCompatibility = stringMap[parts[11]]!!.nullIfNull(),
-                    javaTargetCompatibility = stringMap[parts[12]]!!.nullIfNull(),
-                    buildPathInfo = ModuleBuildPathInfo(
-                        File(stringMap[parts[13]]!!),
-                        File(stringMap[parts[14]]!!),
-                        stringMap[parts[7]]!!,
-                    ),
-                    moduleDependencies = if (parts[15].isEmpty()) emptyList() else parts[15].split(":").map { moduleDependency ->
-                        ModuleDependency(
-                            moduleName = stringMap[moduleDependency]!!
-                        )
-                    },
-                    libraryDependencies = if (parts[16].isEmpty()) emptyList() else parts[16].split(":").let { stringList ->
-                        val result = mutableListOf<LibraryDependency>()
-                        stringList.indices.step(4).forEach { index ->
-                            val dependency = LibraryDependency(
-                                name = stringMap[stringList[index]]!!,
-                                file = File(stringMap[stringList[index + 1]]!!),
-                                lastModifiedTime = stringMap[stringList[index + 2]]!!.cacheToLong(),
-                                crc32 = stringMap[stringList[index + 3]]!!.cacheToLong(),
-                            )
-                            result.add(dependency)
-                        }
-                        return@let result
-                    },
-                    kotlinFreeCompilerArgs = if (parts[17].isEmpty()) emptyList() else parts[17].split(":").map { arg ->
-                        stringMap[arg]!!
-                    },
-                    minSdkVersion = stringMap[parts[18]]!!.nullIfNull(),
-                )
-                moduleInfo.name to moduleInfo
-            }
-            return JuggProjectInfo(modules)
-        }
-
-        private fun String.nullIfNull(): String? = if (this == "null") null else this
-    }
-}
-
-private typealias StringIndex = Int
-
-private class ModuleInfoSerialize(
-    val name: StringIndex,
-    val projectRootDir: StringIndex,
-    val rootDir: StringIndex,
-    val sourceDirs: List<StringIndex>,
-    val resourceDirs: List<StringIndex>,
-    val assetsDirs: List<StringIndex>,
-    val manifestFile: StringIndex,
-    val buildVariant: StringIndex,
-    val compileVersion: StringIndex,
-    val buildToolsVersion: StringIndex,
-    val kotlinJvmTarget: StringIndex,
-    val javaSourceCompatibility: StringIndex,
-    val javaTargetCompatibility: StringIndex,
-    val buildPathInfo: Pair<StringIndex, StringIndex>,
-    val moduleDependencies: List<StringIndex>,
-    val libraryDependencies: List<StringIndex>,
-    val kotlinFreeCompilerArgs: List<StringIndex>,
-    val minSdkVersion: StringIndex,
-) {
-
-    fun fill(stringBuilder: StringBuilder) {
-        stringBuilder.append(name).append("\r")
-        stringBuilder.append(projectRootDir).append("\r")
-        stringBuilder.append(rootDir).append("\r")
-        stringBuilder.append(sourceDirs.joinToString(":")).append("\r")
-        stringBuilder.append(resourceDirs.joinToString(":")).append("\r")
-        stringBuilder.append(assetsDirs.joinToString(":")).append("\r")
-        stringBuilder.append(manifestFile).append("\r")
-        stringBuilder.append(buildVariant).append("\r")
-        stringBuilder.append(compileVersion).append("\r")
-        stringBuilder.append(buildToolsVersion).append("\r")
-        stringBuilder.append(kotlinJvmTarget).append("\r")
-        stringBuilder.append(javaSourceCompatibility).append("\r")
-        stringBuilder.append(javaTargetCompatibility).append("\r")
-        stringBuilder.append(buildPathInfo.first).append("\r")
-        stringBuilder.append(buildPathInfo.second).append("\r")
-        stringBuilder.append(moduleDependencies.joinToString(":")).append("\r")
-        stringBuilder.append(libraryDependencies.joinToString(":")).append("\r")
-        stringBuilder.append(kotlinFreeCompilerArgs.joinToString(":")).append("\r")
-        stringBuilder.append(minSdkVersion)
     }
 }

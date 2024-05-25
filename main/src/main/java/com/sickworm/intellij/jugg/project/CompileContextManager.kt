@@ -42,7 +42,7 @@ class CompileContextManager(
 ) {
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
-    private val projectInfoJsonFile = File(pathManager.projectInfosDir, "project_infos.dat")
+    private val projectInfoJsonFile = File(pathManager.projectInfosDir, "project_infos.json")
     private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger::debug)
 
     /** Init after [initCompileContext] */
