@@ -20,14 +20,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     val changeStatus: ChangeStatus
 
-    val isNeedCompilation: Boolean get() {
-        if (changeStatus == ChangeStatus.INCREMENTAL_COMPILE) {
-            if (getNewLibraryFiles().isEmpty() && getRemovedLibraryFiles().isEmpty()) {
-                return true
-            }
-        }
-        return false
-    }
+    val isNeedCompilation: Boolean
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
@@ -70,6 +63,18 @@ fun IDependencyChangeManager.Companion.create(logger: Logger): IDependencyChange
 private class DependencyChangeManager(private val logger: Logger): IDependencyChangeManager {
 
     override val changeStatus get() = compareInfo.changeStatus
+
+    override val isNeedCompilation: Boolean get() {
+        if (changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
+            if (isAlreadyBuildAfterConfirm) {
+                return false
+            }
+            if (getNewLibraryFiles().isNotEmpty() || getRemovedLibraryFiles().isNotEmpty()) {
+                return true
+            }
+        }
+        return false
+    }
 
     private var hasInit: Boolean = false
 
@@ -144,6 +149,9 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
     private val isBuilding get() = nextStartBuildingTime != 0L
     private val isSyncing get() = nextStartSyncingTime != 0L
+
+    /** use to detect no file changes */
+    private var isAlreadyBuildAfterConfirm = false
 
     @Synchronized
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
@@ -567,6 +575,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     override fun onEndBuilding(isSuccess: Boolean) {
         if (!hasInit) return
         logger.debug("on end building, isSuccess: $isSuccess")
+        isAlreadyBuildAfterConfirm = true
         if (!isSuccess) {
             nextStartBuildingTime = 0L
             return
@@ -591,6 +600,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (!hasInit) return
         if (isConfirmed) {
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+            isAlreadyBuildAfterConfirm = false
         } else {
             compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.REBUILD
         }
