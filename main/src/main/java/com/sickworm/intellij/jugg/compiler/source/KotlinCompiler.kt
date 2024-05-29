@@ -64,13 +64,15 @@ class KotlinCompiler(
 
         val kotlinClassPath = module.buildPathInfo.kotlinClassPath.absoluteFile
 
-        var flavor = "main"
-        val splits = module.name.split(".")
-        if (splits.size >= 2) {
-            flavor = splits.last()
-        } else {
-            logger.warn("module name \"${module.name}\" is not valid, use default flavor name: $flavor")
-        }
+        val flavor = "main"
+        // I'm not sure whether flavor should read in "MyApplication.app.main"
+        // and module.name don't end with ".main" now, so just leave it default "main"
+//        val splits = module.name.split(".")
+//        if (splits.size >= 2) {
+//            flavor = splits.last()
+//        } else {
+//            logger.warn("module name \"${module.name}\" is not valid, use default flavor name: $flavor")
+//        }
 
         val resourcePaths: List<String> = task.files.flatMap {
             it.module.resourceDirs.map { file ->
