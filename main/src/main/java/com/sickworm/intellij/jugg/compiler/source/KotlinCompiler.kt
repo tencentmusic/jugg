@@ -100,7 +100,7 @@ class KotlinCompiler(
             "-nowarn",
             "-no-stdlib",
             "-no-reflect",
-            "-module-name", "${module.simpleName}_${module.buildVariant}",
+            "-module-name", "${module.name}_${module.buildVariant}",
             "-Xfriend-paths=${kotlinClassPath.absolutePath}",
             "-Xallow-no-source-files",
             "-Xreport-output-files",

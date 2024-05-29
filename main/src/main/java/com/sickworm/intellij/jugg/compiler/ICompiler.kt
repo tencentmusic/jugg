@@ -114,7 +114,7 @@ data class CompileFile(
 
 fun List<CompileFile>.desc(): String {
     val compileFilesMap = this.groupBy {
-        it.module.simpleName
+        it.module.name
     }
     return compileFilesMap.entries.joinToString("\n") { entry ->
         val value = entry.value

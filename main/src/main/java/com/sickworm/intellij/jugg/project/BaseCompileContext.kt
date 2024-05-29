@@ -95,7 +95,7 @@ class BaseCompileContext(
         }
 
         logger.debug("available signingConfigList: ${signingConfigList.map { "${it.moduleName}(${it.variantName})"}}")
-        val applicationModuleName = applicationModule.simpleName
+        val applicationModuleName = applicationModule.name
         val findConfigLog = "${applicationModuleName}(${applicationModule.buildVariant})"
         logger.debug("trying to find config $findConfigLog")
 

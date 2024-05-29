@@ -339,7 +339,7 @@ class CompileContextManager(
             moduleRootManager.orderEntries.forEach {
                 when (it) {
                     is ModuleOrderEntry -> {
-                        moduleDependencies.add(ModuleDependency(it.moduleName))
+                        moduleDependencies.add(ModuleDependency(it.moduleName.moduleSimpleName))
                     }
                     is LibraryOrderEntry -> {
                         it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
@@ -383,7 +383,7 @@ class CompileContextManager(
             }
 
             val moduleInfo = ModuleInfo(
-                module.name, baseDir, pathManager.projectDir,
+                module.name.moduleSimpleName, baseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
                 manifestFile,
                 buildVariant, compileVersion, minSdkVersion, buildToolsVersion,
@@ -394,7 +394,7 @@ class CompileContextManager(
                 libraryDependencies,
             )
 
-            modules[module.name] = moduleInfo
+            modules[moduleInfo.name] = moduleInfo
             addedModules.add("add $moduleInfo")
 
         }
@@ -435,6 +435,7 @@ class CompileContextManager(
                 it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
             }
             logger.debug("All available jdks: $allJdkString")
+            @Suppress("RedundantIf")
             val androidJdks = allJdks.filter { sdk ->
                 val homeDirectory = sdk.homeDirectory ?: return@filter false
                 if (!homeDirectory.exists()) return@filter false
@@ -448,6 +449,20 @@ class CompileContextManager(
             logger.debug("All available android jdks: $androidJdks")
 
             return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
+        }
+
+        // e.g. name = example.lib_common.main
+        // simpleName = lib_common
+        // e.g. name = example.lib_common.lib2.main
+        // simpleName = lib_common.lib2
+        private val String.moduleSimpleName: String get() {
+            val name = this
+            val splits = name.split('.')
+            return when (splits.size) {
+                0 -> name
+                1 -> name
+                else -> splits.subList(1, splits.size - 1).joinToString(".")
+            }
         }
     }
 }

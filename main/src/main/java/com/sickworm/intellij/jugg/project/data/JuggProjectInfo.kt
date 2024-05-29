@@ -28,15 +28,11 @@ data class ModuleInfo(
     val libraryDependencies: List<LibraryDependency>,
 ) {
 
-    // e.g. name = example.lib_common.main
-    // simpleName = lib_common
-    val simpleName: String get() {
-        val splits = name.split('.')
-        return when (splits.size) {
-            0 -> name
-            1 -> name
-            else -> splits[splits.size - 2]
-        }
+    enum class Type {
+        Application,
+        Library,
+        JavaLibrary,
+        Unknown,
     }
 
     companion object {
