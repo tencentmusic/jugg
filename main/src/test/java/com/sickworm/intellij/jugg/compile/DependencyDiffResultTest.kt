@@ -82,8 +82,8 @@ class DependencyDiffResultTest {
         assertEquals(0, diffResult.removedLibraries.size)
         assertEquals(1, diffResult.updatedLibraries.size)
 
-        assertEquals(updateLibrary.nameWithoutPrefix, diffResult.updatedLibraries.first().dependency!!.declaration)
-        assertEquals(originLibrary.nameWithoutPrefix, diffResult.updatedLibraries.first().oldDependency!!.declaration)
+        assertEquals(updateLibrary.name, diffResult.updatedLibraries.first().dependency!!.declaration)
+        assertEquals(originLibrary.name, diffResult.updatedLibraries.first().oldDependency!!.declaration)
     }
 
     @Test
@@ -99,10 +99,10 @@ class DependencyDiffResultTest {
         assertEquals(0, diffResult.removedLibraries.size)
         assertEquals(2, diffResult.updatedLibraries.size)
 
-        assertEquals(updateLibrary.nameWithoutPrefix, diffResult.updatedLibraries.first().dependency!!.declaration)
-        assertEquals(originLibrary.nameWithoutPrefix, diffResult.updatedLibraries.first().oldDependency!!.declaration)
-        assertEquals(updateLibrary2.nameWithoutPrefix, diffResult.updatedLibraries.last().dependency!!.declaration)
-        assertEquals(originLibrary2.nameWithoutPrefix, diffResult.updatedLibraries.last().oldDependency!!.declaration)
+        assertEquals(updateLibrary.name, diffResult.updatedLibraries.first().dependency!!.declaration)
+        assertEquals(originLibrary.name, diffResult.updatedLibraries.first().oldDependency!!.declaration)
+        assertEquals(updateLibrary2.name, diffResult.updatedLibraries.last().dependency!!.declaration)
+        assertEquals(originLibrary2.name, diffResult.updatedLibraries.last().oldDependency!!.declaration)
     }
 
     @Test

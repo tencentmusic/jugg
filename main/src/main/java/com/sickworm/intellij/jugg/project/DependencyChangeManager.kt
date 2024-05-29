@@ -304,7 +304,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     file = it.file,
                     baseDir = it.file,
                     module = tempModule,
-                ).withDependencyName(it.nameWithoutPrefix)
+                ).withDependencyName(it.name)
                     .withOldManifest(relativeOldManifest[it.file.absolutePath])
             } else if (it.isRes) {
                 return@mapNotNull ChangedFile(
@@ -312,7 +312,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     file = it.file,
                     baseDir = it.file,
                     module = tempModule,
-                ).withDependencyName(it.nameWithoutPrefix)
+                ).withDependencyName(it.name)
                     .withOldRes(relativeOldRes[it.file.absolutePath])
             } else if (it.isJar) {
                 val isRevertLibrary = revertLibraries.any { revert -> revert.file.absolutePath == it.file.absolutePath }
@@ -325,7 +325,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     file = it.file,
                     baseDir = it.file.parentFile!!,
                     module = tempModule,
-                ).withDependencyName(it.nameWithoutPrefix)
+                ).withDependencyName(it.name)
                     .withOldJar(relativeOldJar[it.file.absolutePath])
             }
 
@@ -371,7 +371,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 file = it.file,
                 baseDir = it.file.parentFile!!,
                 module = tempModule,
-            ).withDependencyName(it.nameWithoutPrefix)
+            ).withDependencyName(it.name)
             removedLibraryFiles.add(changedFile)
         }
 
@@ -385,7 +385,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     private fun getRevertLibraries(): List<ChangedFile> {
         val revertLibraries = mutableListOf<ChangedFile>()
         diffResult.newLibraryDependencies.forEach { newDependency ->
-            val fullDiff = diffResultWithFull.newLibraryDependencies.find { newDependency.nameWithoutPrefix == it.nameWithoutPrefix }
+            val fullDiff = diffResultWithFull.newLibraryDependencies.find { newDependency.name == it.name }
             if (fullDiff == null) {
                 // not exists in diffResultWithFull, which means it is a reverted library
                 val changedFile = ChangedFile(
@@ -393,7 +393,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     file = newDependency.file,
                     baseDir = newDependency.file.parentFile!!,
                     module = tempModule,
-                ).withDependencyName(newDependency.nameWithoutPrefix)
+                ).withDependencyName(newDependency.name)
                 revertLibraries.add(changedFile)
             }
         }

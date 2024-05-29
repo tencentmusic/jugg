@@ -347,7 +347,13 @@ class CompileContextManager(
                             val key = "${ioFile.absolutePath}:${ioFile.lastModified()}"
                             var libraryDependency = dependencyCacheMap[key]
                             if (libraryDependency == null) {
-                                val name = it.libraryName ?: "NoName: ${ioFile.absolutePath}"
+                                var name = (it.libraryName ?: ioFile.name)
+                                if (name.startsWith("Gradle: ")) {
+                                    name = name.substring("Gradle: ".length)
+                                }
+                                if (name.endsWith("@aar")) {
+                                    name = name.substring(0, name.length - "@aar".length)
+                                }
                                 libraryDependency = LibraryDependency(name, ioFile)
                                 dependencyCacheMap[key] = libraryDependency
                             } else {

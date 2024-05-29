@@ -74,13 +74,13 @@ data class DependencyDiffResult(
             val lastBuildDependenciesSet: Map<String, LibraryDependencySet> = lastBuildDependencies.modules
                 .flatMap { it.value.libraryDependencies }
                 .distinctBy { it.file.absolutePath }
-                .groupBy { it.nameWithoutPrefix }
+                .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }
 
             val currentBuildDependenciesSet: Map<String, LibraryDependencySet> = currentBuildDependencies.modules
                 .flatMap { it.value.libraryDependencies }
                 .distinctBy { it.file.absolutePath }
-                .groupBy { it.nameWithoutPrefix }
+                .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }
 
             // find out the libraries that have been added
