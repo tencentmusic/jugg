@@ -8,13 +8,21 @@ data class JuggProjectInfo(
 )
 
 data class ModuleInfo(
+    /**
+     * module name, e.g. app, feature.video
+     */
     val name: String,
+    /**
+     * for now, it's updated by gradle project's info, and it's ok to be Unknown, because it won't affect core logic
+     */
+    val moduleType: Type,
     val moduleRootDir: File,
     val projectRootDir: File,
     val sourceDirs: List<File>,
     val resourceDirs: List<File>,
     val assetsDirs: List<File>,
     val manifestFile: File?,
+    val manifestPlaceHolders: Map<String, String>?,
     val buildVariant: String,
     val compileVersion: String?,
     val minSdkVersion: String?,
@@ -42,12 +50,14 @@ data class ModuleInfo(
         // virtual module that not physical exists
         val virtualModule = ModuleInfo(
             name = "virtual_module",
+            moduleType = Type.Library,
             moduleRootDir = File(""),
             projectRootDir = File(""),
             sourceDirs = emptyList(),
             resourceDirs = emptyList(),
             assetsDirs = emptyList(),
             manifestFile = null,
+            manifestPlaceHolders = null,
             buildVariant = DEFAULT_BUILD_VARIANT,
             compileVersion = null,
             minSdkVersion = null,
@@ -135,10 +145,6 @@ data class ModuleBuildPathInfo(
             ?: this.listFilesRecursively().find { it.name == "AndroidManifest.xml" }
     }
 
-    private val String.camel: String get() {
-        return this.replaceFirstChar { it.uppercaseChar() }
-    }
-
     companion object {
         private fun File.listFilesRecursively(): List<File> {
             if (!exists()) {
@@ -152,6 +158,29 @@ data class ModuleBuildPathInfo(
             return listFiles()?.flatMap {
                 it.listFilesRecursively()
             }?: emptyList()
+        }
+
+        private fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
+            for (element in this) {
+                val result = transform(element)
+                if (result != null) {
+                    return result
+                }
+            }
+            return null
+        }
+
+        private val String.camel: String get() {
+            return this.replaceFirstChar { it.uppercaseChar() }
+        }
+
+        private fun String.replaceFirstChar(transform: (Char) -> Char): String {
+            return if (isNotEmpty()) transform(this[0]) + substring(1) else this
+        }
+
+        private fun Char.uppercaseChar(): Char {
+            @Suppress("DEPRECATION") // uppercaseChar not works in build.gradle.kts
+            return if (isLowerCase()) toUpperCase() else this
         }
     }
 }

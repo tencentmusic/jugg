@@ -40,7 +40,7 @@ object JuggInitializer {
             return
         }
 
-        val pathManager = JuggPathManager(project, File(projectDir))
+        val pathManager = JuggPathManager(File(projectDir))
         JuggLogger.register(project, pathManager.logDir)
         tryGetProjectLogger(project)?.info("Start Init Jugg on ${project.basePath}")
 

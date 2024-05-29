@@ -33,7 +33,7 @@ class LocalGradleCompileClientTest {
             Mockito.doReturn(arrayOf<Module>()).`when`(moduleManager).modules
             project.registerService(ModuleManager::class.java, moduleManager)
 
-            val pathManager = JuggPathManager(project, projectInfo.projectRoot)
+            val pathManager = JuggPathManager(projectInfo.projectRoot)
             JuggLogger.register(project, pathManager.logDir)
 
 
@@ -42,7 +42,7 @@ class LocalGradleCompileClientTest {
                 it.outputApkName = "app-debug.apk"
                 it.isRemoteCompile = false
             }
-            juggGradleCompileOptions = JuggGradleCompileOptions.fromOptions(project.name, pathManager.localClasspathStoragePathManager, options)
+            juggGradleCompileOptions = JuggGradleCompileOptions.fromOptions(pathManager, options)
         }
     }
 

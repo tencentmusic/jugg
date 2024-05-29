@@ -99,12 +99,14 @@ private val appModuleDir = File(projectInfo.projectRoot, "app")
 
 val mockModule get() = ModuleInfo(
     name = "mock_module",
+    moduleType = ModuleInfo.Type.Unknown,
     moduleRootDir = appModuleDir,
     projectRootDir = projectInfo.projectRoot,
     sourceDirs = listOf(File(appModuleDir, "src/main/java")),
     resourceDirs = listOf(File(appModuleDir, "src/main/res")),
     assetsDirs = listOf(File(appModuleDir, "src/main/assets")),
     manifestFile = File(appModuleDir, "src/main/AndroidManifest.xml"),
+    manifestPlaceHolders = null,
     buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
     compileVersion = null,
     buildToolsVersion = null,

@@ -42,8 +42,7 @@ class CompileContextManager(
 ) {
 
     val stagingDir = File(pathManager.compileRootDir, "staging")
-    private val projectInfoJsonFile = File(pathManager.projectInfosDir, "project_infos.json")
-    private val projectInfoSerializer = ProjectInfoSerializer(projectInfoJsonFile, logger::debug)
+    private val projectInfoSerializer = ProjectInfoSerializer(pathManager.projectInfoJsonFile, logger::debug)
 
     /** Init after [initCompileContext] */
     val compileContext: ICompileContext
@@ -235,6 +234,12 @@ class CompileContextManager(
                 return@forEach
             }
 
+            val isBuildSrc = baseDir.name.moduleSimpleName == "buildSrc"
+                    && baseDir.relativeTo(pathManager.projectDir).path.startsWith("buildSrc")
+            if (isBuildSrc) {
+                return@forEach
+            }
+
             // 2. read attributes
             val buildModel = projectBuildModel.getModuleBuildModel(module)
             if (buildModel == null) {
@@ -383,9 +388,9 @@ class CompileContextManager(
             }
 
             val moduleInfo = ModuleInfo(
-                module.name.moduleSimpleName, baseDir, pathManager.projectDir,
+                module.name.moduleSimpleName, ModuleInfo.Type.Unknown, baseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
-                manifestFile,
+                manifestFile, null,
                 buildVariant, compileVersion, minSdkVersion, buildToolsVersion,
                 kotlinJvmTarget, kotlinFreeCompilerArgs,
                 javaSourceCompatibility, javaTargetCompatibility,

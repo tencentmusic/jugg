@@ -1,15 +1,12 @@
 package com.sickworm.intellij.jugg.project
 
-import com.intellij.openapi.project.Project
 import java.io.File
 
 /**
  * Declaration of path usage for Jugg.
  */
-class JuggPathManager(
-    val project: Project,
-    val projectDir: File,
-) {
+class JuggPathManager(val projectDir: File) {
+
     val juggRootDir = File("$projectDir/build/jugg")
 
     val compileRootDir = File(juggRootDir, "build")
@@ -19,11 +16,13 @@ class JuggPathManager(
     val configDir = File(juggRootDir, "config")
 
     val projectInfosDir = File(databaseDir, "project_infos.db")
+    val projectInfoJsonFile = File(projectInfosDir, "project_infos.json")
 
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
 
     private val gradleDir = File(juggRootDir, "gradle")
-    val initGradleFilePath = File(gradleDir, "readProjectInfo.gradle")
+    val gradleProjectInfoFile = File(gradleDir, "gradle_project_infos.json")
+    val initGradleFilePath = File(gradleDir, "readProjectInfo.gradle.kts")
     val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
     companion object {
