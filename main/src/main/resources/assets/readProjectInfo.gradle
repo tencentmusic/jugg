@@ -1,2 +1,0 @@
-// use to read variables in gradle environment
-// usage: ./gradlew :app:assembleDebug -I readProjectInfo.gradle

@@ -122,6 +122,9 @@ val mockModule get() = ModuleInfo(
     moduleDependencies = emptyList(),
     libraryDependencies = emptyList(),
     minSdkVersion = "21",
+    runtimeLibraryDependencies = emptyList(),
+    annotationProcessorDependencies = emptyList(),
+    kaptDependencies = emptyList(),
 )
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>

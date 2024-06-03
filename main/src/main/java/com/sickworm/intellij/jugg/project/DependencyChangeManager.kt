@@ -6,7 +6,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.project.data.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import java.io.File

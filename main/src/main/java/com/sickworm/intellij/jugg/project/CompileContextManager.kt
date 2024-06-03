@@ -397,6 +397,7 @@ class CompileContextManager(
                 moduleBuildPathInfo,
                 moduleDependencies,
                 libraryDependencies,
+                emptyList(), emptyList(), emptyList(), // read it in gradle
             )
 
             modules[moduleInfo.name] = moduleInfo

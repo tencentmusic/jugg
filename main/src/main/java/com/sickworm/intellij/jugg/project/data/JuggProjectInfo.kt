@@ -8,13 +8,7 @@ data class JuggProjectInfo(
 )
 
 data class ModuleInfo(
-    /**
-     * module name, e.g. app, feature.video
-     */
     val name: String,
-    /**
-     * for now, it's updated by gradle project's info, and it's ok to be Unknown, because it won't affect core logic
-     */
     val moduleType: Type,
     val moduleRootDir: File,
     val projectRootDir: File,
@@ -34,6 +28,9 @@ data class ModuleInfo(
     val buildPathInfo: ModuleBuildPathInfo,
     val moduleDependencies: List<ModuleDependency>,
     val libraryDependencies: List<LibraryDependency>,
+    val runtimeLibraryDependencies: List<LibraryDependency>,
+    val annotationProcessorDependencies: List<LibraryDependency>,
+    val kaptDependencies: List<LibraryDependency>,
 ) {
 
     enum class Type {
@@ -41,6 +38,9 @@ data class ModuleInfo(
         Library,
         JavaLibrary,
         Unknown,
+        ;
+
+        val isAndroidModule get() = this == Application || this == Library
     }
 
     companion object {
@@ -69,6 +69,9 @@ data class ModuleInfo(
             moduleDependencies = emptyList(),
             libraryDependencies = emptyList(),
             kotlinFreeCompilerArgs = emptyList(),
+            runtimeLibraryDependencies = emptyList(),
+            annotationProcessorDependencies = emptyList(),
+            kaptDependencies = emptyList(),
         )
     }
 }
@@ -179,7 +182,7 @@ data class ModuleBuildPathInfo(
         }
 
         private fun Char.uppercaseChar(): Char {
-            @Suppress("DEPRECATION") // uppercaseChar not works in build.gradle.kts
+            @Suppress("DEPRECATION") // build.gradle.kts need this
             return if (isLowerCase()) toUpperCase() else this
         }
     }
@@ -189,8 +192,8 @@ data class LibraryDependency(
     val name: String,
     val file: File,
     val lastModifiedTime: Long = file.lastModified(),
-    val crc32: Long = file.crc32
-) {
+    val crc32: Long = file.toCrc32
+) : Dependency {
 
     val isValid get() = file.exists()
 
@@ -204,7 +207,8 @@ data class LibraryDependency(
 
         private val crc32Digest = CRC32()
 
-        private val File.crc32: Long get() {
+        @Suppress("Since15", "RedundantSuppression") // required by build.gradle.kts
+        private val File.toCrc32: Long get() {
             if (!exists()) {
                 return -1L
             }
@@ -222,4 +226,6 @@ data class LibraryDependency(
 
 data class ModuleDependency(
     val moduleName: String,
-)
+) : Dependency
+
+interface Dependency

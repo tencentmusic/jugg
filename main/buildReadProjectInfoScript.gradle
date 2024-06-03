@@ -1,0 +1,60 @@
+
+File readProjectInfoKtsFile = new File(projectDir, "src/main/resources/gradle/readProjectInfo.gradle.kts")
+readProjectInfoKtsFile.delete()
+readProjectInfoKtsFile.parentFile.mkdirs()
+
+List<File> willCollectFiles = new ArrayList<File>()
+File scriptDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script")
+for (final def file in scriptDirectory.listFiles()) {
+    willCollectFiles.add(file)
+}
+File dataDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/data")
+for (final def file in dataDirectory.listFiles()) {
+    willCollectFiles.add(file)
+}
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt"))
+
+List<String> classContents = new ArrayList()
+Set<String> imports = new ArrayList()
+willCollectFiles.forEach {
+    List<String> lines = it.readLines()
+    lines.forEach { String line ->
+        if (line.startsWith("import")) {
+            String importClass = line.substring("import".length()).trim()
+            if (!importClass.startsWith("com.sickworm.intellij.jugg") && !importClass.startsWith("org.gradle.api")) {
+                imports.add(importClass)
+            }
+        } else if (line.startsWith("package")) {
+            return
+        } else {
+            classContents.add(line)
+        }
+    }
+    classContents.add("\n")
+}
+
+StringBuilder finalContent = new StringBuilder()
+finalContent.append("""// use to read variables in gradle environment
+// usage: ./gradlew :app:assembleDebug -I readProjectInfo.gradle
+""")
+imports.forEach {
+    finalContent.append("import ")
+    finalContent.append(it)
+    finalContent.append("\n")
+}
+finalContent.append("\n")
+
+classContents.forEach {
+    finalContent.append(it)
+    finalContent.append("\n")
+}
+finalContent.append("\n")
+
+finalContent.append("""
+gradle.buildFinished {
+    GradleProjectInfoReaderManager(rootProject).readAndSave()
+}
+""")
+finalContent.append("\n")
+
+readProjectInfoKtsFile.write(finalContent.toString())

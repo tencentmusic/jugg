@@ -15,17 +15,27 @@ class JuggProjectInfoSerialize(
         fun serialize(juggProjectInfo: JuggProjectInfo): JuggProjectInfoSerialize {
             val dependencyList = mutableListOf<LibraryDependency>()
             val dependencyIndexMap = mutableMapOf<String, Int>()
-            val juggProjectInfoExceptModules = juggProjectInfo.copy(modules = emptyMap())
-            val modules: List<ModuleInfoSerialize> = juggProjectInfo.modules.map {
-                val libraryDependencies: List<Int> = it.value.libraryDependencies.map innerMap@{ dependency ->
+
+            fun convertLibraryToIndexList(libraryDependencies: List<LibraryDependency>): List<Int>? {
+                if (libraryDependencies.isEmpty()) return null
+                return libraryDependencies.map { dependency ->
                     val oldIndex = dependencyIndexMap[dependency.file.absolutePath]
-                    if (oldIndex != null) return@innerMap oldIndex
+                    if (oldIndex != null) return@map oldIndex
                     val newIndex = dependencyList.size
                     dependencyIndexMap[dependency.file.absolutePath] = newIndex
                     dependencyList.add(dependency)
-                    return@innerMap newIndex
+                    return@map newIndex
                 }
-                return@map ModuleInfoSerialize(it.value.copy(libraryDependencies = emptyList()), libraryDependencies)
+            }
+
+            val juggProjectInfoExceptModules = juggProjectInfo.copy(modules = emptyMap())
+            val modules: List<ModuleInfoSerialize> = juggProjectInfo.modules.map {
+                return@map ModuleInfoSerialize(it.value.copy(libraryDependencies = emptyList()),
+                    libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
+                    runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
+                    annotationProcessorDependencies = convertLibraryToIndexList(it.value.annotationProcessorDependencies),
+                    kaptDependencies = convertLibraryToIndexList(it.value.kaptDependencies),
+                )
             }
             return JuggProjectInfoSerialize(juggProjectInfoExceptModules, dependencyList, modules)
         }
@@ -36,19 +46,25 @@ class JuggProjectInfoSerialize(
                 dependencyMap[index] = libraryDependency
             }
             val modules: Map<String, ModuleInfo> = projectInfoSerialize.modules.associate { serialize ->
-                val libraryDependencies = serialize.libraryDependencies.map { dependencyMap[it]!! }
-                val moduleInfo = serialize.moduleInfoExceptLibraries.copy(libraryDependencies = libraryDependencies)
+                val moduleInfo = serialize.moduleInfoExceptLibraries.copy(
+                    libraryDependencies = serialize.libraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                    runtimeLibraryDependencies = serialize.runtimeLibraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                    annotationProcessorDependencies = serialize.annotationProcessorDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                    kaptDependencies = serialize.kaptDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                )
                 return@associate moduleInfo.name to moduleInfo
             }
             val juggProjectInfo = projectInfoSerialize.juggProjectInfoExceptModules.copy(modules = modules)
             return juggProjectInfo
         }
     }
-
 }
 
 
 class ModuleInfoSerialize(
     val moduleInfoExceptLibraries: ModuleInfo,
-    val libraryDependencies: List<Int>,
+    val libraryDependencies: List<Int>?,
+    val runtimeLibraryDependencies: List<Int>?,
+    val annotationProcessorDependencies: List<Int>?,
+    val kaptDependencies: List<Int>?,
 )

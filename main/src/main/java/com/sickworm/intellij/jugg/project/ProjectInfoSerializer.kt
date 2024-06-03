@@ -1,9 +1,11 @@
-package com.sickworm.intellij.jugg.project.data
+package com.sickworm.intellij.jugg.project
 
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonWriter
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfoSerialize
 import java.io.File
 
 

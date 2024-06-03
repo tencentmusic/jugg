@@ -96,6 +96,14 @@ tasks.register('buildPluginIntranet') {
     }
 }
 
+tasks.register('buildReadProjectInfoScript') {
+    doLast {
+        apply from: './buildReadProjectInfoScript.gradle'
+    }
+}
+//noinspection ConfigurationAvoidance
+tasks.findByName("jar").dependsOn("buildReadProjectInfoScript")
+
 if (!file('src/main/config/final/config.properties').exists()) {
     File sourceFile = file("src/main/config/intranet/config.properties")
     File destFile = file("src/main/config/final/config.properties")
