@@ -87,7 +87,7 @@ class CompileProjectCommand(
     private val initGradleFileRelativePath: String,
 ) : BaseSshCommand() {
 
-    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w:]+"""))
+    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w-_ :]+"""))
         private set
 
     override val baseCommand: String = run {
