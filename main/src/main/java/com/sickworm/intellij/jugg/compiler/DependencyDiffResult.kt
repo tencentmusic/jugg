@@ -129,15 +129,22 @@ data class DependencyDiffResult(
                 if (manifestDependency == null) {
                     return@associateBy ""
                 }
-                val packageName = XmlAndroidManifestInfo.parse(manifestDependency.file).packageName
-                return@associateBy packageName
+                if (manifestDependency.file.exists()) {
+                    val packageName = XmlAndroidManifestInfo.parse(manifestDependency.file).packageName
+                    return@associateBy packageName
+                }
+                return@associateBy ""
             }
             addedLibraries.iterator().let { iterator ->
                 while (iterator.hasNext()) {
                     val addedLibrary = iterator.next()
                     val manifestDependency = addedLibrary.dependency!!.libraries.find { it.isAndroidManifest }
                     if (manifestDependency != null) {
-                        val packageName = XmlAndroidManifestInfo.parse(manifestDependency.file).packageName
+                        val packageName = if (manifestDependency.file.exists()) {
+                            XmlAndroidManifestInfo.parse(manifestDependency.file).packageName
+                        } else {
+                            null
+                        }
                         if (packageName != null) {
                             val relativeRemovedDependency = removedLibrariesWithPackageName[packageName]
                             if (relativeRemovedDependency != null) {

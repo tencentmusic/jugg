@@ -35,6 +35,7 @@ class JuggCompilerHelper(
     private val compileContextManager: CompileContextManager,
     private val fileChangesHandler: IFileChangesHandler,
     private val dependencyChangeManager: IDependencyChangeManager,
+    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
 
@@ -144,7 +145,11 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
-        writeInitGradleFile()
+        gradleProjectInfoLocalFetchManager.writeInitGradleFile()
+        if (options.isRemoteCompile) {
+            // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
+            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+        }
 
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
@@ -157,16 +162,13 @@ class JuggCompilerHelper(
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
         }
-        return result
-    }
 
-    private fun writeInitGradleFile() {
-        val initGradleFile = pathManager.initGradleFilePath
-        initGradleFile.parentFile.mkdirs()
-        JuggCompilerHelper::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!.openStream().use { ins ->
-            val text = ins.reader().readText()
-            initGradleFile.writeText(text)
+        if (!options.isRemoteCompile) {
+            // local build will update project info by -I readProjectInfo.gradle.kts
+            gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
         }
+
+        return result
     }
 
     /**
@@ -210,18 +212,20 @@ class JuggCompilerHelper(
         val forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
 
         // we need to double-check because file may roll back to not changed
-        val changedBuildFile = deployFileManager.getUncompiledFiles().find {
+        val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
             it.type == CompileFile.Type.Gradle
         }
-        val isNeedRebuild = changedBuildFile != null
+        val isNeedRebuild = changedBuildFiles.isNotEmpty()
         if (isNeedRebuild && !forceIncrementalCompile) {
             deployStateManager.isBuildFileChanged = true
-            deployStateManager.whatBuildFileChanged = changedBuildFile?.file?.name ?: "null"
+            deployStateManager.whatBuildFileChanged = changedBuildFiles.firstOrNull()?.file?.name ?: "null"
             logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")
         } else {
             deployStateManager.isBuildFileChanged = false
             deployStateManager.whatBuildFileChanged = ""
         }
+        val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
+        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isNeedRebuild, lastBuildModifiedTime)
     }
 
     @TestOnly
@@ -320,7 +324,7 @@ class JuggCompilerHelper(
             val isShouldCancelCallback = {
                 processHandler.isProcessTerminating || processHandler.isProcessTerminated
             }
-            compiler.compile(CompileTask(compileFiles, compileContextManager.stagingDir, isShouldCancelCallback))
+            compiler.compile(CompileTask(compileFiles, pathManager.stagingDir, isShouldCancelCallback))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
             return CompileTaskResult.incrementalFailed(true, "Exception: $e")

@@ -203,6 +203,17 @@ data class LibraryDependency(
 
     val isJar get() = file.extension == "jar"
 
+    val type get() = when {
+        isRes -> "res"
+        isAndroidManifest -> "manifest"
+        isJar -> "jar"
+        else -> "unknown"
+    }
+
+    override fun toString(): String {
+        return "$name/$type"
+    }
+
     companion object {
 
         private val crc32Digest = CRC32()

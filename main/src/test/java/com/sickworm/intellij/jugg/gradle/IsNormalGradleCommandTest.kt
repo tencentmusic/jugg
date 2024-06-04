@@ -14,6 +14,7 @@ class IsNormalGradleCommandTest {
             "gradle :app:assembleDebug" to true,
             "gradlew :app:assembleDebug" to true,
             "gradlew    :app:assembleDebug" to true,
+            "./gradlew --dry-run --no-daemon" to true,
             "./build.sh" to false,
             "init.sh && ./gradlew :app:assembleDebug" to false,
             "./gradlew :app:assembleDebug && echo ok" to false,

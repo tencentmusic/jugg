@@ -39,8 +39,6 @@ class GradleProjectInfoReaderManager(private val rootProject: Project) {
         var lastProjectInfo: File? = null
         if (juggPathManager.projectInfoJsonFile.exists()) {
             lastProjectInfo = juggPathManager.projectInfoJsonFile
-        } else if (juggPathManager.gradleProjectInfoFile.exists()) {
-            lastProjectInfo = juggPathManager.gradleProjectInfoFile
         }
         if (lastProjectInfo == null) {
             println("Jugg: lastProjectInfo not exists")

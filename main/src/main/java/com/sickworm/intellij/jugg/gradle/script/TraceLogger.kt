@@ -12,6 +12,11 @@ object TraceLogger {
 
     private val costTimeMap: MutableMap<String, Long> = mutableMapOf()
 
+    fun clear() {
+        notDumpTagMap.clear()
+        costTimeMap.clear()
+    }
+
     fun start(tag: String) {
         if (!enabled) return
         notDumpTagMap[tag] = System.currentTimeMillis()
@@ -29,6 +34,9 @@ object TraceLogger {
         }
 
         costTimeMap[tag] = (costTimeMap[tag] ?: 0) + costTime
+        if (tag == "getDep") {
+            println("getDep cost time: add ${costTime}ms, total ${costTimeMap[tag]}ms")
+        }
     }
 
     private val indent: String get()  {

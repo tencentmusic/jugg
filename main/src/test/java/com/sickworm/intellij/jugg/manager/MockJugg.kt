@@ -3,21 +3,11 @@ package com.sickworm.intellij.jugg.manager
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
-import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
-import com.android.tools.idea.gradle.dsl.api.android.AndroidModel
-import com.android.tools.idea.gradle.dsl.api.android.CompileOptionsModel
-import com.android.tools.idea.gradle.dsl.api.android.KotlinOptionsModel
-import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
-import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
-import com.intellij.facet.FacetManager
-import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.pom.java.LanguageLevel
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
@@ -55,6 +45,8 @@ class MockJugg {
     lateinit var deployFileManager: DeployFileManager
     lateinit var deployStateManager: DeployStateManager
     lateinit var dependencyChangeManager: IDependencyChangeManager
+    lateinit var taskRunnerManager: TaskRunnerManager
+    lateinit var gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager
     val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     private val adbDeviceHelper = AdbDeviceHelper()
@@ -215,8 +207,6 @@ class MockJugg {
         if (isMockCompileContextManager) {
             compileContextManager = mock(CompileContextManager::class.java)
             doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
-            doReturn(File(pathManager.compileRootDir, "staging")).`when`(compileContextManager).stagingDir
-            doReturn(context.modules).`when`(compileContextManager).getAllModulesByModuleManager(false)
         } else {
             val moduleManager = mock(ModuleManager::class.java)
             val projectBuildModel = mock(ProjectBuildModel::class.java)
@@ -236,6 +226,9 @@ class MockJugg {
             downloader.installerFilePath.absolutePath
         }
 
+        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
+        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, logger)
+
         JuggLogger.listenProjectLog(project, logger)
     }
 
@@ -253,6 +246,8 @@ class MockJugg {
             deployStateManager = deployStateManager,
             deployHistoryManager = deployHistoryManager,
             dependencyChangeManager = dependencyChangeManager,
+            taskRunnerManager = taskRunnerManager,
+            gradleProjectInfoLocalFetchManager = gradleProjectInfoLocalFetchManager,
         )
 
 //        juggManager.init() // init will call initProjectInfo(true) and module cache is overridden by MockJugg

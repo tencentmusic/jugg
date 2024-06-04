@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.util.toIoFile
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -18,10 +17,10 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.*
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData
+import org.jetbrains.annotations.TestOnly
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
-import kotlin.system.measureTimeMillis
 
 /**
  * Manage context for JuggCompiler.
@@ -41,37 +40,81 @@ class CompileContextManager(
     private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
 ) {
 
-    val stagingDir = File(pathManager.compileRootDir, "staging")
-    private val projectInfoSerializer = ProjectInfoSerializer(pathManager.projectInfoJsonFile, logger::debug)
+    private val projectInfoSerializer = ProjectInfoSerializer(pathManager.projectInfoJsonFile, logger)
+    private val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
+    private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
 
-    /** Init after [initCompileContext] */
+    private val compileContextInside: BaseCompileContext by lazy { createCompileContext() }
+
     val compileContext: ICompileContext
-        get() {
-            return compileContextInside?: throw JuggInternalException.compilerContextNotInit()
-        }
-
-    /** Init after [initCompileContext] */
-    private var compileContextInside: BaseCompileContext? = null
+        get() = compileContextInside
 
     private var compileContextInfo: CompileContextInfo? = null
 
-    private var isFirstTimeLoad = true
+    var isIdeSyncing: Boolean = false
 
-    fun refreshCompileContext(): Boolean {
-        val compileContextInfo = compileContextInfo
-        if (compileContextInfo == null) {
-            logger.info("compileContextInfo is null, which means not full build yet. Skip refreshCompileContext")
-            return false
+
+    /**
+     * Invoke after full build. CompileContextInfo will provides class path
+     */
+    fun setCompileContext(compileContextInfo: CompileContextInfo) {
+        logger.info("setCompileContext")
+        ensureInitProjectInfo()
+        this.compileContextInfo = compileContextInfo
+        updateCompileContextByFullBuildInfo(compileContextInfo)
+    }
+
+    /**
+     * Invoke after IDE sync and IDE project info is updated.
+     */
+    fun updateCompileContextAfterSync(): Boolean {
+        logger.info("updateCompileContextAfterSync")
+        ensureInitProjectInfo()
+        updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
+        juggProjectInfoMerger.afterSync(projectInfoSerializer)
+        compileContextInside.update(modules = getProjectInfo().modules)
+        compileContextInfo?.let {
+            updateCompileContextByFullBuildInfo(it)
         }
-        initFullBuildInfo(compileContextInfo, true)
         return true
     }
 
-    fun initFullBuildInfo(compileContextInfo: CompileContextInfo, isNeedReloadProjectInfo: Boolean) {
-        initCompileContext(isNeedReloadProjectInfo)
+    /**
+     * Invoke after Gradle project info is updated.
+     */
+    fun updateCompileContextAfterLocalFetch() {
+        logger.info("updateCompileContextAfterLocalFetch")
+        ensureInitProjectInfo()
+        juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
+        compileContextInside.update(modules = getProjectInfo().modules)
+        compileContextInfo?.let {
+            updateCompileContextByFullBuildInfo(it)
+        }
+    }
 
-        this.compileContextInfo = compileContextInfo
+    @TestOnly
+    fun getProjectInfo(): JuggProjectInfo {
+        juggProjectInfoMerger.juggProjectInfo?.let {
+            return it
+        }
+        return initProjectInfo()
+    }
 
+    private fun ensureInitProjectInfo() {
+        getProjectInfo()
+    }
+
+    private fun initProjectInfo(): JuggProjectInfo {
+        val ideJuggProjectInfo = updateProjectInfoFromIde(isNeedReloadProjectInfo = false)
+        juggProjectInfoMerger.afterSync(projectInfoSerializer)
+        juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
+        return juggProjectInfoMerger.juggProjectInfo ?: run {
+            logger.warn("JuggProjectInfoMerger returns null, which should not happened.")
+            return@run ideJuggProjectInfo
+        }
+    }
+
+    private fun updateCompileContextByFullBuildInfo(compileContextInfo: CompileContextInfo) {
         val guessBuildPathBaseDir: File? = compileContext.modules.firstNotNullOfOrNull { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name] ?: return@firstNotNullOfOrNull null
             val relativePath = module.buildPathInfo.buildDir.relativeTo(module.buildPathInfo.projectRootDir)
@@ -110,23 +153,11 @@ class CompileContextManager(
                 return@map name to module
             }
         }.toMap()
-        compileContextInside?.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
+        compileContextInside.update(apkInfos = compileContextInfo.apkInfos, modules = copyModules)
     }
 
-    private fun initCompileContext(isNeedReloadProjectInfo: Boolean) {
-        logger.debug("initCompileContext start")
-        val costTime = measureTimeMillis {
-            val modules = getAllModulesByModuleManager(isNeedReloadProjectInfo)
-            initCompileContext(modules)
-        }
-        logger.debug("initCompileContext finish, cost ${costTime}ms")
-    }
-
-    private fun initCompileContext(modules: Map<String, ModuleInfo>) {
-        logger.debug("Start initContext")
-
-        // TODO read project settings ( ModuleRootManager.getInstance(module).sdk.rootProvider.getFiles(OrderRootType.CLASSES) )
-        // TODO AndroidSdkEventListener on sdk path changed
+    private fun createCompileContext(): BaseCompileContext {
+        TimeLogger.start("createCompileContext")
         val androidHome = getAndroidSdkRootDir(logger)
         logger.debug("Use android sdk home: $androidHome")
         if (androidHome == null) {
@@ -139,51 +170,33 @@ class CompileContextManager(
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
             tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
-            modules = modules,
+            modules = getProjectInfo().modules,
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
         )
-
-        compileContextInside = context
+        TimeLogger.end("createCompileContext", logger)
+        return context
     }
 
-    fun getAllModulesByModuleManager(isNeedReloadProjectInfo: Boolean): Map<String, ModuleInfo> {
-        logger.debug("getAllModulesByModuleManager isNeedReloadProjectInfo: $isNeedReloadProjectInfo, isFirstTimeLoad: $isFirstTimeLoad")
-        var modules: Map<String, ModuleInfo>? = null
+    private fun updateProjectInfoFromIde(isNeedReloadProjectInfo: Boolean): JuggProjectInfo {
+        logger.debug("getAllModulesByModuleManager isNeedReloadProjectInfo: $isNeedReloadProjectInfo")
         if (!isNeedReloadProjectInfo) {
-            val cacheModules = projectInfoSerializer.load()?.modules
-            logger.debug("Try to load project info from cache, is success: ${cacheModules != null}")
-            if (cacheModules != null) {
-                modules = cacheModules
+            val cache = projectInfoSerializer.load()
+            logger.debug("Try to load project info from cache, is success: ${cache != null}")
+            if (cache != null) {
+                return cache
             }
         }
-        if (modules == null) {
-            val gradleVariableHelper = GradleVariableHelper(logger)
-            gradleVariableHelper.init(project)
-            if (isFirstTimeLoad) {
-                isFirstTimeLoad = false
-            } else {
-                // Reparse gradle. Otherwise GradleBuildModel won't update after sync
-                val costTime = measureTimeMillis {
-                    try {
-                        ApplicationManager.getApplication().runReadAction {
-                            projectBuildModel.reparse()
-                        }
-                    } catch (e: Exception) {
-                        // java.util.ConcurrentModificationException
-                        logger.warn("Reparse gradle failed ${e.message}")
-                    }
-                }
-                logger.debug("Reparse gradle cost ${costTime}ms")
-            }
-            modules = doGetAllModulesByModuleManager(gradleVariableHelper)
-            gradleVariableHelper.release()
-            projectInfoSerializer.save(JuggProjectInfo(modules))
-        }
-        return modules
+
+        val gradleVariableHelper = GradleVariableHelper(logger)
+        gradleVariableHelper.init(project)
+        val juggProjectInfo = doGetAllModulesByModuleManager(gradleVariableHelper)
+        gradleVariableHelper.release()
+        projectInfoSerializer.save(juggProjectInfo)
+        return juggProjectInfo
     }
 
-    private fun doGetAllModulesByModuleManager(gradleVariableHelper: GradleVariableHelper): Map<String, ModuleInfo> {
+    private fun doGetAllModulesByModuleManager(gradleVariableHelper: GradleVariableHelper): JuggProjectInfo {
         TimeLogger.start("initModuleRoots")
         logger.debug("Start init module roots")
 
@@ -425,7 +438,7 @@ class CompileContextManager(
         logger.debug("getLibraryDependencies total $totalCount, hitCacheCount $hitCacheCount, unHitCacheCount ${totalCount - hitCacheCount}")
         logger.debug("total ${modules.size} modules loaded")
         TimeLogger.end("initModuleRoots", logger)
-        return modules
+        return JuggProjectInfo(modules)
     }
 
     private fun File.guessIsResDir(): Boolean {

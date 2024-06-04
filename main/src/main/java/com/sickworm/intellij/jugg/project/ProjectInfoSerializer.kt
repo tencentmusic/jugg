@@ -4,12 +4,13 @@ import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonWriter
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfoSerialize
 import java.io.File
 
 
-class ProjectInfoSerializer(private val dataFile: File, private val logger: (String) -> Unit) {
+class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
 
     private var memoryCache: JuggProjectInfo? = null
 
@@ -42,7 +43,7 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: (Str
         }
 
         val costTime = System.currentTimeMillis() - startTime
-        logger("Save project info to ${dataFile.absolutePath} cost $costTime ms")
+        logger.debug("Save project info to ${dataFile.absolutePath} cost $costTime ms")
     }
 
     @Synchronized
@@ -60,11 +61,11 @@ class ProjectInfoSerializer(private val dataFile: File, private val logger: (Str
             val juggProjectInfoSerialize = gson.fromJson(dataString, JuggProjectInfoSerialize::class.java)
             val juggProjectInfo = JuggProjectInfoSerialize.deserialize(juggProjectInfoSerialize)
             val costTime = System.currentTimeMillis() - startTime
-            logger("Load project info to ${dataFile.absolutePath} cost $costTime ms")
+            logger.debug("Load project info to ${dataFile.absolutePath} cost $costTime ms")
             memoryCache = juggProjectInfo
             return juggProjectInfo
         } catch (e: Exception) {
-            logger("Failed to load project info from ${dataFile.absolutePath}, $e")
+            logger.debug("Failed to load project info from ${dataFile.absolutePath}, $e")
             memoryCache = null
             return null
         }

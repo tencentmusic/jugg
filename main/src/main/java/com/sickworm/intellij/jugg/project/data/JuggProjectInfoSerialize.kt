@@ -30,7 +30,10 @@ class JuggProjectInfoSerialize(
 
             val juggProjectInfoExceptModules = juggProjectInfo.copy(modules = emptyMap())
             val modules: List<ModuleInfoSerialize> = juggProjectInfo.modules.map {
-                return@map ModuleInfoSerialize(it.value.copy(libraryDependencies = emptyList()),
+                return@map ModuleInfoSerialize(
+                    it.value.copy(
+                        libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
+                    ),
                     libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
                     annotationProcessorDependencies = convertLibraryToIndexList(it.value.annotationProcessorDependencies),

@@ -10,6 +10,7 @@ class JuggPathManager(val projectDir: File) {
     val juggRootDir = File("$projectDir/build/jugg")
 
     val compileRootDir = File(juggRootDir, "build")
+    val stagingDir = File(compileRootDir, "staging")
     val databaseDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
     val tmpDir = File(juggRootDir, "tmp")
@@ -17,17 +18,17 @@ class JuggPathManager(val projectDir: File) {
 
     val projectInfosDir = File(databaseDir, "project_infos.db")
     val projectInfoJsonFile = File(projectInfosDir, "project_infos.json")
+    val gradleProjectInfoFile = File(projectInfosDir, "gradle_project_infos.json")
+    val markProjectInfoNeedUpdateFlagFile = File(projectInfosDir, "is_dirty")
 
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
 
-    private val gradleDir = File(juggRootDir, "gradle")
-    val gradleProjectInfoFile = File(gradleDir, "gradle_project_infos.json")
-    val initGradleFilePath = File(gradleDir, "readProjectInfo.gradle.kts")
+    val initGradleFilePath = File(configDir, "readProjectInfo.gradle.kts")
     val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
     companion object {
-        const val RSYNC_PUSH_GRADLE_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' --include='/build/jugg/gradle' --include='/build/jugg/gradle/**' --exclude='/build/**'"
-        const val RSYNC_FETCH_GRADLE_DIR_ARGUMENTS = "--include='build/jugg/gradle/**'"
+        const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' --include='/build/jugg/config' --include='/build/jugg/config/**' --exclude='/build/**'"
+        const val RSYNC_FETCH_CONFIG_DIR_ARGUMENTS = "--include='build/jugg/database/project_infos.db/**'"
     }
 }
 

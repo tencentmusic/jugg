@@ -163,8 +163,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
 
         cacheDirectory.mkdirs()
         currentBuildDependencies = JuggProjectInfo(compileContext.modules)
-        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.json"), logger::debug)
-        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.json"), logger::debug)
+        lastBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "last_build_project_infos.json"), logger)
+        fullBuildProjectInfoSerializer = ProjectInfoSerializer(File(cacheDirectory, "full_build_project_infos.json"), logger)
 
         val compareInfoCacheFile = File(cacheDirectory, "compare_info.json")
         if (compareInfoCacheFile.exists() && lastBuildDependencies != null && fullBuildDependencies != null) {
@@ -460,12 +460,16 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     private fun updateDiffDependency(isOnInit: Boolean = false, isEndSyncing: Boolean = false, isEndBuilding: Boolean = false) {
-        if (isNeedUpdateLastBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
-            compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
-            logger.debug("update full build dependency, changeStatus: $changeStatus")
-            diffDependency()
-        } else if (isOnInit || isEndSyncing) {
-            diffDependency()
+        try {
+            if (isNeedUpdateLastBuildDependency(isOnInit, isEndSyncing, isEndBuilding)) {
+                compareInfo.changeStatus = IDependencyChangeManager.ChangeStatus.NO_CHANGE
+                logger.debug("update full build dependency, changeStatus: $changeStatus")
+                diffDependency()
+            } else if (isOnInit || isEndSyncing) {
+                diffDependency()
+            }
+        } catch (e: Exception) {
+            logger.debug("update diff dependency error: $e", e)
         }
     }
 

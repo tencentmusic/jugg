@@ -9,7 +9,6 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
@@ -26,7 +25,6 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.CheckUpdateHandler
-import com.sickworm.intellij.jugg.server.ReportEventData
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -59,8 +57,10 @@ class JuggManager @TestOnly constructor(
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
+    private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope),
+    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, logger),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
     ): Disposable, CoroutineScope by coroutineScope {
 
@@ -119,7 +119,8 @@ class JuggManager @TestOnly constructor(
         // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
         juggRunningTaskStatusManager.resetHasRun()
 
-        val isSuccess = compileContextManager.refreshCompileContext()
+        val isSuccess = compileContextManager.updateCompileContextAfterSync()
+        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
         if (isSuccess) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
@@ -133,6 +134,7 @@ class JuggManager @TestOnly constructor(
 
     fun onSyncEvent(syncEvent: SyncEvent) {
         logger.debug("onSyncEvent: $syncEvent")
+        compileContextManager.isIdeSyncing = syncEvent == SyncEvent.STARTED
         when (syncEvent) {
             SyncEvent.SUCCEEDED -> {
                 tryCreateRunConfigurations(isSyncFinished = true)
@@ -227,6 +229,10 @@ class JuggManager @TestOnly constructor(
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
         processFileChanged(deployContextRecoverInfo.changedFiles, isFromRecover = true)
+        // step 4: run project info if needed
+        if (!compileContextManager.isIdeSyncing) {
+            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+        }
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
@@ -265,6 +271,7 @@ class JuggManager @TestOnly constructor(
                 .map { it.file }
             dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
         }
+        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isBuildFileChanged)
 
         if (JuggSettings.compileOnSave) {
             runTaskSafe("Compile Changes", ::compileChanges)
@@ -333,11 +340,12 @@ class JuggManager @TestOnly constructor(
 
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
 
-        var allModules = compileContextManager.getAllModulesByModuleManager(isNeedReloadProjectInfo = false)
+        var allModules = compileContextManager.compileContext.modules
         val moduleBuildPathInfos = allModules.map { it.value.buildPathInfo }
 
         logger.info("Fetching classpath...")
         val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
+            val currentIndicator = taskRunnerManager.currentIndicator
             val originText = currentIndicator?.text
             currentIndicator?.text = "Jugg: Fetching classpath..."
             val result = juggCompilerHelper.fetchClasspathResult(isRemoteCompile, moduleBuildPathInfos)
@@ -378,6 +386,10 @@ class JuggManager @TestOnly constructor(
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
+        if (!isRemoteCompile) {
+            compileContextManager.updateCompileContextAfterLocalFetch()
+        }
+
         initCompile(compileContextInfo, emptyList(),
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
@@ -405,7 +417,7 @@ class JuggManager @TestOnly constructor(
             val result = juggCompilerHelper.gradleCompile(
                 compileOptions,
                 SimpleProcessHandler(),
-                currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
                 isOnlyFetchResult = true,
             )
             dependencyChangeManager.onEndBuilding(result.isSuccess)
@@ -440,7 +452,7 @@ class JuggManager @TestOnly constructor(
         deployStateManager.isBuildFileChanged = false
 
         val costTime = measureTimeMillis {
-            compileContextManager.initFullBuildInfo(compileContextInfo, false)
+            compileContextManager.setCompileContext(compileContextInfo)
             deployFileManager.init(compileContextInfo.apkInfos, deployedFiles, startCompileTime)
             dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
             reInitOnCompileContextUpdate()
@@ -489,59 +501,8 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private var currentIndicator: ProgressIndicator? = null
-    private var retryInitDelayMill = 3_000L
-
-    private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
-        object : Task.Backgroundable(project, jobName, false) {
-            override fun run(indicator: ProgressIndicator) {
-                synchronized(this@JuggManager) {
-                    val reportEventData = ReportEventData()
-                    val startTime = System.currentTimeMillis()
-
-                    try {
-                        logger.debug("job <$jobName> start")
-                        deployStateManager.isInitializingIncrementalCompile = true
-                        if (isNeedShowIndicator) {
-                            indicator.text = "Jugg: $jobName..."
-                            indicator.isIndeterminate = true
-                            currentIndicator = indicator
-                        }
-                        action.run()
-                        val costTime = System.currentTimeMillis() - startTime
-                        logger.debug("job <$jobName> finished, cost ${costTime}ms")
-                    } catch (e: Throwable) {
-                        logger.error("job <$jobName> failed", e)
-                        reportEventData.detail = e.message ?: e.cause?.message ?: ""
-                        reportEventData.isSuccess = false
-                    } finally {
-                        deployStateManager.isInitializingIncrementalCompile = false
-                        if (isNeedShowIndicator) {
-                            indicator.stop()
-                            currentIndicator = null
-                        }
-                    }
-
-                    reportEventData.action = jobName
-                    reportEventData.costTime = System.currentTimeMillis() - startTime
-                    juggServer.report(reportEventData)
-
-                    if (jobName == "Init project info") {
-                        if (!reportEventData.isSuccess) {
-                            // compatible with com.intellij.serviceContainer.AlreadyDisposedException: Already disposed: Module: 'xxx' (disposed)
-                            logger.debug("retry $jobName after ${retryInitDelayMill}ms") // maybe
-                            launch {
-                                delay(retryInitDelayMill)
-                                retryInitDelayMill *= 2
-                                runTaskSafe(jobName, action, isNeedShowIndicator)
-                            }
-                        } else {
-                            retryInitDelayMill = 3_000L
-                        }
-                    }
-                }
-            }
-        }.setCancelText("Jugg: Stopping $jobName...").queue()
+    fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
+        taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
     }
 
     override fun dispose() {
