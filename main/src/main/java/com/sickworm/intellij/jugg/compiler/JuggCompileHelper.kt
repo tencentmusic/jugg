@@ -35,7 +35,6 @@ class JuggCompilerHelper(
     private val compileContextManager: CompileContextManager,
     private val fileChangesHandler: IFileChangesHandler,
     private val dependencyChangeManager: IDependencyChangeManager,
-    private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggCompilerHelper"),
 ): Disposable {
 
@@ -46,8 +45,6 @@ class JuggCompilerHelper(
             }
             field = value
         }
-
-    private val deployStateListener get() = deployStateListenerGetter.invoke()
 
     private val gradleCompileClientManager = GradleCompileClientManager(project).also {
         Disposer.register(this, it)
@@ -315,10 +312,6 @@ class JuggCompilerHelper(
             CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
         }
 
-        deployStateListener.onFileStatesUpdate(compileFiles.map {
-            ChangedFileInfo(it.file, ChangedFileInfo.State.COMPILING)
-        })
-
         // do compile
         logger.debug("Compile files: ${compileFiles.map { it.file.absolutePath }}")
         logger.info("Compile files:\n${compileFiles.desc()}")
@@ -339,13 +332,7 @@ class JuggCompilerHelper(
         deployFileManager.updateUncompiledFiles(successFiles, failedFiles)
         deployFileManager.addDeployFiles(compileResult.outputs)
 
-        // notify ui state
-        val successStates = compileResult.successFiles.map {
-            ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILED)
-        }
-        val failedStates = compileResult.failedFiles.map {
-            ChangedFileInfo(it.file.file, ChangedFileInfo.State.COMPILE_FAILED)
-        }
+        val failedStates = compileResult.failedFiles
 
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
@@ -355,7 +342,6 @@ class JuggCompilerHelper(
         logger.info("Compile finished in ${costTime / 1000}s, " +
                 "success: ${compileResult.successFiles.size}, " +
                 "failure: ${compileResult.failedFiles.size}.")
-        deployStateListener.onFileStatesUpdate(successStates + failedStates)
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {

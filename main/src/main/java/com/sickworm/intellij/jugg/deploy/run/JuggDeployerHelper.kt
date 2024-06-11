@@ -14,7 +14,6 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggSettings
-import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -39,14 +38,11 @@ class JuggDeployerHelper(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val compileContextManager: CompileContextManager,
     private val juggServer: JuggServer,
-    private val deployStateListenerGetter: () -> JuggStateListener,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
     },
 ) {
-
-    private val deployStateListener get() = deployStateListenerGetter.invoke()
 
     private var isRunning = false
 
@@ -220,10 +216,6 @@ class JuggDeployerHelper(
                 val finalIsSkipExceptOverlayCheck = isSkipExceptOverlayCheck || isRecoverWithReinstall
                 val launchResult = runTask(device, deployData, finalIsSkipExceptOverlayCheck)
 
-                deployStateListener.onDeployed(
-                    false,
-                    deployFileManager.getCompiledFiles().map { it.file },
-                )
                 if (isLastDevice) {
                     logger.debug("Deploying finished, update info after deploy.")
                     updateInfoAfterIncDeploy(launchResult, deployData)

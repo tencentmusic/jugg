@@ -20,15 +20,13 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.ide.ChangedFileInfo
-import com.sickworm.intellij.jugg.ide.JuggStateListener
-import com.sickworm.intellij.jugg.server.ReportEventData
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.server.CheckUpdateHandler
+import com.sickworm.intellij.jugg.server.ReportEventData
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -58,12 +56,11 @@ class JuggManager @TestOnly constructor(
     ),
     private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
-    var deployStateListener: JuggStateListener = JuggStateListener.emptyImpl,
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
-    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, { deployStateListener }),
-    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, { deployStateListener }),
+    private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer),
+    private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
     ): Disposable, CoroutineScope by coroutineScope {
 
@@ -242,7 +239,6 @@ class JuggManager @TestOnly constructor(
             return deployState
         }
 
-        deployStateListener.onDeployStateUpdate(deployState)
         return deployState
     }
 
@@ -261,9 +257,6 @@ class JuggManager @TestOnly constructor(
         }
 
         deployFileManager.addChangedFile(realChangedFiles)
-        deployStateListener.onFileStatesUpdate(realChangedFiles.map {
-            ChangedFileInfo(it.file, ChangedFileInfo.State.MODIFIED)
-        })
 
         val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.Gradle }
         if (isBuildFileChanged || isFromRecover) {

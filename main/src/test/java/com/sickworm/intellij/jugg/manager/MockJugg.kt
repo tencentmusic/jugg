@@ -24,7 +24,6 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.ide.JuggStateListener
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.*
@@ -49,7 +48,6 @@ class MockJugg {
     lateinit var pathManager: JuggPathManager
     lateinit var fileChangesHandler: FileChangesHandler
     lateinit var fileChangesDetector: MockFileChangesDetector
-    lateinit var juggStateListener: JuggStateListener
     lateinit var deployTargetManager: IDeployTargetManager
     lateinit var compileContextManager: CompileContextManager
     lateinit var juggDeployerHelper: JuggDeployerHelper
@@ -174,8 +172,6 @@ class MockJugg {
         pathManager = JuggPathManager(projectDir)
         JuggLogger.register(project, pathManager.logDir)
 
-        juggStateListener = mock(JuggStateListener::class.java)
-
         deployTargetManager = object: IDeployTargetManager {
 
             override fun setApks(apks: List<ApkInfo>) {
@@ -229,7 +225,7 @@ class MockJugg {
         }
 
         val juggServer = JuggServer(project)
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, { JuggStateListener.emptyImpl }, logger) {
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
                 downloader.makeSureComponentIsInPlace()
@@ -258,7 +254,6 @@ class MockJugg {
             deployHistoryManager = deployHistoryManager,
             dependencyChangeManager = dependencyChangeManager,
         )
-        juggManager.deployStateListener = juggStateListener
 
 //        juggManager.init() // init will call initProjectInfo(true) and module cache is overridden by MockJugg
         AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))

@@ -26,7 +26,6 @@ class TopLevelFlowTest {
         assertEquals(JuggDeployState.State.READY_DEPLOY, jugg.deployStateManager.deployState.state)
         assertEquals(1, jugg.deployTargetManager.getApks().size)
         assertEquals(1, jugg.compileContextManager.compileContext.apkInfos.size)
-        Mockito.verify(jugg.juggStateListener, Mockito.times(1)).onDeployStateUpdate(JuggDeployState.READY)
     }
 
     @Test
