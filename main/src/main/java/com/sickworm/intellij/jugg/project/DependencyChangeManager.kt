@@ -23,7 +23,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
-    fun tryShowChangConfirmDialog()
+    fun tryShowChangeConfirmDialog()
 
     fun getNewLibraryFiles(): List<ChangedFile>
 
@@ -190,7 +190,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun tryShowChangConfirmDialog() {
+    override fun tryShowChangeConfirmDialog() {
         if (!hasInit) return
         logger.debug("try show change confirm dialog")
         if (isBuilding || isSyncing) {
