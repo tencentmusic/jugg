@@ -206,8 +206,6 @@ class GradleProjectInfoReader(
         return fixedModuleNameMap[project.standardModuleName]?.buildVariant
     }
 
-    private var curName = ""
-
     private fun getDependencies(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {
         val result = mutableMapOf<String, Dependency>()
         val allNames = project.configurations.names
@@ -216,7 +214,6 @@ class GradleProjectInfoReader(
         names.forEach nameForEach@{ name ->
             val configuration = project.configurations.findByName(name) ?: return@nameForEach
             if (configuration.isCanBeResolved) {
-                curName = project.name
                 val subResult = getDependencies(configuration, isAndroidDepend)
                 totalReadArtifacts += subResult.size
                 resolveArtifacts += configuration.allDependencies.size

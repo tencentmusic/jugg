@@ -96,7 +96,7 @@ class JuggGradleCompileTask(
 
 }
 
-private class GradleOutputParser(
+class GradleOutputParser(
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     private val processHandler: ProcessHandler,
     private val indicator: ProgressIndicator,

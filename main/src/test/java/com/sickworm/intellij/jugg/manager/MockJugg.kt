@@ -227,7 +227,7 @@ class MockJugg {
         }
 
         taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
-        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, logger)
+        gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, logger)
 
         JuggLogger.listenProjectLog(project, logger)
     }

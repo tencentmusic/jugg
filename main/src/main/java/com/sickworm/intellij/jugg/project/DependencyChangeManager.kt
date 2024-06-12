@@ -23,7 +23,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
-    fun tryShowChangeConfirmDialog()
+    fun tryShowChangeConfirmDialog(isAfterIdeSync: Boolean)
 
     fun getNewLibraryFiles(): List<ChangedFile>
 
@@ -190,71 +190,81 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun tryShowChangeConfirmDialog() {
+    override fun tryShowChangeConfirmDialog(isAfterIdeSync: Boolean) {
         if (!hasInit) return
-        logger.debug("try show change confirm dialog")
-        if (isBuilding || isSyncing) {
-            logger.debug("skip show change confirm dialog, is building or syncing")
-            return
+        logger.debug("try show change confirm dialog, isAfterIdeSync: $isAfterIdeSync")
+
+        val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > 0 &&
+                compareInfo.startBuildingTime > 0 &&
+                compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
+
+        if (isAfterIdeSync) {
+            if (isBuilding || isSyncing) {
+                logger.debug("skip show change confirm dialog, is building or syncing")
+                return
+            }
+            if (!isBuildChangedAfterBuild) {
+                val isNoContentUpdate = !diffResult.updatedLibraries.all { it.isContentUpdate }
+                if (isNoContentUpdate) {
+                    // avoid showing confirm dialog after project opened and synced, and no build file updated
+                    // but if there is any content update libraries, we should still show it, because
+                    // content update could happen without build file changed
+                    logger.debug("skip show change confirm dialog, isBuildChangedAfterBuild=false and isNoContentUpdate=true")
+                    return
+                }
+            }
         }
 
-        ApplicationManager.getApplication().invokeLater {
-            val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > 0 &&
-                    compareInfo.startBuildingTime > 0 &&
-                    compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
-
-            if (diffResult.newLibraryDependencies.isNotEmpty() || diffResult.removedLibraryDependencies.isNotEmpty()) {
-                logger.debug("show change confirm dialog, newLibraries: ${diffResult.newLibraryDependencies}, " +
-                        "removedLibraries: ${diffResult.removedLibraryDependencies}")
-                val isConfirmed = CommonConfirmDialog.showAndGetResult(
-                    title = "Jugg: Hey! Found Some Libraries Changed",
+        if (diffResult.newLibraryDependencies.isNotEmpty() || diffResult.removedLibraryDependencies.isNotEmpty()) {
+            logger.debug("show change confirm dialog, newLibraries: ${diffResult.newLibraryDependencies}, " +
+                    "removedLibraries: ${diffResult.removedLibraryDependencies}")
+            val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                title = "Jugg: Hey! Found Some Libraries Changed",
+                content = """<html>
+                    |<p>Do you want to <b>incremental compile</b> these changed libraries?
+                    |<ul>
+                    |${diffResult.toHtmlChangeList().joinToString("\n") { "<li>${it}</li>" }}
+                    |</ul>
+                    |</p>
+                    |<p><b>Caution: This may cause unexpected build result, Please check changes carefully<br>
+                    |before you make a decision.</b></p>
+                    |</html>
+                    |""".trimMargin(),
+                okButtonText = "Yes, Incremental Compile!",
+                cancelButtonText = "No, Fallback to Gradle${if (isAfterIdeSync) " Later" else ""}",
+            )
+            onConfirmIncrementalCompile(isConfirmed)
+        } else if (isBuildChangedAfterBuild) {
+            if (lastBuildDependencies == null || fullBuildDependencies == null) {
+                logger.debug("show change confirm dialog, lastBuildDependencies or fullBuildDependencies is null")
+                CommonConfirmDialog.showAndGetResult(
+                    title = "Jugg: Dependency Incremental Compile Not Available",
                     content = """<html>
-                        |<p>Do you want to <b>incremental compile</b> these changed libraries?
-                        |<ul>
-                        |${diffResult.toHtmlChangeList().joinToString("\n") { "<li>${it}</li>" }}
-                        |</ul>
-                        |</p>
-                        |<p><b>Caution: This may cause unexpected build result, Please check changes carefully<br>
-                        |before you make a decision.</b></p>
-                        |</html>
-                        |""".trimMargin(),
-                    okButtonText = "Yes, Incremental Compile!",
+                    |<p>Please <b>sync</b> project once to enable dependency incremental compile.<br>
+                    |</p>
+                    |</html>
+                    |""".trimMargin(),
+                    okButtonText = "OK, I got it!",
+                    isShowCancelButton = false,
+                )
+            } else if (compareInfo.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED) {
+                logger.debug("show no change confirm dialog")
+                val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                    title = "Jugg: Oops, No Library Changes Found",
+                    content = """<html>
+                    |<p>Do you want to <b>ignore</b> build files changed?<br>
+                    |<b>Caution: This may cause unexpected build result!</b></p>
+                    |</html>
+                    |""".trimMargin(),
+                    okButtonText = "Yes, Ignore Build File Changes!",
                     cancelButtonText = "No, Fallback to Gradle Later",
                 )
                 onConfirmIncrementalCompile(isConfirmed)
-            } else if (isBuildChangedAfterBuild) {
-                if (lastBuildDependencies == null || fullBuildDependencies == null) {
-                    logger.debug("show change confirm dialog, lastBuildDependencies or fullBuildDependencies is null")
-                    CommonConfirmDialog.showAndGetResult(
-                        title = "Jugg: Dependency Incremental Compile Not Available",
-                        content = """<html>
-                        |<p>Please fallback to gradle once to <b>enable dependency incremental compile.</b><br>
-                        |This should not happened. Please report issues.</p>
-                        |</p>
-                        |</html>
-                        |""".trimMargin(),
-                        okButtonText = "OK, I got it!",
-                        isShowCancelButton = false,
-                    )
-                } else if (compareInfo.changeStatus == IDependencyChangeManager.ChangeStatus.CHANGED_NOT_SYNCED) {
-                    logger.debug("show no change confirm dialog")
-                    val isConfirmed = CommonConfirmDialog.showAndGetResult(
-                        title = "Jugg: Oops, No Library Changes Found",
-                        content = """<html>
-                        |<p>Do you want to <b>ignore</b> build files changed?<br>
-                        |<b>Caution: This may cause unexpected build result!</b></p>
-                        |</html>
-                        |""".trimMargin(),
-                        okButtonText = "Yes, Ignore Build File Changes!",
-                        cancelButtonText = "No, Fallback to Gradle Later",
-                    )
-                    onConfirmIncrementalCompile(isConfirmed)
-                } else {
-                    logger.debug("skip show change confirm dialog, no changes and isBuildChangedAfterBuild")
-                }
             } else {
-                logger.debug("skip show change confirm dialog, no changes")
+                logger.debug("skip show change confirm dialog, no changes and isBuildChangedAfterBuild")
             }
+        } else {
+            logger.debug("skip show change confirm dialog, no changes")
         }
     }
 

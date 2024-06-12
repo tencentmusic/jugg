@@ -62,7 +62,10 @@ class JuggRunningTask(
             initIndicator(indicator)
             val runResult = doRun(indicator, false)
             isNeedResetHasRun = runResult.isNeedResetHasRun
-            dependencyChangeManager.onEndBuilding(runResult.isDeploySuccess)
+            // for gradle compilation, compile success is ok to stage compile result
+            // for incremental compilation, we need to deploy success to stage compile result
+            val isSuccess = if (runResult.isGradleCompile) runResult.isCompileSuccess else runResult.isDeploySuccess
+            dependencyChangeManager.onEndBuilding(isSuccess)
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)

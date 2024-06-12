@@ -127,7 +127,7 @@ class JuggManager @TestOnly constructor(
             warmUpCompile(isNeedWarmUpDeploy = false)
             launch {
                 // do it async to let warmUpCompile run
-                dependencyChangeManager.tryShowChangeConfirmDialog()
+                dependencyChangeManager.tryShowChangeConfirmDialog(isAfterIdeSync = true)
             }
         }
     }
@@ -271,7 +271,8 @@ class JuggManager @TestOnly constructor(
                 .map { it.file }
             dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
         }
-        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isBuildFileChanged)
+        val lastBuildModifiedTime = realChangedFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
+        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isBuildFileChanged, lastBuildModifiedTime)
 
         if (JuggSettings.compileOnSave) {
             runTaskSafe("Compile Changes", ::compileChanges)
@@ -339,8 +340,11 @@ class JuggManager @TestOnly constructor(
         juggServer.afterFullCompile()
 
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
+        if (!isRemoteCompile) {
+            compileContextManager.updateCompileContextAfterLocalFetch()
+        }
 
-        var allModules = compileContextManager.compileContext.modules
+        var allModules = compileContextManager.getProjectInfo().modules
         val moduleBuildPathInfos = allModules.map { it.value.buildPathInfo }
 
         logger.info("Fetching classpath...")
@@ -385,10 +389,6 @@ class JuggManager @TestOnly constructor(
 
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
-
-        if (!isRemoteCompile) {
-            compileContextManager.updateCompileContextAfterLocalFetch()
-        }
 
         initCompile(compileContextInfo, emptyList(),
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,

@@ -49,18 +49,22 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
 
     override fun afterSync(projectInfoSerialize: ProjectInfoSerializer): JuggProjectInfoMergeResult {
         ide = projectInfoSerialize
-        return merge()
+        val result = merge()
+        juggProjectInfo = result.mergedInfo
+        return result
     }
 
     override fun afterBuild(projectInfoSerialize: ProjectInfoSerializer, isRemote: Boolean): JuggProjectInfoMergeResult {
         // currently we don't use ProjectInfoSerializer from remote build,
-        // it has different file path and we can't handle it for now
+        // it has different file path, so we can't handle it for now
         throw IllegalStateException("no need to implement afterBuild")
     }
 
     override fun afterLocalFetch(projectInfoSerialize: ProjectInfoSerializer): JuggProjectInfoMergeResult {
         localFetch = projectInfoSerialize
-        return merge()
+        val result = merge()
+        juggProjectInfo = result.mergedInfo
+        return result
     }
 
     private fun merge(): JuggProjectInfoMergeResult {
@@ -101,7 +105,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         }
 
         val result = doMerge(ideProjectInfo, gradleProjectInfo, isNeedUpdateLibraryDependency)
-        juggProjectInfo = result.mergedInfo
+        logger.debug("merge result: $result")
 
         TimeLogger.end("merge", logger)
         return result

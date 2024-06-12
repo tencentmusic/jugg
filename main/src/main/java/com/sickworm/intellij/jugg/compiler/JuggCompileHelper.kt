@@ -87,7 +87,9 @@ class JuggCompilerHelper(
 
         val statTime = System.currentTimeMillis()
 
-        checkFilesRollback()
+        if (!isForceInstall) {
+            checkFilesRollback(options, processHandler, indicator)
+        }
         logger.debug("checkFileRollback cost ${System.currentTimeMillis() - statTime}ms")
 
         var incrementalResult: CompileTaskResult? = null
@@ -149,6 +151,8 @@ class JuggCompilerHelper(
         if (options.isRemoteCompile) {
             // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
             gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+        } else {
+            compileContextManager.ensureInitProjectInfo()
         }
 
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
@@ -175,7 +179,10 @@ class JuggCompilerHelper(
      * Check file whether is rollback
      * We need to do it here because file may not change on disk when AsyncFileListener callback
      */
-    private fun checkFilesRollback() {
+    private fun checkFilesRollback(options: JuggGradleCompileOptions,
+                                   processHandler: SimpleProcessHandler,
+                                   indicator: ProgressIndicator,
+                                   ) {
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
@@ -209,12 +216,18 @@ class JuggCompilerHelper(
             }
         }
 
-        val forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+        var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
 
         // we need to double-check because file may roll back to not changed
         val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
             it.type == CompileFile.Type.Gradle
         }
+        if (!forceIncrementalCompile) {
+            val outputListener = GradleOutputParser(options, processHandler, indicator, logger,)
+            checkDependencyIncrementalCompile(changedBuildFiles, outputListener)
+            forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+        }
+
         val isNeedRebuild = changedBuildFiles.isNotEmpty()
         if (isNeedRebuild && !forceIncrementalCompile) {
             deployStateManager.isBuildFileChanged = true
@@ -226,6 +239,36 @@ class JuggCompilerHelper(
         }
         val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
         gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isNeedRebuild, lastBuildModifiedTime)
+    }
+
+    private fun checkDependencyIncrementalCompile(changedBuildFiles: List<ChangedFile>, outputListener: IGradleCompileClient.TerminalOutputListener) {
+        if (changedBuildFiles.isEmpty()) {
+            return
+        }
+        val isConfirmIncrementalCompile = CommonConfirmDialog.showAndGetResult(
+            "Confirm Library Incremental compile",
+            """<html>
+            |<p>Changed files:</p>
+            |<ul>
+            |${changedBuildFiles.joinToString("\n") { "<li><font color=\"#2ECC71\">${it.file.relativeTo(pathManager.projectDir).path}</font></li>" }}
+            |</ul>
+            |<p>Choose <b>Yes</b> will try updating dependency, which will take <b>30-60</b> seconds.<br>
+            """.trimMargin(),
+            okButtonText = "Yes, Incremental Compile!",
+            cancelButtonText = "No, Fallback to Gradle"
+        )
+        if (isConfirmIncrementalCompile) {
+            logger.info("Jugg: Start reading dependencies from Gradle...\n")
+            val startTime = System.currentTimeMillis()
+            val result = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener)
+            val costTime = (System.currentTimeMillis() - startTime) / 1000
+            logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
+            if (result) {
+                dependencyChangeManager.tryShowChangeConfirmDialog(isAfterIdeSync = false)
+            } else {
+                JuggRunningTask.notifyFallback(project, "Update compile info failed")
+            }
+        }
     }
 
     @TestOnly

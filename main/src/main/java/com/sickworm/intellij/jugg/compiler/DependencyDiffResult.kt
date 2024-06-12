@@ -34,7 +34,7 @@ data class DependencyDiffResult(
         }
         if (updatedLibraries.isNotEmpty()) {
             updatedLibraries.forEach {
-                val updateTag = updateTag(it.oldDependency!!.version, it.dependency!!.version)
+                val updateTag = updateTag(it.isContentUpdate, it.oldDependency!!.version, it.dependency!!.version)
                 result.add("${it.dependency.declaration}$updateTag")
             }
         }
@@ -54,8 +54,8 @@ data class DependencyDiffResult(
 
         private const val REMOVE_TAG = "<font color=\"#EB984E\">(removed)</font>"
 
-        private fun updateTag(fromVersion: String?, toVersion: String?): String {
-            val desc = if (fromVersion != null && toVersion != null) {
+        private fun updateTag(isContentUpdate: Boolean, fromVersion: String?, toVersion: String?): String {
+            val desc = if (!isContentUpdate) {
                 "$fromVersion -> $toVersion"
             } else {
                 "content update"
@@ -178,7 +178,10 @@ data class DependencyDiffResult(
 data class UpdatedLibraryDependency(
     val dependency: LibraryDependencySet?,
     val oldDependency: LibraryDependencySet?,
-)
+) {
+
+    val isContentUpdate: Boolean get() = dependency?.version == oldDependency?.version && (dependency?.version != null)
+}
 
 data class LibraryDependencySet(
     val declaration: String,

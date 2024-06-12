@@ -100,8 +100,14 @@ class CompileContextManager(
         return initProjectInfo()
     }
 
-    private fun ensureInitProjectInfo() {
-        getProjectInfo()
+    fun ensureInitProjectInfo() {
+        if (juggProjectInfoMerger.juggProjectInfo == null) {
+            logger.info("Initializing project info...")
+            val startTime = System.currentTimeMillis()
+            getProjectInfo()
+            val costTime = (System.currentTimeMillis() - startTime) / 1000
+            logger.info("Initializing project info done, cost ${costTime}s.")
+        }
     }
 
     private fun initProjectInfo(): JuggProjectInfo {

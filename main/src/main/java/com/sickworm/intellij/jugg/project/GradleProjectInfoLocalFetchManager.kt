@@ -4,6 +4,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient.TerminalOutputListener.Companion.IDLE
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -69,29 +71,34 @@ class GradleProjectInfoLocalFetchManager(
      * 1. init compile finished after project opened/build finished
      * 2. start remote compile
      */
-    fun runUpdateIfNeeded() {
-        logger.debug("runUpdateIfNeeded isNeedUpdate $isNeedUpdate, isUpdating $isUpdating")
-        if (!isNeedUpdate || isUpdating) {
+    fun runUpdateIfNeeded(isForce: Boolean = false) {
+        logger.debug("runUpdateIfNeeded isNeedUpdate $isNeedUpdate, isUpdating $isUpdating, isForce: $isForce")
+        if (!isForce && (!isNeedUpdate || isUpdating)) {
             logger.debug("no need execute update, exit")
             return
         }
 
-        isUpdating = true
         taskRunnerManager.runTaskSafe("Update project info from gradle", ::update, isBlockIncrementalCompile = false)
     }
 
-    private fun update() {
+    fun runUpdateSynchronized(outputListener: IGradleCompileClient.TerminalOutputListener): Boolean {
+        return update(outputListener)
+    }
+
+    private fun update(outputListener: IGradleCompileClient.TerminalOutputListener = IDLE): Boolean {
         try {
+            isUpdating = true
             writeInitGradleFile()
+            compileContextManager.ensureInitProjectInfo()
             val localFetchCommand = CompileProjectCommand(
-                "./gradlew --dry-run --console=plain --no-daemon",
+                "./gradlew --dry-run --console=plain --no-daemon -I ${pathManager.initGradleFilePath.absolutePath}",
                 pathManager.projectDir.path,
                 pathManager.initGradleFileRelativePath
             )
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
             dependencyChangeManager.onStartSyncing(isFromIde = false)
-            val result = CmdExecutor(logger).invoke(localFetchCommand)
+            val result = CmdExecutor(logger, outputListener).invoke(localFetchCommand)
             TimeLogger.end("localFetch", logger)
             logger.debug("runUpdateIfNeeded end, result: $result")
 
@@ -102,8 +109,10 @@ class GradleProjectInfoLocalFetchManager(
                 compileContextManager.updateCompileContextAfterLocalFetch()
             }
             dependencyChangeManager.onEndSyncing(isFromIde = false, isSuccess, compileContextManager.compileContext)
+            return isSuccess
         } catch (e: Exception) {
-            logger.debug("runUpdateIfNeeded exception", e)
+            logger.warn("runUpdateIfNeeded exception", e)
+            return false
         } finally {
             isUpdating = false
         }
