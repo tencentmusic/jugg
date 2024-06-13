@@ -25,7 +25,7 @@ class RemoteGradleCompileClient(
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
-    private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
+    private val cmdExecutor = CmdExecutor(logger, terminalOutputListener)
 
     private var finalPasswordOrKey: String = ""
     private var keyPathList = mutableListOf<String>()

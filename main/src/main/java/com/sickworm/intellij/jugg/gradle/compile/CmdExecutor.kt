@@ -10,8 +10,9 @@ import java.nio.charset.Charset
 
 
 class CmdExecutor(
-    var terminalOutputListener: IGradleCompileClient.TerminalOutputListener,
     private val logger: Logger,
+    /** only use to print to other place e.g. running terminal */
+    var terminalOutputListener: IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.IDLE,
 ) {
 
     @Volatile

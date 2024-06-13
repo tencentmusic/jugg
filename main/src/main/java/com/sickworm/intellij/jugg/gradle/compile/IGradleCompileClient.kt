@@ -57,6 +57,11 @@ interface IGradleCompileClient : Disposable {
                     System.err.println(line)
                 }
             }
+
+            val IDLE : TerminalOutputListener = object : TerminalOutputListener {
+                override fun onOutput(line: String, isNeedPrint: Boolean) = Unit
+                override fun onOutputErr(line: String) = Unit
+            }
         }
     }
 

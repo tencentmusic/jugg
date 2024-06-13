@@ -28,7 +28,7 @@ class LocalGradleCompileClient(
     private var gradleJdkPath: String? = null
     private var androidHomePath: String? = null
 
-    private val cmdExecutor = CmdExecutor(terminalOutputListener, logger)
+    private val cmdExecutor = CmdExecutor(logger, terminalOutputListener)
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         // no need to login

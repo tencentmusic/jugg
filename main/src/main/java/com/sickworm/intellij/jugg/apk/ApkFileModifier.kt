@@ -77,7 +77,7 @@ class ApkFileModifier(
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
         val cmdString = "$zipalign -f 4 ${tmpUpdateApkFile.absolutePath} ${tmpAlignedApkFile.absolutePath}"
         val cmd = SimpleSshCommand(cmdString, logger, outputFilter = { !it.endsWith("header mismatch") })
-        val exitCode = CmdExecutor(cmd.terminalOutputListener, cmd.logger).invoke(cmd)
+        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
         if (exitCode != 0) {
             throw IllegalStateException("zipalign failed, exit code: $exitCode")
         }
@@ -103,7 +103,7 @@ class ApkFileModifier(
 
         val cmdString = "$apksigner ${args.joinToString(" ")}"
         val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true)
-        val exitCode = CmdExecutor(cmd.terminalOutputListener, cmd.logger).invoke(cmd)
+        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
         if (exitCode != 0) {
             throw IllegalStateException("AndroidManifest.xml changed and resign APK failed, exit code: $exitCode")
         }
@@ -129,7 +129,7 @@ class ApkFileModifier(
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
         val cmdString = "$apksigner verify ${apkFile.absolutePath}"
         val cmd = SimpleSshCommand(cmdString, logger)
-        val exitCode = CmdExecutor(cmd.terminalOutputListener, cmd.logger).invoke(cmd)
+        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
         if (exitCode != 0) {
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }
