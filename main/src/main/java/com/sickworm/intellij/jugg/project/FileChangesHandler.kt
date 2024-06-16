@@ -19,17 +19,16 @@ class FileChangesHandler(
     IFileChangesHandler
 {
 
-    private var compileContext: ICompileContext? = null
     /*** custom build files given by Jugg backend distinct by projects. */
     private var customBuildFileList: List<File> = emptyList()
     private var compiledModules = emptyList<ModuleInfo>()
 
     override fun init(compileContext: ICompileContext) {
-        this.compileContext = compileContext
-
-        val sourceDirs = compileContext.modules.values.flatMap { it.sourceDirs }
-        val resourceDirs = compileContext.modules.values.flatMap { it.resourceDirs }
-        val assetDirs = compileContext.modules.values.flatMap { it.assetsDirs }
+        val notCompiledModuleNames = findNotCompiledWithApplicationModules(compileContext)
+        compiledModules = compileContext.modules.values.filter { !notCompiledModuleNames.contains(it.name) }
+        val sourceDirs = compiledModules.flatMap { it.sourceDirs }
+        val resourceDirs = compiledModules.flatMap { it.resourceDirs }
+        val assetDirs = compiledModules.flatMap { it.assetsDirs }
         logger.debug("""
             |File changes scope:
             |    source dirs:
@@ -38,7 +37,38 @@ class FileChangesHandler(
             |        ${resourceDirs.relativePath(projectDir) }
             |    asset dirs:
             |        ${assetDirs.relativePath(projectDir) }
+            |    ignore modules(won't compile):
+            |        $notCompiledModuleNames
             |""".trimMargin())
+    }
+
+    private fun findNotCompiledWithApplicationModules(compileContext: ICompileContext): Set<String> {
+        val notCompiledModuleNames = compileContext.modules.keys.toMutableSet()
+        val applicationModule = compileContext.applicationModule
+        if (applicationModule == null) {
+            logger.debug("findNotCompiledWithApplicationModules applicationModule is null, exit finding")
+            return emptySet()
+        }
+
+        notCompiledModuleNames.remove(applicationModule.name)
+        var parentModules = listOf(applicationModule)
+        var depthLimit = 100 // avoid dead loop
+        while (parentModules.isNotEmpty() && depthLimit-- > 0) {
+            val nextParentModules = mutableListOf<ModuleInfo>()
+            parentModules.forEach { parentModule ->
+                parentModule.moduleDependencies.forEach { moduleDependency ->
+                    notCompiledModuleNames.remove(moduleDependency.moduleName)
+                    val dependModuleInfo = compileContext.modules[moduleDependency.moduleName]
+                    if (dependModuleInfo != null) {
+                        nextParentModules.add(dependModuleInfo)
+                    }
+                }
+            }
+            parentModules = nextParentModules
+        }
+
+        logger.debug("findNotCompiledWithApplicationModules result: $notCompiledModuleNames")
+        return notCompiledModuleNames
     }
 
     override fun filter(file: List<File>): List<ChangedFile> {
@@ -222,11 +252,11 @@ class FileChangesHandler(
     }
 
     private fun getModules(): Collection<ModuleInfo> {
-        if (compileContext == null) {
-            logger.warn("getModules compileContext not set to FileChangesManager, this should not happened")
+        if (compiledModules.isEmpty()) {
+            logger.warn("getModules compiledModules not set to FileChangesManager, this should not happened")
             return emptyList()
         }
 
-        return compileContext?.modules?.values?: emptyList()
+        return compiledModules
     }
 }
