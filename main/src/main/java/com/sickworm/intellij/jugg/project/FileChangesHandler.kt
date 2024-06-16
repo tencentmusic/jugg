@@ -20,7 +20,9 @@ class FileChangesHandler(
 {
 
     private var compileContext: ICompileContext? = null
-    private var buildFileList: List<File> = emptyList()
+    /*** custom build files given by Jugg backend distinct by projects. */
+    private var customBuildFileList: List<File> = emptyList()
+    private var compiledModules = emptyList<ModuleInfo>()
 
     override fun init(compileContext: ICompileContext) {
         this.compileContext = compileContext
@@ -45,7 +47,7 @@ class FileChangesHandler(
 
     override fun updateBuildFileList(relativePathList: List<String>) {
         logger.debug("updateBuildFileList: $relativePathList")
-        buildFileList = relativePathList.map {
+        customBuildFileList = relativePathList.map {
             File(projectDir, it)
         }
     }
@@ -113,7 +115,7 @@ class FileChangesHandler(
             return null
         }
 
-        buildFileList.forEach {
+        customBuildFileList.forEach {
             if (file.absolutePath == it.absolutePath) {
                 logger.info("Detect custom build file changed: $file")
                 return ChangedFile(
