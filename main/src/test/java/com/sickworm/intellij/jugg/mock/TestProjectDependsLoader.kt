@@ -9,21 +9,18 @@ object TestProjectDependsLoader {
     private val userHome = System.getProperty("user.home")
 
     val transformedDepends = """
-        jetified-viewbinding-7.2.2
+        viewbinding-7.2.2
         core-runtime-2.0.0
         lifecycle-viewmodel-2.0.0
         legacy-support-core-utils-1.0.0
-        espresso-idling-resource-3.1.1
         monitor-1.1.1
         lifecycle-livedata-2.0.0
         coordinatorlayout-1.0.0
-        espresso-core-3.1.1
         lifecycle-livedata-core-2.0.0
         constraintlayout-1.1.3
         viewpager-1.0.0
         customview-1.0.0
         swiperefreshlayout-1.0.0
-        runner-1.1.1
         vectordrawable-animated-1.0.0
         print-1.0.0
         asynclayoutinflater-1.0.0
