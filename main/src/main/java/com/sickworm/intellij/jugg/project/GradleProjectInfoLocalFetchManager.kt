@@ -18,6 +18,7 @@ class GradleProjectInfoLocalFetchManager(
     private val pathManager: JuggPathManager,
     private val compileContextManager: CompileContextManager,
     private val taskRunnerManager: TaskRunnerManager,
+    private val dependencyChangeManager: IDependencyChangeManager,
     loggerArg: Logger,
 ) {
 
@@ -89,15 +90,18 @@ class GradleProjectInfoLocalFetchManager(
             )
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
+            dependencyChangeManager.onStartSyncing(isFromIde = false)
             val result = CmdExecutor(logger).invoke(localFetchCommand)
             TimeLogger.end("localFetch", logger)
             logger.debug("runUpdateIfNeeded end, result: $result")
 
-            if (result == 0) {
+            val isSuccess = result == 0
+            if (isSuccess) {
                 // update success
                 markIsNeedUpdate(false)
                 compileContextManager.updateCompileContextAfterLocalFetch()
             }
+            dependencyChangeManager.onEndSyncing(isFromIde = false, isSuccess, compileContextManager.compileContext)
         } catch (e: Exception) {
             logger.debug("runUpdateIfNeeded exception", e)
         } finally {

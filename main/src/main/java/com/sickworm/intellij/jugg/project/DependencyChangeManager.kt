@@ -44,9 +44,9 @@ interface IDependencyChangeManagerEventCallback {
 
     fun onUpdateChangedBuildFiles(files: List<File>)
 
-    fun onStartSyncing()
+    fun onStartSyncing(isFromIde: Boolean)
 
-    fun onEndSyncing(isSuccess: Boolean, newContext: ICompileContext)
+    fun onEndSyncing(isFromIde: Boolean, isSuccess: Boolean, newContext: ICompileContext)
 
     fun onStartBuilding()
 
@@ -426,15 +426,15 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
     }
 
-    override fun onStartSyncing() {
-        logger.debug("on sync start")
+    override fun onStartSyncing(isFromIde: Boolean) {
+        logger.debug("on sync start, isFromIde: $isFromIde")
         nextStartSyncingTime = System.currentTimeMillis()
     }
 
     @Synchronized
-    override fun onEndSyncing(isSuccess: Boolean, newContext: ICompileContext) {
+    override fun onEndSyncing(isFromIde: Boolean, isSuccess: Boolean, newContext: ICompileContext) {
         if (!hasInit) return
-        logger.debug("on sync finished, isSuccess $isSuccess")
+        logger.debug("on sync finished, isFromIde: $isFromIde, isSuccess $isSuccess")
         if (!isSuccess) {
             nextStartSyncingTime = 0L
             return

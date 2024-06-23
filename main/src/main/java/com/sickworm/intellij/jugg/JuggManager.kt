@@ -58,7 +58,7 @@ class JuggManager @TestOnly constructor(
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
     private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope),
-    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, logger),
+    private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, logger),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
@@ -123,7 +123,7 @@ class JuggManager @TestOnly constructor(
         gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
         if (isSuccess) {
             reInitOnCompileContextUpdate()
-            dependencyChangeManager.onEndSyncing(true, compileContextManager.compileContext)
+            dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
             warmUpCompile(isNeedWarmUpDeploy = false)
             launch {
                 // do it async to let warmUpCompile run
@@ -144,10 +144,10 @@ class JuggManager @TestOnly constructor(
                 tryCreateRunConfigurations(isSyncFinished = false)
             }
             SyncEvent.STARTED -> {
-                dependencyChangeManager.onStartSyncing()
+                dependencyChangeManager.onStartSyncing(isFromIde = true)
             }
             SyncEvent.FAILED -> {
-                dependencyChangeManager.onEndSyncing(false, compileContextManager.compileContext)
+                dependencyChangeManager.onEndSyncing(isFromIde = true, false, compileContextManager.compileContext)
             }
         }
     }
