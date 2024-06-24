@@ -8,7 +8,6 @@ import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.attributes.*
-import org.gradle.api.specs.Spec
 import java.io.File
 
 class GradleProjectInfoReader(
@@ -18,7 +17,6 @@ class GradleProjectInfoReader(
 
     private var dependenciesCache: MutableMap<String, List<Dependency>> = mutableMapOf()
     private var dependenciesCrcCache: MutableMap<String, LibraryDependency> = mutableMapOf()
-//    private var dependencyTransitives: MutableMap<String, List<Dependency>> = mutableMapOf()
     private var totalReadArtifacts = 0
     private var resolveArtifacts = 0
     private var printResolveDetail = false
@@ -42,39 +40,6 @@ class GradleProjectInfoReader(
             val moduleInfo = getModuleInfo(project)
             modules[moduleInfo.name] = moduleInfo
         }
-//        // handle transitive dependencies
-//        TraceLogger.start("transitiveDependencies")
-//        modules.values.toList().forEach { module ->
-//            var toResolveModuleDependencies = module.moduleDependencies.toList()
-//            val libraryResult: MutableMap<String, LibraryDependency> = mutableMapOf()
-//            val runtimeResult: MutableMap<String, LibraryDependency> = mutableMapOf()
-//            val moduleResult: MutableMap<String, ModuleDependency> = mutableMapOf()
-//            libraryResult.addToResult(module.libraryDependencies)
-//            runtimeResult.addToResult(module.runtimeLibraryDependencies)
-//            moduleResult.addToResult(module.moduleDependencies)
-//            while (toResolveModuleDependencies.isNotEmpty()) {
-//                val nextToResolveModuleDependencies = mutableListOf<ModuleDependency>()
-//                toResolveModuleDependencies.forEach { moduleDependency ->
-//                    dependencyTransitives[moduleDependency.moduleName]?.forEach {
-//                        if (it is LibraryDependency) {
-//                            libraryResult.addToResult(it)
-//                            runtimeResult.addToResult(it)
-//                        } else if (it is ModuleDependency) {
-//                            nextToResolveModuleDependencies.add(it)
-//                            moduleResult.addToResult(it)
-//                        }
-//                    }
-//                }
-//                toResolveModuleDependencies = nextToResolveModuleDependencies
-//            }
-//
-//            modules[module.name] = module.copy(
-//                moduleDependencies = moduleResult.values.toList(),
-//                libraryDependencies = libraryResult.values.toList(),
-//                runtimeLibraryDependencies = runtimeResult.values.toList(),
-//            )
-//        }
-//        TraceLogger.end("transitiveDependencies")
 
         println("totalReadArtifacts $totalReadArtifacts, resolveArtifacts: $resolveArtifacts")
         TraceLogger.printAllCost()
@@ -203,10 +168,6 @@ class GradleProjectInfoReader(
 
                 // won't actually use this for now to save time
                 val runtimeDependencies = emptyList<Dependency>()
-//                TraceLogger.start("getRuntime")
-//                val runtimeFilterName = if (moduleType.isAndroidModule) "${buildVariant}RuntimeClasspath" else "runtimeClasspath"
-//                val runtimeDependencies = getDependencies(project, runtimeFilterName, isAndroidDepend = moduleType.isAndroidModule)
-//                TraceLogger.end("getRuntime")
 
                 TraceLogger.start("getAnnotation")
                 val annotationProcessorDependencies = getDependencies(project, "annotationProcessor", isAndroidDepend = false)
@@ -225,11 +186,6 @@ class GradleProjectInfoReader(
                 )
             }
 
-            // read api dependencies
-//            TraceLogger.start("getApi")
-//            dependencyTransitives[project.name] = getDependencies(project, "api",
-//                isAndroidDepend = moduleType.isAndroidModule, isNeedResolve = false)
-//            TraceLogger.end("getApi")
         } catch (e: Throwable) {
             println("Jugg: get dependency info for ${project.standardModuleName} failed: $e")
             printException(e)
