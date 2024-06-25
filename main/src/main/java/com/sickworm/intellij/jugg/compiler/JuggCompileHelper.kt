@@ -247,7 +247,7 @@ class JuggCompilerHelper(
         if (changedBuildFiles.isEmpty()) {
             return false
         }
-        val (isConfirmIncrementalCompile, isIgnoreGradleChanges) = CommonConfirmDialog.showThreeButtonsAndGetResult(
+        val (isFindOut, isIgnoreGradleChanges) = CommonConfirmDialog.showThreeButtonsAndGetResult(
             "Confirm Library Incremental compile",
             """<html>
             |<p>Changed files:
@@ -265,8 +265,9 @@ class JuggCompilerHelper(
             cancelButtonText = "Fallback to Gradle",
             leftButtonText = "Ignore Gradle Changes",
         )
-        logger.debug("isConfirmIncrementalCompile: $isConfirmIncrementalCompile, isIgnoreGradleChanges: $isIgnoreGradleChanges")
-        if (isConfirmIncrementalCompile) {
+        logger.debug("isConfirmIncrementalCompile: $isFindOut, isIgnoreGradleChanges: $isIgnoreGradleChanges")
+        var isIncrementalCompile = false
+        if (isFindOut) {
             logger.info("Jugg: Start reading dependencies from Gradle...\n")
             val startTime = System.currentTimeMillis()
             val result = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener)
@@ -277,12 +278,22 @@ class JuggCompilerHelper(
             } else {
                 JuggRunningTask.notifyFallback(project, "Update compile info failed")
             }
-            return dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+
+            isIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
         } else if (isIgnoreGradleChanges) {
-            return true
-        } else {
-            return false
+            isIncrementalCompile = true
         }
+
+        juggServer.report {
+            action = "check_dependency_incremental_compile"
+            detail = when {
+                isFindOut && isIncrementalCompile -> "incremental_compile"
+                isFindOut && !isIncrementalCompile -> "findout_fallback"
+                isIgnoreGradleChanges -> "ignore_gradle_changes"
+                else -> "fallback"
+            }
+        }
+        return isIncrementalCompile
     }
 
     @TestOnly
