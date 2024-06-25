@@ -345,7 +345,9 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         val moduleCompileOrder = moduleDependencies.filter {
             fileGroupNames.contains(it.name)
         }
-        if (moduleCompileOrder.isEmpty() && fileGroups.isNotEmpty()) {
+        if (moduleCompileOrder.size != fileGroups.size) {
+            logger.debug("Find compile order fails, all modules: ${moduleDependencies.map { it.name }}")
+            logger.warn("Jugg going to compiles ${fileGroupNames}, but only gets: ${moduleCompileOrder.map { it.name }}")
             throw JuggInternalException.findModuleCompileOrderFailed()
         }
 
