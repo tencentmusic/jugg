@@ -336,7 +336,8 @@ class GradleProjectInfoReader(
 
         val resolvedArtifacts = mutableSetOf<ResolvedArtifactResult>()
         if (isAndroidDepend) {
-            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("android-classes"))
+            // "processed-jar" matched the jar get by IDE
+            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("processed-jar"))
             resolvedArtifacts.addAll(jarView.artifacts.artifacts)
             val resView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("android-res"))
             resolvedArtifacts.addAll(resView.artifacts.artifacts)
@@ -465,6 +466,7 @@ class GradleProjectInfoReader(
                 override fun execute(attributeContainer: AttributeContainer) {
                     // `java-classes-directory` `jar`
                     // `android-classes-directory`, `android-classes-jar`
+                    // see [com.android.build.gradle.internal.publishing.AndroidArtifacts#TYPE_CLASSES_JAR], find it in AGP
                     attributeContainer.attribute(Attribute.of("artifactType", String::class.java), artifactType)
                 }
             })
