@@ -224,8 +224,7 @@ class JuggCompilerHelper(
         }
         if (!forceIncrementalCompile) {
             val outputListener = GradleOutputParser(options, processHandler, indicator, logger,)
-            checkDependencyIncrementalCompile(changedBuildFiles, outputListener)
-            forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+            forceIncrementalCompile = checkDependencyIncrementalCompile(changedBuildFiles, outputListener)
         }
 
         val isNeedRebuild = changedBuildFiles.isNotEmpty()
@@ -241,22 +240,32 @@ class JuggCompilerHelper(
         gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isNeedRebuild, lastBuildModifiedTime)
     }
 
-    private fun checkDependencyIncrementalCompile(changedBuildFiles: List<ChangedFile>, outputListener: IGradleCompileClient.TerminalOutputListener) {
+    private fun checkDependencyIncrementalCompile(
+        changedBuildFiles: List<ChangedFile>,
+        outputListener: IGradleCompileClient.TerminalOutputListener,
+    ): Boolean {
         if (changedBuildFiles.isEmpty()) {
-            return
+            return false
         }
-        val isConfirmIncrementalCompile = CommonConfirmDialog.showAndGetResult(
+        val (isConfirmIncrementalCompile, isIgnoreGradleChanges) = CommonConfirmDialog.showThreeButtonsAndGetResult(
             "Confirm Library Incremental compile",
             """<html>
-            |<p>Changed files:</p>
+            |<p>Changed files:
             |<ul>
             |${changedBuildFiles.joinToString("\n") { "<li><font color=\"#2ECC71\">${it.file.relativeTo(pathManager.projectDir).path}</font></li>" }}
             |</ul>
-            |<p>Choose <b>Yes</b> will try updating dependency, which will take <b>30-60</b> seconds.<br>
+            |Choose <b>Find out</b> will try to get changed dependencies, which will take <b>30-60</b> seconds.<br>
+            |Choose <b>Ignore</b> will ignore Gradle file changes.<br>
+            |<font color="#EB984E"><b>Caution</b></font>: This may cause unexpected build result, Please check changes carefully.
+            |<br> <br>
+            |</p>
+            |</html>
             """.trimMargin(),
-            okButtonText = "Yes, Incremental Compile!",
-            cancelButtonText = "No, Fallback to Gradle"
+            okButtonText = "Find out the Changed Libraries!",
+            cancelButtonText = "Fallback to Gradle",
+            leftButtonText = "Ignore Gradle Changes",
         )
+        logger.debug("isConfirmIncrementalCompile: $isConfirmIncrementalCompile, isIgnoreGradleChanges: $isIgnoreGradleChanges")
         if (isConfirmIncrementalCompile) {
             logger.info("Jugg: Start reading dependencies from Gradle...\n")
             val startTime = System.currentTimeMillis()
@@ -268,6 +277,11 @@ class JuggCompilerHelper(
             } else {
                 JuggRunningTask.notifyFallback(project, "Update compile info failed")
             }
+            return dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+        } else if (isIgnoreGradleChanges) {
+            return true
+        } else {
+            return false
         }
     }
 
@@ -310,15 +324,16 @@ class JuggCompilerHelper(
 
         // read all undeployed files
         val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
+        // remove gradle files from undeployed files, it can not be compiled
+        // since we go into this method, then it must be an incremental compile
+        val gradleFiles = undeployedFiles.filter { it.type == CompileFile.Type.Gradle }
+        undeployedFiles.removeAll(gradleFiles)
+
         if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             // user select libraries incremental compile, add them to undeployed files
             val undeployedLibraries = dependencyChangeManager.getNewLibraryFiles()
             undeployedFiles.addAll(undeployedLibraries)
             logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
-
-            // remove gradle files from undeployed files, it can not be compiled
-            val gradleFiles = undeployedFiles.filter { it.type == CompileFile.Type.Gradle }
-            undeployedFiles.removeAll(gradleFiles)
 
             // mark gradle files as compiled, to detect isNoFileChanges()
             deployFileManager.updateUncompiledFiles(gradleFiles.map {

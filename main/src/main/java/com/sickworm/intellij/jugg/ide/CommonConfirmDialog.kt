@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
-import com.intellij.util.ui.JBUI
 import java.awt.*
+import java.awt.event.ActionEvent
 import javax.swing.*
 
 
@@ -14,9 +14,12 @@ class CommonConfirmDialog(
     private val okButtonText: String?,
     private val cancelButtonText: String?,
     private val isShowCancelButton: Boolean,
+    private val leftButtonText: String?,
 ) : DialogWrapper(true) {
 
     private val mainPanel: JPanel = JPanel(BorderLayout())
+
+    private var isClickLeftButton: Boolean = false
 
     init {
         title = titleArg
@@ -46,13 +49,28 @@ class CommonConfirmDialog(
         if (cancelButtonText != null) {
             setCancelButtonText(cancelButtonText)
         }
-        return super.createActions().filter {
+        val actions = super.createActions().filter {
             if (!isShowCancelButton) {
                 it != cancelAction
             } else {
                 true
             }
-        }.toTypedArray()
+        }.toMutableList()
+
+        return actions.toTypedArray()
+    }
+
+    override fun createLeftSideActions(): Array<Action> {
+        if (leftButtonText != null) {
+            return arrayOf(object : AbstractAction(leftButtonText) {
+                override fun actionPerformed(e: ActionEvent?) {
+                    isClickLeftButton = true
+                    close(CLOSE_EXIT_CODE)
+                }
+            })
+        }
+
+        return super.createLeftSideActions()
     }
 
     companion object {
@@ -65,10 +83,27 @@ class CommonConfirmDialog(
         ): Boolean {
             var result = false
             ApplicationManager.getApplication().invokeAndWait {
-                val dialog = CommonConfirmDialog(title, content, okButtonText, cancelButtonText, isShowCancelButton)
+                val dialog = CommonConfirmDialog(title, content, okButtonText, cancelButtonText, isShowCancelButton, null)
                 result = dialog.showAndGet()
             }
             return result
+        }
+
+        fun showThreeButtonsAndGetResult(title: String,
+                             content: String,
+                             okButtonText: String? = null,
+                             cancelButtonText: String? = null,
+                             isShowCancelButton: Boolean = true,
+                             leftButtonText: String? = null,
+        ): Pair<Boolean, Boolean> {
+            var result = false
+            var isClickLeftButton = false
+            ApplicationManager.getApplication().invokeAndWait {
+                val dialog = CommonConfirmDialog(title, content, okButtonText, cancelButtonText, isShowCancelButton, leftButtonText)
+                result = dialog.showAndGet()
+                isClickLeftButton = dialog.isClickLeftButton
+            }
+            return result to isClickLeftButton
         }
     }
 

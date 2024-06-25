@@ -218,20 +218,21 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         if (diffResult.newLibraryDependencies.isNotEmpty() || diffResult.removedLibraryDependencies.isNotEmpty()) {
             logger.debug("show change confirm dialog, newLibraries: ${diffResult.newLibraryDependencies}, " +
                     "removedLibraries: ${diffResult.removedLibraryDependencies}")
+            val changeList = diffResult.toHtmlChangeList()
             val isConfirmed = CommonConfirmDialog.showAndGetResult(
-                title = "Jugg: Hey! Found Some Libraries Changed",
+                title = "Jugg: Hey! Found ${changeList.size} Libraries Changed",
                 content = """<html>
                     |<p>Do you want to <b>incremental compile</b> these changed libraries?
                     |<ul>
-                    |${diffResult.toHtmlChangeList().joinToString("\n") { "<li>${it}</li>" }}
+                    |${changeList.joinToString("\n") { "<li>${it}</li>" }}
                     |</ul>
+                    |<font color="#EB984E"><b>Caution</b></font>: This may cause unexpected build result. Please check changes carefully.
+                    |<br> <br>
                     |</p>
-                    |<p><b>Caution: This may cause unexpected build result, Please check changes carefully<br>
-                    |before you make a decision.</b></p>
                     |</html>
                     |""".trimMargin(),
                 okButtonText = "Yes, Incremental Compile!",
-                cancelButtonText = "No, Fallback to Gradle${if (isAfterIdeSync) " Later" else ""}",
+                cancelButtonText = "Fallback to Gradle${if (isAfterIdeSync) " Later" else ""}",
             )
             onConfirmIncrementalCompile(isConfirmed)
         } else if (isBuildChangedAfterBuild) {
@@ -256,8 +257,8 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     |<b>Caution: This may cause unexpected build result!</b></p>
                     |</html>
                     |""".trimMargin(),
-                    okButtonText = "Yes, Ignore Build File Changes!",
-                    cancelButtonText = "No, Fallback to Gradle Later",
+                    okButtonText = "Ignore Build File Changes!",
+                    cancelButtonText = "Fallback to Gradle${if (isAfterIdeSync) " Later" else ""}",
                 )
                 onConfirmIncrementalCompile(isConfirmed)
             } else {
