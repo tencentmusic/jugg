@@ -272,8 +272,8 @@ data class JuggProjectInfoMergeResult(
         _mergeLibraryItems.getOrPut(moduleName) { mutableListOf() }.add(Pair(old, new))
     }
 
-    private fun getMergeDesc(excludeSourceDir: Boolean = true): List<String> {
-        val result = mutableListOf<String>()
+    private fun getMergeDesc(excludeSourceDir: Boolean = true): Collection<String> {
+        val result = mutableSetOf<String>()
         _mergeItems.forEach outer@{ (moduleName, items) ->
             items.forEach inner@{ (type, values) ->
                 if (excludeSourceDir && type.endsWith("Dirs")) {
@@ -283,15 +283,20 @@ data class JuggProjectInfoMergeResult(
                 }
             }
         }
-        val prefix = if (isNeedUpdateLibraryDependency) "(won't update)" else ""
+        val prefix = if (isNeedUpdateLibraryDependency) "" else "(won't update)"
+
+        val joinedLibraryResult = mutableMapOf<String, MutableList<String>>()
         _mergeLibraryItems.forEach { (moduleName, items) ->
             items.forEach { (old, new) ->
                 if (old == null) {
-                    result.add("$moduleName: add new dependency to base: $new")
+                    joinedLibraryResult.getOrPut("add new dependency: $new") { mutableListOf() }.add(moduleName)
                 } else {
-                    result.add("$prefix $moduleName: update dependency in base: $old -> $new")
+                    joinedLibraryResult.getOrPut("$prefix update dependency: $old -> $new") { mutableListOf() }.add(moduleName)
                 }
             }
+        }
+        joinedLibraryResult.forEach { (desc, modules) ->
+            result.add("$desc, modules: ${modules.joinToString()}")
         }
         return result
     }
