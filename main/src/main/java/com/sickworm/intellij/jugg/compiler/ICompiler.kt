@@ -299,7 +299,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         val compilingContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
             "classes to DEX"
         } else {
-            supportedTypes.joinToString(", ") + " files"
+            val containsTypes = task.files.map { it.type }.distinct()
+            containsTypes.joinToString(", ") + " files"
         }
         logger.debug("Compiling $compilingContent..")
 
@@ -312,8 +313,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
                 "classes to DEX"
             } else {
                 val itemNames = task.files.map {
-                    if (it.isDependency) return@map it.dependencyName
-                    return@map it.file.name
+                    val prefix = if (it.isDependency) "${it.dependencyName}/" else ""
+                    prefix + it.file.name
                 }.distinct()
                 "[" + itemNames.joinToString(", ") + "]"
             }
