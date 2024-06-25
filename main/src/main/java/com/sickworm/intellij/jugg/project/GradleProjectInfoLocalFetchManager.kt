@@ -54,7 +54,7 @@ class GradleProjectInfoLocalFetchManager(
      */
     fun markIsNeedUpdate(isNeedUpdate: Boolean, lastBuildModifiedTime: Long = Long.MAX_VALUE) {
         val gradleProjectInfoFileLastModifiedTime = pathManager.gradleProjectInfoFile.lastModified()
-        val ideProjectInfoFileLastModifiedTime = pathManager.projectInfoJsonFile.lastModified()
+        val ideProjectInfoFileLastModifiedTime = pathManager.ideProjectInfoFile.lastModified()
         logger.debug("markIsNeedUpdate $isNeedUpdate, " +
                 "lastBuildModifiedTime: ${lastBuildModifiedTime.timeStampToTime()}, " +
                 "gradleLastModifiedTime: ${gradleProjectInfoFileLastModifiedTime.timeStampToTime()}, " +

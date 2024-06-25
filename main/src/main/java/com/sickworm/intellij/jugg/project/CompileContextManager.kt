@@ -40,7 +40,7 @@ class CompileContextManager(
     private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
 ) {
 
-    private val projectInfoSerializer = ProjectInfoSerializer(pathManager.projectInfoJsonFile, logger)
+    private val projectInfoSerializer = ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger)
     private val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
     private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
 

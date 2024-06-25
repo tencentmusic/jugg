@@ -37,8 +37,8 @@ class GradleProjectInfoReaderManager(private val rootProject: Project) {
      */
     private fun readLastProjectInfo(): JuggProjectInfoSerialize?  {
         var lastProjectInfo: File? = null
-        if (juggPathManager.projectInfoJsonFile.exists()) {
-            lastProjectInfo = juggPathManager.projectInfoJsonFile
+        if (juggPathManager.ideProjectInfoFile.exists()) {
+            lastProjectInfo = juggPathManager.ideProjectInfoFile
         }
         if (lastProjectInfo == null) {
             println("Jugg: lastProjectInfo not exists")

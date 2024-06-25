@@ -29,7 +29,7 @@ class ProjectInfoSerializerInGradleTest {
             gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true)
             assertTrue(mockJugg.pathManager.markProjectInfoNeedUpdateFlagFile.exists())
 
-            ideProjectInfoFile.copyTo(mockJugg.pathManager.projectInfoJsonFile, overwrite = true)
+            ideProjectInfoFile.copyTo(mockJugg.pathManager.ideProjectInfoFile, overwrite = true)
             val scriptFile = File("src/main/resources/gradle/readProjectInfo.gradle.kts")
             scriptFile.copyTo(mockJugg.pathManager.initGradleFilePath, overwrite = true)
 
