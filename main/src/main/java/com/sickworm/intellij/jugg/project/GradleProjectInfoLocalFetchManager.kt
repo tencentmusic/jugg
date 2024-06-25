@@ -27,7 +27,7 @@ class GradleProjectInfoLocalFetchManager(
     private val logger = loggerArg.getInstance("GradleProjectInfoLocalFetchManager")
 
     private var isNeedUpdate: Boolean
-        get() = pathManager.markProjectInfoNeedUpdateFlagFile.exists()
+        get() = pathManager.markProjectInfoNeedUpdateFlagFile.exists() || !pathManager.gradleProjectInfoFile.exists()
         set(value) {
             val markFile = pathManager.markProjectInfoNeedUpdateFlagFile
             if (value) {
@@ -54,12 +54,18 @@ class GradleProjectInfoLocalFetchManager(
      */
     fun markIsNeedUpdate(isNeedUpdate: Boolean, lastBuildModifiedTime: Long = Long.MAX_VALUE) {
         val gradleProjectInfoFileLastModifiedTime = pathManager.gradleProjectInfoFile.lastModified()
+        val ideProjectInfoFileLastModifiedTime = pathManager.projectInfoJsonFile.lastModified()
         logger.debug("markIsNeedUpdate $isNeedUpdate, " +
                 "lastBuildModifiedTime: ${lastBuildModifiedTime.timeStampToTime()}, " +
-                "gradleLastModifiedTime: ${gradleProjectInfoFileLastModifiedTime.timeStampToTime()}")
+                "gradleLastModifiedTime: ${gradleProjectInfoFileLastModifiedTime.timeStampToTime()}, " +
+                "ideLastModifiedTime: ${ideProjectInfoFileLastModifiedTime.timeStampToTime()}")
         if (isNeedUpdate) {
             if (gradleProjectInfoFileLastModifiedTime > lastBuildModifiedTime) {
-                logger.debug("already update after last build file modified, ignore")
+                logger.debug("gradle project info already update after last build file modified, ignore")
+                return
+            }
+            if (ideProjectInfoFileLastModifiedTime > lastBuildModifiedTime) {
+                logger.debug("ide project info already update after last build file modified, ignore")
                 return
             }
         }

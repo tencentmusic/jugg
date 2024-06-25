@@ -51,9 +51,6 @@ class CompileContextManager(
 
     private var compileContextInfo: CompileContextInfo? = null
 
-    var isIdeSyncing: Boolean = false
-
-
     /**
      * Invoke after full build. CompileContextInfo will provides class path
      */

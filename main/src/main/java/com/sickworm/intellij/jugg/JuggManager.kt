@@ -134,7 +134,6 @@ class JuggManager @TestOnly constructor(
 
     fun onSyncEvent(syncEvent: SyncEvent) {
         logger.debug("onSyncEvent: $syncEvent")
-        compileContextManager.isIdeSyncing = syncEvent == SyncEvent.STARTED
         when (syncEvent) {
             SyncEvent.SUCCEEDED -> {
                 tryCreateRunConfigurations(isSyncFinished = true)
@@ -142,6 +141,7 @@ class JuggManager @TestOnly constructor(
             }
             SyncEvent.SKIPPED -> {
                 tryCreateRunConfigurations(isSyncFinished = false)
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
             }
             SyncEvent.STARTED -> {
                 dependencyChangeManager.onStartSyncing(isFromIde = true)
@@ -229,10 +229,6 @@ class JuggManager @TestOnly constructor(
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
         processFileChanged(deployContextRecoverInfo.changedFiles, isFromRecover = true)
-        // step 4: run project info if needed
-        if (!compileContextManager.isIdeSyncing) {
-            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
-        }
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
