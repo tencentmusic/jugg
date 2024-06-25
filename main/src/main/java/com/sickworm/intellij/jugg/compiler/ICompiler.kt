@@ -312,9 +312,9 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
                 "classes to DEX"
             } else {
                 val itemNames = task.files.map {
-                    val prefix = if (it.isDependency) "${it.dependencyName}/" else ""
-                    prefix + it.file.name
-                }
+                    if (it.isDependency) return@map it.dependencyName
+                    return@map it.file.name
+                }.distinct()
                 "[" + itemNames.joinToString(", ") + "]"
             }
             if (result.isAllSuccess) {
