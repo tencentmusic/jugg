@@ -37,7 +37,7 @@ class GradleProjectInfoReader(
         modulesNames = rootProject.subprojects.map { it.standardModuleName }.toSet()
         val modules = mutableMapOf<String, ModuleInfo>()
         rootProject.subprojects.forEach { project: Project ->
-            val moduleInfo = getModuleInfo(project)
+            val moduleInfo = getModuleInfo(project) ?: return@forEach
             modules[moduleInfo.name] = moduleInfo
         }
 
@@ -47,7 +47,7 @@ class GradleProjectInfoReader(
         return JuggProjectInfo(modules)
     }
 
-    private fun getModuleInfo(project: Project): ModuleInfo {
+    private fun getModuleInfo(project: Project): ModuleInfo? {
         TraceLogger.start("getModule:${project.standardModuleName}")
         TraceLogger.start("getVar")
         val moduleType = when {
@@ -64,9 +64,9 @@ class GradleProjectInfoReader(
             projectRootDir = rootProject.projectDir,
         )
         val buildVariant = getBuildVariant(project)
-        if (buildVariant != null) {
-            moduleInfo = moduleInfo.copy(buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant))
-        }
+            ?: // ignore module that not in IDE
+            return null
+        moduleInfo = moduleInfo.copy(buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant))
 
         if (moduleType.isAndroidModule) {
             try {
