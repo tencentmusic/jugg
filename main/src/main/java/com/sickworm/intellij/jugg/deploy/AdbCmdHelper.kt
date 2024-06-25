@@ -86,7 +86,7 @@ class AdbCmdHelper(
     }
 
     fun deleteDeployedDexFile(packageName: String, filePath: String) {
-        execAdbShellCmd("run-as $packageName rm /data/data/$packageName/code_cache/.overlay/$filePath")
+        execAdbShellCmd("run-as $packageName rm -rf /data/data/$packageName/code_cache/.overlay/$filePath")
     }
 
     private fun execAdbShellCmd(cmd: String): String {
