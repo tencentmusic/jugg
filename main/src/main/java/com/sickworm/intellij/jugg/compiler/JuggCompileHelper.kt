@@ -90,7 +90,6 @@ class JuggCompilerHelper(
         if (!isForceInstall) {
             checkFilesRollback(options, processHandler, indicator)
         }
-        logger.debug("checkFileRollback cost ${System.currentTimeMillis() - statTime}ms")
 
         var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
