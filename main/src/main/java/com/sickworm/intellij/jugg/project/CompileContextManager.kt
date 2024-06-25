@@ -85,6 +85,7 @@ class CompileContextManager(
     fun updateCompileContextAfterLocalFetch() {
         logger.info("updateCompileContextAfterLocalFetch")
         ensureInitProjectInfo()
+        gradleProjectInfoSerializer.clearMemoryCache() // file is updated, clear memory cache
         juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
         compileContextInside.update(modules = getProjectInfo().modules)
         compileContextInfo?.let {

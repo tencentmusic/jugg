@@ -70,4 +70,9 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             return null
         }
     }
+
+    @Synchronized
+    fun clearMemoryCache() {
+        memoryCache = null
+    }
 }
