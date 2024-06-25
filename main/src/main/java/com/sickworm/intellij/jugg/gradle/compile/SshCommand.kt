@@ -197,17 +197,19 @@ class SyncLocalClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_CONFIG_DIR_ARGUMENTS} --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
             .flatMap { pathInfo ->
                 pathInfo.allBuildPathRelative.map {
                     var path = it.path
-                    val rootPath = pathInfo.moduleRootDir.relativeTo(sourcePath).parentFile?.path
-                        ?.substringBefore(File.separatorChar) ?: ""
-                    if (rootPath.isNotEmpty()) {
-                        path = "$rootPath/**/$path"
+                    if (sourcePath.absolutePath != pathInfo.projectRootDir.absolutePath) {
+                        // multiple projects sync
+                        val rootPath = pathInfo.projectRootDir.relativeTo(sourcePath).parentFile?.path ?: ""
+                        if (rootPath.isNotEmpty()) {
+                            path = "$rootPath/**/$path"
+                        }
                     }
 
                     val platformSeparator = File.separatorChar
