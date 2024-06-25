@@ -5,7 +5,9 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import org.gradle.plugins.ide.idea.model.ModuleLibrary
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -116,8 +118,35 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         val mergeResult = JuggProjectInfoMergeResult.createEmpty().copy(
             isNeedUpdateLibraryDependency = isNeedUpdateLibraryDependency
         )
+
+        // sometimes, module in ide will have a wired name e.g. library1.MyApplication.library1.main
+        // then Jugg will wrongly parse the module name as MyApplication.library1 (activity it's library1)
+        // here we update name in gradle project info to match ide
+        val idePathNameMap = ideProjectInfo.modules.map { it.value.moduleRootDir.absolutePath to it.value.name }.toMap()
+        val nameUpdateMap = mutableMapOf<String, String>()
+        val updateModules = gradleProjectInfo.modules.toMutableMap()
+        gradleProjectInfo.modules.values.forEach {
+            val path = it.moduleRootDir.absolutePath
+            val ideModuleName = idePathNameMap[path]
+            val gradleModuleName = it.name
+            if (ideModuleName != null && ideModuleName != gradleModuleName) {
+                logger.debug("gradle module $gradleModuleName will update name to $ideModuleName")
+                nameUpdateMap[gradleModuleName] = ideModuleName
+            }
+        }
+        nameUpdateMap.forEach { (oldName, newName) ->
+            updateModules[newName] = updateModules[oldName]!!
+            updateModules.remove(oldName)
+        }
+        val finalUpdateModules = updateModules.mapValues { (_, moduleInfo) ->
+            moduleInfo.copy(moduleDependencies = moduleInfo.moduleDependencies.map {
+                ModuleDependency(nameUpdateMap[it.moduleName] ?: it.moduleName)
+            })
+        }
+        val finalGradleProjectInfo = JuggProjectInfo(finalUpdateModules)
+
         ideProjectInfo.modules.forEach { (name, moduleInfo) ->
-            val gradleModuleInfo = gradleProjectInfo.modules[name]
+            val gradleModuleInfo = finalGradleProjectInfo.modules[name]
             if (gradleModuleInfo == null) {
                 logger.debug("module $name not found in gradleModuleInfo, won't merge")
                 mergedModules[name] = moduleInfo
@@ -153,10 +182,10 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             mergedModules[name] = mergedModuleInfo
         }
 
-        val missingModules = gradleProjectInfo.modules.keys - ideProjectInfo.modules.keys
+        val missingModules = finalGradleProjectInfo.modules.keys - ideProjectInfo.modules.keys
         if (missingModules.isNotEmpty()) {
             missingModules.forEach {
-                val gradleModuleInfo = gradleProjectInfo.modules[it] ?: return@forEach
+                val gradleModuleInfo = finalGradleProjectInfo.modules[it] ?: return@forEach
                 logger.debug("module ${gradleModuleInfo.name} not found in ide project info, add it directly")
                 mergedModules[gradleModuleInfo.name] = gradleModuleInfo
             }
