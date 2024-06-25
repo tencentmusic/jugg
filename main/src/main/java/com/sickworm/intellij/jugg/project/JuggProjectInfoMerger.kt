@@ -279,7 +279,7 @@ data class JuggProjectInfoMergeResult(
                 if (excludeSourceDir && type.endsWith("Dirs")) {
                     return@inner
                 } else {
-                    result.add("$moduleName: $type merge to base: ${values.joinToString()}")
+                    result.add("$moduleName: $type add: ${values.joinToString()}")
                 }
             }
         }
