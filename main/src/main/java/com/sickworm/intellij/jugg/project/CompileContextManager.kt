@@ -418,7 +418,7 @@ class CompileContextManager(
             )
 
             modules[moduleInfo.name] = moduleInfo
-            addedModules.add("add $moduleInfo")
+            addedModules.add("add ${module.name} -> $moduleInfo")
 
         }
 
