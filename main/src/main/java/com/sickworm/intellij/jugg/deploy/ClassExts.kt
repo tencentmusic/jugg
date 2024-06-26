@@ -42,17 +42,27 @@ inline val String.classSigName: String
     }
 
 const val desugarDefaultInterfaceSuffix = "$-CC;"
-
 inline val String.desugarDefaultInterfaceName: String
     get() {
         return this.substring(0, length - 1) + desugarDefaultInterfaceSuffix
     }
-
-
 inline val String.interfaceNameFromDesugaredDefaultMethodClass: String
     get() {
         return substring(0, length - desugarDefaultInterfaceSuffix.length) + ";"
     }
+
+// kotlin interface with default params/implementations will create this
+// kotlin may also create $-CC classes, it seems depends on the compiler
+const val desugarDefaultInterfaceSuffix2 = "\$DefaultImpls;"
+inline val String.desugarDefaultInterfaceName2: String
+    get() {
+        return this.substring(0, length - 1) + desugarDefaultInterfaceSuffix2
+    }
+inline val String.interfaceNameFromDesugaredDefaultMethodClass2: String
+    get() {
+        return substring(0, length - desugarDefaultInterfaceSuffix2.length) + ";"
+    }
+
 
 inline val String.outerClassName: String
     get() {

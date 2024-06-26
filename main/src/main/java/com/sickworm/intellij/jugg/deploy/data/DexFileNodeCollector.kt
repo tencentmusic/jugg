@@ -11,9 +11,7 @@ import com.googlecode.d2j.visitors.DexMethodVisitor
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
-import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceSuffix
-import com.sickworm.intellij.jugg.deploy.interfaceNameFromDesugaredDefaultMethodClass
-import com.sickworm.intellij.jugg.deploy.isOfficialClass
+import com.sickworm.intellij.jugg.deploy.*
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -91,6 +89,9 @@ class DexFileNodeCollector(
                                 // find before isOfficialClass，because we may redex androidx classes
                                 if (owner.endsWith(desugarDefaultInterfaceSuffix)) {
                                     val realOwner = owner.interfaceNameFromDesugaredDefaultMethodClass
+                                    classDefaultMethodInvokeRefs.add(realOwner)
+                                } else if (owner.endsWith(desugarDefaultInterfaceSuffix2)) {
+                                    val realOwner = owner.interfaceNameFromDesugaredDefaultMethodClass2
                                     classDefaultMethodInvokeRefs.add(realOwner)
                                 }
 

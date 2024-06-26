@@ -162,7 +162,9 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
 
             val newIsEnableDesugar = if (apkDiffResult.isFullUpdate) {
-                parsedApk.classes.keys.any { it.endsWith(desugarDefaultInterfaceSuffix) }
+                parsedApk.classes.keys.any {
+                    it.endsWith(desugarDefaultInterfaceSuffix) || it.endsWith(desugarDefaultInterfaceSuffix2)
+                }
             } else {
                 oldIsEnableDesugar
             }
@@ -941,13 +943,17 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         val result = mutableSetOf<String>()
         DriverManager.getConnection(url).use { connection ->
             runWithTimeCost("filterDefaultInterfaces") {
-                val allInterfacesString = suspectInterfaceNames.joinToString(",") { "'${it.desugarDefaultInterfaceName}'" }
+                val allInterfacesString = suspectInterfaceNames.joinToString(",") { "'${it.desugarDefaultInterfaceName}','${it.desugarDefaultInterfaceName2}'" }
                 val sql = "SELECT name FROM class_info WHERE name IN ($allInterfacesString);"
                 connection.createStatement().use { statement ->
                     val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                     while (resultSet.next()) {
                         val name = resultSet.getString(1)
-                        result.add(name.interfaceNameFromDesugaredDefaultMethodClass)
+                        if (name.endsWith(desugarDefaultInterfaceSuffix)) {
+                            result.add(name.interfaceNameFromDesugaredDefaultMethodClass)
+                        } else if (name.endsWith(desugarDefaultInterfaceSuffix2)) {
+                            result.add(name.interfaceNameFromDesugaredDefaultMethodClass2)
+                        }
                     }
                 }
             }

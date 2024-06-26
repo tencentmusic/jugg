@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
+import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName2
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -407,7 +408,8 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
         val result = mutableListOf<String>()
 
         staticInvocations.forEach {
-            val hasDefaultMethods = deployedClasses.contains(it.desugarDefaultInterfaceName)
+            val hasDefaultMethods = deployedClasses.contains(it.desugarDefaultInterfaceName) ||
+                deployedClasses.contains(it.desugarDefaultInterfaceName2)
             if (hasDefaultMethods) {
                 result.add(it)
             }
@@ -418,7 +420,8 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
             val newToCheckClasses = mutableListOf<String>()
 
             toCheckInterfaces.forEach { interfaceName ->
-                val hasDefaultMethods = deployedClasses.contains(interfaceName.desugarDefaultInterfaceName)
+                val hasDefaultMethods = deployedClasses.contains(interfaceName.desugarDefaultInterfaceName) ||
+                        deployedClasses.contains(interfaceName.desugarDefaultInterfaceName2)
                 if (hasDefaultMethods) {
                     result.add(interfaceName)
                 }
