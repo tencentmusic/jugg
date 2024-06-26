@@ -819,9 +819,10 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                         while (resultSet.next()) {
                             val id = resultSet.getInt(1)
                             val access = resultSet.getInt(2)
+                            // abstract class is also effected if changedAbstractClass is an interface with default methods
+                            refClassIds.getOrPut(id) { mutableListOf() }.addAll(newSubclassIds[id]!!)
                             val isAbstract = access and DexConstants.ACC_ABSTRACT != 0
                             if (!isAbstract) {
-                                refClassIds.getOrPut(id) { mutableListOf() }.addAll(newSubclassIds[id]!!)
                                 newSubclassIds.remove(id)
                             }
                         }

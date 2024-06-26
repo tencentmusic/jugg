@@ -257,7 +257,7 @@ class DeployDataGeneratorTest {
             "()V",
         )
         val removeMethodParsedDex = parsedDex.updateMethods(addedMethods)
-        val effectedSources = listOf("ImplClass2.java")
+        val effectedSources = listOf("AbstractSubClass1.java", "ImplClass1.java", "ImplClass2.java")
 
         var data = generator.buildDeployData(removeMethodParsedDex, emptyList())
         assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
@@ -288,7 +288,7 @@ class DeployDataGeneratorTest {
             "()V",
         )
         val removeMethodParsedDex = parsedDex.updateMethods(addedMethods)
-        val effectedSources = listOf("ImplClass1.java", "ImplClass2.java")
+        val effectedSources = listOf("ImplClass1.java", "ImplClass2.java", "AbstractClass1.java")
 
         var data = generator.buildDeployData(removeMethodParsedDex, emptyList())
         assertEquals(effectedSources.sorted(), data.effectedSourceFileNames.sorted())
