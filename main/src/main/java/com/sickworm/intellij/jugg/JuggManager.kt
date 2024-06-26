@@ -335,6 +335,8 @@ class JuggManager @TestOnly constructor(
     fun initIncrementalCompileAfterFullBuild(startCompileTime: Long, isRemoteCompile: Boolean = false) {
         JuggLogger.resetLatestCompileLog(project)
         juggServer.afterFullCompile()
+        pathManager.stagingDir.deleteRecursively()
+        compileContextManager.compileContext.tempCompileDir.deleteRecursively()
 
         logger.debug("Init compile after full build, isRemoteCompile=$isRemoteCompile")
         if (!isRemoteCompile) {
