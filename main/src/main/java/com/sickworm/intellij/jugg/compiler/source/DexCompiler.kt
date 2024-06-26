@@ -50,7 +50,7 @@ class DexCompiler(
             classpathDir.clearDir()
             context.getAllDesugarClasspath(task.files, module, classpathDir)
         }
-        logger.debug("getAllDesugarClasspath cost ${costTime}ms")
+        logger.debug("getAllDesugarClasspath cost ${costTime}ms, files: ${classpathDir.listFilesRecursively()}")
 
         return try {
             val classFiles = task.files.filter { it.file.extension == "class" }
