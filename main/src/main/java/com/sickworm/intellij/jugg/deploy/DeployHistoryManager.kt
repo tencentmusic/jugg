@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import java.io.File
 
 /**
@@ -15,10 +16,12 @@ import java.io.File
 class DeployHistoryManager(
     private val projectDir: File,
     private val storageDir: File,
+    private val fileChangesHandler: IFileChangesHandler,
     private val logger: Logger,
     private val deployHistoryDb: DeployHistoryDb = DeployHistoryDb(
         projectDir = projectDir,
         dbDir = File(storageDir, "deploy_history.db"),
+        fileChangesHandler = fileChangesHandler,
         logger = logger,
     ),
     private val compileContextDb: CompileContextDb = CompileContextDb(
@@ -92,7 +95,6 @@ class DeployHistoryManager(
         startCompileTime: Long,
     ): CompileContextInfo {
         logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}, modules: ${modules.size}, startCompileTime: $startCompileTime")
-        deployHistoryDb.deleteHistory()
         val compileContextInfo = compileContextDb.saveCompileContext(apkInfos, modules)
         deployHistoryDb.resetHistoryAfterFullCompiled(modules, startCompileTime)
         hasBeenFullCompiledRuntime = true

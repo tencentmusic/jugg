@@ -3,12 +3,15 @@ package com.sickworm.intellij.jugg.deploy
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import java.io.File
 
 /**
@@ -17,6 +20,7 @@ import java.io.File
 class DeployHistoryDb(
     private val projectDir: File,
     dbDir: File,
+    private val fileChangesHandler: IFileChangesHandler,
     private val logger: Logger,
 ) {
 
@@ -31,6 +35,9 @@ class DeployHistoryDb(
 
     /** Directory to store deployment changes record */
     private val deployLogsDir = File(dbDir, "logs")
+
+    /** Directory to store build files, use to show diff in the future */
+    private val buildFilesDir = File(dbDir, "build_files")
 
     private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
 
@@ -128,13 +135,16 @@ class DeployHistoryDb(
         return false
     }
 
-    fun deleteHistory() {
+    private fun deleteHistory() {
         deployHistoryFile.delete()
         deployLogsDir.deleteRecursively()
         deployItemsDir.deleteRecursively()
+        buildFilesDir.deleteRecursively()
     }
 
     fun resetHistoryAfterFullCompiled(modules: Map<String, ModuleInfo>, startCompileTime: Long) {
+        deleteHistory()
+
         val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
             val newCommitHash = gitManager.getLastCommitHash()
             val changedFiles = mutableMapOf<String, Long>()
@@ -165,8 +175,18 @@ class DeployHistoryDb(
             DeployHistoryData(null, null,0, emptyMap())
         }
         newDeployHistoryData.save(deployHistoryFile)
-        deployLogsDir.deleteRecursively()
-        deployItemsDir.deleteRecursively()
+
+        // save build files
+        if (!newDeployHistoryData.changedFiles.isNullOrEmpty()) {
+            val buildFiles = fileChangesHandler
+                .filter(newDeployHistoryData.changedFiles.map { File(projectDir, it.key) })
+                .filter { it.type == CompileFile.Type.Gradle }
+            buildFiles.forEach {
+                val destFile = it.file.changeBaseDir(it.baseDir, buildFilesDir)
+                destFile.parentFile?.mkdirs()
+                it.file.copyTo(destFile, overwrite = true)
+            }
+        }
     }
 
     private fun getSubmoduleGitManagers(modules: Collection<ModuleInfo>): Map<String, IGitManager> {

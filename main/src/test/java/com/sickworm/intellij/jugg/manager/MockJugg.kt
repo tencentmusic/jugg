@@ -199,7 +199,7 @@ class MockJugg {
         fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.databaseDir, logger)
+        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.databaseDir, fileChangesHandler, logger)
         deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.databaseDir, coroutineScope)
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)

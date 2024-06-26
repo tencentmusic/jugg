@@ -7,6 +7,8 @@ import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.FileChangesHandler
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -15,6 +17,8 @@ import kotlin.test.*
 class DeployHistoryManagerTest {
 
     private val gitManager = GitManager(assetsAndroidDir)
+    private val pathManager = JuggPathManager(projectInfo.projectRoot)
+    private val fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
 
     @Before
     fun checkoutDir() {
@@ -27,7 +31,7 @@ class DeployHistoryManagerTest {
     fun testHistoryDb() {
         val storageDir = buildDir
         gitManager.init() // we need init first after GitManager can search parent directory
-        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
+        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, fileChangesHandler, logger)
 
         gitManager.deleteGit()
         assertFalse(historyManager.isRecoverFeatureAvailable)
@@ -104,7 +108,7 @@ class DeployHistoryManagerTest {
     fun testDeployDb() {
         val storageDir = buildDir
         gitManager.init() // we need init first after GitManager can search parent directory
-        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, logger)
+        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, fileChangesHandler, logger)
 
         gitManager.deleteGit()
         gitManager.init()
