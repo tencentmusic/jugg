@@ -1,13 +1,13 @@
 package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import org.gradle.plugins.ide.idea.model.ModuleLibrary
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -77,6 +77,11 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         if (ideProjectInfo == null) {
             logger.debug("IDE project info is null, exit merge")
             return JuggProjectInfoMergeResult.createEmpty()
+        }
+
+        if (!JuggSettings.isEnableReadProjectInfoFromGradle) {
+            logger.debug("isEnableReadProjectInfoFromGradle = false, use ideProjectInfo directly")
+            return JuggProjectInfoMergeResult.createSingle(ideProjectInfo)
         }
 
         val buildUpdateTime = build?.dataFile?.lastModified() ?: -1L

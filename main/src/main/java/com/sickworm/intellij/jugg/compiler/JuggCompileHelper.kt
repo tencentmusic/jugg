@@ -243,7 +243,7 @@ class JuggCompilerHelper(
         changedBuildFiles: List<ChangedFile>,
         outputListener: IGradleCompileClient.TerminalOutputListener,
     ): Boolean {
-        if (changedBuildFiles.isEmpty()) {
+        if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
             return false
         }
         val (isFindOut, isIgnoreGradleChanges) = CommonConfirmDialog.showThreeButtonsAndGetResult(

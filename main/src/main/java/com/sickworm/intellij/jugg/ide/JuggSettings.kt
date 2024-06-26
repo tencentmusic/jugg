@@ -5,11 +5,9 @@ package com.sickworm.intellij.jugg.ide
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
-import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.server.listType
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
-import java.lang.ref.WeakReference
 import kotlin.reflect.KProperty
 
 object JuggSettings {
@@ -28,6 +26,8 @@ object JuggSettings {
 
     /** whether check checksum to make sure file is really change when file changes */
     var isCheckChecksumWhenFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
+
+    var isEnableReadProjectInfoFromGradle: Boolean by propertiesComponent.delegate(defaultValue = true)
 
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 20

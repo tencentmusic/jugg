@@ -75,6 +75,17 @@ class JuggMoreOptionsItem(
                     { JuggSettings.isConfirmFallbackWhenNoFileChanges = it }
                 ),
 
+                createSplitLine("Experimental functions"),
+
+                JuggMoreOptionsItem(
+                    name = "Enable read project info from Gradle",
+                    onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
+                    onSet = {
+                        JuggSettings.isEnableReadProjectInfoFromGradle = it
+                        JuggInitializer.getManager(project)?.markAsSyncedAndReInitCompiler()
+                    }
+                ),
+
                 createSplitLine("(Test) Mock Events"),
 
                 JuggMoreOptionsItem(

@@ -204,12 +204,12 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                 return
             }
             if (!isBuildChangedAfterBuild) {
-                val isNoContentUpdate = !diffResult.updatedLibraries.all { it.isContentUpdate }
-                if (isNoContentUpdate) {
+                val isContentUpdate = diffResult.updatedLibraries.isNotEmpty() && diffResult.updatedLibraries.any { it.isContentUpdate }
+                if (!isContentUpdate) {
                     // avoid showing confirm dialog after project opened and synced, and no build file updated
                     // but if there is any content update libraries, we should still show it, because
                     // content update could happen without build file changed
-                    logger.debug("skip show change confirm dialog, isBuildChangedAfterBuild=false and isNoContentUpdate=true")
+                    logger.debug("skip show change confirm dialog, isBuildChangedAfterBuild=false and isContentUpdate=false")
                     return
                 }
             }
