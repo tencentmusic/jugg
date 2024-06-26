@@ -106,11 +106,9 @@ class GradleProjectInfoReader(
                     if (mainSourceSet != null) {
                         sourceSetsList.add(mainSourceSet)
                     }
-                    if (buildVariant != null) {
-                        val variantSourceSet = sourceSets.invoke("findByName", buildVariant)
-                        if (variantSourceSet != null) {
-                            sourceSetsList.add(variantSourceSet)
-                        }
+                    val variantSourceSet = sourceSets.invoke("findByName", buildVariant)
+                    if (variantSourceSet != null) {
+                        sourceSetsList.add(variantSourceSet)
                     }
                 }
 
@@ -159,34 +157,29 @@ class GradleProjectInfoReader(
 
         TraceLogger.start("getDep")
         try {
-            if (buildVariant == null && moduleType.isAndroidModule) {
-                println("Jugg: buildVariant not found for ${project.standardModuleName}, won't parse dependencies")
-            } else {
-                TraceLogger.start("getCompile")
-                val dependFilterName = if (moduleType.isAndroidModule) "${buildVariant}CompileClasspath" else "compileClasspath"
-                val dependencies = getDependencies(project, dependFilterName, isAndroidDepend = moduleType.isAndroidModule)
-                TraceLogger.end("getCompile")
+            TraceLogger.start("getCompile")
+            val dependFilterName = if (moduleType.isAndroidModule) "${buildVariant}CompileClasspath" else "compileClasspath"
+            val dependencies = getDependencies(project, dependFilterName, isAndroidDepend = moduleType.isAndroidModule)
+            TraceLogger.end("getCompile")
 
-                // won't actually use this for now to save time
-                val runtimeDependencies = emptyList<Dependency>()
+            // won't actually use this for now to save time
+            val runtimeDependencies = emptyList<Dependency>()
 
-                TraceLogger.start("getAnnotation")
-                val annotationProcessorDependencies = getDependencies(project, "annotationProcessor", isAndroidDepend = false)
-                TraceLogger.start("getAnnotation")
+            TraceLogger.start("getAnnotation")
+            val annotationProcessorDependencies = getDependencies(project, "annotationProcessor", isAndroidDepend = false)
+            TraceLogger.start("getAnnotation")
 
-                TraceLogger.start("getKapt")
-                val kaptDependencies = getDependencies(project, "kapt", isAndroidDepend = false)
-                TraceLogger.start("getKapt")
+            TraceLogger.start("getKapt")
+            val kaptDependencies = getDependencies(project, "kapt", isAndroidDepend = false)
+            TraceLogger.start("getKapt")
 
-                moduleInfo = moduleInfo.copy(
-                    moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
-                    libraryDependencies = dependencies.filterIsInstance<LibraryDependency>(),
-                    runtimeLibraryDependencies = runtimeDependencies.filterIsInstance<LibraryDependency>(),
-                    annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
-                    kaptDependencies = kaptDependencies.filterIsInstance<LibraryDependency>(),
-                )
-            }
-
+            moduleInfo = moduleInfo.copy(
+                moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
+                libraryDependencies = dependencies.filterIsInstance<LibraryDependency>(),
+                runtimeLibraryDependencies = runtimeDependencies.filterIsInstance<LibraryDependency>(),
+                annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
+                kaptDependencies = kaptDependencies.filterIsInstance<LibraryDependency>(),
+            )
         } catch (e: Throwable) {
             println("Jugg: get dependency info for ${project.standardModuleName} failed: $e")
             printException(e)
