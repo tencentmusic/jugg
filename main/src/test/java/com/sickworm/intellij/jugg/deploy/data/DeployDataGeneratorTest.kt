@@ -309,7 +309,7 @@ class DeployDataGeneratorTest {
                     CompileFile.Type.Kotlin,
                     File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/ktdefaultparam/ClassWithDefaultParam.kt"),
                     File(assetsAndroidModifySourceDir, "app/src/main/java"),
-                    mockModule,
+                    context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 )
             ),
@@ -336,14 +336,14 @@ class DeployDataGeneratorTest {
                     CompileFile.Type.Kotlin,
                     File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/TopLevelClass1.kt"),
                     File(assetsAndroidModifySourceDir, "app/src/main/java"),
-                    mockModule,
+                    context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 ),
                 CompileFile(
                     CompileFile.Type.Kotlin,
                     File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/InvokeClass2.kt"),
                     File(assetsAndroidDir, "app/src/main/java"),
-                    mockModule,
+                    context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 ),
             ),
@@ -370,14 +370,14 @@ class DeployDataGeneratorTest {
                     CompileFile.Type.Kotlin,
                     File("$assetsAndroidModifySourceDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/TopLevelClass3.kt"),
                     File(assetsAndroidModifySourceDir, "app/src/main/java"),
-                    mockModule,
+                    context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 ),
                 CompileFile(
                     CompileFile.Type.Kotlin,
                     File("$assetsAndroidDir/app/src/main/java/com/sickworm/jugg/demo/testcase/kttopleveloptionalfunction/InvokeClass4.kt"),
                     File(assetsAndroidDir, "app/src/main/java"),
-                    mockModule,
+                    context.tempModule,
                     dependencyPaths = listOf("$assetsLibDir/kotlin-stdlib-1.3.72.jar")
                 ),
             ),
@@ -402,7 +402,7 @@ class DeployDataGeneratorTest {
                 CompileFile.Type.Class,
                 file,
                 baseJavaDir,
-                mockModule,
+                context.tempModule,
             )
         }
         if (File(baseKotlinDir, relativePath).exists()) {
@@ -411,7 +411,7 @@ class DeployDataGeneratorTest {
                 CompileFile.Type.Class,
                 file,
                 baseKotlinDir,
-                mockModule,
+                context.tempModule,
             )
         }
 
@@ -476,7 +476,7 @@ class DeployDataGeneratorTest {
                     CompileFile.Type.Class,
                     File(assetsLibDir, "rxjava-3.0.12.jar"),
                     File(assetsLibDir, "rxjava-3.0.12.jar"),
-                    mockModule,
+                    context.tempModule,
                 ).withDependencyName("Gradle: io.reactivex.rxjava3:rxjava:3.0.12@aar")
             ),
             outputDir = stagingDir,
