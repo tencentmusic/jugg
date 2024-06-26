@@ -18,6 +18,19 @@ class Reflector(val value: Any?) {
         }
     }
 
+    fun getPrivateField(propertyName: String): Reflector? {
+        value ?: return null
+        try {
+            val field = value::class.java.getDeclaredField(propertyName)
+            field.isAccessible = true
+            val result = field.get(value)
+            return Reflector(result)
+        } catch (e: Throwable) {
+            println("Jugg: reflect get private field failed: $e")
+            return null
+        }
+    }
+
     fun invoke(methodName: String, vararg args: Any): Reflector? {
         value ?: return null
         try {

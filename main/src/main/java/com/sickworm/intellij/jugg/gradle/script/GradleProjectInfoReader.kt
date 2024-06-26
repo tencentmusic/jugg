@@ -8,6 +8,7 @@ import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.attributes.*
+import org.gradle.internal.component.local.model.OpaqueComponentArtifactIdentifier
 import java.io.File
 
 class GradleProjectInfoReader(
@@ -269,8 +270,7 @@ class GradleProjectInfoReader(
                     if (cache?.lastModifiedTime == it.lastModified()) {
                         return@map cache
                     } else {
-                        val name = ".${File.separator}" + it.relativeTo(rootProject.projectDir).path
-                        val fileDependency = LibraryDependency(name, it)
+                        val fileDependency = LibraryDependency(it.standardFileCollectionLibraryName, it)
                         dependenciesCrcCache[it.absolutePath] = fileDependency
                         return@map fileDependency
                     }
@@ -349,7 +349,8 @@ class GradleProjectInfoReader(
         }
 
         resolvedArtifacts.forEach {
-            if (it.id.componentIdentifier is ProjectComponentIdentifier) {
+            val identifier = it.id.componentIdentifier
+            if (identifier is ProjectComponentIdentifier) {
                 return@forEach // project dependency already handled at top
             }
             val cache = dependenciesCrcCache[it.file.absolutePath]
@@ -359,13 +360,23 @@ class GradleProjectInfoReader(
                     return@forEach
                 }
             }
-            val libraryName = it.id.componentIdentifier.displayName.standardLibraryName
-            val libraryDependency = LibraryDependency(libraryName, it.file)
-            dependenciesCrcCache[it.file.absolutePath] = libraryDependency
-            result.add(libraryDependency)
+
+            if (identifier is OpaqueComponentArtifactIdentifier) {
+                // jar file in file collection, use origin jar file to match project info from IDE
+                val fileGet = Reflector(identifier).getPrivateField("file")
+                val file = (fileGet?.value as? File) ?: it.file
+                val libraryDependency = LibraryDependency(file.standardFileCollectionLibraryName, file)
+                result.add(libraryDependency)
+            } else {
+                val libraryName = identifier.displayName.standardLibraryName
+                val libraryDependency = LibraryDependency(libraryName, it.file)
+                dependenciesCrcCache[it.file.absolutePath] = libraryDependency
+                result.add(libraryDependency)
+            }
         }
         return result.toList()
     }
+
 
     private fun getProjectDependencies(result: MutableSet<Dependency>, dependencies: Set<ResolvedDependency>) {
         dependencies.forEach { dependency ->
@@ -393,6 +404,10 @@ class GradleProjectInfoReader(
             return this.substring(0, thirdColonIndex)
         }
         return this
+    }
+
+    private val File.standardFileCollectionLibraryName: String get() {
+        return ".${File.separator}" + relativeTo(rootProject.projectDir).path
     }
 
     private val Project.standardModuleName: String get() {
