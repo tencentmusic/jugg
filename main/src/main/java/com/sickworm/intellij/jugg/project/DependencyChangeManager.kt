@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
 import com.google.gson.Gson
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
@@ -23,7 +22,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
-    fun tryShowChangeConfirmDialog(isAfterIdeSync: Boolean)
+    fun tryShowChangeConfirmDialog(isFromIde: Boolean)
 
     fun getNewLibraryFiles(): List<ChangedFile>
 
@@ -143,6 +142,11 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
     }
 
+    /**
+     * true if Gradle called [onStartSyncing] (higher priority)
+     * false if IDE [onStartSyncing], and no gradle syncing is running
+     */
+    private var isCurrentSyncFromGradle = false
     private var nextStartSyncingTime = 0L
     private var nextStartBuildingTime = 0L
 
@@ -190,15 +194,19 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
     }
 
     @Synchronized
-    override fun tryShowChangeConfirmDialog(isAfterIdeSync: Boolean) {
+    override fun tryShowChangeConfirmDialog(isFromIde: Boolean) {
         if (!hasInit) return
-        logger.debug("try show change confirm dialog, isAfterIdeSync: $isAfterIdeSync")
+        logger.debug("try show change confirm dialog, isFromIde: $isFromIde, isCurrentSyncFromGradle: $isCurrentSyncFromGradle")
+        if (isCurrentSyncFromGradle && isFromIde) {
+            logger.debug("try show change confirm dialog, current sync is gradle, ignore show dialog")
+            return
+        }
 
         val isBuildChangedAfterBuild = compareInfo.lastBuildChangedTime > 0 &&
                 compareInfo.startBuildingTime > 0 &&
                 compareInfo.lastBuildChangedTime > compareInfo.startBuildingTime
 
-        if (isAfterIdeSync) {
+        if (isFromIde) {
             if (isBuilding || isSyncing) {
                 logger.debug("skip show change confirm dialog, is building or syncing")
                 return
@@ -232,7 +240,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     |</html>
                     |""".trimMargin(),
                 okButtonText = "Yes, Incremental Compile!",
-                cancelButtonText = "Fallback to Gradle${if (isAfterIdeSync) " Later" else ""}",
+                cancelButtonText = "Fallback to Gradle${if (isFromIde) " Later" else ""}",
             )
             onConfirmIncrementalCompile(isConfirmed)
         } else if (isBuildChangedAfterBuild) {
@@ -258,7 +266,7 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
                     |</html>
                     |""".trimMargin(),
                     okButtonText = "Ignore Build File Changes!",
-                    cancelButtonText = "Fallback to Gradle${if (isAfterIdeSync) " Later" else ""}",
+                    cancelButtonText = "Fallback to Gradle${if (isFromIde) " Later" else ""}",
                 )
                 onConfirmIncrementalCompile(isConfirmed)
             } else {
@@ -437,15 +445,28 @@ private class DependencyChangeManager(private val logger: Logger): IDependencyCh
         }
     }
 
+    @Synchronized
     override fun onStartSyncing(isFromIde: Boolean) {
-        logger.debug("on sync start, isFromIde: $isFromIde")
+        logger.debug("on sync start, isSyncing: $isSyncing, isFromIde: $isFromIde, isCurrentSyncFromGradle: $isCurrentSyncFromGradle")
+        if (isSyncing) {
+            if (isCurrentSyncFromGradle && isFromIde) {
+                logger.debug("on sync start, current sync is gradle, ignore sync start from ide")
+                return
+            }
+        }
+        isCurrentSyncFromGradle = !isFromIde
         nextStartSyncingTime = System.currentTimeMillis()
     }
 
     @Synchronized
     override fun onEndSyncing(isFromIde: Boolean, isSuccess: Boolean, newContext: ICompileContext) {
         if (!hasInit) return
-        logger.debug("on sync finished, isFromIde: $isFromIde, isSuccess $isSuccess")
+        logger.debug("on sync finished, isFromIde: $isFromIde, isSuccess $isSuccess, isCurrentSyncFromGradle: $isCurrentSyncFromGradle")
+        if (isCurrentSyncFromGradle && isFromIde) {
+            logger.debug("on sync finished, current sync is gradle(maybe finished), just ignore sync finish from ide")
+            return
+        }
+
         if (!isSuccess) {
             nextStartSyncingTime = 0L
             return

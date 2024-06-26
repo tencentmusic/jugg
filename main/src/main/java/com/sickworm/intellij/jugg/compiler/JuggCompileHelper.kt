@@ -273,7 +273,7 @@ class JuggCompilerHelper(
             val costTime = (System.currentTimeMillis() - startTime) / 1000
             logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
             if (result) {
-                dependencyChangeManager.tryShowChangeConfirmDialog(isAfterIdeSync = false)
+                dependencyChangeManager.tryShowChangeConfirmDialog(isFromIde = false)
             } else {
                 JuggRunningTask.notifyFallback(project, "Update compile info failed")
             }

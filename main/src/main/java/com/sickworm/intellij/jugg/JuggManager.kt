@@ -128,7 +128,7 @@ class JuggManager @TestOnly constructor(
             warmUpCompile(isNeedWarmUpDeploy = false)
             launch {
                 // do it async to let warmUpCompile run
-                dependencyChangeManager.tryShowChangeConfirmDialog(isAfterIdeSync = true)
+                dependencyChangeManager.tryShowChangeConfirmDialog(isFromIde = true)
             }
         }
     }
