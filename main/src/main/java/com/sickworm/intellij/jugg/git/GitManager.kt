@@ -3,14 +3,19 @@ package com.sickworm.intellij.jugg.git
 import org.gradle.internal.impldep.org.eclipse.jgit.api.Git
 import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.NoHeadException
 import org.gradle.internal.impldep.org.eclipse.jgit.errors.RepositoryNotFoundException
+import org.gradle.internal.impldep.org.eclipse.jgit.lib.ObjectId
+import org.gradle.internal.impldep.org.eclipse.jgit.lib.ObjectLoader
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevCommit
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevWalk
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.TreeWalk
+import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.filter.PathFilter
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.filter.PathFilterGroup
 import java.io.File
 import java.io.IOException
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 
 
 class GitManager(override val rootDir: File): IGitManager {
@@ -137,6 +142,36 @@ class GitManager(override val rootDir: File): IGitManager {
                 .setOldTree(oldCommitTree)
                 .call()
             return diffResult.map { File(rootDir, it.newPath) }
+        }
+    }
+
+    override fun getLastCommitFileContent(commitId: String, file: File): String? {
+        try {
+            val filePath = file.relativeToOrSelf(rootDir).path
+            Git.open(rootDir).use { git ->
+                val lastCommitHash = git.repository.resolve(commitId) ?: return null
+                RevWalk(git.repository).use { revWalk ->
+                    val commit: RevCommit = revWalk.parseCommit(lastCommitHash)
+                    // and using commits tree find the path
+                    val tree = commit.tree
+                    TreeWalk(git.repository).use { treeWalk ->
+                        treeWalk.addTree(tree)
+                        treeWalk.isRecursive = true
+                        treeWalk.filter = PathFilter.create(filePath)
+                        check(treeWalk.next()) { "Did not find expected file 'README.md'" }
+
+                        val objectId: ObjectId = treeWalk.getObjectId(0)
+                        val loader: ObjectLoader = git.repository.open(objectId)
+
+                        // and then one can the loader to read the file
+                        val content = String(loader.bytes, StandardCharsets.UTF_8)
+                        revWalk.dispose()
+                        return content
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            return null
         }
     }
 

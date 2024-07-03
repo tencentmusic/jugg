@@ -178,12 +178,14 @@ class DeployHistoryDb(
 
         // save build files
         if (!newDeployHistoryData.changedFiles.isNullOrEmpty()) {
+            buildFilesDir.mkdirs()
             val buildFiles = fileChangesHandler
                 .filter(newDeployHistoryData.changedFiles.map { File(projectDir, it.key) })
                 .filter { it.type == CompileFile.Type.Gradle }
             buildFiles.forEach {
-                val destFile = it.file.changeBaseDir(it.baseDir, buildFilesDir)
-                destFile.parentFile?.mkdirs()
+                // path may not in the projectDir, so we cannot store it by relative path
+                // store the path by file name
+                val destFile = File(buildFilesDir, it.file.pathKey)
                 it.file.copyTo(destFile, overwrite = true)
             }
         }
@@ -320,6 +322,61 @@ class DeployHistoryDb(
         return relativePath to crc
     }
 
+    fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>> {
+        val deployHistoryData = DeployHistoryData.load(deployHistoryFile) ?: return files.map { it to null }
+
+        val remainFiles = files.toMutableList()
+        val result = mutableListOf<Pair<ChangedFile, File?>>()
+
+        // find it in build dir first. some build files may not be commited, instead they are in buildFilesDir
+        files.forEach { file ->
+            val lastBuildFile = File(buildFilesDir, file.file.pathKey)
+            if (lastBuildFile.exists()) {
+                result.add(file to lastBuildFile)
+                remainFiles.remove(file)
+            }
+        }
+
+        remainFiles.forEach { file ->
+            var lastBuildCommitId: String? = null
+            if (file.file.isChild(projectDir)) {
+                lastBuildCommitId = deployHistoryData.fullCompileGitCommitHash
+            } else {
+                deployHistoryData.subModulesFullCompileGitCommitHash?.forEach { (rootDir, commitId) ->
+                    if (file.file.isChild(File(rootDir))) {
+                        lastBuildCommitId = commitId
+                    }
+                }
+            }
+            if (lastBuildCommitId == null) {
+                logger.debug("getLastBuildFile for $file, lastBuildCommitId is null, which should not happen.")
+                result.add(file to null)
+                return@forEach
+            }
+
+            val lastBuildFile = File(buildFilesDir, file.file.pathKey)
+            logger.debug("getLastBuildFile, $lastBuildFile exists: ${lastBuildFile.exists()}")
+            if (!lastBuildFile.exists()) {
+                val content = gitManager.getLastCommitFileContent(lastBuildCommitId!!, file.file)
+                logger.debug("getLastBuildFile, getLastCommitFileContent exists: ${content != null}")
+                if (content != null) {
+                    lastBuildFile.parentFile?.mkdirs()
+                    lastBuildFile.writeText(content)
+                }
+            }
+
+            if (lastBuildFile.exists()) {
+                result.add(file to lastBuildFile)
+            } else {
+                result.add(file to null)
+            }
+        }
+
+        return result
+    }
+
+    private val File.pathKey: String
+            get() = relativeTo(projectDir).path
 }
 
 /**

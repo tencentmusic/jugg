@@ -49,6 +49,11 @@ interface IDeployHistoryManager {
      * Check whether file is changed with checking its checksum.
      */
     fun filterUnchangedFiles(files: List<File>): List<File>
+
+    /**
+     * Get the build file for specific build file since last full build.
+     */
+    fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>>
 }
 
 /**

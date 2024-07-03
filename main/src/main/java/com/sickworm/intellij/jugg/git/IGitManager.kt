@@ -60,4 +60,10 @@ interface IGitManager {
      * git diff [commitHash] [files]
      */
     fun filterChangedFiles(commitHash: String, files: List<File>): List<File>
+
+    /**
+     * git show -s --format=%ci
+     * null if [rootDir] does not have any commits yet
+     */
+    fun getLastCommitFileContent(commitId: String, file: File): String?
 }

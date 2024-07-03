@@ -5,6 +5,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.util.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -93,4 +94,32 @@ class GitManagerTest {
             commitFile.delete()
         }
     }
+
+    @Test
+    fun testGetLastCommitFileContent() {
+        assertFalse(gitManager.hasInitGit)
+
+        gitManager.init()
+        assertTrue(gitManager.hasInitGit)
+
+        val commitFile = File(gitManager.rootDir, "commit_file.txt")
+        val random = Random()
+        val commitList = mutableMapOf<String, String>()
+        gitManager.addAllAndCommit("commit init")
+        repeat(10) {
+            val text = random.nextInt().toString()
+            commitFile.writeText(text)
+            gitManager.addAllAndCommit("commit $text")
+            commitList[gitManager.getLastCommitHash()!!] = text
+        }
+
+        commitList.forEach { (hash, text) ->
+            val content = gitManager.getLastCommitFileContent(hash, commitFile)
+            assertEquals(text, content)
+        }
+
+        commitFile.delete()
+        gitManager.deleteGit()
+    }
+
 }

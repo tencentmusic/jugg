@@ -111,4 +111,8 @@ class DeployHistoryManager(
     override fun filterUnchangedFiles(files: List<File>): List<File> {
        return deployHistoryDb.filterUnchangedFiles(files)
     }
+
+    override fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>> {
+        return deployHistoryDb.getLastBuildFiles(files)
+    }
 }
