@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.google.gson.Gson
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
@@ -85,25 +86,32 @@ class JuggCompilerHelper(
             }
         }
 
-        val statTime = System.currentTimeMillis()
-
-        if (!isForceInstall) {
-            checkFilesRollback(options, processHandler, indicator)
-        }
+        val startTime = System.currentTimeMillis()
 
         var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
+            checkFilesRollback()
+            checkLibraryIncrementalCompile(options, processHandler, indicator)
+            if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+                return CompileTaskResult.incrementalCanceled(startTime)
+            }
+
             val loggerListener = IndicatorLoggerListener(indicator)
             JuggLogger.listenProjectLog(project, loggerListener)
             incrementalResult = incrementalCompile(processHandler)
             JuggLogger.stopListenProjectLog(project, loggerListener)
-            incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - statTime)
+            incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - startTime)
             juggServer.report {
                 action = "incremental_compile"
                 isSuccess = incrementalResult.isSuccess
                 costTime = incrementalResult.costTime
                 detail = incrementalResult.failedReason
             }
+
+            if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+                return CompileTaskResult.incrementalCanceled(startTime)
+            }
+
             if (incrementalResult.isSuccess) {
                 return incrementalResult
             } else if (!incrementalResult.isCanFallback && !(processHandler.isProcessTerminating || processHandler.isProcessTerminated)) {
@@ -116,17 +124,6 @@ class JuggCompilerHelper(
             }
         }
 
-        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
-            return CompileTaskResult(
-                isSuccess = false,
-                isGradleCompile = false,
-                isCanFallback = false,
-                costTime = System.currentTimeMillis() - statTime,
-                failedReason = "Compile canceled",
-                incrementalFailedReason = "Compile canceled",
-            )
-        }
-
         val result = gradleCompile(options, processHandler, indicator)
         if (result.isSuccess) {
             JuggSettings.defaultCompileSettings = options.toRunConfigurationTemplate()
@@ -134,7 +131,7 @@ class JuggCompilerHelper(
         return CompileTaskResult(isSuccess = result.isSuccess,
             isGradleCompile = true,
             isCanFallback = false,
-            costTime = System.currentTimeMillis() - statTime,
+            costTime = System.currentTimeMillis() - startTime,
             failedReason = result.failedReason,
             incrementalFailedReason = incrementalResult?.failedReason
         )
@@ -178,10 +175,7 @@ class JuggCompilerHelper(
      * Check file whether is rollback
      * We need to do it here because file may not change on disk when AsyncFileListener callback
      */
-    private fun checkFilesRollback(options: JuggGradleCompileOptions,
-                                   processHandler: SimpleProcessHandler,
-                                   indicator: ProgressIndicator,
-                                   ) {
+    private fun checkFilesRollback() {
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
@@ -214,16 +208,53 @@ class JuggCompilerHelper(
                 }
             }
         }
+    }
 
-        var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-
-        // we need to double-check because file may roll back to not changed
+    private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions,
+                                               processHandler: SimpleProcessHandler,
+                                               indicator: ProgressIndicator,
+    ) {
         val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
             it.type == CompileFile.Type.Gradle
         }
+        var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
         if (!forceIncrementalCompile) {
-            val outputListener = GradleOutputParser(options, processHandler, indicator, logger,)
-            forceIncrementalCompile = checkDependencyIncrementalCompile(changedBuildFiles, outputListener)
+            val outputListener = GradleOutputParser(options, processHandler, indicator, logger)
+            if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
+                return
+            }
+
+            val lastBuildFilesMap = deployHistoryManager.getLastBuildFiles(changedBuildFiles)
+            val result = BuildChangesConfirmDialog.showAndGetResult(project, lastBuildFilesMap.map { it.first.file to it.second })
+            logger.debug("isConfirmIncrementalCompile: result $result")
+            if (result == BuildChangesConfirmDialog.Result.FIND_CHANGE) {
+                logger.info("Jugg: Start reading dependencies from Gradle...\n")
+                val startTime = System.currentTimeMillis()
+                val runResult = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener)
+                val costTime = (System.currentTimeMillis() - startTime) / 1000
+                logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
+                if (runResult) {
+                    dependencyChangeManager.tryShowChangeConfirmDialog(isFromIde = false)
+                    forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+                } else {
+                    JuggRunningTask.notifyFallback(project, "Update compile info failed")
+                }
+            }
+
+            juggServer.report {
+                action = "check_dependency_incremental_compile"
+                detail = Gson().toJson(mapOf(
+                    "confirm_step_1" to result.toString(),
+                    "confirm_step_2" to forceIncrementalCompile.toString(),
+                ))
+            }
+
+            if (result == BuildChangesConfirmDialog.Result.CANCEL) {
+                processHandler.destroyProcess()
+                return
+            } else if (result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
+                forceIncrementalCompile = true
+            }
         }
 
         val isNeedRebuild = changedBuildFiles.isNotEmpty()
@@ -237,62 +268,6 @@ class JuggCompilerHelper(
         }
         val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
         gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isNeedRebuild, lastBuildModifiedTime)
-    }
-
-    private fun checkDependencyIncrementalCompile(
-        changedBuildFiles: List<ChangedFile>,
-        outputListener: IGradleCompileClient.TerminalOutputListener,
-    ): Boolean {
-        if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
-            return false
-        }
-        val (isFindOut, isIgnoreGradleChanges) = CommonConfirmDialog.showThreeButtonsAndGetResult(
-            "Confirm Library Incremental compile",
-            """<html>
-            |<p>Changed files:
-            |<ul>
-            |${changedBuildFiles.joinToString("\n") { "<li><font color=\"#2ECC71\">${it.file.relativeTo(pathManager.projectDir).path}</font></li>" }}
-            |</ul>
-            |Choose <b>Find out</b> will try to get changed dependencies, which will take <b>30-60</b> seconds.<br>
-            |Choose <b>Ignore</b> will ignore Gradle file changes.<br>
-            |<font color="#EB984E"><b>Caution</b></font>: This may cause unexpected build result, Please check changes carefully.
-            |<br> <br>
-            |</p>
-            |</html>
-            """.trimMargin(),
-            okButtonText = "Find out the Changed Libraries!",
-            cancelButtonText = "Fallback to Gradle",
-            leftButtonText = "Ignore Gradle Changes",
-        )
-        logger.debug("isConfirmIncrementalCompile: $isFindOut, isIgnoreGradleChanges: $isIgnoreGradleChanges")
-        var isIncrementalCompile = false
-        if (isFindOut) {
-            logger.info("Jugg: Start reading dependencies from Gradle...\n")
-            val startTime = System.currentTimeMillis()
-            val result = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener)
-            val costTime = (System.currentTimeMillis() - startTime) / 1000
-            logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
-            if (result) {
-                dependencyChangeManager.tryShowChangeConfirmDialog(isFromIde = false)
-            } else {
-                JuggRunningTask.notifyFallback(project, "Update compile info failed")
-            }
-
-            isIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-        } else if (isIgnoreGradleChanges) {
-            isIncrementalCompile = true
-        }
-
-        juggServer.report {
-            action = "check_dependency_incremental_compile"
-            detail = when {
-                isFindOut && isIncrementalCompile -> "incremental_compile"
-                isFindOut && !isIncrementalCompile -> "findout_fallback"
-                isIgnoreGradleChanges -> "ignore_gradle_changes"
-                else -> "fallback"
-            }
-        }
-        return isIncrementalCompile
     }
 
     @TestOnly
@@ -552,6 +527,15 @@ data class CompileTaskResult(
             costTime = 0,
             failedReason = failedReason,
             incrementalFailedReason = failedReason,
+        )
+
+        fun incrementalCanceled(startTime: Long) = CompileTaskResult(
+            isSuccess = false,
+            isGradleCompile = false,
+            isCanFallback = false,
+            costTime = System.currentTimeMillis() - startTime,
+            failedReason = "Compile canceled",
+            incrementalFailedReason = "Compile canceled",
         )
     }
 }
