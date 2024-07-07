@@ -1,4 +1,10 @@
 <h1>Change Log</h1>
+<h2>1.2.3 (2024.07.07)</h2>
+<ol>
+    <li>[feature] supports Git worktree</li>
+    <li>[feature] supports Git submodule</li>
+    <li>[optimize] try to fix "No R.jar found in project, compile may fail." on first time init</li>
+</ol>
 <h2>1.2.2 (2024.06.26)</h2>
 <ol>
     <li>[feature] supports Kotlin 1.9</li>
@@ -10,7 +16,7 @@
     <li>[bugfix] fix Windows local build failed</li>
     <li>[bugfix] fix deploy failed when got hot reload error: "JVMTI_ERROR_INTERNAL"</li>
     <li>[bugfix] fix AVD starting up sometimes after project opening when no physical device</li>
-    <li>(rc2) [bugfix] fix AbstractMethodError when adding default implementation/params for Kotlin interface</li>
+    <li>[bugfix] fix AbstractMethodError when adding default implementation/params for Kotlin interface</li>
 </ol>
 <h2>1.2.1 (2024.04.24)</h2>
 <ol>
@@ -19,14 +25,14 @@
     <li>[feature] install directly if install failed last time and no file changes</li>
     <li>[optimize] init project info after project opened instead of sync finished or sync skipped</li>
     <li>[optimize] fix warning log "WARN: getInputStream() should be called before connect()""</li>
-    <li>(rc9) [optimize] default config has different name to avoid overriding the normal config on next time scan</li>
+    <li>[optimize] default config has different name to avoid overriding the normal config on next time scan</li>
     <li>[bugfix] fix NoSuchMethodError when add an optional argument to a top level function, and compile declaration file and invoke file together</li>
     <li>[bugfix] fix NoSuchMethodError for expand compilation not work properly</li>
     <li>[bugfix] fix auto-detect compile command and output apk path failed on Hedgehog and above</li>
-    <li>(rc8) [bugfix] fix remote login failed when too many ssh keys exists</li>
-    <li>(rc8) [bugfix] fix changes of gradle files in project root missing, after reopen project and sync</li>
-    <li>(rc9) [bugfix] fix jugg released when other plugin updates</li>
-    <li>(rc10) [bugfix] fix AbstractMethodError caused by desugar default interface failure, when the default interface is the parent interface of the modified class</li>
+    <li>[bugfix] fix remote login failed when too many ssh keys exists</li>
+    <li>[bugfix] fix changes of gradle files in project root missing, after reopen project and sync</li>
+    <li>[bugfix] fix jugg released when other plugin updates</li>
+    <li>[bugfix] fix AbstractMethodError caused by desugar default interface failure, when the default interface is the parent interface of the modified class</li>
 </ol>
 <h2>1.2.0 (2024.02.04)</h2>
 <ol>
