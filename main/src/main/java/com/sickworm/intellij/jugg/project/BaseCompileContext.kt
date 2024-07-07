@@ -36,8 +36,10 @@ class BaseCompileContext(
     private val listeners = mutableListOf<OnContextUpdate>()
 
     // currently Jugg only keep the final R.jar which is in the application module, for better copying speed in remote compile mode
-    private val finalRFiles: List<String> by lazy {
-        return@lazy modules.mapNotNull { module ->
+    private var finalRFiles: List<String> = emptyList()
+
+    private fun getRFiles(): List<String> {
+        return modules.mapNotNull { module ->
             val rFile = module.value.buildPathInfo.rFilePath
             if (rFile.exists()) {
                 rFile.absolutePath
@@ -160,7 +162,10 @@ class BaseCompileContext(
             }
 
         if (finalRFiles.isEmpty()) {
-            logger.warn("No R.jar found in project, compile may fail.")
+            finalRFiles = getRFiles()
+            if (finalRFiles.isEmpty()) {
+                logger.warn("No R.jar found in project, compile may fail.")
+            }
         }
 
         val dependencies = mutableListOf(androidJar)

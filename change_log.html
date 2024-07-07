@@ -7,7 +7,13 @@
     <li>[feature] ignore modules that won't compile with APK</li>
     <li>[bugfix] fix SQLite exception: [SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long) when deploy too much classes</li>
 </ol>
-<h2>1.2.2 (2024.05.02)</h2>
+<h2>1.2.3 (2024.07.07)</h2>
+<ol>
+    <li>[feature] supports Git worktree</li>
+    <li>[feature] supports Git submodule</li>
+    <li>[optimize] try to fix "No R.jar found in project, compile may fail." on first time init</li>
+</ol>
+<h2>1.2.2 (2024.06.26)</h2>
 <ol>
     <li>[feature] supports Kotlin 1.9</li>
     <li>[optimize] fix "Jugg compile not init"(low probability occurrence), which was caused by occasional failures in initializing project information</li>
@@ -16,6 +22,9 @@
     <li>[bugfix] fix NoSuchFieldError when invoking R.styleable.* after adding a new declare-styleable</li>
     <li>[bugfix] fix NoSuchFieldError when invoking R.id.* after adding a new id and using kotlinx.android.synthetic (KAE)</li>
     <li>[bugfix] fix Windows local build failed</li>
+    <li>[bugfix] fix deploy failed when got hot reload error: "JVMTI_ERROR_INTERNAL"</li>
+    <li>[bugfix] fix AVD starting up sometimes after project opening when no physical device</li>
+    <li>[bugfix] fix AbstractMethodError when adding default implementation/params for Kotlin interface</li>
 </ol>
 <h2>1.2.1 (2024.04.24)</h2>
 <ol>

@@ -195,9 +195,10 @@ class DeployHistoryDb(
         val subModulesGitManager = mutableMapOf<String, IGitManager>()
         val existGitRoots = mutableSetOf(gitManager.rootDir.absolutePath)
         modules.forEach {
-            if (it.moduleRootDir.isChild(projectDir)) {
-                return@forEach
-            }
+            // git submodule is the child of project dir
+//            if (it.moduleRootDir.isChild(projectDir)) {
+//                return@forEach
+//            }
             val subModuleGitManager = GitManager.createGitManagerAndTrySearchParent(it.moduleRootDir)
             if (subModuleGitManager.rootDir.absolutePath !in existGitRoots) {
                 existGitRoots.add(subModuleGitManager.rootDir.absolutePath)

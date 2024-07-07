@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.git
 
 import java.io.File
 
+/**
+ * API that used in Jugg
+ */
 interface IGitManager {
 
     /**
@@ -21,16 +24,6 @@ interface IGitManager {
     val name: String?
 
     /**
-     * git init
-     */
-    fun init()
-
-    /**
-     * rm -rf .git
-     */
-    fun deleteGit()
-
-    /**
      * git status
      */
     fun getUncommittedFiles(): List<File>
@@ -39,16 +32,6 @@ interface IGitManager {
      * git --no-pager diff --name-only [oldCommit] [newCommit]
      */
     fun getChangedFiles(oldCommit: String, newCommit: String): List<File>
-
-    /**
-     * git add . && git commit -m "[message]"
-     */
-    fun addAllAndCommit(message: String)
-
-    /**
-     * git rev-list --full-history --all | wc -l
-     */
-    fun getCurrentBranchCommitSize(): Int
 
     /**
      * git show -s --format=%H
@@ -66,4 +49,31 @@ interface IGitManager {
      * null if [rootDir] does not have any commits yet
      */
     fun getLastCommitFileContent(commitId: String, file: File): String?
+}
+
+/**
+ * API that used in Jugg test
+ */
+interface IGitManagerEx : IGitManager {
+
+    /**
+     * git init
+     */
+    fun init()
+
+    /**
+     * rm -rf .git
+     */
+    fun deleteGit()
+
+    /**
+     * git add . && git commit -m "[message]"
+     */
+    fun addAllAndCommit(message: String)
+
+    /**
+     * git rev-list --full-history --all | wc -l
+     */
+    fun getCurrentBranchCommitSize(): Int
+
 }

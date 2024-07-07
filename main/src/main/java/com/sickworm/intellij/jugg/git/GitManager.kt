@@ -1,14 +1,21 @@
 package com.sickworm.intellij.jugg.git
 
 import org.gradle.internal.impldep.org.eclipse.jgit.api.Git
+import org.gradle.internal.impldep.org.eclipse.jgit.api.Status
+import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.JGitInternalException
 import org.gradle.internal.impldep.org.eclipse.jgit.api.errors.NoHeadException
 import org.gradle.internal.impldep.org.eclipse.jgit.errors.RepositoryNotFoundException
+import org.gradle.internal.impldep.org.eclipse.jgit.lib.IndexDiff
+import org.gradle.internal.impldep.org.eclipse.jgit.lib.Repository
+import org.gradle.internal.impldep.org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.internal.impldep.org.eclipse.jgit.lib.ObjectId
 import org.gradle.internal.impldep.org.eclipse.jgit.lib.ObjectLoader
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevCommit
 import org.gradle.internal.impldep.org.eclipse.jgit.revwalk.RevWalk
+import org.gradle.internal.impldep.org.eclipse.jgit.submodule.SubmoduleWalk
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.AbstractTreeIterator
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.FileTreeIterator
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.TreeWalk
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.filter.PathFilter
 import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.filter.PathFilterGroup
@@ -18,19 +25,58 @@ import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 
 
-class GitManager(override val rootDir: File): IGitManager {
+class GitManager (
+    override val rootDir: File,
+): IGitManagerEx {
+
+    /**
+     * typically:
+     * isWorkTree=true -> .git/worktrees/xxx
+     * isWorkTree=false -> .git
+     *
+     * read every time to read the newest structure
+     */
+    private val targetGitDir: File get() = getGitDir(rootDir)
+    private val isWorkTree: Boolean get() = File(targetGitDir, "commondir").exists()
+
+    private val gitDir: File get() = if (isWorkTree) {
+        File(targetGitDir, File(targetGitDir, "commondir").readText().trim())
+    } else {
+        targetGitDir
+    }
+
+    private val repository: Repository? get() {
+        // creates every time to read the newest structure
+        return try {
+            if (isWorkTree) {
+                WorktreeRepositoryBuilder()
+                    .setGitDir(gitDir)
+                    .setWorktreeGitDir(targetGitDir)
+                    .setWorkTree(rootDir)
+                    .setMustExist(true)
+                    .build()
+            } else {
+                RepositoryBuilder()
+                    .setGitDir(gitDir)
+                    .setWorkTree(rootDir)
+                    .setMustExist(true)
+                    .build()
+            }
+        } catch (e: Exception) {
+            // throw RepositoryNotFoundException if structure is incorrect
+            null
+        }
+    }
+
+    private fun getGit(): Git {
+        return Git.wrap(repository)
+    }
 
     override val hasInitGit: Boolean get() {
-        if (!File(rootDir, ".git").exists()) {
+        if (!gitDir.exists()) {
             return false
         }
-        return try {
-            // throw RepositoryNotFoundException if structure is incorrect
-            Git.open(rootDir)
-            true
-        } catch (e: Exception) {
-            false
-        }
+        return repository != null
     }
 
     override val name: String? by lazy {
@@ -39,7 +85,7 @@ class GitManager(override val rootDir: File): IGitManager {
         }
         try {
             val regex = Regex("^\\surl\\s=.*/(.+)$")
-            val urlSetting = File(rootDir, ".git/config")
+            val urlSetting = File(gitDir, "config")
                 .readLines(Charset.defaultCharset())
                 .find {
                     it.matches(regex)
@@ -57,20 +103,24 @@ class GitManager(override val rootDir: File): IGitManager {
         }
     }
 
+
     override fun init() {
-        Git.init().setDirectory(rootDir).call()
+        Git.init().setDirectory(rootDir)
+            .also {
+                if (rootDir != gitDir.parentFile) {
+                    it.setGitDir(gitDir)
+                }
+            }
+            .call()
     }
 
     override fun deleteGit() {
-        if (!hasInitGit) {
-            return
-        }
-        File(rootDir, ".git").deleteRecursively()
+        gitDir.deleteRecursively()
     }
 
     override fun getUncommittedFiles(): List<File> {
-        Git.open(rootDir).use { git ->
-            val status = git.status().call()
+        getGit().use { git ->
+            val status = diffIndex(git.repository, "HEAD")
             val uncommittedFiles = status.untracked.toList() + status.modified.toList() + status.removed.toList() + status.added.toList()
             return uncommittedFiles.toSet().map {
                 File(rootDir, it)
@@ -78,8 +128,23 @@ class GitManager(override val rootDir: File): IGitManager {
         }
     }
 
+    @Suppress("SameParameterValue")
+    private fun diffIndex(repository: Repository, revString: String): Status {
+        // refer StatusCommand
+        try {
+            val diff = IndexDiff(repository, revString, FileTreeIterator(repository))
+            // setIgnoreSubmoduleMode(false) will only tell you submodules is changed, no details
+            diff.setIgnoreSubmoduleMode(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
+            diff.diff()
+            return Status(diff)
+        } catch (var2: IOException) {
+            val e = var2
+            throw JGitInternalException(e.message, e)
+        }
+    }
+
     override fun getChangedFiles(oldCommit: String, newCommit: String): List<File> {
-        Git.open(rootDir).use { git ->
+        getGit().use { git ->
             val oldCommitTree = getCanonicalTreeParser(git, oldCommit)
             val newCommitTree = getCanonicalTreeParser(git, newCommit)
             val diffResult = git.diff()
@@ -102,14 +167,14 @@ class GitManager(override val rootDir: File): IGitManager {
     }
 
     override fun addAllAndCommit(message: String) {
-        Git.open(rootDir).use { git ->
+        getGit().use { git ->
             git.add().addFilepattern(".").call()
             git.commit().setMessage(message).call()
         }
     }
 
     override fun getCurrentBranchCommitSize(): Int {
-        Git.open(rootDir).use { git ->
+        getGit().use { git ->
             return try {
                 val commits = git.log().call()
                 return commits.count()
@@ -121,7 +186,7 @@ class GitManager(override val rootDir: File): IGitManager {
 
     override fun getLastCommitHash(): String? {
         try {
-            Git.open(rootDir).use { git ->
+            getGit().use { git ->
                 val head = git.repository.resolve("HEAD") ?: return null
                 val commit = git.repository.resolve(head.name())
                 return commit.name()
@@ -132,7 +197,7 @@ class GitManager(override val rootDir: File): IGitManager {
     }
 
     override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> {
-        Git.open(rootDir).use { git ->
+        getGit().use { git ->
             val oldCommitTree = getCanonicalTreeParser(git, commitHash)
             val diffResult = git.diff()
                 .setPathFilter(PathFilterGroup.createFromStrings(files.map { file ->
@@ -148,7 +213,7 @@ class GitManager(override val rootDir: File): IGitManager {
     override fun getLastCommitFileContent(commitId: String, file: File): String? {
         try {
             val filePath = file.relativeToOrSelf(rootDir).path
-            Git.open(rootDir).use { git ->
+            getGit().use { git ->
                 val lastCommitHash = git.repository.resolve(commitId) ?: return null
                 RevWalk(git.repository).use { revWalk ->
                     val commit: RevCommit = revWalk.parseCommit(lastCommitHash)
@@ -177,6 +242,8 @@ class GitManager(override val rootDir: File): IGitManager {
 
     companion object {
 
+        private val worktreesSubPath = "${File.separator}.git${File.separator}worktrees${File.separator}"
+
         fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
             var rootDir: File? = dir
             while (rootDir != null) {
@@ -187,6 +254,21 @@ class GitManager(override val rootDir: File): IGitManager {
                 rootDir = rootDir.parentFile
             }
             return GitManager(dir)
+        }
+
+        private fun getGitDir(dir: File): File {
+            var gitDir = File(dir, ".git")
+            if (gitDir.isFile) {
+                // submodule or subtree
+                val content = gitDir.readText()
+                if (content.startsWith("gitdir:")) {
+                    val path = content.substringAfter("gitdir:").trim()
+                    if (path.isNotEmpty()) {
+                        gitDir = File(path)
+                    }
+                }
+            }
+            return gitDir
         }
     }
 }
