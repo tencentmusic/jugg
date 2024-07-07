@@ -6,11 +6,15 @@ readProjectInfoKtsFile.parentFile.mkdirs()
 List<File> willCollectFiles = new ArrayList<File>()
 File scriptDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script")
 for (final def file in scriptDirectory.listFiles()) {
-    willCollectFiles.add(file)
+    if (file.name.endsWith(".java") || file.name.endsWith(".kt")) {
+        willCollectFiles.add(file)
+    }
 }
 File dataDirectory = new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/data")
 for (final def file in dataDirectory.listFiles()) {
-    willCollectFiles.add(file)
+    if (file.name.endsWith(".java") || file.name.endsWith(".kt")) {
+        willCollectFiles.add(file)
+    }
 }
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt"))
 
