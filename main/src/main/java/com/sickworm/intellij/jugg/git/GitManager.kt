@@ -242,8 +242,6 @@ class GitManager (
 
     companion object {
 
-        private val worktreesSubPath = "${File.separator}.git${File.separator}worktrees${File.separator}"
-
         fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
             var rootDir: File? = dir
             while (rootDir != null) {
@@ -264,7 +262,11 @@ class GitManager (
                 if (content.startsWith("gitdir:")) {
                     val path = content.substringAfter("gitdir:").trim()
                     if (path.isNotEmpty()) {
-                        gitDir = File(path)
+                        gitDir = if (File(path).isAbsolute) {
+                            File(path)
+                        } else {
+                            File(dir, path)
+                        }
                     }
                 }
             }

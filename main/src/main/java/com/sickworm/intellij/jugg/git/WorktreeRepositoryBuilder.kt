@@ -19,6 +19,7 @@ class WorktreeRepositoryBuilder : BaseRepositoryBuilder<WorktreeRepositoryBuilde
             return super.build()
         }
 
+        indexFile = File(worktreeGitDir, "index")
         val repo = WorktreeFileRepository(this.setup(), worktreeGitDir)
         if (this.isMustExist && !repo.objectDatabase.exists()) {
             throw RepositoryNotFoundException(this.gitDir)
