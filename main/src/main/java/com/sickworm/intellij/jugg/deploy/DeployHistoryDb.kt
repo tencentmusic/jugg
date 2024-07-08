@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Record deploy history, persist records for recovery the next time the project is opened.
@@ -384,7 +385,10 @@ class DeployHistoryDb(
     }
 
     private val File.pathKey: String
-            get() = relativeTo(projectDir).path
+            get() = relativeTo(projectDir).path.md5 + "." + extension
+
+    private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 }
 
 /**
