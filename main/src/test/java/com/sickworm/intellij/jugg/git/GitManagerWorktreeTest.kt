@@ -33,6 +33,16 @@ class GitManagerWorktreeTest : GitManagerTest() {
         val result = process.waitFor()
         assertEquals(0, result)
         assertTrue(applicationWorktreeDir.isDirectory)
+
+        // make some difference with origin branch
+        assertTrue(gitManager.hasInitGit)
+        val newFile = File(applicationWorktreeDir, "worktree_diff.txt")
+        val newFile2 = File(applicationWorktreeDir, "commit_file.txt")
+        val newFile3 = File(applicationWorktreeDir, "commit_file_1.txt")
+        newFile.writeText("worktree diff")
+        newFile2.writeText("worktree diff2")
+        newFile3.writeText("worktree diff3")
+        gitManager.addAllAndCommit("second commit")
     }
 
     @Before

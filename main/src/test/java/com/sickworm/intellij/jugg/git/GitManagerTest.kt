@@ -52,12 +52,14 @@ open class GitManagerTest {
         val firstCommit = gitManager.getLastCommitHash()
         assertEquals(40, firstCommit?.length)
 
+        val startCommitSize = gitManager.getCurrentBranchCommitSize()
+
         val commitFile = File(gitManager.rootDir, "commit_file.txt")
         repeat(100) { index ->
-            val commitCount = 2 + index // we have one commit already, so starts with 2
+            val commitCount = startCommitSize + 1 + index
             commitFile.writeText("$commitCount")
             val uncommittedFileBeforeCommit = gitManager.getUncommittedFiles()
-            assertTrue(uncommittedFileBeforeCommit.isNotEmpty())
+            assertEquals(1, uncommittedFileBeforeCommit.size)
             gitManager.addAllAndCommit("commit $commitCount")
             val uncommittedFileAfterCommit = gitManager.getUncommittedFiles()
             assertTrue(uncommittedFileAfterCommit.isEmpty())
@@ -84,8 +86,6 @@ open class GitManagerTest {
         repeat(100) { index ->
             val commitFile = File(gitManager.rootDir, "commit_file_$index.txt")
             allFiles.add(commitFile)
-            assertTrue(!commitFile.exists())
-
             commitFile.writeText("$index")
             gitManager.addAllAndCommit("commit $index")
 
