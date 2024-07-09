@@ -64,7 +64,7 @@ class GradleProjectInfoReader(
             moduleRootDir = project.projectDir,
             projectRootDir = rootProject.projectDir,
         )
-        val buildVariant = getBuildVariant(project)
+        val buildVariant = getBuildVariant(project.projectDir)
             ?: // ignore module that not in IDE
             return null
         moduleInfo = moduleInfo.copy(buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant))
@@ -190,14 +190,14 @@ class GradleProjectInfoReader(
         return moduleInfo
     }
 
-    private val fixedModuleNameMap: Map<String, ModuleInfo> by lazy {
+    private val fixedModulePathMap: Map<String, ModuleInfo> by lazy {
         lastProjectInfo?.modules?.associate {
-            it.moduleInfoExceptLibraries.name to it.moduleInfoExceptLibraries
+            it.moduleInfoExceptLibraries.moduleRootDir.absolutePath to it.moduleInfoExceptLibraries
         } ?: emptyMap()
     }
 
-    private fun getBuildVariant(project: Project): String? {
-        return fixedModuleNameMap[project.standardModuleName]?.buildVariant
+    private fun getBuildVariant(projectDir: File): String? {
+        return fixedModulePathMap[projectDir.absolutePath]?.buildVariant
     }
 
     private fun getDependencies(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {

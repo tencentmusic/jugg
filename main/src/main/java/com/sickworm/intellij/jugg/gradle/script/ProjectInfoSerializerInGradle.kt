@@ -89,6 +89,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File, private val logg
                     ModuleInfo.virtualModule.copy(
                         name = module["name"] as String,
                         buildVariant = module["buildVariant"] as String,
+                        moduleRootDir = File(module["moduleRootDir"] as String),
                     )
                 }
                 val dependencyList = json["dependencyList"]!!.map {
