@@ -230,7 +230,7 @@ class JuggCompilerHelper(
             if (result == BuildChangesConfirmDialog.Result.FIND_CHANGE) {
                 logger.info("Jugg: Start reading dependencies from Gradle...\n")
                 val startTime = System.currentTimeMillis()
-                val runResult = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener)
+                val runResult = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener, options.isRemoteCompile)
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
                 logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
                 if (runResult) {

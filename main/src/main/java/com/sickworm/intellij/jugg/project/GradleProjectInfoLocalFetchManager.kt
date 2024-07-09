@@ -87,17 +87,19 @@ class GradleProjectInfoLocalFetchManager(
         taskRunnerManager.runTaskSafe("Update project info from gradle", ::update, isBlockIncrementalCompile = false)
     }
 
-    fun runUpdateSynchronized(outputListener: IGradleCompileClient.TerminalOutputListener): Boolean {
-        return update(outputListener)
+    fun runUpdateSynchronized(outputListener: IGradleCompileClient.TerminalOutputListener, isRemoteCompile: Boolean): Boolean {
+        return update(outputListener, isKeepDaemon = !isRemoteCompile)
     }
 
-    private fun update(outputListener: IGradleCompileClient.TerminalOutputListener = IDLE): Boolean {
+    private fun update(outputListener: IGradleCompileClient.TerminalOutputListener = IDLE, isKeepDaemon: Boolean = false): Boolean {
         try {
             isUpdating = true
             writeInitGradleFile()
             compileContextManager.ensureInitProjectInfo()
+
+            val daemonArg = if (isKeepDaemon) "" else "--no-daemon"
             val localFetchCommand = CompileProjectCommand(
-                "./gradlew --dry-run --console=plain --no-daemon -I ${pathManager.initGradleFilePath.absolutePath}",
+                "./gradlew --dry-run --console=plain $daemonArg -I ${pathManager.initGradleFilePath.absolutePath}",
                 pathManager.projectDir.path,
                 pathManager.initGradleFileRelativePath
             )
