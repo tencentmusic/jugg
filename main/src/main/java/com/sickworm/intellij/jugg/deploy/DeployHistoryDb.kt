@@ -69,6 +69,7 @@ class DeployHistoryDb(
     fun getChangedFilesSinceLastFullCompiled(): List<File>? {
         if (!isAvailable) {
             logger.info("Git not init in this project.")
+            deleteHistory()
             return null
         }
 
@@ -385,6 +386,10 @@ class DeployHistoryDb(
         }
 
         return result
+    }
+
+    fun getDeployHistoryData(): DeployHistoryData? {
+        return DeployHistoryData.load(deployHistoryFile)
     }
 
     private fun File.findClosestParent(directories: Collection<File>): File? {

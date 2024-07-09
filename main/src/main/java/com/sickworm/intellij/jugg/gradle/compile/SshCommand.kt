@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.gradle.compile.FetchClasspathCommand.Companion.getRsyncArguments
+import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
@@ -81,13 +83,13 @@ class SyncFileCommand(
     }
 }
 
-class CompileProjectCommand(
+open class CompileProjectCommand(
     private val compileCommand: String,
     private val projectPath: String,
     private val initGradleFileRelativePath: String,
 ) : BaseSshCommand() {
 
-    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w-_ :]+"""))
+    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w-_ :=.]+"""))
         private set
 
     override val baseCommand: String = run {
@@ -153,10 +155,11 @@ class FetchOutputCommand(
 
 }
 
-class FetchClasspathCommand(
+open class FetchClasspathCommand(
     private val remoteProjectPath: String,
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
+    private val additionalFetchPath: List<String> = emptyList(),
 ) : IftSyncCommand() {
 
     private var rsyncArguments = ""
@@ -164,13 +167,13 @@ class FetchClasspathCommand(
     override val baseCommand: String get() = """ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a "$rsyncArguments" """
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
-        rsyncArguments = getRsyncArguments(modules, isWindows)
+        rsyncArguments = getRsyncArguments(modules, isWindows, additionalFetchPath)
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
     }
 
     companion object {
 
-        fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean): String {
+        fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean, additionalPath: List<String> = emptyList()): String {
             val includeClasspathFilter = modules
                 .flatMap { it.allBuildPathRelative }
                 .toSet()
@@ -183,7 +186,7 @@ class FetchClasspathCommand(
                     if (extension.isNotEmpty()) "--include='$path'"
                     else "--include='$path/**'"
                 }
-            return "-av --delete --prune-empty-dirs --include='*/' ${JuggPathManager.RSYNC_FETCH_CONFIG_DIR_ARGUMENTS} $includeClasspathFilter --exclude='*'"
+            return "-av --delete --prune-empty-dirs --include='*/' ${additionalPath.joinToString(" ")} $includeClasspathFilter --exclude='*'"
         }
     }
 }
@@ -226,3 +229,26 @@ class SyncLocalClasspathCommand(
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
     }
 }
+
+class DiffLibraryChangesCommand(
+    projectPath: String,
+    initGradleFileRelativePath: String,
+    currentBuildChecksum: String,
+    lastBuildChecksum: String,
+) : CompileProjectCommand(
+    "./gradlew --dry-run" +
+            " -P${GradleProjectInfoReaderManager.PARAM_DIFF_MODE}=true" +
+            " -P${GradleProjectInfoReaderManager.PARAM_CURRENT_BUILD_CHECKSUM}=$currentBuildChecksum" +
+            " -P${GradleProjectInfoReaderManager.PARAM_LAST_BUILD_CHECKSUM}=$lastBuildChecksum",
+    projectPath, initGradleFileRelativePath
+)
+
+class FetchChangedLibraryCommand(
+    remoteProjectPath: String,
+    remoteToLocalClasspathPath: String,
+): FetchClasspathCommand(
+    remoteProjectPath,
+    remoteToLocalClasspathPath,
+    emptyList(),
+    listOf(JuggPathManager.RSYNC_FETCH_DIFF_DIR_ARGUMENTS),
+)

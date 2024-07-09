@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File
 import kotlin.jvm.Throws
 
@@ -38,7 +39,12 @@ interface IGradleCompileClient : Disposable {
 
     fun compileAndFetchResult(isOnlyFetchResult: Boolean = false) : GradleCompileResult
 
+    /**
+     * @return root of classpath relative to project root directory
+     */
     fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File?
+
+    fun fetchLibraryChanges(currentBuildChecksum: String, lastBuildChecksum: String): DependencyDiffResult?
 
     fun cancelAction(isByUser: Boolean)
 

@@ -18,6 +18,9 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
+import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.project.dependency.create
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult

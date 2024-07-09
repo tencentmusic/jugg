@@ -15,15 +15,19 @@ class GradleProjectInfoReaderManager(private val rootProject: Project) {
 
     fun readAndSave() {
         try {
-            println("Jugg: readProjectInfo.gradle execute start")
+            val isDiffMode = rootProject.properties[PARAM_DIFF_MODE] == "true"
+            println("Jugg: readProjectInfo.gradle execute start, diffMode: $isDiffMode")
             val startTime = System.currentTimeMillis()
             val lastProjectInfo = readLastProjectInfo()
-            if (lastProjectInfo == null) {
-                println("Jugg: no lastProjectInfo, exists")
-                return
-            }
             val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo).getProjectInfo()
-            writeProjectInfoFile(projectInfo)
+
+            if (isDiffMode) {
+                GradleDependencyDiffer(rootProject, projectInfo).outputDiffToDir()
+            } else {
+                writeProjectInfoFile(projectInfo)
+                GradleDependencyDiffer(rootProject, projectInfo).deleteTmpProjectInfos()
+            }
+
             val costTime = System.currentTimeMillis() - startTime
             println("Jugg: readProjectInfo.gradle execute success, cost: ${costTime}ms")
         } catch (e: Throwable) {
@@ -37,19 +41,29 @@ class GradleProjectInfoReaderManager(private val rootProject: Project) {
      */
     private fun readLastProjectInfo(): JuggProjectInfoSerialize?  {
         var lastProjectInfo: File? = null
+
+        // priority use ide project info, which contains build variant info
         if (juggPathManager.ideProjectInfoFile.exists()) {
             lastProjectInfo = juggPathManager.ideProjectInfoFile
+        } else if (juggPathManager.gradleProjectInfoFile.exists()) {
+            lastProjectInfo = juggPathManager.gradleProjectInfoFile
         }
+
         if (lastProjectInfo == null) {
             println("Jugg: lastProjectInfo not exists")
             return null
         }
 
-        return ProjectInfoSerializerInGradle(lastProjectInfo) { println("Jugg: $it") }.load()
+        return ProjectInfoSerializerInGradle(lastProjectInfo).load()
     }
 
     private fun writeProjectInfoFile(projectInfo: JuggProjectInfo) {
-        ProjectInfoSerializerInGradle(juggPathManager.gradleProjectInfoFile) { println(it) }.save(projectInfo)
+        ProjectInfoSerializerInGradle(juggPathManager.gradleProjectInfoFile).save(projectInfo)
     }
 
+    companion object {
+        const val PARAM_DIFF_MODE = "jugg.diffMode"
+        const val PARAM_CURRENT_BUILD_CHECKSUM = "jugg.currentBuildChecksum"
+        const val PARAM_LAST_BUILD_CHECKSUM = "jugg.lastBuildChecksum"
+    }
 }

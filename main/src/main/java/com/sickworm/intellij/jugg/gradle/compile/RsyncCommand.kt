@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.project.JuggPathManager
 
 
 abstract class RsyncCommand(val options: JuggGradleCompileOptions, keyPathList: List<String>): BaseSshCommand() {
@@ -39,12 +40,13 @@ class RsyncFetchOutputCommand(
 
 }
 
-class RsyncFetchClasspathCommand(
+open class RsyncFetchClasspathCommand(
     options: JuggGradleCompileOptions,
     keyPathList: List<String>,
     private val remoteProjectPath: String,
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
+    private val additionalFetchPath: List<String> = emptyList(),
 ) : RsyncCommand(options, keyPathList) {
 
     private var rsyncArguments = ""
@@ -52,7 +54,21 @@ class RsyncFetchClasspathCommand(
     override val baseCommand: String get() = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $rsyncArguments $remoteProjectPath $remoteToLocalClasspathPath"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
-        rsyncArguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows)
+        rsyncArguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows, additionalFetchPath)
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
     }
 }
+
+class RsyncFetchChangedLibraryCommand(
+    options: JuggGradleCompileOptions,
+    keyPathList: List<String>,
+    remoteProjectPath: String,
+    remoteToLocalClasspathPath: String,
+): RsyncFetchClasspathCommand(
+    options,
+    keyPathList,
+    remoteProjectPath,
+    remoteToLocalClasspathPath,
+    emptyList(),
+    listOf(JuggPathManager.RSYNC_FETCH_DIFF_DIR_ARGUMENTS),
+)

@@ -27,6 +27,7 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
+import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.server.CheckUpdateHandler
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
@@ -131,7 +132,7 @@ class JuggManager @TestOnly constructor(
             warmUpCompile(isNeedWarmUpDeploy = false)
             launch {
                 // do it async to let warmUpCompile run
-                dependencyChangeManager.tryShowChangeConfirmDialog(isFromIde = true)
+                dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
             }
         }
     }
@@ -256,7 +257,7 @@ class JuggManager @TestOnly constructor(
 
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
         realChangedFiles.forEach {
-            logger.debug("${it.type} file changed: ${it.file.name}")
+            logger.debug("Detect file changed: [${it.type}]${it.file.path}")
         }
         if (realChangedFiles.isEmpty()) {
             return

@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.project
+package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
@@ -8,8 +8,12 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient.TerminalOutputListener.Companion.IDLE
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -127,14 +131,20 @@ class GradleProjectInfoLocalFetchManager(
         }
     }
 
+    private var hasWrote = false
+
     fun writeInitGradleFile() {
-        TimeLogger.start("writeInitGradleFile")
         val initGradleFile = pathManager.initGradleFilePath
+        if (hasWrote && initGradleFile.exists()) {
+            return
+        }
+        TimeLogger.start("writeInitGradleFile")
         initGradleFile.parentFile.mkdirs()
         JuggCompilerHelper::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!.openStream().use { ins ->
             val text = ins.reader().readText()
             initGradleFile.writeText(text)
         }
+        hasWrote = true
         TimeLogger.end("writeInitGradleFile", logger)
     }
 

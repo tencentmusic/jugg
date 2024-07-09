@@ -54,6 +54,8 @@ interface IDeployHistoryManager {
      * Get the build file for specific build file since last full build.
      */
     fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>>
+
+    fun getDeployHistoryData(): DeployHistoryData?
 }
 
 /**

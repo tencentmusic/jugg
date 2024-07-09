@@ -7,7 +7,7 @@ import groovy.json.JsonSlurper
 import java.io.File
 
 
-class ProjectInfoSerializerInGradle(private val dataFile: File, private val logger: (String) -> Unit) {
+class ProjectInfoSerializerInGradle(private val dataFile: File) {
 
     @Synchronized
     fun save(projectInfo: JuggProjectInfo) {
@@ -15,59 +15,13 @@ class ProjectInfoSerializerInGradle(private val dataFile: File, private val logg
 
         dataFile.parentFile?.mkdirs()
         val juggProjectInfoSerialize = JuggProjectInfoSerialize.serialize(projectInfo)
-
-        val fileConverter = object : JsonGenerator.Converter {
-            override fun handles(p0: Class<*>?): Boolean {
-                return p0 == File::class.java
-            }
-
-            override fun convert(p0: Any?, p1: String?): Any? {
-                return (p0 as File).absolutePath
-            }
-        }
-        // JsonGenerator will create "valid", "res" which are getter property, so we manually handle it there
-        val libraryConverter = object : JsonGenerator.Converter {
-            override fun handles(p0: Class<*>?): Boolean {
-                return p0 == LibraryDependency::class.java
-            }
-
-            override fun convert(p0: Any?, p1: String?): Any? {
-                val libraryDependency = p0 as? LibraryDependency ?: return "null"
-                val result = mutableMapOf<String, Any>()
-                result["name"] = libraryDependency.name
-                result["file"] = libraryDependency.file
-                result["lastModifiedTime"] = libraryDependency.lastModifiedTime
-                result["crc32"] = libraryDependency.crc32
-                return result
-            }
-        }
-        val buildPathConverter = object : JsonGenerator.Converter {
-            override fun handles(p0: Class<*>?): Boolean {
-                return p0 == ModuleBuildPathInfo::class.java
-            }
-
-            override fun convert(p0: Any?, p1: String?): Any? {
-                val moduleBuildPathInfo = p0 as? ModuleBuildPathInfo ?: return null
-                val result = mutableMapOf<String, Any>()
-                result["projectRootDir"] = moduleBuildPathInfo.projectRootDir
-                result["moduleRootDir"] = moduleBuildPathInfo.moduleRootDir
-                result["buildVariant"] = moduleBuildPathInfo.buildVariant
-                return result
-            }
-        }
-        val generator = JsonGenerator.Options()
-            .excludeFieldsByName("contentHash", "originalClassName")
-            .excludeNulls()
-            .addConverter(fileConverter)
-            .addConverter(libraryConverter)
-            .addConverter(buildPathConverter)
-            .build()
+        val generator = getJsonGenerator()
         val builder = JsonBuilder(juggProjectInfoSerialize, generator)
         val result = builder.toString()
         dataFile.writeText(result)
 
         val costTime = System.currentTimeMillis() - startTime
-        logger("Jugg: Save project info to ${dataFile.absolutePath} cost $costTime ms")
+        println("Jugg: Save project info to ${dataFile.absolutePath} cost $costTime ms")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -84,12 +38,19 @@ class ProjectInfoSerializerInGradle(private val dataFile: File, private val logg
                 // we can not invoke gson in init.gradle.kts, so...
                 // JsonSlurper is not a ORM tool, so we just read what we need: build variant, library dependency
                 val json = jsonSlurper.parse(inputStream) as Map<String, List<Map<String, Any>>> // JuggProjectInfoSerialize
-                val modules = json["modules"]!!.map {
+                val modules: List<ModuleInfoSerialize> = json["modules"]!!.map {
                     val module = it["moduleInfoExceptLibraries"] as Map<String, Any>
-                    ModuleInfo.virtualModule.copy(
+                    val moduleInfo = ModuleInfo.virtualModule.copy(
                         name = module["name"] as String,
                         buildVariant = module["buildVariant"] as String,
                         moduleRootDir = File(module["moduleRootDir"] as String),
+                    )
+                    ModuleInfoSerialize(
+                        moduleInfo,
+                        it["libraryDependencies"] as? List<Int>,
+                        it["runtimeLibraryDependencies"] as? List<Int>,
+                        it["annotationProcessorDependencies"] as? List<Int>,
+                        it["kaptDependencies"] as? List<Int>,
                     )
                 }
                 val dependencyList = json["dependencyList"]!!.map {
@@ -101,19 +62,72 @@ class ProjectInfoSerializerInGradle(private val dataFile: File, private val logg
                     )
                 }
                 juggProjectInfoSerialize = JuggProjectInfoSerialize(
-                    juggProjectInfoExceptModules = JuggProjectInfo(modules.associateBy { it.name }),
-                    modules = modules.map {
-                        ModuleInfoSerialize(it, null,null,null,null)
-                    },
+                    juggProjectInfoExceptModules = JuggProjectInfo(modules.associate {
+                        it.moduleInfoExceptLibraries.name to it.moduleInfoExceptLibraries
+                    }),
+                    modules = modules,
                     dependencyList = dependencyList)
             }
             val costTime = System.currentTimeMillis() - startTime
-            logger("Jugg: Load project info to ${dataFile.absolutePath} cost $costTime ms")
+            println("Jugg: Load project info to ${dataFile.absolutePath} cost $costTime ms")
             return juggProjectInfoSerialize
         } catch (e: Exception) {
-            logger("Jugg: Failed to load project info from ${dataFile.absolutePath}, $e")
+            println("Jugg: Failed to load project info from ${dataFile.absolutePath}, $e")
             printException(e)
             return null
+        }
+    }
+
+    companion object {
+
+        fun getJsonGenerator() : JsonGenerator {
+            val fileConverter = object : JsonGenerator.Converter {
+                override fun handles(p0: Class<*>?): Boolean {
+                    return p0 == File::class.java
+                }
+
+                override fun convert(p0: Any?, p1: String?): Any? {
+                    return (p0 as File).path
+                }
+            }
+            // JsonGenerator will create "valid", "res" which are getter property, so we manually handle it there
+            val libraryConverter = object : JsonGenerator.Converter {
+                override fun handles(p0: Class<*>?): Boolean {
+                    return p0 == LibraryDependency::class.java
+                }
+
+                override fun convert(p0: Any?, p1: String?): Any? {
+                    val libraryDependency = p0 as? LibraryDependency ?: return "null"
+                    val result = mutableMapOf<String, Any>()
+                    result["name"] = libraryDependency.name
+                    result["file"] = libraryDependency.file
+                    result["lastModifiedTime"] = libraryDependency.lastModifiedTime
+                    result["crc32"] = libraryDependency.crc32
+                    return result
+                }
+            }
+            val buildPathConverter = object : JsonGenerator.Converter {
+                override fun handles(p0: Class<*>?): Boolean {
+                    return p0 == ModuleBuildPathInfo::class.java
+                }
+
+                override fun convert(p0: Any?, p1: String?): Any? {
+                    val moduleBuildPathInfo = p0 as? ModuleBuildPathInfo ?: return null
+                    val result = mutableMapOf<String, Any>()
+                    result["projectRootDir"] = moduleBuildPathInfo.projectRootDir
+                    result["moduleRootDir"] = moduleBuildPathInfo.moduleRootDir
+                    result["buildVariant"] = moduleBuildPathInfo.buildVariant
+                    return result
+                }
+            }
+            val generator = JsonGenerator.Options()
+                .excludeFieldsByName("contentHash", "originalClassName")
+                .excludeNulls()
+                .addConverter(fileConverter)
+                .addConverter(libraryConverter)
+                .addConverter(buildPathConverter)
+                .build()
+            return generator
         }
     }
 }

@@ -1,8 +1,8 @@
-package com.sickworm.intellij.jugg.compiler
+package com.sickworm.intellij.jugg.project.dependency
 
 import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
 
 data class DependencyDiffResult(
     val currentBuildDependencies: JuggProjectInfo,
@@ -20,6 +20,9 @@ data class DependencyDiffResult(
         it.oldDependency!!.libraries
     }
 
+    val changedLibraries get() = addedLibraries + updatedLibraries + removedLibraries
+    val hasChanges get() = changedLibraries.isNotEmpty()
+
     fun toHtmlChangeList(): List<String> {
         val result = mutableListOf<String>()
         if (addedLibraries.isNotEmpty()) {
@@ -35,7 +38,7 @@ data class DependencyDiffResult(
         if (updatedLibraries.isNotEmpty()) {
             updatedLibraries.forEach {
                 val updateTag = updateTag(it.isContentUpdate, it.dependency!!.version)
-                result.add("${it.dependency.declaration}$updateTag")
+                result.add("${it.oldDependency!!.declaration}$updateTag")
             }
         }
         
@@ -110,10 +113,12 @@ data class DependencyDiffResult(
                         }
                         if (removedDependencies.isNotEmpty()) {
                             removedDependencies.forEach { removedDependency ->
-                                versionChangedLibraries.add(UpdatedLibraryDependency(
+                                versionChangedLibraries.add(
+                                    UpdatedLibraryDependency(
                                     addedLibrary.dependency,
                                     removedDependency.oldDependency!!
-                                ))
+                                )
+                                )
                             }
                             iterator.remove()
                             removedLibraries.removeAll(removedDependencies)

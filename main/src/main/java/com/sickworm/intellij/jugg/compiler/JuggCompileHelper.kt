@@ -11,21 +11,21 @@ import com.sickworm.intellij.jugg.compiler.source.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
-import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
-import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
-import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.*
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
+import java.util.zip.CRC32
 
 class JuggCompilerHelper(
     private val project: Project,
@@ -76,7 +76,7 @@ class JuggCompilerHelper(
     }
 
     @Synchronized
-    fun doCompile(
+    private fun doCompile(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
         indicator: ProgressIndicator,
@@ -222,41 +222,38 @@ class JuggCompilerHelper(
         }
         var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
         if (!forceIncrementalCompile) {
-            val outputListener = GradleOutputParser(options, processHandler, indicator, logger)
             if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
                 return
             }
 
             val lastBuildFilesMap = deployHistoryManager.getLastBuildFiles(changedBuildFiles)
-            val result = BuildChangesConfirmDialog.showAndGetResult(project, lastBuildFilesMap.map { it.first.file to it.second })
-            logger.debug("isConfirmIncrementalCompile: result $result")
-            if (result == BuildChangesConfirmDialog.Result.FIND_CHANGE) {
+            val step1Result = BuildChangesConfirmDialog.showAndGetResult(project, lastBuildFilesMap.map { it.first.file to it.second })
+            var step2Result = ConfirmResult.INVALID
+            logger.debug("isConfirmIncrementalCompile: result $step1Result")
+            if (step1Result == BuildChangesConfirmDialog.Result.FIND_CHANGE) {
                 logger.info("Jugg: Start reading dependencies from Gradle...\n")
                 val startTime = System.currentTimeMillis()
-                val runResult = gradleProjectInfoLocalFetchManager.runUpdateSynchronized(outputListener, options.isRemoteCompile)
+                val outputListener = GradleOutputParser(options, processHandler, indicator, logger)
+                val runResult = runGradleLibraryDiff(options, outputListener)
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
                 logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
-                if (runResult) {
-                    dependencyChangeManager.tryShowChangeConfirmDialog(isFromIde = false)
-                    forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-                } else {
-                    JuggRunningTask.notifyFallback(project, "Update compile info failed")
-                }
+                step2Result = dependencyChangeManager.tryShowChangeConfirmDialog(runResult)
+                forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+            } else if (step1Result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
+                forceIncrementalCompile = true
             }
 
             juggServer.report {
                 action = "check_dependency_incremental_compile"
                 detail = Gson().toJson(mapOf(
-                    "confirm_step_1" to result.toString(),
-                    "confirm_step_2" to forceIncrementalCompile.toString(),
+                    "confirm_step_1" to step1Result.toString(),
+                    "confirm_step_2" to step2Result.toString(),
                 ))
             }
 
-            if (result == BuildChangesConfirmDialog.Result.CANCEL) {
+            if (step1Result == BuildChangesConfirmDialog.Result.CANCEL || step2Result == ConfirmResult.CANCEL) {
                 processHandler.destroyProcess()
                 return
-            } else if (result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
-                forceIncrementalCompile = true
             }
         }
 
@@ -271,6 +268,46 @@ class JuggCompilerHelper(
         }
         val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
         gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isNeedRebuild, lastBuildModifiedTime)
+    }
+
+    private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: GradleOutputParser): DependencyDiffResult? {
+        gradleProjectInfoLocalFetchManager.writeInitGradleFile()
+        val client = gradleCompileClientManager.getClient(true, pathManager.localClasspathStoragePathManager.classpathDir)
+        client.terminalOutputListener = outputListener
+        client.login(options)
+
+        val deployHistoryData = deployHistoryManager.getDeployHistoryData()
+
+        val currentBuildChecksum = run {
+            val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
+                it.type == CompileFile.Type.Gradle
+            }
+            // add new changed files and override olds
+            val currentBuildFiles = (deployHistoryData?.changedFiles ?: emptyMap()) + changedBuildFiles.associate {
+                it.file.absolutePath to it.file.lastModified()
+            }
+            currentBuildFiles.checksum
+        }
+
+        val lastBuildChecksum = if (deployHistoryData == null || deployHistoryData.incDeployTimes == 0) {
+            ""
+        } else {
+            deployHistoryData.changedFiles?.checksum ?: ""
+        }
+
+        return client.fetchLibraryChanges(currentBuildChecksum, lastBuildChecksum)
+    }
+
+    private val Map<String, Long>.checksum: String get() {
+        val crc32 = CRC32()
+        this.entries.sortedBy {
+            it.key
+        }.forEach {
+            crc32.update(it.key.toByteArray())
+            crc32.update(it.value.toInt())
+            crc32.update((it.value shr 32).toInt())
+        }
+        return crc32.value.toString()
     }
 
     @TestOnly

@@ -13,7 +13,13 @@ class JuggPathManager(val projectDir: File) {
     val stagingDir = File(compileRootDir, "staging")
     val databaseDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
+
     val tmpDir = File(juggRootDir, "tmp")
+    val remoteDiffDir = File(tmpDir, "diff")
+    val remoteDiffLibraryDir = File(remoteDiffDir, "libraries")
+    val remoteDiffResultFile = File(remoteDiffDir, "diff_result.json")
+    val tmpGradleProjectInfo = File(tmpDir, "project_infos")
+
     val configDir = File(juggRootDir, "config")
 
     val projectInfosDir = File(databaseDir, "project_infos.db")
@@ -27,8 +33,11 @@ class JuggPathManager(val projectDir: File) {
     val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
     companion object {
-        const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' --include='/build/jugg/config' --include='/build/jugg/config/**' --exclude='/build/**'"
-        const val RSYNC_FETCH_CONFIG_DIR_ARGUMENTS = "--include='build/jugg/database/project_infos.db/**'"
+        const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' " +
+                "--include='/build/jugg/config' --include='/build/jugg/config/**' " +
+                "--include='/build/jugg/database/' --include='/build/jugg/database/project_infos.db/' --include='/build/jugg/database/project_infos.db/project_infos.json' " +
+                "--exclude='/build/**'"
+        const val RSYNC_FETCH_DIFF_DIR_ARGUMENTS = "--include='build/jugg/tmp/diff/**'"
     }
 }
 

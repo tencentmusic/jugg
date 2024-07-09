@@ -29,6 +29,9 @@ class GradleProjectInfoReader(
         // load dependenciesCache
         // we can not use lastProjectInfo for cache because it misses the info of transitive dependencies
         TraceLogger.start("loadDependencyCrcCache")
+        if (lastProjectInfo == null) {
+            println("Jugg: lastProjectInfo is null, project info very likely not correct.")
+        }
         dependenciesCrcCache = mutableMapOf()
         lastProjectInfo?.dependencyList?.forEach {
             dependenciesCrcCache[it.file.absolutePath] = it
@@ -48,7 +51,7 @@ class GradleProjectInfoReader(
         return JuggProjectInfo(modules)
     }
 
-    private fun getModuleInfo(project: Project): ModuleInfo? {
+    private fun getModuleInfo(project: Project): ModuleInfo {
         TraceLogger.start("getModule:${project.standardModuleName}")
         TraceLogger.start("getVar")
         val moduleType = when {
@@ -58,16 +61,15 @@ class GradleProjectInfoReader(
             else -> ModuleInfo.Type.Unknown
         }
 
+        val buildVariant: String = getBuildVariant(project.projectDir)
         var moduleInfo = ModuleInfo.virtualModule.copy(
             name = project.standardModuleName,
             moduleType = moduleType,
             moduleRootDir = project.projectDir,
             projectRootDir = rootProject.projectDir,
+            buildVariant = buildVariant,
+            buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant),
         )
-        val buildVariant = getBuildVariant(project.projectDir)
-            ?: // ignore module that not in IDE
-            return null
-        moduleInfo = moduleInfo.copy(buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant))
 
         if (moduleType.isAndroidModule) {
             try {
@@ -158,7 +160,14 @@ class GradleProjectInfoReader(
         TraceLogger.start("getDep")
         try {
             TraceLogger.start("getCompile")
-            val dependFilterName = if (moduleType.isAndroidModule) "${buildVariant}CompileClasspath" else "compileClasspath"
+            var dependFilterName = if (moduleType.isAndroidModule) "${buildVariant}CompileClasspath" else "compileClasspath"
+            if (moduleType.isAndroidModule) {
+                val isValidFilterName = project.configurations.names.any { filterConfigs(it, dependFilterName) }
+                if (!isValidFilterName) {
+                    println("Jugg: ${project.standardModuleName} filter name($dependFilterName) is invalid, use CompileClasspath as fallback.")
+                    dependFilterName = "CompileClasspath"
+                }
+            }
             val dependencies = getDependencies(project, dependFilterName, isAndroidDepend = moduleType.isAndroidModule)
             TraceLogger.end("getCompile")
 
@@ -196,8 +205,16 @@ class GradleProjectInfoReader(
         } ?: emptyMap()
     }
 
-    private fun getBuildVariant(projectDir: File): String? {
-        return fixedModulePathMap[projectDir.absolutePath]?.buildVariant
+    private val defaultVariant: String by lazy {
+        fixedModulePathMap.values
+            .groupBy { it.buildVariant }
+            .maxByOrNull { it.value.size }
+            ?.key
+            ?: ModuleInfo.DEFAULT_BUILD_VARIANT
+    }
+
+    private fun getBuildVariant(projectDir: File): String {
+        return fixedModulePathMap[projectDir.absolutePath]?.buildVariant ?: defaultVariant
     }
 
     private fun getDependencies(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {

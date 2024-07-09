@@ -14,19 +14,6 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
 
     private var memoryCache: JuggProjectInfo? = null
 
-    private val gson = GsonBuilder()
-        .registerTypeAdapter(File::class.java, object : TypeAdapter<File>() {
-            override fun write(p0: JsonWriter?, p1: File?) {
-                p0?.value(p1?.path)
-            }
-
-            override fun read(p0: JsonReader?): File {
-                return File(p0?.nextString() ?: "")
-            }
-
-        })
-        .create()
-
     @Synchronized
     fun save(projectInfo: JuggProjectInfo?) {
         val startTime = System.currentTimeMillis()
@@ -74,5 +61,21 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
     @Synchronized
     fun clearMemoryCache() {
         memoryCache = null
+    }
+
+    companion object {
+
+        val gson = GsonBuilder()
+            .registerTypeAdapter(File::class.java, object : TypeAdapter<File>() {
+                override fun write(p0: JsonWriter?, p1: File?) {
+                    p0?.value(p1?.path)
+                }
+
+                override fun read(p0: JsonReader?): File {
+                    return File(p0?.nextString() ?: "")
+                }
+
+            })
+            .create()
     }
 }

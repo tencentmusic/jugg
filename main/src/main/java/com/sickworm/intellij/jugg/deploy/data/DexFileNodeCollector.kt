@@ -4,10 +4,7 @@ import com.googlecode.d2j.Field
 import com.googlecode.d2j.Method
 import com.googlecode.d2j.node.DexClassNode
 import com.googlecode.d2j.reader.Op
-import com.googlecode.d2j.visitors.DexClassVisitor
-import com.googlecode.d2j.visitors.DexCodeVisitor
-import com.googlecode.d2j.visitors.DexFileVisitor
-import com.googlecode.d2j.visitors.DexMethodVisitor
+import com.googlecode.d2j.visitors.*
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode

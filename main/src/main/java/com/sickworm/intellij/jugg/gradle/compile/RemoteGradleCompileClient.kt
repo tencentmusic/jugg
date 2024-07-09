@@ -7,6 +7,12 @@ import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.LibraryDependencySet
+import com.sickworm.intellij.jugg.project.dependency.UpdatedLibraryDependency
+import com.sickworm.intellij.jugg.project.dependency.convertToAbsolutePath
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
@@ -212,47 +218,16 @@ class RemoteGradleCompileClient(
     }
 
     override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
-        isCanceled = false
-        val channel = channel
-        val gradleCompileSettings = juggGradleCompileOptions
-        if (channel == null || gradleCompileSettings == null) {
-            throw JuggInternalException.notLoginYet()
-        }
+        val (channel, gradleCompileSettings) = checkLoginOnStart()
 
         if (!isOnlyFetchResult) {
-            // 1. mkdir
-            val mkDirCommand = MkDirCommand(gradleCompileSettings.remoteSyncRootPath)
-            val mkDirResult = invoke(channel, mkDirCommand)
-            if (mkDirResult != 0) {
-                printToStreamErrorIfCanceled("Make dir failed, please check your sync client is opened.")
-                return GradleCompileResult.failed(isCanceled, failedReason = "Make dir failed")
+            // 1. sync source
+            val syncFileResult = syncSourceFile(channel, gradleCompileSettings)
+            if (!syncFileResult.isSuccess) {
+                return syncFileResult
             }
 
-            // 2. sync source file
-            val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
-                RsyncSyncFileCommand(
-                    gradleCompileSettings,
-                    keyPathList,
-                    gradleCompileSettings.localSyncRsyncPath,
-                    gradleCompileSettings.remoteSyncRootRsyncPath,
-                )
-            } else {
-                SyncFileCommand(
-                    gradleCompileSettings.localSyncIftPath,
-                    gradleCompileSettings.remoteSyncRootPath,
-                )
-            }
-            val syncFileResult = invoke(channel, syncFileCommand)
-            if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
-                syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
-                printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
-                return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
-            } else if (syncFileResult != 0) {
-                printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your sync client is opened.")
-                return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
-            }
-
-            // 3. compile
+            // 2. compile
             val compileProjectCommand = CompileProjectCommand(
                 gradleCompileSettings.compileCommand,
                 gradleCompileSettings.remoteProjectPath,
@@ -265,7 +240,7 @@ class RemoteGradleCompileClient(
             }
         }
 
-        // 4. find apk
+        // 3. find apk
         val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, gradleCompileSettings.outputApkName)
         val findOutputResult = invoke(channel, findOutputCommand)
         if (findOutputResult != 0) {
@@ -278,7 +253,7 @@ class RemoteGradleCompileClient(
             return GradleCompileResult.failed(isCanceled, failedReason = "Find output failed")
         }
 
-        // fetch apk
+        // 4. fetch apk
         val remoteSeparator = if (isRemoteWindows) '\\' else '/'
         val fetchOutputCommand = if (gradleCompileSettings.syncMode.isRsync) {
             val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
@@ -319,13 +294,52 @@ class RemoteGradleCompileClient(
         return GradleCompileResult.success(apkFile)
     }
 
-    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
+    private fun checkLoginOnStart(): Pair<Channel, JuggGradleCompileOptions> {
         isCanceled = false
         val channel = channel
         val gradleCompileSettings = juggGradleCompileOptions
         if (channel == null || gradleCompileSettings == null) {
             throw JuggInternalException.notLoginYet()
         }
+        return channel to gradleCompileSettings
+    }
+
+    private fun syncSourceFile(channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): GradleCompileResult {
+        val mkDirCommand = MkDirCommand(gradleCompileSettings.remoteSyncRootPath)
+        val mkDirResult = invoke(channel, mkDirCommand)
+        if (mkDirResult != 0) {
+            printToStreamErrorIfCanceled("Make dir failed, please check your sync client is opened.")
+            return GradleCompileResult.failed(isCanceled, failedReason = "Make dir failed")
+        }
+
+        val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
+            RsyncSyncFileCommand(
+                gradleCompileSettings,
+                keyPathList,
+                gradleCompileSettings.localSyncRsyncPath,
+                gradleCompileSettings.remoteSyncRootRsyncPath,
+            )
+        } else {
+            SyncFileCommand(
+                gradleCompileSettings.localSyncIftPath,
+                gradleCompileSettings.remoteSyncRootPath,
+            )
+        }
+        val syncFileResult = invoke(channel, syncFileCommand)
+        if (syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_USER ||
+            syncFileResult == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
+            printToStreamErrorIfCanceled("[Jugg] iFt needs login but was canceled by user.")
+            return GradleCompileResult.failed(isCanceled, failedReason = "iFt needs login")
+        } else if (syncFileResult != 0) {
+            printToStreamErrorIfCanceled("Sync file from local to remote failed, please check your sync client is opened.")
+            return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
+        }
+
+        return GradleCompileResult.success(File(""))
+    }
+
+    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
+        val (channel, gradleCompileSettings) = checkLoginOnStart()
 
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncFetchClasspathCommand(
@@ -349,6 +363,70 @@ class RemoteGradleCompileClient(
         }
         return File(gradleCompileSettings.remoteToLocalSyncClasspathPath)
     }
+
+    override fun fetchLibraryChanges(currentBuildChecksum: String, lastBuildChecksum: String): DependencyDiffResult? {
+        val (channel, gradleCompileSettings) = checkLoginOnStart()
+
+        // 1. sync source
+        val syncFileResult = syncSourceFile(channel, gradleCompileSettings)
+        if (!syncFileResult.isSuccess) {
+            return null
+        }
+
+        // 2. run library diff
+        val diffLibraryChangesCommand = DiffLibraryChangesCommand(
+            gradleCompileSettings.remoteProjectPath,
+            gradleCompileSettings.initGradleFileRelativePath,
+            currentBuildChecksum,
+            lastBuildChecksum,
+        )
+        val compileProjectResult = invoke(channel, diffLibraryChangesCommand)
+        if (compileProjectResult != 0) {
+            printToStreamErrorIfCanceled("Diff library changes failed, please check the error message.")
+            return null
+        }
+
+        // 3. fetch result
+        JuggPathManager(File(gradleCompileSettings.remoteToLocalSyncClasspathPath)).remoteDiffDir.deleteRecursively()
+
+        val fetchChangedLibraryCommand = if (gradleCompileSettings.syncMode.isRsync) {
+            RsyncFetchChangedLibraryCommand(
+                gradleCompileSettings,
+                keyPathList,
+                gradleCompileSettings.remoteSyncRootRsyncPath,
+                gradleCompileSettings.remoteToLocalRootRsyncPath,
+            )
+        } else {
+            FetchChangedLibraryCommand(
+                gradleCompileSettings.remoteSyncRootPath,
+                gradleCompileSettings.remoteToLocalRootIftPath,
+            )
+        }
+        val fetchChangedLibraryResult = invoke(channel, fetchChangedLibraryCommand)
+        if (fetchChangedLibraryResult != 0) {
+            printToStreamErrorIfCanceled("Fetch library changes failed, please check the error message.")
+            return null
+        }
+
+        val syncDirJuggPathManager = JuggPathManager(File(gradleCompileSettings.remoteToLocalSyncClasspathPath))
+        val diffFile = syncDirJuggPathManager.remoteDiffResultFile
+        if (!diffFile.exists()) {
+            printToStreamErrorIfCanceled("Diff file not found, please check the error message.")
+            return null
+        }
+        val dependencyDiffResult = try {
+            val diffResult = ProjectInfoSerializer.gson.fromJson(diffFile.readText(), DependencyDiffResult::class.java)
+            // replace diffResult path to local absolute path
+            diffResult.convertToAbsolutePath(syncDirJuggPathManager.remoteDiffLibraryDir)
+        } catch (e: Exception) {
+            printToStreamErrorIfCanceled("Parse diff result failed, please check the error message.")
+            return null
+        }
+        printToStreamInfo("[Jugg] found changed libraries: ${dependencyDiffResult.changedLibraries.size}")
+
+        return dependencyDiffResult
+    }
+
 
     @Volatile
     private var isCanceled = false

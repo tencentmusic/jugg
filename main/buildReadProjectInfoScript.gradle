@@ -1,4 +1,5 @@
 
+// collect files
 File readProjectInfoKtsFile = new File(projectDir, "src/main/resources/gradle/readProjectInfo.gradle.kts")
 readProjectInfoKtsFile.delete()
 readProjectInfoKtsFile.parentFile.mkdirs()
@@ -17,7 +18,25 @@ for (final def file in dataDirectory.listFiles()) {
     }
 }
 willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt"))
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/project/dependency/DependencyDiffResult.kt"))
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlAndroidManifestInfo.kt"))
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/compiler/manifest/XmlParser.kt"))
 
+// sort order
+willCollectFiles = willCollectFiles.sort { it.absolutePath }
+// order must follow: ProjectInfoSerializerInGradle -> GradleDependencyDiffer -> GradleProjectInfoReaderManager
+// or will get:
+// java.lang.NoSuchMethodError: 'void ReadProjectInfo_gradle$ProjectInfoSerializerInGradle.<init>(java.io.File)'
+// java.lang.NoSuchMethodError: 'void ReadProjectInfo_gradle$GradleDependencyDiffer.<init>(org.gradle.api.Project, ReadProjectInfo_gradle$JuggProjectInfo)'
+// ProjectInfoSerializerInGradle constructors:
+// public ReadProjectInfo_gradle$ProjectInfoSerializerInGradle(ReadProjectInfo_gradle,java.io.File,boolean)
+// public ReadProjectInfo_gradle$ProjectInfoSerializerInGradle(ReadProjectInfo_gradle,java.io.File)
+willCollectFiles.remove(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleDependencyDiffer.kt"))
+willCollectFiles.remove(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt"))
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleDependencyDiffer.kt"))
+willCollectFiles.add(new File(projectDir, "src/main/java/com/sickworm/intellij/jugg/gradle/script/GradleProjectInfoReaderManager.kt"))
+
+// start write script
 List<String> classContents = new ArrayList()
 Set<String> imports = new ArrayList()
 willCollectFiles.forEach {
@@ -55,9 +74,14 @@ classContents.forEach {
 finalContent.append("\n")
 
 finalContent.append("""
-gradle.buildFinished {
-    GradleProjectInfoReaderManager(rootProject).readAndSave()
-}
+gradle.buildFinished(object : Action<BuildResult> {
+    override fun execute(buildResult: BuildResult) {
+        println("Jugg: build finished, isSuccess \${buildResult.failure == null}")
+        if (buildResult.failure == null) {
+            GradleProjectInfoReaderManager(rootProject).readAndSave()
+        }
+    }
+})
 """)
 finalContent.append("\n")
 

@@ -147,7 +147,6 @@ class FileChangesHandler(
 
         customBuildFileList.forEach {
             if (file.absolutePath == it.absolutePath) {
-                logger.info("Detect custom build file changed: $file")
                 return ChangedFile(
                     CompileFile.Type.Gradle,
                     file,
@@ -165,7 +164,6 @@ class FileChangesHandler(
         getModules().forEach inner@{ module ->
             val moduleRootDir = module.moduleRootDir
             if (file.isChild(moduleRootDir)) {
-                logger.info("Detect gradle file changed: $file")
                 return ChangedFile(
                     CompileFile.Type.Gradle,
                     file,
@@ -177,7 +175,6 @@ class FileChangesHandler(
 
         val projectRootDir = getProjectRootDir()
         if (projectRootDir != null && file.isChild(projectRootDir)) {
-            logger.info("Detect gradle file changed: $file")
             return ChangedFile(
                 CompileFile.Type.Gradle,
                 file,
@@ -197,7 +194,6 @@ class FileChangesHandler(
 
         val projectRootDir = getProjectRootDir()
         if (projectRootDir != null && file.parentFile.absolutePath == projectRootDir.absolutePath) {
-            logger.info("Detect properties file changed: $file")
             return ChangedFile(
                 CompileFile.Type.Gradle,
                 file,
@@ -230,7 +226,6 @@ class FileChangesHandler(
                     return null
                 }
 
-                logger.info("Detect AndroidManifest.xml changed: $file")
                 return ChangedFile(
                     CompileFile.Type.AndroidManifest,
                     file,

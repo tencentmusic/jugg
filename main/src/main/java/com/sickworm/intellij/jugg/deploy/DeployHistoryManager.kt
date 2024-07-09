@@ -115,4 +115,8 @@ class DeployHistoryManager(
     override fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>> {
         return deployHistoryDb.getLastBuildFiles(files)
     }
+
+    override fun getDeployHistoryData(): DeployHistoryData? {
+        return deployHistoryDb.getDeployHistoryData()
+    }
 }
