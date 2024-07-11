@@ -264,6 +264,7 @@ class DeployHistoryDb(
             gitFileMap[File(subDir)] = mutableListOf()
         }
 
+        logger.debug("filterUnchangedFiles filtering ${files.map { it.name }} in ${gitFileMap.map { it.key.path }}")
         val unchangedFiles = mutableListOf<File>()
         files.forEach { file ->
             val path = file.relativeTo(projectDir).path
@@ -292,11 +293,12 @@ class DeployHistoryDb(
 
         gitFileMap.forEach { (projectDir, files) ->
             if (files.isEmpty()) {
+                logger.debug("filterUnchangedFiles filtering [] in $projectDir")
                 return@forEach
             }
 
             val gitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
-            logger.debug("filterUnchangedFiles filtering ${gitManager.rootDir} in ${files.map { it.name }}")
+            logger.debug("filterUnchangedFiles filtering ${files.map { it.name }} in ${gitManager.rootDir}")
             val changedFileByGit = gitManager.filterChangedFiles(gitCommitMap[projectDir]!!, files).map {
                 it.absolutePath
             }.toSet()
