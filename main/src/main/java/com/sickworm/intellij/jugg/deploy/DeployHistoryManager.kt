@@ -103,7 +103,7 @@ class DeployHistoryManager(
 
     @Synchronized
     override fun updateHistoryOnAfterDeployed(sourceFiles: List<ChangedFile>, deployedFiles: List<CompileOutput>) {
-        logger.debug("updateHistoryOnAfterDeployed, sourceFiles: ${sourceFiles.size}, deployedFiles: ${deployedFiles.size}")
+        logger.debug("updateHistoryOnAfterDeployed, sourceFiles: ${sourceFiles.map { it.file.name }}, deployedFiles: ${deployedFiles.size}")
         compileContextDb.updateDeployedData(deployedFiles)
         deployHistoryDb.updateHistory(sourceFiles)
     }

@@ -237,6 +237,11 @@ data class LibraryDependency(
 
 data class ModuleDependency(
     val moduleName: String,
-) : Dependency
+) : Dependency {
+
+    override fun toString(): String {
+        return moduleName
+    }
+}
 
 interface Dependency
