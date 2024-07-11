@@ -213,10 +213,10 @@ private class ChangePackageWriter(
                 null,
                 it.staticValue?.value)
         }
-        node.classData.staticFields.forEach {
+        node.classData?.staticFields?.forEach {
             visitField(it)
         }
-        node.classData.instanceFields.forEach {
+        node.classData?.instanceFields?.forEach {
             visitField(it)
         }
 
