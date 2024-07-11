@@ -168,9 +168,9 @@ private class ChangePackageWriter(
             node.superclazz.descriptor.stringData.string.asmSigFormat,
             node.interfaces?.items?.map { it.descriptor.stringData.string.asmSigFormat }?.toTypedArray() ?: emptyArray()
         )
-        cw.visitSource(node.sourceFile.stringData.string, null)
+        cw.visitSource(node.sourceFile?.stringData?.string, null)
 
-        node.classAnnotations.annotations.find {
+        node.classAnnotations?.annotations?.find {
             it.annotation.type.descriptor.stringData.string == "Ldalvik/annotation/MemberClasses;"
         }?.let {
             (it.annotation.elements.first().value.value as? EncodedArray)?.values?.forEach { value ->
@@ -184,11 +184,11 @@ private class ChangePackageWriter(
             }
         }
 
-        val outerClassAnnotation = node.classAnnotations.annotations.find {
+        val outerClassAnnotation = node.classAnnotations?.annotations?.find {
             it.annotation.type.descriptor.stringData.string == "Ldalvik/annotation/EnclosingClass;"
         }
 
-        val innerClassAnnotation = node.classAnnotations.annotations.find {
+        val innerClassAnnotation = node.classAnnotations?.annotations?.find {
             it.annotation.type.descriptor.stringData.string == "Ldalvik/annotation/InnerClass;"
         }
         if (outerClassAnnotation != null && innerClassAnnotation != null) {
@@ -266,10 +266,10 @@ private class ChangePackageWriter(
             }
             mv.visitEnd()
         }
-        node.classData.directMethods?.forEach {
+        node.classData?.directMethods?.forEach {
             visitMethod(it)
         }
-        node.classData.virtualMethods?.forEach {
+        node.classData?.virtualMethods?.forEach {
             visitMethod(it)
         }
 
