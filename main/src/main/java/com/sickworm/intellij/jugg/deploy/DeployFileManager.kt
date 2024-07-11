@@ -210,7 +210,9 @@ class DeployFileManager(
     fun reset(resetFilesBeforeTimeMill: Long? = null) {
         logger.debug("reset deploy file manager, resetFilesBeforeTimeMill=$resetFilesBeforeTimeMill")
         val remainUncompiledFiles = uncompiledFiles.filter {
-            resetFilesBeforeTimeMill != null && it.value.file.lastModified() > resetFilesBeforeTimeMill
+            resetFilesBeforeTimeMill != null &&
+                    it.value.file.exists() &&
+                    it.value.file.lastModified() > resetFilesBeforeTimeMill
         }
 
         uncompiledFiles.clear()
