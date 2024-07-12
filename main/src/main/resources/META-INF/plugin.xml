@@ -51,7 +51,7 @@
     </extensions>
     <actions>
         <action id="jugg.RestartAppAction"
-                class="com.sickworm.intellij.jugg.ide.RestartAppAction"
+                class="com.sickworm.intellij.jugg.ide.ui.RestartAppAction"
                 text="Restart App"
                 description="Restart App for selected devices"
                 icon="AllIcons.Actions.Refresh"

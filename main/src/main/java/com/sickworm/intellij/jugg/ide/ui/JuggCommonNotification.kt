@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.*

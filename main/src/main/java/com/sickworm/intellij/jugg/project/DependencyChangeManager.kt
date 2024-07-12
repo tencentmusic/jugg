@@ -1,12 +1,14 @@
-package com.sickworm.intellij.jugg.project
+package com.sickworm.intellij.jugg.project.dependency
 
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.ide.CommonConfirmDialog
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*

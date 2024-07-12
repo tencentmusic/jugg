@@ -1,7 +1,8 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.sickworm.intellij.jugg.ide.JuggInitializer
 
 /**
  * button to restart app

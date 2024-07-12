@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.server
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.ide.JuggCommonNotification
+import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.CustomConfigManager
 import com.sickworm.intellij.jugg.server.protocols.VersionData

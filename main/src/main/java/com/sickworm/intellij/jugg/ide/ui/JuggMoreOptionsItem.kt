@@ -1,7 +1,10 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.ide.JuggInitializer
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.JuggSettings
 
 class JuggMoreOptionsItem(
     val name: String,

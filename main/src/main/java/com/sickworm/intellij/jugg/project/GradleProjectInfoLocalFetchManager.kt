@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient.TerminalOu
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.text.SimpleDateFormat
 import java.util.*
 
