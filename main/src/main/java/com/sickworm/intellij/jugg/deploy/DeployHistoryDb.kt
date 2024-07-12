@@ -79,7 +79,10 @@ class DeployHistoryDb(
             dirAndCommitMap[rootDir] = commit
         }
 
-        val changedFiles = mutableListOf<File>()
+        val changedFiles = mutableSetOf<File>()
+        deployHistoryData.changedFiles?.keys?.forEach { path ->
+            changedFiles.add(File(projectDir, path))
+        }
         dirAndCommitMap.forEach { (rootDir, commit) ->
             val subChangedFiles = getGitChangedFiles(File(rootDir), commit)
             logger.debug("getChangedFilesSinceLastFullCompiled, dir: ${rootDir}, files: ${subChangedFiles?.map { it.name }}")
@@ -90,6 +93,9 @@ class DeployHistoryDb(
             changedFiles.addAll(subChangedFiles)
         }
         val undeployFiles = changedFiles.filter {
+            if (!it.exists()) {
+                return@filter false
+            }
             isCrcChanged(deployHistoryData, it)
         }
         logger.debug("getChangedFilesSinceLastFullCompiled, final files: ${undeployFiles.map { it.name }}")
