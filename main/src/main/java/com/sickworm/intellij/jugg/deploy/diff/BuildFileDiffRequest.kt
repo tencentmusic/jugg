@@ -25,8 +25,8 @@ class BuildFileDiffRequest(
     init {
         val contentFactory = DiffContentFactory.getInstance()
         val localFileSystem = LocalFileSystem.getInstance()
-        val vOldFile: VirtualFile? = if (oldFile?.exists() == true) localFileSystem.findFileByIoFile(oldFile) else null
-        val vNewFile: VirtualFile? = if (newFile.exists()) localFileSystem.findFileByIoFile(newFile) else null
+        val vOldFile: VirtualFile? = if (oldFile?.exists() == true) localFileSystem.refreshAndFindFileByIoFile(oldFile) else null
+        val vNewFile: VirtualFile? = if (newFile.exists()) localFileSystem.refreshAndFindFileByIoFile(newFile) else null
         oldContent = vOldFile?.run { contentFactory.create(project, vOldFile) }
         newContent = vNewFile?.run { contentFactory.create(project, vNewFile) }
 
