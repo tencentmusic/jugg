@@ -221,7 +221,9 @@ class JuggCompilerHelper(
             it.type == CompileFile.Type.Gradle
         }
         var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-        if (!forceIncrementalCompile) {
+        val isFirstTimeRun = juggRunningTaskStatusManager.isFirstTimeRun()
+        logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $forceIncrementalCompile, isFirstTimeRun: $isFirstTimeRun")
+        if (!forceIncrementalCompile && isFirstTimeRun) {
             if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
                 return
             }
