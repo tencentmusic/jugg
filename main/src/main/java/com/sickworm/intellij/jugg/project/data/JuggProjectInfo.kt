@@ -31,6 +31,8 @@ data class ModuleInfo(
     val runtimeLibraryDependencies: List<LibraryDependency>,
     val annotationProcessorDependencies: List<LibraryDependency>,
     val kaptDependencies: List<LibraryDependency>,
+    val javaAnnotationProcessorOptions: Map<String, String>? = null,
+    val kaptArguments: Map<String, String>? = null,
 ) {
 
     enum class Type {

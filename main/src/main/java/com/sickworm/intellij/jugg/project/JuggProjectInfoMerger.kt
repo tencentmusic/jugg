@@ -183,6 +183,8 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies, // only gradle has
                 annotationProcessorDependencies = gradleModuleInfo.annotationProcessorDependencies, // only gradle has
                 kaptDependencies = gradleModuleInfo.kaptDependencies, // only gradle has
+                javaAnnotationProcessorOptions = gradleModuleInfo.javaAnnotationProcessorOptions, // only gradle has
+                kaptArguments = gradleModuleInfo.kaptArguments, // only gradle has
             )
             mergedModules[name] = mergedModuleInfo
         }

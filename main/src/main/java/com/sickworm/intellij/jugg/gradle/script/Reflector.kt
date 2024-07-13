@@ -34,16 +34,21 @@ class Reflector(val value: Any?) {
     fun invoke(methodName: String, vararg args: Any): Reflector? {
         value ?: return null
         try {
-            // if args has null, consider using a NullType class to presenter argType
-            val argsType = args.map { it::class.java }.toTypedArray()
+            val argsType: Array<Class<*>> = args.map {
+                if (it is Value) it.clazz else it::class.java
+            }.toTypedArray()
+            val argValue: Array<Any?> = args.map {
+                if (it is Value) it.value else it
+            }.toTypedArray()
             val method = value::class.java.getMethod(methodName, *argsType)
-            val result = method.invoke(value, *args)
+            val result = method.invoke(value, *argValue)
             return Reflector(result)
         } catch (e: Throwable) {
             return null
         }
     }
 
+    class Value(val clazz: Class<*>, val value: Any?)
 
     companion object {
 

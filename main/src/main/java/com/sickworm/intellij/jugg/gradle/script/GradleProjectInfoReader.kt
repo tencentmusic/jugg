@@ -83,9 +83,11 @@ class GradleProjectInfoReader(
                 val compileOptions = androidExt["compileOptions"]
                 // com.android.build.gradle.internal.dsl.DefaultConfig
                 val defaultConfig = androidExt["defaultConfig"]
-                // org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
                 val extensions = androidExt["extensions"]
+                // org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
                 val kotlinJvmOptions = extensions?.invoke("getByName", "kotlinOptions")
+                // org.jetbrains.kotlin.gradle.plugin.KaptExtension
+                val kapt = Reflector(project.extensions.findByName("kapt"))
 
                 var manifestPlaceholders: Map<String, String>? = null
                 val manifestValue = defaultConfig["manifestPlaceholders"]?.value as? Map<*, *>
@@ -149,6 +151,13 @@ class GradleProjectInfoReader(
                     resourceDirs = resDirs.toList(),
                     assetsDirs = assetDirs.toList(),
                     manifestFile = manifestFile,
+                    kaptArguments = kapt.invoke("getAdditionalArguments",
+                        Reflector.Value(Project::class.java, project),
+                        Reflector.Value(Any::class.java, null),
+                        Reflector.Value(Any::class.java, androidExt.value)
+                    )?.value as? Map<String, String>,
+                    // (project.extensions.getByName("android") as com.android.build.gradle.AppExtension).defaultConfig.javaCompileOptions.annotationProcessorOptions.arguments
+                    javaAnnotationProcessorOptions = defaultConfig["javaCompileOptions"]["annotationProcessorOptions"]["arguments"]?.value as? Map<String, String>,
                 )
             } catch (e: Throwable) {
                 println("Jugg: get other info for ${project.standardModuleName} failed: $e")
