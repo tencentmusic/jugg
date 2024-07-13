@@ -7,6 +7,9 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBLabel
 import com.sickworm.intellij.jugg.deploy.diff.BuildDiffRequestPanel
 import com.sickworm.intellij.jugg.deploy.diff.BuildFileDiffRequest
+import com.sickworm.intellij.jugg.project.dependency.htmlModified
+import com.sickworm.intellij.jugg.project.dependency.htmlNew
+import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -71,7 +74,7 @@ class BuildChangesConfirmDialog(
         mainPanel.preferredSize = Dimension(800, 500)
         mainPanel.add(JBLabel("""
             <html><p>
-            <font color="#EB984E"><b>Caution</b></font>: This may cause unexpected build result, Please check changes carefully.
+            ${"<b>Caution</b>".htmlWarning}: This may cause unexpected build result, Please check changes carefully.
             <br> <br></p></html>
             """.trimIndent()
         ), BorderLayout.SOUTH)
@@ -143,7 +146,10 @@ class BuildChangesConfirmDialog(
             leftButtonText: String = "Ignore Gradle Changes",
         ): Result {
             val changesFileString = changedBuildFiles.joinToString("\n") {
-                "<li><font color=\"#2ECC71\">${it.first.relativeTo(File(project.basePath!!)).path}</font></li>"
+                val isNew = it.second == null
+                val text = it.first.relativeTo(File(project.basePath!!)).path
+                val htmlText = if (isNew) text.htmlNew else text.htmlModified
+                "<li>$htmlText</li>"
             }
             val content = """<html>
                 |<p>Changed files:

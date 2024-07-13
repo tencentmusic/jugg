@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.gradle.compile.ReportConfirmDialog
 import com.sickworm.intellij.jugg.gradle.compile.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
+import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
@@ -193,10 +194,8 @@ class JuggRunSettingsComponent : JComponent() {
         tipsContainer.removeAll()
         if (configName == SuggestRunConfiguration.DEFAULT.runConfigName) {
             val tipsLabel = JBLabel()
-            tipsLabel.text = "<html><font color=\"#F39C12\">" +
-                    "Jugg create this default config because auto detection failed. " +
-                    "<br>Suggestion: re-sync or reopen project to detect again." +
-                    "</font></html>"
+            val text = "Jugg create this default config because auto detection failed. <br>Suggestion: re-sync or reopen project to detect again.".htmlWarning
+            tipsLabel.text = "<html>$text</html>"
             val panel = createPairPanel(tipsLabel, null)
             tipsContainer.add(panel)
         }

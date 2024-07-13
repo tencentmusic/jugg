@@ -18,7 +18,7 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
             val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
                 title = "Jugg: Oops, Something Went Wrong",
                 content = """<html>
-                |<p><font color="#EB984E">Oops, Something went wrong.</font></p>
+                |<p>${"Oops, Something went wrong.".htmlWarning}</p>
                 |<p>Jugg failed to find out changed libraries. Please report issues.</p>
                 |</html>
                 |""".trimMargin(),
@@ -41,7 +41,7 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
                     |<ul>
                     |${changeList.joinToString("\n") { "<li>${it}</li>" }}
                     |</ul>
-                    |<font color="#EB984E"><b>Caution</b></font>: This may cause unexpected build result. Please check changes carefully.
+                    |${"Caution".htmlWarning}: This may cause unexpected build result. Please check changes carefully.
                     |<br> <br>
                     |</p>
                     |</html>
@@ -55,7 +55,7 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
             val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
                 title = "Jugg: Oops, No Library Changes Found",
                 content = """<html>
-                |<p><font color="#EB984E">It seems no library changed.</font></p>
+                |<p>${"It seems no library changed.".htmlWarning}</p>
                 |<p>Do you want to <b>ignore</b> build files changed?<br>
                 |<b>Caution: This may cause unexpected build result.</b></p>
                 |</html>

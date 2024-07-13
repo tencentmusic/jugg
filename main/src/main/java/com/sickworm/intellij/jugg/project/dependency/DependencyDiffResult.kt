@@ -23,21 +23,25 @@ data class DependencyDiffResult(
     val changedLibraries get() = addedLibraries + updatedLibraries + removedLibraries
     val hasChanges get() = changedLibraries.isNotEmpty()
 
-    fun toHtmlChangeList(): List<String> {
+    private fun getChangedDesc(): List<String> {
         val result = mutableListOf<String>()
         if (addedLibraries.isNotEmpty()) {
             addedLibraries.forEach {
-                result.add("${it.dependency!!.declaration}$NEW_TAG")
+                result.add(it.dependency!!.declaration)
             }
         }
         if (removedLibraries.isNotEmpty()) {
             removedLibraries.forEach {
-                result.add("${it.oldDependency!!.declaration}$REMOVE_TAG")
+                result.add(it.oldDependency!!.declaration)
             }
         }
         if (updatedLibraries.isNotEmpty()) {
             updatedLibraries.forEach {
-                val updateTag = updateTag(it.isContentUpdate, it.dependency!!.version)
+                val updateTag = if (it.isContentUpdate) {
+                    "(content update)"
+                } else {
+                    "-> ${it.dependency!!.version}"
+                }
                 result.add("${it.oldDependency!!.declaration}$updateTag")
             }
         }
@@ -48,23 +52,10 @@ data class DependencyDiffResult(
     override fun toString(): String {
         return "DependencyDiffResult: " +
                 "added: ${addedLibraries.size}, removed: ${removedLibraries.size}, updated: ${updatedLibraries.size}" +
-                ", HtmlChangeList:\n" + toHtmlChangeList().joinToString("\n")
+                ", HtmlChangeList:\n" + getChangedDesc().joinToString("\n")
     }
 
     companion object {
-
-        private const val NEW_TAG = "<font color=\"#2ECC71\">(new)</font>"
-
-        private const val REMOVE_TAG = "<font color=\"#EB984E\">(removed)</font>"
-
-        private fun updateTag(isContentUpdate: Boolean, toVersion: String?): String {
-            val desc = if (!isContentUpdate) {
-                "-> $toVersion"
-            } else {
-                "(content update)"
-            }
-            return "<font color=\"#2ECC71\">$desc</font>"
-        }
 
         fun createEmpty(): DependencyDiffResult {
             return create(JuggProjectInfo(emptyMap()), JuggProjectInfo(emptyMap()))
