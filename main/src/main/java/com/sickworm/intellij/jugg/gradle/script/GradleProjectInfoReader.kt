@@ -41,7 +41,7 @@ class GradleProjectInfoReader(
         modulesNames = rootProject.subprojects.map { it.standardModuleName }.toSet()
         val modules = mutableMapOf<String, ModuleInfo>()
         rootProject.subprojects.forEach { project: Project ->
-            val moduleInfo = getModuleInfo(project) ?: return@forEach
+            val moduleInfo = getModuleInfo(project)
             modules[moduleInfo.name] = moduleInfo
         }
 
