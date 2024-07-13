@@ -147,11 +147,8 @@ class JuggCompilerHelper(
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
         gradleProjectInfoLocalFetchManager.writeInitGradleFile()
-        if (options.isRemoteCompile) {
-            // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
-            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
-        } else {
-            compileContextManager.ensureInitProjectInfo()
+        if (!options.isRemoteCompile) {
+            compileContextManager.ensureInitProjectInfo() // use to local fetch after build
         }
 
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
@@ -164,11 +161,14 @@ class JuggCompilerHelper(
             deployTargetManager.setApks(listOf(apkInfo))
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
-        }
 
-        if (!options.isRemoteCompile) {
-            // local build will update project info by -I readProjectInfo.gradle.kts
-            gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
+            if (!options.isRemoteCompile) {
+                // local build will update project info by -I readProjectInfo.gradle.kts
+                gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
+            } else {
+                // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+            }
         }
 
         return result

@@ -92,10 +92,6 @@ class GradleProjectInfoLocalFetchManager(
         taskRunnerManager.runTaskSafe("Update project info from gradle", ::update, isBlockIncrementalCompile = false)
     }
 
-    fun runUpdateSynchronized(outputListener: IGradleCompileClient.TerminalOutputListener, isRemoteCompile: Boolean): Boolean {
-        return update(outputListener, isKeepDaemon = !isRemoteCompile)
-    }
-
     private fun update(outputListener: IGradleCompileClient.TerminalOutputListener = IDLE, isKeepDaemon: Boolean = false): Boolean {
         try {
             isUpdating = true
