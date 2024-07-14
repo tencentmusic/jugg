@@ -93,8 +93,10 @@ class JuggCompilerHelper(
 
         var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
-            checkFilesRollback()
-            checkLibraryIncrementalCompile(options, processHandler, indicator)
+            if (!deployFileManager.isNoFileChanges()) {
+                checkFilesRollback()
+                checkLibraryIncrementalCompile(options, processHandler, indicator)
+            }
             if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
                 return CompileTaskResult.incrementalCanceled(startTime)
             }
@@ -221,9 +223,8 @@ class JuggCompilerHelper(
             it.type == CompileFile.Type.Gradle
         }
         var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-        val isFirstTimeRun = juggRunningTaskStatusManager.isFirstTimeRun()
-        logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $forceIncrementalCompile, isFirstTimeRun: $isFirstTimeRun")
-        if (!forceIncrementalCompile && isFirstTimeRun) {
+        logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $forceIncrementalCompile")
+        if (!forceIncrementalCompile) {
             if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
                 return
             }
@@ -240,10 +241,12 @@ class JuggCompilerHelper(
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
                 logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
                 step2Result = dependencyChangeManager.tryShowChangeConfirmDialog(runResult)
-                forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
             } else if (step1Result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
-                forceIncrementalCompile = true
+                dependencyChangeManager.onConfirmIncrementalCompile(true)
+            } else {
+                dependencyChangeManager.onConfirmIncrementalCompile(false)
             }
+            forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
 
             juggServer.report {
                 action = "check_dependency_incremental_compile"

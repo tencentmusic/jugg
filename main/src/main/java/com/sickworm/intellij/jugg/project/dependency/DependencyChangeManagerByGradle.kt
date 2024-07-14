@@ -22,7 +22,7 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
     private var tempModule: ModuleInfo? = null
 
     override val isNeedCompilation: Boolean get() {
-        return changeStatus == ChangeStatus.INCREMENTAL_COMPILE
+        return changeStatus == ChangeStatus.INCREMENTAL_COMPILE && diffResult.hasChanges
     }
 
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
