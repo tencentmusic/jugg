@@ -246,12 +246,10 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 if (newDep.name != baseDepName) {
                     // version changed, update if needed
                     if (isNeedUpdateLibraryDependency) {
-                        val removedOld = mutableSetOf<String>()
                         result.iterator().also { iterator ->
                             while (iterator.hasNext()) {
                                 val baseDep = iterator.next()
                                 if (baseDep.name == baseDepName) {
-                                    removedOld.add(baseDep.name)
                                     iterator.remove()
                                 }
                             }
@@ -293,19 +291,19 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
 data class JuggProjectInfoMergeResult(
     val mergedInfo: JuggProjectInfo?,
     val isNeedUpdateLibraryDependency: Boolean,
-    private val _mergeItems: MutableMap<String, MutableMap<String, MutableList<String>>>,
-    private val _mergeLibraryItems: MutableMap<String, MutableList<Pair<String?, String>>>
+    private val _mergeItems: MutableMap<String, MutableMap<String, MutableSet<String>>>,
+    private val _mergeLibraryItems: MutableMap<String, MutableSet<Pair<String?, String>>>
 ) {
 
-    val mergedItems: Map<String, Map<String, List<String>>> = _mergeItems
-    val mergeLibraryItems: MutableMap<String, MutableList<Pair<String?, String>>> = _mergeLibraryItems
+    val mergedItems: Map<String, Map<String, Set<String>>> = _mergeItems
+    val mergeLibraryItems: Map<String, Set<Pair<String?, String>>> = _mergeLibraryItems
 
     fun addMergedItem(moduleName: String, type: String, value: String) {
-       _mergeItems.getOrPut(moduleName) { mutableMapOf() }.getOrPut(type) { mutableListOf() }.add(value)
+       _mergeItems.getOrPut(moduleName) { mutableMapOf() }.getOrPut(type) { mutableSetOf() }.add(value)
     }
 
     fun addMergeLibraryItem(moduleName: String, old: String?, new: String) {
-        _mergeLibraryItems.getOrPut(moduleName) { mutableListOf() }.add(Pair(old, new))
+        _mergeLibraryItems.getOrPut(moduleName) { mutableSetOf() }.add(Pair(old, new))
     }
 
     private fun getMergeDesc(excludeSourceDir: Boolean = true): Collection<String> {
