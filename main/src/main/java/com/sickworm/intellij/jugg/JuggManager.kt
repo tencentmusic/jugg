@@ -125,7 +125,6 @@ class JuggManager @TestOnly constructor(
         juggRunningTaskStatusManager.resetHasRun()
 
         val isSuccess = compileContextManager.updateCompileContextAfterSync()
-        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
         if (isSuccess) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
@@ -143,6 +142,7 @@ class JuggManager @TestOnly constructor(
             SyncEvent.SUCCEEDED -> {
                 tryCreateRunConfigurations(isSyncFinished = true)
                 runTaskSafe("Update project info", ::updateProjectInfo)
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
             }
             SyncEvent.SKIPPED -> {
                 tryCreateRunConfigurations(isSyncFinished = false)
