@@ -33,6 +33,7 @@ class JuggProjectInfoSerialize(
                 return@map ModuleInfoSerialize(
                     it.value.copy(
                         libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
+                        annotationProcessorDependencies = emptyList(), kaptDependencies = emptyList(),
                     ),
                     libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
