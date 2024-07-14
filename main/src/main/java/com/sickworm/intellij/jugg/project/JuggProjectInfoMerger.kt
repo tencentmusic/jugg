@@ -244,8 +244,18 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 mergeResult.addMergeLibraryItem(moduleName, null, newDep.name)
             } else {
                 if (newDep.name != baseDepName) {
+                    // sometimes gradle project info will get a different name but same file as ide project info
+                    val relativeLibraryDependencies = base.find {
+                        it.name == baseDepName && it.type == newDep.type
+                    }
+                    if (relativeLibraryDependencies?.crc32 == newDep.crc32) {
+                        // same file, ignore it
+                        return@forEach
+                    }
+
                     // version changed, update if needed
                     if (isNeedUpdateLibraryDependency) {
+                        // remove all old version files
                         result.iterator().also { iterator ->
                             while (iterator.hasNext()) {
                                 val baseDep = iterator.next()
