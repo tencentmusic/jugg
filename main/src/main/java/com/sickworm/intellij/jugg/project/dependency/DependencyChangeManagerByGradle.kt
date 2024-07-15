@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.project.dependency
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager.ChangeStatus
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -40,7 +41,7 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
             return ConfirmResult.INVALID
         }
         diffResult = specificDependencyDiffResult ?: DependencyDiffResult.createEmpty()
-        val confirmResult = DependencyChangeDialogHelper(logger).showChangeConfirmDialog(specificDependencyDiffResult, false)
+        val confirmResult = PlatformApi.showChangeConfirmDialog(specificDependencyDiffResult, false, logger)
         if (confirmResult != ConfirmResult.CANCEL) {
             onConfirmIncrementalCompile(confirmResult.isConfirmed)
         }

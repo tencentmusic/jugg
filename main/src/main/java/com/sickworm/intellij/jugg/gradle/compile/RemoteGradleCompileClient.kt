@@ -5,6 +5,7 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -108,7 +109,7 @@ class RemoteGradleCompileClient(
     }
 
     private fun showDialogAndGetPasswordOrKey(extraTips: String): String {
-        return UserAndPasswordInputDialog.showAndGetResult(
+        return PlatformApi.showUserAndPasswordInputDialog(
             "SSH Password or Key Path",
             subTitle = "<html>You will see this because [SSH password or key path] is empty $extraTips.</html>",
             isPassword = true,
@@ -500,7 +501,7 @@ class RemoteGradleCompileClient(
                         interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD) {
                         lastInterruptCode = interruptCode
                         val content = "iFt ${buffer.toString().replace(":", "")}"
-                        val output = UserAndPasswordInputDialog.showAndGetResult(content,
+                        val output = PlatformApi.showUserAndPasswordInputDialog(content,
                             isPassword = interruptCode == IGradleCompileClient.Error.ERROR_NEED_LOGIN_IFT_PASSWORD)
                         if (output == null) {
                             // user canceled

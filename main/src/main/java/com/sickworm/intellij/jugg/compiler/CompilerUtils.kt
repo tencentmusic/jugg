@@ -1,12 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.module.Module
-import com.intellij.openapi.project.rootManager
-import com.intellij.openapi.vfs.VfsUtil
-import com.sickworm.intellij.jugg.JuggManager
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -61,20 +56,6 @@ fun Process.readOutput(logger: Logger) {
     ins.close()
 }
 
-fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File? {
-    val gradleRootDir = projectBuildModel.getModuleBuildModel(this)?.moduleRootDirectory
-    if (gradleRootDir != null) {
-        return gradleRootDir
-    }
-
-    val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
-    val virtualFile = contentRoots.find { name.endsWith(it.name) }
-        ?: contentRoots.firstOrNull()
-        ?: moduleFile?.parent
-        ?: return null
-    return VfsUtil.virtualToIoFile(virtualFile)
-}
-
 fun List<File>.relativePath(baseDirPath: String) = map { it.relativeTo(File(baseDirPath)) }
 
 fun List<File>.relativePath(baseDirPath: File) = map { it.relativeTo(baseDirPath) }
@@ -88,7 +69,7 @@ fun copyResource(resourcePath: String): File {
     }
     storePath.parentFile.mkdirs()
     storePath.parentFile.clearDir()
-    JuggManager::class.java.getResource(resourcePath)!!.openStream().use { ins ->
+    JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { ins ->
         storePath.outputStream().use { ous ->
             ins.copyTo(ous)
         }

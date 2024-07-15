@@ -1,0 +1,45 @@
+package com.sickworm.intellij.jugg.platform
+
+import com.android.tools.deployer.model.Apk
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
+import com.sickworm.intellij.jugg.git.IGitManager
+import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import java.io.File
+
+interface IPlatformApi {
+
+    fun showDialog(
+        title: String,
+        content: String,
+        okButtonText: String? = null,
+        cancelButtonText: String? = null,
+        isShowCancelButton: Boolean = true,
+    ): Boolean
+
+    fun showChangeConfirmDialog(
+        diffResult: DependencyDiffResult?,
+        isRunLater: Boolean,
+        logger: Logger,
+    ): ConfirmResult
+
+    fun showUserAndPasswordInputDialog(
+        content: String,
+        subTitle: String? = null,
+        isPassword: Boolean = false,
+    ): String?
+
+    fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig>
+
+    fun parseApks(apkFiles: List<String>): List<Apk>
+
+    fun getGradleJdkPath(project: Project, logger: Logger): String?
+
+    fun getAndroidHomePath(logger: Logger): String?
+
+    fun createGitManager(gitRoot: File): IGitManager
+
+    fun createGitManagerAndTrySearchParent(dir: File): IGitManager
+}

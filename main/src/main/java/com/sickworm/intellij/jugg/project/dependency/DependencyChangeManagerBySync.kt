@@ -4,7 +4,7 @@ import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.ide.ConfirmResult
-import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -187,7 +187,7 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
                 logger.debug("no changed libraries")
                 if (lastBuildDependencies == null || fullBuildDependencies == null) {
                     logger.debug("show change confirm dialog, lastBuildDependencies or fullBuildDependencies is null")
-                    CommonConfirmDialog.showAndGetResult(
+                    PlatformApi.showDialog(
                         title = "Jugg: Dependency Incremental Compile Not Available",
                         content = """<html>
                     |<p>Please <b>sync</b> project once to enable dependency incremental compile.<br>
@@ -202,7 +202,7 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
             }
         }
 
-        val confirmResult = DependencyChangeDialogHelper(logger).showChangeConfirmDialog(diffResult, isRunCompileLater)
+        val confirmResult = PlatformApi.showChangeConfirmDialog(diffResult, isRunCompileLater, logger)
         if (confirmResult != ConfirmResult.CANCEL) {
             onConfirmIncrementalCompile(confirmResult.isConfirmed)
         }

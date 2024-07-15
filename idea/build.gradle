@@ -1,0 +1,156 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+
+import java.nio.file.Files
+import java.nio.file.Paths
+
+plugins {
+    id 'java'
+    id 'org.jetbrains.intellij'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+test {
+    minHeapSize = "512m" // initial heap size
+    maxHeapSize = "4096m" // maximum heap size
+    jvmArgs '-XX:MaxPermSize=152m' // mem argument for the test JVM
+}
+
+archivesBaseName = 'jugg'
+group 'com.sickworm.intellij'
+
+def versionName = '2.0.0-rc1'
+def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
+def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
+version "${versionName}-${gitBranchPrefix}"
+
+sourceCompatibility = 11
+targetCompatibility = 11
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
+intellij {
+    pluginName = 'jugg'
+    updateSinceUntilBuild = false
+    version = ide_version
+    plugins = ['android']
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs += 'src/main/config/final'
+        }
+    }
+}
+
+// copy different config.properties to jar depending on build type
+tasks.register('jarExtranet') {
+    doFirst {
+        copy {
+            from 'src/main/config/extranet'
+            into 'src/main/config/final'
+            include 'config.properties'
+        }
+    }
+    //noinspection ConfigurationAvoidance
+    tasks.findByName('jar').mustRunAfter('jarExtranet')
+}
+tasks.register('buildPluginExtranet') {
+    dependsOn('buildPlugin')
+    dependsOn('jarExtranet')
+    doLast {
+        // rename
+        File file = new File("${buildDir}/distributions/${archivesBaseName}-${version}.zip")
+        File newFile = new File("${buildDir}/distributions/${archivesBaseName}-extranet-${version}.zip")
+        file.renameTo(newFile)
+    }
+}
+
+tasks.register('jarIntranet') {
+    doFirst {
+        copy {
+            from 'src/main/config/intranet'
+            into 'src/main/config/final'
+            include 'config.properties'
+        }
+    }
+    //noinspection ConfigurationAvoidance
+    tasks.findByName('jar').mustRunAfter('jarIntranet')
+}
+tasks.register('buildPluginIntranet') {
+    dependsOn('buildPlugin')
+    dependsOn('jarIntranet')
+    doLast {
+        // delete extranet zip
+        new File("${buildDir}/distributions").listFiles().collect().forEach {
+            if (it.name.contains('extranet')) {
+                it.delete()
+            }
+        }
+    }
+}
+
+if (!file('src/main/config/final/config.properties').exists()) {
+    File sourceFile = file("src/main/config/intranet/config.properties")
+    File destFile = file("src/main/config/final/config.properties")
+    destFile.parentFile.mkdirs()
+    Files.copy(Paths.get(sourceFile.path), Paths.get(destFile.path))
+}
+
+patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log.html").getText('UTF-8')
+
+runIde {
+    // default 11_0_11b1341.57 and will get Access Denied
+//    jbrVersion = '11_0_4b520.11'
+//    ideDirectory '/Applications/Android Studio.app/Contents'
+    jbrVersion = '17b106.1'
+    jvmArgs = ['-Xmx8G']
+}
+
+buildSearchableOptions {
+    // default 11_0_11b1341.57 and will get Access Denied
+//    jbrVersion = '11_0_4b520.11'
+    jbrVersion = '17b106.1'
+    enabled = false
+}
+
+repositories {
+    google()
+    mavenCentral()
+
+    flatDir {
+        dirs '../main/libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    // for Kotlin
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    implementation "org.jetbrains.kotlin:kotlin-reflect"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
+
+    implementation project(':main')
+    implementation project(':deploy_compat:interface')
+    implementation project(':deploy_compat:v_chipmunk')
+    implementation project(':deploy_compat:v_giraffe')
+    implementation project(':deploy_compat:v_hedgehog')
+    implementation project(':deploy_compat:v_iguana')
+
+    // backend
+    implementation "com.squareup.okhttp3:okhttp:4.9.1"
+
+    testImplementation fileTree(dir: '../main/libs', include: ['*.jar'])
+    testImplementation "junit:junit:4.12"
+    testImplementation "org.mockito:mockito-core:5.4.0"
+    testImplementation "org.mockito:mockito-inline:5.2.0"
+    testImplementation "org.mockito.kotlin:mockito-kotlin:5.0.0"
+    testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
+    testImplementation "org.json:json:20230618"
+}

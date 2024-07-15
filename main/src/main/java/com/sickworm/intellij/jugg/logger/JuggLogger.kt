@@ -2,11 +2,10 @@ package com.sickworm.intellij.jugg.logger
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.ide.bashPathOrDefault
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-private val Project.instanceKey get() = bashPathOrDefault
+private val Project.instanceKey get() = basePath ?: "null"
 
 object JuggLogger {
 

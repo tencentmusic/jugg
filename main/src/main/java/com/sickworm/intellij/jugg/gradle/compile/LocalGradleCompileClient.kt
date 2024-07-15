@@ -2,15 +2,11 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.JavaSdk
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
@@ -38,48 +34,9 @@ class LocalGradleCompileClient(
         // no need to login
         this.juggGradleCompileOptions = juggGradleCompileOptions
 
-        val javaHome = System.getenv("JAVA_HOME")
-        logger.debug("JAVA_HOME: $javaHome")
+        gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger)
 
-        val rootModule = AsDeployerCompat.getModuleManager(project).modules.find {
-            it.name == project.name
-        }
-        if (rootModule != null) {
-            val moduleRootManager = ModuleRootManager.getInstance(rootModule)
-            val jdk: Sdk? = moduleRootManager.sdk
-            if (jdk != null && jdk.sdkType == JavaSdk.getInstance() && jdk.homePath != null) {
-                logger.debug("found gradleJdkPath in root module: ${rootModule.name}, path: ${jdk.homePath}")
-                gradleJdkPath = jdk.homePath
-            }
-        }
-        if (gradleJdkPath == null) {
-            gradleJdkPath = AsDeployerCompat.getModuleManager(project).modules.firstNotNullOfOrNull { module ->
-                val moduleRootManager = ModuleRootManager.getInstance(module)
-                val jdk: Sdk = moduleRootManager.sdk ?: return@firstNotNullOfOrNull null
-                if (jdk.sdkType != JavaSdk.getInstance()) {
-                    return@firstNotNullOfOrNull null
-                }
-                if (jdk.homePath == null) {
-                    return@firstNotNullOfOrNull null
-                }
-                logger.debug("found gradleJdkPath in module: ${module.name}, path: ${jdk.homePath}")
-                return@firstNotNullOfOrNull jdk.homePath!!
-            }
-        }
-        if (gradleJdkPath == null) {
-            logger.debug("can't find gradleJdkPath in modules, use JAVA_HOME $javaHome instead")
-            gradleJdkPath = javaHome
-        }
-
-        val androidHome = System.getenv("ANDROID_HOME")
-        logger.debug("ANDROID_HOME: $androidHome")
-        androidHomePath = CompileContextManager.getAndroidSdkRootDir(logger)?.absolutePath
-        if (androidHomePath == null) {
-            logger.debug("can't find androidHomePath in modules, use ANDROID_HOME $androidHome instead")
-            androidHomePath = androidHome
-        } else {
-            logger.debug("found androidHomePath $androidHomePath")
-        }
+        androidHomePath = PlatformApi.getAndroidHomePath(logger)
     }
 
     override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {

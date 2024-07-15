@@ -5,10 +5,10 @@ import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import java.io.File
@@ -39,7 +39,7 @@ class DeployHistoryDb(
     /** Directory to store build files, use to show diff in the future */
     private val buildFilesDir = File(dbDir, "build_files")
 
-    private val gitManager: IGitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
+    private val gitManager: IGitManager = PlatformApi.createGitManagerAndTrySearchParent(projectDir)
 
     val isAvailable: Boolean
         get() = gitManager.hasInitGit && (gitManager.getLastCommitHash() != null)
@@ -113,13 +113,13 @@ class DeployHistoryDb(
             return null
         }
 
-        val lastProjectCommitHash = GitManager.createGitManagerAndTrySearchParent(rootDir).getLastCommitHash()
+        val lastProjectCommitHash = PlatformApi.createGitManagerAndTrySearchParent(rootDir).getLastCommitHash()
         if (lastProjectCommitHash == null) {
             logger.warn("${rootDir.absolutePath} has no git commit, maybe Git is delete after full compilation.")
             return null
         }
 
-        val gitManager = GitManager.createGitManagerAndTrySearchParent(rootDir)
+        val gitManager = PlatformApi.createGitManagerAndTrySearchParent(rootDir)
         val changedSinceLastDeployFiles = gitManager.getChangedFiles(lastDeployCommitHash, lastProjectCommitHash)
         val uncommittedFiles = gitManager.getUncommittedFiles()
         return changedSinceLastDeployFiles + uncommittedFiles
@@ -207,7 +207,7 @@ class DeployHistoryDb(
 //            if (it.moduleRootDir.isChild(projectDir)) {
 //                return@forEach
 //            }
-            val subModuleGitManager = GitManager.createGitManagerAndTrySearchParent(it.moduleRootDir)
+            val subModuleGitManager = PlatformApi.createGitManagerAndTrySearchParent(it.moduleRootDir)
             if (subModuleGitManager.rootDir.absolutePath !in existGitRoots) {
                 existGitRoots.add(subModuleGitManager.rootDir.absolutePath)
                 subModulesGitManager[subModuleGitManager.rootDir.absolutePath] = subModuleGitManager
@@ -304,7 +304,7 @@ class DeployHistoryDb(
                 return@forEach
             }
 
-            val gitManager = GitManager.createGitManagerAndTrySearchParent(projectDir)
+            val gitManager = PlatformApi.createGitManagerAndTrySearchParent(projectDir)
             logger.debug("filterUnchangedFiles filtering ${files.map { it.name }} in ${gitManager.rootDir}")
             val changedFileByGit = gitManager.filterChangedFiles(gitCommitMap[projectDir]!!, files).map {
                 it.absolutePath
@@ -369,7 +369,7 @@ class DeployHistoryDb(
             val lastBuildFile = File(buildFilesDir, file.file.pathKey)
             logger.debug("getLastBuildFile, $lastBuildFile exists: ${lastBuildFile.exists()}")
             if (!lastBuildFile.exists()) {
-                val content = GitManager(gitRootDir)
+                val content = PlatformApi.createGitManager(gitRootDir)
                     .getLastCommitFileContent(lastBuildCommitId, file.file)
                 logger.debug("getLastBuildFile, getLastCommitFileContent exists: ${content != null}")
                 if (content != null) {

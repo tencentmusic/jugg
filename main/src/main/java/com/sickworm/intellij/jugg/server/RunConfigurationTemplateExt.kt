@@ -5,7 +5,6 @@ import com.google.gson.reflect.TypeToken
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonWriter
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.lang.reflect.Type
 
@@ -26,29 +25,6 @@ fun JuggGradleCompileOptions.toRunConfigurationTemplate(): RunConfigurationTempl
         httpProxyIp = options.httpProxyIp,
         httpProxyPort = options.httpProxyPort,
         syncMode = options.syncMode.toString(),
-    )
-}
-
-fun JuggRunConfigurationOptions.toRunConfigurationTemplate(): RunConfigurationTemplate {
-    val options = this
-    return RunConfigurationTemplate(
-        templateName = "Default",
-        compileCommand = options.compileCommand,
-        outputApkName = options.outputApkName,
-        isRemoteCompile = options.isRemoteCompile,
-        isSyncAllProjects = options.isSyncAllProjects,
-        remoteSshUser = options.remoteSshUser,
-        remoteSshIp = options.remoteSshIp,
-        remoteSshPassword = options.remoteSshPassword,
-        remoteSshPort = options.remoteSshPort,
-        localToRemoteIftConfigName = options.localToRemoteIftConfigName,
-        localToRemoteSyncPath = options.localToRemoteSyncPath,
-        remoteSyncPath = options.remoteSyncPath,
-        remoteToLocalIftConfigName = options.remoteToLocalIftConfigName,
-        remoteToLocalSyncPath = options.remoteToLocalSyncPath,
-        httpProxyIp = options.httpProxyIp,
-        httpProxyPort = options.httpProxyPort,
-        syncMode = options.syncMode,
     )
 }
 

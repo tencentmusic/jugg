@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.manifest
 
-import com.android.utils.forEach
 import org.w3c.dom.Element
+import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 
@@ -95,4 +95,18 @@ fun ManifestDiffResult.DiffElement.diffAttributes(oldNode: Element?) {
     }
 
     removedAttributes.addAll(remainAttributes.values)
+}
+
+inline fun NodeList.forEach(block: (Node) -> Unit) {
+    val size = this.length
+    for (i in 0 until size) {
+        block(this.item(i))
+    }
+}
+
+inline fun NamedNodeMap.forEach(block: (Node) -> Unit) {
+    val size = this.length
+    for (i in 0 until size) {
+        block(this.item(i))
+    }
 }

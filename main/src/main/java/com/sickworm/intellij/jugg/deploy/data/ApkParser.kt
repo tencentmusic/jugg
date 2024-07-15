@@ -1,15 +1,12 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.android.tools.idea.run.ApkInfo
-import com.googlecode.d2j.DexConstants
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.DexFileReader
-import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -173,7 +170,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
     private fun parseEntries(apkFile: File,
                              dexFiles: MutableMap<String, JuggFileInfo>,
                              overlayFiles: MutableMap<String, JuggFileInfo>) {
-        val apk = AsDeployerCompat.parseApks(listOf(apkFile.absolutePath)).first()
+        val apk = PlatformApi.parseApks(listOf(apkFile.absolutePath)).first()
         for (entry in apk.apkEntries.values) {
             if (entry.name.isDexEntry) {
                 dexFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)

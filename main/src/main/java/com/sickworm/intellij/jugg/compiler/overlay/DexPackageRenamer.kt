@@ -8,7 +8,6 @@ import com.googlecode.d2j.dex.writer.item.*
 import com.googlecode.d2j.reader.DexFileReader
 import com.googlecode.d2j.reader.Op
 import com.googlecode.d2j.visitors.*
-import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
 import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import com.sickworm.intellij.jugg.deploy.packageNameToPath
@@ -157,7 +156,7 @@ private class ChangePackageWriter(
     }
 
     fun toClassByteArray(): ByteArray {
-        val node: ClassDefItem = writer.cp.classDefs.first().value
+        val node: ClassDefItem = writer.cp.classDefs.values.first()
         val cw = ClassWriter(0)
         // class
         cw.visit(

@@ -1,13 +1,6 @@
 package com.sickworm.intellij.jugg.logger
 
-import com.intellij.openapi.diagnostic.Attachment
-import com.intellij.openapi.diagnostic.ExceptionWithAttachments
-import com.intellij.openapi.util.text.StringUtil
-import com.intellij.util.ExceptionUtil
-import java.util.function.Function
 import java.util.logging.*
-import java.util.stream.Collectors
-import java.util.stream.Stream
 
 /**
  * Wrapper from [java.util.logging.Logger] to [com.intellij.openapi.diagnostic.Logger].
@@ -83,29 +76,7 @@ class FileLoggerWrapper(
     }
 
     private fun attachmentsToString(t: Throwable?): String {
-        if (t != null) {
-            val attachments = ExceptionUtil.findCauseAndSuppressed(t, ExceptionWithAttachments::class.java)
-                .stream()
-                .flatMap { e: ExceptionWithAttachments ->
-                    Stream.of(
-                        *e.attachments
-                    )
-                }
-                .collect(Collectors.toList())
-            if (attachments.isNotEmpty()) {
-                return "\n\nAttachments:\n" + StringUtil.join(attachments,
-                    { attachmentStringFunction.apply(it) }, "\n----\n"
-                )
-            }
-        }
         return ""
-    }
-
-    private val attachmentStringFunction = Function { attachment: Attachment ->
-        """
-            ${attachment.path}
-            ${attachment.displayText}
-            """.trimIndent()
     }
 
     override fun setLevel(level: org.apache.log4j.Level) {

@@ -1,28 +1,10 @@
 import java.nio.file.Files
 import java.nio.file.Paths
 
-import java.nio.file.Files
-import java.nio.file.Paths
-
 plugins {
     id 'java'
-    id 'org.jetbrains.intellij'
     id 'org.jetbrains.kotlin.jvm'
 }
-
-test {
-    minHeapSize = "512m" // initial heap size
-    maxHeapSize = "4096m" // maximum heap size
-    jvmArgs '-XX:MaxPermSize=152m' // mem argument for the test JVM
-}
-
-archivesBaseName = 'jugg'
-group 'com.sickworm.intellij'
-
-def versionName = '2.0.0-rc1'
-def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
-def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
-version "${versionName}-${gitBranchPrefix}"
 
 sourceCompatibility = 11
 targetCompatibility = 11
@@ -34,64 +16,10 @@ compileTestKotlin {
     kotlinOptions.jvmTarget = "11"
 }
 
-intellij {
-    pluginName = 'jugg'
-    updateSinceUntilBuild = false
-    version = ide_version
-    plugins = ['android']
-}
-
 sourceSets {
     main {
         resources {
             srcDirs += 'src/main/config/final'
-        }
-    }
-}
-
-// copy different config.properties to jar depending on build type
-tasks.register('jarExtranet') {
-    doFirst {
-        copy {
-            from 'src/main/config/extranet'
-            into 'src/main/config/final'
-            include 'config.properties'
-        }
-    }
-    //noinspection ConfigurationAvoidance
-    tasks.findByName('jar').mustRunAfter('jarExtranet')
-}
-tasks.register('buildPluginExtranet') {
-    dependsOn('buildPlugin')
-    dependsOn('jarExtranet')
-    doLast {
-        // rename
-        File file = new File("${buildDir}/distributions/${archivesBaseName}-${version}.zip")
-        File newFile = new File("${buildDir}/distributions/${archivesBaseName}-extranet-${version}.zip")
-        file.renameTo(newFile)
-    }
-}
-
-tasks.register('jarIntranet') {
-    doFirst {
-        copy {
-            from 'src/main/config/intranet'
-            into 'src/main/config/final'
-            include 'config.properties'
-        }
-    }
-    //noinspection ConfigurationAvoidance
-    tasks.findByName('jar').mustRunAfter('jarIntranet')
-}
-tasks.register('buildPluginIntranet') {
-    dependsOn('buildPlugin')
-    dependsOn('jarIntranet')
-    doLast {
-        // delete extranet zip
-        new File("${buildDir}/distributions").listFiles().collect().forEach {
-            if (it.name.contains('extranet')) {
-                it.delete()
-            }
         }
     }
 }
@@ -104,33 +32,10 @@ tasks.register('buildReadProjectInfoScript') {
 //noinspection ConfigurationAvoidance
 tasks.findByName("jar").dependsOn("buildReadProjectInfoScript")
 
-if (!file('src/main/config/final/config.properties').exists()) {
-    File sourceFile = file("src/main/config/intranet/config.properties")
-    File destFile = file("src/main/config/final/config.properties")
-    destFile.parentFile.mkdirs()
-    Files.copy(Paths.get(sourceFile.path), Paths.get(destFile.path))
-}
-
-patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log.html").getText('UTF-8')
-
-runIde {
-    // default 11_0_11b1341.57 and will get Access Denied
-//    jbrVersion = '11_0_4b520.11'
-//    ideDirectory '/Applications/Android Studio.app/Contents'
-    jbrVersion = '17b106.1'
-    jvmArgs = ['-Xmx8G']
-}
-
-buildSearchableOptions {
-    // default 11_0_11b1341.57 and will get Access Denied
-//    jbrVersion = '11_0_4b520.11'
-    jbrVersion = '17b106.1'
-    enabled = false
-}
-
 repositories {
     google()
     mavenCentral()
+    maven { url "https://repo.gradle.org/gradle/libs-releases-local" }
 
     flatDir {
         dirs 'libs'
@@ -156,12 +61,19 @@ dependencies {
     // backend
     implementation "com.squareup.okhttp3:okhttp:4.9.1"
 
-    implementation project(':deploy_compat:interface')
-    implementation project(':deploy_compat:v_chipmunk')
-    implementation project(':deploy_compat:v_giraffe')
-    implementation project(':deploy_compat:v_hedgehog')
-    implementation project(':deploy_compat:v_iguana')
+    // other
+    implementation "com.google.code.gson:gson:2.10.1"
+    implementation "org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r"
 
+    // deploy api
+    implementation project(':deploy_compat:interface')
+    // platform api, split from Idea
+    compileOnly project(':platform_compat:base_api')
+    compileOnly 'com.android.tools.build:gradle:7.2.2'
+//    compileOnly 'org.gradle:gradle-core-api:6.1.1'
+    compileOnly gradleApi()
+
+    testImplementation project(':platform_compat:base_api')
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:5.4.0"
     testImplementation "org.mockito:mockito-inline:5.2.0"
