@@ -62,6 +62,11 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
 
     override fun onUpdateChangedBuildFiles(files: List<File>) {
         isBuildChanged = files.isNotEmpty()
+        changeStatus = if (isBuildChanged) {
+            ChangeStatus.CHANGED_NOT_SYNCED
+        } else {
+            ChangeStatus.NO_CHANGE
+        }
         logger.debug("onUpdateChangedBuildFiles isBuildChanged: $isBuildChanged")
     }
 
@@ -75,12 +80,25 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
         logger.debug("onConfirmIncrementalCompile changeStatus: $changeStatus")
     }
 
-    override fun onEndBuilding(isSuccess: Boolean) {
-        logger.debug("onEndBuilding isSuccess: $isSuccess")
-        changeStatus = if (isSuccess) {
-            ChangeStatus.NO_CHANGE
+    override fun onEndBuilding(isSuccess: Boolean, isCancelled: Boolean) {
+        logger.debug("onEndBuilding isSuccess: $isSuccess, isCancelled: $isCancelled, isBuildChanged: $isBuildChanged")
+        if (isSuccess) {
+            changeStatus = ChangeStatus.NO_CHANGE
+            isBuildChanged = false
         } else {
-            ChangeStatus.REBUILD
+            changeStatus = if (isCancelled) {
+                if (isBuildChanged) {
+                    ChangeStatus.CHANGED_NOT_SYNCED
+                } else {
+                    ChangeStatus.NO_CHANGE
+                }
+            } else {
+                if (isBuildChanged) {
+                    ChangeStatus.REBUILD
+                } else {
+                    ChangeStatus.NO_CHANGE
+                }
+            }
         }
     }
 }

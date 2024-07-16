@@ -67,13 +67,14 @@ class JuggRunningTask(
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result
             val isSuccess = if (runResult.isGradleCompile) runResult.isCompileSuccess else runResult.isDeploySuccess
-            dependencyChangeManager.onEndBuilding(isSuccess)
+            val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
+            dependencyChangeManager.onEndBuilding(isSuccess, isCanceled)
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)
             e.printStackTrace(pw)
             logger.warn("Run stop unexpected with ${e::class.java}:\n$sw\nRun stop unexpected.")
-            dependencyChangeManager.onEndBuilding(false)
+            dependencyChangeManager.onEndBuilding(isSuccess = false, isCancelled = false)
         } finally {
             isRunning = false
             val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask

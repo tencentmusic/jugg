@@ -44,7 +44,7 @@ interface IDependencyChangeManagerEventCallback {
 
     fun onStartBuilding() = Unit
 
-    fun onEndBuilding(isSuccess: Boolean) = Unit
+    fun onEndBuilding(isSuccess: Boolean, isCancelled: Boolean) = Unit
 
     fun onConfirmIncrementalCompile(isConfirmed: Boolean)
 }

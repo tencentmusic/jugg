@@ -406,9 +406,9 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
     }
 
     @Synchronized
-    override fun onEndBuilding(isSuccess: Boolean) {
+    override fun onEndBuilding(isSuccess: Boolean, isCancelled: Boolean) {
         if (!hasInit) return
-        logger.debug("on end building, isSuccess: $isSuccess")
+        logger.debug("on end building, isSuccess: $isSuccess, isCancelled: $isCancelled")
         isAlreadyBuildAfterConfirm = true
         if (!isSuccess) {
             nextStartBuildingTime = 0L

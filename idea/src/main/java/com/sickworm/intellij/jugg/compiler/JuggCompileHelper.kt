@@ -223,9 +223,10 @@ class JuggCompilerHelper(
         val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
             it.type == CompileFile.Type.Gradle
         }
-        var forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
-        logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $forceIncrementalCompile")
-        if (!forceIncrementalCompile) {
+        var isIncrementalCompileLibrary = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+        val isFallback = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.REBUILD
+        logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $isIncrementalCompileLibrary")
+        if (!isIncrementalCompileLibrary && !isFallback) {
             if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
                 return
             }
@@ -247,7 +248,7 @@ class JuggCompilerHelper(
             } else {
                 dependencyChangeManager.onConfirmIncrementalCompile(false)
             }
-            forceIncrementalCompile = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
+            isIncrementalCompileLibrary = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
 
             juggServer.report {
                 action = "check_dependency_incremental_compile"
@@ -264,7 +265,7 @@ class JuggCompilerHelper(
         }
 
         val isNeedRebuild = changedBuildFiles.isNotEmpty()
-        if (isNeedRebuild && !forceIncrementalCompile) {
+        if (isNeedRebuild && !isIncrementalCompileLibrary) {
             deployStateManager.isBuildFileChanged = true
             deployStateManager.whatBuildFileChanged = changedBuildFiles.firstOrNull()?.file?.name ?: "null"
             logger.info("${deployStateManager.whatBuildFileChanged} changed, need rebuild")

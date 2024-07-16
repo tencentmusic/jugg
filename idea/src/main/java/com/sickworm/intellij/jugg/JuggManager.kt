@@ -425,7 +425,7 @@ class JuggManager @TestOnly constructor(
                 taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
                 isOnlyFetchResult = true,
             )
-            dependencyChangeManager.onEndBuilding(result.isSuccess)
+            dependencyChangeManager.onEndBuilding(result.isSuccess, result.isCanceled)
             if (!result.isSuccess) {
                 logger.warn("gradleCompile(isOnlyFetchResult) failed, please check log for details.")
                 return@runTaskSafe
