@@ -233,10 +233,7 @@ interface ICompileContext {
 
     val apkFile: File? get() = apkInfos.firstOrNull()?.files?.first()?.apkFile
 
-    val tempModule get() = ModuleInfo.virtualModule.copy(
-        name = "temp_module",
-        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
-    )
+    val tempModule: ModuleInfo
 
     val applicationModule: ModuleInfo?
 

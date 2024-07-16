@@ -58,7 +58,7 @@ class CompileContextManager(
      * Invoke after full build. CompileContextInfo will provides class path
      */
     fun setCompileContext(compileContextInfo: CompileContextInfo) {
-        logger.info("setCompileContext")
+        logger.debug("setCompileContext")
         ensureInitProjectInfo()
         this.compileContextInfo = compileContextInfo
         updateCompileContextByFullBuildInfo(compileContextInfo)
@@ -68,7 +68,7 @@ class CompileContextManager(
      * Invoke after IDE sync and IDE project info is updated.
      */
     fun updateCompileContextAfterSync(): Boolean {
-        logger.info("updateCompileContextAfterSync")
+        logger.debug("updateCompileContextAfterSync")
         ensureInitProjectInfo()
         updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
         juggProjectInfoMerger.afterSync(projectInfoSerializer)
@@ -80,10 +80,18 @@ class CompileContextManager(
     }
 
     /**
+     * Invoke after use confirm incremental compile libraries.
+     */
+    fun updateTempLibraries(addedTempLibraries: List<LibraryDependency>?, removedTempLibraries: List<LibraryDependency>?) {
+        logger.debug("updateTempLibraries addedTempLibraries: $addedTempLibraries, removedTempLibraries: $removedTempLibraries")
+        compileContextInside.update(addedTempLibraries = addedTempLibraries, removedTempLibraries = removedTempLibraries)
+    }
+
+    /**
      * Invoke after Gradle project info is updated.
      */
     fun updateCompileContextAfterLocalFetch() {
-        logger.info("updateCompileContextAfterLocalFetch")
+        logger.debug("updateCompileContextAfterLocalFetch")
         ensureInitProjectInfo()
         gradleProjectInfoSerializer.clearMemoryCache() // file is updated, clear memory cache
         juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)

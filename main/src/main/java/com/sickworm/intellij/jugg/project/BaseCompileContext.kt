@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.run.ApkInfo
+import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.*
@@ -11,6 +12,8 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import java.io.File
 
 class BaseCompileContext(
@@ -27,6 +30,15 @@ class BaseCompileContext(
 
     private val androidJarApi: String = getSuggestedPlatformApi(modules)
     override val androidJar: File = File(androidHome, "platforms/android-$androidJarApi/android.jar")
+
+    private val tempLibraryDir: File = File(tempModuleDir, "libs")
+    private val tempLibraryRecordFile: File = File(tempLibraryDir, "infos.json")
+    override var tempModule = ModuleInfo.virtualModule.copy(
+        name = "temp_module",
+        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
+        libraryDependencies = loadTempLibraries(),
+    )
+        private set
 
     private val signingConfigList: List<SigningConfig> get() =
         PlatformApi.getAndroidRunConfigList(project, logger).flatMap { it.signingConfigList }
@@ -128,11 +140,15 @@ class BaseCompileContext(
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)
 
-        val tempDependencies: List<String> = tempModule.buildPathInfo.allClassPath.filter {
+        var tempDependencies: List<String> = tempModule.buildPathInfo.allClassPath.filter {
             it.exists()
         }.map {
             it.absolutePath
         }
+        val tempLibraryDependency = tempModule.libraryDependencies
+            .filter { it.isValid && !it.isAndroidManifest && !it.isRes }
+            .map { it.file.absolutePath }
+        tempDependencies = tempDependencies + tempLibraryDependency
 
         val classpathDependencies = moduleInfo.buildPathInfo.allClassPath.filter { file ->
             file.exists()
@@ -231,14 +247,62 @@ class BaseCompileContext(
         }
     }
 
-    fun update(apkInfos: List<ApkInfo>? = null, modules: Map<String, ModuleInfo>? = null) {
+    fun update(
+        apkInfos: List<ApkInfo>? = null,
+        modules: Map<String, ModuleInfo>? = null,
+        addedTempLibraries: List<LibraryDependency>? = null,
+        removedTempLibraries: List<LibraryDependency>? = null,
+    ) {
         apkInfos?.let {
             this.apkInfos = it
         }
         modules?.let {
             this.modules = HashMap(it)
         }
+        if (addedTempLibraries != null || removedTempLibraries != null) {
+            val oldLibraries = loadTempLibraries().toMutableList()
+            if (removedTempLibraries != null) {
+                oldLibraries.removeIf { old ->
+                    removedTempLibraries.any { remove ->
+                        old.name == remove.name && old.type == remove.type
+                    }
+                }
+            }
+            tempLibraryDir.deleteRecursively()
+            tempLibraryDir.mkdirs()
+            val finalTempLibraries = saveTempLibraries(addedTempLibraries ?: emptyList(), oldLibraries)
+            this.tempModule = tempModule.copy(libraryDependencies = finalTempLibraries)
+        }
         dispatch()
+    }
+
+    private fun saveTempLibraries(newLibraries: List<LibraryDependency>, oldLibraries: List<LibraryDependency>): List<LibraryDependency> {
+        val savedTempLibraries = newLibraries.map {
+            val path = it.name.replace(':', File.separatorChar) + File.separator + it.type + File.separator + it.file.name
+            val outputFile = File(tempLibraryDir, path)
+            outputFile.parentFile.mkdirs()
+            it.file.copyRecursively(outputFile, overwrite = true)
+            LibraryDependency(it.name, outputFile, it.lastModifiedTime, it.crc32)
+        }
+        // the newer, the higher priority
+        val finalTempLibraries = (savedTempLibraries + oldLibraries).distinctBy { it.file.absolutePath }
+
+        tempLibraryRecordFile.delete()
+        tempLibraryRecordFile.parentFile.mkdirs()
+        tempLibraryRecordFile.writeText(Gson().toJson(finalTempLibraries))
+
+        return finalTempLibraries
+    }
+
+    private fun loadTempLibraries(): List<LibraryDependency> {
+        if (!tempLibraryRecordFile.exists()) {
+            return emptyList()
+        }
+        return try {
+            Gson().fromJson(tempLibraryRecordFile.readText(), Array<LibraryDependency>::class.java).toList()
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     private fun dispatch() {

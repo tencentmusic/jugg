@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import java.io.File
 
 data class SimpleCompileContext(
@@ -18,6 +19,11 @@ data class SimpleCompileContext(
     override val projectDir: File,
     override val deployedFiles: List<CompileOutput>,
 ) : ICompileContext {
+
+    override val tempModule: ModuleInfo = ModuleInfo.virtualModule.copy(
+        name = "temp_module",
+        buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
+    )
 
     override val applicationModule: ModuleInfo = modules.values.first()
 
