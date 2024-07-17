@@ -247,7 +247,7 @@ class JuggCompilerHelper(
                 if (step2Result == ConfirmResult.POSITIVE) {
                     compileContextManager.updateTempLibraries(
                         runResult?.newLibraryDependencies,
-                        runResult?.removedLibraryDependencies,
+                        runResult?.oldLibraryDependencies,
                     )
                 }
             } else if (step1Result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
@@ -291,23 +291,35 @@ class JuggCompilerHelper(
         client.login(options)
 
         val deployHistoryData = deployHistoryManager.getDeployHistoryData()
+        val lastBuildChangedBuildFiles = deployHistoryData?.changedFiles?.mapNotNull {
+            val file = File(pathManager.projectDir, it.key)
+            val changedFile = fileChangesHandler.filter(listOf(file)).firstOrNull()
+            if (changedFile == null || changedFile.type != CompileFile.Type.Gradle) {
+                return@mapNotNull null
+            }
+            return@mapNotNull file.path to it.value
+        }?.toMap() ?: emptyMap()
 
         val currentBuildChecksum = run {
-            val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
-                it.type == CompileFile.Type.Gradle
-            }
+            val changedBuildFiles = deployFileManager.getUncompiledFiles()
+                .filter {
+                    it.type == CompileFile.Type.Gradle
+                }.associate {
+                    it.file.path to it.file.crc32
+                }
             // add new changed files and override olds
-            val currentBuildFiles = (deployHistoryData?.changedFiles ?: emptyMap()) + changedBuildFiles.associate {
-                it.file.absolutePath to it.file.lastModified()
-            }
-            currentBuildFiles.checksum
+            val currentBuildFiles = lastBuildChangedBuildFiles + changedBuildFiles
+            val checksum = currentBuildFiles.checksum
+            logger.debug("currentBuildChecksum checksum: $checksum, build files: $currentBuildFiles")
+            checksum
         }
 
         val lastBuildChecksum = if (deployHistoryData == null || deployHistoryData.incDeployTimes == 0) {
             ""
         } else {
-            deployHistoryData.changedFiles?.checksum ?: ""
+            lastBuildChangedBuildFiles.checksum
         }
+        logger.debug("lastBuildChecksum checksum: $lastBuildChecksum, build files: $lastBuildChangedBuildFiles")
 
         return client.fetchLibraryChanges(currentBuildChecksum, lastBuildChecksum)
     }

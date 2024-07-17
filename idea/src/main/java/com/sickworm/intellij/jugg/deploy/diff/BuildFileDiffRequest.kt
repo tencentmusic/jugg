@@ -2,15 +2,10 @@ package com.sickworm.intellij.jugg.deploy.diff
 
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.contents.DiffContent
-import com.intellij.diff.impl.DiffSettingsHolder
 import com.intellij.diff.requests.ContentDiffRequest
-import com.intellij.diff.tools.fragmented.UnifiedDiffTool
-import com.intellij.diff.tools.util.base.TextDiffSettingsHolder
-import com.intellij.diff.util.DiffUserDataKeys
 import com.intellij.diff.util.DiffUserDataKeysEx
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vcs.LocalFilePath
 import java.io.File
 
 class BuildFileDiffRequest(
@@ -24,11 +19,17 @@ class BuildFileDiffRequest(
 
     init {
         val contentFactory = DiffContentFactory.getInstance()
-        val localFileSystem = LocalFileSystem.getInstance()
-        val vOldFile: VirtualFile? = if (oldFile?.exists() == true) localFileSystem.refreshAndFindFileByIoFile(oldFile) else null
-        val vNewFile: VirtualFile? = if (newFile.exists()) localFileSystem.refreshAndFindFileByIoFile(newFile) else null
-        oldContent = vOldFile?.run { contentFactory.create(project, vOldFile) }
-        newContent = vNewFile?.run { contentFactory.create(project, vNewFile) }
+//      LocalFileSystem.getInstance().refreshAndFindFileByIoFile(oldFile) // VirtualFile content won't refresh immediately
+        oldContent = oldFile
+            ?.takeIf { it.exists() }
+            ?.let {
+                contentFactory.createFromBytes(project, it.readBytes(), LocalFilePath(it.path, false))
+            }
+        newContent = newFile
+            .takeIf { it.exists() }
+            ?.let {
+                contentFactory.createFromBytes(project, it.readBytes(), LocalFilePath(it.path, false))
+            }
 
         putUserData(DiffUserDataKeysEx.EDITORS_HIDE_TITLE, true)
     }

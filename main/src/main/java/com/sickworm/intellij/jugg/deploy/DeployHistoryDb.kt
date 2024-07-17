@@ -184,18 +184,22 @@ class DeployHistoryDb(
         }
         newDeployHistoryData.save(deployHistoryFile)
 
+        saveBuildFiles(newDeployHistoryData.changedFiles)
+    }
+
+    private fun saveBuildFiles(changedFiles: Map<String, Long>?) {
         // save build files
-        if (!newDeployHistoryData.changedFiles.isNullOrEmpty()) {
-            buildFilesDir.mkdirs()
-            val buildFiles = fileChangesHandler
-                .filter(newDeployHistoryData.changedFiles.map { File(projectDir, it.key) })
-                .filter { it.type == CompileFile.Type.Gradle }
-            buildFiles.forEach {
-                // path may not in the projectDir, so we cannot store it by relative path
-                // store the path by file name
-                val destFile = File(buildFilesDir, it.file.pathKey)
-                it.file.copyTo(destFile, overwrite = true)
-            }
+        buildFilesDir.mkdirs()
+        changedFiles ?: return
+        val buildFiles = fileChangesHandler
+            .filter(changedFiles.map { File(projectDir, it.key) })
+            .filter { it.type == CompileFile.Type.Gradle }
+        buildFiles.forEach {
+            // path may not in the projectDir, so we cannot store it by relative path
+            // store the path by file name
+            val destFile = File(buildFilesDir, it.file.pathKey)
+            logger.debug("copy build file $it -> $destFile")
+            it.file.copyTo(destFile, overwrite = true)
         }
     }
 
@@ -239,6 +243,8 @@ class DeployHistoryDb(
         logFile.writeText(sourceFiles.joinToString("\n") {
             it.toString()
         })
+
+        saveBuildFiles(newDeployHistoryData.changedFiles)
     }
 
     fun filterUnchangedFiles(files: List<File>): List<File> {
@@ -398,7 +404,11 @@ class DeployHistoryDb(
     }
 
     private val File.pathKey: String
-            get() = relativeTo(projectDir).path.md5 + "." + extension
+            get() = StringBuilder()
+                .append(path.md5.substring(0, 8))
+                .append("_")
+                .append(relativeTo(projectDir).path.replace(File.separator, "_"))
+                .toString()
 
     private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }

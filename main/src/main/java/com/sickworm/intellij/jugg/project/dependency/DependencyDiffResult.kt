@@ -16,6 +16,10 @@ data class DependencyDiffResult(
         it.dependency!!.libraries
     }
 
+    val oldLibraryDependencies get() = (updatedLibraries + removedLibraries).flatMap {
+        it.oldDependency!!.libraries
+    }
+
     val removedLibraryDependencies get() = removedLibraries.flatMap {
         it.oldDependency!!.libraries
     }

@@ -285,7 +285,7 @@ class BaseCompileContext(
             LibraryDependency(it.name, outputFile, it.lastModifiedTime, it.crc32)
         }
         // the newer, the higher priority
-        val finalTempLibraries = (savedTempLibraries + oldLibraries).distinctBy { it.file.absolutePath }
+        val finalTempLibraries = (savedTempLibraries + oldLibraries).distinctBy { it.file.path }
 
         tempLibraryRecordFile.delete()
         tempLibraryRecordFile.parentFile.mkdirs()
