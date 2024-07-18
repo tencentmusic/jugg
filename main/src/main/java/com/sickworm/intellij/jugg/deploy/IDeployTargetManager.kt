@@ -21,6 +21,8 @@ interface IDeployTargetManager {
 
     fun restartApp(device: IDevice): Boolean
 
+    fun stopApp(device: IDevice): Boolean
+
     fun isAppForeground(device: IDevice): Boolean
 
     fun getPackageName(): String

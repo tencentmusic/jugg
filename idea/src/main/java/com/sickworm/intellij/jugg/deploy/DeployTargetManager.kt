@@ -63,6 +63,16 @@ class DeployTargetManager(
         }
     }
 
+    override fun stopApp(device: IDevice): Boolean {
+        return try {
+            AdbCmdHelper(device, logger).stopApp(getPackageName())
+            true
+        } catch (e: Exception) {
+            logger.error("StopApp failed, got exception:", e)
+            false
+        }
+    }
+
     override fun isAppForeground(device: IDevice): Boolean {
         return try {
             AdbCmdHelper(device, logger).isAppForeground(getPackageName())

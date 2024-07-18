@@ -62,6 +62,11 @@ class JuggDeployerHelper(
             AndroidDeployType.APPLY_CHANGES
         }
 
+        if (androidDeployType == AndroidDeployType.INSTALL) {
+            // stop first, avoid confusing by user why App is stopped after installed later
+            deployTargetManager.stopApp(device)
+        }
+
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             val removedDexFiles = dependencyChangeManager.getRemovedLibraryFiles()
                 .map(ChangedFile::jarDexFileName)
