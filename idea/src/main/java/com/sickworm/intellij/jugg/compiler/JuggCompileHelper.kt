@@ -361,8 +361,13 @@ class JuggCompilerHelper(
         if (deployFileManager.isNoFileChanges() && !dependencyChangeManager.isNeedCompilation) {
             val deviceName = deployTargetManager.getDeviceNameList()
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
-                logger.info("No file changes, but it's first time run or last compilation not finished" +
-                        ", will run with incremental compile.")
+                if (deployFileManager.getUncompiledFiles().isEmpty()) {
+                    logger.info("No file changes, but it's first time run, deploy directly.")
+                    return CompileTaskResult.incrementalSuccess()
+                } else {
+                    logger.info("No file changes, but it's last compilation not finished" +
+                            ", will run with incremental compile.")
+                }
             } else {
                 logger.info("No file changes. will fallback to gradle compile.")
                 val isConfirmFallback = ConfirmFallbackDialog.showAndGetResult("No file changes, continue will fallback to gradle.", true)
