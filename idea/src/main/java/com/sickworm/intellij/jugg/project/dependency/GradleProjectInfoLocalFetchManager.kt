@@ -1,19 +1,16 @@
 package com.sickworm.intellij.jugg.project.dependency
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
-import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
-import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient.TerminalOutputListener.Companion.IDLE
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -27,7 +24,7 @@ class GradleProjectInfoLocalFetchManager(
     private val taskRunnerManager: TaskRunnerManager,
     private val dependencyChangeManager: IDependencyChangeManager,
     loggerArg: Logger,
-) {
+): Disposable {
 
     private val logger = loggerArg.getInstance("GradleProjectInfoLocalFetchManager")
 
@@ -49,6 +46,8 @@ class GradleProjectInfoLocalFetchManager(
 
     @Volatile
     private var isUpdating: Boolean = false
+
+    private val cmdExecutor = CmdExecutor(logger)
 
     /**
      * Mark as true when:
@@ -91,13 +90,10 @@ class GradleProjectInfoLocalFetchManager(
             return
         }
 
-        taskRunnerManager.runTaskSafe("Update project info from gradle", ::update,
-            isNeedShowIndicator = false,
-            isBlockIncrementalCompile = false,
-        )
+        taskRunnerManager.runBackgroundSafe("Update project info from gradle", ::update)
     }
 
-    private fun update(outputListener: IGradleCompileClient.TerminalOutputListener = IDLE, isKeepDaemon: Boolean = false): Boolean {
+    private fun update(isKeepDaemon: Boolean = false): Boolean {
         try {
             isUpdating = true
             writeInitGradleFile()
@@ -112,7 +108,7 @@ class GradleProjectInfoLocalFetchManager(
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
             dependencyChangeManager.onStartSyncing(isFromIde = false)
-            val result = CmdExecutor(logger, outputListener).invoke(localFetchCommand)
+            val result = cmdExecutor.invoke(localFetchCommand)
             TimeLogger.end("localFetch", logger)
             logger.debug("runUpdateIfNeeded end, result: $result")
 
@@ -152,5 +148,9 @@ class GradleProjectInfoLocalFetchManager(
 
     private fun Long.timeStampToTime(): String {
         return SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date(this))
+    }
+
+    override fun dispose() {
+        cmdExecutor.release()
     }
 }

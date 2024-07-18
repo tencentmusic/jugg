@@ -94,6 +94,7 @@ class JuggCompilerHelper(
 
         var incrementalResult: CompileTaskResult? = null
         if (!isForceInstall) {
+            deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
             if (!deployFileManager.isNoFileChanges()) {
                 checkFilesRollback()
                 checkLibraryIncrementalCompile(options, processHandler, indicator)
@@ -150,6 +151,7 @@ class JuggCompilerHelper(
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
         compileContextManager.ensureInitProjectInfo()
+        deployHistoryManager.beforeFullCompiled(deployFileManager.getUndeployedFiles())
 
         if (options.isRemoteCompile) {
             // remote build need run --dry-run -I readProjectInfo.gradle.kts at local

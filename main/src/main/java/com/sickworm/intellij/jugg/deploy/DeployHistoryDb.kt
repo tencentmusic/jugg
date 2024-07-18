@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.gradle.compile.crc32
@@ -38,6 +39,7 @@ class DeployHistoryDb(
 
     /** Directory to store build files, use to show diff in the future */
     private val buildFilesDir = File(dbDir, "build_files")
+    private val tempBuildFilesDir = File(dbDir, ".build_files_tmp")
 
     private val gitManager: IGitManager = PlatformApi.createGitManagerAndTrySearchParent(projectDir)
 
@@ -147,10 +149,53 @@ class DeployHistoryDb(
         deployHistoryFile.delete()
         deployLogsDir.deleteRecursively()
         deployItemsDir.deleteRecursively()
-        buildFilesDir.deleteRecursively()
+    }
+
+    fun beforeFullCompiled(changedFiles: List<ChangedFile>) {
+        logger.debug("beforeFullCompiled, changed files: ${changedFiles.map { it.file }}")
+        stashBuildFiles(changedFiles)
+    }
+
+    private fun stashBuildFiles(changedFiles: List<ChangedFile>, isUpdateWhenMissing: Boolean = false) {
+        // save build files on beforeFullCompiled to avoid build file change during full compilation
+        val relativeBuildFiles = changedFiles.filter {
+            it.type == CompileFile.Type.Gradle
+        }.map {
+            it.file
+        }
+
+        if (!isUpdateWhenMissing) {
+            tempBuildFilesDir.clearDir()
+            tempBuildFilesDir.mkdirs()
+        }
+        relativeBuildFiles.forEach {
+            // path may not in the projectDir, so we cannot store it by relative path
+            // store the path by file name
+            val destFile = File(tempBuildFilesDir, it.pathKey)
+            if (isUpdateWhenMissing) {
+                if (!destFile.exists()) {
+                    logger.debug("stashBuildFiles, copy build file $it -> $destFile")
+                    it.copyTo(destFile)
+                }
+            } else {
+                logger.debug("stashBuildFiles, copy build file $it -> $destFile")
+                it.copyTo(destFile, overwrite = true)
+            }
+        }
+    }
+
+    private fun commitBuildFiles() {
+        buildFilesDir.mkdirs()
+        tempBuildFilesDir.listFiles()?.forEach {
+            val buildFile = File(buildFilesDir, it.name)
+            it.renameTo(buildFile)
+            logger.debug("commitBuildFiles, commit file: $it -> $buildFile")
+        }
+        tempBuildFilesDir.deleteRecursively()
     }
 
     fun resetHistoryAfterFullCompiled(modules: Map<String, ModuleInfo>, startCompileTime: Long) {
+        logger.debug("resetHistoryAfterFullCompiled")
         deleteHistory()
 
         val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
@@ -183,24 +228,26 @@ class DeployHistoryDb(
             DeployHistoryData(null, null,0, emptyMap())
         }
         newDeployHistoryData.save(deployHistoryFile)
+        updateBuildFilesAfterFullBuild(newDeployHistoryData)
 
-        saveBuildFiles(newDeployHistoryData.changedFiles)
+        logger.debug("resetHistoryAfterFullCompiled newDeployHistoryData: $newDeployHistoryData")
     }
 
-    private fun saveBuildFiles(changedFiles: Map<String, Long>?) {
-        // save build files
-        buildFilesDir.mkdirs()
-        changedFiles ?: return
-        val buildFiles = fileChangesHandler
-            .filter(changedFiles.map { File(projectDir, it.key) })
-            .filter { it.type == CompileFile.Type.Gradle }
-        buildFiles.forEach {
-            // path may not in the projectDir, so we cannot store it by relative path
-            // store the path by file name
-            val destFile = File(buildFilesDir, it.file.pathKey)
-            logger.debug("copy build file $it -> $destFile")
-            it.file.copyTo(destFile, overwrite = true)
+    private fun updateBuildFilesAfterFullBuild(newDeployHistoryData: DeployHistoryData) {
+        val allChangedFileRelativePaths = newDeployHistoryData.changedFiles?.keys ?: emptyList()
+        val allChangedFiles = allChangedFileRelativePaths.map {
+            File(projectDir, it)
         }
+        val allChangedBuildFiles = fileChangesHandler
+            .filter(allChangedFiles)
+            .filter { it.type == CompileFile.Type.Gradle }
+        logger.debug("checkBuildFilesAfterFullBuild allChangedBuildFiles: ${allChangedBuildFiles.map { it.file }}")
+
+        // ensure all build files are saved into buildFilesDir
+        stashBuildFiles(allChangedBuildFiles, isUpdateWhenMissing = true)
+        buildFilesDir.clearDir()
+        buildFilesDir.mkdirs()
+        commitBuildFiles()
     }
 
     private fun getSubmoduleGitManagers(modules: Collection<ModuleInfo>): Map<String, IGitManager> {
@@ -220,9 +267,12 @@ class DeployHistoryDb(
         return subModulesGitManager
     }
 
-    fun updateHistory(sourceFiles: List<ChangedFile>) {
+    private var nextIncDeployHistoryData = DeployHistoryData(null, null, 0, emptyMap())
+
+    fun beforeIncrementalCompile(sourceFiles: List<ChangedFile>) {
+        logger.debug("beforeIncrementalCompile, sourceFiles: ${sourceFiles.map { it.file }}")
         val newDeployedFiles = sourceFiles.associate {
-           it.file.toChangedFilePair()
+            it.file.toChangedFilePair()
         }
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
@@ -231,20 +281,38 @@ class DeployHistoryDb(
             return
         }
 
-        val newDeployHistoryData = deployHistoryData.copy(
+        nextIncDeployHistoryData = deployHistoryData.copy(
             changedFiles = (deployHistoryData.changedFiles ?: emptyMap()) + newDeployedFiles,
             incDeployTimes = deployHistoryData.incDeployTimes + 1,
         )
-        newDeployHistoryData.save(deployHistoryFile)
 
         // print log file
-        val logFile = File(deployLogsDir, "deploy_${newDeployHistoryData.incDeployTimes}.log")
-        logFile.parentFile?.mkdirs()
-        logFile.writeText(sourceFiles.joinToString("\n") {
+        val tempLogFile = nextIncDeployHistoryData.getDeployLogFile(true)
+        tempLogFile.parentFile?.mkdirs()
+        tempLogFile.writeText(sourceFiles.joinToString("\n") {
             it.toString()
         })
+        stashBuildFiles(sourceFiles)
+    }
 
-        saveBuildFiles(newDeployHistoryData.changedFiles)
+    fun updateHistoryAfterIncrementalCompile() {
+        logger.debug("updateHistoryAfterIncrementalCompile")
+        nextIncDeployHistoryData.save(deployHistoryFile)
+
+        val tempLogFile = nextIncDeployHistoryData.getDeployLogFile(true)
+        val logFile = nextIncDeployHistoryData.getDeployLogFile(false)
+        if (tempLogFile.exists()) {
+            logFile.delete()
+            tempLogFile.renameTo(logFile)
+        }
+        commitBuildFiles()
+    }
+
+    private fun DeployHistoryData.getDeployLogFile(isTemp: Boolean): File {
+        val fileName =
+            if (isTemp) "deploy_${incDeployTimes}.log"
+            else ".deploy_${incDeployTimes}.log.tmp"
+        return File(deployLogsDir, fileName)
     }
 
     fun filterUnchangedFiles(files: List<File>): List<File> {
@@ -404,11 +472,14 @@ class DeployHistoryDb(
     }
 
     private val File.pathKey: String
-            get() = StringBuilder()
-                .append(path.md5.substring(0, 8))
-                .append("_")
-                .append(relativeTo(projectDir).path.replace(File.separator, "_"))
-                .toString()
+            get() {
+                val relativePath = relativeTo(projectDir).path
+                return StringBuilder()
+                    .append(relativePath.md5.substring(0, 8))
+                    .append("_")
+                    .append(relativePath.replace(File.separator, "_"))
+                    .toString()
+            }
 
     private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }

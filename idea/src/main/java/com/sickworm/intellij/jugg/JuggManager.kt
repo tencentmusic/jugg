@@ -74,6 +74,7 @@ class JuggManager @TestOnly constructor(
 
     fun init() {
         Disposer.register(this, juggCompilerHelper)
+        Disposer.register(this, gradleProjectInfoLocalFetchManager)
         runTaskSafe("Init Jugg", {
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             loadCustomConfig()

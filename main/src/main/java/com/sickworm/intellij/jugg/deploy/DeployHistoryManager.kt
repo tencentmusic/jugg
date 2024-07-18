@@ -88,24 +88,34 @@ class DeployHistoryManager(
         return DeployContextRecoverInfo(changedFiles, compileContextInfo, deployedFiles)
     }
 
+    override fun beforeFullCompiled(changedFiles: List<ChangedFile>) {
+        logger.debug("beforeFullCompiled, changedFiles: ${changedFiles.size}")
+        deployHistoryDb.beforeFullCompiled(changedFiles)
+    }
+
     @Synchronized
     override fun reInitAfterFullCompiled(
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>,
         startCompileTime: Long,
     ): CompileContextInfo {
-        logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}, modules: ${modules.size}, startCompileTime: $startCompileTime")
+        logger.debug("reInitAfterFullCompiled, apkInfos: ${apkInfos.size}")
         val compileContextInfo = compileContextDb.saveCompileContext(apkInfos, modules)
         deployHistoryDb.resetHistoryAfterFullCompiled(modules, startCompileTime)
         hasBeenFullCompiledRuntime = true
         return compileContextInfo
     }
 
+    override fun beforeIncrementalCompile(sourceFiles: List<ChangedFile>) {
+        logger.debug("beforeIncrementalCompile, files: ${sourceFiles.map { it.file.name }}")
+        deployHistoryDb.beforeIncrementalCompile(sourceFiles)
+    }
+
     @Synchronized
-    override fun updateHistoryOnAfterDeployed(sourceFiles: List<ChangedFile>, deployedFiles: List<CompileOutput>) {
-        logger.debug("updateHistoryOnAfterDeployed, sourceFiles: ${sourceFiles.map { it.file.name }}, deployedFiles: ${deployedFiles.size}")
+    override fun updateHistoryOnAfterDeployed(deployedFiles: List<CompileOutput>) {
+        logger.debug("updateHistoryOnAfterDeployed, deployedFiles: ${deployedFiles.size}")
         compileContextDb.updateDeployedData(deployedFiles)
-        deployHistoryDb.updateHistory(sourceFiles)
+        deployHistoryDb.updateHistoryAfterIncrementalCompile()
     }
 
     override fun filterUnchangedFiles(files: List<File>): List<File> {

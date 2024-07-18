@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.server.ReportEventData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.system.measureTimeMillis
 
 /**
  * Run action in ProgressManager.getInstance().run()
@@ -25,6 +26,20 @@ class TaskRunnerManager(
     var currentIndicator: ProgressIndicator? = null
         private set
     private var retryInitDelayMill = 3_000L
+
+    fun runBackgroundSafe(jobName: String, action: Runnable) {
+        launch {
+            try {
+                logger.debug("background job <$jobName> start")
+                val costTime = measureTimeMillis {
+                    action.run()
+                }
+                logger.debug("background job <$jobName> finished, cost ${costTime}ms")
+            } catch (e: Exception) {
+                logger.error("background job <$jobName> failed", e)
+            }
+        }
+    }
 
     fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true, isBlockIncrementalCompile: Boolean = true) {
         val juggJobName = "Jugg: $jobName"

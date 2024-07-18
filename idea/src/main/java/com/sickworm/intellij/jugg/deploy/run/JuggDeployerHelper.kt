@@ -333,9 +333,8 @@ class JuggDeployerHelper(
     }
 
     private fun updateInfoAfterIncDeploy(launchResult: LaunchResult, deployData: JuggDeployData) {
-        val compiledFiles = deployFileManager.getCompiledFiles()
         val deployedFiles = deployFileManager.getStagingFiles()
-        deployHistoryManager.updateHistoryOnAfterDeployed(compiledFiles, deployedFiles)
+        deployHistoryManager.updateHistoryOnAfterDeployed(deployedFiles)
         deployFileManager.commit(deployData)
         deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
     }

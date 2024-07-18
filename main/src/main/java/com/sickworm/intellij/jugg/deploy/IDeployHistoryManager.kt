@@ -33,6 +33,11 @@ interface IDeployHistoryManager {
     fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo?
 
     /**
+     * Invoke this method to cache changed files
+     */
+    fun beforeFullCompiled(changedFiles: List<ChangedFile>)
+
+    /**
      * Invoke this method to reset deploy history after project complete compiling by gradle.
      * Will do:
      * 1. Clear deploy history
@@ -41,9 +46,14 @@ interface IDeployHistoryManager {
     fun reInitAfterFullCompiled(apkInfos: List<ApkInfo>, modules: Map<String, ModuleInfo>, startCompileTime: Long): CompileContextInfo
 
     /**
+     * Invoke this method to cache changed files
+     */
+    fun beforeIncrementalCompile(sourceFiles: List<ChangedFile>)
+
+    /**
      * Invoke this method to update deploy history after project complete deploying by Jugg.
      */
-    fun updateHistoryOnAfterDeployed(sourceFiles: List<ChangedFile>, deployedFiles: List<CompileOutput>)
+    fun updateHistoryOnAfterDeployed(deployedFiles: List<CompileOutput>)
 
     /**
      * Check whether file is changed with checking its checksum.
