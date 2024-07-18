@@ -11,10 +11,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
+import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -30,14 +32,15 @@ import javax.swing.SwingUtilities
  */
 @Suppress("DialogTitleCapitalization")
 class JuggRunningTask(
+    private val options: JuggGradleCompileOptions,
     private val project: Project,
     private val juggServer: JuggServer,
     private val deployTargetManager: IDeployTargetManager,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val statusManager: IJuggRunningTaskStatusManager,
     private val processHandler: SimpleProcessHandler,
-    private val compileTask: (indicator: ProgressIndicator, forceFullCompile: Boolean) -> CompileTaskResult,
-    private val deployTask: (device: IDevice, forceInstall: Boolean, isLastDevice: Boolean) -> DeployTaskResult,
+    private val juggCompileHelper: JuggCompilerHelper,
+    private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg...") {
@@ -62,7 +65,7 @@ class JuggRunningTask(
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
-            val runResult = doRun(indicator, false)
+            val runResult = doRun(options, indicator, false)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result
@@ -111,11 +114,11 @@ class JuggRunningTask(
         indicator.isIndeterminate = true
     }
 
-    private fun doRun(indicator: ProgressIndicator, isForceGradleCompile: Boolean): RunResult {
+    private fun doRun(options: JuggGradleCompileOptions, indicator: ProgressIndicator, isForceGradleCompile: Boolean): RunResult {
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
 
-        val compileTaskResult = compileTask(indicator, isForceGradleCompile)
+        val compileTaskResult = juggCompileHelper.compile(options, processHandler, indicator, isForceGradleCompile)
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
@@ -195,7 +198,7 @@ class JuggRunningTask(
                     deployTaskResultList.joinToString(", ") { it.failedReason ?: "See log for details." }
                 }
                 notifyFallback(project, failedReason)
-                return doRun(indicator, true)
+                return doRun(options, indicator, true)
             }
         }
 
@@ -237,7 +240,7 @@ class JuggRunningTask(
             indicator.text = "Deploying changes$suffix..."
         }
 
-        val deployTaskResult = deployTask(device, compileTaskResult.isGradleCompile, isLastDevice)
+        val deployTaskResult = juggDeployHelper.deploy(device, isLastDevice, processHandler, compileTaskResult.isGradleCompile)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         juggServer.report {

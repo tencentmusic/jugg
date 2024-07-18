@@ -309,12 +309,6 @@ class JuggManager @TestOnly constructor(
         logger.debug("Create running task: ${options.toSafeString()}")
 
         val startCompileTime = System.currentTimeMillis()
-        val compileTask= task@{ indicator: ProgressIndicator, isForceInstall: Boolean ->
-            return@task juggCompilerHelper.compile(options, processHandler, indicator, isForceInstall)
-        }
-        val deployTask = task@{ device: IDevice, isInstall: Boolean, isLastDevice: Boolean ->
-            return@task juggDeployerHelper.deploy(device, isLastDevice, processHandler, isInstall)
-        }
         val initIncrementalCompileTask = task@{
             // do it async
             fun action() {
@@ -322,8 +316,8 @@ class JuggManager @TestOnly constructor(
             }
             runTaskSafe("Init Incremental Compile", ::action)
         }
-        val task = JuggRunningTask(project, juggServer, deployTargetManager, dependencyChangeManager,
-            juggRunningTaskStatusManager, processHandler, compileTask, deployTask, initIncrementalCompileTask)
+        val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
+            juggRunningTaskStatusManager, processHandler, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask)
         currentTask = task
 
         // try reload custom config if changed
