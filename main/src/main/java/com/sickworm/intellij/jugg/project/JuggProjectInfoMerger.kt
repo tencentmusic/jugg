@@ -157,6 +157,13 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 mergedModules[name] = moduleInfo
                 return@forEach
             }
+            if (gradleModuleInfo.moduleType == ModuleInfo.Type.Unknown) {
+                // when org.gradle.configureondemand=true, and after ./gradlew :app:assembleDebug -I readProjectInfos.gradle.kts,
+                // project that won't be compiled will be empty and moduleType will be Unknown
+                logger.debug("module $name type is unknown, won't merge")
+                mergedModules[name] = moduleInfo
+                return@forEach
+            }
 
             // merge with different strategy
             val mergedModuleInfo = ModuleInfo(

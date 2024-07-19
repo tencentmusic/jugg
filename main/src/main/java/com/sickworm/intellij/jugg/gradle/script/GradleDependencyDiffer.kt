@@ -32,7 +32,18 @@ class GradleDependencyDiffer(
             println("Jugg: Start diff libraries.")
         }
 
-        val diffResult = DependencyDiffResult.create(projectInfo, lastProjectInfo)
+
+        // when org.gradle.configureondemand=true
+        // ./gradlew --dry-run -I readProjectInfos.gradle.kts will get complete project info
+        // but for ./gradlew :app:assembleDebug -I readProjectInfos.gradle.kts, will get empty project info if project won't be compiled
+        // so here we filter out empty project info
+        val ignoreModulesPath = lastProjectInfo.modules.filter {
+            it.value.moduleType == ModuleInfo.Type.Unknown
+        }.map {
+            it.value.moduleRootDir.path
+        }.toSet()
+
+        val diffResult = DependencyDiffResult.create(projectInfo, lastProjectInfo, ignoreModulesPath)
         println("Jugg: Found ${diffResult.changedLibraries.size} changed libraries.")
         diffResult.changedLibraries.forEach {
             println("Jugg: ${it.oldDependency?.declaration} -> ${it.dependency?.declaration}")

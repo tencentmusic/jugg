@@ -68,14 +68,17 @@ data class DependencyDiffResult(
         fun create(
             currentBuildDependencies: JuggProjectInfo,
             lastBuildDependencies: JuggProjectInfo,
+            ignoreModulePaths: Set<String> = emptySet(),
         ): DependencyDiffResult {
             val lastBuildDependenciesSet: Map<String, LibraryDependencySet> = lastBuildDependencies.modules
+                .filter { it.value.moduleRootDir.path !in ignoreModulePaths }
                 .flatMap { it.value.libraryDependencies }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.name }
                 .mapValues { LibraryDependencySet(it.key, it.value) }
 
             val currentBuildDependenciesSet: Map<String, LibraryDependencySet> = currentBuildDependencies.modules
+                .filter { it.value.moduleRootDir.path !in ignoreModulePaths }
                 .flatMap { it.value.libraryDependencies }
                 .distinctBy { it.file.absolutePath }
                 .groupBy { it.name }
