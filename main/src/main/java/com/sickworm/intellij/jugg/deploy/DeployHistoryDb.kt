@@ -441,7 +441,7 @@ data class DeployHistoryData(
 
     companion object {
 
-        private const val LATEST_VERSION = 1
+        private const val LATEST_VERSION = 2
 
         private val cache = mutableMapOf<String, DeployHistoryData>()
 
