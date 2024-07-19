@@ -84,6 +84,7 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
         logger.debug("onEndBuilding isSuccess: $isSuccess, isCancelled: $isCancelled, isBuildChanged: $isBuildChanged")
         if (isSuccess) {
             changeStatus = ChangeStatus.NO_CHANGE
+            diffResult = DependencyDiffResult.createEmpty()
             isBuildChanged = false
         } else {
             changeStatus = if (isCancelled) {
