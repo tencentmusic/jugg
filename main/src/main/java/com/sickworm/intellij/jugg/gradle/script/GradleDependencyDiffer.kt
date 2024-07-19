@@ -46,11 +46,12 @@ class GradleDependencyDiffer(
         diffResultFile.writeText(result)
 
         // write new project info
-        val currentBuildChecksum = rootProject.properties[GradleProjectInfoReaderManager.PARAM_CURRENT_BUILD_CHECKSUM] as? String
-        if (currentBuildChecksum.isNullOrEmpty()) {
-            println("Jugg: currentBuildChecksum is null or empty, can't write new project info.")
+        val incDeployTimes = (rootProject.properties[GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES] as? String)?.toIntOrNull()
+        if (incDeployTimes == null || incDeployTimes < 0) {
+            println("Jugg: incDeployTimes is null or empty, can't write new project info.")
         } else {
-            val newProjectInfoFile = getProjectInfoFileByChecksum(currentBuildChecksum)
+            val newProjectInfoFile = getWriteFileByIncDeployTimes(incDeployTimes)
+            println("Jugg: write new project info to ${newProjectInfoFile}.")
             ProjectInfoSerializerInGradle(newProjectInfoFile).save(projectInfo)
         }
     }
@@ -76,18 +77,14 @@ class GradleDependencyDiffer(
     }
 
     private fun getLastProjectInfo(): JuggProjectInfo? {
-        val lastBuildChecksum = rootProject.properties[GradleProjectInfoReaderManager.PARAM_LAST_BUILD_CHECKSUM] as? String
-        val lastProjectInfoFile = getProjectInfoFileByChecksum(lastBuildChecksum)
-        println("Jugg: lastBuildChecksum: $lastBuildChecksum, project infos file: $lastProjectInfoFile")
-        if (!lastProjectInfoFile.exists()) {
+        val incDeployTimes = (rootProject.properties[GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES] as? String)?.toIntOrNull()
+        val lastProjectInfoFile = getReadFileByOrder(incDeployTimes)
+        println("Jugg: incDeployTimes: $incDeployTimes, read project infos file: $lastProjectInfoFile")
+        if (lastProjectInfoFile == null || !lastProjectInfoFile.exists()) {
             println("Jugg: project infos file: $lastProjectInfoFile, not exists.")
             return null
         }
 
-        val methods = ProjectInfoSerializerInGradle::class.java.constructors
-        methods.forEach {
-            println("Jugg: ${it.name}")
-        }
         val projectInfoSerialize = ProjectInfoSerializerInGradle(lastProjectInfoFile).load()
         if (projectInfoSerialize == null) {
             println("Jugg: project infos file: $lastProjectInfoFile parse failed.")
@@ -96,11 +93,21 @@ class GradleDependencyDiffer(
         return JuggProjectInfoSerialize.deserialize(projectInfoSerialize)
     }
 
-    private fun getProjectInfoFileByChecksum(checksum: String?): File {
-        if (checksum.isNullOrEmpty()) {
+    private fun getReadFileByOrder(order: Int?): File? {
+        if (order == null || order <= 0) {
             return pathManager.gradleProjectInfoFile
         }
-        return File(pathManager.tmpGradleProjectInfo, "${checksum}_project_infos.json")
+
+        val targetOrderFile = File(pathManager.tmpGradleProjectInfo, "project_infos_${order}.json")
+        if (!targetOrderFile.exists()) {
+            // incremental compile
+            return getReadFileByOrder(order - 1)
+        }
+        return targetOrderFile
+    }
+
+    private fun getWriteFileByIncDeployTimes(order: Int): File {
+        return File(pathManager.tmpGradleProjectInfo, "project_infos_${order + 1}.json")
     }
 
     private fun copyAllChangedFilesToDir(updatedLibraryDependency: UpdatedLibraryDependency, outputDir: File): UpdatedLibraryDependency {

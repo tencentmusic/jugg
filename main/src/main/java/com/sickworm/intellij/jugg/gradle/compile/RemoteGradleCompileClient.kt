@@ -11,8 +11,6 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.project.dependency.LibraryDependencySet
-import com.sickworm.intellij.jugg.project.dependency.UpdatedLibraryDependency
 import com.sickworm.intellij.jugg.project.dependency.convertToAbsolutePath
 import java.io.BufferedInputStream
 import java.io.File
@@ -365,7 +363,7 @@ class RemoteGradleCompileClient(
         return File(gradleCompileSettings.remoteToLocalSyncClasspathPath)
     }
 
-    override fun fetchLibraryChanges(currentBuildChecksum: String, lastBuildChecksum: String): DependencyDiffResult? {
+    override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResult? {
         val (channel, gradleCompileSettings) = checkLoginOnStart()
 
         // 1. sync source
@@ -378,8 +376,7 @@ class RemoteGradleCompileClient(
         val diffLibraryChangesCommand = DiffLibraryChangesCommand(
             gradleCompileSettings.remoteProjectPath,
             gradleCompileSettings.initGradleFileRelativePath,
-            currentBuildChecksum,
-            lastBuildChecksum,
+            incDeployTimes,
         )
         val compileProjectResult = invoke(channel, diffLibraryChangesCommand)
         if (compileProjectResult != 0) {

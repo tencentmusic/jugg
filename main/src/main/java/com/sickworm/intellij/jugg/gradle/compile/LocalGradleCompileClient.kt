@@ -149,7 +149,7 @@ class LocalGradleCompileClient(
         return projectRootPath
     }
 
-    override fun fetchLibraryChanges(currentBuildChecksum: String, lastBuildChecksum: String): DependencyDiffResult? {
+    override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResult? {
         isCanceled = false
         val juggGradleCompileOptions = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
 
@@ -162,8 +162,7 @@ class LocalGradleCompileClient(
         val diffLibraryChangesCommand = DiffLibraryChangesCommand(
             juggGradleCompileOptions.projectRootPath,
             juggGradleCompileOptions.initGradleFileRelativePath,
-            currentBuildChecksum,
-            lastBuildChecksum,
+            incDeployTimes,
         )
         val compileProjectResult = invoke(diffLibraryChangesCommand)
         if (compileProjectResult != 0) {

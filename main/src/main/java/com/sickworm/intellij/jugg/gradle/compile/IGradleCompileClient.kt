@@ -44,7 +44,7 @@ interface IGradleCompileClient : Disposable {
      */
     fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File?
 
-    fun fetchLibraryChanges(currentBuildChecksum: String, lastBuildChecksum: String): DependencyDiffResult?
+    fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResult?
 
     fun cancelAction(isByUser: Boolean)
 

@@ -291,49 +291,9 @@ class JuggCompilerHelper(
         client.login(options)
 
         val deployHistoryData = deployHistoryManager.getDeployHistoryData()
-        val lastBuildChangedBuildFiles = deployHistoryData?.changedFiles?.mapNotNull {
-            val file = File(pathManager.projectDir, it.key)
-            val changedFile = fileChangesHandler.filter(listOf(file)).firstOrNull()
-            if (changedFile == null || changedFile.type != CompileFile.Type.Gradle) {
-                return@mapNotNull null
-            }
-            return@mapNotNull file.path to it.value
-        }?.toMap() ?: emptyMap()
-
-        val currentBuildChecksum = run {
-            val changedBuildFiles = deployFileManager.getUncompiledFiles()
-                .filter {
-                    it.type == CompileFile.Type.Gradle
-                }.associate {
-                    it.file.path to it.file.crc32
-                }
-            // add new changed files and override olds
-            val currentBuildFiles = lastBuildChangedBuildFiles + changedBuildFiles
-            val checksum = currentBuildFiles.checksum
-            logger.debug("currentBuildChecksum checksum: $checksum, build files: $currentBuildFiles")
-            checksum
-        }
-
-        val lastBuildChecksum = if (deployHistoryData == null || deployHistoryData.incDeployTimes == 0) {
-            ""
-        } else {
-            lastBuildChangedBuildFiles.checksum
-        }
-        logger.debug("lastBuildChecksum checksum: $lastBuildChecksum, build files: $lastBuildChangedBuildFiles")
-
-        return client.fetchLibraryChanges(currentBuildChecksum, lastBuildChecksum)
-    }
-
-    private val Map<String, Long>.checksum: String get() {
-        val crc32 = CRC32()
-        this.entries.sortedBy {
-            it.key
-        }.forEach {
-            crc32.update(it.key.toByteArray())
-            crc32.update(it.value.toInt())
-            crc32.update((it.value shr 32).toInt())
-        }
-        return crc32.value.toString()
+        val incDeployTimes = deployHistoryData?.incDeployTimes ?: 0
+        logger.debug("incDeployTimes: $incDeployTimes")
+        return client.fetchLibraryChanges(incDeployTimes)
     }
 
     @TestOnly

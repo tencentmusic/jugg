@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
-import com.sickworm.intellij.jugg.gradle.compile.FetchClasspathCommand.Companion.getRsyncArguments
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -233,13 +232,11 @@ class SyncLocalClasspathCommand(
 class DiffLibraryChangesCommand(
     projectPath: String,
     initGradleFileRelativePath: String,
-    currentBuildChecksum: String,
-    lastBuildChecksum: String,
+    incDeployTimes: Int,
 ) : CompileProjectCommand(
     "./gradlew --dry-run" +
             " -P${GradleProjectInfoReaderManager.PARAM_DIFF_MODE}=true" +
-            " -P${GradleProjectInfoReaderManager.PARAM_CURRENT_BUILD_CHECKSUM}=$currentBuildChecksum" +
-            " -P${GradleProjectInfoReaderManager.PARAM_LAST_BUILD_CHECKSUM}=$lastBuildChecksum",
+            " -P${GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES}=$incDeployTimes",
     projectPath, initGradleFileRelativePath
 )
 

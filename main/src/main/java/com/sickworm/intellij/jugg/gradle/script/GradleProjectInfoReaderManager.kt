@@ -63,7 +63,6 @@ class GradleProjectInfoReaderManager(private val rootProject: Project) {
 
     companion object {
         const val PARAM_DIFF_MODE = "jugg.diffMode"
-        const val PARAM_CURRENT_BUILD_CHECKSUM = "jugg.currentBuildChecksum"
-        const val PARAM_LAST_BUILD_CHECKSUM = "jugg.lastBuildChecksum"
+        const val PARAM_INC_DEPLOY_TIMES = "jugg.incDeployTimes"
     }
 }
