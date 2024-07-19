@@ -38,7 +38,7 @@ class DeployHistoryManager(
     override val hasBeenFullCompiled: Boolean
         get() = if (isRecoverFeatureAvailable) {
             // we can recover from last full compile in db, because we have recover feature
-            compileContextDb.hasBeenFullCompiled
+            compileContextDb.hasBeenFullCompiled && deployHistoryDb.getDeployHistoryData() != null
         } else {
             // we need to do one full compile, because we don't have recover feature
             hasBeenFullCompiledRuntime
