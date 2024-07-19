@@ -274,8 +274,6 @@ class JuggManager @TestOnly constructor(
                 .map { it.file }
             dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
         }
-        val lastBuildModifiedTime = realChangedFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
-        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isBuildFileChanged, lastBuildModifiedTime)
 
         if (JuggSettings.compileOnSave) {
             runTaskSafe("Compile Changes", ::compileChanges)

@@ -32,7 +32,7 @@ class GradleProjectInfoLocalFetchManager(
     private val logger = loggerArg.getInstance("GradleProjectInfoLocalFetchManager")
 
     private var isNeedUpdate: Boolean
-        get() = pathManager.markProjectInfoNeedUpdateFlagFile.exists() || !pathManager.gradleProjectInfoFile.exists()
+        get() = pathManager.markProjectInfoNeedUpdateFlagFile.exists() || !isProjectInfoExits
         set(value) {
             val markFile = pathManager.markProjectInfoNeedUpdateFlagFile
             if (value) {
@@ -44,6 +44,8 @@ class GradleProjectInfoLocalFetchManager(
                 markFile.delete()
             }
         }
+
+    val isProjectInfoExits: Boolean get() = pathManager.gradleProjectInfoFile.exists()
 
     @Volatile
     private var isUpdating: Boolean = false
@@ -89,7 +91,10 @@ class GradleProjectInfoLocalFetchManager(
             return
         }
 
-        taskRunnerManager.runTaskSafe("Update project info from gradle", ::update, isBlockIncrementalCompile = false)
+        taskRunnerManager.runTaskSafe("Update project info from gradle", ::update,
+            isNeedShowIndicator = false,
+            isBlockIncrementalCompile = false,
+        )
     }
 
     private fun update(outputListener: IGradleCompileClient.TerminalOutputListener = IDLE, isKeepDaemon: Boolean = false): Boolean {

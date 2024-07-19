@@ -149,11 +149,28 @@ class JuggCompilerHelper(
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
-        gradleProjectInfoLocalFetchManager.writeInitGradleFile()
-        if (!options.isRemoteCompile) {
-            compileContextManager.ensureInitProjectInfo() // use to local fetch after build
+        compileContextManager.ensureInitProjectInfo()
+
+        if (options.isRemoteCompile) {
+            // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
+            if (!gradleProjectInfoLocalFetchManager.isProjectInfoExits) {
+                // project info not fetched, run it during remote gradle compile
+                // local compile will auto run after build finish
+                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true)
+            } else {
+                val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
+                    it.type == CompileFile.Type.Gradle
+                }
+                val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
+                if (changedBuildFiles.isNotEmpty()) {
+                    logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
+                    gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
+                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false)
+                }
+            }
         }
 
+        gradleProjectInfoLocalFetchManager.writeInitGradleFile()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
         val result = task.run()
@@ -164,14 +181,6 @@ class JuggCompilerHelper(
             deployTargetManager.setApks(listOf(apkInfo))
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
-
-            if (!options.isRemoteCompile) {
-                // local build will update project info by -I readProjectInfo.gradle.kts
-                gradleProjectInfoLocalFetchManager.markIsNeedUpdate(false)
-            } else {
-                // remote build need run --dry-run -I readProjectInfo.gradle.kts at local
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
-            }
         }
 
         return result
@@ -280,8 +289,6 @@ class JuggCompilerHelper(
             deployStateManager.isBuildFileChanged = false
             deployStateManager.whatBuildFileChanged = ""
         }
-        val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
-        gradleProjectInfoLocalFetchManager.markIsNeedUpdate(isNeedRebuild, lastBuildModifiedTime)
     }
 
     private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: GradleOutputParser): DependencyDiffResult? {
