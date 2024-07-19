@@ -19,3 +19,4 @@ local.properties
 /idea/src/test/assets/android/MyApplicationIntellij/.idea/
 /idea/src/main/config/final
 /main/src/main/resources/gradle/
+/main/src/test/java/local
