@@ -37,7 +37,7 @@ class AndroidManifestCompiler(
         try {
             val changedManifestFileList = task.files.mapNotNull {
                 val module = it.module
-                if (module == context.tempModule) {
+                if (module.moduleRootDir.path == context.tempModule.moduleRootDir.path) {
                     // AndroidManifest in libraries
                     val relativeManifestFile = it.oldManifest
                     if (relativeManifestFile != null) {
