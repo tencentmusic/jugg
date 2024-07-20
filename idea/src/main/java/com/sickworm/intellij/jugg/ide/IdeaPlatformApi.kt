@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.platform
+package com.sickworm.intellij.jugg.ide
 
 import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
@@ -10,9 +10,9 @@ import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.gradle.compile.UserAndPasswordInputDialog
-import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
@@ -104,5 +104,13 @@ class IdeaPlatformApi : IPlatformApi {
 
     override fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
         return GitManager.createGitManagerAndTrySearchParent(dir)
+    }
+
+    override fun getIdeVersion(): String {
+        return AsDeployerCompat.ideVersion.toString()
+    }
+
+    override fun dumpLogcatErrorLogs(project: Project): String? {
+        return JuggInitializer.getManager(project)?.dumpLogcatErrorLogs()
     }
 }

@@ -42,4 +42,8 @@ interface IPlatformApi {
     fun createGitManager(gitRoot: File): IGitManager
 
     fun createGitManagerAndTrySearchParent(dir: File): IGitManager
+
+    fun getIdeVersion(): String
+
+    fun dumpLogcatErrorLogs(project: Project): String?
 }

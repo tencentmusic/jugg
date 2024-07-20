@@ -4,10 +4,8 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 import kotlinx.coroutines.*
@@ -40,7 +38,7 @@ import java.util.zip.ZipOutputStream
  */
 class JuggServer(
     private val project: Project,
-    private val pathManager: JuggPathManager? = JuggInitializer.getManager(project)?.pathManager,
+    private val pathManager: JuggPathManager? = JuggPathManager(File(project.basePath!!)),
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
     companion object {
@@ -156,7 +154,7 @@ class JuggServer(
                 }
 
                 logger.debug("start dump logcatErrorLogs")
-                val logcatErrorLog = JuggInitializer.getManager(project)?.dumpLogcatErrorLogs() ?: "null"
+                val logcatErrorLog = PlatformApi.dumpLogcatErrorLogs(project) ?: "null"
                 val logcatFile = File(pathManager.tmpDir, "logcat.log")
                 if (logcatFile.exists()) {
                     logcatFile.delete()
@@ -267,7 +265,7 @@ class JuggServer(
 
     private fun ReportEventData.fillCommonData(): ReportEventData {
         version = this@JuggServer.version
-        ideVersion = AsDeployerCompat.ideVersion.toString()
+        ideVersion = PlatformApi.getIdeVersion()
         username = this@JuggServer.username
         projectId = this@JuggServer.projectId
         sessionId = "${this@JuggServer.sessionId}_${this@JuggServer.sessionSubId}"
@@ -296,7 +294,7 @@ class JuggServer(
 
     private fun getName(defaultName: String): String {
         val pathManager = pathManager ?: return defaultName
-        val gitManager = GitManager.createGitManagerAndTrySearchParent(pathManager.projectDir)
+        val gitManager = PlatformApi.createGitManagerAndTrySearchParent(pathManager.projectDir)
         if (!gitManager.hasInitGit) {
             return defaultName
         }
