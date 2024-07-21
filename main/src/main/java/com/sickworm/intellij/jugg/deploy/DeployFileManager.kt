@@ -77,7 +77,7 @@ class DeployFileManager(
 
     @Synchronized
     fun addChangedFile(files: List<ChangedFile>) {
-        logger.debug("add changed files: $files")
+        logger.debug("add changed files, size: ${files.size}, paths: $files")
         val newFiles = files.filter {
             uncompiledFiles.containsKey(it.file.stdPath).not()
         }

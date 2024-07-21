@@ -62,6 +62,7 @@ class JuggManager @TestOnly constructor(
     private val dependencyChangeManager: IDependencyChangeManager = IDependencyChangeManager.create(JuggLogger.getInstance(project, "DependencyChangeManager")),
     private val taskRunnerManager: TaskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope),
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, logger),
+    private val gitFileChangesDetector: GitFileChangesDetector = GitFileChangesDetector(deployHistoryManager, taskRunnerManager, logger),
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
@@ -272,6 +273,10 @@ class JuggManager @TestOnly constructor(
             dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
         }
 
+        if (!isFromRecover) {
+            gitFileChangesDetector.onSourceFileChanged(realChangedFiles)
+        }
+
         if (JuggSettings.compileOnSave) {
             runTaskSafe("Compile Changes", ::compileChanges)
         }
@@ -433,6 +438,7 @@ class JuggManager @TestOnly constructor(
         deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
         juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
         fileChangesHandler.init(compileContextManager.compileContext)
+        gitFileChangesDetector.init(pathManager.projectDir, compileContextManager.compileContext.modules)
     }
 
     private fun initCompile(
@@ -454,6 +460,11 @@ class JuggManager @TestOnly constructor(
         logger.debug("Init compile cost ${costTime}ms")
 
         fileChangesDetector.startListen(object: FileChangesListener {
+            override fun onFileChanges(changedFiles: List<File>) {
+                processFileChanged(changedFiles, isFromRecover = false)
+            }
+        })
+        gitFileChangesDetector.startListen(object: FileChangesListener {
             override fun onFileChanges(changedFiles: List<File>) {
                 processFileChanged(changedFiles, isFromRecover = false)
             }
