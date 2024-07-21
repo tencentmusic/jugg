@@ -174,7 +174,7 @@ class CompileConsistencyTest {
         }
 
         if (consistencyLevel >= 1) {
-            checkCompileStatus()
+            checkCompileStatus(changedFile)
         }
 
         val deployData = jugg.deployFileManager.getDeployData()
@@ -191,7 +191,7 @@ class CompileConsistencyTest {
         jugg.dryDeploy()
     }
 
-    private fun checkCompileStatus() {
+    private fun checkCompileStatus(changedFile: ChangedFile) {
         val uncompiledFiles = jugg.deployFileManager.getUncompiledFiles()
         val filteredUncompiledFiles = uncompiledFiles
             .filter {
@@ -206,6 +206,11 @@ class CompileConsistencyTest {
             jugg.deployFileManager.removeChangedFile(
                 uncompiledFiles.map { it.file }
             )
+        }
+
+        val isAndroidManifest = changedFile.type == CompileFile.Type.AndroidManifest
+        if (isAndroidManifest) {
+            assertEquals(0, jugg.deployFileManager.getDeployData().overlays.size)
         }
     }
 

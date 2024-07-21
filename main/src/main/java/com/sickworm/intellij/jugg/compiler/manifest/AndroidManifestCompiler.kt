@@ -37,6 +37,19 @@ class AndroidManifestCompiler(
         try {
             val changedManifestFileList = task.files.mapNotNull {
                 val module = it.module
+
+                var manifestPlaceHolders = module.manifestPlaceHolders
+                val isApplicationManifest = module.moduleRootDir == context.applicationModule?.moduleRootDir
+                if (isApplicationManifest) {
+                    val packageName = context.packageName
+                    if (packageName == null) {
+                        logger.warn("applicationId not found, failed to compile AndroidManifest.xml.")
+                        return createErrorCompileResult(task, "applicationId not found")
+                    }
+                    // applicationId is embedded placeholder for application module
+                    manifestPlaceHolders = (manifestPlaceHolders ?: emptyMap()) + mapOf("applicationId" to packageName)
+                }
+
                 if (module.moduleRootDir.path == context.tempModule.moduleRootDir.path) {
                     // AndroidManifest in libraries
                     val relativeManifestFile = it.oldManifest
@@ -48,7 +61,7 @@ class AndroidManifestCompiler(
                         }
                     }
 
-                    return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile)
+                    return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile, manifestPlaceHolders)
                 } else {
                     // AndroidManifest in gradle module
                     val relativeManifestFile = findMergedManifestFile(module)
@@ -57,7 +70,7 @@ class AndroidManifestCompiler(
                         logger.warn("Fallback to gradle once may fix this.")
                         return createErrorCompileResult(task, "Merged AndroidManifest.xml not found in module ${module.name}")
                     }
-                    return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile)
+                    return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile, manifestPlaceHolders)
                 }
 
             }
@@ -67,7 +80,11 @@ class AndroidManifestCompiler(
                 return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
             }
 
-            AndroidManifestMerger(logger).merge(finalMergedManifest, changedManifestFileList, outputManifestFile)
+            val isNeedUpdate = AndroidManifestMerger(logger).merge(finalMergedManifest, changedManifestFileList, outputManifestFile)
+            if (!isNeedUpdate) {
+                logger.debug("All AndroidManifest.xml in libraries are not changed after diff, skip merge.")
+                return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+            }
         } catch (e: Throwable) {
             logger.debug("Compile AndroidManifest.xml failed", e)
             val reason = "Compile AndroidManifest.xml failed, got exception: $e"

@@ -27,14 +27,18 @@ class AndroidManifestMerger(loggerArg: Logger) {
     private val logger = loggerArg.getInstance("AndroidManifestMerger")
 
     /**
+     * @return true if changes, false if no changes
      * @throws Exception if merge failed
      */
-    fun merge(mergedManifestFile: File, changedManifestFiles: List<ChangedManifestFile>, outputFile: File) {
+    fun merge(mergedManifestFile: File, changedManifestFiles: List<ChangedManifestFile>, outputFile: File): Boolean {
         val fullNode = XmlParser().parse(mergedManifestFile)
         val diffElements = changedManifestFiles.map {
             val diffResult = ManifestDiffer().diff(it)
             logger.debug("Diff result: $diffResult")
             diffResult.diffElement
+        }
+        if (diffElements.all { it.isNothingToUpdate }) {
+            return false
         }
         merge(fullNode, diffElements)
 
@@ -43,6 +47,7 @@ class AndroidManifestMerger(loggerArg: Logger) {
         }
         outputFile.parentFile?.mkdirs()
         outputFile.writeText(fullNode.printXml())
+        return true
     }
 
     fun merge(fullNode: XmlNode, diffElements: List<ManifestDiffResult.DiffElement>) {

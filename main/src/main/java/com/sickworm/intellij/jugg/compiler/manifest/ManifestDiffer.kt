@@ -12,14 +12,15 @@ class ManifestDiffer {
     fun diff(changedManifestFile: ChangedManifestFile): ManifestDiffResult {
         val newNode = XmlParser().parse(changedManifestFile.newFile)
         val oldNode = changedManifestFile.oldFile?.let { XmlParser().parse(it) }
-        val diffElement = diff(newNode, oldNode)
+        val diffElement = diff(newNode, oldNode, changedManifestFile.placeHolders)
         return ManifestDiffResult(changedManifestFile, diffElement)
     }
 
-    fun diff(newNode: XmlNode, oldNode: XmlNode?): ManifestDiffResult.DiffElement {
-        preprocess(newNode)
+    fun diff(newNode: XmlNode, oldNode: XmlNode?, placeHolders: Map<String, String>? = null): ManifestDiffResult.DiffElement {
+        preprocess(newNode, placeHolders)
+
         if (oldNode != null) {
-            preprocess(oldNode)
+            preprocess(oldNode, placeHolders)
         }
 
         val builderFactory = DocumentBuilderFactory.newInstance()
@@ -69,13 +70,24 @@ class ManifestDiffer {
         }
     }
 
-    private fun preprocess(node: XmlNode) {
+    /**
+     * 1. process android:name=".MainActivity" to "com.example.app.MainActivity"
+     * 2. process ${applicationId} to "com.example.app" or something else
+     */
+    private fun preprocess(node: XmlNode, placeHolders: Map<String, String>?) {
         val packageName = node.node["package"]
-        preprocess(node.node, packageName)
+        preprocess(node.node, packageName, placeHolders)
     }
 
-    private fun preprocess(node: Node, packageName: String?) {
+    @Suppress("RegExpRedundantEscape")
+    private val regex = "\\$\\{[^}]+\\}".toRegex()
+
+    private fun preprocess(node: Node, packageName: String?, placeHolders: Map<String, String>?) {
+        // process
         node.attributes?.forEach {
+            if (it.nodeValue == null) {
+                return@forEach
+            }
             if (it.nodeName == "android:name") {
                 val name = it.nodeValue
                 if (name != null && name.startsWith(".") && packageName != null) {
@@ -83,10 +95,16 @@ class ManifestDiffer {
                     return
                 }
             }
+            if (placeHolders != null) {
+                it.nodeValue = regex.replace(it.nodeValue) { matchResult ->
+                    val key = matchResult.value.substring(2, matchResult.value.length - 1)
+                    return@replace placeHolders[key] ?: matchResult.value
+                }
+            }
         }
 
         node.childNodes.forEach {
-            preprocess(it, packageName)
+            preprocess(it, packageName, placeHolders)
         }
     }
 
@@ -142,6 +160,7 @@ class ManifestNodeMatcher(
 data class ChangedManifestFile(
     val newFile: File,
     val oldFile: File?,
+    val placeHolders: Map<String, String>? = null,
 )
 
 class ManifestDiffResult(
