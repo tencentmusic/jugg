@@ -190,6 +190,11 @@ class MockJugg {
                 return true
             }
 
+            override fun stopApp(device: IDevice): Boolean {
+                AdbCmdHelper(device, logger).stopApp(projectInfo.packageName)
+                return true
+            }
+
             override fun isAppForeground(device: IDevice): Boolean {
                 return AdbCmdHelper(device, logger).isAppForeground(projectInfo.packageName)
             }

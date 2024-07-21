@@ -89,6 +89,7 @@ class CompileConsistencyTest {
     @Test
     fun testConsistency() {
         jugg.loadFromHistory()
+        jugg.deployStateManager.updateDeployState()
         if (!jugg.deployStateManager.deployState.isReadyIncCompile) {
             println("no history, exit")
             return
@@ -145,7 +146,7 @@ class CompileConsistencyTest {
             return checkFiles.map { File(it) }
         }
 
-        return ListFiles.listFileOrderedByNameLastChar(rootDir).filter { it.name == "AndroidManifest.xml" }
+        return ListFiles.listFileOrderedByNameLastChar(rootDir)
     }
 
     private fun checkFileCompileConsistency(file: File) {

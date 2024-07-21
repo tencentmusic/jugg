@@ -64,7 +64,8 @@ class DeployHistoryManagerTest {
                 ChangedFile(CompileFile.Type.Java, file, File(""), mockModule)
             }
             assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
-            historyManager.updateHistoryOnAfterDeployed(changedFiles, emptyList())
+            historyManager.beforeIncrementalCompile(changedFiles)
+            historyManager.updateHistoryOnAfterDeployed(emptyList())
             assertEquals(0, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
 
             val deployHistoryFile = File(storageDir, "deploy_history.db/deploy_history.json")
@@ -86,7 +87,8 @@ class DeployHistoryManagerTest {
                 ChangedFile(CompileFile.Type.Java, file, File(""), mockModule)
             }
             assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
-            historyManager.updateHistoryOnAfterDeployed(changedFiles, emptyList())
+            historyManager.beforeIncrementalCompile(changedFiles)
+            historyManager.updateHistoryOnAfterDeployed(emptyList())
             assertEquals(0, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
 
             val deployHistoryFile = File(storageDir, "deploy_history.db/deploy_history.json")
@@ -126,7 +128,8 @@ class DeployHistoryManagerTest {
         val recoverInfo = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfo)
         assertEquals(0, recoverInfo.deployedFiles.size)
-        historyManager.updateHistoryOnAfterDeployed(emptyList(), listOf(deployedFile))
+        historyManager.beforeIncrementalCompile(emptyList())
+        historyManager.updateHistoryOnAfterDeployed(emptyList())
         val recoverInfoNew = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfoNew)
         assertEquals(1, recoverInfoNew.deployedFiles.size)
@@ -140,7 +143,8 @@ class DeployHistoryManagerTest {
         }
         val storageFile2 = File(storageDir, "compile_context.db/deployed/res/drawable/B.xml")
         assertFalse(storageFile2.exists())
-        historyManager.updateHistoryOnAfterDeployed(emptyList(), listOf(deployedFile2))
+        historyManager.beforeIncrementalCompile(emptyList())
+        historyManager.updateHistoryOnAfterDeployed(listOf(deployedFile2))
         val recoverInfoNew2 = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfoNew2)
         assertEquals(2, recoverInfoNew2.deployedFiles.size)

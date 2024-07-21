@@ -25,8 +25,10 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.ide.IdeaPlatformApi
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
@@ -48,6 +50,7 @@ val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
 var projectInfo = try {
+    PlatformApi.impl = IdeaPlatformApi()
     val projectInfoFromEnv = System.getenv("JUGG_PROJECT_INFO_PATH")
     val json = if (projectInfoFromEnv != null) {
         File(projectInfoFromEnv).readText()
