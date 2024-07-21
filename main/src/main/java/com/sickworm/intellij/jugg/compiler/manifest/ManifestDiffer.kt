@@ -49,7 +49,7 @@ class ManifestDiffer {
             }
         }
         currentDiffElement.addedAttributes.removeIf {
-            it.nodeName.startsWith("tools:")
+            it.nodeName.startsWith("tools:") || it.nodeName == "xmlns:tools"
         }
 
         // match and diff child node by android:name or something, see Node.uniqueKey
