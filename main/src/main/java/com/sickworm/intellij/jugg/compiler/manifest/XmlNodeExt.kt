@@ -5,8 +5,12 @@ import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 
+private val uniqueNodeName = setOf(
+    "manifest", "application", "uses-sdk", "queries",
+)
+
 val Node.uniqueKey: String get() {
-    if (nodeName == "manifest" || nodeName == "application" || nodeName == "uses-sdk") { // they are unique
+    if (nodeName in uniqueNodeName) { // they are unique
         return nodeName
     }
 
