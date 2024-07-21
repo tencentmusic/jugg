@@ -41,6 +41,18 @@ class ManifestDiffer {
         val currentDiffElement = ManifestDiffResult.DiffElement(newNode, isNewNode)
         currentDiffElement.diffAttributes(oldNode)
 
+        // process tools node
+        val toolsNode = currentDiffElement.addedAttributes.find { it.nodeName == "tools:node" }
+        if (toolsNode != null) {
+            if (toolsNode.nodeValue == "remove") {
+                return
+            }
+        }
+        currentDiffElement.addedAttributes.removeIf {
+            it.nodeName.startsWith("tools:")
+        }
+
+        // match and diff child node by android:name or something, see Node.uniqueKey
         val nodeMatcher = ManifestNodeMatcher(newNode.childNodes, oldNode?.childNodes)
         newNode.childNodes.forEach { newChildNode ->
             if (newChildNode.nodeType != Node.ELEMENT_NODE) {
@@ -49,7 +61,8 @@ class ManifestDiffer {
             }
 
             if (newChildNode.nodeName == "uses-sdk") {
-                // don't merge uses-sdk, because I think it's do more harm than good
+                // submodule can also declare uses-sdk, but it's not a good idea to merge them
+                // I think it's do more harm than good
                 return@forEach
             }
 
