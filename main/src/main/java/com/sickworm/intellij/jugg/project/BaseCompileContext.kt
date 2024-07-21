@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -26,6 +27,7 @@ class BaseCompileContext(
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
     private val deployFileManager: DeployFileManager,
+    private val deployHistoryManager: IDeployHistoryManager,
 ): ICompileContext {
 
     private val androidJarApi: String = getSuggestedPlatformApi(modules)
@@ -237,6 +239,11 @@ class BaseCompileContext(
     override fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
         // moduleInfo is used for searching classpath, but deployFileManager search globally for now
         deployFileManager.getAllDesugarClasspath(compileFiles, moduleInfo, toDir)
+    }
+
+    override fun getLastBuildAndroidManifest(file: CompileFile): File? {
+        val changedFile = ChangedFile(file.type, file.file, file.baseDir, file.module, file.extraInfo)
+        return deployHistoryManager.getLastBuildFiles(listOf(changedFile)).firstOrNull()?.second
     }
 
     override fun listenUpdate(listener: OnContextUpdate) {

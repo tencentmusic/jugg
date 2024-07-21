@@ -13,6 +13,7 @@ import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -38,6 +39,7 @@ class CompileContextManager(
     private val project: Project,
     private val pathManager: JuggPathManager,
     private val deployFileManager: DeployFileManager,
+    private val deployHisManager: IDeployHistoryManager,
     private val moduleManager: ModuleManager = AsDeployerCompat.getModuleManager(project), // mock
     private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock,
     private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
@@ -188,6 +190,7 @@ class CompileContextManager(
             modules = getProjectInfo().modules,
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
+            deployHistoryManager = deployHisManager,
         )
         TimeLogger.end("createCompileContext", logger)
         return context

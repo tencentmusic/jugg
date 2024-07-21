@@ -245,6 +245,8 @@ interface ICompileContext {
 
     fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File)
 
+    fun getLastBuildAndroidManifest(file: CompileFile): File?
+
     fun listenUpdate(listener: OnContextUpdate)
 }
 

@@ -218,7 +218,7 @@ class MockJugg {
         } else {
             val moduleManager = mock(ModuleManager::class.java)
             val projectBuildModel = mock(ProjectBuildModel::class.java)
-            compileContextManager = CompileContextManager(project, pathManager, deployFileManager,
+            compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
                 moduleManager = moduleManager, projectBuildModel = projectBuildModel)
         }
 

@@ -55,7 +55,7 @@ class JuggManager @TestOnly constructor(
         pathManager.databaseDir,
         coroutineScope,
     ),
-    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager),
+    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),

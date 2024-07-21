@@ -108,6 +108,10 @@ data class SimpleCompileContext(
 
     }
 
+    override fun getLastBuildAndroidManifest(file: CompileFile): File? {
+        return null
+    }
+
     override fun listenUpdate(listener: OnContextUpdate) {
     }
 }
