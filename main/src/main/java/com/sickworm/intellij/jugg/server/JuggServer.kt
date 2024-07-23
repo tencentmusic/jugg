@@ -78,7 +78,7 @@ class JuggServer(
     private val client = OkHttpClient()
 
     init {
-        logger.debug("init finished, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
+        logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
     }
 
     fun afterFullCompile() {
