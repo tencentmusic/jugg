@@ -265,6 +265,7 @@ class BaseCompileContext(
         }
         modules?.let {
             this.modules = HashMap(it)
+            finalRFiles = getRFiles()
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {
             val oldLibraries = loadTempLibraries().toMutableList()
