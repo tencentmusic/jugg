@@ -58,8 +58,17 @@ class ApkFileModifier(
         TimeLogger.end("copyApkFile", logger)
 
         TimeLogger.start("insertFiles")
-        // ref: https://download.java.net/java/early_access/valhalla/docs/api/jdk.zipfs/module-summary.html
+        // ref: https://docs.oracle.com/en/java/javase/14/docs/api/jdk.zipfs/module-summary.html
+        // use FileSystems API can reduce cost time to 1-2s, while use standard ZIP API will cost 40-50s
+        // compressionMethod is supported from JDK 14, because
+        // https://docs.oracle.com/en/java/javase/13/docs/api/jdk.zipfs/module-summary.html doesn't have compressionMethod
+
+        // Android Chipmunk doesn't support compressionMethod will get error
+        // INSTALL_PARSE_FAILED_RESOURCES_ARSC_COMPRESSED when installing APK
+        // JellyFish and after version is compatible with compressionMethod
+        // D to I haven't tested
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
+
         val zipDisk: URI = URI.create("jar:" + tmpUpdateApkFile.toURI().toString())
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->

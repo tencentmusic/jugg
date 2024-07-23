@@ -11,6 +11,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
+            logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
             logger.debug("agpVersion: ${getAgpVersion()}")
         } catch (e: Exception) {
