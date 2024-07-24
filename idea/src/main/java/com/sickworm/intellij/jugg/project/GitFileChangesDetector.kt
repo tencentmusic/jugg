@@ -6,17 +6,19 @@ import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import kotlinx.coroutines.*
 import java.io.File
 
 /**
  * File changes callbacks in IDE may miss some files if large amount of files changes outside IDE
  * e.g. git pull / git checkout {branch}
  *
- * Here we listen file events to
+ * Here we listen file events to run a delay update task to get changed files by git
  */
 class GitFileChangesDetector(
     private val deployHistoryManager: IDeployHistoryManager,
     private val taskRunnerManager: TaskRunnerManager,
+    private val coroutineScope: CoroutineScope,
     loggerArg: Logger,
 ): IFileChangesDetector {
 
@@ -29,6 +31,9 @@ class GitFileChangesDetector(
     private var isAvailable: Boolean = false
 
     private var listener: FileChangesListener? = null
+
+    private var checkDelayJob: Job? = null
+    private var isWaitingFileChangesEnd = false
 
     @Synchronized
     fun init(projectRooDir: File, modules: Map<String, ModuleInfo>) {
@@ -47,12 +52,23 @@ class GitFileChangesDetector(
 
         if (isNeedGetChangedFilesByGit(files)) {
             if (isGitHeadsUpdate()) {
+                isWaitingFileChangesEnd = true
+            }
+        }
+
+        // files may keep changing util git checkout finished, so we wait a while to delay update changed files
+        if (isWaitingFileChangesEnd) {
+            checkDelayJob?.cancel()
+            checkDelayJob = coroutineScope.launch {
+                delay(waitingFileChangesEndDuration)
+                isWaitingFileChangesEnd = false
                 taskRunnerManager.runTaskSafe("Checking changed files", ::updateChangedFiles)
             }
         }
     }
 
-    private val detectDuration = 1_000
+    private val detectDuration = 1_000L
+    private val waitingFileChangesEndDuration = 1_000L
     private val triggerFileSize = 2
     private var fileChangesRecord = mutableMapOf<Long, List<ChangedFile>>()
 
@@ -103,5 +119,4 @@ class GitFileChangesDetector(
         }
         return gitManagerMap
     }
-
 }
