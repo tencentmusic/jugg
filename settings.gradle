@@ -2,6 +2,8 @@ rootProject.name = 'jugg'
 
 include ':main'
 include ':idea'
+include ':jvmti_agent'
+
 include ':deploy_compat:interface'
 include ':deploy_compat:v_chipmunk'
 include ':deploy_compat:v_giraffe'

@@ -1,0 +1,276 @@
+package com.sickworm.intellij.jugg.hotfix;
+
+import android.content.Context;
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+
+/**
+ * Copied from Lightning :)
+ */
+public class ReflectUtil {
+
+    public static Object getField(Class<?> cl, String fieldName, Object object) throws NoSuchFieldException, IllegalAccessException {
+        Field field = cl.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(object);
+    }
+
+    public static void setField(Class<?> cl, String fieldName, Object object, Object value) throws NoSuchFieldException, IllegalAccessException {
+        Field field = cl.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(object, value);
+    }
+
+    public static Object combineArray(Object firstArr, Object secondArr) {
+        int firstLength = Array.getLength(firstArr);
+        int secondLength = Array.getLength(secondArr);
+        int length = firstLength + secondLength;
+
+        Class<?> componentType = firstArr.getClass().getComponentType();
+        Object newArr = Array.newInstance(componentType, length);
+        for (int i = 0; i < length; i++) {
+            if (i < firstLength) {
+                Array.set(newArr, i, Array.get(firstArr, i));
+            } else {
+                Array.set(newArr, i, Array.get(secondArr, i - firstLength));
+            }
+        }
+
+        return newArr;
+    }
+
+    /**
+     * Locates a given field anywhere in the class inheritance hierarchy.
+     *
+     * @param instance an object to search the field into.
+     * @param name     field name
+     * @return a field object
+     * @throws NoSuchFieldException if the field cannot be located
+     */
+    public static Field findField(Object instance, String name) throws NoSuchFieldException {
+        for (Class<?> clazz = instance.getClass(); clazz != null; clazz = clazz.getSuperclass()) {
+            try {
+                Field field = clazz.getDeclaredField(name);
+
+                if (!field.isAccessible()) {
+                    field.setAccessible(true);
+                }
+
+                return field;
+            } catch (NoSuchFieldException e) {
+                // ignore and search next
+            }
+        }
+
+        throw new NoSuchFieldException("Field " + name + " not found in " + instance.getClass());
+    }
+
+    public static Field findField(Class<?> originClazz, String name) throws NoSuchFieldException {
+        for (Class<?> clazz = originClazz; clazz != null; clazz = clazz.getSuperclass()) {
+            try {
+                Field field = clazz.getDeclaredField(name);
+
+                if (!field.isAccessible()) {
+                    field.setAccessible(true);
+                }
+
+                return field;
+            } catch (NoSuchFieldException e) {
+                // ignore and search next
+            }
+        }
+
+        throw new NoSuchFieldException("Field " + name + " not found in " + originClazz);
+    }
+
+    /**
+     * Locates a given method anywhere in the class inheritance hierarchy.
+     *
+     * @param instance       an object to search the method into.
+     * @param name           method name
+     * @param parameterTypes method parameter types
+     * @return a method object
+     * @throws NoSuchMethodException if the method cannot be located
+     */
+    public static Method findMethod(Object instance, String name, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        for (Class<?> clazz = instance.getClass(); clazz != null; clazz = clazz.getSuperclass()) {
+            try {
+                Method method = clazz.getDeclaredMethod(name, parameterTypes);
+
+                if (!method.isAccessible()) {
+                    method.setAccessible(true);
+                }
+
+                return method;
+            } catch (NoSuchMethodException e) {
+                // ignore and search next
+            }
+        }
+
+        throw new NoSuchMethodException("Method "
+                + name
+                + " with parameters "
+                + Arrays.asList(parameterTypes)
+                + " not found in " + instance.getClass());
+    }
+
+    /**
+     * Locates a given method anywhere in the class inheritance hierarchy.
+     *
+     * @param clazz          a class to search the method into.
+     * @param name           method name
+     * @param parameterTypes method parameter types
+     * @return a method object
+     * @throws NoSuchMethodException if the method cannot be located
+     */
+    public static Method findMethod(Class<?> clazz, String name, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        for (; clazz != null; clazz = clazz.getSuperclass()) {
+            try {
+                Method method = clazz.getDeclaredMethod(name, parameterTypes);
+
+                if (!method.isAccessible()) {
+                    method.setAccessible(true);
+                }
+
+                return method;
+            } catch (NoSuchMethodException e) {
+                // ignore and search next
+            }
+        }
+
+        throw new NoSuchMethodException("Method "
+                + name
+                + " with parameters "
+                + Arrays.asList(parameterTypes)
+                + " not found in " + clazz);
+    }
+
+    /**
+     * Locates a given constructor anywhere in the class inheritance hierarchy.
+     *
+     * @param instance       an object to search the constructor into.
+     * @param parameterTypes constructor parameter types
+     * @return a constructor object
+     * @throws NoSuchMethodException if the constructor cannot be located
+     */
+    public static Constructor<?> findConstructor(Object instance, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        for (Class<?> clazz = instance.getClass(); clazz != null; clazz = clazz.getSuperclass()) {
+            try {
+                Constructor<?> ctor = clazz.getDeclaredConstructor(parameterTypes);
+
+                if (!ctor.isAccessible()) {
+                    ctor.setAccessible(true);
+                }
+
+                return ctor;
+            } catch (NoSuchMethodException e) {
+                // ignore and search next
+            }
+        }
+
+        throw new NoSuchMethodException("Constructor"
+                + " with parameters "
+                + Arrays.asList(parameterTypes)
+                + " not found in " + instance.getClass());
+    }
+
+    /**
+     * Replace the value of a field containing a non null array, by a new array containing the
+     * elements of the original array plus the elements of extraElements.
+     *
+     * @param instance      the instance whose field is to be modified.
+     * @param fieldName     the field to modify.
+     * @param extraElements elements to append at the end of the array.
+     */
+    public static void expandFieldArray(Object instance, String fieldName, Object[] extraElements)
+            throws NoSuchFieldException, IllegalArgumentException, IllegalAccessException {
+        Field jlrField = findField(instance, fieldName);
+
+        Object[] original = (Object[]) jlrField.get(instance);
+        Object[] combined = (Object[]) Array.newInstance(original.getClass().getComponentType(), original.length + extraElements.length);
+
+        // NOTE: changed to copy extraElements first, for patch load first
+
+        System.arraycopy(extraElements, 0, combined, 0, extraElements.length);
+        System.arraycopy(original, 0, combined, extraElements.length, original.length);
+
+        jlrField.set(instance, combined);
+    }
+
+    /**
+     * Replace the value of a field containing a non null array, by a new array containing the
+     * elements of the original array plus the elements of extraElements.
+     *
+     * @param instance      the instance whose field is to be modified.
+     * @param fieldName     the field to modify.
+     */
+    public static void reduceFieldArray(Object instance, String fieldName, int reduceSize)
+            throws NoSuchFieldException, IllegalArgumentException, IllegalAccessException {
+        if (reduceSize <= 0) {
+            return;
+        }
+
+        Field jlrField = findField(instance, fieldName);
+
+        Object[] original = (Object[]) jlrField.get(instance);
+        int finalLength = original.length - reduceSize;
+
+        if (finalLength <= 0) {
+            return;
+        }
+
+        Object[] combined = (Object[]) Array.newInstance(original.getClass().getComponentType(), finalLength);
+
+        System.arraycopy(original, reduceSize, combined, 0, finalLength);
+
+        jlrField.set(instance, combined);
+    }
+
+    public static Object getActivityThread(Context context,
+                                           Class<?> activityThread) {
+        try {
+            if (activityThread == null) {
+                activityThread = Class.forName("android.app.ActivityThread");
+            }
+            Method m = activityThread.getMethod("currentActivityThread");
+            m.setAccessible(true);
+            Object currentActivityThread = m.invoke(null);
+            if (currentActivityThread == null && context != null) {
+                // In older versions of Android (prior to frameworks/base 66a017b63461a22842)
+                // the currentActivityThread was built on thread locals, so we'll need to try
+                // even harder
+                Field mLoadedApk = context.getClass().getField("mLoadedApk");
+                mLoadedApk.setAccessible(true);
+                Object apk = mLoadedApk.get(context);
+                Field mActivityThreadField = apk.getClass().getDeclaredField("mActivityThread");
+                mActivityThreadField.setAccessible(true);
+                currentActivityThread = mActivityThreadField.get(apk);
+            }
+            return currentActivityThread;
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    /**
+     * Handy method for fetching hidden integer constant value in system classes.
+     *
+     * @param clazz
+     * @param fieldName
+     * @return
+     */
+    public static int getValueOfStaticIntField(Class<?> clazz, String fieldName, int defVal) {
+        try {
+            final Field field = findField(clazz, fieldName);
+            return field.getInt(null);
+        } catch (Throwable thr) {
+            return defVal;
+        }
+    }
+}

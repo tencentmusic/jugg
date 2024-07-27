@@ -6,6 +6,7 @@ idea-gitignore.jar
 resources/templates.list
 resources/gitignore/*
 build/
+.cxx/
 build.properties
 junit*.properties
 IgnoreLexer.java~

@@ -1,0 +1,77 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.2.2'
+    }
+}
+
+import com.android.tools.r8.D8
+import com.android.tools.r8.D8Command
+import com.android.tools.r8.origin.Origin
+
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+File instrumentsJarFile = new File(project.projectDir, "build/outputs/jugg-instruments.jar")
+File agentSoFile = new File(project.projectDir, "build/intermediates/library_and_local_jars_jni/release/jni/arm64-v8a/jugg_jvmti_agent.so")
+File setupScriptFile = new File(project.projectDir, "src/main/script/jugg_agent_setup.sh")
+String agentBundlePath = "/jvmti/jugg-agent-bundle-${agentVersion}.zip" // must starts with '/' to read resource by plugin
+File agentBundleFile = new File(agentBundleDir, agentBundlePath)
+
+android {
+    defaultConfig {
+        buildConfigField("String", "AGENT_VERSION", "\"$agentVersion\"")
+        buildConfigField("String", "AGENT_BUNDLE_PATH", "\"$agentBundlePath\"")
+    }
+}
+
+tasks.register('buildInstrumentJar') {
+    doLast {
+        File jarFile = new File(project.projectDir, "build/intermediates/aar_main_jar/release/classes.jar")
+        if (!jarFile.exists()) {
+            throw IllegalStateException("jarFile $jarFile not exists")
+        }
+
+        instrumentsJarFile.parentFile.mkdirs()
+        instrumentsJarFile.delete()
+
+        String[] args = "--min-api 26 --output $instrumentsJarFile $jarFile".split(' ')
+        D8Command command = D8Command
+                .parse(args, Origin.root())
+                .build()
+        D8.run(command)
+    }
+
+    it.dependsOn('assembleRelease')
+}
+
+tasks.register('buildAgentBundle') {
+    doLast {
+        agentBundleDir.deleteDir()
+        agentBundleFile.parentFile.mkdirs()
+
+        ZipOutputStream zipOutputStream = new ZipOutputStream(new FileOutputStream(agentBundleFile))
+        [instrumentsJarFile, agentSoFile, setupScriptFile].forEach { file ->
+            println(file)
+            FileInputStream fileInputStream = new FileInputStream(file)
+            ZipEntry zipEntry = new ZipEntry(file.getName())
+            zipOutputStream.putNextEntry(zipEntry)
+
+            byte[] buffer = new byte[1024]
+            int length
+            while ((length = fileInputStream.read(buffer)) > 0) {
+                zipOutputStream.write(buffer, 0, length)
+            }
+
+            zipOutputStream.closeEntry()
+            fileInputStream.close()
+        }
+        zipOutputStream.close()
+    }
+
+    it.dependsOn('assembleRelease')
+    it.dependsOn('buildInstrumentJar')
+}
