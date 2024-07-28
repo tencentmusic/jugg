@@ -65,7 +65,8 @@ fun copyResource(resourcePath: String): File {
     // location in test: idea/build/idea-sandbox/system-test/jugg
     // location in AS: ~/Library/Caches/Google/AndroidStudio2024.1/jugg
     val storePath = File(storeRootDir, resourcePath)
-    if (storePath.exists()) {
+    val isTestEnv = storeRootDir.path.contains("system-test")
+    if (storePath.exists() && !isTestEnv) {
         return storePath
     }
     storePath.parentFile.mkdirs()

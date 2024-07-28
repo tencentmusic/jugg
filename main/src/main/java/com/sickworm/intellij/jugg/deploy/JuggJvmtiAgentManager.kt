@@ -1,0 +1,113 @@
+package com.sickworm.intellij.jugg.deploy
+
+import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.copyResource
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
+import com.sickworm.intellij.jugg.logger.getInstance
+import java.io.File
+
+/**
+ * Push Jugg JVMTI agent to specific App.
+ * The JVMTI agent of Jugg is used to compat deploy function when Apply changes not working.
+ * See module jvmti_agent
+ */
+interface IJuggJvmtiAgentManager {
+
+    fun pushAgentToApp(packageName: String): Boolean
+}
+
+class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJuggJvmtiAgentManager {
+
+    private val logger = loggerArg.getInstance("JuggJvmtiAgentManager")
+
+    private var lastError: String? = null
+
+    private val agentBundleFile: File by lazy { getAgentBundle() }
+
+    private val juggTempDirPath = "/data/local/tmp/jugg"
+    private val agentDirPathOnDevice: String get() = "$juggTempDirPath/${BuildConfig.AGENT_VERSION}"
+
+    override fun pushAgentToApp(packageName: String): Boolean {
+        val isAgentBundlePushed = isAgentBundlePushed()
+        logger.debug("pushAgentBundle isAgentBundlePushed: $isAgentBundlePushed")
+        if (!isAgentBundlePushed) {
+            logger.debug("going to push agent bundle")
+            if (!pushAgentBundle()) {
+                logger.warn("Push JVMTI agent bundle failed, $WARN_REASON. Failed reason: $lastError")
+                return false
+            }
+        }
+        if (!setupAgent(packageName)) {
+            logger.warn("Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
+            return false
+        }
+        logger.debug("Push JVMTI agent to App success")
+        return true
+    }
+
+    private fun isAgentBundlePushed(): Boolean {
+        val cmd = "[ -d $agentDirPathOnDevice ] && echo success || echo failed"
+        return execAdbShellCmd(cmd)
+    }
+
+    private fun pushAgentBundle(): Boolean {
+        val toPath = "$juggTempDirPath/${agentBundleFile.name}"
+        val pushResult = adb.push(agentBundleFile, toPath)
+        if (!pushResult) {
+            return false
+        }
+        val cmd = "rm -rf $agentDirPathOnDevice"
+            .then("cd $juggTempDirPath")
+            .and("mkdir $agentDirPathOnDevice")
+            .and("unzip ${agentBundleFile.name} -d $agentDirPathOnDevice")
+            .and("echo success")
+            .or("echo failed")
+        return execAdbShellCmd(cmd)
+    }
+
+    private fun setupAgent(packageName: String): Boolean {
+        val scriptPath = "code_cache/jugg_agent_setup.sh"
+        // caution: run-as will back to normal user after execute first cmd, so don't execute multiple commands
+        // that needs package permission
+        val pushScriptCmd = "cp $agentDirPathOnDevice/jugg_agent_setup.sh $scriptPath"
+            .and("echo success")
+            .or("echo failed")
+        val isPushScriptSuccess = execAdbShellCmd("run-as $packageName \"$pushScriptCmd\"")
+        if (!isPushScriptSuccess) {
+            return false
+        }
+
+        val runScriptCmd = "run-as $packageName $scriptPath ${BuildConfig.AGENT_VERSION}"
+        return execAdbShellCmd(runScriptCmd)
+    }
+
+    private fun execAdbShellCmd(cmd: String): Boolean {
+        val result = adb.execAdbShellCmd(cmd).trim()
+        val isSuccess = result.endsWith("success")
+        if (!isSuccess) {
+            lastError = result
+        }
+        return isSuccess
+    }
+
+
+    companion object {
+        private const val WARN_REASON = "some device e.g. HarmonyOS 4.2 may not run correctly"
+
+        private fun getAgentBundle(): File {
+            return copyResource(BuildConfig.AGENT_BUNDLE_PATH)
+        }
+    }
+
+    private fun String.and(arg: String): String {
+        return "$this && $arg"
+    }
+
+    private fun String.then(arg: String): String {
+        return "$this ; $arg"
+    }
+
+    private fun String.or(arg: String): String {
+        return "$this || $arg"
+    }
+}

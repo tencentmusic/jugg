@@ -223,7 +223,7 @@ class MockJugg {
         }
 
         val juggServer = JuggServer(project)
-        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, logger) {
+        juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, coroutineScope, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
                 downloader.makeSureComponentIsInPlace()

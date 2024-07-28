@@ -20,6 +20,8 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -39,6 +41,7 @@ class JuggDeployerHelper(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val compileContextManager: CompileContextManager,
     private val juggServer: JuggServer,
+    private val coroutineScope: CoroutineScope,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
@@ -65,6 +68,11 @@ class JuggDeployerHelper(
         if (androidDeployType == AndroidDeployType.INSTALL) {
             // stop first, avoid confusing by user why App is stopped after installed later
             deployTargetManager.stopApp(device)
+        } else {
+            // push agent async when is not install
+            coroutineScope.launch {
+                pushAgentToApps(device, data)
+            }
         }
 
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
@@ -98,6 +106,11 @@ class JuggDeployerHelper(
         val launchResult = task.run(launchContext)
         if (!launchResult.success) {
             throw JuggException.applyChangesFailed(launchResult)
+        }
+
+        if (androidDeployType == AndroidDeployType.INSTALL) {
+            // push agent to apps after install
+            pushAgentToApps(device, data)
         }
 
         if (data.isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
@@ -450,6 +463,7 @@ class JuggDeployerHelper(
     /**
      * @return <isSuccess, failedReason>
      */
+    @Suppress("LiftReturnOrAssignment")
     private fun insertFileAndResignApk(apkInfos: List<ApkInfo>, compileContext: ICompileContext, files: List<DeployItem>): Pair<Boolean, String> {
         if (apkInfos.size > 1) {
             throw JuggException.notSupportMultiApk()
@@ -476,6 +490,14 @@ class JuggDeployerHelper(
             modifier.clearOnError()
             return false to "rewrite APK failed"
         }
+    }
+
+    private fun pushAgentToApps(device: IDevice, data: JuggDeployData) {
+        TimeLogger.start("pushAgentToApps")
+        data.apks.forEach {
+            JuggJvmtiAgentManager(IdeaDeviceAdb(device, logger), logger).pushAgentToApp(it.applicationId)
+        }
+        TimeLogger.end("pushAgentToApps", logger)
     }
 
 

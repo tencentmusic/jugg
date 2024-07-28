@@ -1,9 +1,6 @@
 #!/bin/sh
 
-# e.g. path on device: /data/local/tmp/jugg/1.0/jugg_agent_setup.sh
-# must run with run-as {packageName}
-
-# cd to parent dir
+# must run by run-as {packageName}
 
 version=$1
 instrumentsJarPath="/data/local/tmp/jugg/$version/jugg-instruments.jar"
@@ -16,7 +13,7 @@ if [ ! -f "$instrumentsJarPath" ]; then
   exit 1
 fi
 
-if [ ! -f "$agentSoOriginPath"]; then
+if [ ! -f "$agentSoOriginPath" ]; then
   echo "jugg_jvmti_agent.so not exits, push failed"
   exit 1
 fi
@@ -25,16 +22,14 @@ fi
 agentDir="code_cache/startup_agents"
 agentSoDestPath="$agentDir/$version-$agentSoName"
 if [ -f "$agentSoDestPath" ]; then
-  echo "jugg_jvmti_agent.so already pushed"
+  echo "$agentSoName already pushed"
 else
-  echo "need push jugg_jvmti_agent.so"
+  echo "need push $agentSoName"
   mkdir -p $agentDir
   # delete all old agents
-  rm "$agentDir/*-$agentSoName"
+  rm $agentDir/*-$agentSoName
   # push new agent
-  cp agentSoOriginPath $agentSoDestPath
+  cp $agentSoOriginPath $agentSoDestPath
 fi
-
-exit # exit run-as
 
 echo "push success"

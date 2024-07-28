@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
 
 class AdbCmdHelper(
-    private val adb: IAdb,
+    private val adb: IDeviceAdb,
     loggerArg: Logger,
 ) {
 
