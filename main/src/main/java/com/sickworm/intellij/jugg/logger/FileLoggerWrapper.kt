@@ -76,7 +76,7 @@ class FileLoggerWrapper(
     }
 
     private fun attachmentsToString(t: Throwable?): String {
-        return ""
+        return t.toString()
     }
 
     override fun setLevel(level: org.apache.log4j.Level) {
