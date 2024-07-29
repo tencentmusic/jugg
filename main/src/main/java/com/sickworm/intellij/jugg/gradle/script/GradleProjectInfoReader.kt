@@ -210,7 +210,8 @@ class GradleProjectInfoReader(
 
     private val fixedModulePathMap: Map<String, ModuleInfo> by lazy {
         lastProjectInfo?.modules?.associate {
-            it.moduleInfoExceptLibraries.moduleRootDir.absolutePath to it.moduleInfoExceptLibraries
+            val relativePath = it.moduleInfoExceptLibraries.moduleRootDir.relativeTo(it.moduleInfoExceptLibraries.projectRootDir).path
+            relativePath to it.moduleInfoExceptLibraries
         } ?: emptyMap()
     }
 
@@ -223,7 +224,8 @@ class GradleProjectInfoReader(
     }
 
     private fun getBuildVariant(projectDir: File): String {
-        return fixedModulePathMap[projectDir.absolutePath]?.buildVariant ?: defaultVariant
+        val relativePath = projectDir.relativeTo(rootProject.projectDir).path
+        return fixedModulePathMap[relativePath]?.buildVariant ?: defaultVariant
     }
 
     private fun getDependencies(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {
