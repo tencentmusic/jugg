@@ -50,8 +50,24 @@ public class InstrumentationHooks {
         }
     }
 
+    public static void handleNewApplicationEntry2(Instrumentation instrumentation, Class<?> clazz, Context base) {
+        try {
+            boolean isNeedFix = DexPathListFixer.isNeedFix(base);
+            LogUtils.d(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
+            if (isNeedFix) {
+                HotfixLoader.install(base);
+                InstrumentationHooks.base = base;
+                LogUtils.d(TAG, "handleAttachBaseContextEntry fix finished");
+            }
+        } catch (Exception e) {
+            LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
+            throw new RuntimeException(e);
+        }
+    }
+
     public static Application handleInstantiateApplicationExit(Application application)
         throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+        LogUtils.d(TAG, "handleInstantiateApplicationExit");
         return (Application) base.getClassLoader().loadClass(application.getClass().getName()).newInstance();
     }
 }

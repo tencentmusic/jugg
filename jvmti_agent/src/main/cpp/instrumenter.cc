@@ -162,16 +162,6 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         return true;
     }
 
-//    const HookTransform application(
-//        /* target class */ "android/content/ContextWrapper",
-//        /* target method */ "attachBaseContext",
-//        /* target signature */"(Landroid/content/Context;)V",
-//        "handleAttachBaseContextEntry",
-//        MethodHooks::kNoHook
-//      );
-
-//    android.app.Instrumentation.newApplication(java.lang.ClassLoader, java.lang.String, android.content.Context)
-
     const MethodHooks newApplication(
         /* target method */ "newApplication",
         /* target signature */"(Ljava/lang/ClassLoader;Ljava/lang/String;Landroid/content/Context;)Landroid/app/Application;",
@@ -179,9 +169,16 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         MethodHooks::kNoHook
       );
 
+    const MethodHooks newApplication2(
+        /* target method */ "newApplication",
+        /* target signature */"(Ljava/lang/Class;Landroid/content/Context;)Landroid/app/Application;",
+        "handleNewApplicationEntry2",
+        MethodHooks::kNoHook
+      );
+
     const HookTransform application(
         "android/app/Instrumentation",
-        { newApplication }
+        { newApplication, newApplication2 }
     );
 
     const MethodHooks instantiateApplication(
