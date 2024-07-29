@@ -1,8 +1,16 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 
 object ModuleCompileOrderUtils {
+
+    fun getModuleCompileOrders(modules: Map<String, ModuleInfo>, tempModule: ModuleInfo, logger: Logger): List<ModuleInfo> {
+        val orders = getModuleCompileOrders(modules.values.toMutableSet() + tempModule)
+        logger.debug("Find compile order in:  module size: ${modules.size}, modules: ${modules.map { it.value.name }}")
+        logger.debug("Find compile order out: module size: ${orders.size}, modules : ${orders.map { it.name }}")
+        return orders
+    }
 
     /**
      * get module compile order by DAG

@@ -239,6 +239,8 @@ interface ICompileContext {
 
     val isEnableDesugared: Boolean
 
+    val modulesWithOrder: List<ModuleInfo>
+
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
@@ -338,28 +340,22 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         return splitModuleAndCompile(task)
     }
 
-    private var moduleDependencies: List<ModuleInfo> = getModuleCompileOrder()
-
-    private fun getModuleCompileOrder(): List<ModuleInfo> {
-        val modules = context.modules.values.toMutableSet()
-        modules.add(context.tempModule)
-        return ModuleCompileOrderUtils.getModuleCompileOrders(modules)
-    }
-
     private fun splitModuleAndCompile(task: CompileTask): CompileResult {
+        val modulesWithOrder = context.modulesWithOrder
+
         // split by module
         // the module info in ChangedFile maybe not the latest for compilation
         // we should only use moduleRootDir to detect
         val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.moduleRootDir.absolutePath }
         val fileGroupNames = fileGroups.keys.toSet()
-        val moduleCompileOrder = moduleDependencies.filter { module ->
+        val moduleCompileOrder = modulesWithOrder.filter { module ->
             fileGroupNames.any {
                 module.moduleRootDir.absolutePath == it
             }
         }
         if (moduleCompileOrder.size != fileGroups.size) {
-            logger.debug("Find compile order fails, all modules: ${context.modules.map { it.value.moduleRootDir }}")
-            logger.debug("Find compile order fails, moduleDependencies: ${moduleDependencies.map { it.moduleRootDir }}")
+            logger.debug("Find compile order fails, all modules: size ${context.modules.size}, ${context.modules.map { it.value.moduleRootDir }}")
+            logger.debug("Find compile order fails, modulesWithOrder: size ${modulesWithOrder}, ${modulesWithOrder.map { it.moduleRootDir }}")
             logger.warn("Jugg going to compiles ${task.files.groupBy { it.module.name }}, but only gets: ${moduleCompileOrder.map { it.name }}")
             throw JuggInternalException.findModuleCompileOrderFailed()
         }
@@ -384,7 +380,6 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
 
     open fun onContextUpdate() {
-        moduleDependencies = getModuleCompileOrder()
     }
 
     override fun dispose() = Unit

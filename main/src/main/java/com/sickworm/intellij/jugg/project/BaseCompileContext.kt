@@ -139,6 +139,8 @@ class BaseCompileContext(
         deployFileManager.isEnableDesugared()
     }
 
+    override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
+
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)
 
@@ -266,6 +268,7 @@ class BaseCompileContext(
         modules?.let {
             this.modules = HashMap(it)
             finalRFiles = getRFiles()
+            modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {
             val oldLibraries = loadTempLibraries().toMutableList()
@@ -280,6 +283,7 @@ class BaseCompileContext(
             tempLibraryDir.mkdirs()
             val finalTempLibraries = saveTempLibraries(addedTempLibraries ?: emptyList(), oldLibraries)
             this.tempModule = tempModule.copy(libraryDependencies = finalTempLibraries)
+            modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
         }
         dispatch()
     }

@@ -18,13 +18,13 @@ public class InstrumentationHooks {
         if (!(contextWrapper instanceof Application)) {
             return;
         }
-        LogUtils.d(TAG, "handleAttachBaseContextEntry contextWrapper: " + contextWrapper);
+        LogUtils.i(TAG, "handleAttachBaseContextEntry contextWrapper: " + contextWrapper);
         try {
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
-            LogUtils.d(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
+            LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
             if (isNeedFix) {
                 HotfixLoader.install(base);
-                LogUtils.d(TAG, "handleAttachBaseContextEntry fix finished");
+                LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
@@ -38,11 +38,11 @@ public class InstrumentationHooks {
     public static void handleNewApplicationEntry(Instrumentation instrumentation, ClassLoader classLoader, String className, Context base) {
         try {
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
-            LogUtils.d(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
+            LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
             if (isNeedFix) {
                 HotfixLoader.install(base);
                 InstrumentationHooks.base = base;
-                LogUtils.d(TAG, "handleAttachBaseContextEntry fix finished");
+                LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
         } catch (Exception e) {
             LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
@@ -53,21 +53,25 @@ public class InstrumentationHooks {
     public static void handleNewApplicationEntry2(Instrumentation instrumentation, Class<?> clazz, Context base) {
         try {
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
-            LogUtils.d(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
+            LogUtils.i(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
             if (isNeedFix) {
                 HotfixLoader.install(base);
                 InstrumentationHooks.base = base;
-                LogUtils.d(TAG, "handleAttachBaseContextEntry fix finished");
+                LogUtils.i(TAG, "handleAttachBaseContextEntry2 fix finished");
             }
         } catch (Exception e) {
-            LogUtils.e(TAG, "handleAttachBaseContextEntry", e);
+            LogUtils.e(TAG, "handleAttachBaseContextEntry2", e);
             throw new RuntimeException(e);
         }
     }
 
     public static Application handleInstantiateApplicationExit(Application application)
         throws ClassNotFoundException, IllegalAccessException, InstantiationException {
-        LogUtils.d(TAG, "handleInstantiateApplicationExit");
+        LogUtils.i(TAG, "handleInstantiateApplicationExit");
+        if (base == null) {
+            // no need fix
+            return application;
+        }
         return (Application) base.getClassLoader().loadClass(application.getClass().getName()).newInstance();
     }
 }

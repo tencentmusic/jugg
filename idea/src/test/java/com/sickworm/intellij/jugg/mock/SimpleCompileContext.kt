@@ -29,6 +29,8 @@ data class SimpleCompileContext(
 
     override val isEnableDesugared: Boolean = true
 
+    override val modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
+
     private val finalRFiles: List<String> by lazy {
         return@lazy modules.mapNotNull { module ->
             val rFile = module.value.buildPathInfo.rFilePath
