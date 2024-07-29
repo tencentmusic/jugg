@@ -24,6 +24,7 @@ class FileChangesHandler(
     private var compiledModules = emptyList<ModuleInfo>()
 
     override fun init(compileContext: ICompileContext) {
+        logger.debug("init FileChangesHandler")
         val notCompiledModuleNames = findNotCompiledWithApplicationModules(compileContext)
         compiledModules = compileContext.modules.values.filter { !notCompiledModuleNames.contains(it.name) }
         val sourceDirs = compiledModules.flatMap { it.sourceDirs }
@@ -55,9 +56,13 @@ class FileChangesHandler(
         var depthLimit = 100 // avoid dead loop
         while (parentModules.isNotEmpty() && depthLimit-- > 0) {
             val nextParentModules = mutableListOf<ModuleInfo>()
-            parentModules.forEach { parentModule ->
+            parentModules.forEach parentModulesLoop@{ parentModule ->
                 parentModule.moduleDependencies.forEach { moduleDependency ->
-                    notCompiledModuleNames.remove(moduleDependency.moduleName)
+                    val hasKey = notCompiledModuleNames.remove(moduleDependency.moduleName)
+                    if (!hasKey) {
+                        // already checked, continue
+                        return@forEach
+                    }
                     val dependModuleInfo = compileContext.modules[moduleDependency.moduleName]
                     if (dependModuleInfo != null) {
                         nextParentModules.add(dependModuleInfo)
