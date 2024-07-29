@@ -89,6 +89,15 @@ class JuggMoreOptionsItem(
                     }
                 ),
 
+                JuggMoreOptionsItem(
+                    name = "Enable compatible deployment mode",
+                    onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
+                    onSet = {
+                        JuggSettings.isEnableCompatibleDeploymentMode = it
+                        JuggInitializer.getManager(project)?.removeJuggJvmtiAgents()
+                    }
+                ),
+
                 createSplitLine("(Test) Mock Events"),
 
                 JuggMoreOptionsItem(

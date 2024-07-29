@@ -29,6 +29,8 @@ object JuggSettings {
 
     var isEnableReadProjectInfoFromGradle: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
+
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 20
     /** limit max source files to compile for better performance */

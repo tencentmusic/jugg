@@ -430,6 +430,16 @@ class JuggManager @TestOnly constructor(
         })
     }
 
+    fun removeJuggJvmtiAgents() {
+        runTaskSafe("Remove Jugg JVMTI agents", {
+            val devices = deployTargetManager.getDevices()
+            devices.forEach {
+                val result = JuggJvmtiAgentManager(IdeaDeviceAdb(it, logger), logger).removeAllAgents()
+                logger.debug("Remove Jugg JVMTI agents result: $result, device: $it")
+            }
+        })
+    }
+
     fun dumpLogcatErrorLogs(): String {
         return deployTargetManager.dumpErrorLogs()
     }

@@ -493,6 +493,12 @@ class JuggDeployerHelper(
     }
 
     private fun pushAgentToApps(device: IDevice, data: JuggDeployData) {
+        logger.debug("pushAgentToApps")
+        val isEnable = JuggSettings.isEnableCompatibleDeploymentMode
+        if (!isEnable) {
+            logger.debug("Skip push agent to apps for not enabled")
+            return
+        }
         TimeLogger.start("pushAgentToApps")
         data.apks.forEach {
             JuggJvmtiAgentManager(IdeaDeviceAdb(device, logger), logger).pushAgentToApp(it.applicationId)

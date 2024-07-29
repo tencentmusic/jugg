@@ -14,6 +14,8 @@ import java.io.File
 interface IJuggJvmtiAgentManager {
 
     fun pushAgentToApp(packageName: String): Boolean
+
+    fun removeAllAgents(): Boolean
 }
 
 class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJuggJvmtiAgentManager {
@@ -43,6 +45,12 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         }
         logger.debug("Push JVMTI agent to App success")
         return true
+    }
+
+    override fun removeAllAgents(): Boolean {
+        // agent won't init if instruments.jar not exists, so just remove agent dir
+        val cmd = "rm -rf $juggTempDirPath"
+        return execAdbShellCmd(cmd)
     }
 
     private fun isAgentBundlePushed(): Boolean {
