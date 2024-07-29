@@ -63,6 +63,7 @@ fun List<File>.relativePath(baseDirPath: File) = map { it.relativeTo(baseDirPath
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")
     // location in test: idea/build/idea-sandbox/system-test/jugg
+    // location in AS: ~/Library/Caches/Google/AndroidStudio2024.1/jugg
     val storePath = File(storeRootDir, resourcePath)
     if (storePath.exists()) {
         return storePath

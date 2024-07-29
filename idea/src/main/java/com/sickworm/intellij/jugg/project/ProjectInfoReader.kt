@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.dsl.api.dependencies.ArtifactDependencyModel
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.io.File
@@ -14,6 +15,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
             logger.debug("agpVersion: ${getAgpVersion()}")
+            logger.debug("systemPath: ${File(PathManager.getSystemPath())}")
         } catch (e: Exception) {
             logger.error("printProjectInfo failed", e)
         }
