@@ -57,6 +57,15 @@ object ModuleCompileOrderUtils {
             }
         }
 
+        if (dependencyMap.isNotEmpty()) {
+            // Oops, there must have circular dependencies
+            // Add it to the end of compile order. It's not a good idea, but it's better than lost.
+            val remainModules = dependencyMap.entries
+                .sortedBy { it.value.size }
+                .map { moduleMap[it.key]!! }
+            compileOrder.addAll(remainModules)
+        }
+
         return compileOrder
     }
 }

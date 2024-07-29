@@ -118,10 +118,10 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         return result
     }
 
-    private fun doMerge(ideProjectInfo: JuggProjectInfo, gradleProjectInfo: JuggProjectInfo, isNeedUpdateLibraryDependency: Boolean): JuggProjectInfoMergeResult {
+    private fun doMerge(ideProjectInfo: JuggProjectInfo, gradleProjectInfo: JuggProjectInfo, isNeedUpdateDependency: Boolean): JuggProjectInfoMergeResult {
         val mergedModules = mutableMapOf<String, ModuleInfo>()
         val mergeResult = JuggProjectInfoMergeResult.createEmpty().copy(
-            isNeedUpdateLibraryDependency = isNeedUpdateLibraryDependency
+            isNeedUpdateDependency = isNeedUpdateDependency
         )
 
         // sometimes, module in ide will have a wired name e.g. library1.MyApplication.library1.main
@@ -185,8 +185,8 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 javaSourceCompatibility = gradleModuleInfo.javaSourceCompatibility ?: moduleInfo.javaSourceCompatibility,
                 javaTargetCompatibility = gradleModuleInfo.javaTargetCompatibility ?: moduleInfo.javaTargetCompatibility,
                 buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
-                moduleDependencies = mergeWithBase(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName },
-                libraryDependencies = mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateLibraryDependency),
+                moduleDependencies = pickLatest(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
+                libraryDependencies = mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies, // only gradle has
                 annotationProcessorDependencies = gradleModuleInfo.annotationProcessorDependencies, // only gradle has
                 kaptDependencies = gradleModuleInfo.kaptDependencies, // only gradle has
@@ -227,6 +227,29 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             }
         }
         return list
+    }
+
+    @Suppress("SameParameterValue")
+    private fun <T, K> pickLatest(moduleName: String, type: String,
+                                  base: List<T>, new: List<T>,
+                                  mergeResult: JuggProjectInfoMergeResult,
+                                  selector: (T) -> K,
+                                  ): List<T> {
+        if (mergeResult.isNeedUpdateDependency) {
+            val newKeys = new.map { selector(it) }.toSet()
+            val baseKeys = base.map { selector(it) }.toSet()
+            val addList = newKeys.filter { !baseKeys.contains(it) }
+            addList.forEach {
+                mergeResult.addMergedItem(moduleName, type, "+$it")
+            }
+            val removeList = baseKeys.filter { !newKeys.contains(it) }
+            removeList.forEach {
+                mergeResult.addMergedItem(moduleName, type, "-$it")
+            }
+            return new
+        } else {
+            return base
+        }
     }
 
     private fun mergeLibrariesWithBase(moduleName: String,
@@ -307,7 +330,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
 
 data class JuggProjectInfoMergeResult(
     val mergedInfo: JuggProjectInfo?,
-    val isNeedUpdateLibraryDependency: Boolean,
+    val isNeedUpdateDependency: Boolean,
     private val _mergeItems: MutableMap<String, MutableMap<String, MutableSet<String>>>,
     private val _mergeLibraryItems: MutableMap<String, MutableSet<Pair<String?, String>>>
 ) {
@@ -334,7 +357,7 @@ data class JuggProjectInfoMergeResult(
                 }
             }
         }
-        val prefix = if (isNeedUpdateLibraryDependency) "" else "(won't update)"
+        val prefix = if (isNeedUpdateDependency) "" else "(won't update)"
 
         val joinedLibraryResult = mutableMapOf<String, MutableList<String>>()
         _mergeLibraryItems.forEach { (moduleName, items) ->
@@ -354,7 +377,7 @@ data class JuggProjectInfoMergeResult(
 
     override fun toString(): String {
         return """JuggProjectInfoMergeResult(
-            |isNeedUpdateLibraryDependency=$isNeedUpdateLibraryDependency,
+            |isNeedUpdateLibraryDependency=$isNeedUpdateDependency,
             |mergedItems=
             |${getMergeDesc().joinToString("\n")})
             """.trimMargin()
