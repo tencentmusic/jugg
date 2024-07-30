@@ -406,6 +406,12 @@ class JuggManager @TestOnly constructor(
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
+    fun enableReadProjectFromGradle() {
+        logger.info("[test options] enableReadProjectFromGradle")
+        pathManager.gradleProjectInfoFile.delete()
+        onSyncEvent(SyncEvent.SUCCEEDED)
+    }
+
     fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
         runTaskSafe("Mark as Gradle Compiled", {

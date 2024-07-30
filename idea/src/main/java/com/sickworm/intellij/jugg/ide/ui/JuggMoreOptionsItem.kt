@@ -85,7 +85,7 @@ class JuggMoreOptionsItem(
                     onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
                     onSet = {
                         JuggSettings.isEnableReadProjectInfoFromGradle = it
-                        JuggInitializer.getManager(project)?.markAsSyncedAndReInitCompiler()
+                        JuggInitializer.getManager(project)?.enableReadProjectFromGradle()
                     }
                 ),
 
