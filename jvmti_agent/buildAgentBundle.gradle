@@ -29,10 +29,15 @@ android {
 }
 
 tasks.register('buildInstrumentJar') {
+
+    File jarFile = new File(project.projectDir, "build/intermediates/aar_main_jar/release/classes.jar")
+
+    inputs.file jarFile
+    outputs.file instrumentsJarFile
+
     doLast {
-        File jarFile = new File(project.projectDir, "build/intermediates/aar_main_jar/release/classes.jar")
         if (!jarFile.exists()) {
-            throw IllegalStateException("jarFile $jarFile not exists")
+            throw new IllegalStateException("jarFile $jarFile not exists")
         }
 
         instrumentsJarFile.parentFile.mkdirs()
@@ -49,12 +54,16 @@ tasks.register('buildInstrumentJar') {
 }
 
 tasks.register('buildAgentBundle') {
+
+    inputs.files instrumentsJarFile, agentSoFile, setupScriptFile
+    outputs.file agentBundleFile
+
     doLast {
         agentBundleDir.deleteDir()
         agentBundleFile.parentFile.mkdirs()
 
         ZipOutputStream zipOutputStream = new ZipOutputStream(new FileOutputStream(agentBundleFile))
-        [instrumentsJarFile, agentSoFile, setupScriptFile].forEach { file ->
+        inputs.files.forEach { file ->
             println(file)
             FileInputStream fileInputStream = new FileInputStream(file)
             ZipEntry zipEntry = new ZipEntry(file.getName())
