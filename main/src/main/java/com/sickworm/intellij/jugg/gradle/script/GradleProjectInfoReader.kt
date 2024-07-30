@@ -38,7 +38,7 @@ class GradleProjectInfoReader(
         }
         TraceLogger.end("loadDependencyCrcCache")
 
-        modulesNames = rootProject.subprojects.map { it.standardModuleName }.toSet()
+        modulesNames = rootProject.subprojects.flatMap { it.path.split(":") }.toSet()
         val modules = mutableMapOf<String, ModuleInfo>()
         rootProject.subprojects.forEach { project: Project ->
             val moduleInfo = getModuleInfo(project)
@@ -450,23 +450,19 @@ class GradleProjectInfoReader(
     }
 
     private val ResolvedDependency.moduleNameIfIsProject: String? get() {
+        val moduleGroup = moduleGroup.removePrefix(rootProject.name + ".") // handle subproject style
+        val moduleName = moduleName.removePrefix(rootProject.name + ".")
+
         if (!modulesNames.contains(moduleName)) {
             return null
         }
         if (moduleVersion != "unspecified") {
             return null
         }
-        if (moduleGroup.contains('.')) {
-            val splits = moduleGroup.split('.')
-            if (!splits.all { modulesNames.contains(it) }) {
-                return null
-            }
-            return splits.last() + "." + moduleName
+        return if (moduleGroup == rootProject.name) {
+            moduleName
         } else {
-            if (moduleGroup != rootProject.name) {
-                return null
-            }
-            return moduleName
+            "$moduleGroup.$moduleName"
         }
     }
 
