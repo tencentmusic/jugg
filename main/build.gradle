@@ -25,11 +25,8 @@ sourceSets {
     }
 }
 
-tasks.register('buildReadProjectInfoScript') {
-    doLast {
-        apply from: './buildReadProjectInfoScript.gradle'
-    }
-}
+apply from: './buildReadProjectInfoScript.gradle'
+
 //noinspection ConfigurationAvoidance
 tasks.findByName("jar").dependsOn("buildReadProjectInfoScript")
 //noinspection ConfigurationAvoidance
