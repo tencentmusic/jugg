@@ -13,6 +13,8 @@ import java.io.File
  */
 interface IJuggJvmtiAgentManager {
 
+    fun getCurrentAgentsInApp(packageName: String): List<String>
+
     fun pushAgentToApp(packageName: String): Boolean
 
     fun removeAllAgents(): Boolean
@@ -28,7 +30,20 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
 
     private val juggTempDirPath = "/data/local/tmp/jugg"
     private val agentDirPathOnDevice: String get() = "$juggTempDirPath/${BuildConfig.AGENT_VERSION}"
+    private val agentInAppPath = "code_cache/startup_agents"
+    private val agentSoDestPath = "$agentInAppPath/${BuildConfig.AGENT_VERSION}-jugg_jvmti_agent.so"
 
+    override fun getCurrentAgentsInApp(packageName: String): List<String> {
+        val subCmd = "ls -1 $agentInAppPath" // -1 for file per line
+        val cmd = "run-as $packageName \"$subCmd\""
+        val result = adb.execAdbShellCmd(cmd).trim()
+        if (result.contains("No such file or directory")) {
+            return emptyList()
+        }
+        return result.split("\n")
+    }
+
+    @Synchronized
     override fun pushAgentToApp(packageName: String): Boolean {
         val isAgentBundlePushed = isAgentBundlePushed()
         logger.debug("pushAgentBundle isAgentBundlePushed: $isAgentBundlePushed")
@@ -39,9 +54,14 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
                 return false
             }
         }
-        if (!setupAgent(packageName)) {
-            logger.warn("Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
-            return false
+
+        val isAgentPushed = isAgentPushed(packageName)
+        if (!isAgentPushed) {
+            logger.debug("going to setup agent")
+            if (!setupAgent(packageName)) {
+                logger.warn("Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
+                return false
+            }
         }
         logger.debug("Push JVMTI agent to App success")
         return true
@@ -55,6 +75,11 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
 
     private fun isAgentBundlePushed(): Boolean {
         val cmd = "[ -d $agentDirPathOnDevice ] && echo success || echo failed"
+        return execAdbShellCmd(cmd)
+    }
+
+    private fun isAgentPushed(packageName: String): Boolean {
+        val cmd = "run-as $packageName ls $agentSoDestPath && echo success || echo failed"
         return execAdbShellCmd(cmd)
     }
 

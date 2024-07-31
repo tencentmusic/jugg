@@ -6,14 +6,17 @@ import com.android.tools.idea.log.LogWrapper
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkReader
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import java.util.concurrent.TimeUnit
 
 class IdeaDeviceAdb(
     private val device: IDevice,
-    private val ideaLogger: Logger,
+    ideaLoggerArg: Logger,
 ) : IDeviceAdb {
+
+    private val ideaLogger = ideaLoggerArg.getInstance("IdeaDeviceAdb")
 
     override val deviceName: String
         get() = device.name

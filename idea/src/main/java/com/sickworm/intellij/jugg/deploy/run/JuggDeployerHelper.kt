@@ -21,7 +21,9 @@ import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -68,11 +70,11 @@ class JuggDeployerHelper(
         if (androidDeployType == AndroidDeployType.INSTALL) {
             // stop first, avoid confusing by user why App is stopped after installed later
             deployTargetManager.stopApp(device)
-        } else {
-            // push agent async when is not install
-            coroutineScope.launch {
-                pushAgentToApps(device, data)
-            }
+        }
+
+        val detectJob = coroutineScope.async {
+            val adb = IdeaDeviceAdb(device, logger)
+            JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(adb, data)
         }
 
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
@@ -108,9 +110,13 @@ class JuggDeployerHelper(
             throw JuggException.applyChangesFailed(launchResult)
         }
 
-        if (androidDeployType == AndroidDeployType.INSTALL) {
-            // push agent to apps after install
-            pushAgentToApps(device, data)
+        runBlocking {
+            val isNeedPushAgentAfterDeploy = detectJob.await()
+            logger.debug("isNeedPushAgentAfterDeploy: $isNeedPushAgentAfterDeploy")
+            if (isNeedPushAgentAfterDeploy) {
+                val adb = IdeaDeviceAdb(device, logger)
+                JuggJvmtiAgentManagerHelper(logger).pushAgentToApps(adb, data)
+            }
         }
 
         if (data.isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
@@ -491,21 +497,6 @@ class JuggDeployerHelper(
             return false to "rewrite APK failed"
         }
     }
-
-    private fun pushAgentToApps(device: IDevice, data: JuggDeployData) {
-        logger.debug("pushAgentToApps")
-        val isEnable = JuggSettings.isEnableCompatibleDeploymentMode
-        if (!isEnable) {
-            logger.debug("Skip push agent to apps for not enabled")
-            return
-        }
-        TimeLogger.start("pushAgentToApps")
-        data.apks.forEach {
-            JuggJvmtiAgentManager(IdeaDeviceAdb(device, logger), logger).pushAgentToApp(it.applicationId)
-        }
-        TimeLogger.end("pushAgentToApps", logger)
-    }
-
 
     companion object {
         private val runTaskLock = Object()
