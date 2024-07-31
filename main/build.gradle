@@ -1,3 +1,4 @@
+//file:noinspection ConfigurationAvoidance
 
 plugins {
     id 'java'
@@ -27,10 +28,14 @@ sourceSets {
 
 apply from: './buildReadProjectInfoScript.gradle'
 
-//noinspection ConfigurationAvoidance
-tasks.findByName("jar").dependsOn("buildReadProjectInfoScript")
-//noinspection ConfigurationAvoidance
-tasks.findByName("jar").dependsOn(":jvmti_agent:buildAgentBundle")
+tasks.findByName("processResources").dependsOn("buildReadProjectInfoScript")
+
+// fix: Gradle detected a problem with the following location: 'xxx'. Reason: Task 'xxx' uses this output of task 'xxx'
+// without declaring an explicit or implicit dependency. This can lead to incorrect results being produced,
+// depending on what order the tasks are executed
+tasks.findByName("compileKotlin").dependsOn(":jvmti_agent:generateReleaseBuildConfig")
+tasks.findByName("compileJava").dependsOn(":jvmti_agent:generateReleaseBuildConfig")
+tasks.findByName("processResources").dependsOn(":jvmti_agent:buildAgentBundle")
 
 repositories {
     google()
