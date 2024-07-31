@@ -185,11 +185,11 @@ class GradleProjectInfoReader(
 
             TraceLogger.start("getAnnotation")
             val annotationProcessorDependencies = getDependencies(project, "annotationProcessor", isAndroidDepend = false)
-            TraceLogger.start("getAnnotation")
+            TraceLogger.end("getAnnotation")
 
             TraceLogger.start("getKapt")
             val kaptDependencies = getDependencies(project, "kapt", isAndroidDepend = false)
-            TraceLogger.start("getKapt")
+            TraceLogger.end("getKapt")
 
             moduleInfo = moduleInfo.copy(
                 moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
