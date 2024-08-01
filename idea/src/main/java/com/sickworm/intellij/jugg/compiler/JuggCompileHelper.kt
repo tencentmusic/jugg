@@ -114,10 +114,8 @@ class JuggCompilerHelper(
                 return CompileTaskResult.incrementalCanceled(startTime)
             }
 
-            val loggerListener = IndicatorLoggerListener(indicator)
-            JuggLogger.listenProjectLog(project, loggerListener)
-            incrementalResult = incrementalCompile(processHandler)
-            JuggLogger.stopListenProjectLog(project, loggerListener)
+            val compileStatusHolder = JuggCompileStatusHolder(processHandler, indicator, logger)
+            incrementalResult = incrementalCompile(compileStatusHolder)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - startTime)
             juggServer.report {
                 action = "incremental_compile"
@@ -357,7 +355,7 @@ class JuggCompilerHelper(
     }
 
     @TestOnly
-    fun incrementalCompile(processHandler: SimpleProcessHandler): CompileTaskResult {
+    fun incrementalCompile(compileStatusHolder: CompileStatusHolder): CompileTaskResult {
 
         val compiler = juggCompiler ?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
@@ -378,7 +376,7 @@ class JuggCompilerHelper(
                 logger.info("No file changes. will fallback to gradle compile.")
                 val isConfirmFallback = ConfirmFallbackDialog.showAndGetResult("No file changes, continue will fallback to gradle.", true)
                 if (!isConfirmFallback) {
-                    processHandler.detachProcess()
+                    compileStatusHolder.cancel()
                 }
                 return CompileTaskResult.incrementalFailed(isConfirmFallback, "No file changes")
             }
@@ -403,16 +401,16 @@ class JuggCompilerHelper(
             }, emptyList())
         }
 
-        return doIncrementalCompile(compiler, undeployedFiles, processHandler)
+        return doIncrementalCompile(compiler, undeployedFiles, compileStatusHolder)
     }
 
     private fun doIncrementalCompile(
         compiler: JuggCompiler,
         undeployedFiles: List<ChangedFile>,
-        processHandler: SimpleProcessHandler,
+        compileStatusHolder: CompileStatusHolder,
         compiledFilesThisTime: List<ChangedFile> = emptyList(), // used for avoid recompilation dead loop
     ): CompileTaskResult {
-        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+        if (compileStatusHolder.isShouldCancel) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
@@ -431,11 +429,9 @@ class JuggCompilerHelper(
         JuggRunningTask.notifyByBalloon(project, notifyText)
 
         val startTime = System.currentTimeMillis()
+        compileStatusHolder.setCompileFiles(compileFiles)
         val compileResult = try {
-            val isShouldCancelCallback = {
-                processHandler.isProcessTerminating || processHandler.isProcessTerminated
-            }
-            compiler.compile(CompileTask(compileFiles, pathManager.stagingDir, isShouldCancelCallback))
+            compiler.compile(CompileTask(compileFiles, pathManager.stagingDir, compileStatusHolder))
         } catch (e: Exception) {
             logger.error("Compile unexpected error: ${e.message}", e)
             return CompileTaskResult.incrementalFailed(true, "Exception: $e")
@@ -449,7 +445,7 @@ class JuggCompilerHelper(
 
         val failedStates = compileResult.failedFiles
 
-        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+        if (compileStatusHolder.isShouldCancel) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
 
@@ -517,7 +513,7 @@ class JuggCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), processHandler, compiledFilesThisTime = undeployedFiles + compiledFilesThisTime)
+                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), compileStatusHolder, compiledFilesThisTime = undeployedFiles + compiledFilesThisTime)
             }
         }
 

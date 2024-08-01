@@ -235,7 +235,7 @@ val init = run {
 }
 
 @Suppress("TestFunctionName")
-fun CompileTask(files: List<CompileFile>, outputDir: File) = CompileTask(files, outputDir) { false }
+fun CompileTask(files: List<CompileFile>, outputDir: File) = CompileTask(files, outputDir, CompileStatusHolder.DEFAULT)
 
 /**
  * Need an Android device for this test.

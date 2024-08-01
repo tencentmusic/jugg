@@ -12,22 +12,19 @@ class CompileTask(
     val files: List<CompileFile>,
     val outputDir: File,
     private val parentTask: CompileTask?,
-    private val isShouldCancelCallback: (() -> Boolean)?
+    private val compileStatusHolder: CompileStatusHolder,
 ) {
 
-    constructor(files: List<CompileFile>, outputDir: File, isShouldCancelCallback: () -> Boolean):
-            this(files, outputDir, null, isShouldCancelCallback)
+    constructor(files: List<CompileFile>, outputDir: File, compileStatusHolder: CompileStatusHolder):
+            this(files, outputDir, null, compileStatusHolder)
 
     constructor(files: List<CompileFile>, outputDir: File, parentTask: CompileTask):
-            this(files, outputDir, parentTask, null)
+            this(files, outputDir, parentTask, parentTask.compileStatusHolder)
 
-    @Suppress("IfThenToElvis")
-    val isShouldCancel: Boolean get() {
-        return if (isShouldCancelCallback != null) {
-            isShouldCancelCallback.invoke()
-        } else {
-            parentTask?.isShouldCancel ?: false
-        }
+    val isShouldCancel: Boolean get() = compileStatusHolder.isShouldCancel
+
+    fun notifyCompiled(files: List<CompileFile>) {
+        compileStatusHolder.onFilesCompiled(files)
     }
 
     val isNeedCompile get() = files.isNotEmpty()
@@ -37,14 +34,14 @@ class CompileTask(
             files == other.files
                     && outputDir == other.outputDir
                     && parentTask == other.parentTask
-                    && isShouldCancelCallback == other.isShouldCancelCallback
+                    && compileStatusHolder == other.compileStatusHolder
         } else {
             false
         }
     }
 
     override fun hashCode(): Int {
-        return files.hashCode() + outputDir.absolutePath.hashCode() + parentTask.hashCode() + isShouldCancelCallback.hashCode()
+        return files.hashCode() + outputDir.absolutePath.hashCode() + parentTask.hashCode() + compileStatusHolder.hashCode()
     }
 
     operator fun plus(task: CompileTask): CompileTask {
@@ -53,7 +50,7 @@ class CompileTask(
             throw JuggInternalException.combineTaskFailed(reason)
         }
         if (this != task.parentTask) {
-            if (this.isShouldCancelCallback != task.isShouldCancelCallback) {
+            if (this.compileStatusHolder != task.compileStatusHolder) {
                 val reason = "isShouldCancelCallback not the same"
                 throw JuggInternalException.combineTaskFailed(reason)
             }
@@ -62,13 +59,39 @@ class CompileTask(
                 throw JuggInternalException.combineTaskFailed(reason)
             }
         }
-        return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir, parentTask, isShouldCancelCallback)
+        return CompileTask(files + task.files.filter { !files.contains(it)}, outputDir, parentTask, compileStatusHolder)
     }
 
     private fun File.isParentOf(file: File) = file.path.startsWith(path)
 
     companion object
 }
+
+/**
+ * Get and notify the compile status
+ */
+interface CompileStatusHolder {
+
+    val isShouldCancel: Boolean
+
+    fun setCompileFiles(files: List<CompileFile>)
+
+    fun onFilesCompiled(files: List<CompileFile>)
+
+    fun cancel()
+
+    companion object {
+        val DEFAULT = object : CompileStatusHolder {
+            override var isShouldCancel: Boolean = false
+            override fun setCompileFiles(files: List<CompileFile>) = Unit
+            override fun onFilesCompiled(files: List<CompileFile>) = Unit
+            override fun cancel() {
+                isShouldCancel = true
+            }
+        }
+    }
+}
+
 
 data class CompileFile(
     val type: Type,

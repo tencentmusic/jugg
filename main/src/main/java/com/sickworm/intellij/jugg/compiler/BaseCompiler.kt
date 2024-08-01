@@ -35,19 +35,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             task.outputDir.mkdirs()
         }
 
-        val compilingContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
-            if (task.files.all { it.isDependency} ) {
-                task.files.joinToString(", ") { it.dependencyName }
-            } else {
-                "classes to DEX"
-            }
-        } else {
-            val containsTypes = task.files.map { it.type }.distinct()
-            containsTypes.joinToString(", ") + " files"
-        }
-        logger.debug("Compiling $compilingContent..")
-
         val result = doCompile(task)
+        task.notifyCompiled(task.files)
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("${this::class.java.simpleName} compile result: $result")
