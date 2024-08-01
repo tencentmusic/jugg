@@ -15,7 +15,6 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     val logger = context.logger.getInstance(this::class.java.simpleName)
 
     init {
-        context.listenUpdate(::onContextUpdate)
         @Suppress("LeakingThis")
         (Disposer.register(parent, this))
     }
@@ -118,9 +117,6 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     }
 
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
-
-    open fun onContextUpdate() {
-    }
 
     override fun dispose() = Unit
 
