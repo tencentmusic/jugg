@@ -3,11 +3,9 @@ package com.sickworm.intellij.jugg.compiler
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig
-import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 class CompileTask(
@@ -72,12 +70,6 @@ class CompileTask(
     companion object
 }
 
-fun CompileTask.toCancelResult(): CompileResult {
-    return CompileResult(this, this.files.map {
-        Result.failure(CompileError(it, listOf(0L to "Compile canceled.")))
-    }, emptyList())
-}
-
 data class CompileFile(
     val type: Type,
     val file: File,
@@ -108,45 +100,6 @@ data class CompileFile(
         val isSourceFile: Boolean get() {
             return this == Java || this == Kotlin || this == Asset || this == Resource
         }
-    }
-}
-
-fun List<CompileFile>.desc(): String {
-    val compileFilesMap = this.groupBy {
-        it.module.name
-    }
-    return compileFilesMap.entries.joinToString("\n") { entry ->
-        val value = entry.value
-            .groupBy {
-                if (it.isDependency) {
-                    return@groupBy "library"
-                }
-                val type = when (it.type) {
-                    CompileFile.Type.Java -> "source"
-                    CompileFile.Type.Kotlin -> "source"
-                    CompileFile.Type.Class -> "class"
-                    CompileFile.Type.Asset -> "asset"
-                    CompileFile.Type.Resource -> "resource"
-                    CompileFile.Type.Flat -> "flat"
-                    CompileFile.Type.Gradle -> "gradle"
-                    CompileFile.Type.AndroidManifest -> "manifest"
-                    CompileFile.Type.DexToChangePackageName -> "dex"
-                }
-                return@groupBy type
-            }
-            .mapValues {
-                it.value.map { file ->
-                    if (file.isDependency) {
-                        file.dependencyName
-                    } else {
-                        file.file.name
-                    }
-                }.distinct()
-            }
-        val valueContent = value.entries.joinToString("\n    ", prefix = "    ") {
-            "${it.key}: ${it.value}"
-        }
-        return@joinToString "${entry.key}: [\n$valueContent\n]"
     }
 }
 
@@ -252,152 +205,11 @@ interface ICompileContext {
     fun listenUpdate(listener: OnContextUpdate)
 }
 
-val ApkInfo.apkInfoKey: String
-    get() = "ApkInfo:[" +
-            files.joinToString(";") {
-                it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
-            } + "]"
-
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
     val origin = this
     return object : ICompileContext by origin {
         override val tempCompileDir: File
             get() = File(origin.tempCompileDir, subTempCompileDirName)
-    }
-}
-
-abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): ICompiler {
-
-    open val isNeedOutputDirEmpty: Boolean = false
-
-    open val isNeedPrintProgress: Boolean = false
-
-    val logger = context.logger.getInstance(this::class.java.simpleName)
-
-    init {
-        context.listenUpdate(::onContextUpdate)
-        @Suppress("LeakingThis")
-        Disposer.register(parent, this)
-    }
-
-    override fun compile(task: CompileTask): CompileResult {
-        if (task.isShouldCancel) {
-            return task.toCancelResult()
-        }
-
-        val startTime = System.currentTimeMillis()
-        logger.debug("${this::class.java.simpleName} start")
-        checkTypesCanCompile(task)
-        checkContextCanCompile(task)
-        if (isNeedOutputDirEmpty) {
-            checkOutputDirIsEmpty(task)
-        }
-        if (!task.outputDir.exists()) {
-            task.outputDir.mkdirs()
-        }
-
-        val compilingContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
-            if (task.files.all { it.isDependency} ) {
-                task.files.joinToString(", ") { it.dependencyName }
-            } else {
-                "classes to DEX"
-            }
-        } else {
-            val containsTypes = task.files.map { it.type }.distinct()
-            containsTypes.joinToString(", ") + " files"
-        }
-        logger.debug("Compiling $compilingContent..")
-
-        val result = doCompile(task)
-
-        val costTime = System.currentTimeMillis() - startTime
-        logger.debug("${this::class.java.simpleName} compile result: $result")
-        if (isNeedPrintProgress && task.files.isNotEmpty()) {
-            val finishContent = if (supportedTypes == listOf(CompileFile.Type.Class)) {
-                if (task.files.all { it.isDependency} ) {
-                    "[" + task.files.joinToString(", ") { it.dependencyName } + "]"
-                } else {
-                    "classes to DEX"
-                }
-            } else {
-                val itemNames = task.files.map {
-                    val prefix = if (it.isDependency) "${it.dependencyName}/" else ""
-                    prefix + it.file.name
-                }.distinct()
-                "[" + itemNames.joinToString(", ") + "]"
-            }
-            if (result.isAllSuccess) {
-                logger.info("Compile $finishContent finished, cost ${costTime}ms.")
-            } else {
-                logger.warn("Compile $finishContent failed, cost ${costTime}ms.")
-            }
-        }
-        logger.debug("${this::class.java.simpleName} finished, cost ${costTime}ms. isAllSuccess: ${result.isAllSuccess}")
-        return result
-    }
-
-    open fun doCompile(task: CompileTask): CompileResult {
-        return splitModuleAndCompile(task)
-    }
-
-    private fun splitModuleAndCompile(task: CompileTask): CompileResult {
-        val modulesWithOrder = context.modulesWithOrder
-
-        // split by module
-        // the module info in ChangedFile maybe not the latest for compilation
-        // we should only use moduleRootDir to detect
-        val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.moduleRootDir.absolutePath }
-        val fileGroupNames = fileGroups.keys.toSet()
-        val moduleCompileOrder = modulesWithOrder.filter { module ->
-            fileGroupNames.any {
-                module.moduleRootDir.absolutePath == it
-            }
-        }
-        if (moduleCompileOrder.size != fileGroups.size) {
-            logger.debug("Find compile order fails, all modules: size ${context.modules.size}, ${context.modules.map { it.value.moduleRootDir }}")
-            logger.debug("Find compile order fails, modulesWithOrder: size ${modulesWithOrder}, ${modulesWithOrder.map { it.moduleRootDir }}")
-            logger.warn("Jugg going to compiles ${task.files.groupBy { it.module.name }}, but only gets: ${moduleCompileOrder.map { it.name }}")
-            throw JuggInternalException.findModuleCompileOrderFailed()
-        }
-
-        if (moduleCompileOrder.size > 1) {
-            logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
-        }
-
-        val results = moduleCompileOrder.map {
-            val files = fileGroups[it.moduleRootDir.absolutePath] ?: emptyList()
-            if (task.isShouldCancel) {
-                return task.toCancelResult()
-            }
-            doModuleCompile(CompileTask(files, task.outputDir, task), it)
-        }
-        if (results.isEmpty()) {
-            return CompileResult(task, emptyList(), emptyList())
-        }
-        return results.reduce { acc, compileResult -> acc + compileResult }.copy(task = task)
-    }
-
-    abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
-
-    open fun onContextUpdate() {
-    }
-
-    override fun dispose() = Unit
-
-    private fun checkTypesCanCompile(task: CompileTask) {
-        val invalidFiles = task.files.filter { !supportedTypes.contains(it.type) }
-        if (invalidFiles.isNotEmpty()) {
-            throw JuggInternalException.compilerNotSupported(this, supportedTypes, invalidFiles)
-        }
-    }
-
-    open fun checkContextCanCompile(task: CompileTask) {
-    }
-
-    private fun checkOutputDirIsEmpty(task: CompileTask) {
-        if (!task.outputDir.listFiles().isNullOrEmpty()) {
-            throw JuggInternalException.compileOutputDirNotEmpty()
-        }
     }
 }
 

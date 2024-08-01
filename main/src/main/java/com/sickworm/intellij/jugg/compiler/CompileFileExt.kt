@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 
@@ -116,4 +117,56 @@ private fun dependencyNameToDexFileName(libraryName: String): String {
             .replace("\\", "#")
             .replace(".jar", "") + ".dex"
     }
+}
+
+val ApkInfo.apkInfoKey: String
+    get() = "ApkInfo:[" +
+            files.joinToString(";") {
+                it.apkFile.absolutePath + ":" + it.apkFile.lastModified()
+            } + "]"
+
+
+fun List<CompileFile>.desc(): String {
+    val compileFilesMap = this.groupBy {
+        it.module.name
+    }
+    return compileFilesMap.entries.joinToString("\n") { entry ->
+        val value = entry.value
+            .groupBy {
+                if (it.isDependency) {
+                    return@groupBy "library"
+                }
+                val type = when (it.type) {
+                    CompileFile.Type.Java -> "source"
+                    CompileFile.Type.Kotlin -> "source"
+                    CompileFile.Type.Class -> "class"
+                    CompileFile.Type.Asset -> "asset"
+                    CompileFile.Type.Resource -> "resource"
+                    CompileFile.Type.Flat -> "flat"
+                    CompileFile.Type.Gradle -> "gradle"
+                    CompileFile.Type.AndroidManifest -> "manifest"
+                    CompileFile.Type.DexToChangePackageName -> "dex"
+                }
+                return@groupBy type
+            }
+            .mapValues {
+                it.value.map { file ->
+                    if (file.isDependency) {
+                        file.dependencyName
+                    } else {
+                        file.file.name
+                    }
+                }.distinct()
+            }
+        val valueContent = value.entries.joinToString("\n    ", prefix = "    ") {
+            "${it.key}: ${it.value}"
+        }
+        return@joinToString "${entry.key}: [\n$valueContent\n]"
+    }
+}
+
+fun CompileTask.toCancelResult(): CompileResult {
+    return CompileResult(this, this.files.map {
+        Result.failure(CompileError(it, listOf(0L to "Compile canceled.")))
+    }, emptyList())
 }
