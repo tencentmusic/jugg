@@ -423,6 +423,13 @@ class JuggCompilerHelper(
         // do compile
         logger.debug("Compile files: ${compileFiles.map { it.file.absolutePath }}")
         logger.info("Compile files:\n${compileFiles.desc()}")
+        val notifyText = if (compiledFilesThisTime.isEmpty()) {
+            "Compiling ${compileFiles.size} files..."
+        } else {
+            "Detect effected sources, compiling ${compileFiles.size} files..."
+        }
+        JuggRunningTask.notifyByBalloon(project, notifyText)
+
         val startTime = System.currentTimeMillis()
         val compileResult = try {
             val isShouldCancelCallback = {

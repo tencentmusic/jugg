@@ -310,6 +310,13 @@ class JuggRunningTask(
 
     companion object {
 
+        fun notifyByBalloon(project: Project, message: String) {
+            SwingUtilities.invokeLater {
+                val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
+                toolWindowManager.notifyByBalloon("Run", MessageType.INFO, message)
+            }
+        }
+
         fun notifyFallback(project: Project, reason: String) {
             val text = "Fallback to gradle compile. Reason: $reason"
             SwingUtilities.invokeLater {
