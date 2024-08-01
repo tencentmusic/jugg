@@ -14,7 +14,8 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         try {
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
-            logger.debug("agpVersion: ${getAgpVersion()}")
+            // won't print for huge cost at init (100ms to 10s)
+//            logger.debug("agpVersion: ${getAgpVersion()}")
             logger.debug("systemPath: ${File(PathManager.getSystemPath())}")
         } catch (e: Exception) {
             logger.error("printProjectInfo failed", e)
@@ -36,6 +37,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         return gradleDistributionUrl
     }
 
+    @Suppress("unused")
     private fun getAgpVersion(): String {
         val projectBuildModel = ProjectBuildModel.get(project)
         projectBuildModel.projectBuildModel
