@@ -6,6 +6,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
@@ -13,6 +14,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.ide.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -22,7 +24,6 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
@@ -138,6 +139,7 @@ class JuggDeployerHelper(
     fun deploy(device: IDevice,
                isLastDevice: Boolean,
                processHandler: ProcessHandler? = null,
+               indicator: ProgressIndicator? = null,
                isInstall: Boolean = false,
                isWarmUp: Boolean = false,
                retryReason: String? = null,
@@ -206,7 +208,7 @@ class JuggDeployerHelper(
                 var isRecoverWithReinstall = false
                 if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy) {
                     if (deployStateManager.getDeployState(device).isReadyIncCompile) {
-                        val (isSuccess, isReinstalled) = recoverDeployState(device,
+                        val (isSuccess, isReinstalled) = recoverDeployState(device, indicator,
                             isNeedTryDeyDeployFirst = !isNeedReinstallApk, isInstallUpdateApk = isNeedReinstallApk)
                         if (!isSuccess) {
                             logger.info("Try recover deploy state failed.")
@@ -312,7 +314,7 @@ class JuggDeployerHelper(
                         else -> false to false
                     }
                     val result: DeployTaskResult = if (isNeedRecover) {
-                        val (isSuccess, _) = recoverDeployState(device, isNeedTryDeyDeployFirst)
+                        val (isSuccess, _) = recoverDeployState(device, indicator, isNeedTryDeyDeployFirst)
                         if (!isSuccess) {
                             logger.info("Try recover deploy state failed on retry.")
                             DeployTaskResult(isSuccess = false, costTime = costTime(),
@@ -363,7 +365,7 @@ class JuggDeployerHelper(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      * @return <isSuccess, isReinstalled>
      */
-    private fun recoverDeployState(device: IDevice, isNeedTryDeyDeployFirst: Boolean, isInstallUpdateApk: Boolean = false): Pair<Boolean, Boolean> {
+    private fun recoverDeployState(device: IDevice, indicator: ProgressIndicator?, isNeedTryDeyDeployFirst: Boolean, isInstallUpdateApk: Boolean = false): Pair<Boolean, Boolean> {
         if (!isInstallUpdateApk) {
             logger.info("App not ready to deploy, recover deploy state from history.")
         }
@@ -376,14 +378,20 @@ class JuggDeployerHelper(
                 return true to false
             } else if (isCanReinstall) {
                 logger.warn("Deploy state not match, start reinstalling app...")
+                indicator?.text = "Reinstalling app..."
+                JuggRunningTask.notifyByBalloon(project, "Deploy state not match, start reinstalling app...")
             } else {
                 logger.debug("Dry deploy failed and isCanReinstall=false, exit dry deploy.")
                 return false to false
             }
         } else if (isInstallUpdateApk) {
             logger.info("App updated, start reinstalling app...")
+            indicator?.text = "Installing app..."
+            JuggRunningTask.notifyByBalloon(project, "App updated, start reinstalling app...")
         } else {
             logger.warn("Deploy state not match, start reinstalling app...")
+            indicator?.text = "Reinstalling app..."
+            JuggRunningTask.notifyByBalloon(project, "Deploy state not match, start reinstalling app...")
         }
 
         // recover deploy state for device

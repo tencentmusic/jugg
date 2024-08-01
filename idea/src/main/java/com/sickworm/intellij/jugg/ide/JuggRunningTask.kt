@@ -99,9 +99,6 @@ class JuggRunningTask(
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.getToolWindow("Run")?.let {
                 val icon = ExecutionUtil.getLiveIndicator(it.icon)
-                if (statusManager.isFirstTimeRun()) {
-                    it.activate(null)
-                }
                 it.setIcon(icon)
             }
         }
@@ -240,7 +237,7 @@ class JuggRunningTask(
             indicator.text = "Deploying changes$suffix..."
         }
 
-        val deployTaskResult = juggDeployHelper.deploy(device, isLastDevice, processHandler, compileTaskResult.isGradleCompile)
+        val deployTaskResult = juggDeployHelper.deploy(device, isLastDevice, processHandler, indicator, compileTaskResult.isGradleCompile)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         juggServer.report {
