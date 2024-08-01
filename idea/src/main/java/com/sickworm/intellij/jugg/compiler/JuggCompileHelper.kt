@@ -26,7 +26,6 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
 import org.jetbrains.annotations.TestOnly
 import java.io.File
-import java.util.zip.CRC32
 
 class JuggCompilerHelper(
     private val project: Project,
@@ -91,12 +90,24 @@ class JuggCompilerHelper(
         }
 
         val startTime = System.currentTimeMillis()
-
         var incrementalResult: CompileTaskResult? = null
-        if (!isForceInstall) {
-            deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
-            if (!deployFileManager.isNoFileChanges()) {
+
+        var isGradleCompile = isForceInstall
+        if (!isGradleCompile) {
+            val fallbackResult = checkFallback()
+            if (fallbackResult != null) {
+                incrementalResult = fallbackResult
+                isGradleCompile = true
+            }
+            if (!isGradleCompile && !deployFileManager.isNoFileChanges()) {
                 checkFilesRollback()
+            }
+        }
+
+        if (!isGradleCompile) {
+            deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
+
+            if (!deployFileManager.isNoFileChanges()) {
                 checkLibraryIncrementalCompile(options, processHandler, indicator)
             }
             if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
@@ -125,11 +136,11 @@ class JuggCompilerHelper(
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
                 return incrementalResult
-            } else {
-                logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
-                JuggRunningTask.notifyFallback(project, incrementalResult.failedReason ?: "See log for details.")
             }
         }
+
+        logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
+        JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
 
         val result = gradleCompile(options, processHandler, indicator)
         if (result.isSuccess) {
@@ -227,6 +238,46 @@ class JuggCompilerHelper(
         }
     }
 
+    /**
+     * @return need fallback when result is not null
+     */
+    private fun checkFallback(): CompileTaskResult? {
+        // too many changes fallback
+        val undeployedFiles = deployFileManager.getUncompiledFiles()
+        val undeployedSourceFiles = undeployedFiles.filter {
+            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
+        }
+        val undeployedSourceModules = undeployedSourceFiles.map {
+            it.module.name + "_" + it.type
+        }.toSet()
+        if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
+            logger.info("Compile modules too much(${undeployedSourceModules.size} modules), " +
+                    "will fallback to gradle compile for better performance.")
+            return CompileTaskResult.incrementalFailed(true, "Too many changes")
+        } else if (undeployedSourceFiles.size > JuggSettings.maxCompileSourceFiles) {
+            logger.info("Compile files too much(${undeployedSourceFiles.size} files), " +
+                    "will fallback to gradle compile for better performance.")
+            return CompileTaskResult.incrementalFailed(true, "Too many changes")
+        }
+
+        // deploy state fallback
+        val deployState = deployStateManager.updateDeployState()
+        logger.debug("Try incremental compile. Current state: $deployState")
+        if (!deployState.isReadyIncCompile) {
+            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
+            return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+
+        if (!deployState.isReadyDeploy) {
+            if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
+                logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
+                return CompileTaskResult.incrementalFailed(true, deployState.ideDeployState.message)
+            }
+        }
+
+        return null
+    }
+
     private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions,
                                                processHandler: SimpleProcessHandler,
                                                indicator: ProgressIndicator,
@@ -307,20 +358,6 @@ class JuggCompilerHelper(
 
     @TestOnly
     fun incrementalCompile(processHandler: SimpleProcessHandler): CompileTaskResult {
-        val deployState = deployStateManager.updateDeployState()
-        logger.debug("Try incremental compile. Current state: $deployState")
-
-        if (!deployState.isReadyIncCompile) {
-            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
-            return CompileTaskResult.incrementalFailed(true, deployState.msg)
-        }
-
-        if (!deployState.isReadyDeploy) {
-            if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
-                logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
-                return CompileTaskResult.incrementalFailed(true, deployState.ideDeployState.message)
-            }
-        }
 
         val compiler = juggCompiler ?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
@@ -377,22 +414,6 @@ class JuggCompilerHelper(
     ): CompileTaskResult {
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
-        }
-
-        val undeployedSourceFiles = undeployedFiles.filter {
-            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
-        }
-        val undeployedSourceModules = undeployedSourceFiles.map {
-            it.module.name + "_" + it.type
-        }.toSet()
-        if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
-            logger.info("Compile modules too much(${undeployedSourceModules.size} modules), " +
-                    "will fallback to gradle compile for better performance.")
-            return CompileTaskResult.incrementalFailed(true, "Too many changes")
-        } else if (undeployedSourceFiles.size > JuggSettings.maxCompileSourceFiles) {
-            logger.info("Compile files too much(${undeployedSourceFiles.size} files), " +
-                    "will fallback to gradle compile for better performance.")
-            return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
 
         val compileFiles = undeployedFiles.map {
