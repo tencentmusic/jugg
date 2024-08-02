@@ -436,6 +436,30 @@ class JuggManager @TestOnly constructor(
         })
     }
 
+    fun copyGeneratedSourceToLocal() {
+        logger.info("[test options] copyGeneratedSourceToLocal")
+        runTaskSafe("Copy Generated Source to local", {
+            val modules = compileContextManager.compileContext.modules
+            modules.values.forEach {
+                val dirInClasspath = it.buildPathInfo.generatedSourcePath
+                val dirInLocal = ModuleBuildPathInfo(it.projectRootDir, it.moduleRootDir, it.buildVariant).generatedSourcePath
+                logger.debug("Copy generated source from $dirInClasspath to $dirInLocal")
+                if (!dirInClasspath.exists()) {
+                    logger.debug("Skip copy, $dirInClasspath not exists")
+                    return@forEach
+                }
+                if (dirInClasspath.path.equals(dirInLocal.path)) {
+                    logger.debug("Skip copy, source and target are the same")
+                    return@forEach
+                }
+                if (dirInLocal.exists() && !dirInLocal.isDirectory) {
+                    dirInLocal.delete()
+                }
+                dirInClasspath.copyRecursively(dirInLocal, overwrite = true)
+            }
+        })
+    }
+
     fun removeJuggJvmtiAgents() {
         runTaskSafe("Remove Jugg JVMTI agents", {
             val devices = deployTargetManager.getDevices()

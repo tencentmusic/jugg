@@ -78,6 +78,14 @@ class JuggMoreOptionsItem(
                     { JuggSettings.isConfirmFallbackWhenNoFileChanges = it }
                 ),
 
+                createSplitLine("Tools"),
+
+                JuggMoreOptionsItem(
+                    name = "Copy generated source to local",
+                    { false },
+                    { JuggInitializer.getManager(project)?.copyGeneratedSourceToLocal() }
+                ),
+
                 createSplitLine("Experimental functions"),
 
                 JuggMoreOptionsItem(
