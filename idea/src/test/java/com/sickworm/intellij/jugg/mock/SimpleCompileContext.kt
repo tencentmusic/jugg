@@ -46,7 +46,7 @@ data class SimpleCompileContext(
 
     override val signingConfig: SigningConfig = SigningConfig(
         moduleName = "app",
-        variantName = "debug",
+        configName = "debug",
         keystore = File(System.getProperty("user.home"), ".android/debug.keystore"),
         storePassword = "android",
         keyAlias = "androiddebugkey",

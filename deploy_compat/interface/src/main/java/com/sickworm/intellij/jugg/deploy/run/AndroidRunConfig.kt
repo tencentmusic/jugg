@@ -3,12 +3,19 @@ package com.sickworm.intellij.jugg.deploy.run
 import java.io.File
 
 class AndroidRunConfig(
+    val moduleName: String,
+    val variants: List<Variant>,
     val signingConfigList: List<SigningConfig>,
+)
+
+class Variant(
+    val name: String,
+    val signingConfigName: String?,
 )
 
 class SigningConfig(
     val moduleName: String,
-    val variantName: String,
+    val configName: String,
     val keystore: File?,
     val storePassword: String?,
     val keyAlias: String?,
@@ -18,6 +25,6 @@ class SigningConfig(
     }
 
     override fun toString(): String {
-        return "${moduleName}($variantName)"
+        return "${moduleName}($configName)"
     }
 }

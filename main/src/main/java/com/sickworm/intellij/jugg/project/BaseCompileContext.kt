@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
 import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -44,8 +45,30 @@ class BaseCompileContext(
     )
         private set
 
-    private val signingConfigList: List<SigningConfig> get() =
-        PlatformApi.getAndroidRunConfigList(project, logger).flatMap { it.signingConfigList }
+    private val androidRunConfig: AndroidRunConfig? get() {
+        val androidRunConfigs = PlatformApi.getAndroidRunConfigList(project, logger)
+        val applicationModuleName = applicationModule?.name
+        logger.debug("get android run configs: ${androidRunConfigs.map { it.moduleName }}, applicationModuleName: $applicationModuleName")
+        if (applicationModuleName == null) {
+            logger.debug("get android run config, no application module, returns null")
+            return null
+        }
+
+        val matchedRunConfigs = androidRunConfigs.filter { it.moduleName == applicationModuleName }
+        if (matchedRunConfigs.isNotEmpty()) {
+            logger.debug("get matched android run configs: ${matchedRunConfigs.map { it.moduleName }}")
+            return matchedRunConfigs.first()
+        }
+
+        val containsMatchedRunConfigs = androidRunConfigs.filter { applicationModuleName.contains(it.moduleName) }
+        if (containsMatchedRunConfigs.isNotEmpty()) {
+            logger.debug("get contains android run configs: ${containsMatchedRunConfigs.map { it.moduleName }}")
+            return containsMatchedRunConfigs.first()
+        }
+
+        logger.debug("get android run config, no matched or contains configs, returns null")
+        return null
+    }
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
@@ -112,29 +135,32 @@ class BaseCompileContext(
             return null
         }
 
-        logger.debug("available signingConfigList: ${signingConfigList.map { "${it.moduleName}(${it.variantName})"}}")
-        val applicationModuleName = applicationModule.name
-        val findConfigLog = "${applicationModuleName}(${applicationModule.buildVariant})"
-        logger.debug("trying to find config $findConfigLog")
+        val androidRunConfig = androidRunConfig
+        if (androidRunConfig == null) {
+            logger.debug("get signing config failed, no android run config found.")
+            return null
+        }
+        logger.debug("available signing variants: ${androidRunConfig.variants}, " +
+                "target buildVariant: ${applicationModule.buildVariant}")
+        logger.debug("available signingConfigList: ${androidRunConfig.signingConfigList.map { it.configName}}")
 
-        val relativeSigningConfig = signingConfigList.filter {
-            it.moduleName == applicationModuleName
-        }.let { list ->
-            list.find {
-                // first find full match, e.g. debug to debug
-                it.variantName == applicationModule.buildVariant
-            } ?: list.find {
-                // then find partial match, e.g. developmentFreeDebug to debug
-                applicationModule.buildVariant.contains(it.variantName, ignoreCase = true)
-            }
+        val variant = androidRunConfig.variants.find {
+            it.name == applicationModule.buildVariant
+        } ?: androidRunConfig.variants.firstOrNull()
+        if (variant == null) {
+            logger.debug("get signing config failed, no variant found.")
+            return null
+        }
+        val relativeSigningConfig = androidRunConfig.signingConfigList.find {
+            it.configName == variant.signingConfigName
         }
         if (relativeSigningConfig == null) {
-            logger.debug("get signing config failed, no signing config found")
+            logger.debug("get signing config failed, no relativeSigningConfig found.")
             return null
         }
 
-        logger.debug("get signing config by $findConfigLog success, use " +
-                "${relativeSigningConfig.variantName} -> ${relativeSigningConfig.keystore?.path} " +
+        logger.debug("get signing config success, use " +
+                "${relativeSigningConfig.configName} -> ${relativeSigningConfig.keystore?.path} " +
                 "(don't print all for security)")
         return relativeSigningConfig
     }

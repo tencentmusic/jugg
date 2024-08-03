@@ -11,6 +11,7 @@ import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.gradle.model.IdeAndroidArtifact
 import com.android.tools.idea.gradle.model.IdeAndroidProject
 import com.android.tools.idea.gradle.model.IdeSigningConfig
+import com.android.tools.idea.gradle.model.IdeVariant
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.projectsystem.getProjectSystem
 import com.android.tools.idea.run.*
@@ -410,12 +411,20 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                     logger.debug("getSigningConfigList gradleAndroidModel of module ${module.name} is null")
                     return@mapNotNull null
                 }
+
+                val moduleName: String = gradleAndroidModel.moduleName
+                val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
                 val androidRunConfig = AndroidRunConfig(
+                    simpleName,
+                    // ImmutableList<IdeVariant> getVariants() in Android Studio Chipmunk
+                    // java.util.List<IdeVariant> getVariants() in Intellij Idea
+                    // directly call will get NoSuchMethodError
+                    gradleAndroidModel.getVariantsCompat().map {
+                        Variant(it.name, it.mainArtifact.signingConfigName)
+                    },
                     gradleAndroidModel.androidProject.signingConfigs.map { config ->
-                        val moduleName: String = gradleAndroidModel.moduleName
-                        val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
                         SigningConfig(simpleName,
-                            variantName = config.name,
+                            configName = config.name,
                             keystore = config.storeFile,
                             storePassword = config.storePassword,
                             keyAlias = config.keyAlias,
@@ -428,5 +437,14 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 return@mapNotNull null
             }
         }
+    }
+
+    private fun GradleAndroidModel.getVariantsCompat(): List<IdeVariant> {
+        // ImmutableList<IdeVariant> getVariants() in Android Studio Chipmunk
+        // java.util.List<IdeVariant> getVariants() in Intellij Idea
+        // directly call will get NoSuchMethodError
+        val method = GradleAndroidModel::class.java.getDeclaredMethod("getVariants")
+        @Suppress("UNCHECKED_CAST")
+        return method.invoke(this) as List<IdeVariant>
     }
 }
