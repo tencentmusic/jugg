@@ -9,4 +9,8 @@ enum class SyncMode(val modeName: String) {
     val isRsync get() = this == RSYNC || this == RSYNC_SIMPLE
 
     val isRsyncSimple get() = this == RSYNC_SIMPLE
+
+    override fun toString(): String {
+        return modeName
+    }
 }

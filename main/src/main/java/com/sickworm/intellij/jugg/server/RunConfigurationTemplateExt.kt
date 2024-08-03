@@ -24,7 +24,7 @@ fun JuggGradleCompileOptions.toRunConfigurationTemplate(): RunConfigurationTempl
         remoteToLocalSyncPath = options.remoteToLocalSyncPath,
         httpProxyIp = options.httpProxyIp,
         httpProxyPort = options.httpProxyPort,
-        syncMode = options.syncMode.toString(),
+        syncMode = options.syncMode.modeName,
     )
 }
 
