@@ -131,7 +131,9 @@ class BaseCompileContext(
             return null
         }
 
-        logger.debug("get signing config by $findConfigLog success (don't print it out for security)")
+        logger.debug("get signing config by $findConfigLog success, use " +
+                "${relativeSigningConfig.variantName} -> ${relativeSigningConfig.keystore?.path} " +
+                "(don't print all for security)")
         return relativeSigningConfig
     }
 
