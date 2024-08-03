@@ -166,6 +166,9 @@ class DeployFileManager(
         return getUncompiledFiles() + getCompiledFiles()
     }
 
+    /**
+     * @return is no file changes since last compile finished (no matter success or failed)
+     */
     @Synchronized
     fun isNoFileChanges(): Boolean {
         val undeployedFiles = getUndeployedFiles()

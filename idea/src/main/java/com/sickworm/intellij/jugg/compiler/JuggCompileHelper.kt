@@ -89,30 +89,42 @@ class JuggCompilerHelper(
             }
         }
 
-        val startTime = System.currentTimeMillis()
-        var incrementalResult: CompileTaskResult? = null
-
+        // decide gradle compile or incremental compile
+        val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
+        logger.debug("doCompile isForceInstall $isForceInstall, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
         var isGradleCompile = isForceInstall
+        var incrementalResult: CompileTaskResult? = null
         if (!isGradleCompile) {
             val fallbackResult = checkFallback()
+            logger.debug("doCompile need fallback $fallbackResult")
             if (fallbackResult != null) {
                 incrementalResult = fallbackResult
                 isGradleCompile = true
             }
-            if (!isGradleCompile && !deployFileManager.isNoFileChanges()) {
+        }
+        if (!isGradleCompile) {
+            if (!isNoFileChangesSinceLastCompile) {
                 checkFilesRollback()
+                checkLibraryIncrementalCompile(options, processHandler, indicator) // user may cancel in this step
             }
+
+            val deployState = deployStateManager.updateDeployState()
+            logger.debug("Try incremental compile. Current state: $deployState")
+            if (!deployState.isReadyIncCompile) {
+                logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
+                isGradleCompile = true
+                incrementalResult = CompileTaskResult.incrementalFailed(true, deployState.msg)
+            }
+        }
+
+
+        val startTime = System.currentTimeMillis()
+        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            return CompileTaskResult.incrementalCanceled(startTime)
         }
 
         if (!isGradleCompile) {
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
-
-            if (!deployFileManager.isNoFileChanges()) {
-                checkLibraryIncrementalCompile(options, processHandler, indicator)
-            }
-            if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
-                return CompileTaskResult.incrementalCanceled(startTime)
-            }
 
             val compileStatusHolder = JuggCompileStatusHolder(processHandler, indicator, logger)
             incrementalResult = incrementalCompile(compileStatusHolder)
@@ -260,12 +272,6 @@ class JuggCompilerHelper(
 
         // deploy state fallback
         val deployState = deployStateManager.updateDeployState()
-        logger.debug("Try incremental compile. Current state: $deployState")
-        if (!deployState.isReadyIncCompile) {
-            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
-            return CompileTaskResult.incrementalFailed(true, deployState.msg)
-        }
-
         if (!deployState.isReadyDeploy) {
             if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
                 logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
