@@ -22,6 +22,8 @@ data class SimpleCompileContext(
 
     override val tempModule: ModuleInfo = ModuleInfo.virtualModule.copy(
         name = "temp_module",
+        projectRootDir = projectDir,
+        moduleRootDir = tempModuleDir,
         buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
     )
 

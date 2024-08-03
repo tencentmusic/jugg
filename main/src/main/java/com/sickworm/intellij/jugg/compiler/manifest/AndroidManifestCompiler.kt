@@ -24,11 +24,18 @@ class AndroidManifestCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         val applicationModule = context.applicationModule
             ?: return createErrorCompileResult(task, "application module not found")
-        val finalMergedManifest = applicationModule.buildPathInfo.mergedManifest
+
+        val deployedManifest = File(context.tempModule.moduleRootDir, "res/AndroidManifest.xml")
+        val finalMergedManifest = if (deployedManifest.exists()) {
+            deployedManifest
+        } else {
+            applicationModule.buildPathInfo.mergedManifest
+        }
         if (!finalMergedManifest.exists()) {
             val reason = "APK merged manifest(${finalMergedManifest}) not exists, fallback to gradle once may fix this"
             return createErrorCompileResult(task, reason)
         }
+        logger.debug("merge AndroidManifest.xml to ${finalMergedManifest.path}")
 
         val outputManifestFile = File(task.outputDir, "AndroidManifest.xml")
         outputManifestFile.mkdirs()
@@ -96,6 +103,10 @@ class AndroidManifestCompiler(
             val reason = "Compile AndroidManifest.xml failed, file generate failed"
             return createErrorCompileResult(task, reason)
         }
+
+        // copy to temp dir for next compile
+        deployedManifest.parentFile.mkdirs()
+        outputManifestFile.copyTo(deployedManifest, true)
 
         val compileOutput = CompileOutput(
             CompileOutput.Type.Res,

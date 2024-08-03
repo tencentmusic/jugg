@@ -37,6 +37,8 @@ class BaseCompileContext(
     private val tempLibraryRecordFile: File = File(tempLibraryDir, "infos.json")
     override var tempModule = ModuleInfo.virtualModule.copy(
         name = "temp_module",
+        projectRootDir = projectDir,
+        moduleRootDir = tempModuleDir,
         buildPathInfo = ModuleBuildPathInfo(projectDir, tempModuleDir, ModuleInfo.DEFAULT_BUILD_VARIANT),
         libraryDependencies = loadTempLibraries(),
     )
