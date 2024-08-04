@@ -5,11 +5,17 @@ import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import org.apache.tools.zip.ZipEntry
+import org.apache.tools.zip.ZipOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.net.URI
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.CRC32
+import java.util.zip.ZipInputStream
 
 class ApkFileModifier(
     private val apkFile: File,
@@ -67,6 +73,19 @@ class ApkFileModifier(
         // INSTALL_PARSE_FAILED_RESOURCES_ARSC_COMPRESSED when installing APK
         // JellyFish and after version is compatible with compressionMethod
         // D to I haven't tested
+        val jvmVersion = Runtime.version().version()
+        logger.debug("JVM version: $jvmVersion")
+        if (jvmVersion[0] >= 14) {
+            insertFileJvm14()
+        } else {
+            logger.warn("JVM version is ${jvmVersion[0]}, use standard ZIP API to update Zip files.")
+            logger.warn("It will cost 10-60s to finished, please upgrade to Android Studio JellyFish or later to reduce 90% cost time.")
+            insertFileUnderJvm14()
+        }
+        TimeLogger.end("insertFiles", logger)
+    }
+
+    private fun insertFileJvm14() {
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
 
         val zipDisk: URI = URI.create("jar:" + tmpUpdateApkFile.toURI().toString())
@@ -77,7 +96,55 @@ class ApkFileModifier(
                 Files.copy(content.inputStream(), pathInZipFile)
             }
         }
-        TimeLogger.end("insertFiles", logger)
+    }
+
+    private fun insertFileUnderJvm14() {
+        tmpUpdateApkFile.delete()
+
+        val remainInsertFiles: MutableMap<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
+        val buf = ByteArray(4096)
+
+        ZipInputStream(FileInputStream(apkFile)).use { oldApkStream ->
+            ZipOutputStream(FileOutputStream(tmpUpdateApkFile)).use { newApkStream ->
+                var entry = oldApkStream.nextEntry
+                while (entry != null) {
+                    // ZipInputStream will ready some empty entries, and ZipFile.entries() will not
+                    if (entry.name.isNullOrEmpty()) {
+                        entry = oldApkStream.nextEntry
+                        continue
+                    }
+
+                    val replaceContent = remainInsertFiles[entry.name]
+                    if (replaceContent != null) {
+                        val newEntry = ZipEntry(entry)
+                        newEntry.size = replaceContent.size.toLong()
+                        newEntry.crc = CRC32().run {
+                            reset()
+                            update(replaceContent)
+                            value
+                        }
+                        newApkStream.putNextEntry(newEntry)
+                        newApkStream.write(replaceContent)
+                        remainInsertFiles.remove(entry.name)
+                    } else {
+                        newApkStream.putNextEntry(ZipEntry(entry))
+                        var len: Int
+                        while ((oldApkStream.read(buf).also { len = it }) > 0) {
+                            newApkStream.write(buf, 0, len)
+                        }
+                    }
+
+                    newApkStream.closeEntry()
+                    entry = oldApkStream.nextEntry
+                }
+
+                remainInsertFiles.forEach {
+                    newApkStream.putNextEntry(ZipEntry(it.key))
+                    newApkStream.write(it.value)
+                    newApkStream.closeEntry()
+                }
+            }
+        }
     }
 
     private fun alignApk() {
