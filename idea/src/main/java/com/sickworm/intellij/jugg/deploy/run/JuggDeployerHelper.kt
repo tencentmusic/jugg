@@ -186,7 +186,8 @@ class JuggDeployerHelper(
 
                 deployData = deployFileManager.getDeployData(isWarmUp)
                 var isNeedReinstallApk = false
-                if (deployData.isNeedUpdateAndroidManifest) {
+                val isRetry = retryReason != null // retry means we have already resigned the apk
+                if (deployData.isNeedUpdateAndroidManifest && !isRetry) {
                     logger.info("Need resign APK to update AndroidManifest.xml.")
                     logger.info("Resigning APK...")
                     TimeLogger.start("insertFileAndResignApk")
