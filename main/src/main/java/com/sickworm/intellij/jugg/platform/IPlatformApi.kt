@@ -31,8 +31,6 @@ interface IPlatformApi {
         isPassword: Boolean = false,
     ): String?
 
-    fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig>
-
     fun parseApks(apkFiles: List<String>): List<Apk>
 
     fun getGradleJdkPath(project: Project, logger: Logger): String?

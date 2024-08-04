@@ -137,6 +137,48 @@ class GradleProjectInfoReader(
                     }
                 }
 
+                val variants = mutableListOf<Variant>()
+                var signingConfigs: List<SigningConfig>? = null
+                val isApplication = moduleType == ModuleInfo.Type.Application
+                if (isApplication) {
+                    signingConfigs = mutableListOf()
+                    // com.android.build.gradle.AppExtension.applicationVariants
+                    (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
+                        // com.android.build.gradle.api.ApplicationVariant
+                        val variant = Reflector(obj)
+                        variants.add(Variant(
+                            variant["name"]?.valueString ?: return@mapNotNull null,
+                            variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
+                        ))
+                    }
+
+                    // com.android.build.gradle.internal.dsl.BaseAppModuleExtension.signingConfigs
+                    (androidExt["signingConfigs"]?.value as? Collection<*>)?.mapNotNull { obj ->
+                        // com.android.builder.model.SigningConfig
+                        // com.android.build.gradle.internal.api.ReadOnlySigningConfig
+                        val signingConfig = Reflector(obj)
+                        signingConfigs.add(SigningConfig(
+                            signingConfig["name"]?.valueString ?: return@mapNotNull null,
+                            signingConfig["storeFile"]?.value as? File,
+                            signingConfig["storePassword"]?.valueString,
+                            signingConfig["keyAlias"]?.valueString,
+                            signingConfig["keyPassword"]?.valueString,
+                            signingConfig["storeType"]?.valueString,
+                            (signingConfig["isV1SigningEnabled"]?.value == true) || (signingConfig["enableV1Signing"]?.value == true),
+                            (signingConfig["isV2SigningEnabled"]?.value == true) || (signingConfig["enableV2Signing"]?.value == true),
+                            signingConfig["enableV3Signing"]?.value == true,
+                            signingConfig["enableV4Signing"]?.value == true,
+                            signingConfig["isSigningRea dy"]?.value == true,
+                        ))
+                    }
+                } else {
+                    // com.android.build.gradle.api.LibraryVariant
+                    (androidExt["libraryVariants"]?.value as? Collection<*>)?.forEach { obj ->
+                        val variant = Reflector(obj)
+                        variants.add(Variant(variant["name"]?.valueString ?: return@forEach,  null))
+                    }
+                }
+
                 @Suppress("UNCHECKED_CAST")
                 moduleInfo = moduleInfo.copy(
                     compileVersion = compileSdkVersion?.substringAfter("android-"),
@@ -158,6 +200,10 @@ class GradleProjectInfoReader(
                     )?.value as? Map<String, String>,
                     // (project.extensions.getByName("android") as com.android.build.gradle.AppExtension).defaultConfig.javaCompileOptions.annotationProcessorOptions.arguments
                     javaAnnotationProcessorOptions = defaultConfig["javaCompileOptions"]["annotationProcessorOptions"]["arguments"]?.value as? Map<String, String>,
+                    applicationId = if (isApplication) defaultConfig["applicationId"]?.valueString else null,
+                    namespace = androidExt["namespace"]?.valueString,
+                    variants = variants,
+                    signingConfigs = signingConfigs,
                 )
             } catch (e: Throwable) {
                 println("Jugg: get other info for ${project.standardModuleName} failed: $e")

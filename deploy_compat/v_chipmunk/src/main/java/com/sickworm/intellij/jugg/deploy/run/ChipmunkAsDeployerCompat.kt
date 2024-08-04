@@ -394,51 +394,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
                 "keyAlias=${if (keyAlias == null) "null" else "not null"}"
     }
 
-    override fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig> {
-        val androidConfigSettings = RunManager.getInstance(project)
-            .getConfigurationSettingsList(AndroidRunConfigurationType::class.java)
-        logger.debug("getSigningConfigList androidConfigSettings size ${androidConfigSettings.size}")
-        return androidConfigSettings.mapNotNull { settings ->
-            try {
-                val runConfig = settings.configuration as AndroidRunConfiguration
-                val module = runConfig.modules.firstOrNull()
-                if (module == null) {
-                    logger.debug("getSigningConfigList module of runConfig ${runConfig.name} is null")
-                    return@mapNotNull null
-                }
-                val gradleAndroidModel = GradleAndroidModel.get(module)
-                if (gradleAndroidModel == null) {
-                    logger.debug("getSigningConfigList gradleAndroidModel of module ${module.name} is null")
-                    return@mapNotNull null
-                }
-
-                val moduleName: String = gradleAndroidModel.moduleName
-                val simpleName = moduleName.split('.').getOrElse(1) { moduleName }
-                val androidRunConfig = AndroidRunConfig(
-                    simpleName,
-                    // ImmutableList<IdeVariant> getVariants() in Android Studio Chipmunk
-                    // java.util.List<IdeVariant> getVariants() in Intellij Idea
-                    // directly call will get NoSuchMethodError
-                    gradleAndroidModel.getVariantsCompat().map {
-                        Variant(it.name, it.mainArtifact.signingConfigName)
-                    },
-                    gradleAndroidModel.androidProject.signingConfigs.map { config ->
-                        SigningConfig(simpleName,
-                            configName = config.name,
-                            keystore = config.storeFile,
-                            storePassword = config.storePassword,
-                            keyAlias = config.keyAlias,
-                        )
-                    },
-                )
-                return@mapNotNull androidRunConfig
-            } catch (e: Throwable) {
-                logger.debug("getSigningConfigList for ${settings.name} error, ignore", e)
-                return@mapNotNull null
-            }
-        }
-    }
-
     private fun GradleAndroidModel.getVariantsCompat(): List<IdeVariant> {
         // ImmutableList<IdeVariant> getVariants() in Android Studio Chipmunk
         // java.util.List<IdeVariant> getVariants() in Intellij Idea

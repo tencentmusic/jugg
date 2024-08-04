@@ -10,16 +10,13 @@ import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
-import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.isChild
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.data.SigningConfig
 import java.io.File
 
 class BaseCompileContext(
-    private val project: Project,
     override val logger: Logger,
     override var tempCompileDir: File,
     override var tempModuleDir: File,
@@ -44,31 +41,6 @@ class BaseCompileContext(
         libraryDependencies = loadTempLibraries(),
     )
         private set
-
-    private val androidRunConfig: AndroidRunConfig? get() {
-        val androidRunConfigs = PlatformApi.getAndroidRunConfigList(project, logger)
-        val applicationModuleName = applicationModule?.name
-        logger.debug("get android run configs: ${androidRunConfigs.map { it.moduleName }}, applicationModuleName: $applicationModuleName")
-        if (applicationModuleName == null) {
-            logger.debug("get android run config, no application module, returns null")
-            return null
-        }
-
-        val matchedRunConfigs = androidRunConfigs.filter { it.moduleName == applicationModuleName }
-        if (matchedRunConfigs.isNotEmpty()) {
-            logger.debug("get matched android run configs: ${matchedRunConfigs.map { it.moduleName }}")
-            return matchedRunConfigs.first()
-        }
-
-        val containsMatchedRunConfigs = androidRunConfigs.filter { applicationModuleName.contains(it.moduleName) }
-        if (containsMatchedRunConfigs.isNotEmpty()) {
-            logger.debug("get contains android run configs: ${containsMatchedRunConfigs.map { it.moduleName }}")
-            return containsMatchedRunConfigs.first()
-        }
-
-        logger.debug("get android run config, no matched or contains configs, returns null")
-        return null
-    }
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
 
@@ -135,23 +107,18 @@ class BaseCompileContext(
             return null
         }
 
-        val androidRunConfig = androidRunConfig
-        if (androidRunConfig == null) {
-            logger.debug("get signing config failed, no android run config found.")
-            return null
-        }
-        logger.debug("available signing variants: ${androidRunConfig.variants}, " +
+        logger.debug("available signing variants: ${applicationModule.variants}, " +
                 "target buildVariant: ${applicationModule.buildVariant}")
-        logger.debug("available signingConfigList: ${androidRunConfig.signingConfigList.map { it.configName}}")
+        logger.debug("available signingConfigList: ${applicationModule.signingConfigs?.map { it.configName }}")
 
-        val variant = androidRunConfig.variants.find {
+        val variant = applicationModule.variants.find {
             it.name == applicationModule.buildVariant
-        } ?: androidRunConfig.variants.firstOrNull()
+        }
         if (variant == null) {
             logger.debug("get signing config failed, no variant found.")
             return null
         }
-        val relativeSigningConfig = androidRunConfig.signingConfigList.find {
+        val relativeSigningConfig = applicationModule.signingConfigs?.find {
             it.configName == variant.signingConfigName
         }
         if (relativeSigningConfig == null) {

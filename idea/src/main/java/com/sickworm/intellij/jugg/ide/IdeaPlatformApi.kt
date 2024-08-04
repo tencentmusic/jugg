@@ -38,10 +38,6 @@ class IdeaPlatformApi : IPlatformApi {
         return UserAndPasswordInputDialog.showAndGetResult(content, subTitle, isPassword)
     }
 
-    override fun getAndroidRunConfigList(project: Project, logger: Logger): List<AndroidRunConfig> {
-        return AsDeployerCompat.getAndroidRunConfigList(project, logger)
-    }
-
     override fun parseApks(apkFiles: List<String>): List<Apk> {
         return AsDeployerCompat.parseApks(apkFiles)
     }

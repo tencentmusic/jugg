@@ -4,7 +4,7 @@ import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.deploy.run.SigningConfig
+import com.sickworm.intellij.jugg.project.data.SigningConfig
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import java.io.File
 
@@ -45,7 +45,6 @@ data class SimpleCompileContext(
     }
 
     override val signingConfig: SigningConfig = SigningConfig(
-        moduleName = "app",
         configName = "debug",
         keystore = File(System.getProperty("user.home"), ".android/debug.keystore"),
         storePassword = "android",

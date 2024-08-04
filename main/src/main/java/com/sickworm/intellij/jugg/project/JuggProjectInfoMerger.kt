@@ -175,7 +175,6 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
                 manifestFile = moduleInfo.manifestFile ?: gradleModuleInfo.manifestFile,
-                manifestPlaceHolders = (moduleInfo.manifestPlaceHolders ?: emptyMap()) + (gradleModuleInfo.manifestPlaceHolders ?: emptyMap()),
                 buildVariant = moduleInfo.buildVariant, // only ide can get, gradle is also read from ide project info
                 compileVersion = gradleModuleInfo.compileVersion ?: moduleInfo.compileVersion,
                 minSdkVersion = gradleModuleInfo.minSdkVersion ?: moduleInfo.minSdkVersion,
@@ -187,11 +186,17 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
                 moduleDependencies = pickLatest(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 libraryDependencies = mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
-                runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies, // only gradle has
-                annotationProcessorDependencies = gradleModuleInfo.annotationProcessorDependencies, // only gradle has
-                kaptDependencies = gradleModuleInfo.kaptDependencies, // only gradle has
-                javaAnnotationProcessorOptions = gradleModuleInfo.javaAnnotationProcessorOptions, // only gradle has
-                kaptArguments = gradleModuleInfo.kaptArguments, // only gradle has
+                runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
+                // below fields is only gradle has
+                manifestPlaceHolders = (moduleInfo.manifestPlaceHolders ?: emptyMap()) + (gradleModuleInfo.manifestPlaceHolders ?: emptyMap()),
+                annotationProcessorDependencies = gradleModuleInfo.annotationProcessorDependencies,
+                kaptDependencies = gradleModuleInfo.kaptDependencies,
+                javaAnnotationProcessorOptions = gradleModuleInfo.javaAnnotationProcessorOptions,
+                kaptArguments = gradleModuleInfo.kaptArguments,
+                applicationId = gradleModuleInfo.applicationId,
+                namespace = gradleModuleInfo.namespace,
+                variants = gradleModuleInfo.variants,
+                signingConfigs = gradleModuleInfo.signingConfigs,
             )
             mergedModules[name] = mergedModuleInfo
         }

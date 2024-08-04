@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.deploy.run.SigningConfig
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.data.SigningConfig
 import org.apache.tools.zip.ZipEntry
 import org.apache.tools.zip.ZipOutputStream
 import java.io.File

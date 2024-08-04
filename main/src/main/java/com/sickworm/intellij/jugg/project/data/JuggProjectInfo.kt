@@ -33,6 +33,10 @@ data class ModuleInfo(
     val kaptDependencies: List<LibraryDependency>,
     val javaAnnotationProcessorOptions: Map<String, String>? = null,
     val kaptArguments: Map<String, String>? = null,
+    val applicationId: String? = null,
+    val namespace: String? = null,
+    val variants: List<Variant> = emptyList(),
+    val signingConfigs: List<SigningConfig>? = null,
 ) {
 
     enum class Type {
@@ -243,6 +247,39 @@ data class ModuleDependency(
 
     override fun toString(): String {
         return moduleName
+    }
+}
+
+data class AndroidRunConfig(
+    val moduleName: String,
+    val variants: List<Variant>,
+    val signingConfigList: List<SigningConfig>,
+)
+
+data class Variant(
+    val name: String,
+    val signingConfigName: String?,
+)
+
+data class SigningConfig(
+    val configName: String,
+    val keystore: File?,
+    val storePassword: String?,
+    val keyAlias: String?,
+    val keyPassword: String?,
+    val storeType: String?,
+    val enableV1Signing: Boolean,
+    val enableV2Signing: Boolean,
+    val enableV3Signing: Boolean,
+    val enableV4Signing: Boolean,
+    val isSigningReady: Boolean,
+) {
+    val isInvalid: Boolean get() {
+        return keystore == null || !keystore.exists() || storePassword == null
+    }
+
+    override fun toString(): String {
+        return configName // do not print sensitive info
     }
 }
 
