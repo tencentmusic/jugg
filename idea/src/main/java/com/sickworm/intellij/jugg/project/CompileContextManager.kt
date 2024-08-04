@@ -378,9 +378,13 @@ class CompileContextManager(
                         moduleDependencies.add(ModuleDependency(it.moduleName.moduleSimpleName))
                     }
                     is LibraryOrderEntry -> {
-                        it.getRootFiles(OrderRootType.CLASSES).forEach { file ->
+                        it.getRootFiles(OrderRootType.CLASSES).forEach getRootFiles@{ file ->
                             val ioFile = file.toIoFile()
                             val key = "${ioFile.absolutePath}:${ioFile.lastModified()}"
+                            if (ioFile.name == "kaptGeneratedClasses" && (!ioFile.exists() || ioFile.isDirectory)) {
+                                // ignore kaptGeneratedClasses
+                                return@getRootFiles
+                            }
                             var libraryDependency = dependencyCacheMap[key]
                             if (libraryDependency == null) {
                                 var name = (it.libraryName ?: ioFile.name)

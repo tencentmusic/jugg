@@ -74,16 +74,16 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         // split by module
         // the module info in ChangedFile maybe not the latest for compilation
         // we should only use moduleRootDir to detect
-        val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.moduleRootDir.absolutePath }
+        val fileGroups: Map<String, List<CompileFile>> = task.files.groupBy { it.module.moduleRootDir.path }
         val fileGroupNames = fileGroups.keys.toSet()
         val moduleCompileOrder = modulesWithOrder.filter { module ->
             fileGroupNames.any {
-                module.moduleRootDir.absolutePath == it
+                module.moduleRootDir.path == it
             }
-        }
+        }.distinctBy { it.moduleRootDir.path }
         if (moduleCompileOrder.size != fileGroups.size) {
             logger.debug("Find compile order fails, all modules: size ${context.modules.size}, ${context.modules.map { it.value.moduleRootDir }}")
-            logger.debug("Find compile order fails, modulesWithOrder: size ${modulesWithOrder}, ${modulesWithOrder.map { it.moduleRootDir }}")
+            logger.debug("Find compile order fails, modulesWithOrder: size ${modulesWithOrder.size}, ${modulesWithOrder.map { it.moduleRootDir }}")
             logger.warn("Jugg going to compiles ${task.files.groupBy { it.module.name }}, but only gets: ${moduleCompileOrder.map { it.name }}")
             throw JuggInternalException.findModuleCompileOrderFailed()
         }
