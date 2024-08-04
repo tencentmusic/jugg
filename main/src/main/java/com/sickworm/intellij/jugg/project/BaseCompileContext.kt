@@ -357,7 +357,7 @@ class BaseCompileContext(
 
     private fun getSuggestedPlatformApi(modules: Map<String, ModuleInfo>): String {
         val versionsInGradle = modules.values.map { it.name to it.compileVersion }
-        var version = getLatestVersion(versionsInGradle.map { it.second} )
+        var version = getLatestVersion(versionsInGradle.map { it.second?.substringAfter("android-") } )
         val rootDir = File(androidHome, "platforms")
         logger.debug("getSuggestedPlatformApi version: $version, versions in gradle: $versionsInGradle")
 

@@ -139,7 +139,7 @@ class GradleProjectInfoReader(
 
                 @Suppress("UNCHECKED_CAST")
                 moduleInfo = moduleInfo.copy(
-                    compileVersion = compileSdkVersion,
+                    compileVersion = compileSdkVersion?.substringAfter("android-"),
                     buildToolsVersion = buildToolsVersion,
                     minSdkVersion = defaultConfig["minSdkVersion"]["apiLevel"]?.valueString,
                     kotlinJvmTarget = kotlinJvmOptions["jvmTarget"]?.valueString,
