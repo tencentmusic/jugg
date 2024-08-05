@@ -34,7 +34,7 @@ object JuggSettings {
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 20
     /** limit max source files to compile for better performance */
-    const val maxCompileSourceFiles = 60
+    const val maxCompileSourceFiles = 150
     /** limit min compiler error to recreate once */
     const val minErrorToRecreateCompiler = 30
 
