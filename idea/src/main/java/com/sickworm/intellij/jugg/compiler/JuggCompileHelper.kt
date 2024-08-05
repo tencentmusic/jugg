@@ -90,33 +90,8 @@ class JuggCompilerHelper(
         }
 
         // decide gradle compile or incremental compile
-        val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
-        logger.debug("doCompile isForceInstall $isForceInstall, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
-        var isGradleCompile = isForceInstall
-        var incrementalResult: CompileTaskResult? = null
-        if (!isGradleCompile) {
-            val fallbackResult = checkFallback()
-            logger.debug("doCompile need fallback $fallbackResult")
-            if (fallbackResult != null) {
-                incrementalResult = fallbackResult
-                isGradleCompile = true
-            }
-        }
-        if (!isGradleCompile) {
-            if (!isNoFileChangesSinceLastCompile) {
-                checkFilesRollback()
-                checkLibraryIncrementalCompile(options, processHandler, indicator) // user may cancel in this step
-            }
-
-            val deployState = deployStateManager.updateDeployState()
-            logger.debug("Try incremental compile. Current state: $deployState")
-            if (!deployState.isReadyIncCompile) {
-                logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
-                isGradleCompile = true
-                incrementalResult = CompileTaskResult.incrementalFailed(true, deployState.msg)
-            }
-        }
-
+        var incrementalResult: CompileTaskResult? = preprocessIncrementalCompile(options, processHandler, indicator, isForceInstall)
+        val isGradleCompile = incrementalResult != null
 
         val startTime = System.currentTimeMillis()
         if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
@@ -248,10 +223,61 @@ class JuggCompilerHelper(
         }
     }
 
+    private fun preprocessIncrementalCompile(
+        options: JuggGradleCompileOptions,
+        processHandler: SimpleProcessHandler,
+        indicator: ProgressIndicator,
+        isForceInstall: Boolean,
+    ): CompileTaskResult? {
+        val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
+        logger.debug("preprocessIncrementalCompile isForceInstall $isForceInstall, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
+        if (isForceInstall) {
+            return CompileTaskResult.incrementalFailed(true, "force fallback")
+        }
+
+        checkDeviceFallback()?.let {
+            return it
+        }
+        if (!isNoFileChangesSinceLastCompile) {
+            checkFilesRollback()
+        }
+        checkFilesFallback()?.let {
+            return it
+        }
+
+        if (!isNoFileChangesSinceLastCompile) {
+            checkLibraryIncrementalCompile(options, processHandler, indicator) // user may cancel in this step
+        }
+
+        val deployState = deployStateManager.updateDeployState()
+        logger.debug("Try incremental compile. Current state: $deployState")
+        if (!deployState.isReadyIncCompile) {
+            logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
+            return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+        return null
+    }
+
     /**
      * @return need fallback when result is not null
      */
-    private fun checkFallback(): CompileTaskResult? {
+    private fun checkDeviceFallback(): CompileTaskResult? {
+        // deploy state fallback
+        val deployState = deployStateManager.updateDeployState()
+        if (!deployState.isReadyDeploy) {
+            if (deployState.ideDeployState.state == IdeDeployState.State.INVALID_DEVICE) {
+                logger.info("Device not ready for incremental compile(${deployState.ideDeployState.message}). Return.")
+                return CompileTaskResult.incrementalFailed(true, deployState.ideDeployState.message)
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * @return need fallback when result is not null
+     */
+    private fun checkFilesFallback(): CompileTaskResult? {
         // too many changes fallback
         val undeployedFiles = deployFileManager.getUncompiledFiles()
         val undeployedSourceFiles = undeployedFiles.filter {
