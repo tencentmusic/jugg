@@ -76,11 +76,6 @@ class AndroidManifestCompiler(
                 } else {
                     // AndroidManifest in gradle module
                     val relativeManifestFile = findMergedManifestFile(it, module)
-                    if (relativeManifestFile == null) {
-                        logger.warn("AndroidManifest.xml compile failed, Merged manifest file in ${module.name} not found.")
-                        logger.warn("Fallback to gradle once may fix this.")
-                        return createErrorCompileResult(task, "Merged AndroidManifest.xml not found in module ${module.name}")
-                    }
                     return@mapNotNull ChangedManifestFile(it.file, relativeManifestFile, manifestPlaceHolders)
                 }
 
