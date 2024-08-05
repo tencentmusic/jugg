@@ -88,7 +88,7 @@ class ManifestDiffer {
      * 2. process ${applicationId} to "com.example.app" or something else
      */
     private fun preprocess(node: XmlNode, placeHolders: Map<String, String>?) {
-        val packageName = node.node["package"]
+        val packageName = node.node["package"] ?: placeHolders?.get(JUGG_NAMESPACE_IN_GRADLE)
         preprocess(node.node, packageName, placeHolders)
     }
 
@@ -123,6 +123,12 @@ class ManifestDiffer {
 
     companion object {
         private const val MANIFEST_TAG_NAME = "manifest"
+        /**
+         * namespace in build.gradle.
+         * AndroidManifest.xml will use this as package name if not specified in XML.
+         * Jugg read namespace from build.gradle, set it into placeholders for [preprocess].
+         */
+        const val JUGG_NAMESPACE_IN_GRADLE = "jugg.namespace.gradle"
     }
 }
 
