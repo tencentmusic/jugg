@@ -115,7 +115,7 @@ data class CompileFile(
         Asset,
         Resource,
         Flat,
-        Gradle,
+        BuildFile,
         AndroidManifest,
         DexToChangePackageName,
         ;

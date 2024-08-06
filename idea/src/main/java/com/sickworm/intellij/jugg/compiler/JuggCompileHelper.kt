@@ -157,7 +157,7 @@ class JuggCompilerHelper(
                 gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true)
             } else {
                 val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
-                    it.type == CompileFile.Type.Gradle
+                    it.type == CompileFile.Type.BuildFile
                 }
                 val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
                 if (changedBuildFiles.isNotEmpty()) {
@@ -192,7 +192,7 @@ class JuggCompilerHelper(
         if (JuggSettings.isCheckChecksumWhenFileChanges) {
             val uncompiledFiles = deployFileManager.getUncompiledFiles()
             val changedBuildFile = uncompiledFiles.find {
-                it.type == CompileFile.Type.Gradle
+                it.type == CompileFile.Type.BuildFile
             }
             // unnecessary to check if file size is small and no build file changed
             val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null)
@@ -313,7 +313,7 @@ class JuggCompilerHelper(
                                                indicator: ProgressIndicator,
     ) {
         val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
-            it.type == CompileFile.Type.Gradle
+            it.type == CompileFile.Type.BuildFile
         }
         var isIncrementalCompileLibrary = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
         val isFallback = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.REBUILD
@@ -418,8 +418,8 @@ class JuggCompilerHelper(
         val undeployedFiles = deployFileManager.getUndeployedFiles().toMutableList()
         // remove gradle files from undeployed files, it can not be compiled
         // since we go into this method, then it must be an incremental compile
-        val gradleFiles = undeployedFiles.filter { it.type == CompileFile.Type.Gradle }
-        undeployedFiles.removeAll(gradleFiles)
+        val buildFileFiles = undeployedFiles.filter { it.type == CompileFile.Type.BuildFile }
+        undeployedFiles.removeAll(buildFileFiles)
 
         if (dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             // user select libraries incremental compile, add them to undeployed files
@@ -428,7 +428,7 @@ class JuggCompilerHelper(
             logger.debug("Dependency changed, will recompile libraries: $undeployedLibraries")
 
             // mark gradle files as compiled, to detect isNoFileChanges()
-            deployFileManager.updateUncompiledFiles(gradleFiles.map {
+            deployFileManager.updateUncompiledFiles(buildFileFiles.map {
                 CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
             }, emptyList())
         }

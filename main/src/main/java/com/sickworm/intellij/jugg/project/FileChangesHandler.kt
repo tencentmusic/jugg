@@ -97,7 +97,7 @@ class FileChangesHandler(
             return null
         }
 
-        checkBuildGradle(file)?.let {
+        checkBuildGradleAndLibraryFiles(file)?.let {
             return it
         }
         checkBuildProperties(file)?.let {
@@ -144,7 +144,7 @@ class FileChangesHandler(
         return null
     }
 
-    private fun checkBuildGradle(file: File): ChangedFile? {
+    private fun checkBuildGradleAndLibraryFiles(file: File): ChangedFile? {
         val isInJuggDir = file.isChild(juggRootDir)
         if (isInJuggDir) {
             return null
@@ -153,7 +153,7 @@ class FileChangesHandler(
         customBuildFileList.forEach {
             if (file.absolutePath == it.absolutePath) {
                 return ChangedFile(
-                    CompileFile.Type.Gradle,
+                    CompileFile.Type.BuildFile,
                     file,
                     juggRootDir,
                     ModuleInfo.virtualModule
@@ -170,7 +170,7 @@ class FileChangesHandler(
             val moduleRootDir = module.moduleRootDir
             if (file.isChild(moduleRootDir)) {
                 return ChangedFile(
-                    CompileFile.Type.Gradle,
+                    CompileFile.Type.BuildFile,
                     file,
                     moduleRootDir,
                     module
@@ -181,7 +181,7 @@ class FileChangesHandler(
         val projectRootDir = getProjectRootDir()
         if (projectRootDir != null && file.isChild(projectRootDir)) {
             return ChangedFile(
-                CompileFile.Type.Gradle,
+                CompileFile.Type.BuildFile,
                 file,
                 projectRootDir,
                 ModuleInfo.virtualModule
@@ -200,7 +200,7 @@ class FileChangesHandler(
         val projectRootDir = getProjectRootDir()
         if (projectRootDir != null && file.parentFile.absolutePath == projectRootDir.absolutePath) {
             return ChangedFile(
-                CompileFile.Type.Gradle,
+                CompileFile.Type.BuildFile,
                 file,
                 projectRootDir,
                 ModuleInfo.virtualModule,

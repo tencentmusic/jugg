@@ -143,7 +143,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.Asset -> "asset"
                     CompileFile.Type.Resource -> "resource"
                     CompileFile.Type.Flat -> "flat"
-                    CompileFile.Type.Gradle -> "gradle"
+                    CompileFile.Type.BuildFile -> "gradle"
                     CompileFile.Type.AndroidManifest -> "manifest"
                     CompileFile.Type.DexToChangePackageName -> "dex"
                 }

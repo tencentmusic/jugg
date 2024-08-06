@@ -265,10 +265,10 @@ class JuggManager @TestOnly constructor(
 
         deployFileManager.addChangedFile(realChangedFiles)
 
-        val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.Gradle }
+        val isBuildFileChanged = realChangedFiles.any { it.type == CompileFile.Type.BuildFile }
         if (isBuildFileChanged || isFromRecover) {
             val allBuildFiles = deployFileManager.getUndeployedFiles()
-                .filter { it.type == CompileFile.Type.Gradle }
+                .filter { it.type == CompileFile.Type.BuildFile }
                 .map { it.file }
             dependencyChangeManager.onUpdateChangedBuildFiles(allBuildFiles)
         }

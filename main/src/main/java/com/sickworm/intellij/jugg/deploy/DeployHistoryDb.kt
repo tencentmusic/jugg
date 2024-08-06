@@ -159,7 +159,7 @@ class DeployHistoryDb(
     private fun stashBuildFiles(changedFiles: List<ChangedFile>, isUpdateWhenMissing: Boolean = false) {
         // save build files on beforeFullCompiled to avoid build file change during full compilation
         val relativeBuildFiles = changedFiles.filter {
-            it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest
+            it.type == CompileFile.Type.BuildFile || it.type == CompileFile.Type.AndroidManifest
         }.map {
             it.file
         }
@@ -240,7 +240,7 @@ class DeployHistoryDb(
         }
         val allChangedBuildFiles = fileChangesHandler
             .filter(allChangedFiles)
-            .filter { it.type == CompileFile.Type.Gradle || it.type == CompileFile.Type.AndroidManifest }
+            .filter { it.type == CompileFile.Type.BuildFile || it.type == CompileFile.Type.AndroidManifest }
         logger.debug("checkBuildFilesAfterFullBuild allChangedBuildFiles: ${allChangedBuildFiles.map { it.file }}")
 
         // ensure all build files are saved into buildFilesDir
