@@ -48,7 +48,14 @@ data class SimpleCompileContext(
         configName = "debug",
         keystore = File(System.getProperty("user.home"), ".android/debug.keystore"),
         storePassword = "android",
+        keyPassword = "android",
         keyAlias = "androiddebugkey",
+        storeType = "pkcs12",
+        enableV1Signing = true,
+        enableV2Signing = true,
+        enableV3Signing = false,
+        enableV4Signing = false,
+        isSigningReady = true,
     )
 
     init {
