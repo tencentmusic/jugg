@@ -62,18 +62,20 @@ class BaseCompileContext(
         }
     }
 
-    override val applicationModule: ModuleInfo? by lazy {
+    override var applicationModule: ModuleInfo? = findApplicationModule()
+
+    private fun findApplicationModule(): ModuleInfo? {
         val applicationModules = modules.values.filter { module ->
             val rFile = module.buildPathInfo.rFilePath
             return@filter rFile.exists()
         }
         if (applicationModules.isEmpty()) {
             logger.debug("get application module failed, no module has R.jar")
-            return@lazy null
+            return null
         }
         if (applicationModules.size == 1) {
             logger.debug("get application module returns ${applicationModules.first().name}, with only one has R.jar")
-            return@lazy applicationModules.first()
+            return applicationModules.first()
         }
 
         logger.debug("get application module package name in APK: $packageName")
@@ -89,7 +91,7 @@ class BaseCompileContext(
             val packageNameInManifest = mergedManifestXmlNode.node["package"]
             if (packageNameInManifest == packageName) {
                 logger.debug("get application module auto match success, ${it.name} has same package name $packageNameInManifest")
-                return@lazy it
+                return it
             } else {
                 logger.debug("get application module, ${it.name} has different package name $packageNameInManifest, continue.")
                 return@forEach
@@ -97,7 +99,7 @@ class BaseCompileContext(
         }
 
         logger.debug("get application module auto match failed, use first module as application module.")
-        return@lazy applicationModules.first()
+        return applicationModules.first()
     }
 
     override val signingConfig: SigningConfig? get() {
@@ -265,6 +267,7 @@ class BaseCompileContext(
         modules?.let {
             this.modules = HashMap(it)
             finalRFiles = getRFiles()
+            applicationModule = findApplicationModule()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {
