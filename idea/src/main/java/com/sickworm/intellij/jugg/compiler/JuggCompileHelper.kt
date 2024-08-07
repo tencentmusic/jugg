@@ -329,6 +329,7 @@ class JuggCompilerHelper(
             logger.debug("isConfirmIncrementalCompile: result $step1Result")
             if (step1Result == BuildChangesConfirmDialog.Result.FIND_CHANGE) {
                 logger.info("Jugg: Start reading dependencies from Gradle...\n")
+                JuggRunningTask.notifyByBalloon(project, "Start reading dependencies from Gradle...")
                 val startTime = System.currentTimeMillis()
                 val outputListener = GradleOutputParser(options, processHandler, indicator, logger)
                 val runResult = runGradleLibraryDiff(options, outputListener)
