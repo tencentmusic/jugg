@@ -443,13 +443,9 @@ class DeployHistoryDb(
             val lastBuildFile = File(buildFilesDir, file.file.pathKey)
             logger.debug("getLastBuildFile, $lastBuildFile exists: ${lastBuildFile.exists()}")
             if (!lastBuildFile.exists()) {
-                val content = PlatformApi.createGitManager(gitRootDir)
-                    .getLastCommitFileContent(lastBuildCommitId, file.file)
-                logger.debug("getLastBuildFile, getLastCommitFileContent exists: ${content != null}")
-                if (content != null) {
-                    lastBuildFile.parentFile?.mkdirs()
-                    lastBuildFile.writeText(content)
-                }
+                val isSuccess = PlatformApi.createGitManager(gitRootDir)
+                    .getLastCommitFileContent(lastBuildCommitId, file.file, lastBuildFile)
+                logger.debug("getLastBuildFile, getLastCommitFileContent exists: $isSuccess")
             }
 
             if (lastBuildFile.exists()) {

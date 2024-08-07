@@ -6,8 +6,12 @@ import com.intellij.diff.requests.ContentDiffRequest
 import com.intellij.diff.util.DiffUserDataKeysEx
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.LocalFilePath
+import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
+/**
+ * [ContentDiffRequest] is used to declare diff content.
+ */
 class BuildFileDiffRequest(
     project: Project,
     private val newFile: File,
@@ -18,22 +22,24 @@ class BuildFileDiffRequest(
     private val newContent: DiffContent?
 
     init {
-        val contentFactory = DiffContentFactory.getInstance()
-//      LocalFileSystem.getInstance().refreshAndFindFileByIoFile(oldFile) // VirtualFile content won't refresh immediately
-        oldContent = oldFile
-            ?.takeIf { it.exists() }
-            ?.let {
-                contentFactory.createFromBytes(project, it.readBytes(), LocalFilePath(it.path, false))
-            }
-        newContent = newFile
-            .takeIf { it.exists() }
-            ?.let {
-                contentFactory.createFromBytes(project, it.readBytes(), LocalFilePath(it.path, false))
-            }
-
+        oldContent = oldFile?.createDiffContent(project)
+        newContent = newFile.createDiffContent(project)
         putUserData(DiffUserDataKeysEx.EDITORS_HIDE_TITLE, true)
     }
 
+    private fun File.createDiffContent(project: Project): DiffContent? {
+        if (!this.exists()) {
+            return null
+        }
+        val contentFactory = DiffContentFactory.getInstance()
+        return if (this.extension == "jar" || this.extension == "aar") {
+            val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(this) ?: return null
+            return contentFactory.create(project, virtualFile)
+        } else {
+            // VirtualFile content won't refresh immediately, so we read it to bytes
+            contentFactory.createFromBytes(project, this.readBytes(), LocalFilePath(this.path, false))
+        }
+    }
 
     override fun getTitle(): String {
         return ""

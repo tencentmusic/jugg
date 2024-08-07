@@ -162,7 +162,8 @@ class FileChangesHandler(
         }
 
         val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
-        if (!isGradleFile) {
+        val isLibraryFile = file.name.endsWith(".jar") || file.name.endsWith(".aar")
+        if (!isGradleFile && !isLibraryFile) {
             return null
         }
 

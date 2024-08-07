@@ -210,11 +210,11 @@ class GitManager (
         }
     }
 
-    override fun getLastCommitFileContent(commitId: String, file: File): String? {
+    override fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean {
         try {
             val filePath = file.relativeToOrSelf(rootDir).path
             getGit().use { git ->
-                val lastCommitHash = git.repository.resolve(commitId) ?: return null
+                val lastCommitHash = git.repository.resolve(commitId) ?: return false
                 RevWalk(git.repository).use { revWalk ->
                     val commit: RevCommit = revWalk.parseCommit(lastCommitHash)
                     // and using commits tree find the path
@@ -229,14 +229,18 @@ class GitManager (
                         val loader: ObjectLoader = git.repository.open(objectId)
 
                         // and then one can the loader to read the file
-                        val content = String(loader.bytes, StandardCharsets.UTF_8)
-                        revWalk.dispose()
-                        return content
+                        outputFile.parentFile.mkdirs()
+                        outputFile.delete()
+                        outputFile.createNewFile()
+                        outputFile.outputStream().use { output ->
+                            loader.copyTo(output)
+                        }
+                        return true
                     }
                 }
             }
         } catch (e: Exception) {
-            return null
+            return false
         }
     }
 

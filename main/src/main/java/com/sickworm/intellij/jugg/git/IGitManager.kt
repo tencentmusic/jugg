@@ -46,9 +46,8 @@ interface IGitManager {
 
     /**
      * git show -s --format=%ci
-     * null if [rootDir] does not have any commits yet
      */
-    fun getLastCommitFileContent(commitId: String, file: File): String?
+    fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean
 }
 
 /**

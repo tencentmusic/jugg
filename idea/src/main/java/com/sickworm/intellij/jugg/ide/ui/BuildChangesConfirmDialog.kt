@@ -25,7 +25,9 @@ import kotlin.Pair
 import kotlin.String
 import kotlin.arrayOf
 
-
+/**
+ * Shows a dialog to confirm all changes of build files.
+ */
 class BuildChangesConfirmDialog(
     project: Project,
     titleArg: String,
@@ -145,7 +147,10 @@ class BuildChangesConfirmDialog(
             fallbackButtonText: String = "Fallback to Gradle",
             leftButtonText: String = "Ignore Gradle Changes",
         ): Result {
-            val changesFileString = changedBuildFiles.joinToString("\n") {
+            val sortedChangedBuildFiles = changedBuildFiles.sortedBy {
+                it.first.relativeTo(File(project.basePath!!)).path
+            }
+            val changesFileString = sortedChangedBuildFiles.joinToString("\n") {
                 val isNew = it.second == null
                 val text = it.first.relativeTo(File(project.basePath!!)).path
                 val htmlText = if (isNew) text.htmlNew else text.htmlModified
@@ -163,7 +168,7 @@ class BuildChangesConfirmDialog(
             lateinit var dialog: BuildChangesConfirmDialog
             ApplicationManager.getApplication().invokeAndWait {
                 dialog = BuildChangesConfirmDialog(
-                    project, title, content, okButtonText, fallbackButtonText, leftButtonText, changedBuildFiles)
+                    project, title, content, okButtonText, fallbackButtonText, leftButtonText, sortedChangedBuildFiles)
                 dialog.showAndGet()
             }
             return dialog.result

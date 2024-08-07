@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.git
 
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
+import com.sickworm.intellij.jugg.mock.tempCompileDir
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -128,7 +129,10 @@ open class GitManagerTest {
         }
 
         commitList.forEach { (hash, text) ->
-            val content = gitManager.getLastCommitFileContent(hash, commitFile)
+            val outputFile = File(tempCompileDir, "output.txt")
+            val isSuccess = gitManager.getLastCommitFileContent(hash, commitFile, outputFile)
+            assertTrue(isSuccess)
+            val content = outputFile.readText()
             assertEquals(text, content)
         }
 
