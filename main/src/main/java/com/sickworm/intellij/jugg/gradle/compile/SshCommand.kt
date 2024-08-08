@@ -78,7 +78,7 @@ class SyncFileCommand(
 
     companion object {
         @Suppress("ConstPropertyName")
-        const val rsyncArguments = "-av --delete ${JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS} --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='/.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/'"
+        const val rsyncArguments = "-av --delete ${JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS} --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='/.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
     }
 }
 
