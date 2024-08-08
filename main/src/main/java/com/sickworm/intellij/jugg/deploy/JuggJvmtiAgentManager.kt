@@ -31,7 +31,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
     private val juggTempDirPath = "/data/local/tmp/jugg"
     private val agentDirPathOnDevice: String get() = "$juggTempDirPath/${BuildConfig.AGENT_VERSION}"
     private val agentInAppPath = "code_cache/startup_agents"
-    private val agentSoDestPath = "$agentInAppPath/${BuildConfig.AGENT_VERSION}-jugg_jvmti_agent.so"
+    private val agentSoDestPath = "$agentInAppPath/$AGENT_SO_NAME"
 
     override fun getCurrentAgentsInApp(packageName: String): List<String> {
         val subCmd = "ls -1 $agentInAppPath" // -1 for file per line
@@ -126,6 +126,8 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
 
     companion object {
         private const val WARN_REASON = "some device e.g. HarmonyOS 4.2 may not run correctly"
+
+        const val AGENT_SO_NAME = "${BuildConfig.AGENT_VERSION}-jugg_jvmti_agent.so"
 
         private fun getAgentBundle(): File {
             return copyResource(BuildConfig.AGENT_BUNDLE_PATH)

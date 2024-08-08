@@ -33,7 +33,7 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
     private fun isNeedPushAfterDeploy(adb: IDeviceAdb, packageName: String): Boolean {
         val agents: List<String> = JuggJvmtiAgentManager(adb, logger).getCurrentAgentsInApp(packageName)
         logger.debug("isNeedPushAfterDeploy agents=$agents")
-        val isAgentPushed = agents.any { it.contains("jugg_jvmti_agent.so") }
+        val isAgentPushed = agents.any { it == JuggJvmtiAgentManager.AGENT_SO_NAME }
         if (!isAgentPushed) {
             logger.debug("isNeedPushAfterDeploy=true for agent not pushed")
             return true
