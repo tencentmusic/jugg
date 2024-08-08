@@ -22,19 +22,19 @@ public class DexPathListFixer {
     public static boolean isNeedFix(Context base) throws NoSuchFieldException, IllegalAccessException, IOException {
         File noNeedFixFlagFile = new File(base.getCodeCacheDir(), ".no_need_fix_dex_path_list");
         if (noNeedFixFlagFile.exists()) {
-            LogUtils.d(TAG, "DexPathListFixer already checked, no need fix");
+            LogUtils.i(TAG, "DexPathListFixer already checked, no need fix");
             return false;
         }
 
         File needFixFlagFile = new File(base.getCodeCacheDir(), ".need_fix_dex_path_list");
         if (needFixFlagFile.exists()) {
-            LogUtils.d(TAG, "DexPathListFixer already checked, need fix");
+            LogUtils.i(TAG, "DexPathListFixer already checked, need fix");
             return true;
         }
 
         List<File> dexFiles = getApplyChangesDexFiles(base);
         if (dexFiles.isEmpty()) {
-            LogUtils.d(TAG, "No DEX files in dir, no need fix dex path list");
+            LogUtils.i(TAG, "No DEX files in dir, no need fix dex path list");
             return false;
         }
 
@@ -43,7 +43,7 @@ public class DexPathListFixer {
         final Object pathList = pathListField.get(originalClassLoader);
         assert pathList != null;
         final Object[] dexElements = (Object[]) ReflectUtil.getField(pathList.getClass(), "dexElements", pathList);
-        LogUtils.d(TAG, "dexFiles size: " + dexFiles.size() + ", dexElements size: " + dexElements.length);
+        LogUtils.i(TAG, "dexFiles size: " + dexFiles.size() + ", dexElements size: " + dexElements.length);
 
         Set<String> dexFileNames = new HashSet<>();
         for (File dexFile : dexFiles) {
@@ -57,17 +57,17 @@ public class DexPathListFixer {
             if (dexFile == null || dexFile.getName() == null) {
                 continue;
             }
-            String fileName = new File(dexFile.toString()).getName();
+            String fileName = new File(dexFile.getName()).getName();
             if (dexFileNames.contains(fileName)) {
                 hasProperlyInjectDexFiles = true;
-                //noinspection ResultOfMethodCallIgnored
-                noNeedFixFlagFile.createNewFile();
                 break;
             }
         }
 
-        if (!hasProperlyInjectDexFiles) {
-            //noinspection ResultOfMethodCallIgnored
+        LogUtils.i(TAG, "result hasProperlyInjectDexFiles " + hasProperlyInjectDexFiles);
+        if (hasProperlyInjectDexFiles) {
+            noNeedFixFlagFile.createNewFile();
+        } else {
             needFixFlagFile.createNewFile();
         }
 
