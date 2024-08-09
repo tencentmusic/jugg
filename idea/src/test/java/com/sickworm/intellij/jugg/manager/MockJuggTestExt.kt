@@ -57,6 +57,17 @@ fun changeAndRevert(
     }
 }
 
+fun changeAndRevert(file: File, oldContent: String, newContent: String, block: () -> Unit) {
+    val text = file.readText()
+    val newText = text.replace(oldContent, newContent)
+    try {
+        file.writeText(newText)
+        block()
+    } finally {
+        file.writeText(text)
+    }
+}
+
 fun MockJugg.checkCompileResult(
     vararg fileNames: String,
     filePackageName: String = androidApkPackage,
