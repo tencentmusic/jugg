@@ -168,7 +168,7 @@ class GradleProjectInfoReader(
                             (signingConfig["isV2SigningEnabled"]?.value == true) || (signingConfig["enableV2Signing"]?.value == true),
                             signingConfig["enableV3Signing"]?.value == true,
                             signingConfig["enableV4Signing"]?.value == true,
-                            signingConfig["isSigningRea dy"]?.value == true,
+                            signingConfig["isSigningReady"]?.value == true,
                         ))
                     }
                 } else {
