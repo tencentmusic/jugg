@@ -2,6 +2,7 @@
 
 package com.sickworm.intellij.jugg.gradle
 
+import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
@@ -19,23 +20,22 @@ import kotlin.system.measureTimeMillis
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class RemoteGradleCompileClientTest {
+class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
 
     companion object {
 
-        private lateinit var juggGradleCompileOptions: JuggGradleCompileOptions
         private lateinit var project: JuggMockProject
         private var isNeedTest = false
 
         @JvmStatic
         @BeforeClass
         fun beforeClass() {
-            val homeDir = System.getProperty("user.home")
-            val clientInfoFile = File("$homeDir/Downloads/remote_compile_client_info.json")
-            if (!clientInfoFile.exists()) {
-                logger.warn("RemoteClient login failed, client info file not found: ${clientInfoFile.absolutePath}, ignore.")
+            val clientInfoFilePath = System.getenv("JUGG_REMOTE_CONFIG_FILE") ?: run {
+                logger.warn("RemoteClient login failed, JUGG_REMOTE_CONFIG_FILE not found.")
                 return
             }
+            val clientInfoFile = File(clientInfoFilePath)
+            assertTrue(clientInfoFile.exists())
 
             project = JuggMockProject(projectInfo.projectRoot)
             val pathManager = JuggPathManager(projectInfo.projectRoot)
@@ -50,19 +50,25 @@ class RemoteGradleCompileClientTest {
                 it.remoteSshPassword = jsonObject.getString("remoteSshPassword")
                 it.remoteSshIp = jsonObject.getString("remoteSshIp")
                 it.remoteSshPort = jsonObject.getInt("remoteSshPort")
-                it.remoteToLocalSyncPath = jsonObject.getString("remoteToLocalSyncPath")
-                it.localToRemoteIftConfigName = jsonObject.getString("localToRemoteIftConfigName")
                 it.httpProxyIp = jsonObject.getString("httpProxyIp")
                 it.httpProxyPort = jsonObject.getInt("httpProxyPort")
+                it.syncMode = "rsync_simple"
             }
             juggGradleCompileOptions = options.toCompileOptions(pathManager)
 
             isNeedTest = true
+
+            val initGradleFile = File(juggGradleCompileOptions.projectRootPath, juggGradleCompileOptions.initGradleFileRelativePath)
+            JuggCompilerHelper::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!.openStream().use { ins ->
+                val text = ins.reader().readText()
+                initGradleFile.parentFile.mkdirs()
+                initGradleFile.writeText(text)
+            }
         }
     }
 
     @Test
-    fun testCompile() {
+    override fun testCompile() {
         if (!isNeedTest) return
 
         val remoteClient = RemoteGradleCompileClient(project, logger = logger)
@@ -89,7 +95,7 @@ class RemoteGradleCompileClientTest {
     }
 
     @Test
-    fun testCancel() {
+    override fun testCancel() {
         if (!isNeedTest) return
 
         val remoteClient = RemoteGradleCompileClient(project)
@@ -111,5 +117,15 @@ class RemoteGradleCompileClientTest {
         remoteClient.login(juggGradleCompileOptions)
         val remoteCompileResult = remoteClient.compileAndFetchResult()
         assertFalse(remoteCompileResult.isSuccess)
+    }
+
+
+    override fun testFetchLibraryChanges() {
+        if (!isNeedTest) return
+        super.testFetchLibraryChanges()
+    }
+
+    override fun getClient(): IGradleCompileClient {
+        return RemoteGradleCompileClient(project, false, logger)
     }
 }

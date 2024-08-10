@@ -23,11 +23,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class LocalGradleCompileClientTest {
+open class LocalGradleCompileClientTest {
 
     companion object {
 
-        private lateinit var juggGradleCompileOptions: JuggGradleCompileOptions
+        lateinit var juggGradleCompileOptions: JuggGradleCompileOptions
         private lateinit var project: JuggMockProject
 
         @JvmStatic
@@ -60,7 +60,7 @@ class LocalGradleCompileClientTest {
     }
 
     @Test
-    fun testCompile() {
+    open fun testCompile() {
         val localClient = LocalGradleCompileClient(project, buildDir, logger)
         localClient.login(juggGradleCompileOptions)
         val remoteCompileResult = localClient.compileAndFetchResult()
@@ -68,7 +68,7 @@ class LocalGradleCompileClientTest {
     }
 
     @Test
-    fun testCancel() {
+    open fun testCancel() {
         val localClient = LocalGradleCompileClient(project, buildDir, logger)
         localClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
 
@@ -92,7 +92,7 @@ class LocalGradleCompileClientTest {
     }
 
     @Test
-    fun testFetchLibraryChanges() {
+    open fun testFetchLibraryChanges() {
         val client = getClient()
         client.login(juggGradleCompileOptions)
         val compileResult = client.compileAndFetchResult()
@@ -256,7 +256,7 @@ class LocalGradleCompileClientTest {
         }
     }
 
-    private fun getClient(): IGradleCompileClient {
+    open fun getClient(): IGradleCompileClient {
         return LocalGradleCompileClient(project, buildDir, logger)
     }
 }
