@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import java.io.File
 import kotlin.jvm.Throws
 
@@ -44,7 +45,7 @@ interface IGradleCompileClient : Disposable {
      */
     fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File?
 
-    fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResult?
+    fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResultSet?
 
     fun cancelAction(isByUser: Boolean)
 

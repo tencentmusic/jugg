@@ -154,7 +154,7 @@ class DependencyChangeManagerBySync(private val logger: Logger) : IDependencyCha
 
     @Synchronized
     override fun tryShowChangeConfirmDialog(
-        specificDependencyDiffResult: DependencyDiffResult?,
+        specificDependencyDiffResultSet: DependencyDiffResultSet?,
         isRunCompileLater: Boolean
     ): ConfirmResult {
         if (!hasInit) return ConfirmResult.INVALID

@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -339,8 +340,8 @@ class JuggCompilerHelper(
 
                 if (step2Result == ConfirmResult.POSITIVE) {
                     compileContextManager.updateTempLibraries(
-                        runResult?.newLibraryDependencies,
-                        runResult?.oldLibraryDependencies,
+                        runResult?.diffResultForFullBuild?.newLibraryDependencies,
+                        runResult?.diffResultForFullBuild?.oldLibraryDependencies,
                     )
                 }
             } else if (step1Result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
@@ -375,7 +376,7 @@ class JuggCompilerHelper(
         }
     }
 
-    private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: GradleOutputParser): DependencyDiffResult? {
+    private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: GradleOutputParser): DependencyDiffResultSet? {
         gradleProjectInfoLocalFetchManager.writeInitGradleFile()
         val client = gradleCompileClientManager.getClient(true, pathManager.localClasspathStoragePathManager.classpathDir)
         client.terminalOutputListener = outputListener

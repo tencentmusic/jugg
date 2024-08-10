@@ -17,7 +17,7 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun init(cacheDirectory: File, compileContext: ICompileContext)
 
-    fun tryShowChangeConfirmDialog(specificDependencyDiffResult: DependencyDiffResult? = null, isRunCompileLater: Boolean = false): ConfirmResult
+    fun tryShowChangeConfirmDialog(specificDependencyDiffResultSet: DependencyDiffResultSet? = null, isRunCompileLater: Boolean = false): ConfirmResult
 
     fun getNewLibraryFiles(): List<ChangedFile>
 

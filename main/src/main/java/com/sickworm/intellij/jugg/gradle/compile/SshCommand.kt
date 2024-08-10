@@ -159,6 +159,7 @@ open class FetchClasspathCommand(
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
     private val additionalFetchPath: List<String> = emptyList(),
+    private val isNeedDeleteArg: Boolean = true
 ) : IftSyncCommand() {
 
     private var rsyncArguments = ""
@@ -166,13 +167,13 @@ open class FetchClasspathCommand(
     override val baseCommand: String get() = """ft sync -s $remoteToLocalClasspathPath --put $remoteProjectPath -a "$rsyncArguments" """
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
-        rsyncArguments = getRsyncArguments(modules, isWindows, additionalFetchPath)
+        rsyncArguments = getRsyncArguments(modules, isWindows, additionalFetchPath, isNeedDeleteArg)
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
     }
 
     companion object {
 
-        fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean, additionalPath: List<String> = emptyList()): String {
+        fun getRsyncArguments(modules: List<ModuleBuildPathInfo>, isWindows: Boolean, additionalPath: List<String> = emptyList(), isNeedDeleteArg: Boolean = true): String {
             val includeClasspathFilter = modules
                 .flatMap { it.allBuildPathRelative }
                 .toSet()
@@ -185,7 +186,8 @@ open class FetchClasspathCommand(
                     if (extension.isNotEmpty()) "--include='$path'"
                     else "--include='$path/**'"
                 }
-            return "-av --delete --prune-empty-dirs --include='*/' ${additionalPath.joinToString(" ")} $includeClasspathFilter --exclude='*'"
+            val deleteParam = if (isNeedDeleteArg) "--delete" else ""
+            return "-av $deleteParam --prune-empty-dirs --include='*/' ${additionalPath.joinToString(" ")} $includeClasspathFilter --exclude='*'"
         }
     }
 }
@@ -248,4 +250,5 @@ class FetchChangedLibraryCommand(
     remoteToLocalClasspathPath,
     emptyList(),
     listOf(JuggPathManager.RSYNC_FETCH_DIFF_DIR_ARGUMENTS),
+    isNeedDeleteArg = false,
 )

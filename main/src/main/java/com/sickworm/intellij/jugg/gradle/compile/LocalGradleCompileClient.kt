@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.convertToAbsolutePath
 import java.io.File
 
@@ -149,7 +150,7 @@ class LocalGradleCompileClient(
         return projectRootPath
     }
 
-    override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResult? {
+    override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResultSet? {
         isCanceled = false
         val juggGradleCompileOptions = juggGradleCompileOptions ?: throw JuggInternalException.notLoginYet()
 
@@ -169,23 +170,7 @@ class LocalGradleCompileClient(
             printToStreamErrorIfCanceled("Diff library changes failed, please check the error message.")
             return null
         }
-
-        val diffFile = juggPathManager.remoteDiffResultFile
-        if (!diffFile.exists()) {
-            printToStreamErrorIfCanceled("Diff file not found, please check the error message.")
-            return null
-        }
-        val dependencyDiffResult = try {
-            val diffResult = ProjectInfoSerializer.gson.fromJson(diffFile.readText(), DependencyDiffResult::class.java)
-            // replace diffResult path to local absolute path
-            diffResult.convertToAbsolutePath(juggPathManager.remoteDiffLibraryDir)
-        } catch (e: Exception) {
-            printToStreamErrorIfCanceled("Parse diff result failed, please check the error message.")
-            return null
-        }
-        printToStreamInfo("[Jugg] found changed libraries: ${dependencyDiffResult.changedLibraries.size}")
-
-        return dependencyDiffResult
+        return parseDiffSet(juggPathManager, logger)
     }
 
     @Volatile
@@ -247,4 +232,39 @@ class LocalGradleCompileClient(
         cmdExecutor.release()
     }
 
+    companion object {
+
+        fun parseDiffSet(juggPathManager: JuggPathManager, logger: Logger): DependencyDiffResultSet? {
+            val lastDiffResult = parseDiffFile(juggPathManager.remoteDiffResultFile, juggPathManager.remoteDiffLibraryDir, logger)
+            val fullDiffResult = parseDiffFile(juggPathManager.remoteFullDiffResultFile, juggPathManager.remoteDiffLibraryDir, logger)
+            if (lastDiffResult == null) {
+                logger.warn("parse last diff file failed, please check the error message.")
+                return null
+            }
+            if (fullDiffResult == null) {
+                logger.warn("parse full diff file failed, please check the error message.")
+                return null
+            }
+
+            logger.info("[Jugg] found changed libraries: ${lastDiffResult.changedLibraries.size}")
+            logger.debug("found changed libraries since full build: ${fullDiffResult.changedLibraries.size}")
+            return DependencyDiffResultSet(lastDiffResult, fullDiffResult)
+        }
+
+        fun parseDiffFile(diffFile: File, baseDir: File, logger: Logger): DependencyDiffResult? {
+            if (!diffFile.exists()) {
+                logger.warn("Diff file not found, please check the error message.")
+                return null
+            }
+            val dependencyDiffResult = try {
+                val diffResult = ProjectInfoSerializer.gson.fromJson(diffFile.readText(), DependencyDiffResult::class.java)
+                // replace diffResult path to local absolute path
+                diffResult.convertToAbsolutePath(baseDir)
+            } catch (e: Exception) {
+                logger.warn("Parse diff result failed, please check the error message.")
+                return null
+            }
+            return dependencyDiffResult
+        }
+    }
 }

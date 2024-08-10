@@ -47,6 +47,7 @@ open class RsyncFetchClasspathCommand(
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
     private val additionalFetchPath: List<String> = emptyList(),
+    private val isNeedDeleteArg: Boolean = true,
 ) : RsyncCommand(options, keyPathList) {
 
     private var rsyncArguments = ""
@@ -54,7 +55,7 @@ open class RsyncFetchClasspathCommand(
     override val baseCommand: String get() = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $rsyncArguments $remoteProjectPath $remoteToLocalClasspathPath"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
-        rsyncArguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows, additionalFetchPath)
+        rsyncArguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows, additionalFetchPath, isNeedDeleteArg)
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
     }
 }
@@ -71,4 +72,5 @@ class RsyncFetchChangedLibraryCommand(
     remoteToLocalClasspathPath,
     emptyList(),
     listOf(JuggPathManager.RSYNC_FETCH_DIFF_DIR_ARGUMENTS),
+    isNeedDeleteArg = false,
 )

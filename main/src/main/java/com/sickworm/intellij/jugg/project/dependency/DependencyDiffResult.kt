@@ -4,6 +4,24 @@ import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 
+
+data class DependencyDiffResultSet(
+    /** use to display diff */
+    val diffResultForLastBuild: DependencyDiffResult,
+    /** use to compile diff */
+    val diffResultForFullBuild: DependencyDiffResult,
+) {
+
+    val hasChanges get() = diffResultForLastBuild.hasChanges
+
+    companion object {
+        fun createEmpty() = DependencyDiffResultSet(
+            diffResultForLastBuild = DependencyDiffResult.createEmpty(),
+            diffResultForFullBuild = DependencyDiffResult.createEmpty(),
+        )
+    }
+}
+
 data class DependencyDiffResult(
     val currentBuildDependencies: JuggProjectInfo,
     val lastBuildDependencies: JuggProjectInfo,
@@ -183,7 +201,7 @@ data class UpdatedLibraryDependency(
     val oldDependency: LibraryDependencySet?,
 ) {
 
-    val isContentUpdate: Boolean get() = dependency?.version == oldDependency?.version && (dependency?.version != null)
+    val isContentUpdate: Boolean get() = dependency?.version == oldDependency?.version && oldDependency != null
 }
 
 data class LibraryDependencySet(

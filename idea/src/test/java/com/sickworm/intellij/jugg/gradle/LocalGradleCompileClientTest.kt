@@ -14,7 +14,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import org.junit.BeforeClass
 import org.junit.Test
 import org.mockito.Mockito
@@ -105,47 +105,154 @@ class LocalGradleCompileClientTest {
         var incDeployTimes = 0
         val buildFile = projectInfo.projectRoot.resolve("app/build.gradle")
         // update to 2.8.1
-        changeAndRevert(
-            buildFile,
-            "implementation 'com.google.code.gson:gson:2.8.0'",
-            "implementation 'com.google.code.gson:gson:2.8.1'",
+        changeAndRevert(buildFile,
+            "com.google.code.gson:gson:2.8.0",
+            "com.google.code.gson:gson:2.8.1",
         ) {
             client.fetchLibraryChanges(incDeployTimes).checkChanges(
                 hasChanges = true,
                 updateLibraries = listOf(
-                    "com.google.code.gson:gson:2.8.1" to "com.google.code.gson:gson:2.8.0",
-                )
+                    "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.1",
+                ),
+                fullUpdateLibraries = listOf(
+                    "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.1",
+                ),
             )
         }
-
         // mark as incremental compile
         incDeployTimes++
 
         // update to 2.8.2
-        changeAndRevert(
-            buildFile,
-            "implementation 'com.google.code.gson:gson:2.8.0'",
-            "implementation 'com.google.code.gson:gson:2.8.2'",
+        changeAndRevert(buildFile,
+            "com.google.code.gson:gson:2.8.0",
+            "com.google.code.gson:gson:2.8.2",
         ) {
             // compare with last incremental build
             client.fetchLibraryChanges(incDeployTimes).checkChanges(
                 hasChanges = true,
                 updateLibraries = listOf(
-                    "com.google.code.gson:gson:2.8.2" to "com.google.code.gson:gson:2.8.1",
+                    "com.google.code.gson:gson:2.8.1" to "com.google.code.gson:gson:2.8.2",
+                ),
+                fullUpdateLibraries = listOf(
+                    "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.2",
                 )
             )
         }
+        // mark as incremental compile
+        incDeployTimes++
+
+        // stay to 2.8.2
+        changeAndRevert(buildFile,
+            "com.google.code.gson:gson:2.8.0",
+            "com.google.code.gson:gson:2.8.2",
+        ) {
+            // compare with last incremental build
+            client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = false)
+        }
+        // mark as incremental compile
+        incDeployTimes++
+
+
+        // start update second library fastjson
+        // keep version unchanged
+        changeAndRevert(buildFile,
+            "com.google.code.gson:gson:2.8.0",
+            "com.google.code.gson:gson:2.8.2",
+        ) {
+            changeAndRevert(buildFile,
+                "com.alibaba:fastjson:2.0.2.android",
+                "com.alibaba:fastjson:2.0.3.android",
+            ) {
+                // compare with last incremental build
+                client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
+                    updateLibraries = listOf(
+                        "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.3.android",
+                        "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android",
+                        "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.3.android",
+                    ),
+                    fullUpdateLibraries = listOf(
+                        "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.3.android",
+                        "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android",
+                        "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.3.android",
+                    ),
+                )
+            }
+        }
+        // mark as incremental compile
+        incDeployTimes++
+
+        // update together
+        changeAndRevert(buildFile,
+            "com.google.code.gson:gson:2.8.0",
+            "com.google.code.gson:gson:2.8.3",
+        ) {
+            changeAndRevert(buildFile,
+                "com.alibaba:fastjson:2.0.2.android",
+                "com.alibaba:fastjson:2.0.4.android",
+            ) {
+                // compare with last incremental build
+                client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = true,
+                    updateLibraries = listOf(
+                        "com.alibaba:fastjson:2.0.3.android" to "com.alibaba:fastjson:2.0.4.android",
+                        "com.alibaba.fastjson2:fastjson2-extension:2.0.3.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
+                        "com.alibaba.fastjson2:fastjson2:2.0.3.android" to "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                        "com.google.code.gson:gson:2.8.2" to "com.google.code.gson:gson:2.8.3",
+                    ),
+                    fullUpdateLibraries = listOf(
+                        "com.alibaba:fastjson:2.0.2.android" to "com.alibaba:fastjson:2.0.4.android",
+                        "com.alibaba.fastjson2:fastjson2-extension:2.0.2.android" to "com.alibaba.fastjson2:fastjson2-extension:2.0.4.android",
+                        "com.alibaba.fastjson2:fastjson2:2.0.2.android" to "com.alibaba.fastjson2:fastjson2:2.0.4.android",
+                        "com.google.code.gson:gson:2.8.0" to "com.google.code.gson:gson:2.8.3",
+                    ),
+                )
+            }
+        }
+        // mark as incremental compile
+        incDeployTimes++
+
+        // keep version unchanged
+        changeAndRevert(buildFile,
+            "com.google.code.gson:gson:2.8.0",
+            "com.google.code.gson:gson:2.8.3",
+        ) {
+            changeAndRevert(buildFile,
+                "com.alibaba:fastjson:2.0.2.android",
+                "com.alibaba:fastjson:2.0.4.android",
+            ) {
+                // compare with last incremental build
+                client.fetchLibraryChanges(incDeployTimes).checkChanges(hasChanges = false)
+            }
+        }
     }
 
-    private fun DependencyDiffResult?.checkChanges(
+    private fun DependencyDiffResultSet?.checkChanges(
         hasChanges: Boolean,
         updateLibraries: List<Pair<String, String?>> = emptyList(),
+        fullUpdateLibraries: List<Pair<String, String?>> = emptyList(),
     ) {
         assertTrue(this != null)
         assertEquals(hasChanges, this.hasChanges)
-        updateLibraries.forEachIndexed { index, it ->
-            assertEquals(it.first, this.updatedLibraries[index].dependency?.declaration)
-            assertEquals(it.second, this.updatedLibraries[index].oldDependency?.declaration)
+        updateLibraries.sortedBy { it.first }.forEachIndexed { index, it ->
+            val sortedUpdatedLibraries = this.diffResultForLastBuild.updatedLibraries.sortedBy { it.oldDependency?.declaration }
+            assertEquals(it.first, sortedUpdatedLibraries[index].oldDependency?.declaration)
+            assertEquals(it.second, sortedUpdatedLibraries[index].dependency?.declaration)
+        }
+        assertEquals(updateLibraries.size, this.diffResultForLastBuild.updatedLibraries.size,
+            "actual: ${diffResultForLastBuild.updatedLibraries.map { it.dependency?.declaration }}",
+        )
+
+        fullUpdateLibraries.sortedBy { it.first }.forEachIndexed { index, it ->
+            val sortedUpdatedLibraries = this.diffResultForFullBuild.updatedLibraries.sortedBy { it.oldDependency?.declaration }
+            assertEquals(it.first, sortedUpdatedLibraries[index].oldDependency?.declaration)
+            assertEquals(it.second, sortedUpdatedLibraries[index].dependency?.declaration)
+        }
+        assertEquals(fullUpdateLibraries.size, this.diffResultForFullBuild.updatedLibraries.size)
+
+        // just check full build files exist, lastBuild is just for show
+        this.diffResultForFullBuild.updatedLibraries.forEach {
+            it.dependency?.libraries?.forEach { libraryDependency ->
+                assertTrue(libraryDependency.file.exists())
+            }
         }
     }
 

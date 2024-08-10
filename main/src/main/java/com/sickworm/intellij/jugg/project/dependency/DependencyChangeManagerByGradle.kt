@@ -16,14 +16,14 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
 
     override var changeStatus = ChangeStatus.NO_CHANGE
 
-    private var diffResult: DependencyDiffResult = DependencyDiffResult.createEmpty()
+    private var diffResultSet: DependencyDiffResultSet = DependencyDiffResultSet.createEmpty()
 
     private var isBuildChanged = false
 
     private var tempModule: ModuleInfo? = null
 
     override val isNeedCompilation: Boolean get() {
-        return changeStatus == ChangeStatus.INCREMENTAL_COMPILE && diffResult.hasChanges
+        return changeStatus == ChangeStatus.INCREMENTAL_COMPILE && diffResultSet.hasChanges
     }
 
     override fun init(cacheDirectory: File, compileContext: ICompileContext) {
@@ -32,16 +32,16 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
     }
 
     override fun tryShowChangeConfirmDialog(
-        specificDependencyDiffResult: DependencyDiffResult?,
+        specificDependencyDiffResultSet: DependencyDiffResultSet?,
         isRunCompileLater: Boolean
     ): ConfirmResult {
-        logger.debug("tryShowChangeConfirmDialog hasChanges: ${specificDependencyDiffResult?.hasChanges} isRunCompileLater: $isRunCompileLater")
+        logger.debug("tryShowChangeConfirmDialog hasChanges: ${specificDependencyDiffResultSet?.hasChanges} isRunCompileLater: $isRunCompileLater")
         if (isRunCompileLater) {
             // only handles action that run immediately
             return ConfirmResult.INVALID
         }
-        diffResult = specificDependencyDiffResult ?: DependencyDiffResult.createEmpty()
-        val confirmResult = PlatformApi.showChangeConfirmDialog(specificDependencyDiffResult, false, logger)
+        diffResultSet = specificDependencyDiffResultSet ?: DependencyDiffResultSet.createEmpty()
+        val confirmResult = PlatformApi.showChangeConfirmDialog(specificDependencyDiffResultSet?.diffResultForLastBuild, false, logger)
         if (confirmResult != ConfirmResult.CANCEL) {
             onConfirmIncrementalCompile(confirmResult.isConfirmed)
         }
@@ -51,13 +51,13 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
     override fun getNewLibraryFiles(): List<ChangedFile> {
         logger.debug("getNewLibraryFiles")
         val tempModule = tempModule ?: return emptyList()
-        return DependencyDiffResultHelper(logger, tempModule, diffResult).getNewLibraryFiles()
+        return DependencyDiffResultHelper(logger, tempModule, diffResultSet.diffResultForFullBuild).getNewLibraryFiles()
     }
 
     override fun getRemovedLibraryFiles(): List<ChangedFile> {
         logger.debug("getRemovedLibraryFiles")
         val tempModule = tempModule ?: return emptyList()
-        return DependencyDiffResultHelper(logger, tempModule, diffResult).getRemovedLibraryFiles()
+        return DependencyDiffResultHelper(logger, tempModule, diffResultSet.diffResultForFullBuild).getRemovedLibraryFiles()
     }
 
     override fun onUpdateChangedBuildFiles(files: List<File>) {
@@ -84,7 +84,7 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
         logger.debug("onEndBuilding isSuccess: $isSuccess, isCancelled: $isCancelled, isBuildChanged: $isBuildChanged")
         if (isSuccess) {
             changeStatus = ChangeStatus.NO_CHANGE
-            diffResult = DependencyDiffResult.createEmpty()
+            diffResultSet = DependencyDiffResultSet.createEmpty()
             isBuildChanged = false
         } else {
             changeStatus = if (isCancelled) {

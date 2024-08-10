@@ -18,6 +18,7 @@ class GradleDependencyDiffer(
     private val outputDir = pathManager.remoteDiffDir
     private val diffLibraryDir = pathManager.remoteDiffLibraryDir
     private val diffResultFile = pathManager.remoteDiffResultFile
+    private val fullDiffResultFile = pathManager.remoteFullDiffResultFile
 
     fun outputDiffToDir() {
         outputDir.deleteRecursively()
@@ -28,9 +29,13 @@ class GradleDependencyDiffer(
         if (lastProjectInfo == null) {
             println("Jugg: lastProjectInfo not exists, can't diff, exit.")
             return
-        } else {
-            println("Jugg: Start diff libraries.")
         }
+        val fullProjectInfo = getFullProjectInfo()
+        if (fullProjectInfo == null) {
+            println("Jugg: fullProjectInfo not exists, can't diff, exit.")
+            return
+        }
+        println("Jugg: Start diff libraries.")
 
 
         // when org.gradle.configureondemand=true
@@ -43,18 +48,26 @@ class GradleDependencyDiffer(
             it.value.moduleRootDir.path
         }.toSet()
 
-        val diffResult = DependencyDiffResult.create(projectInfo, lastProjectInfo, ignoreModulesPath)
+        // diff with last project info to show difference
+        val diffResult = DependencyDiffResult.create(projectInfo, lastProjectInfo, ignoreModulesPath).copy(
+            currentBuildDependencies = JuggProjectInfo(emptyMap()), // set to empty to reduce size
+            lastBuildDependencies = JuggProjectInfo(emptyMap()), // set to empty to reduce size
+        )
+        val generator = ProjectInfoSerializerInGradle.getJsonGenerator()
+        val builder = JsonBuilder(diffResult, generator)
+        diffResultFile.writeText(builder.toString())
+
         println("Jugg: Found ${diffResult.changedLibraries.size} changed libraries.")
         diffResult.changedLibraries.forEach {
             println("Jugg: ${it.oldDependency?.declaration} -> ${it.dependency?.declaration}")
         }
 
-        val copiedDiffResult = copyAllChangedFilesToDir(diffResult, diffLibraryDir)
-
-        val generator = ProjectInfoSerializerInGradle.getJsonGenerator()
-        val builder = JsonBuilder(copiedDiffResult, generator)
-        val result = builder.toString()
-        diffResultFile.writeText(result)
+        // diff with full project info to incremental compile, because we will override the last build files (multi-dex)
+        val fullDiffResult = DependencyDiffResult.create(projectInfo, fullProjectInfo, ignoreModulesPath)
+        // copy all changed files to diff dir. diffResult is unnecessary to copy, it just for show.
+        val copiedDiffResult = copyAllChangedFilesToDir(fullDiffResult, diffResult, diffLibraryDir)
+        val fullBuilder = JsonBuilder(copiedDiffResult, generator)
+        fullDiffResultFile.writeText(fullBuilder.toString())
 
         // write new project info
         val incDeployTimes = (rootProject.properties[GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES] as? String)?.toIntOrNull()
@@ -71,24 +84,48 @@ class GradleDependencyDiffer(
         pathManager.tmpGradleProjectInfo.deleteRecursively()
     }
 
-    private fun copyAllChangedFilesToDir(diffResult: DependencyDiffResult, outputDir: File): DependencyDiffResult {
+    private fun copyAllChangedFilesToDir(
+        fullDiffResult: DependencyDiffResult,
+        lastDiffResult: DependencyDiffResult,
+        outputDir: File,
+    ): DependencyDiffResult {
         return DependencyDiffResult(
             JuggProjectInfo(emptyMap()), // set to empty to reduce size
             JuggProjectInfo(emptyMap()), // set to empty to reduce size
-            diffResult.addedLibraries.map {
-                copyAllChangedFilesToDir(it, outputDir)
-            },
-            diffResult.removedLibraries.map {
-                copyAllChangedFilesToDir(it, outputDir)
-            },
-            diffResult.updatedLibraries.map {
-                copyAllChangedFilesToDir(it, outputDir)
-            }
+            fullDiffResult.addedLibraries
+                .filter { depend ->
+                    lastDiffResult.addedLibraries.any { it.dependency?.declaration == depend.dependency?.declaration  }
+                }
+                .map {
+                    copyAllChangedFilesToDir(it, outputDir)
+                },
+            fullDiffResult.removedLibraries
+                .filter { depend ->
+                    lastDiffResult.removedLibraries.any { it.dependency?.declaration == depend.dependency?.declaration  }
+                }
+                .map {
+                    copyAllChangedFilesToDir(it, outputDir)
+                },
+            fullDiffResult.updatedLibraries
+                .filter { depend ->
+                    lastDiffResult.updatedLibraries.any { it.dependency?.declaration == depend.dependency?.declaration  }
+                }
+                .map {
+                    copyAllChangedFilesToDir(it, outputDir)
+                }
         )
     }
 
     private fun getLastProjectInfo(): JuggProjectInfo? {
         val incDeployTimes = (rootProject.properties[GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES] as? String)?.toIntOrNull()
+        return getProjectInfo(incDeployTimes)
+    }
+
+    private fun getFullProjectInfo(): JuggProjectInfo? {
+        return getProjectInfo(0)
+    }
+
+    private fun getProjectInfo(incDeployTimes: Int?): JuggProjectInfo? {
         val lastProjectInfoFile = getReadFileByOrder(incDeployTimes)
         println("Jugg: incDeployTimes: $incDeployTimes, read project infos file: $lastProjectInfoFile")
         if (lastProjectInfoFile == null || !lastProjectInfoFile.exists()) {

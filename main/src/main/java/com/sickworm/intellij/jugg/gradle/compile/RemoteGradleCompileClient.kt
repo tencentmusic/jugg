@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.project.Project
 import com.jcraft.jsch.*
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient.Companion.parseDiffSet
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -11,6 +12,7 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.convertToAbsolutePath
 import java.io.BufferedInputStream
 import java.io.File
@@ -363,7 +365,7 @@ class RemoteGradleCompileClient(
         return File(gradleCompileSettings.remoteToLocalSyncClasspathPath)
     }
 
-    override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResult? {
+    override fun fetchLibraryChanges(incDeployTimes: Int): DependencyDiffResultSet? {
         val (channel, gradleCompileSettings) = checkLoginOnStart()
 
         // 1. sync source
@@ -407,22 +409,7 @@ class RemoteGradleCompileClient(
         }
 
         val syncDirJuggPathManager = JuggPathManager(File(gradleCompileSettings.remoteToLocalSyncClasspathPath))
-        val diffFile = syncDirJuggPathManager.remoteDiffResultFile
-        if (!diffFile.exists()) {
-            printToStreamErrorIfCanceled("Diff file not found, please check the error message.")
-            return null
-        }
-        val dependencyDiffResult = try {
-            val diffResult = ProjectInfoSerializer.gson.fromJson(diffFile.readText(), DependencyDiffResult::class.java)
-            // replace diffResult path to local absolute path
-            diffResult.convertToAbsolutePath(syncDirJuggPathManager.remoteDiffLibraryDir)
-        } catch (e: Exception) {
-            printToStreamErrorIfCanceled("Parse diff result failed, please check the error message.")
-            return null
-        }
-        printToStreamInfo("[Jugg] found changed libraries: ${dependencyDiffResult.changedLibraries.size}")
-
-        return dependencyDiffResult
+        return parseDiffSet(syncDirJuggPathManager, logger)
     }
 
 
