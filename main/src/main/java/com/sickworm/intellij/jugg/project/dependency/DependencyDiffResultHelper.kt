@@ -11,7 +11,7 @@ class DependencyDiffResultHelper(
     private val logger: Logger,
     private val tempModule: ModuleInfo,
     private val diffResult: DependencyDiffResult,
-    private val diffResultWithFull: DependencyDiffResult = diffResult,
+    private val diffResultWithFull: DependencyDiffResult,
 ) {
 
     fun getNewLibraryFiles(): List<ChangedFile> {
@@ -21,7 +21,7 @@ class DependencyDiffResultHelper(
         val relativeOldManifest: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
             val newManifest = it.dependency?.libraries?.find(LibraryDependency::isAndroidManifest)
             val oldManifest = it.oldDependency?.libraries?.find(LibraryDependency::isAndroidManifest)
-            if (newManifest != null && oldManifest != null) {
+            if (newManifest != null && oldManifest != null && newManifest.file.path != oldManifest.file.path) {
                 newManifest.file.absolutePath  to oldManifest.file
             } else {
                 null
@@ -32,7 +32,7 @@ class DependencyDiffResultHelper(
         val relativeOldRes: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
             val newRes = it.dependency?.libraries?.find(LibraryDependency::isRes)
             val oldRes = it.oldDependency?.libraries?.find(LibraryDependency::isRes)
-            if (newRes != null && oldRes != null) {
+            if (newRes != null && oldRes != null && newRes.file.path != oldRes.file.path) {
                 newRes.file.absolutePath to oldRes.file
             } else {
                 null
@@ -45,12 +45,12 @@ class DependencyDiffResultHelper(
         diffResultWithFull.updatedLibraries.forEach {
             val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
             val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
-            if (newJar != null && oldJar != null) {
+            if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path) {
                 relativeOldJar[newJar.file.absolutePath] = oldJar.file
             }
         }
 
-        val revertLibraries = getRevertLibraries()
+        val revertLibraries = getRevertLibraryFiles()
         val changedFiles = diffResult.newLibraryDependencies.mapNotNull {
             if (it.isAndroidManifest) {
                 return@mapNotNull ChangedFile(
@@ -130,13 +130,13 @@ class DependencyDiffResultHelper(
         }
 
         // delete reverted library
-        removedLibraryFiles.addAll(getRevertLibraries())
+        removedLibraryFiles.addAll(getRevertLibraryFiles())
 
         logger.debug("removed library files: $removedLibraryFiles")
         return removedLibraryFiles
     }
 
-    private fun getRevertLibraries(): List<ChangedFile> {
+    private fun getRevertLibraryFiles(): List<ChangedFile> {
         val revertLibraries = mutableListOf<ChangedFile>()
         diffResult.newLibraryDependencies.forEach { newDependency ->
             val fullDiff = diffResultWithFull.newLibraryDependencies.find { newDependency.name == it.name }
@@ -152,6 +152,7 @@ class DependencyDiffResultHelper(
             }
         }
 
+        logger.debug("revert libraryFiles: $revertLibraries")
         return revertLibraries
     }
 }

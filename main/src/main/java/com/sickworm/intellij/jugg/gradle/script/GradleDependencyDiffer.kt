@@ -18,7 +18,7 @@ class GradleDependencyDiffer(
     private val outputDir = pathManager.remoteDiffDir
     private val diffLibraryDir = pathManager.remoteDiffLibraryDir
     private val diffResultFile = pathManager.remoteDiffResultFile
-    private val fullDiffResultFile = pathManager.remoteFullDiffResultFile
+    private val fullDiffResultFile = pathManager.remoteDiffResultWithFullFile
 
     fun outputDiffToDir() {
         outputDir.deleteRecursively()
@@ -53,8 +53,9 @@ class GradleDependencyDiffer(
             currentBuildDependencies = JuggProjectInfo(emptyMap()), // set to empty to reduce size
             lastBuildDependencies = JuggProjectInfo(emptyMap()), // set to empty to reduce size
         )
+        val copiedDiffResult = copyAllChangedFilesToDir(diffResult, diffLibraryDir)
         val generator = ProjectInfoSerializerInGradle.getJsonGenerator()
-        val builder = JsonBuilder(diffResult, generator)
+        val builder = JsonBuilder(copiedDiffResult, generator)
         diffResultFile.writeText(builder.toString())
 
         println("Jugg: Found ${diffResult.changedLibraries.size} changed libraries.")
@@ -64,9 +65,8 @@ class GradleDependencyDiffer(
 
         // diff with full project info to incremental compile, because we will override the last build files (multi-dex)
         val fullDiffResult = DependencyDiffResult.create(projectInfo, fullProjectInfo, ignoreModulesPath)
-        // copy all changed files to diff dir. diffResult is unnecessary to copy, it just for show.
-        val copiedDiffResult = copyAllChangedFilesToDir(fullDiffResult, diffResult, diffLibraryDir)
-        val fullBuilder = JsonBuilder(copiedDiffResult, generator)
+        val copiedFillDiffResult = copyAllChangedFilesToDir(fullDiffResult, diffLibraryDir)
+        val fullBuilder = JsonBuilder(copiedFillDiffResult, generator)
         fullDiffResultFile.writeText(fullBuilder.toString())
 
         // write new project info
@@ -86,30 +86,20 @@ class GradleDependencyDiffer(
 
     private fun copyAllChangedFilesToDir(
         fullDiffResult: DependencyDiffResult,
-        lastDiffResult: DependencyDiffResult,
         outputDir: File,
     ): DependencyDiffResult {
         return DependencyDiffResult(
             JuggProjectInfo(emptyMap()), // set to empty to reduce size
             JuggProjectInfo(emptyMap()), // set to empty to reduce size
             fullDiffResult.addedLibraries
-                .filter { depend ->
-                    lastDiffResult.addedLibraries.any { it.dependency?.declaration == depend.dependency?.declaration  }
-                }
                 .map {
                     copyAllChangedFilesToDir(it, outputDir)
                 },
             fullDiffResult.removedLibraries
-                .filter { depend ->
-                    lastDiffResult.removedLibraries.any { it.dependency?.declaration == depend.dependency?.declaration  }
-                }
                 .map {
                     copyAllChangedFilesToDir(it, outputDir)
                 },
             fullDiffResult.updatedLibraries
-                .filter { depend ->
-                    lastDiffResult.updatedLibraries.any { it.dependency?.declaration == depend.dependency?.declaration  }
-                }
                 .map {
                     copyAllChangedFilesToDir(it, outputDir)
                 }
@@ -160,12 +150,12 @@ class GradleDependencyDiffer(
 
     private fun copyAllChangedFilesToDir(updatedLibraryDependency: UpdatedLibraryDependency, outputDir: File): UpdatedLibraryDependency {
         return updatedLibraryDependency.copy(
-            dependency = copyAllChangedFilesToDir(updatedLibraryDependency.dependency, outputDir),
-            oldDependency = copyAllChangedFilesToDir(updatedLibraryDependency.oldDependency, outputDir),
+            dependency = copyAllChangedFilesToDir(updatedLibraryDependency.dependency, updatedLibraryDependency.isContentUpdate, outputDir),
+            oldDependency = copyAllChangedFilesToDir(updatedLibraryDependency.oldDependency, updatedLibraryDependency.isContentUpdate, outputDir),
         )
     }
 
-    private fun copyAllChangedFilesToDir(libraryDependencySet: LibraryDependencySet?, outputDir: File): LibraryDependencySet? {
+    private fun copyAllChangedFilesToDir(libraryDependencySet: LibraryDependencySet?, isContentUpdate: Boolean, outputDir: File): LibraryDependencySet? {
         libraryDependencySet ?: return null
         val dependencyFiles = libraryDependencySet.libraries.map {
             val relativePath = it.file.absolutePath
@@ -174,14 +164,15 @@ class GradleDependencyDiffer(
                 .replace("\\.", "\\") // remove hide presentations
             val outputFile = File(outputDir, relativePath)
             println("Jugg: copy ${it.file} to $outputFile")
-            // outputFile.exists() means there is duplicate dependency, just skip it.
-            if (!outputFile.exists() && it.file.exists()) {
+
+            val isNeedWrite = isContentUpdate || !outputFile.exists()
+            if (isNeedWrite && it.file.exists()) {
                 if (it.file.isFile) {
                     outputFile.parentFile.mkdirs()
                     it.file.copyTo(outputFile, true)
                 } else if (it.file.isDirectory) {
                     outputFile.parentFile.mkdirs()
-                    it.file.copyRecursively(outputFile)
+                    it.file.copyRecursively(outputFile, overwrite = true)
                 }
             }
             it.copy(file = outputFile.relativeTo(outputDir))

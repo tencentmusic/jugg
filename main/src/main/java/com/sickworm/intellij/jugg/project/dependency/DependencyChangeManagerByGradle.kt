@@ -41,7 +41,7 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
             return ConfirmResult.INVALID
         }
         diffResultSet = specificDependencyDiffResultSet ?: DependencyDiffResultSet.createEmpty()
-        val confirmResult = PlatformApi.showChangeConfirmDialog(specificDependencyDiffResultSet?.diffResultForLastBuild, false, logger)
+        val confirmResult = PlatformApi.showChangeConfirmDialog(specificDependencyDiffResultSet?.diffResult, false, logger)
         if (confirmResult != ConfirmResult.CANCEL) {
             onConfirmIncrementalCompile(confirmResult.isConfirmed)
         }
@@ -51,13 +51,13 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
     override fun getNewLibraryFiles(): List<ChangedFile> {
         logger.debug("getNewLibraryFiles")
         val tempModule = tempModule ?: return emptyList()
-        return DependencyDiffResultHelper(logger, tempModule, diffResultSet.diffResultForFullBuild).getNewLibraryFiles()
+        return DependencyDiffResultHelper(logger, tempModule, diffResultSet.diffResult, diffResultSet.diffResultWithFull).getNewLibraryFiles()
     }
 
     override fun getRemovedLibraryFiles(): List<ChangedFile> {
         logger.debug("getRemovedLibraryFiles")
         val tempModule = tempModule ?: return emptyList()
-        return DependencyDiffResultHelper(logger, tempModule, diffResultSet.diffResultForFullBuild).getRemovedLibraryFiles()
+        return DependencyDiffResultHelper(logger, tempModule, diffResultSet.diffResult, diffResultSet.diffResultWithFull).getRemovedLibraryFiles()
     }
 
     override fun onUpdateChangedBuildFiles(files: List<File>) {

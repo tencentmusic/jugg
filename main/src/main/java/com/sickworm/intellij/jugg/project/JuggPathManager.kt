@@ -20,7 +20,7 @@ class JuggPathManager(val projectDir: File) {
     /** result file to show, because it's diff with last build */
     val remoteDiffResultFile = File(remoteDiffDir, "diff_result.json")
     /** result file to compile, because it's diff with last full build */
-    val remoteFullDiffResultFile = File(remoteDiffDir, "full_diff_result.json")
+    val remoteDiffResultWithFullFile = File(remoteDiffDir, "full_diff_result.json")
     val tmpGradleProjectInfo = File(tmpDir, "project_infos")
 
     val configDir = File(juggRootDir, "config")

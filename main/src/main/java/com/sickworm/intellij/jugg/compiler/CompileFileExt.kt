@@ -37,6 +37,9 @@ fun CompileFile.withDependencyName(name: String): CompileFile {
 
 // relative manifest extension
 
+val ChangedFile.oldManifest: File?
+    get() = extraInfo[KEY_OLD_DEPENDENCY_MANIFEST] as? File
+
 val CompileFile.oldManifest: File?
     get() = extraInfo[KEY_OLD_DEPENDENCY_MANIFEST] as? File
 
@@ -56,6 +59,9 @@ fun CompileFile.withOldManifest(file: File?): CompileFile {
 
 // relative jar extension
 
+val ChangedFile.oldJar: File?
+    get() = extraInfo[KEY_OLD_DEPENDENCY_JAR] as? File
+
 val CompileFile.oldJar: File?
     get() = extraInfo[KEY_OLD_DEPENDENCY_JAR] as? File
 
@@ -74,6 +80,9 @@ fun CompileFile.withOldJar(file: File?): CompileFile {
 }
 
 // relative resources extension
+
+val ChangedFile.oldRes: File?
+    get() = extraInfo[KEY_OLD_DEPENDENCY_RES] as? File
 
 val CompileFile.oldRes: File?
     get() = extraInfo[KEY_OLD_DEPENDENCY_RES] as? File

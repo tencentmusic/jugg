@@ -236,7 +236,7 @@ class LocalGradleCompileClient(
 
         fun parseDiffSet(juggPathManager: JuggPathManager, logger: Logger): DependencyDiffResultSet? {
             val lastDiffResult = parseDiffFile(juggPathManager.remoteDiffResultFile, juggPathManager.remoteDiffLibraryDir, logger)
-            val fullDiffResult = parseDiffFile(juggPathManager.remoteFullDiffResultFile, juggPathManager.remoteDiffLibraryDir, logger)
+            val fullDiffResult = parseDiffFile(juggPathManager.remoteDiffResultWithFullFile, juggPathManager.remoteDiffLibraryDir, logger)
             if (lastDiffResult == null) {
                 logger.warn("parse last diff file failed, please check the error message.")
                 return null
@@ -251,7 +251,7 @@ class LocalGradleCompileClient(
             return DependencyDiffResultSet(lastDiffResult, fullDiffResult)
         }
 
-        fun parseDiffFile(diffFile: File, baseDir: File, logger: Logger): DependencyDiffResult? {
+        private fun parseDiffFile(diffFile: File, baseDir: File, logger: Logger): DependencyDiffResult? {
             if (!diffFile.exists()) {
                 logger.warn("Diff file not found, please check the error message.")
                 return null

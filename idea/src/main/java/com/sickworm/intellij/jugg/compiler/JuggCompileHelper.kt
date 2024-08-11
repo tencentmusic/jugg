@@ -340,8 +340,8 @@ class JuggCompilerHelper(
 
                 if (step2Result == ConfirmResult.POSITIVE) {
                     compileContextManager.updateTempLibraries(
-                        runResult?.diffResultForFullBuild?.newLibraryDependencies,
-                        runResult?.diffResultForFullBuild?.oldLibraryDependencies,
+                        runResult?.diffResultWithFull?.newLibraryDependencies,
+                        runResult?.diffResultWithFull?.oldLibraryDependencies,
                     )
                 }
             } else if (step1Result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {

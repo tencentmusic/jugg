@@ -7,17 +7,17 @@ import com.sickworm.intellij.jugg.project.data.LibraryDependency
 
 data class DependencyDiffResultSet(
     /** use to display diff */
-    val diffResultForLastBuild: DependencyDiffResult,
+    val diffResult: DependencyDiffResult,
     /** use to compile diff */
-    val diffResultForFullBuild: DependencyDiffResult,
+    val diffResultWithFull: DependencyDiffResult,
 ) {
 
-    val hasChanges get() = diffResultForLastBuild.hasChanges
+    val hasChanges get() = diffResult.hasChanges
 
     companion object {
         fun createEmpty() = DependencyDiffResultSet(
-            diffResultForLastBuild = DependencyDiffResult.createEmpty(),
-            diffResultForFullBuild = DependencyDiffResult.createEmpty(),
+            diffResult = DependencyDiffResult.createEmpty(),
+            diffResultWithFull = DependencyDiffResult.createEmpty(),
         )
     }
 }
