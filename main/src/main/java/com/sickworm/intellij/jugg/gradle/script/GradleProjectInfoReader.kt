@@ -429,11 +429,20 @@ class GradleProjectInfoReader(
             }
 
             if (identifier is OpaqueComponentArtifactIdentifier) {
-                // jar file in file collection, use origin jar file to match project info from IDE
+                // library file in file collection
                 val fileGet = Reflector(identifier).getPrivateField("file")
                 val file = (fileGet?.value as? File) ?: it.file
-                val libraryDependency = LibraryDependency(file.standardFileCollectionLibraryName, file)
-                result.add(libraryDependency)
+                val dependencyName = file.standardFileCollectionLibraryName
+                if (identifier.toString().endsWith(".jar")) {
+                    // jar file, use origin jar file to match project info from IDE
+                    val libraryDependency = LibraryDependency(dependencyName, file)
+                    result.add(libraryDependency)
+                } else {
+                    // aar file, use extract files in .gradle
+                    val libraryDependency = LibraryDependency(dependencyName, it.file)
+                    dependenciesCrcCache[file.absolutePath] = libraryDependency
+                    result.add(libraryDependency)
+                }
             } else {
                 val libraryName = identifier.displayName.standardLibraryName
                 val libraryDependency = LibraryDependency(libraryName, it.file)
