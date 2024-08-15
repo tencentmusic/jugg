@@ -18,6 +18,7 @@ class JuggCompiler(
         CompileFile.Type.Java,
         CompileFile.Type.Kotlin,
         CompileFile.Type.Asset,
+        CompileFile.Type.NativeLib,
         CompileFile.Type.Resource,
         CompileFile.Type.Class,
         CompileFile.Type.AndroidManifest
@@ -52,12 +53,11 @@ class JuggCompiler(
         val classesOutputDir = File(task.outputDir, "classes")
 
         // compile asset
-        val assetsOutputDir = File(overlayOutputDir, "assets")
         val assetCompileTask = CompileTask(
             files = task.files.filter {
-                it.type == CompileFile.Type.Asset
+                it.type == CompileFile.Type.Asset || it.type == CompileFile.Type.NativeLib
             },
-            outputDir = assetsOutputDir,
+            outputDir = overlayOutputDir,
             parentTask = task,
         )
         if (assetCompileTask.isNeedCompile) {

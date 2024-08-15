@@ -121,12 +121,27 @@ class DeployDataGenerator(
         }
 
         val apks = deployDataDatabase.getApkInfos()
+
+        // collect files that need to update to APK and resign, reinstall
+        val updateApkFiles = changedOverlays.filter {
+            val isAndroidManifest = it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
+            val isLib = it.type == CompileOutput.Type.Res && it.name.startsWith("lib/")
+            return@filter isAndroidManifest || isLib
+        }.toMutableList()
+        if (updateApkFiles.any { it.name == "AndroidManifest.xml" }) {
+            // add resources.arsc too
+            val resourcesArsc = overlays.find { it.name == "resources.arsc" }
+            if (resourcesArsc != null) {
+                updateApkFiles += resourcesArsc
+            }
+        }
+
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,
             effectedSourceAndClassNodes,
             overlays, parsedDex,
             isFullRes, isWarmUp,
-            isNeedUpdateAndroidManifest = changedOverlays.any { it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml" }
+            updateApkFiles = updateApkFiles,
         )
 
         val costTime = System.currentTimeMillis() - startTime

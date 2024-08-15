@@ -3,7 +3,9 @@ package com.sickworm.intellij.jugg.compiler.overlay
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import java.io.File
 
 /**
  * Compile asset file to deployable files.
@@ -14,7 +16,7 @@ class AssetOverlayCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.Resource)
+    override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.NativeLib)
 
     override fun doCompile(task: CompileTask): CompileResult {
         // just copy
@@ -29,19 +31,25 @@ class AssetOverlayCompiler(
                 return@forEach
             }
 
+            val outputSubDir = when (it.type) {
+                CompileFile.Type.Asset -> "assets"
+                CompileFile.Type.NativeLib -> "lib"
+                else -> throw JuggInternalException.unrecognizedType(it.type.toString())
+            }
+            val outputDir = File(task.outputDir, outputSubDir)
             try {
                 if (it.file.isDirectory) {
                     it.file.listFilesRecursively().forEach { subFile ->
-                        val outputFile = subFile.copyToBaseDir(it.baseDir, task.outputDir)
-                        outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
+                        val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
+                        outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, outputDir))
                     }
                 } else {
-                    val outputFile = it.file.copyToBaseDir(it.baseDir, task.outputDir)
-                    outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
+                    val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
+                    outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, outputDir))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {
-                val errorMessage = "copy file ${it.file.absolutePath} to ${task.outputDir} failed, e: $e"
+                val errorMessage = "copy file ${it.file.absolutePath} to $outputDir failed, e: $e"
                 logger.warn(errorMessage)
                 val result = CompileError(it, listOf(0L to errorMessage))
                 details.add(Result.failure(result))

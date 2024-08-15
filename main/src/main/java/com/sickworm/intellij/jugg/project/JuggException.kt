@@ -99,5 +99,8 @@ class JuggInternalException(msg: String): Exception(msg) {
         fun findModuleCompileOrderFailed() =
             JuggInternalException("Find module compile order failed, please report issues.")
 
+        fun unrecognizedType(type: String) =
+            JuggInternalException("Unrecognized type: $type")
+
     }
 }

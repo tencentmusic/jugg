@@ -189,18 +189,12 @@ class JuggDeployerHelper(
                 deployData = deployFileManager.getDeployData(isWarmUp)
                 var isNeedReinstallApk = false
                 val isRetry = retryReason != null // retry means we have already resigned the apk
-                if (deployData.isNeedUpdateAndroidManifest && !isRetry) {
-                    logger.info("Need resign APK to update AndroidManifest.xml.")
+                if (deployData.isNeedUpdateApk && !isRetry) {
+                    logger.info("Need resign APK to update files: ${deployData.updateApkFiles}.")
                     logger.info("Resigning APK...")
                     TimeLogger.start("insertFileAndResignApk")
-                    val androidManifest = deployData.overlays.find {
-                        it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
-                    }!!
-                    val resourceArsc = deployData.overlays.find {
-                        it.type == CompileOutput.Type.Res && it.name == "resources.arsc"
-                    }!!
                     val (isSuccess, failedReason) = insertFileAndResignApk(
-                        deployData.apks, compileContextManager.compileContext, listOf(androidManifest, resourceArsc))
+                        deployData.apks, compileContextManager.compileContext, deployData.updateApkFiles)
                     if (!isSuccess) {
                         return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason)
                     }

@@ -35,8 +35,8 @@ data class JuggDeployData(
     private val isWarmUp: Boolean,
     /** just install the apks only */
     val isInstall: Boolean = false,
-    /** is need update AndroidManifest.xml in APK */
-    val isNeedUpdateAndroidManifest: Boolean = false,
+    /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
+    val updateApkFiles: List<DeployItem> = emptyList(),
     /** is restart app after deployment */
     var isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty(),
 ) {
@@ -47,6 +47,9 @@ data class JuggDeployData(
 
     // for now, we always restart activity excepts warm up and restart app
     val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp && !isEmpty
+
+    /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
+    val isNeedUpdateApk: Boolean = updateApkFiles.isEmpty()
 
     val deployType: DeployType = when {
         isInstall -> DeployType.INSTALL
