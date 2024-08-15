@@ -125,6 +125,16 @@ class RemoteGradleCompileClientTest : LocalGradleCompileClientTest() {
         super.testFetchLibraryChanges()
     }
 
+    override fun testFetchLocalLibraryChanges() {
+        if (!isNeedTest) return
+        super.testFetchLocalLibraryChanges()
+    }
+
+    override fun testFetchLocalLibraryAarChanges() {
+        if (!isNeedTest) return
+        super.testFetchLocalLibraryAarChanges()
+    }
+
     override fun getClient(): IGradleCompileClient {
         return RemoteGradleCompileClient(project, false, logger)
     }

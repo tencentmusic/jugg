@@ -52,6 +52,12 @@ class DependencyDiffResultHelper(
 
         val revertLibraries = getRevertLibraryFiles()
         val changedFiles = diffResult.newLibraryDependencies.mapNotNull {
+            val isRevertLibrary = revertLibraries.any { revert -> revert.file.absolutePath == it.file.absolutePath }
+            if (isRevertLibrary) {
+                logger.debug("skip revert library: ${it.file.absolutePath}")
+                return@mapNotNull null
+            }
+
             if (it.isAndroidManifest) {
                 return@mapNotNull ChangedFile(
                     type = CompileFile.Type.AndroidManifest,
@@ -69,11 +75,6 @@ class DependencyDiffResultHelper(
                 ).withDependencyName(it.name)
                     .withOldRes(relativeOldRes[it.file.absolutePath])
             } else if (it.isJar) {
-                val isRevertLibrary = revertLibraries.any { revert -> revert.file.absolutePath == it.file.absolutePath }
-                if (isRevertLibrary) {
-                    logger.debug("skip revert library: ${it.file.absolutePath}")
-                    return@mapNotNull null
-                }
                 return@mapNotNull ChangedFile(
                     type = CompileFile.Type.Class,
                     file = it.file,

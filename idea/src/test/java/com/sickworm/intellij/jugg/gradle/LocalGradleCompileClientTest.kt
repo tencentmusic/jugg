@@ -305,6 +305,46 @@ open class LocalGradleCompileClientTest {
         incDeployTimes++
     }
 
+    @Test
+    open fun testFetchLocalLibraryAarChanges() {
+        val client = getClient()
+        client.login(juggGradleCompileOptions)
+        val compileResult = client.compileAndFetchResult()
+        assertTrue(compileResult.isSuccess)
+
+        var incDeployTimes = 0
+        // update library1
+        changeAndRevert(
+            "library1-debug.v2.aar" to "library1-debug.aar",
+            directory = "app/libs",
+        ) {
+            client.fetchLibraryChanges(incDeployTimes).checkChanges(
+                hasChanges = true,
+                updateLibraries = listOf(
+                    "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
+                ),
+                newLibraryFiles = listOf(
+                    "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
+                ),
+            )
+        }
+        // mark as incremental compile
+        incDeployTimes++
+
+        // rollback
+        client.fetchLibraryChanges(incDeployTimes).checkChanges(
+            hasChanges = true,
+            updateLibraries = listOf(
+                "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
+            ),
+            removedLibraryFiles = listOf(
+                "./app/libs/library1-debug.aar"
+            )
+        )
+        // mark as incremental compile
+        incDeployTimes++
+    }
+
     private fun DependencyDiffResultSet?.checkChanges(
         hasChanges: Boolean,
         newLibraries: List<String> = emptyList(),
@@ -361,8 +401,8 @@ open class LocalGradleCompileClientTest {
                 assertTrue(File(projectInfo.projectRoot, it.second).exists())
             }
         }
-        assertEquals(newLibraryFiles.size, actualNewLibraryFiles.size,
-            "actual: ${actualNewLibraryFiles.map { it.dependencyName }}",
+        assertEquals(newLibraryFiles.size, actualNewLibraryFiles.distinctBy { it.dependencyName }.size,
+            "actual: ${actualNewLibraryFiles.distinctBy { it.dependencyName }}",
         )
 
         actualNewLibraryFiles.forEach {
@@ -373,7 +413,7 @@ open class LocalGradleCompileClientTest {
         removedLibraryFiles.sorted().forEachIndexed { index, it ->
             assertEquals(it, actualRemovedLibraryFiles[index].dependencyName)
         }
-        assertEquals(removedLibraryFiles.size, actualRemovedLibraryFiles.size,
+        assertEquals(removedLibraryFiles.size, actualRemovedLibraryFiles.distinctBy { it.dependencyName }.size,
             "actual: ${actualRemovedLibraryFiles.map { it.dependencyName }}",
         )
     }

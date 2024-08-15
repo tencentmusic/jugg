@@ -10,6 +10,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
+import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
@@ -80,6 +81,7 @@ class JuggDeployerHelper(
 
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
             val removedDexFiles = dependencyChangeManager.getRemovedLibraryFiles()
+                .filter { it.type == CompileFile.Type.Class }
                 .map(ChangedFile::jarDexFileName)
                 .toSet()
             if (removedDexFiles.isNotEmpty()) {
@@ -230,7 +232,7 @@ class JuggDeployerHelper(
                 }
 
                 val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||
-                        dependencyChangeManager.getRemovedLibraryFiles().isNotEmpty()
+                        dependencyChangeManager.getRemovedLibraryFiles().any { it.type == CompileFile.Type.Class }
                 finalIsFallbackAllHotFix = isFallbackAllHotFix || (JuggSettings.isQuickFallbackToHotFix && isClassNeedHotFix)
                 if (finalIsFallbackAllHotFix) {
                     deployData = deployData.toFallbackToHotFixData()
