@@ -150,33 +150,47 @@ class GradleDependencyDiffer(
 
     private fun copyAllChangedFilesToDir(updatedLibraryDependency: UpdatedLibraryDependency, outputDir: File): UpdatedLibraryDependency {
         return updatedLibraryDependency.copy(
-            dependency = copyAllChangedFilesToDir(updatedLibraryDependency.dependency, updatedLibraryDependency.isContentUpdate, outputDir),
-            oldDependency = copyAllChangedFilesToDir(updatedLibraryDependency.oldDependency, updatedLibraryDependency.isContentUpdate, outputDir),
+            dependency = copyAllChangedFilesToDir(updatedLibraryDependency.dependency, outputDir),
+            // mark isContentUpdate=false to avoid override updatedLibraryDependency.dependency
+            oldDependency = copyAllChangedFilesToDir(updatedLibraryDependency.oldDependency, outputDir),
         )
     }
 
-    private fun copyAllChangedFilesToDir(libraryDependencySet: LibraryDependencySet?, isContentUpdate: Boolean, outputDir: File): LibraryDependencySet? {
+    private fun copyAllChangedFilesToDir(libraryDependencySet: LibraryDependencySet?, outputDir: File): LibraryDependencySet? {
         libraryDependencySet ?: return null
         val dependencyFiles = libraryDependencySet.libraries.map {
-            val relativePath = it.file.absolutePath
-                .substringAfter(".gradle") // path after .gradle
-                .replace("/.", "/") // remove hide presentation
-                .replace("\\.", "\\") // remove hide presentations
-            val outputFile = File(outputDir, relativePath)
-            println("Jugg: copy ${it.file} to $outputFile")
-
-            val isNeedWrite = isContentUpdate || !outputFile.exists()
-            if (isNeedWrite && it.file.exists()) {
-                if (it.file.isFile) {
-                    outputFile.parentFile.mkdirs()
-                    it.file.copyTo(outputFile, true)
-                } else if (it.file.isDirectory) {
-                    outputFile.parentFile.mkdirs()
-                    it.file.copyRecursively(outputFile, overwrite = true)
-                }
+            val copiedLibrary = copyLibraryFile(it, outputDir)
+            // if there is assets dir and lib dir, copy it too. Jugg will guess them in DependencyDiffResultHelper.
+            val assetsDir = it.file.parentFile?.resolve("assets")
+            if (assetsDir?.exists() == true) {
+                copyLibraryFile(it.copy(file = assetsDir), outputDir)
             }
-            it.copy(file = outputFile.relativeTo(outputDir))
+            val libDir = it.file.parentFile?.resolve("jni")
+            if (libDir?.exists() == true) {
+                copyLibraryFile(it.copy(file = libDir), outputDir)
+            }
+            return@map copiedLibrary
         }
         return libraryDependencySet.copy(libraries = dependencyFiles)
+    }
+
+    private fun copyLibraryFile(library: LibraryDependency, outputDir: File): LibraryDependency {
+        val relativePath = library.file.absolutePath
+            .substringAfter(".gradle") // path after .gradle
+            .replace("/.", "/") // remove hide presentation
+            .replace("\\.", "\\") // remove hide presentations
+        val outputFile = File(outputDir, relativePath)
+
+        if (!outputFile.exists() && library.file.exists()) {
+            println("Jugg: copy ${library.file} to $outputFile")
+            if (library.file.isFile) {
+                outputFile.parentFile.mkdirs()
+                library.file.copyTo(outputFile, true)
+            } else if (library.file.isDirectory) {
+                outputFile.parentFile.mkdirs()
+                library.file.copyRecursively(outputFile, overwrite = true)
+            }
+        }
+        return library.copy(file = outputFile.relativeTo(outputDir))
     }
 }

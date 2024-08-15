@@ -17,28 +17,6 @@ class DependencyDiffResultHelper(
     fun getNewLibraryFiles(): List<ChangedFile> {
         logger.debug("get new libraries: ${diffResult.newLibraryDependencies}")
 
-        // relative path to old manifest file
-        val relativeOldManifest: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
-            val newManifest = it.dependency?.libraries?.find(LibraryDependency::isAndroidManifest)
-            val oldManifest = it.oldDependency?.libraries?.find(LibraryDependency::isAndroidManifest)
-            if (newManifest != null && oldManifest != null && newManifest.file.path != oldManifest.file.path) {
-                newManifest.file.absolutePath  to oldManifest.file
-            } else {
-                null
-            }
-        }.toMap()
-
-        // relative path to old res directory
-        val relativeOldRes: Map<String, File> = diffResult.updatedLibraries.mapNotNull {
-            val newRes = it.dependency?.libraries?.find(LibraryDependency::isRes)
-            val oldRes = it.oldDependency?.libraries?.find(LibraryDependency::isRes)
-            if (newRes != null && oldRes != null && newRes.file.path != oldRes.file.path) {
-                newRes.file.absolutePath to oldRes.file
-            } else {
-                null
-            }
-        }.toMap()
-
         // relative path to old jar file
         // diff with full build dependencies, because library dex are in one file, which can not incremental update
         val relativeOldJar: MutableMap<String, File> = mutableMapOf()
@@ -47,6 +25,17 @@ class DependencyDiffResultHelper(
             val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
             if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path) {
                 relativeOldJar[newJar.file.absolutePath] = oldJar.file
+            }
+        }
+
+        // relative path to old file except jar file
+        val relativeOldFiles: MutableMap<String, File> = mutableMapOf()
+        diffResult.updatedLibraries.forEach { library ->
+            library.dependency?.libraries?.forEach { new ->
+                val old = library.oldDependency?.libraries?.find { new.type == it.type }
+                if (old != null && new.file.path != old.file.path) {
+                    relativeOldFiles[new.file.absolutePath] = old.file
+                }
             }
         }
 
@@ -65,7 +54,7 @@ class DependencyDiffResultHelper(
                     baseDir = it.file,
                     module = tempModule,
                 ).withDependencyName(it.name)
-                    .withOldManifest(relativeOldManifest[it.file.absolutePath])
+                    .withOldManifest(relativeOldFiles[it.file.absolutePath])
             } else if (it.isRes) {
                 return@mapNotNull ChangedFile(
                     type = CompileFile.Type.Resource,
@@ -73,7 +62,7 @@ class DependencyDiffResultHelper(
                     baseDir = it.file,
                     module = tempModule,
                 ).withDependencyName(it.name)
-                    .withOldRes(relativeOldRes[it.file.absolutePath])
+                    .withOldRes(relativeOldFiles[it.file.absolutePath])
             } else if (it.isJar) {
                 return@mapNotNull ChangedFile(
                     type = CompileFile.Type.Class,
@@ -88,25 +77,36 @@ class DependencyDiffResultHelper(
             return@mapNotNull null
         }.toMutableList()
 
-        // Guess assets dir. Jugg may not support aar that only contains assets. (need to be confirmed)
-        val guessAssetsDirs: List<File> = diffResult.newLibraryDependencies.mapNotNull {
-            val parentFile = it.file.parentFile ?: return@mapNotNull null
+        // Guess assets and lib dir. (info is missing from Idea. through gradle is able to get it, but I want to guess it all)
+        val guessedDirs: MutableSet<File> = mutableSetOf()
+        changedFiles.toList().forEach {
+            val parentFile = it.file.parentFile ?: return@forEach
             val assetDir = File(parentFile, "assets")
-            if (assetDir.exists() && assetDir.isDirectory && assetDir.listFiles()?.isNotEmpty() == true) {
-                return@mapNotNull assetDir
-            }
-            return@mapNotNull null
-        }
-        guessAssetsDirs.toSet().forEach {
-            changedFiles.add(
-                ChangedFile(
-                    type = CompileFile.Type.Asset,
-                    file = it,
-                    baseDir = it,
-                    module = tempModule,
+            if (!guessedDirs.contains(assetDir) && assetDir.exists() && assetDir.isDirectory && assetDir.listFiles()?.isNotEmpty() == true) {
+                guessedDirs.add(assetDir)
+                changedFiles.add(
+                    ChangedFile(
+                        type = CompileFile.Type.Asset,
+                        file = assetDir,
+                        baseDir = assetDir,
+                        module = tempModule,
+                    ).withDependencyName(it.dependencyName)
                 )
-            )
+            }
+            val libDir = File(parentFile, "jni")
+            if (!guessedDirs.contains(libDir) && libDir.exists() && libDir.isDirectory && libDir.listFiles()?.isNotEmpty() == true) {
+                guessedDirs.add(libDir)
+                changedFiles.add(
+                    ChangedFile(
+                        type = CompileFile.Type.NativeLib,
+                        file = libDir,
+                        baseDir = libDir,
+                        module = tempModule,
+                    ).withDependencyName(it.dependencyName)
+                )
+            }
         }
+
 
         logger.debug("changed files: $changedFiles")
         return changedFiles

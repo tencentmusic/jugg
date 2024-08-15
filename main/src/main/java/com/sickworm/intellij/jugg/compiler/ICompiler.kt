@@ -113,6 +113,7 @@ data class CompileFile(
         Kotlin,
         Class,
         Asset,
+        NativeLib,
         Resource,
         Flat,
         BuildFile,
@@ -120,9 +121,6 @@ data class CompileFile(
         DexToChangePackageName,
         ;
 
-        val isSourceFile: Boolean get() {
-            return this == Java || this == Kotlin || this == Asset || this == Resource
-        }
     }
 }
 
@@ -137,8 +135,8 @@ data class CompileOutput(
     enum class Type {
         Class,
         Dex,
-        Res, // includes res/**, AndroidManifest.xml, resource.arsc, and all other files except *.dex, asset/**, lib/**
-        Asset,
+        Res, // includes res/**, AndroidManifest.xml, resource.arsc
+        Asset, // includes assets/**, lib/** and all other files except Dex and Res
         Java;
     }
 }

@@ -318,7 +318,8 @@ open class LocalGradleCompileClientTest {
             "library1-debug.v2.aar" to "library1-debug.aar",
             directory = "app/libs",
         ) {
-            client.fetchLibraryChanges(incDeployTimes).checkChanges(
+            val result = client.fetchLibraryChanges(incDeployTimes)
+            result.checkChanges(
                 hasChanges = true,
                 updateLibraries = listOf(
                     "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
@@ -327,6 +328,16 @@ open class LocalGradleCompileClientTest {
                     "./app/libs/library1-debug.aar" to "./app/libs/library1-debug.aar",
                 ),
             )
+
+            val diffResultHelper = DependencyDiffResultHelper(
+                logger, context.tempModule, result!!.diffResult, result.diffResultWithFull
+            )
+            val newLibraryFiles = diffResultHelper.getNewLibraryFiles()
+            assertEquals(
+                listOf(CompileFile.Type.Asset, CompileFile.Type.NativeLib, CompileFile.Type.Class,
+                    CompileFile.Type.Resource, CompileFile.Type.AndroidManifest,
+                ).sorted(),
+                newLibraryFiles.map { it.type }.sorted())
         }
         // mark as incremental compile
         incDeployTimes++

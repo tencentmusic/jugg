@@ -155,6 +155,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.BuildFile -> "gradle"
                     CompileFile.Type.AndroidManifest -> "manifest"
                     CompileFile.Type.DexToChangePackageName -> "dex"
+                    CompileFile.Type.NativeLib -> "lib"
                 }
                 return@groupBy type
             }
