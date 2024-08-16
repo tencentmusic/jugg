@@ -92,24 +92,20 @@ class ResourceCompiler(
         }
 
         val outputs = resFiles.map {
-            val folderName = it.file.parentFile!!.name
-            val extension = if (folderName.startsWith("values")) "arsc"
-            else it.file.extension
-            val fileName = "${folderName}_${it.file.nameWithoutExtension}.$extension.flat"
+            val fileName = it.file.flatFileName
             val outputFile = File(outputDir, fileName)
             return@map CompileOutput(CompileOutput.Type.Res, outputFile, File(outputDir))
         }
 
         val details = task.files.map { compileFile ->
             fun toResult(file: File): Result<CompileFile, CompileError> {
-                val folderName = file.parentFile!!.name
-                val extension = if (folderName.startsWith("values")) "arsc"
-                    else file.extension
-                val fileName = "${folderName}_${file.nameWithoutExtension}.$extension.flat"
+                val fileName = file.flatFileName
                 val outputFile = File(outputDir, fileName)
                 return if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(compileFile)
                 } else {
+                    // file not valid, which means compile failed
+                    logger.debug("${file.path} compile to flat failed, except name: $fileName")
                     Result.failure(CompileError(compileFile, listOf(0L to "res file compile to flat failed")))
                 }
             }
@@ -124,7 +120,8 @@ class ResourceCompiler(
                 if (isSuccess) {
                     return@map Result.success(compileFile)
                 } else {
-                    return@map Result.failure(CompileError(compileFile, listOf(0L to "res dir compile to flat failed")))
+                    val failedFiles = details.filter { !it.isSuccess }.map { it.file.relativeFile.path }
+                    return@map Result.failure(CompileError(compileFile, listOf(0L to "res dir compile to flat failed, failed files: $failedFiles")))
                 }
             } else {
                 return@map Result.failure(CompileError(compileFile, listOf(0L to "compile file not found $compileFile")))
@@ -160,6 +157,15 @@ class ResourceCompiler(
                     return@associate compileFile.file to filteredResFiles
                 }
             }
+    }
+
+    private val File.flatFileName: String get() {
+        val file = this
+        val folderName = file.parentFile!!.name
+        val extension = if (folderName.startsWith("values")) ".arsc"
+            else if (file.extension.isEmpty()) ""
+            else ".${file.extension}"
+        return "${folderName}_${file.nameWithoutExtension}$extension.flat"
     }
 
     override fun dispose() {
