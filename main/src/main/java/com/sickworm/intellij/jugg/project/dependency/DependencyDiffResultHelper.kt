@@ -23,7 +23,7 @@ class DependencyDiffResultHelper(
         diffResultWithFull.updatedLibraries.forEach {
             val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
             val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
-            if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path) {
+            if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path && oldJar.file.exists()) {
                 relativeOldJar[newJar.file.absolutePath] = oldJar.file
             }
         }
@@ -33,7 +33,7 @@ class DependencyDiffResultHelper(
         diffResult.updatedLibraries.forEach { library ->
             library.dependency?.libraries?.forEach { new ->
                 val old = library.oldDependency?.libraries?.find { new.type == it.type }
-                if (old != null && new.file.path != old.file.path) {
+                if (old != null && new.file.path != old.file.path && old.file.exists()) {
                     relativeOldFiles[new.file.absolutePath] = old.file
                 }
             }
