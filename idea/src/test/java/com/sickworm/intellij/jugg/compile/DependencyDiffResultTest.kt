@@ -62,9 +62,12 @@ class DependencyDiffResultTest {
 
     @Test
     fun testRemoveDependencyMultiple() {
-        val removeLibrary = fullBuildDependencies.modules.first().value.libraryDependencies.first()
-        val removeLibrary2 = fullBuildDependencies.modules.first().value.libraryDependencies.last()
-        val currentBuildDependencies = createBuildDependencies(removedLibraries = listOf(removeLibrary, removeLibrary2))
+        val removeLibraryName = fullBuildDependencies.modules.first().value.libraryDependencies.first().name
+        val removeLibraryName2 = fullBuildDependencies.modules.first().value.libraryDependencies.last().name
+        val removeLibraries = fullBuildDependencies.modules.first().value.libraryDependencies.filter {
+            it.name == removeLibraryName || it.name == removeLibraryName2
+        }
+        val currentBuildDependencies = createBuildDependencies(removedLibraries = removeLibraries)
 
         val diffResult = DependencyDiffResult.create(currentBuildDependencies, fullBuildDependencies)
         assertEquals(0, diffResult.addedLibraries.size)
@@ -160,6 +163,34 @@ class DependencyDiffResultTest {
         assertEquals(removeManifestLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { it.isAndroidManifest }!!.crc32)
         assertEquals(addJarLibrary.crc32, diffResult.updatedLibraries.first().dependency!!.libraries.find { !it.isAndroidManifest }!!.crc32)
         assertEquals(removeJarLibrary.crc32, diffResult.updatedLibraries.first().oldDependency!!.libraries.find { !it.isAndroidManifest }!!.crc32)
+    }
+
+    @Test
+    fun testAddDependencyMultipleVersion() {
+        val newLibrary = LibraryDependency("com.sickworm.intellij.jugg:lib:1.0", File("fake_lib.jar"), 0L, 1)
+        val newLibrary2 = LibraryDependency("com.sickworm.intellij.jugg:lib:1.1", File("fake_lib2.jar"), 0L, 2)
+        val newLibrary3 = LibraryDependency("com.sickworm.intellij.jugg:lib:1.2", File("fake_lib3.jar"), 0L, 3)
+        val currentBuildDependencies = createBuildDependencies(newLibraries = listOf(newLibrary, newLibrary2, newLibrary3))
+        val newFullBuildDependencies = createBuildDependencies(newLibraries = listOf(newLibrary, newLibrary2))
+
+        val diffResult = DependencyDiffResult.create(currentBuildDependencies, newFullBuildDependencies)
+        assertEquals(0, diffResult.addedLibraries.size)
+        assertEquals(0, diffResult.removedLibraries.size)
+        assertEquals(1, diffResult.updatedLibraries.size)
+    }
+
+    @Test
+    fun testAddDependencyMultipleVersion2() {
+        val newLibrary = LibraryDependency("com.sickworm.intellij.jugg:lib:1.0", File("fake_lib.jar"), 0L, 1)
+        val newLibrary2 = LibraryDependency("com.sickworm.intellij.jugg:lib:1.1", File("fake_lib2.jar"), 0L, 2)
+        val newLibrary3 = LibraryDependency("com.sickworm.intellij.jugg:lib:1.2", File("fake_lib3.jar"), 0L, 3)
+        val currentBuildDependencies = createBuildDependencies(newLibraries = listOf(newLibrary, newLibrary3))
+        val newFullBuildDependencies = createBuildDependencies(newLibraries = listOf(newLibrary, newLibrary2))
+
+        val diffResult = DependencyDiffResult.create(currentBuildDependencies, newFullBuildDependencies)
+        assertEquals(0, diffResult.addedLibraries.size)
+        assertEquals(0, diffResult.removedLibraries.size)
+        assertEquals(1, diffResult.updatedLibraries.size)
     }
 
     private fun String.updateVersion(newVersion: String): String {

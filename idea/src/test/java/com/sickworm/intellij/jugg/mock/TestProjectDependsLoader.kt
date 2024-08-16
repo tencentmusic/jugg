@@ -81,7 +81,7 @@ object TestProjectDependsLoader {
             dependDir.listFilesRecursively().filter { file ->
                 file.extension == "jar" && !file.name.endsWith("-javadoc.jar") && !file.name.endsWith("-sources.jar")
             }.map { file ->
-                LibraryDependency("Gradle: " + it.replace("/", ":"), file)
+                LibraryDependency(it.replace("/", ":"), file)
             }
         }
 
@@ -99,7 +99,7 @@ object TestProjectDependsLoader {
             val depends = allTransformedDepends[it] ?: throw IllegalArgumentException("depends dir not exists: $it")
             val version = it.substringAfterLast('-')
             val artifact = it.substringBeforeLast('-')
-            val name = "Gradle: mock_group:$artifact:$version"
+            val name = "mock_group:$artifact:$version"
             depends.forEach { depend ->
                 if (depend.isDirectory) {
                     depend.listFilesRecursively().map { file ->
@@ -111,8 +111,8 @@ object TestProjectDependsLoader {
             }
         }
 
-        cache = result
-        return result
+        cache = result.distinctBy { it.toString() }
+        return cache!!
     }
 
 

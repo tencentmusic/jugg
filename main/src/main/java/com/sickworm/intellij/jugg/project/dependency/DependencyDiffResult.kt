@@ -47,16 +47,19 @@ data class DependencyDiffResult(
 
     private fun getChangedDesc(): List<String> {
         val result = mutableListOf<String>()
+        result.add("addedLibraries:")
         if (addedLibraries.isNotEmpty()) {
             addedLibraries.forEach {
                 result.add(it.dependency!!.declaration)
             }
         }
+        result.add("removedLibraries:")
         if (removedLibraries.isNotEmpty()) {
             removedLibraries.forEach {
                 result.add(it.oldDependency!!.declaration)
             }
         }
+        result.add("updatedLibraries:")
         if (updatedLibraries.isNotEmpty()) {
             updatedLibraries.forEach {
                 val updateTag = if (it.isContentUpdate) {
@@ -124,20 +127,18 @@ data class DependencyDiffResult(
                     val addedLibrary = iterator.next()
                     val groupAndArtifact = addedLibrary.dependency!!.groupAndArtifact
                     if (groupAndArtifact != null) {
-                        val removedDependencies = removedLibraries.filter { removedLibrary ->
-                            removedLibrary.oldDependency!!.groupAndArtifact == groupAndArtifact
+                        val removedDependencies = lastBuildDependenciesSet.values.filter { lastDependency ->
+                            lastDependency.groupAndArtifact == groupAndArtifact
                         }
                         if (removedDependencies.isNotEmpty()) {
-                            removedDependencies.forEach { removedDependency ->
-                                versionChangedLibraries.add(
-                                    UpdatedLibraryDependency(
-                                    addedLibrary.dependency,
-                                    removedDependency.oldDependency!!
-                                )
-                                )
-                            }
+                            val finalDependencies = removedDependencies.maxByOrNull { it.version ?: "" }
+                            versionChangedLibraries.add(UpdatedLibraryDependency(
+                                addedLibrary.dependency, finalDependencies
+                            ))
                             iterator.remove()
-                            removedLibraries.removeAll(removedDependencies)
+                            removedLibraries.removeIf {
+                                removedDependencies.contains(it.oldDependency)
+                            }
                         }
                     }
                 }
