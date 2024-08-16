@@ -4,6 +4,7 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.contents.DiffContent
 import com.intellij.diff.requests.ContentDiffRequest
 import com.intellij.diff.util.DiffUserDataKeysEx
+import com.intellij.ide.highlighter.ArchiveFileType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.LocalFilePath
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -18,26 +19,37 @@ class BuildFileDiffRequest(
     private val oldFile: File?,
 ) : ContentDiffRequest() {
 
-    private val oldContent: DiffContent?
     private val newContent: DiffContent?
+    private val oldContent: DiffContent?
 
     init {
-        oldContent = oldFile?.createDiffContent(project)
-        newContent = newFile.createDiffContent(project)
+        val contents = createDiffContent(project, newFile, oldFile)
+        newContent = contents.first
+        oldContent = contents.second
         putUserData(DiffUserDataKeysEx.EDITORS_HIDE_TITLE, true)
     }
 
-    private fun File.createDiffContent(project: Project): DiffContent? {
-        if (!this.exists()) {
-            return null
-        }
+    private fun createDiffContent(project: Project, newFile: File, oldFile: File?): Pair<DiffContent?, DiffContent?> {
         val contentFactory = DiffContentFactory.getInstance()
-        return if (this.extension == "jar" || this.extension == "aar") {
-            val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(this) ?: return null
-            return contentFactory.create(project, virtualFile)
+        if (newFile.extension == "jar" || newFile.extension == "aar") {
+            val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(newFile) ?: return null to null
+            val newContent = contentFactory.create(project, virtualFile)
+            val oldContent = if (oldFile == null || !oldFile.exists()) {
+                contentFactory.createFromBytes(project, byteArrayOf(), newContent.contentType ?: ArchiveFileType.INSTANCE, newFile.path)
+            } else {
+                val oldVirtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(oldFile) ?: return null to null
+                contentFactory.create(project, oldVirtualFile)
+            }
+            return newContent to oldContent
         } else {
             // VirtualFile content won't refresh immediately, so we read it to bytes
-            contentFactory.createFromBytes(project, this.readBytes(), LocalFilePath(this.path, false))
+            val newContent = contentFactory.createFromBytes(project, newFile.readBytes(), LocalFilePath(newFile.path, false))
+            val oldContent = if (oldFile == null || !oldFile.exists()) {
+                contentFactory.create("")
+            } else {
+                contentFactory.createFromBytes(project, oldFile.readBytes(), LocalFilePath(oldFile.path, false))
+            }
+            return newContent to oldContent
         }
     }
 
@@ -47,16 +59,18 @@ class BuildFileDiffRequest(
 
     override fun getContents(): MutableList<DiffContent> {
         val contentFactory = DiffContentFactory.getInstance()
-        if (newContent == null) {
+        if (newContent == null || oldContent == null) {
             return mutableListOf(
                 contentFactory.create(""),
                 contentFactory.create("Failed to load content from ${newFile.absolutePath}"),
             )
         }
-        return mutableListOf(oldContent ?: contentFactory.create(""), newContent)
+        // left, right
+        return mutableListOf(oldContent, newContent)
     }
 
     override fun getContentTitles(): MutableList<String> {
+        // left, right
         return mutableListOf("old", "new")
     }
 
