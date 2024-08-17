@@ -64,7 +64,7 @@ class BuildChangesConfirmDialog(
 
     private var result: Result = Result.CANCEL
 
-    private var confirmCountDown = 3
+    private var confirmCountDown = 2
 
     init {
         title = titleArg
