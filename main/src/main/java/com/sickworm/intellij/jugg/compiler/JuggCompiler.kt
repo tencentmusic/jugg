@@ -62,12 +62,7 @@ class JuggCompiler(
         )
         if (assetCompileTask.isNeedCompile) {
             // overlay assets
-            compileResult += assetOverlayCompiler.compile(assetCompileTask).let { result ->
-                // correct base dir as assets/xxx/xxx
-                result.copy(outputs = result.outputs.map { output ->
-                    output.copy(baseDir = output.baseDir.parentFile)
-                })
-            }
+            compileResult += assetOverlayCompiler.compile(assetCompileTask)
         }
 
         // compile resource

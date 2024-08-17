@@ -125,7 +125,7 @@ class DeployDataGenerator(
         // collect files that need to update to APK and resign, reinstall
         val updateApkFiles = changedOverlays.filter {
             val isAndroidManifest = it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
-            val isLib = it.type == CompileOutput.Type.Res && it.name.startsWith("lib/")
+            val isLib = it.type == CompileOutput.Type.Asset && it.name.startsWith("lib/")
             return@filter isAndroidManifest || isLib
         }.toMutableList()
         if (updateApkFiles.any { it.name == "AndroidManifest.xml" }) {

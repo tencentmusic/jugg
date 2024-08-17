@@ -39,13 +39,14 @@ class AssetOverlayCompiler(
             val outputDir = File(task.outputDir, outputSubDir)
             try {
                 if (it.file.isDirectory) {
-                    it.file.listFilesRecursively().forEach { subFile ->
+                    val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)
+                    dirToFilesMap.values.firstOrNull()?.forEach { subFile ->
                         val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
-                        outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, outputDir))
+                        outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
                     }
                 } else {
                     val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
-                    outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, outputDir))
+                    outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {

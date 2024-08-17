@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.ide.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
@@ -22,6 +23,7 @@ import org.mockito.Mockito
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 open class LocalGradleCompileClientTest {
@@ -390,26 +392,47 @@ open class LocalGradleCompileClientTest {
         )
 
         val actualNewLibraryFiles = diffResultHelper.getNewLibraryFiles().sortedBy { it.dependencyName }
-        newLibraryFiles.sortedBy { it.second }.forEachIndexed { index, it ->
-            val isMavenDepend = it.second.contains(":")
+        newLibraryFiles.sortedBy { it.second }.forEachIndexed { index, (oldDepend, newDepend) ->
+            val isMavenDepend = newDepend.contains(":")
             if (isMavenDepend) {
-                val newVersion = it.second.substringAfterLast(':')
-                assertEquals(it.second, actualNewLibraryFiles[index].dependencyName)
-                assertTrue(actualNewLibraryFiles[index].file.absolutePath.contains(newVersion))
+                val newVersion = newDepend.substringAfterLast(':')
 
-                val oldVersion = it.first?.substringAfterLast(':')
-                if (oldVersion != null) {
-                    when (actualNewLibraryFiles[index].type) {
-                        CompileFile.Type.Class -> assertTrue(actualNewLibraryFiles[index].oldJar!!.absolutePath.contains(oldVersion))
-                        CompileFile.Type.AndroidManifest -> assertTrue(actualNewLibraryFiles[index].oldManifest!!.absolutePath.contains(oldVersion))
-                        CompileFile.Type.Resource -> assertTrue(actualNewLibraryFiles[index].oldRes!!.absolutePath.contains(oldVersion))
-                        else -> throw IllegalArgumentException("unknown type: ${actualNewLibraryFiles[index].type}")
+                actualNewLibraryFiles.filter { it.dependencyName == newDepend }.forEach { changedFile: ChangedFile  ->
+                    assertEquals(newDepend, changedFile.dependencyName)
+                    assertTrue(changedFile.file.absolutePath.contains(newVersion))
+
+                    val oldVersion = oldDepend?.substringAfterLast(':')
+                    if (oldVersion != null) {
+                        when (changedFile.type) {
+                            CompileFile.Type.Class -> assertTrue(changedFile.oldJar!!.absolutePath.contains(oldVersion))
+                            CompileFile.Type.AndroidManifest -> assertTrue(changedFile.oldManifest!!.absolutePath.contains(oldVersion))
+                            CompileFile.Type.Resource -> assertTrue(changedFile.oldRes!!.absolutePath.contains(oldVersion))
+                            CompileFile.Type.Asset -> assertTrue(changedFile.oldRes!!.absolutePath.contains(oldVersion))
+                            CompileFile.Type.NativeLib -> assertTrue(changedFile.oldRes!!.absolutePath.contains(oldVersion))
+                            else -> throw IllegalArgumentException("unknown type: ${changedFile.type}")
+                        }
                     }
                 }
             } else {
                 // it's a local library file
-                assertTrue(File(projectInfo.projectRoot, it.first!!).exists())
-                assertTrue(File(projectInfo.projectRoot, it.second).exists())
+                assertTrue(File(projectInfo.projectRoot, oldDepend!!).exists())
+                assertTrue(File(projectInfo.projectRoot, newDepend).exists())
+
+                actualNewLibraryFiles.filter { it.dependencyName == newDepend }.forEach { changedFile: ChangedFile ->
+                    assertEquals(newDepend, changedFile.dependencyName)
+                    if (changedFile.dependencyName.endsWith(".jar")) {
+                        // local jar file has no relative old jar
+                        return@forEach
+                    }
+                    when (changedFile.type) {
+                        CompileFile.Type.Class -> assertNotNull(changedFile.oldJar)
+                        CompileFile.Type.AndroidManifest -> assertNotNull(changedFile.oldManifest)
+                        CompileFile.Type.Resource -> assertNotNull(changedFile.oldRes)
+                        CompileFile.Type.Asset -> assertNotNull(changedFile.oldRes)
+                        CompileFile.Type.NativeLib -> assertNotNull(changedFile.oldRes)
+                        else -> throw IllegalArgumentException("unknown type: ${changedFile.type}")
+                    }
+                }
             }
         }
         assertEquals(newLibraryFiles.size, actualNewLibraryFiles.distinctBy { it.dependencyName }.size,

@@ -497,7 +497,7 @@ class JuggDeployerHelper(
             return true to ""
         } catch (e: Exception) {
             logger.debug("unexpected error when insert file and resign apk", e)
-            logger.warn("Insert file and resign apk failed, reason: ${e.message}")
+            logger.warn("Insert file and resign apk failed, reason: $e")
             modifier.clearOnError()
             return false to "rewrite APK failed"
         }

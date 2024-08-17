@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.util.io.exists
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -92,7 +93,12 @@ class ApkFileModifier(
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->
                 val pathInZipFile: Path = zipFileSystem.getPath(path)
-                Files.delete(pathInZipFile)
+                if (pathInZipFile.exists()) {
+                    Files.delete(pathInZipFile)
+                }
+                if (pathInZipFile.parent != null && !pathInZipFile.parent.exists()) {
+                    Files.createDirectories(pathInZipFile.parent)
+                }
                 Files.copy(content.inputStream(), pathInZipFile)
             }
         }

@@ -49,7 +49,7 @@ data class JuggDeployData(
     val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp && !isEmpty
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
-    val isNeedUpdateApk: Boolean = updateApkFiles.isEmpty()
+    val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
 
     val deployType: DeployType = when {
         isInstall -> DeployType.INSTALL
@@ -164,6 +164,10 @@ open class DeployItem(
         val apkEntry = ApkEntry(name, checksum, apk)
         val byteString = ByteString.copyFrom(content)
         return apkEntry to byteString
+    }
+
+    override fun toString(): String {
+        return "$type:$name"
     }
 }
 

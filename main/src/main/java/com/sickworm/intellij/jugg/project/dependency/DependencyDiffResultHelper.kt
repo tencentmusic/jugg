@@ -23,8 +23,12 @@ class DependencyDiffResultHelper(
         diffResultWithFull.updatedLibraries.forEach {
             val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
             val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
-            if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path && oldJar.file.exists()) {
-                relativeOldJar[newJar.file.absolutePath] = oldJar.file
+            if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path) {
+                if (!oldJar.file.exists()) {
+                    logger.debug("old jar file not found, it may be deleted by gradle: ${oldJar.name} -> ${oldJar.file}")
+                } else {
+                    relativeOldJar[newJar.file.absolutePath] = oldJar.file
+                }
             }
         }
 
@@ -34,7 +38,28 @@ class DependencyDiffResultHelper(
             library.dependency?.libraries?.forEach { new ->
                 val old = library.oldDependency?.libraries?.find { new.type == it.type }
                 if (old != null && new.file.path != old.file.path && old.file.exists()) {
-                    relativeOldFiles[new.file.absolutePath] = old.file
+                    if (!old.file.exists()) {
+                        logger.debug("old file not found, it may be deleted by gradle: ${old.name} -> ${old.file}")
+                    } else {
+                        relativeOldFiles[new.file.absolutePath] = old.file
+                    }
+                }
+
+                // Guess assets and lib dir. (info is missing from Idea. through gradle is able to get it, but I want to guess it all)
+                val parentFile = new.file.parentFile
+                val oldParentFile = old?.file?.parentFile
+                if (parentFile != null && oldParentFile != null && parentFile.path != oldParentFile.path) {
+                    val assetDir = File(parentFile, "assets")
+                    val oldAssetDir = File(oldParentFile, "assets")
+                    if (assetDir.exists() && oldAssetDir.exists()) {
+                        relativeOldFiles[assetDir.absolutePath] = oldAssetDir
+                    }
+
+                    val libDir = File(parentFile, "jni")
+                    val oldLibDir = File(oldParentFile, "jni")
+                    if (libDir.exists() && oldLibDir.exists()) {
+                        relativeOldFiles[libDir.absolutePath] = oldLibDir
+                    }
                 }
             }
         }
@@ -91,6 +116,7 @@ class DependencyDiffResultHelper(
                         baseDir = assetDir,
                         module = tempModule,
                     ).withDependencyName(it.dependencyName)
+                        .withOldRes(relativeOldFiles[assetDir.absolutePath])
                 )
             }
             val libDir = File(parentFile, "jni")
@@ -103,6 +129,7 @@ class DependencyDiffResultHelper(
                         baseDir = libDir,
                         module = tempModule,
                     ).withDependencyName(it.dependencyName)
+                        .withOldRes(relativeOldFiles[libDir.absolutePath])
                 )
             }
         }
