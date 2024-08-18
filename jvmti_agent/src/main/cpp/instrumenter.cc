@@ -70,7 +70,7 @@ std::string GetInstrumentJarPath(const std::string& package_name) {
 
 bool CheckJvmti(jvmtiError error, const std::string& error_message) {
     if (error != JVMTI_ERROR_NONE) {
-        ALOGE("%s", (const char*) &error_message);
+        ALOGE("JVMTI error: %s", error_message.c_str());
         return false;
     }
 
