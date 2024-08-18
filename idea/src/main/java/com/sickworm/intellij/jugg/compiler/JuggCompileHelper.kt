@@ -126,7 +126,9 @@ class JuggCompilerHelper(
         }
 
         logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
-        JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
+        if (!isForceInstall) {
+            JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
+        }
 
         val result = gradleCompile(options, processHandler, indicator)
         if (result.isSuccess) {
