@@ -94,9 +94,6 @@ class BuildDiffRequestPanel(project: Project) : DiffRequestPanel {
             if (request != null) {
                 myRequests.add(request)
             }
-            if (myRequests.size == 1) {
-                this.applyRequest(myRequests[0], true, null)
-            }
         }
 
         override fun isNavigationEnabled(): Boolean {
