@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.gradle.compile.SyncFileCommand.Companion.getRsyncArguments
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -24,9 +25,11 @@ class RsyncSyncFileCommand(
     keyPathList: List<String>,
     localProjectIftPath: String,
     remoteProjectPath: String,
+    remoteProjectSyncRelativePath: String,
 ) : RsyncCommand(options, keyPathList) {
 
-    override val baseCommand: String = """rsync $sshArguments ${SyncFileCommand.rsyncArguments} $localProjectIftPath $remoteProjectPath"""
+    private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath)
+    override val baseCommand: String = """rsync $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
 }
 
 class RsyncFetchOutputCommand(

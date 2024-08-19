@@ -72,13 +72,25 @@ class MkDirCommand(
 class SyncFileCommand(
     localProjectIftPath: String,
     remoteProjectPath: String,
+    remoteProjectSyncRelativePath: String,
 ) : IftSyncCommand() {
 
+    private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath)
     override val baseCommand: String = """ft sync -s $localProjectIftPath --get $remoteProjectPath -a "$rsyncArguments" """
 
     companion object {
-        @Suppress("ConstPropertyName")
-        const val rsyncArguments = "-av --delete ${JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS} --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='/.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
+
+        fun getRsyncArguments(projectRelativePath: String): String {
+            var buildDirPath = "/$projectRelativePath/build"
+            if (buildDirPath.startsWith("//")) {
+                buildDirPath = buildDirPath.substring(1)
+            }
+
+            val configDirArguments = JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS
+                .replace("--include='/build", "--include='$buildDirPath")
+                .replace("--exclude='/build", "--exclude='$buildDirPath")
+            return "-av --delete $configDirArguments --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
+        }
     }
 }
 

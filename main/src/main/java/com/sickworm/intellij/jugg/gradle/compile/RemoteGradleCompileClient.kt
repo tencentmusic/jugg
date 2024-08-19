@@ -319,11 +319,13 @@ class RemoteGradleCompileClient(
                 keyPathList,
                 gradleCompileSettings.localSyncRsyncPath,
                 gradleCompileSettings.remoteSyncRootRsyncPath,
+                gradleCompileSettings.remoteProjectSyncRelativePath,
             )
         } else {
             SyncFileCommand(
                 gradleCompileSettings.localSyncIftPath,
                 gradleCompileSettings.remoteSyncRootPath,
+                gradleCompileSettings.remoteProjectSyncRelativePath,
             )
         }
         val syncFileResult = invoke(channel, syncFileCommand)

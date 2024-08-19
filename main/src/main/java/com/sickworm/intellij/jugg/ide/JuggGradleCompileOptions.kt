@@ -142,6 +142,13 @@ data class JuggGradleCompileOptions(
         "$remoteSshUser@$remoteSshIp:$remoteSyncRootPath"
     }
 
+    /** Use to locates the path of build/jugg */
+    val remoteProjectSyncRelativePath get() = if (syncMode.isRsyncSimple) {
+        ""
+    } else {
+        remoteProjectPath.substringAfter(remoteSyncRootPath)
+    }
+
     /** remote project root path, used for compilation */
     val remoteProjectPath get() = "$finalRemoteSyncPath/$projectSyncRelativePath"
     val remoteProjectRsyncPath get() = "$remoteSshUser@$remoteSshIp:$remoteProjectPath/" // rsync_simple use the same path
