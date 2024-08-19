@@ -2,9 +2,11 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -19,6 +21,7 @@ import java.util.*
  * Only run when [markIsNeedUpdate] to true.
  */
 class GradleProjectInfoLocalFetchManager(
+    private val project: Project,
     private val pathManager: JuggPathManager,
     private val compileContextManager: CompileContextManager,
     private val taskRunnerManager: TaskRunnerManager,
@@ -108,7 +111,7 @@ class GradleProjectInfoLocalFetchManager(
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
             dependencyChangeManager.onStartSyncing(isFromIde = false)
-            val result = cmdExecutor.invoke(localFetchCommand)
+            val result = cmdExecutor.invoke(localFetchCommand, LocalGradleCompileClient.buildCompileEnv(project, logger))
             TimeLogger.end("localFetch", logger)
             logger.debug("runUpdateIfNeeded end, result: $result")
 

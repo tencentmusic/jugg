@@ -26,18 +26,11 @@ class LocalGradleCompileClient(
 
     override var terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
 
-    private var gradleJdkPath: String? = null
-    private var androidHomePath: String? = null
-
     private val cmdExecutor = CmdExecutor(logger, terminalOutputListener)
 
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         // no need to login
         this.juggGradleCompileOptions = juggGradleCompileOptions
-
-        gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger)
-
-        androidHomePath = PlatformApi.getAndroidHomePath(logger)
     }
 
     override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
@@ -186,21 +179,7 @@ class LocalGradleCompileClient(
 
     private fun invoke(command: ISshCommand): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
-
-        val envArray: MutableList<String> = System.getenv().entries
-            .filter {
-                it.key != "JAVA_HOME" || it.key != "ANDROID_HOME"
-            }
-            .map {
-                "${it.key}=${it.value}"
-            }
-            .toMutableList()
-        if (gradleJdkPath != null) {
-            envArray.add("JAVA_HOME=$gradleJdkPath")
-        }
-        if (androidHomePath != null) {
-            envArray.add("ANDROID_HOME=$androidHomePath")
-        }
+        val envArray = buildCompileEnv(project, logger)
         logger.debug("input env: $envArray")
 
         cmdExecutor.terminalOutputListener = terminalOutputListener
@@ -265,6 +244,26 @@ class LocalGradleCompileClient(
                 return null
             }
             return dependencyDiffResult
+        }
+
+        fun buildCompileEnv(project: Project, logger: Logger): List<String> {
+            val gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger)
+            val androidHomePath = PlatformApi.getAndroidHomePath(logger)
+            val envArray: MutableList<String> = System.getenv().entries
+                .filter {
+                    it.key != "JAVA_HOME" || it.key != "ANDROID_HOME"
+                }
+                .map {
+                    "${it.key}=${it.value}"
+                }
+                .toMutableList()
+            if (gradleJdkPath != null) {
+                envArray.add("JAVA_HOME=$gradleJdkPath")
+            }
+            if (androidHomePath != null) {
+                envArray.add("ANDROID_HOME=$androidHomePath")
+            }
+            return envArray
         }
     }
 }
