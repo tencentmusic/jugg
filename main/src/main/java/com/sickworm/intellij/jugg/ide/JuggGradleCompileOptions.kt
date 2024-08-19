@@ -10,24 +10,82 @@ import java.io.File
  * Wrapper of [JuggRunConfigurationOptions], which is used for compilation.
  */
 data class JuggGradleCompileOptions(
+    /**
+     * Local project root path.
+     */
     val projectRootPath: String,
+    /**
+     * Location where stores apk and build files.
+     * e.g. build/jugg/classpath
+     */
     val localClasspathStoragePath: LocalClasspathStoragePathManager,
+    /**
+     * Gradle initial script, use to read project info.
+     * e.g. build/jugg/config/readProjectInfo.gradle.kts
+     */
     val initGradleFileRelativePath: String,
+    /**
+     * e.g. ./gradlew :app:assembleDebug
+     */
     val compileCommand: String,
+    /**
+     * e.g. app/build/outputs/apk/debug/\*.apk
+     */
     val outputApkName: String,
+    /**
+     * whether to use remote server to compile.
+     */
     val isRemoteCompile: Boolean,
+    /**
+     * Whether to sync all files in [localToRemoteSyncPath].
+     */
     val isSyncAllProjects: Boolean,
     val remoteSshUser: String,
     val remoteSshPassword: String,
     val remoteSshIp: String,
     val remoteSshPort: Int,
+    /**
+     * IFT config name for syncing files from local to remote.
+     * No meaning if syncMode != IFT.
+     */
     val localToRemoteIftConfigName: String,
+    /**
+     * Root directory to specify syncing files from local to remote.
+     * The path must be the parent of [projectRootPath].
+     * when syncMode:
+     *  IFT -> The path match config of [localToRemoteIftConfigName]. Works with [isSyncAllProjects].
+     *  RSYNC -> Works with [isSyncAllProjects].
+     *  RSYNC_SIMPLE -> No meaning. RSYNC_SIMPLE will only sync [projectRootPath] and this field must be the parent directory of it.
+     */
     val localToRemoteSyncPath: String,
+    /**
+     * Remote root directory to receive synced files from local.
+     * Optional value. If empty, will use default value: $HOME/remote
+     * e.g. /root/remote
+     */
     val remoteSyncPath: String,
+    /**
+     * IFT config name for syncing files from remote to local.
+     * No meaning if syncMode != IFT.
+     */
     val remoteToLocalIftConfigName: String,
+    /**
+     * Root directory to specify syncing files from remote to local.
+     * when syncMode:
+     *  IFT -> The path match config of [remoteToLocalIftConfigName].
+     *  RSYNC -> Any directory is fine.
+     *  RSYNC_SIMPLE -> No meaning. Will store files directly to [localClasspathStoragePath]
+     */
     val remoteToLocalSyncPath: String,
     val httpProxyIp: String,
     val httpProxyPort: Int,
+    /**
+     * Sync mode for remote compile.
+     * when syncMode:
+     *  IFT -> A specific sync tool.
+     *  RSYNC -> Built-in sync tool of Linux & macOS.
+     *  RSYNC_SIMPLE -> Built-in sync tool of Linux & macOS, but has simple configuration which will only sync [projectRootPath].
+     */
     val syncMode: SyncMode,
 ) {
 
