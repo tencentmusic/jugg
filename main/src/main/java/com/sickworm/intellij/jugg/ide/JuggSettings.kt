@@ -32,7 +32,7 @@ object JuggSettings {
     var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
 
     /** limit max source modules to compile for better performance */
-    const val maxCompileSourceModules = 20
+    const val maxCompileSourceModules = 50
     /** limit max source files to compile for better performance */
     const val maxCompileSourceFiles = 150
     /** limit min compiler error to recreate once */
