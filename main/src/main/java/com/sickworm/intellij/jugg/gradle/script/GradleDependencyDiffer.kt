@@ -42,7 +42,7 @@ class GradleDependencyDiffer(
         // ./gradlew --dry-run -I readProjectInfos.gradle.kts will get complete project info
         // but for ./gradlew :app:assembleDebug -I readProjectInfos.gradle.kts, will get empty project info if project won't be compiled
         // so here we filter out empty project info
-        val ignoreModulesPath = lastProjectInfo.modules.filter {
+        val ignoreModulesPath = fullProjectInfo.modules.filter {
             it.value.moduleType == ModuleInfo.Type.Unknown
         }.map {
             it.value.moduleRootDir.path
