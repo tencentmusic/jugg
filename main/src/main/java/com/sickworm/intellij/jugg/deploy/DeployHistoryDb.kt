@@ -189,6 +189,9 @@ class DeployHistoryDb(
 //            }
 
             val subModuleGitManager = GitManager.createGitManagerAndTrySearchParent(it.moduleRootDir)
+            if (!subModuleGitManager.hasInitGit) {
+                return@forEach
+            }
             if (subModuleGitManager.rootDir.absolutePath !in existGitRoots) {
                 existGitRoots.add(subModuleGitManager.rootDir.absolutePath)
                 subModulesGitManager[subModuleGitManager.rootDir.absolutePath] = subModuleGitManager
