@@ -203,6 +203,7 @@ class DeployHistoryDb(
             val changedFiles = mutableMapOf<String, Long>()
 
             // add changed files in project root
+            logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from: $${gitManager.rootDir}")
             val mainChangedFiles = gitManager.getUncommittedFiles()
                 .filter { it.exists() } // ignore deleted files
                 .associate { it.toChangedFilePair(startCompileTime) }
@@ -211,6 +212,7 @@ class DeployHistoryDb(
             val submoduleGitManagers = getSubmoduleGitManagers(modules.values)
             // add changed files in submodules
             val sumModuleChangedFile = submoduleGitManagers.values.map { submoduleGitManager ->
+                logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from submodule: ${submoduleGitManager.rootDir}")
                 submoduleGitManager.getUncommittedFiles()
                     .filter { it.exists() } // ignore deleted files
                     .associate { it.toChangedFilePair(startCompileTime) }
@@ -259,6 +261,9 @@ class DeployHistoryDb(
 //                return@forEach
 //            }
             val subModuleGitManager = PlatformApi.createGitManagerAndTrySearchParent(it.moduleRootDir)
+            if (!subModuleGitManager.hasInitGit) {
+                return@forEach
+            }
             if (subModuleGitManager.rootDir.absolutePath !in existGitRoots) {
                 existGitRoots.add(subModuleGitManager.rootDir.absolutePath)
                 subModulesGitManager[subModuleGitManager.rootDir.absolutePath] = subModuleGitManager
