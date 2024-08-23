@@ -10,10 +10,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
-import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.jarDexFileName
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.ide.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.JuggSettings
@@ -80,29 +77,7 @@ class JuggDeployerHelper(
         }
 
         if (!data.isInstall && dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE) {
-            val removedDexFiles = dependencyChangeManager.getRemovedLibraryFiles()
-                .filter { it.type == CompileFile.Type.Class }
-                .map(ChangedFile::jarDexFileName)
-                .toSet()
-            if (removedDexFiles.isNotEmpty()) {
-                TimeLogger.start("remove dex")
-                logger.info("Library incremental compile, going to delete removed libraries dex:\n" +
-                        removedDexFiles.joinToString("\n    ", prefix = "    "))
-                removedDexFiles.forEach { dexFileName ->
-                    data.apks.forEach {
-                        val packageName = it.applicationId
-                        logger.debug("delete $packageName - $dexFileName")
-                        try {
-                            AdbCmdHelper(device, logger).deleteDeployedDexFile(packageName, dexFileName)
-                        } catch (e: Exception) {
-                            logger.debug("delete $packageName - $dexFileName failed", e)
-                            logger.warn("delete $packageName - $dexFileName failed, reason:\n$e")
-                        }
-                    }
-                }
-                logger.info("Delete removed libraries dex finished.")
-                TimeLogger.end("remove dex", logger)
-            }
+            removeLibraryDexFiles(data, device)
         }
 
         val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
@@ -136,6 +111,53 @@ class JuggDeployerHelper(
         isRunning = false
 
         return launchResult
+    }
+
+    private fun removeLibraryDexFiles(data: JuggDeployData, device: IDevice) {
+        val removedDexFilesByVersionRollback = dependencyChangeManager.getRemovedLibraryFiles()
+            .filter { it.type == CompileFile.Type.Class }
+            .map(ChangedFile::jarDexFileName)
+            .toSet()
+        logger.debug("removedDexFilesByVersionRollback: $removedDexFilesByVersionRollback")
+
+        val deployLibraryDexFiles = (data.hotReloadModifiedClasses + data.hotFixModifiedClasses)
+            .filter { it.isLibraryDex }
+            .map { it.name + ".dex" }
+            .toSet()
+        val deployedDexFiles = compileContextManager.compileContext.deployedFiles
+            .filter { it.file.name.endsWith(".dex") }
+            .map { it.file.name }
+            .toSet()
+        val removedDexFilesByClassRollback = dependencyChangeManager.getNewLibraryFiles()
+            .filter { it.type == CompileFile.Type.Class }
+            .map { it.jarDexFileName }
+            // find out library dex that is deployed before but has no changes with full compile
+            .filter { deployedDexFiles.contains(it) && !deployLibraryDexFiles.contains(it) }
+            .toSet()
+        logger.debug("deployLibraryDexFiles: $deployLibraryDexFiles")
+        logger.debug("deployedDexFiles: $deployedDexFiles")
+        logger.debug("removedDexFilesByClassRollback: $removedDexFilesByClassRollback")
+
+        val removedDexFiles = removedDexFilesByVersionRollback + removedDexFilesByClassRollback
+        if (removedDexFiles.isNotEmpty()) {
+            TimeLogger.start("remove dex")
+            logger.info("Before deploy, need to delete reverted libraries dex:\n" +
+                    removedDexFiles.joinToString("\n    ", prefix = "    "))
+            removedDexFiles.forEach { dexFileName ->
+                data.apks.forEach {
+                    val packageName = it.applicationId
+                    logger.debug("delete $packageName - $dexFileName")
+                    try {
+                        AdbCmdHelper(device, logger).deleteDeployedDexFile(packageName, dexFileName)
+                    } catch (e: Exception) {
+                        logger.debug("delete $packageName - $dexFileName failed", e)
+                        logger.warn("delete $packageName - $dexFileName failed, reason:\n$e")
+                    }
+                }
+            }
+            logger.info("Delete removed libraries dex finished.")
+            TimeLogger.end("remove dex", logger)
+        }
     }
 
     fun deploy(device: IDevice,
