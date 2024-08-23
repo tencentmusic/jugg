@@ -322,7 +322,7 @@ class JuggDeployerHelper(
                                 action = "incremental_deploy_retry_after_recover"
                                 detail = reason
                             }
-                            deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime, isSkipExceptOverlayCheck = true)
+                            deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime, isSkipExceptOverlayCheck = true)
                         }
                     } else {
                         val delaySeconds = 5
@@ -332,7 +332,7 @@ class JuggDeployerHelper(
                             action = "incremental_deploy_retry"
                             detail = reason
                         }
-                        deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = finalIsFallbackAllHotFix, startTime = startTime, isSkipExceptOverlayCheck = true)
+                        deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, isFallbackAllHotFix = true, startTime = startTime, isSkipExceptOverlayCheck = true)
                     }
                     return result.copy(costTime = costTime())
                 }

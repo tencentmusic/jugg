@@ -58,8 +58,8 @@ class DeployDataGenerator(
         val changedAbstractClasses = mutableListOf<ClassNode>()
         val deletedNormalMethodClasses = mutableListOf<ClassNode>()
         changedClasses.forEach {
-            if (it.isMultipleDex) {
-                logger.debug("deploy dex ${it.name} is multiple dex, need hot fix.")
+            if (it.isMultipleDex || it.isLibraryDex) {
+                logger.debug("deploy dex ${it.name} is multiple dex / library dex, need hot fix.")
                 hotFixModifiedClasses.add(it)
                 return@forEach
             }

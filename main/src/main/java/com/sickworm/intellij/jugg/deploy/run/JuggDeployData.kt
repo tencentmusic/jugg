@@ -177,6 +177,8 @@ class ClassDeployItem(
 ) {
 
     val isMultipleDex: Boolean get() = classNodes.size > 1
+    // see CompileFileExtKt.dependencyNameToDexFileName. Maybe more elegant?
+    val isLibraryDex: Boolean get() = deployItem.name.startsWith("#")
 
     val name: String get() = deployItem.name
     val type: CompileOutput.Type get() = deployItem.type
