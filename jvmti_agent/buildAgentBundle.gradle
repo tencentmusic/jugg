@@ -12,25 +12,30 @@ import com.android.tools.r8.D8
 import com.android.tools.r8.D8Command
 import com.android.tools.r8.origin.Origin
 
+import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
+File jarFile = new File(project.projectDir, "build/intermediates/aar_main_jar/release/classes.jar")
 File instrumentsJarFile = new File(project.projectDir, "build/outputs/jugg-instruments.jar")
 File agentSoFile = new File(project.projectDir, "build/intermediates/library_and_local_jars_jni/release/jni/arm64-v8a/jugg_jvmti_agent.so")
 File setupScriptFile = new File(project.projectDir, "src/main/script/jugg_agent_setup.sh")
-String agentBundlePath = "/jvmti/jugg-agent-bundle-${agentVersion}.zip" // must starts with '/' to read resource by plugin
+String agentBundlePath = "/deploy/jugg-agent-bundle-${agentVersion}.zip" // must starts with '/' to read resource by plugin
 File agentBundleFile = new File(agentBundleDir, agentBundlePath)
+String runtimeJarPath = "/deploy/jugg-runtime.jar"
+File runtimeJarFile = new File(agentBundleDir, runtimeJarPath)
 
 android {
     defaultConfig {
         buildConfigField("String", "AGENT_VERSION", "\"$agentVersion\"")
         buildConfigField("String", "AGENT_BUNDLE_PATH", "\"$agentBundlePath\"")
+        buildConfigField("String", "RUNTIME_JAR_PATH", "\"$runtimeJarPath\"")
+        buildConfigField("String", "META_DATA_LABEL_RAW_APPLICATION", "\"com.sickworm.intellij.jugg.hotfix.raw.application\"")
+        buildConfigField("String", "INJECT_APPLICATION_NAME", "\"com.sickworm.intellij.jugg.hotfix.BootstrapApplication\"")
     }
 }
 
 tasks.register('buildInstrumentJar') {
-
-    File jarFile = new File(project.projectDir, "build/intermediates/aar_main_jar/release/classes.jar")
 
     inputs.file jarFile
     outputs.file instrumentsJarFile
@@ -55,16 +60,15 @@ tasks.register('buildInstrumentJar') {
 
 tasks.register('buildAgentBundle') {
 
-    inputs.files instrumentsJarFile, agentSoFile, setupScriptFile
-    outputs.file agentBundleFile
+    inputs.files instrumentsJarFile, agentSoFile, setupScriptFile, jarFile
+    outputs.dir agentBundleDir
 
     doLast {
         agentBundleDir.deleteDir()
         agentBundleFile.parentFile.mkdirs()
 
         ZipOutputStream zipOutputStream = new ZipOutputStream(new FileOutputStream(agentBundleFile))
-        inputs.files.forEach { file ->
-            println(file)
+        [instrumentsJarFile, agentSoFile, setupScriptFile].forEach { file ->
             FileInputStream fileInputStream = new FileInputStream(file)
             ZipEntry zipEntry = new ZipEntry(file.getName())
             zipOutputStream.putNextEntry(zipEntry)
@@ -79,6 +83,9 @@ tasks.register('buildAgentBundle') {
             fileInputStream.close()
         }
         zipOutputStream.close()
+
+        runtimeJarFile.delete()
+        Files.copy(jarFile.toPath(), runtimeJarFile.toPath())
     }
 
     it.dependsOn('assembleRelease')

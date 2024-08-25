@@ -134,8 +134,9 @@ data class ModuleBuildPathInfo(
     // so it cannot use to detect application module
     private val applicationMergedManifestDir get() = File(buildDir, "intermediates/merged_manifests/$buildVariant")
 
-    // compatible with gradle 8.x, which path like merged_manifests/debug/processDebugManifest/AndroidManifest.xml
-    val mergedManifest get() = listOf(oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir)
+    // compatible with AGP 8.x, which path like merged_manifests/debug/processDebugManifest/AndroidManifest.xml
+    // use merged_manifests first, which is the value of multiApkManifestOutputDirectory in AGP 7.X, and Jugg deploy compat mode may modify it instead of merged_manifest
+    val mergedManifest get() = listOf(oldLibraryMergedManifestDir, applicationMergedManifestDir, libraryMergedManifestDir)
         .firstNotNullOfOrNull { it.findManifestInDir() } ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
 
     val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary)

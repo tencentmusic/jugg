@@ -1,0 +1,160 @@
+@file:Suppress("DEPRECATION", "unused")
+
+package com.sickworm.intellij.jugg.gradle.script
+
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import groovy.util.Node
+import groovy.util.NodeList
+import groovy.util.XmlNodePrinter
+import groovy.xml.QName
+import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.file.FileSystemLocationProperty
+import java.io.File
+import java.io.PrintWriter
+import java.util.*
+
+class GradleApplicationInjector(
+    private val rootProject: Project,
+) {
+
+    companion object {
+        const val PARAM_ENABLE = "jugg.inject.application.enable"
+    }
+
+    fun injectApplication() {
+        val isEnable = rootProject.properties[PARAM_ENABLE] == "true"
+        if (!isEnable) {
+            println("Jugg: injectApplication is not enable, ignore")
+            return
+        }
+
+        println("Jugg: injectApplication start")
+        rootProject.subprojects.forEach { project ->
+            if (!project.plugins.hasPlugin("com.android.application")) {
+                return@forEach
+            }
+
+            println("Jugg project ${project.name} is android application, inject manifest task")
+
+            val androidExt = Reflector(project.extensions.getByName("android"))
+            val applicationVariants = androidExt["applicationVariants"]
+            (applicationVariants?.value as? Collection<Any?>)?.forEach { variant ->
+                injectManifestTask(project, variant)
+            }
+            addRuntimeDependency(project)
+        }
+        println("Jugg: injectApplication end")
+    }
+
+    private fun injectManifestTask(project: Project, variant: Any?) {
+        val name = Reflector(variant)["name"]?.valueString ?: return
+        val capitalizedName = name.capitalize(Locale.ROOT)
+        val manifestTaskName = "process${capitalizedName}Manifest"
+        val manifestTask = project.tasks.findByName(manifestTaskName)
+        println("Jugg inject manifestTask: $manifestTaskName, task instance: $manifestTask")
+
+        manifestTask?.doLast {
+            println("Jugg manifestTask replace application variant: $name")
+            val manifestFile = findMergedManifest(manifestTask)
+            tryReplace(manifestFile)
+            println("Jugg manifestTask doLast finish")
+        }
+    }
+
+    private fun tryReplace(mergedManifest: File) {
+        if (!mergedManifest.exists()) {
+            throw IllegalStateException("Jugg tryReplace: mergedManifest is null or not exists")
+        }
+
+        // Jugg has XmlParer too, and it will compile together into readProjectInfo.gradle.kts.
+        // Here we use full name to avoid conflicting.
+        val manifestRoot: Node = groovy.util.XmlParser().parse(mergedManifest)
+        val application = ((manifestRoot.get("application") as? NodeList)?.firstOrNull() as? Node)
+        println("Jugg application: ${application != null}")
+        if (application == null) {
+            throw IllegalStateException("Wrong format in AndroidManifest, no application node is found !")
+        }
+
+        var originApplicationName: String? = null
+        val attributes = application.attributes() as? MutableMap<Any?, Any?>
+        println("Jugg attributes size: ${attributes?.size}")
+        attributes?.forEach {
+            if((it.key as? QName)?.localPart == "name") {
+                originApplicationName = it.value?.toString()
+                attributes[it.key] = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
+            }
+        }
+
+        application.appendNode("meta-data", mapOf(
+            "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.application", // BuildConfig.META_DATA_LABEL_RAW_APPLICATION
+            "android:value" to originApplicationName,
+        ))
+
+        val printer = XmlNodePrinter(PrintWriter(mergedManifest.absolutePath, "utf-8"))
+        printer.isPreserveWhitespace = true
+        printer.print(manifestRoot)
+    }
+
+    private fun addRuntimeDependency(project: Project) {
+        val jarDir = JuggPathManager(rootProject.rootDir).configDir
+        val runtimeConfiguration = project.fileTree(mapOf("dir" to jarDir.path, "include" to listOf("*.jar")))
+        project.dependencies.add("runtimeOnly", runtimeConfiguration)
+    }
+
+    private fun findMergedManifest(task: Task): File {
+        // task: ProcessMultiApkApplicationManifest
+        val mergedManifestDir = (Reflector(task)["multiApkManifestOutputDirectory"]?.value as? FileSystemLocationProperty<*>)?.asFile?.get()
+        if (mergedManifestDir != null) {
+            val manifestFile = findMergedManifest(mergedManifestDir)
+            if (manifestFile != null) {
+                return manifestFile
+            }
+        }
+        val mergedManifestDir2 = (Reflector(task)["manifestOutputDirectory"]?.value as? FileSystemLocationProperty<*>)?.asFile?.get()
+        if (mergedManifestDir2 != null) {
+            val manifestFile2 = findMergedManifest(mergedManifestDir2)
+            if (manifestFile2 != null) {
+                return manifestFile2
+            }
+        }
+
+        throw IllegalStateException("Jugg mergedManifest: task is null or not exists")
+    }
+
+    private fun findMergedManifest(dir: File): File? {
+        // ProcessMultiApkApplicationManifest
+        val mergedManifest = File(dir, "AndroidManifest.xml")
+        if (mergedManifest.exists()) {
+            println("Jugg: use manifest file $mergedManifest")
+            return mergedManifest
+        }
+
+        val filesInDir = dir.listFilesRecursively()
+        val guessMergedManifest = filesInDir.find {
+            it.name == "AndroidManifest.xml"
+        }
+        if (guessMergedManifest != null) {
+            println("Jugg: use guessMergedManifest $guessMergedManifest")
+            return guessMergedManifest
+        }
+        println("Jugg: findMergedManifest failed in $dir")
+        return null
+    }
+
+    private fun File.listFilesRecursively(): List<File> {
+        if (!exists()) {
+            return emptyList()
+        }
+
+        if (isFile) {
+            return listOf(this)
+        }
+
+        return listFiles()?.flatMap {
+            it.listFilesRecursively()
+        }?: emptyList()
+    }
+
+}
