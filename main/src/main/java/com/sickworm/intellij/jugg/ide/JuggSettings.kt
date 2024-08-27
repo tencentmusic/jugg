@@ -27,8 +27,26 @@ object JuggSettings {
     /** whether check checksum to make sure file is really change when file changes */
     var isCheckChecksumWhenFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    /**
+     * Enable init gradle scripts when gradle compile.
+     * Effected function: [isEnableReadProjectInfoFromGradle], [isEnableCompatibleDeploymentMode]
+     */
+    var isEnableInjectGradleCompile: Boolean by propertiesComponent.delegate(defaultValue = true)
+
+    /**
+     * Enable read project info from gradle.
+     */
     var isEnableReadProjectInfoFromGradle: Boolean by propertiesComponent.delegate(defaultValue = true)
 
+    /**
+     * compat deploy strategy for:
+     * Huawei HarmonyOS 4.2
+     * Xiaomi HyperOS
+     * Device API lower than 31
+     * For Huawei HarmonyOS 4.2, Jugg will fix the problem that incremental dex not inject correctly.
+     * For Xiaomi HyperOS, some apps may get "MISSING_AGENT_RESPONSES", Jugg will use hot fix deployment solution to compat with it.
+     * For Device API lower than 31, Jugg will use hot fix deployment solution to compat with it.
+     */
     var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
 
     /** limit max source modules to compile for better performance */

@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.gradle.script.GradleApplicationInjector
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
@@ -103,8 +105,14 @@ open class CompileProjectCommand(
     var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w-_ :=.]+"""))
         private set
 
+    private val injectParam = if (JuggSettings.isEnableInjectGradleCompile) {
+        "-I $initGradleFileRelativePath -P${GradleApplicationInjector.PARAM_ENABLE}=${JuggSettings.isEnableCompatibleDeploymentMode}"
+    } else {
+        ""
+    }
+
     override val baseCommand: String = run {
-        val suffix = if (isNormalGradleCommand) " --console=plain -I $initGradleFileRelativePath" else ""
+        val suffix = if (isNormalGradleCommand) " --console=plain $injectParam" else ""
         return@run "cd $projectPath && $compileCommand$suffix"
     }
 

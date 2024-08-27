@@ -89,22 +89,34 @@ class JuggMoreOptionsItem(
                 createSplitLine("Experimental functions"),
 
                 JuggMoreOptionsItem(
-                    name = "Enable read project info from Gradle",
-                    onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
+                    name = "Enable inject Gradle compilation",
+                    onGet = { JuggSettings.isEnableInjectGradleCompile },
                     onSet = {
-                        JuggSettings.isEnableReadProjectInfoFromGradle = it
-                        JuggInitializer.getManager(project)?.enableReadProjectFromGradle()
+                        JuggSettings.isEnableInjectGradleCompile = it
                     }
                 ),
 
-                JuggMoreOptionsItem(
-                    name = "Enable compatible deployment mode",
-                    onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
-                    onSet = {
-                        JuggSettings.isEnableCompatibleDeploymentMode = it
-                        JuggInitializer.getManager(project)?.removeJuggJvmtiAgents()
-                    }
-                ),
+                if (JuggSettings.isEnableInjectGradleCompile) {
+                    JuggMoreOptionsItem(
+                        name = "Enable read project info from Gradle",
+                        onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
+                        onSet = {
+                            JuggSettings.isEnableReadProjectInfoFromGradle = it
+                            JuggInitializer.getManager(project)?.enableReadProjectFromGradle()
+                        }
+                    )
+                } else null,
+
+                if (JuggSettings.isEnableInjectGradleCompile) {
+                    JuggMoreOptionsItem(
+                        name = "Enable compatible deployment mode",
+                        onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
+                        onSet = {
+                            JuggSettings.isEnableCompatibleDeploymentMode = it
+                            JuggInitializer.getManager(project)?.removeJuggJvmtiAgents()
+                        }
+                    )
+                } else null,
 
                 createSplitLine("(Test) Mock Events"),
 
@@ -133,7 +145,7 @@ class JuggMoreOptionsItem(
                         }
                     }
                 ),
-            )
+            ).filterNotNull()
         }
 
         private fun createSplitLine(name: String): JuggMoreOptionsItem {

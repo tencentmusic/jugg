@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -144,6 +145,11 @@ class GradleProjectInfoLocalFetchManager(
             val text = ins.reader().readText()
             initGradleFile.writeText(text)
         }
+
+        JuggCompilerHelper::class.java.getResource(BuildConfig.RUNTIME_JAR_PATH)!!.openStream().use { ins ->
+            pathManager.runtimeJarFilePath.writeBytes(ins.readAllBytes())
+        }
+
         hasWrote = true
         TimeLogger.end("writeInitGradleFile", logger)
     }
