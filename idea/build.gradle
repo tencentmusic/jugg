@@ -59,7 +59,7 @@ tasks.register('jarExtranet') {
         }
     }
     //noinspection ConfigurationAvoidance
-    tasks.findByName('jar').mustRunAfter('jarExtranet')
+    tasks.findByName('processResources').dependsOn('jarExtranet')
 }
 tasks.register('buildPluginExtranet') {
     dependsOn('buildPlugin')
@@ -81,7 +81,7 @@ tasks.register('jarIntranet') {
         }
     }
     //noinspection ConfigurationAvoidance
-    tasks.findByName('jar').mustRunAfter('jarIntranet')
+    tasks.findByName('processResources').dependsOn('jarIntranet')
 }
 tasks.register('buildPluginIntranet') {
     dependsOn('buildPlugin')
