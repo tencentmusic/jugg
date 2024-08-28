@@ -2,7 +2,6 @@
 
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import groovy.util.Node
 import groovy.util.NodeList
@@ -36,7 +35,7 @@ class GradleApplicationInjector(
                 return@forEach
             }
 
-            println("Jugg project ${project.name} is android application, inject manifest task")
+            println("Jugg: project ${project.name} is android application, inject manifest task")
 
             val androidExt = Reflector(project.extensions.getByName("android"))
             val applicationVariants = androidExt["applicationVariants"]
@@ -83,11 +82,13 @@ class GradleApplicationInjector(
         attributes?.forEach {
             if((it.key as? QName)?.localPart == "name") {
                 originApplicationName = it.value?.toString()
+                // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
                 attributes[it.key] = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
             }
         }
 
         application.appendNode("meta-data", mapOf(
+            // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
             "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.application", // BuildConfig.META_DATA_LABEL_RAW_APPLICATION
             "android:value" to originApplicationName,
         ))

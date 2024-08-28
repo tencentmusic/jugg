@@ -20,8 +20,6 @@ class DexPatchLoader {
     private final BaseDexClassLoader originClassLoader;
     private final String nativeLibraryPath;
 
-    private static final boolean isFixHarmonyOnly = false;
-
     public DexPatchLoader(Context base) {
         this.baseContext = base;
         this.originClassLoader = (BaseDexClassLoader) base.getClassLoader();
@@ -55,9 +53,7 @@ class DexPatchLoader {
         }
 
         // for Harmony OS, create AndroidNClassLoader is just enough.
-        if (!isFixHarmonyOnly) {
-            installDexInternal(dstDexFiles, classLoader, nativeLibraryPath);
-        }
+        installDexInternal(dstDexFiles, classLoader, nativeLibraryPath);
 
         LogUtils.d(TAG, "installDexPatches: dex files installed finish.");
     }

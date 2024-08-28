@@ -23,7 +23,8 @@ public class InstrumentationHooks {
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
             if (isNeedFix) {
-                HotfixLoader.install(base);
+                HotfixLoader.init(base);
+                HotfixLoader.installDex(base);
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
         } catch (Exception e) {
@@ -40,7 +41,8 @@ public class InstrumentationHooks {
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry isNeedFix: " + isNeedFix);
             if (isNeedFix) {
-                HotfixLoader.install(base);
+                HotfixLoader.init(base);
+                HotfixLoader.installDex(base);
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry fix finished");
             }
@@ -55,6 +57,7 @@ public class InstrumentationHooks {
             boolean isNeedFix = DexPathListFixer.isNeedFix(base);
             LogUtils.i(TAG, "handleAttachBaseContextEntry2 isNeedFix: " + isNeedFix);
             if (isNeedFix) {
+                HotfixLoader.init(base);
                 HotfixLoader.install(base);
                 InstrumentationHooks.base = base;
                 LogUtils.i(TAG, "handleAttachBaseContextEntry2 fix finished");

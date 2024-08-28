@@ -2,39 +2,34 @@ package com.sickworm.intellij.jugg.hotfix;
 
 import static android.os.Build.VERSION.SDK_INT;
 
-import android.app.Application;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Build;
 import android.util.ArrayMap;
-import android.util.Log;
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
- * Install resources.ap_ on sd-card while runtime
+ * Refer from lightning :)
+ * Install overlays in code_caches
+ *
+ * @noinspection ALL
  */
+@SuppressLint("PrivateApi")
 class ResourcesPatchLoader {
 
-    private static final String TAG = IncrementalCompile.TAG + "#ResourcesPatchLoader";
-    public static final String RESOURCES_FILE_NAME = "resources.ap_";
-    public static final String INTERNAL_RES_DIR_NAME = "res";
+    private static final String TAG = HotfixLoader.TAG + "#ResourcesPatchLoader";
 
     private final Context baseContext;
-    private final Application application;
-    private final File incrementalDir;
-    private final File internalResDir;
-    private final File internalResFile;
-    private final File incrementalResFile;
+    private final List<File> internalResFiles;
 
     private static boolean isResourcesPatchesInstalled = false;
 
@@ -48,7 +43,7 @@ class ResourcesPatchLoader {
     private Method ensureStringBlocksMethod = null;
 
     // field
-    private Field assetsFiled = null;
+    private Field assetsField = null;
     private Field resourcesImplFiled = null;
     private Field resDir = null;
     private Field packagesFiled = null;
@@ -56,140 +51,30 @@ class ResourcesPatchLoader {
     private Field publicSourceDirField = null;
     private Field stringBlocksField = null;
 
-    static ResourcesPatchLoader create(Application application, Context base) {
-        return new ResourcesPatchLoader(application, base);
-    }
-
-    private ResourcesPatchLoader(Application application, Context base) {
-        if (application == null || base == null) {
-            throw new IllegalArgumentException("Error while create instance of ResourcesPatchLoader , application == null || base == null");
-        }
+    public ResourcesPatchLoader(Context base) {
         this.baseContext = base;
-        this.application = application;
-        this.incrementalDir = new File(IncrementalCompile.rootDir(), IncrementalCompile.INCREMENTAL_DIR_NAME);
-
-        L.i(TAG, "ResourcesPatchLoader: rootDir: " + IncrementalCompile.rootDir());
-        L.i(TAG, "ResourcesPatchLoader: rootDir.exist: " + IncrementalCompile.rootDir().exists());
-
-        String internalDir = IncrementalCompile.baseApkStamp();
-        File internalIncrementalResDir = new File(base.getFilesDir(),internalDir);
-
-        if(!internalIncrementalResDir.exists()) {
-            L.i(TAG, "install: internalIncrementalResDir not exist, try to make directory : " + internalIncrementalResDir);
-            if (!internalIncrementalResDir.mkdir()) {
-                throw new RuntimeException("Failed to create directory : " + internalIncrementalResDir);
-            }
-        }
-
-        internalResDir = new File(internalIncrementalResDir, INTERNAL_RES_DIR_NAME);
-        internalResFile = new File(internalResDir, RESOURCES_FILE_NAME);
-        incrementalResFile = new File(incrementalDir, RESOURCES_FILE_NAME);
-    }
-
-    private boolean installFromCIBuild(Context base) {
-
-
-        if(!internalResDir.exists()) {
-            L.i(TAG, "install: internalResDir not exist, try to make directory : " + internalResDir);
-            if (!internalResDir.mkdir()) {
-                throw new RuntimeException("Failed to create directory : " + internalResDir);
-            }
-        }
-
-        File internalResFile = new File(internalResDir, ResourcesPatchLoader.RESOURCES_FILE_NAME);
-
-        try {
-
-            if (internalResFile.exists()) {
-                boolean ret = internalResFile.delete();
-                if (!ret) {
-                    Log.i(IncrementalCompile.TAG, "installFromCIBuild copyFile: error while deleting existing file");
-                    return false;
-                } else {
-                    Log.i(IncrementalCompile.TAG, "installFromCIBuild copyFile: deleting existing file success");
-                }
-            }
-
-            try {
-                boolean ret = internalResFile.createNewFile();
-                if (!ret) {
-                    Log.i(IncrementalCompile.TAG, "installFromCIBuild copyFile: error while create new file");
-                    return false;
-                }
-            } catch (IOException e) {
-                Log.i(IncrementalCompile.TAG,
-                        "installFromCIBuild copyFile: error while create new file: " + e.getMessage());
-                return false;
-            }
-
-
-            FileUtil.copyFromAssetsToFile(base,IncrementalCompile.INCREMENTAL_DIR_NAME+"/"+ResourcesPatchLoader.RESOURCES_FILE_NAME,internalResFile);
-        }catch (Exception ex) {
-            L.e(TAG, "copyFromAssetsToFile error",ex);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean installFromLocalBuild() {
-        if (!incrementalDir.exists() || !incrementalDir.isDirectory() || !incrementalResFile.exists()) {
-            L.i(TAG, "install: incremental resources.ap_ not exist on sdcard, skip install, clear pre-installed resources");
-            if (internalResDir.exists()) {
-                L.i(TAG, "install: internal res dir exist , delete it : " + internalResDir);
-                FileUtil.deleteAllFilesUnderDirectory(internalResDir);
-            }
-            return true;
-        }
-
-        if (!internalResDir.exists()) {
-            L.i(TAG, "install: internal res dir not exist , try to create it : " + internalResDir);
-            if (!internalResDir.mkdir()) {
-                throw new RuntimeException(TAG + " : error while create directory : " + incrementalDir);
-            }
-        }
-
-        L.i(TAG, "install: copy resources.ap_ from sdcard to app internal directory, FROM: " + incrementalResFile + ", TO: " + internalResDir);
-
-        boolean ret = FileUtil.copyFile(incrementalResFile, internalResDir);
-
-        L.i(TAG, "install: copy resources.ap_ result =  " + ret);
-
-        if (!ret || !internalResFile.exists()) {
-            throw new RuntimeException(TAG + " : error while copy incremental resources file , FROM: " + incrementalResFile + ", TO: " + internalResDir);
-        }
-        return false;
+        this.internalResFiles = collectResourceApks();
     }
 
     void install() {
-
-        L.i(TAG, "install resources ...");
-
-        boolean breakEarly;
-
-        if(IncrementalCompile.isCIBuild()) {
-            breakEarly = installFromCIBuild(baseContext);
-        }else {
-            breakEarly = installFromLocalBuild();
-        }
-
-        if(breakEarly) {
-            return;
-        }
+        LogUtils.i(TAG, "install resources, size = " + internalResFiles.size());
 
         try {
             prepare();
-            monkeyPatchExistingResources();
+            for (File internalResFile : internalResFiles) {
+                monkeyPatchExistingResources(internalResFile);
+            }
         } catch (Throwable ex) {
-            throw new RuntimeException(TAG + " : error while install incremental resource: " , ex);
+            throw new RuntimeException(TAG + " : error while install incremental resource: ", ex);
         }
 
         isResourcesPatchesInstalled = true;
     }
 
 
+    @SuppressLint("ObsoleteSdkInt")
     private void prepare() throws Throwable {
-
-        L.i(TAG, "prepare...");
+        LogUtils.d(TAG, "prepare...");
 
         //   - Replace mResDir to point to the incremental resource file instead of the .apk. This is used as the asset path for new Resources objects.
         //   - Set Application#mLoadedApk to the found LoadedApk instance
@@ -198,7 +83,7 @@ class ResourcesPatchLoader {
         Class<?> activityThread = Class.forName("android.app.ActivityThread");
         currentActivityThread = ReflectUtil.getActivityThread(baseContext, activityThread);
 
-        L.i(TAG, "prepare: currentActivityThread = " + currentActivityThread);
+        LogUtils.d(TAG, "prepare: currentActivityThread = " + currentActivityThread);
 
         // API version 8 has PackageInfo, 10 has LoadedApk. 9, I don't know.
         Class<?> loadedApkClass;
@@ -214,15 +99,15 @@ class ResourcesPatchLoader {
             resourcePackagesFiled = ReflectUtil.findField(activityThread, "mResourcePackages");
         }
 
-        L.i(TAG, "prepare: resDir = " + resDir);
-        L.i(TAG, "prepare: packagesFiled = " + packagesFiled);
-        L.i(TAG, "prepare: resourcePackagesFiled = " + resourcePackagesFiled);
+        LogUtils.d(TAG, "prepare: resDir = " + resDir);
+        LogUtils.d(TAG, "prepare: packagesFiled = " + packagesFiled);
+        LogUtils.d(TAG, "prepare: resourcePackagesFiled = " + resourcePackagesFiled);
 
         // Create a new AssetManager instance and point it to the resources
         final AssetManager assets = baseContext.getAssets();
         addAssetPathMethod = ReflectUtil.findMethod(assets, "addAssetPath", String.class);
 
-        L.i(TAG, "prepare: origin assets = " + assets);
+        LogUtils.d(TAG, "prepare: origin assets = " + assets);
 
         // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
         // in L, so we do it unconditionally.
@@ -237,7 +122,7 @@ class ResourcesPatchLoader {
         // class. (e.g. Baidu OS)
         newAssetManager = (AssetManager) ReflectUtil.findConstructor(assets).newInstance();
 
-        L.i(TAG, "prepare: new assets = " + newAssetManager);
+        LogUtils.d(TAG, "prepare: new assets = " + newAssetManager);
 
         // Iterate over all known Resources objects
         if (SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -266,10 +151,10 @@ class ResourcesPatchLoader {
             throw new IllegalStateException("resource references is null");
         }
 
-        L.i(TAG, "prepare: finish collecting all Resources.");
+        LogUtils.i(TAG, "prepare: finish collecting all Resources.");
         for (WeakReference<Resources> wr : references) {
             if (wr != null) {
-                L.i(TAG, "prepare: each Resources = " + wr.get());
+                LogUtils.i(TAG, "prepare: each Resources = " + wr.get());
             }
         }
 
@@ -283,10 +168,10 @@ class ResourcesPatchLoader {
                 resourcesImplFiled = ReflectUtil.findField(resources, "mResourcesImpl");
             } catch (Throwable ignore) {
                 // for safety
-                assetsFiled = ReflectUtil.findField(resources, "mAssets");
+                assetsField = ReflectUtil.findField(resources, "mAssets");
             }
         } else {
-            assetsFiled = ReflectUtil.findField(resources, "mAssets");
+            assetsField = ReflectUtil.findField(resources, "mAssets");
         }
 
         try {
@@ -296,50 +181,71 @@ class ResourcesPatchLoader {
         }
     }
 
+    private List<File> collectResourceApks() {
+        List<File> internalResFile = new ArrayList<>();
+        if (!HotfixLoader.overlayFilesDir.exists()) {
+            return new ArrayList<>();
+        }
+        File[] files = HotfixLoader.overlayFilesDir.listFiles();
+        for (File file : files) {
+            if (file.isDirectory()) {
+                File resourceApkFile = new File(file, BuildConfig.RESOURCE_APK_NAME);
+                LogUtils.d(TAG, "collectResourceApks finding " + resourceApkFile);
+                if (resourceApkFile.exists()) {
+                    internalResFile.add(resourceApkFile);
+                }
+            }
+        }
+        return internalResFile;
+    }
+
     // internalResFile
-    private void monkeyPatchExistingResources() throws Throwable {
+    private void monkeyPatchExistingResources(File internalResFile) throws Throwable {
 
-        L.i(TAG, "monkeyPatchExistingResources...");
+        LogUtils.i(TAG, "monkeyPatchExistingResources...");
 
-        if (internalResFile == null || !internalResFile.isFile() || !internalResFile.exists()) {
-            L.i(TAG, "monkeyPatchExistingResources: internal incremental resources file is NOT exist");
+        if (!internalResFile.exists()) {
+            LogUtils.i(TAG, "monkeyPatchExistingResources: internal incremental resources file is NOT exist");
             return;
+        }
+        if (!internalResFile.isFile()) {
+            throw new IllegalStateException("internal incremental resources file is not a file");
         }
 
         final ApplicationInfo applicationInfo = baseContext.getApplicationInfo();
 
-        L.i(TAG, "monkeyPatchExistingResources: applicationInfo = " + applicationInfo);
+        LogUtils.d(TAG, "monkeyPatchExistingResources: applicationInfo = " + applicationInfo);
 
         final Field[] packagesFields;
         if (Build.VERSION.SDK_INT < 27) {
-            packagesFields = new Field[]{packagesFiled, resourcePackagesFiled};
+            packagesFields = new Field[] { packagesFiled, resourcePackagesFiled };
         } else {
-            packagesFields = new Field[]{packagesFiled};
+            packagesFields = new Field[] { packagesFiled };
         }
 
-        L.i(TAG, "monkeyPatchExistingResources: packagesFields = " + packagesFields);
-        L.i(TAG, "monkeyPatchExistingResources: start replacing all resDir field for LoadedApk...");
+        LogUtils.d(TAG, "monkeyPatchExistingResources: packagesFields = " + packagesFields);
+        LogUtils.d(TAG, "monkeyPatchExistingResources: start replacing all resDir field for LoadedApk...");
         for (Field field : packagesFields) {
 
             final Object value = field.get(currentActivityThread);
-            L.i(TAG, "monkeyPatchExistingResources:     |__ replacing for field = " + field + ", current field value = " + value);
+            LogUtils.d(TAG, "monkeyPatchExistingResources:     |__ replacing for field = " + field + ", current field value = " + value);
 
             for (Map.Entry<String, WeakReference<?>> entry : ((Map<String, WeakReference<?>>) value).entrySet()) {
                 final Object loadedApk = entry.getValue().get();
-                L.i(TAG, "monkeyPatchExistingResources:         |__ loadedApk = " + loadedApk);
+                LogUtils.d(TAG, "monkeyPatchExistingResources:         |__ loadedApk = " + loadedApk);
                 if (loadedApk == null) {
                     continue;
                 }
                 final String resDirPath = (String) resDir.get(loadedApk);
-                L.i(TAG, "monkeyPatchExistingResources:         |__ loadedApk.resDir = " + resDirPath);
+                LogUtils.d(TAG, "monkeyPatchExistingResources:         |__ loadedApk.resDir = " + resDirPath);
                 if (applicationInfo.sourceDir.equals(resDirPath)) {
                     resDir.set(loadedApk, internalResFile.getAbsolutePath());
-                    L.i(TAG, "monkeyPatchExistingResources:         |__ loadedApk.resDir updated to : " + internalResFile.getAbsolutePath());
+                    LogUtils.d(TAG, "monkeyPatchExistingResources:         |__ loadedApk.resDir updated to : " + internalResFile.getAbsolutePath());
                 }
             }
         }
 
-        L.i(TAG, "monkeyPatchExistingResources: try to call AssetManager.addAssetPath()...");
+        LogUtils.d(TAG, "monkeyPatchExistingResources: try to call AssetManager.setApkAssets()...");
 
         // Create a new AssetManager instance and point it to the resources installed under
         if (((Integer) addAssetPathMethod.invoke(newAssetManager, internalResFile.getAbsolutePath())) == 0) {
@@ -347,7 +253,7 @@ class ResourcesPatchLoader {
         }
 
         try {
-            L.i(TAG, "monkeyPatchExistingResources: try to call AssetManager.ensureStringBlocks()...");
+            LogUtils.d(TAG, "monkeyPatchExistingResources: try to call AssetManager.ensureStringBlocks()...");
             // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
             // in L, so we do it unconditionally.
             if (stringBlocksField != null && ensureStringBlocksMethod != null) {
@@ -355,41 +261,41 @@ class ResourcesPatchLoader {
                 ensureStringBlocksMethod.invoke(newAssetManager);
             }
         } catch (Throwable ex) {
-            L.i(TAG, "monkeyPatchExistingResources: error while invoke AssetManager.ensureStringBlocks(): " + ex.getMessage());
+            LogUtils.d(TAG, "monkeyPatchExistingResources: error while invoke AssetManager.ensureStringBlocks(): " + ex.getMessage());
         }
 
-        L.i(TAG, "monkeyPatchExistingResources: start replacing for all resources...");
+        LogUtils.i(TAG, "monkeyPatchExistingResources: start replacing for all resources...");
         for (WeakReference<Resources> wr : references) {
             if (wr != null) {
-                L.i(TAG, "monkeyPatchExistingResources: each Resources = " + wr.get());
+                LogUtils.d(TAG, "monkeyPatchExistingResources: each Resources = " + wr.get());
             }
         }
 
         for (WeakReference<Resources> wr : references) {
 
             final Resources resources = wr.get();
-            L.i(TAG, "monkeyPatchExistingResources: patching resources : " + resources);
+            LogUtils.d(TAG, "monkeyPatchExistingResources: patching resources : " + resources);
             if (resources == null) {
                 continue;
             }
             // Set the AssetManager of the Resources instance to our brand new one
             try {
                 //pre-N
-                L.i(TAG, "monkeyPatchExistingResources:     [ attempt 1 ]set the AssetManager of the Resources instance to our brand new one");
-                assetsFiled.set(resources, newAssetManager);
-                L.i(TAG, "monkeyPatchExistingResources:     [ attempt 1 ] success");
+                LogUtils.d(TAG, "monkeyPatchExistingResources:     [ attempt 1 ]set the AssetManager of the Resources instance to our brand new one");
+                assetsField.set(resources, newAssetManager);
+                LogUtils.d(TAG, "monkeyPatchExistingResources:     [ attempt 1 ] success");
             } catch (Throwable ignore) {
-                L.i(TAG, "monkeyPatchExistingResources:     [ attempt 1 ] failed: " + ignore);
+                LogUtils.d(TAG, "monkeyPatchExistingResources:     [ attempt 1 ] failed: " + ignore);
                 try {
-                    L.i(TAG, "monkeyPatchExistingResources:     [ attempt 2 ] set the AssetManager of the Resources instance to our brand new one");
+                    LogUtils.d(TAG, "monkeyPatchExistingResources:     [ attempt 2 ] set the AssetManager of the Resources instance to our brand new one");
                     // N
                     final Object resourceImpl = resourcesImplFiled.get(resources);
                     // for Huawei HwResourcesImpl
                     final Field implAssets = ReflectUtil.findField(resourceImpl, "mAssets");
                     implAssets.set(resourceImpl, newAssetManager);
-                    L.i(TAG, "monkeyPatchExistingResources:     [ attempt 2 ] success");
+                    LogUtils.d(TAG, "monkeyPatchExistingResources:     [ attempt 2 ] success");
                 } catch (Throwable ignore2) {
-                    L.i(TAG, "monkeyPatchExistingResources:     [ attempt 2 ] failed: " + ignore2);
+                    LogUtils.d(TAG, "monkeyPatchExistingResources:     [ attempt 2 ] failed: " + ignore2);
                     throw new RuntimeException(TAG + " : monkeyPatchExistingResources: Error after 2 attempts to hook resources", ignore2);
                 }
             }
@@ -425,7 +331,7 @@ class ResourcesPatchLoader {
         // if (!isMiuiSystem) {
         //     return;
         // }
-        L.i(TAG, "clearPreloadTypedArrayIssue: try to clear typedArray cache!");
+        LogUtils.i(TAG, "clearPreloadTypedArrayIssue: try to clear typedArray cache!");
         // Clear typedArray cache.
         try {
             final Field typedArrayPoolField = ReflectUtil.findField(Resources.class, "mTypedArrayPool");
@@ -436,9 +342,9 @@ class ResourcesPatchLoader {
                     break;
                 }
             }
-            L.i(TAG, "clearPreloadTypedArrayIssue: clear typedArray cache finish!");
+            LogUtils.i(TAG, "clearPreloadTypedArrayIssue: clear typedArray cache finish!");
         } catch (Throwable ignored) {
-            L.e(TAG, "clearPreloadTypedArrayIssue failed, ignore error: " + ignored);
+            LogUtils.e(TAG, "clearPreloadTypedArrayIssue failed, ignore error: " + ignored);
         }
     }
 

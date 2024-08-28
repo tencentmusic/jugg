@@ -45,12 +45,37 @@ jint HandleStartupAgent(jvmtiEnv* jvmti, JNIEnv* jni,
     return JNI_OK;
 }
 
+const char* kPathSeparator =
+#ifdef _WIN32
+"\\";
+#else
+"/";
+#endif
+
+bool markAsJvmtiNotAvailable(char* app_data_dir) {
+    std::string flag_file_path;
+    flag_file_path.append(app_data_dir)
+        .append(kPathSeparator).append("code_cache")
+        .append(kPathSeparator).append(".jugg_jvmti_not_available");
+    ALOGE("Creating flag file: %s", flag_file_path.c_str());
+
+    FILE* flag_file = fopen(flag_file_path.c_str(), "w");
+    if (flag_file == nullptr) {
+        ALOGE("Could not create flag file to mark JVMTI as unavailable.");
+        return false;
+    }
+    return true;
+}
+
 extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm, char *options,
                                                  void *reserved) {
     ALOGI("==============Agent_OnAttach====================");
     jvmtiEnv* jvmti = nullptr;
     if (vm->GetEnv((void**)&jvmti, JVMTI_VERSION_1_2) != JNI_OK) {
         ALOGE("Error retrieving JVMTI function table.");
+        if (!markAsJvmtiNotAvailable(options)) {
+            ALOGE("Could not mark JVMTI as unavailable.");
+        }
         return JNI_OK;
     }
     JNIEnv* jni = nullptr;

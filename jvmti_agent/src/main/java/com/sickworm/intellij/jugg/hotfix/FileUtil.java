@@ -18,64 +18,8 @@ import java.security.MessageDigest;
 
 public class FileUtil {
 
-    private static final String FILES_OPERATION = IncrementalCompile.TAG + "#File";
+    private static final String FILES_OPERATION = HotfixLoader.TAG + "#File";
     private static final String PERMISSION_WRITE_EXTERNAL_STORAGE = "android.permission.WRITE_EXTERNAL_STORAGE";
-
-    static boolean deleteAllFilesUnderDirectory(File root) {
-        File files[] = root.listFiles();
-        if (files != null) {
-            for (File f : files) {
-                if (f.isDirectory()) {
-                    deleteAllFilesUnderDirectory(f);
-                    try {
-                        boolean ret = f.delete();
-                        if (!ret) {
-                            return false;
-                        }
-                    } catch (Exception e) {
-                    }
-                } else {
-                    if (f.exists()) {
-                        deleteAllFilesUnderDirectory(f);
-                        try {
-                            boolean ret = f.delete();
-                            if (!ret) {
-                                return false;
-                            }
-                        } catch (Exception e) {
-                        }
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    public static void copyFromAssetsToFile(Context context,String fileName ,File cacheTo) throws IOException {
-        try {
-
-            InputStream inputStream = context.getAssets().open(fileName);
-            try {
-                cacheTo.deleteOnExit();
-                cacheTo.createNewFile();
-                FileOutputStream outputStream = new FileOutputStream(cacheTo);
-                try {
-                    byte[] buf = new byte[1024];
-                    int len;
-                    while ((len = inputStream.read(buf)) > 0) {
-                        outputStream.write(buf, 0, len);
-                    }
-                    L.i(IncrementalCompile.TAG, "copyFromAssetsToFile succeed ,file is "+fileName +",savedTo "+cacheTo.getAbsolutePath());
-                } finally {
-                    outputStream.close();
-                }
-            } finally {
-                inputStream.close();
-            }
-        } catch (IOException e) {
-            throw new IOException("Could not open "+fileName, e);
-        }
-    }
 
     private static String getFileMD5(File file){
         if (!file.isFile()) {
@@ -184,7 +128,7 @@ public class FileUtil {
     static void ensurePermissionGranted(Context context) {
         if (SDK_INT >= Build.VERSION_CODES.M) {
             if (context.checkSelfPermission(PERMISSION_WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                L.i(FILES_OPERATION, "ensurePermissionGranted: permission NOT granted ! " + PERMISSION_WRITE_EXTERNAL_STORAGE);
+                LogUtils.i(FILES_OPERATION, "ensurePermissionGranted: permission NOT granted ! " + PERMISSION_WRITE_EXTERNAL_STORAGE);
                 throw new RuntimeException(FILES_OPERATION + " : No file permissions ! [应用没有被授予文件读写权限，请到设置页面手动开启]");
             }
         }

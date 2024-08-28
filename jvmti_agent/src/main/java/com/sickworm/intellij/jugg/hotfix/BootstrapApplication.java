@@ -9,7 +9,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.text.TextUtils;
 
-import java.io.File;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -17,7 +16,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
+
 /**
+ * Refer from Lightning :)
+ *
  * Being responsible for incremental dex and resources patching, the whole process should be no-perception to developers.
  * then replace itself with the raw application attach raw application to runtime.
  *
@@ -36,56 +39,52 @@ import java.util.Map;
 @SuppressLint({"PrivateApi", "DiscouragedPrivateApi"})
 public class BootstrapApplication extends Application {
 
-    private static final String TAG = IncrementalCompile.TAG + "#BootstrapApplication";
-    public static final String META_DATA_LABEL_RAW_APPLICATION = com.sickworm.intellij.jugg.jvmti_agent.BuildConfig.META_DATA_LABEL_RAW_APPLICATION;
+    private static final String TAG = HotfixLoader.TAG + "#BootstrapApplication";
+    public static final String META_DATA_LABEL_RAW_APPLICATION = BuildConfig.META_DATA_LABEL_RAW_APPLICATION;
 
     private Application rawApplication;
 
     public BootstrapApplication() {
-        L.i(TAG, "BootstrapApplication instance created: @" + Integer.toHexString(hashCode()) );
+        LogUtils.i(TAG, "BootstrapApplication instance created: @" + Integer.toHexString(hashCode()) );
     }
 
     @Override
     protected void attachBaseContext(Context base) {
-        boolean isNeedEnableHotfix = isNeedEnableHotfix(base);
-        L.i(TAG, "attachBaseContext start, isNeedEnableHotfix " + isNeedEnableHotfix);
+        HotfixLoader.init(base);
+        boolean isNeedEnableHotfix = HotfixLoader.isNeedEnableHotfix();
+        LogUtils.e(TAG, "attachBaseContext start, isNeedEnableHotfix " + isNeedEnableHotfix);
         if (isNeedEnableHotfix) {
-            IncrementalCompile.get().install(this, base);
+            HotfixLoader.install(base);
         }
 
         super.attachBaseContext(base);
         generateRawApplication(base);
-        L.i(TAG, "attachBaseContext done");
-    }
-
-    private boolean isNeedEnableHotfix(Context base) {
-        File flagFile = new File(base.getCodeCacheDir(), ".jugg_hotfix_enable");
-        return flagFile.exists();
+        LogUtils.i(TAG, "attachBaseContext done");
     }
 
     @Override public void onCreate() {
-        L.i(TAG, "onCreate start");
+        LogUtils.i(TAG, "onCreate start");
         replaceApplication();
 
         super.onCreate();
         moveActivityLifecycleCallbacks();
         rawApplication.onCreate();
 
-        L.i(TAG, "onCreate done");
+        LogUtils.i(TAG, "onCreate done");
     }
 
     /**
-     * 有些通过Provider来注册ActivityLifecycleCallbacks的方式（比如LeakCanary）会注册到BootstrapApplication，
-     * 导致原本工程的Application没有注册成功, 这里需要做一个迁移
+     * Some ways to register ActivityLifecycleCallbacks by Provider (such as LeakCanary) will be registered in BootstrapApplication,
+     * causing the original project's Application to fail to register successfully. Here we need to migrate it
      */
     private void moveActivityLifecycleCallbacks() {
-        L.i(TAG, "moveActivityLifecycleCallbacks");
+        LogUtils.i(TAG, "moveActivityLifecycleCallbacks");
         try {
             Class<Application> clz = Application.class;
             Field field = clz.getDeclaredField("mActivityLifecycleCallbacks");
             field.setAccessible(true);
             ArrayList<ActivityLifecycleCallbacks> lifecycleCallbacks =  (ArrayList<ActivityLifecycleCallbacks>)field.get(this);
-            L.i(TAG, "moveActivityLifecycleCallbacks lifecycleCallbacks:" + lifecycleCallbacks);
+            LogUtils.i(TAG, "moveActivityLifecycleCallbacks lifecycleCallbacks:" + lifecycleCallbacks);
             if (lifecycleCallbacks != null && !lifecycleCallbacks.isEmpty()) {
                 for (ActivityLifecycleCallbacks callback : lifecycleCallbacks) {
                     rawApplication.registerActivityLifecycleCallbacks(callback);
@@ -93,7 +92,7 @@ public class BootstrapApplication extends Application {
                 lifecycleCallbacks.clear();
             }
         } catch (Throwable e) {
-            L.e(TAG, "moveActivityLifecycleCallbacks error", e);
+            LogUtils.e(TAG, "moveActivityLifecycleCallbacks error", e);
         }
     }
 
@@ -116,16 +115,16 @@ public class BootstrapApplication extends Application {
                 Method attachMethod = ContextWrapper.class.getDeclaredMethod("attachBaseContext", Context.class);
                 attachMethod.setAccessible(true);
                 attachMethod.invoke(rawApplication, base);
-                L.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
-                L.i(TAG, "generateRawApplication: rawApplication : " + rawApplication);
+                LogUtils.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
+                LogUtils.i(TAG, "generateRawApplication: rawApplication : " + rawApplication);
             }
         } catch (Throwable e) {
-            L.e(TAG, "generateRawApplication: error while create instance for rawApplicationName : " + rawApplicationName, e);
+            LogUtils.e(TAG, "generateRawApplication: error while create instance for rawApplicationName : " + rawApplicationName, e);
             throw new IllegalStateException(e);
         }
 
         if (rawApplication == null) {
-            L.e(TAG, "generateRawApplication: rawApplication == null");
+            LogUtils.e(TAG, "generateRawApplication: rawApplication == null");
             throw new IllegalStateException("generateRawApplication: rawApplication == null, Failed to generate raw application for : " + rawApplicationName);
         }
     }
@@ -136,7 +135,7 @@ public class BootstrapApplication extends Application {
             Class<?> activityThread = Class.forName("android.app.ActivityThread");
             Object currentActivityThread = getActivityThread(this);
 
-            L.i(TAG, "replaceApplication: currentActivityThread = " + currentActivityThread);
+            LogUtils.d(TAG, "replaceApplication: currentActivityThread = " + currentActivityThread);
 
             if (currentActivityThread == null) throw new IllegalStateException("Failed to get current ActivityThread.");
 
@@ -144,12 +143,12 @@ public class BootstrapApplication extends Application {
             Field mInitialApplication = activityThread.getDeclaredField("mInitialApplication");
             mInitialApplication.setAccessible(true);
             Application initialApplication = (Application) mInitialApplication.get(currentActivityThread);
-            L.i(TAG, "replaceApplication: initialApplication = " + initialApplication);
+            LogUtils.d(TAG, "replaceApplication: initialApplication = " + initialApplication);
             if (initialApplication == this) {
                 mInitialApplication.set(currentActivityThread, rawApplication);
-                L.e(TAG, "replaceApplication: replace initial application with raw application: " + rawApplication);
-
-                L.e(TAG, "replaceApplication: replace \"mInitialApplication\" inside ActivityThread done.");            }
+                LogUtils.e(TAG, "replaceApplication: replace initial application with raw application: " + rawApplication);
+                LogUtils.e(TAG, "replaceApplication: replace \"mInitialApplication\" inside ActivityThread done.");
+            }
 
             // Replace all instance of the stub application in ActivityThread#mAllApplications with the
             // real one
@@ -157,12 +156,12 @@ public class BootstrapApplication extends Application {
             mAllApplications.setAccessible(true);
             List<Application> allApplications = (List<Application>) mAllApplications.get(currentActivityThread);
             for (int i = 0; i < allApplications.size(); i++) {
-                L.e(TAG, "replaceApplication: mAllApplications: " + allApplications.get(i));
+                LogUtils.e(TAG, "replaceApplication: mAllApplications: " + allApplications.get(i));
                 if (allApplications.get(i) == this) {
                     allApplications.set(i, rawApplication);
                 }
             }
-            L.i(TAG, "replaceApplication: replace \"mAllApplications\" inside ActivityThread done.");
+            LogUtils.d(TAG, "replaceApplication: replace \"mAllApplications\" inside ActivityThread done.");
 
 
             // API version 8 has PackageInfo, 10 has LoadedApk. 9, I don't know.
@@ -173,7 +172,7 @@ public class BootstrapApplication extends Application {
                 loadedApkClass = Class.forName("android.app.ActivityThread$PackageInfo");
             }
 
-            L.i(TAG, "replaceApplication: loadedApkClass = " + loadedApkClass);
+            LogUtils.d(TAG, "replaceApplication: loadedApkClass = " + loadedApkClass);
 
             Field mApplication = loadedApkClass.getDeclaredField("mApplication");
             mApplication.setAccessible(true);
@@ -199,7 +198,7 @@ public class BootstrapApplication extends Application {
                 Field field = activityThread.getDeclaredField(fieldName);
                 field.setAccessible(true);
                 Object value = field.get(currentActivityThread);
-                L.i(TAG, "replaceApplication: replacing field \"" + fieldName + "\"");
+                LogUtils.d(TAG, "replaceApplication: replacing field \"" + fieldName + "\"");
                 for (Map.Entry<String, WeakReference<?>> entry : ((Map<String, WeakReference<?>>) value).entrySet()) {
 
                     Object loadedApk = entry.getValue().get();
@@ -215,11 +214,11 @@ public class BootstrapApplication extends Application {
                     }
                 }
             }
-            L.i(TAG, "replaceApplication: Enumerate all LoadedApk (or PackageInfo) fields in ActivityThread#mPackages and" +
+            LogUtils.d(TAG, "replaceApplication: Enumerate all LoadedApk (or PackageInfo) fields in ActivityThread#mPackages and" +
                     " ActivityThread#mResourcePackages done.");
 
         } catch (Throwable e) {
-            L.e(TAG, "replaceApplication: error = ", e);
+            LogUtils.e(TAG, "replaceApplication: error = ", e);
             throw new IllegalStateException(e);
         }
     }

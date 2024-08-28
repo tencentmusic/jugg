@@ -32,6 +32,7 @@ android {
         buildConfigField("String", "RUNTIME_JAR_PATH", "\"$runtimeJarPath\"")
         buildConfigField("String", "META_DATA_LABEL_RAW_APPLICATION", "\"com.sickworm.intellij.jugg.hotfix.raw.application\"")
         buildConfigField("String", "INJECT_APPLICATION_NAME", "\"com.sickworm.intellij.jugg.hotfix.BootstrapApplication\"")
+        buildConfigField("String", "RESOURCE_APK_NAME", "\"resource.ap_\"")
     }
 }
 
@@ -88,6 +89,7 @@ tasks.register('buildAgentBundle') {
         Files.copy(jarFile.toPath(), runtimeJarFile.toPath())
     }
 
+    it.dependsOn('generateDebugBuildConfig') // generate debug BuildConfig to show IDE tint
     it.dependsOn('assembleRelease')
     it.dependsOn('buildInstrumentJar')
 }
