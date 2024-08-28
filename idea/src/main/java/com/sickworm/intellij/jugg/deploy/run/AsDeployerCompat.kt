@@ -156,11 +156,12 @@ object AsDeployerCompat : IAsDeployerCompat {
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
-        overlayUpdate: OptimisticApkSwapper.OverlayUpdate,
+        overlayUpdate: JuggOverlayUpdate,
         adb: AdbClient,
-        logger: ILogger
+        logger: ILogger,
+        isPushOverlayOnly: Boolean,
     ): OverlayId {
-        return impl.optimisticSwap(installer, redefiners, packageName, argRestart, pids, arch, overlayUpdate, adb, logger)
+        return impl.optimisticSwap(installer, redefiners, packageName, argRestart, pids, arch, overlayUpdate, adb, logger, isPushOverlayOnly)
     }
 
     override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {

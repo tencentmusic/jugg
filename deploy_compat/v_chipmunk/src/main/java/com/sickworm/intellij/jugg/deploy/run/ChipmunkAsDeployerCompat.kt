@@ -152,10 +152,17 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
-        overlayUpdate: OverlayUpdate,
+        overlayUpdate: JuggOverlayUpdate,
         adb: AdbClient,
-        logger: ILogger
+        logger: ILogger,
+        isPushOverlayOnly: Boolean,
     ): OverlayId {
+        if (isPushOverlayOnly) {
+            val updater = OptimisticApkUpdater(installer, redefiners)
+            val swapResult = updater.pushOverlays(packageName, pids, arch, overlayUpdate)
+            return swapResult.overlayId
+        }
+
         val swapper = OptimisticApkSwapper(
             installer,
             redefiners,
@@ -163,7 +170,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             options,
             metrics
         )
-        val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate)
+        val swapResult = swapper.optimisticSwap(packageName, pids, arch, overlayUpdate.overlayUpdate)
 
         //  java.lang.IllegalAccessError: class com.sickworm.intellij.jugg.deploy.run.JuggDeployer tried to access method
         //  'void com.android.tools.deployer.MetricsRecorder.add(com.android.tools.deployer.DeployMetric)'

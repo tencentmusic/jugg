@@ -3,14 +3,11 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.tools.deployer.DeployerException
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.DexComparator.ChangedClasses
-import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
-import com.android.tools.deployer.model.ApkEntry
-import com.android.tools.idea.protobuf.ByteString
 import com.sickworm.intellij.jugg.project.JuggException
 
 class OverlayUpdateBuilder {
 
-    fun build(cacheEntry: DeploymentCacheDatabase.Entry?, data: JuggDeployData): OverlayUpdate {
+    fun build(cacheEntry: DeploymentCacheDatabase.Entry?, data: JuggDeployData): JuggOverlayUpdate {
         if (data.apks.size > 1 && data.overlays.isNotEmpty()) {
             throw JuggException.notSupportMultiApk()
         }
@@ -31,21 +28,8 @@ class OverlayUpdateBuilder {
             it.toIncompleteOverlay(cacheEntry.apks.first())
         }
 
-        return OverlayUpdate(cacheEntry, dexOverlays, overlayFiles)
+        return JuggOverlayUpdate(cacheEntry, dexOverlays, overlayFiles)
     }
 
-    fun convert(overlayUpdate: JuggOverlayUpdate): OverlayUpdate {
-        return overlayUpdate.overlayUpdate
-    }
 }
 
-/**
- * [OverlayUpdate] fields are all private, so we need this.
- */
-data class JuggOverlayUpdate(
-    val cachedDump: DeploymentCacheDatabase.Entry?,
-    val dexOverlays: ChangedClasses,
-    val fileOverlays: Map<ApkEntry, ByteString>
-) {
-    val overlayUpdate = OverlayUpdate(cachedDump, dexOverlays, fileOverlays)
-}

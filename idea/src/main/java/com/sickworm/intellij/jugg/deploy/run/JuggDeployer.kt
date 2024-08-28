@@ -133,6 +133,7 @@ class JuggDeployer(
             installer, redefiners, packageName,
             argRestart, pids, arch, overlayUpdate,
             adb, logger,
+            isPushOverlayOnly = false,
         )
         logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}")
         val storeStartTime = System.currentTimeMillis()

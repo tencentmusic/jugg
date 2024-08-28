@@ -4,7 +4,6 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.run.*
 import com.android.utils.ILogger
@@ -44,9 +43,10 @@ interface IAsDeployerCompat {
         argRestart: Boolean,
         pids: List<Int>,
         arch: Deploy.Arch,
-        overlayUpdate: OverlayUpdate,
+        overlayUpdate: JuggOverlayUpdate,
         adb: AdbClient,
         logger: ILogger,
+        isPushOverlayOnly: Boolean,
     ): OverlayId
 
     fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider
