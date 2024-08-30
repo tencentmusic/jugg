@@ -79,7 +79,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             return JuggProjectInfoMergeResult.createEmpty()
         }
 
-        if (!JuggSettings.isEnableReadProjectInfoFromGradle) {
+        if (!JuggSettings.finalIsEnableReadProjectInfoFromGradle) {
             logger.debug("isEnableReadProjectInfoFromGradle = false, use ideProjectInfo directly")
             return JuggProjectInfoMergeResult.createSingle(ideProjectInfo)
         }

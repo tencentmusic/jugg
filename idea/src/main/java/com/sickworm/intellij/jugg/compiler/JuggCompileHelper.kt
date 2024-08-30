@@ -322,7 +322,7 @@ class JuggCompilerHelper(
         val isFallback = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.REBUILD
         logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $isIncrementalCompileLibrary")
         if (!isIncrementalCompileLibrary && !isFallback) {
-            if (changedBuildFiles.isEmpty() || !JuggSettings.isEnableReadProjectInfoFromGradle) {
+            if (changedBuildFiles.isEmpty() || !JuggSettings.finalIsEnableReadProjectInfoFromGradle) {
                 return
             }
 

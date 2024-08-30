@@ -37,6 +37,7 @@ object JuggSettings {
      * Enable read project info from gradle.
      */
     var isEnableReadProjectInfoFromGradle: Boolean by propertiesComponent.delegate(defaultValue = true)
+    val finalIsEnableReadProjectInfoFromGradle get() = isEnableInjectGradleCompile && isEnableReadProjectInfoFromGradle
 
     /**
      * compat deploy strategy for:
@@ -48,6 +49,7 @@ object JuggSettings {
      * For Device API lower than 31, Jugg will use hot fix deployment solution to compat with it.
      */
     var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
+    val finalIsEnableCompatibleDeploymentMode get() = isEnableInjectGradleCompile && isEnableCompatibleDeploymentMode
 
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 50

@@ -50,7 +50,7 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
     }
 
     fun pushAgentToApps(adb: IDeviceAdb, data: JuggDeployData) {
-        val isEnable = JuggSettings.isEnableCompatibleDeploymentMode
+        val isEnable = JuggSettings.finalIsEnableCompatibleDeploymentMode
         if (!isEnable) {
             logger.debug("Skip push agent to apps for not enabled")
             return

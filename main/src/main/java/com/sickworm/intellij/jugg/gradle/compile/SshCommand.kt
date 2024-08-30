@@ -106,7 +106,7 @@ open class CompileProjectCommand(
         private set
 
     private val injectParam = if (JuggSettings.isEnableInjectGradleCompile) {
-        "-I $initGradleFileRelativePath -P${GradleApplicationInjector.PARAM_ENABLE}=${JuggSettings.isEnableCompatibleDeploymentMode}"
+        "-I $initGradleFileRelativePath -P${GradleApplicationInjector.PARAM_ENABLE}=${JuggSettings.finalIsEnableCompatibleDeploymentMode}"
     } else {
         ""
     }
