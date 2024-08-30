@@ -105,7 +105,10 @@ class CompileContextDb(
             return null
         }
 
-        val dexFiles = dexDeployedDir.listFilesRecursively().map {
+        val dexFiles = dexDeployedDir.listFilesRecursively().mapNotNull {
+            if (it.extension != "dex") {
+                return@mapNotNull null
+            }
             CompileOutput(CompileOutput.Type.Dex, it, dexDeployedDir)
         }
         val overlayFiles = resDeployedDir.listFilesRecursively().map {
