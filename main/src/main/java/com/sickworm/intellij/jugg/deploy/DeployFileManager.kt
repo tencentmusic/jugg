@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
+import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -55,6 +56,8 @@ class DeployFileManager(
      */
     private val deployDataGenerator = DeployDataGenerator(logger.getInstance("DeployDataGenerator"), databaseDir)
 
+    private val resourceApkGenerator = ResourceApkGenerator(deployDataGenerator.deployDataDatabase, databaseDir, logger)
+
     /**
      * get source file by source file name in dex file
      */
@@ -68,6 +71,7 @@ class DeployFileManager(
         reset(resetFilesBeforeTimeMill)
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
+        resourceApkGenerator.deleteResourceApk()
 
         this.deployedFiles.clear()
         deployedFiles.forEach {
@@ -188,9 +192,14 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getDeployData(isWarmUp: Boolean = false): JuggDeployData {
+    fun getDeployData(isWarmUp: Boolean = false, isNeedPushResourceApk: Boolean = false): JuggDeployData {
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
-        return deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
+        val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
+        if (isNeedPushResourceApk && deployData.overlays.isNotEmpty()) {
+            val resourceApks = resourceApkGenerator.getResourceApkDeployItem(deployData.overlays, deployedFiles)
+            return deployData.copy(overlays = deployData.overlays + resourceApks)
+        }
+        return deployData
     }
 
     @Synchronized
@@ -240,6 +249,7 @@ class DeployFileManager(
     fun resetAfterReinstall() {
         logger.debug("resetAfterReinstall start, staging file size: ${stagingFiles.size}, deployed file size: ${deployedFiles.size}")
         deployDataGenerator.clearDeployedData()
+        resourceApkGenerator.deleteResourceApk()
         val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
         val deployedFiles = deployedFiles.values.filter {
             it.relativeFile.path !in stagingFileRelativeSet
@@ -494,12 +504,15 @@ fun CompileOutput.toDeployItem(): DeployItem {
         update(bytes)
         value
     }
-    val name = if (type == CompileOutput.Type.Dex) {
+    return DeployItem(deployItemName, type, crc, bytes)
+}
+
+val CompileOutput.deployItemName: String get() {
+    return if (type == CompileOutput.Type.Dex) {
         relativeFile.stdPath
             .replace('/', '.')
             .replace(file.name, file.nameWithoutExtension)
     } else {
         relativeFile.stdPath
     }
-    return DeployItem(name, type, crc, bytes)
 }

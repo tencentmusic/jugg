@@ -282,6 +282,10 @@ data class SigningConfig(
     override fun toString(): String {
         return configName // do not print sensitive info
     }
+
+    companion object {
+        val EMPTY = SigningConfig("Empty", null, null, null, null, null, false, false, false, false, false)
+    }
 }
 
 interface Dependency

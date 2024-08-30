@@ -37,8 +37,10 @@ data class JuggDeployData(
     val isInstall: Boolean = false,
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val updateApkFiles: List<DeployItem> = emptyList(),
+    /** just push overlay(include classes), don't set up JVMTI agent */
+    var isPushOverlayOnly: Boolean = hotFixModifiedClasses.isNotEmpty() || !CompatDeployHelper().isJvmtiAvailable(),
     /** is restart app after deployment */
-    var isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty(),
+    var isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty() || isPushOverlayOnly,
 ) {
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&

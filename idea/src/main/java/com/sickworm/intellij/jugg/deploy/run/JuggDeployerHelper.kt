@@ -208,7 +208,7 @@ class JuggDeployerHelper(
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
                 }
 
-                deployData = deployFileManager.getDeployData(isWarmUp)
+                deployData = deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk())
                 var isNeedReinstallApk = false
                 val isRetry = retryReason != null // retry means we have already resigned the apk
                 if (deployData.isNeedUpdateApk && !isRetry) {
@@ -244,7 +244,7 @@ class JuggDeployerHelper(
 
                 // get deploy data again after resigning apk (trigger full res deploy)
                 if (isRecoverWithReinstall) {
-                    deployData = deployFileManager.getDeployData(isWarmUp)
+                    deployData = deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk())
                 }
 
                 val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||
@@ -520,9 +520,22 @@ class JuggDeployerHelper(
         } catch (e: Exception) {
             logger.debug("unexpected error when insert file and resign apk", e)
             logger.warn("Insert file and resign apk failed, reason: $e")
-            modifier.clearOnError()
             return false to "rewrite APK failed"
         }
+    }
+
+    private fun isNeedPushResourceApk(): Boolean {
+        val isJvmtiAvailable = CompatDeployHelper().isJvmtiAvailable()
+        logger.debug("isNeedPushResourceApk: " +
+                "finalIsEnableCompatibleDeploymentMode: ${JuggSettings.finalIsEnableCompatibleDeploymentMode}, " +
+                "isJvmtiAvailable: $isJvmtiAvailable")
+        if (!JuggSettings.finalIsEnableCompatibleDeploymentMode) {
+            return false
+        }
+        if (!isJvmtiAvailable) {
+            return true
+        }
+        return false
     }
 
     companion object {

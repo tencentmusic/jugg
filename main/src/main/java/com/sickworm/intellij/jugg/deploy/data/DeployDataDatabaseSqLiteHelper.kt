@@ -603,10 +603,21 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun getResInfos(): List<JuggFileInfo> {
+    fun getResInfos(isNeedRes: Boolean, isNeedAsset: Boolean): List<JuggFileInfo> {
         logger.debug("getResInfos")
 
-        val selectSQL = "SELECT name, checksum FROM entry_info WHERE type = $ENTRY_TYPE_RES;"
+        if (!isNeedRes && !isNeedAsset) return emptyList()
+
+        var whereCondition = ""
+        if (isNeedRes) {
+            whereCondition = "type = $ENTRY_TYPE_RES"
+        }
+        if (isNeedAsset) {
+            if (whereCondition.isNotEmpty()) whereCondition += " or "
+            whereCondition += "type = $ENTRY_TYPE_ASSETS or type = $ENTRY_TYPE_OTHER"
+        }
+
+        val selectSQL = "SELECT name, checksum FROM entry_info WHERE $whereCondition;"
         val resInfos = mutableListOf<JuggFileInfo>()
         DriverManager.getConnection(url).use { connection ->
             connection.createStatement().use { statement ->

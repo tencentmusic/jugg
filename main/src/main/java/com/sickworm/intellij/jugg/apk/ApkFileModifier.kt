@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.util.io.exists
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -17,6 +16,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.CRC32
 import java.util.zip.ZipInputStream
+import kotlin.io.path.exists
 
 class ApkFileModifier(
     private val apkFile: File,
@@ -51,19 +51,25 @@ class ApkFileModifier(
 
     fun insertAndResign() {
         TimeLogger.start("insertAndResign")
-        copyAndInsertFiles()
-        alignApk()
+        clearTempFile()
+        val apkFile = updateFiles()
+        alignApk(apkFile)
         resignApk()
         replaceOldApk()
+        clearTempFile()
         TimeLogger.end("insertAndResign", logger)
     }
 
-    private fun copyAndInsertFiles() {
-        TimeLogger.start("copyApkFile")
-        tmpUpdateApkFile.delete()
-        apkFile.copyTo(tmpUpdateApkFile)
-        TimeLogger.end("copyApkFile", logger)
+    fun updateDirectly() {
+        TimeLogger.start("updateDirectly")
+        clearTempFile()
+        updateFiles()
+        replaceOldApk()
+        clearTempFile()
+        TimeLogger.end("updateDirectly", logger)
+    }
 
+    private fun updateFiles(): File {
         TimeLogger.start("insertFiles")
         // ref: https://docs.oracle.com/en/java/javase/14/docs/api/jdk.zipfs/module-summary.html
         // use FileSystems API can reduce cost time to 1-2s, while use standard ZIP API will cost 40-50s
@@ -76,7 +82,7 @@ class ApkFileModifier(
         // D to I haven't tested
         val jvmVersion = Runtime.version().version()
         logger.debug("JVM version: $jvmVersion")
-        if (jvmVersion[0] >= 14) {
+        val apkFile = if (jvmVersion[0] >= 14) {
             insertFileJvm14()
         } else {
             logger.warn("JVM version is ${jvmVersion[0]}, use standard ZIP API to update Zip files.")
@@ -84,12 +90,14 @@ class ApkFileModifier(
             insertFileUnderJvm14()
         }
         TimeLogger.end("insertFiles", logger)
+
+        return apkFile
     }
 
-    private fun insertFileJvm14() {
+    private fun insertFileJvm14(): File {
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
 
-        val zipDisk: URI = URI.create("jar:" + tmpUpdateApkFile.toURI().toString())
+        val zipDisk: URI = URI.create("jar:" + apkFile.toURI().toString())
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->
                 val pathInZipFile: Path = zipFileSystem.getPath(path)
@@ -102,10 +110,13 @@ class ApkFileModifier(
                 Files.copy(content.inputStream(), pathInZipFile)
             }
         }
+
+        return apkFile
     }
 
-    private fun insertFileUnderJvm14() {
+    private fun insertFileUnderJvm14(): File {
         tmpUpdateApkFile.delete()
+        apkFile.copyTo(tmpUpdateApkFile)
 
         val remainInsertFiles: MutableMap<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
         val buf = ByteArray(4096)
@@ -114,7 +125,7 @@ class ApkFileModifier(
             ZipOutputStream(FileOutputStream(tmpUpdateApkFile)).use { newApkStream ->
                 var entry = oldApkStream.nextEntry
                 while (entry != null) {
-                    // ZipInputStream will ready some empty entries, and ZipFile.entries() will not
+                    // ZipInputStream will get some entry with empty name, while ZipFile.entries() will not
                     if (entry.name.isNullOrEmpty()) {
                         entry = oldApkStream.nextEntry
                         continue
@@ -151,9 +162,11 @@ class ApkFileModifier(
                 }
             }
         }
+
+        return tmpUpdateApkFile
     }
 
-    private fun alignApk() {
+    private fun alignApk(tmpUpdateApkFile: File) {
         TimeLogger.start("alignApk")
         // see: https://developer.android.com/tools/zipalign
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
@@ -194,13 +207,14 @@ class ApkFileModifier(
 
     private fun replaceOldApk() {
         TimeLogger.start("replaceApk")
-        apkFile.delete()
-        tmpAlignedApkFile.renameTo(apkFile)
-        tmpUpdateApkFile.delete()
+        if (tmpAlignedApkFile.exists()) {
+            apkFile.delete()
+            tmpAlignedApkFile.renameTo(apkFile)
+        }
         TimeLogger.end("replaceApk", logger)
     }
 
-    fun clearOnError() {
+    private fun clearTempFile() {
         tmpAlignedApkFile.delete()
         tmpUpdateApkFile.delete()
     }

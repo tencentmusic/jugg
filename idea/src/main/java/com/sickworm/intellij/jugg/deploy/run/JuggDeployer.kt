@@ -133,9 +133,9 @@ class JuggDeployer(
             installer, redefiners, packageName,
             argRestart, pids, arch, overlayUpdate,
             adb, logger,
-            isPushOverlayOnly = false,
+            data.isPushOverlayOnly,
         )
-        logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}")
+        logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
         val storeStartTime = System.currentTimeMillis()
         deploymentService.postWithLock {
             logger.info("before deploy store")

@@ -19,7 +19,8 @@ class DeployDataGenerator(
     databaseDir: File,
 ) {
 
-    private var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
+    var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
+        private set
 
     /**
      * Build [JuggDeployData] according to deployment history.
@@ -106,7 +107,7 @@ class DeployDataGenerator(
             // first time deploy must do full deployment
             logger.debug("first time deploy overlay, need full deployment")
             val costTime = measureTimeMillis {
-                overlays = deployDataDatabase.addFullRes(overlays)
+                overlays = deployDataDatabase.addFullRes(overlays, isNeedRes = true, isNeedAsset = false)
             }
             logger.debug("first time deploy overlay, need full deployment finish, cost ${costTime}ms")
         }

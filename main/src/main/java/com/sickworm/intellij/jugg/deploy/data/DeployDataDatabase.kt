@@ -30,7 +30,7 @@ interface IDeployDataDatabase {
 
     fun isDeployedOverlaysBefore(): Boolean
 
-    fun addFullRes(changedOverlays: List<DeployItem>): List<DeployItem>
+    fun addFullRes(changedOverlays: List<DeployItem>, isNeedRes: Boolean, isNeedAsset: Boolean): List<DeployItem>
 
     fun getApkInfos(): List<ApkInfo>
 
@@ -123,16 +123,16 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     @Synchronized
-    override fun addFullRes(changedOverlays: List<DeployItem>): List<DeployItem> {
+    override fun addFullRes(changedOverlays: List<DeployItem>, isNeedRes: Boolean, isNeedAsset: Boolean): List<DeployItem> {
         val nameSet = changedOverlays.map { it.name }.toSet()
         val overlays = mutableListOf<DeployItem>()
         overlays.addAll(changedOverlays)
-        val overlayInfos = database.values.flatMap { it.getResInfos() }
+        val overlayInfos = database.values.flatMap { it.getResInfos(isNeedRes, isNeedAsset) }
         overlayInfos.forEach {
             if (nameSet.contains(it.name)) return@forEach
             val deployItem = DeployItem(
                 name = it.name,
-                type = CompileOutput.Type.Res,
+                type = if (it.isRes) CompileOutput.Type.Res else CompileOutput.Type.Asset,
                 checksum = it.checksum,
                 content = readFileContentFromApk(apks.first().files.first().apkFile, it.name)
             )
