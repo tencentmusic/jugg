@@ -63,9 +63,10 @@ fun List<File>.relativePath(baseDirPath: File) = map { it.relativeTo(baseDirPath
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")
     // location in test: idea/build/idea-sandbox/system-test/jugg
+    // location in test: idea/build/idea-sandbox/system/jugg
     // location in AS: ~/Library/Caches/Google/AndroidStudio2024.1/jugg
     val storePath = File(storeRootDir, resourcePath)
-    val isTestEnv = storeRootDir.path.contains("system-test")
+    val isTestEnv = storeRootDir.path.contains("build") && storeRootDir.path.contains("idea-sandbox")
     if (storePath.exists() && !isTestEnv) {
         return storePath
     }
