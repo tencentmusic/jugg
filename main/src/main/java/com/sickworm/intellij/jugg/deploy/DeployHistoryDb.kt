@@ -145,7 +145,7 @@ class DeployHistoryDb(
         return false
     }
 
-    private fun deleteHistory() {
+    fun deleteHistory() {
         deployHistoryFile.delete()
         deployLogsDir.deleteRecursively()
         deployItemsDir.deleteRecursively()

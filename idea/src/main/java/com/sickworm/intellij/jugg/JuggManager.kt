@@ -401,13 +401,18 @@ class JuggManager @TestOnly constructor(
         }
     }
 
+    fun deleteCompileContext() {
+        logger.info("[options] deleteCompileContext")
+        deployHistoryManager.deleteDeployHistory()
+    }
+
     fun markAsSyncedAndReInitCompiler() {
         logger.info("[test options] markAsSyncedAndReInitCompiler")
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
     fun enableReadProjectFromGradle() {
-        logger.info("[test options] enableReadProjectFromGradle")
+        logger.info("[options] enableReadProjectFromGradle")
         pathManager.gradleProjectInfoFile.delete()
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
@@ -461,6 +466,7 @@ class JuggManager @TestOnly constructor(
     }
 
     fun removeJuggJvmtiAgents() {
+        logger.info("[options] removeJuggJvmtiAgents")
         runTaskSafe("Remove Jugg JVMTI agents", {
             val devices = deployTargetManager.getDevices()
             devices.forEach {

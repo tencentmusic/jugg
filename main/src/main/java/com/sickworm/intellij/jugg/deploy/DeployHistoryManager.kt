@@ -50,6 +50,12 @@ class DeployHistoryManager(
             deployHistoryDb.overlayIds = value
         }
 
+    override fun deleteDeployHistory() {
+        hasBeenFullCompiledRuntime = false
+        compileContextDb.deleteCompileContext()
+        deployHistoryDb.deleteHistory()
+    }
+
     override fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo? {
         if (!isRecoverFeatureAvailable) {
             logger.warn("tryGetContextRecoverInfoFromDb failed, recover feature not available")

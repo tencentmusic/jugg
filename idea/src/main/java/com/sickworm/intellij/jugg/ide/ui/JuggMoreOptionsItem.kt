@@ -92,7 +92,16 @@ class JuggMoreOptionsItem(
                     name = "Enable inject Gradle compilation",
                     onGet = { JuggSettings.isEnableInjectGradleCompile },
                     onSet = {
-                        JuggSettings.isEnableInjectGradleCompile = it
+                        val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                            "Confirm Switch Inject Gradle Compilation",
+                            "<html>This will reset compiler and fallback to gradle compile next time.<br>Are you sure to continue?</html>"
+                        )
+                        if (isConfirmed) {
+                            JuggSettings.isEnableInjectGradleCompile = it
+                            JuggInitializer.getManager(project)?.deleteCompileContext()
+                            JuggInitializer.getManager(project)?.enableReadProjectFromGradle()
+                            JuggInitializer.getManager(project)?.removeJuggJvmtiAgents()
+                        }
                     }
                 ),
 

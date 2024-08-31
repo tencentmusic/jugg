@@ -28,6 +28,11 @@ interface IDeployHistoryManager {
     var lastDeployOverlayIds: Map<String, String>
 
     /**
+     * Delete the deployment history and fallback at next time compilation.
+     */
+    fun deleteDeployHistory()
+
+    /**
      * @return False if [hasBeenFullCompiled] is false. Otherwise, return true.
      */
     fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo?

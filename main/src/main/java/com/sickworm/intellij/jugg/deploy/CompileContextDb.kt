@@ -30,9 +30,7 @@ class CompileContextDb(
         modules: Map<String, ModuleInfo>
     ): CompileContextInfo {
         // remove complete flag first
-        completeFlagFile.delete()
-
-        dbDir.deleteRecursively()
+        deleteCompileContext()
 
         // save apk info
         apkInfoFile.parentFile?.mkdirs()
@@ -48,6 +46,11 @@ class CompileContextDb(
             apkInfos,
             modules.mapValues { it.value.buildPathInfo },
         )
+    }
+
+    fun deleteCompileContext() {
+        completeFlagFile.delete()
+        dbDir.deleteRecursively()
     }
 
     fun getCompileBuildPathInfoFromDb(): CompileContextInfo? {
