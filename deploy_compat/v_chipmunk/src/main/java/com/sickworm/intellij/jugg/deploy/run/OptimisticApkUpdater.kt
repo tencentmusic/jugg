@@ -86,7 +86,11 @@ class OptimisticApkUpdater(
         val method = Installer::class.java.getMethod("overlayInstall", Deploy.OverlayInstallRequest::class.java)
         val response = method.invoke(installer, request.build()) as Deploy.OverlayInstallResponse
 
-        return UpdateResult(overlayId, response.status == Deploy.OverlayInstallResponse.Status.OK)
+        if (response.status != Deploy.OverlayInstallResponse.Status.OK) {
+            // JuggDeployerHelper will use response.status to consider retry
+            throw IllegalStateException("OptimisticApkUpdater failed, status: ${response.status}")
+        }
+        return UpdateResult(overlayId, isSuccess = true)
     }
 
     class UpdateResult(val overlayId: OverlayId, val isSuccess: Boolean)

@@ -9,7 +9,9 @@ class CmdAdb(loggerArg: Logger): IDeviceAdb {
 
     private val logger = loggerArg.getInstance("CmdAdb")
 
-    override val deviceName: String = "mock_device"
+    override val displayName: String = "mock_device"
+
+    override val api: Int = 30
 
     override fun execAdbShellCmd(cmd: String): String {
         logger.debug("adb in:  adb shell $cmd") // two spaces to align adb out

@@ -38,14 +38,18 @@ data class JuggDeployData(
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val updateApkFiles: List<DeployItem> = emptyList(),
     /** just push overlay(include classes), don't set up JVMTI agent */
-    var isPushOverlayOnly: Boolean = hotFixModifiedClasses.isNotEmpty() || !CompatDeployHelper().isJvmtiAvailable(),
-    /** is restart app after deployment */
-    var isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty() || isPushOverlayOnly,
+    val isPushOverlayOnly: Boolean = false,
+    /** is using compat deploy */
+    val isCompatDeploy: Boolean = false,
 ) {
+
     val isEmpty get() = newClasses.isEmpty() &&
             hotFixModifiedClasses.isEmpty() &&
             hotReloadModifiedClasses.isEmpty() &&
             overlays.isEmpty()
+
+    /** is restart app after deployment */
+    val isNeedRestartApp: Boolean get() = hotFixModifiedClasses.isNotEmpty() || (isPushOverlayOnly && !isEmpty)
 
     // for now, we always restart activity excepts warm up and restart app
     val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp && !isEmpty
@@ -53,9 +57,10 @@ data class JuggDeployData(
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
 
-    val deployType: DeployType = when {
+    val deployType: DeployType get() = when {
         isInstall -> DeployType.INSTALL
         isWarmUp -> DeployType.WARM_UP
+        isCompatDeploy -> DeployType.COMPAT_HOT_FIX
         isNeedRestartApp -> DeployType.HOT_FIX
         else -> DeployType.HOT_RELOAD
     }
@@ -64,13 +69,18 @@ data class JuggDeployData(
         return this.copy(
             hotFixModifiedClasses = this.hotFixModifiedClasses + this.hotReloadModifiedClasses,
             hotReloadModifiedClasses = emptyList(),
-            isNeedRestartApp = true,
         )
     }
 
     private fun toString(isFull: Boolean): String {
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
+        if (isFull) {
+            builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy\n")
+            if (updateApkFiles.isNotEmpty()) {
+                builder.append("update apks: ${updateApkFiles.map { it.name }}")
+            }
+        }
         if (isEmpty) {
             builder.append("[nothing to deploy]")
             return builder.toString()
@@ -141,6 +151,7 @@ data class JuggDeployData(
         fun forDryDeploy(apks: List<ApkInfo>) = JuggDeployData(apks,
             emptyList(), emptyList(), emptyList(),
             emptyList(), emptyList(), ParsedDex.EMPTY,
+            isPushOverlayOnly = true,
             isFullRes = false,
             isWarmUp = false,
             isInstall = false,
@@ -150,6 +161,7 @@ data class JuggDeployData(
     enum class DeployType {
         INSTALL,
         HOT_FIX,
+        COMPAT_HOT_FIX,
         HOT_RELOAD,
         WARM_UP,
     }

@@ -43,10 +43,10 @@ object JuggSettings {
      * compat deploy strategy for:
      * Huawei HarmonyOS 4.2
      * Xiaomi HyperOS
-     * Device API lower than 31
+     * Device API lower than 30
      * For Huawei HarmonyOS 4.2, Jugg will fix the problem that incremental dex not inject correctly.
      * For Xiaomi HyperOS, some apps may get "MISSING_AGENT_RESPONSES", Jugg will use hot fix deployment solution to compat with it.
-     * For Device API lower than 31, Jugg will use hot fix deployment solution to compat with it.
+     * For Device API lower than 30, Jugg will use hot fix deployment solution to compat with it.
      */
     var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
     val finalIsEnableCompatibleDeploymentMode get() = isEnableInjectGradleCompile && isEnableCompatibleDeploymentMode
@@ -66,6 +66,8 @@ object JuggSettings {
      * Enable this can skip JVM-TI process and save time.
      */
     const val isQuickFallbackToHotFix: Boolean = true
+
+    var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 
     /**
      * Use this for Jugg run configuration arguments if first set.

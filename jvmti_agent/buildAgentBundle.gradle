@@ -33,6 +33,8 @@ android {
         buildConfigField("String", "META_DATA_LABEL_RAW_APPLICATION", "\"com.sickworm.intellij.jugg.hotfix.raw.application\"")
         buildConfigField("String", "INJECT_APPLICATION_NAME", "\"com.sickworm.intellij.jugg.hotfix.BootstrapApplication\"")
         buildConfigField("String", "RESOURCE_APK_NAME", "\"resource.ap_\"")
+        buildConfigField("String", "JVMTI_NOT_AVAILABLE_FLAG_FILE", "\".jugg_jvmti_not_available\"")
+        buildConfigField("String", "ENABLE_COMPAT_DEPLOY_FLAG_FILE", "\".jugg_compat_deploy_enable\"")
     }
 }
 

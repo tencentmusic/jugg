@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 
@@ -62,4 +63,30 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         TimeLogger.end("pushAgentToApps", logger)
     }
 
+    fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData): Boolean {
+        if (data.isCompatDeploy) {
+            // already in compatible mode, no need check
+            logger.debug("already in compatible mode, no need check")
+            return false
+        }
+
+        data.apks.forEach {
+            if (!isJvmtiAvailable(adb, it.applicationId)) {
+                logger.debug("isHasJvmtiCompatIssue=true for ${it.applicationId}")
+                CompatDeployHelper(logger).recordCompatDeviceRecord(adb, listOf(it.applicationId))
+                return true
+            }
+        }
+        logger.debug("isHasJvmtiCompatIssue=false")
+        return false
+    }
+
+    private fun isJvmtiAvailable(adb: IDeviceAdb, packageName: String): Boolean {
+        val cmd = "run-as $packageName ls code_cache/${BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE}"
+        val result = adb.execAdbShellCmd(cmd)
+        if (result.contains("No such file or directory")) {
+            return true
+        }
+        return !result.contains(BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE)
+    }
 }

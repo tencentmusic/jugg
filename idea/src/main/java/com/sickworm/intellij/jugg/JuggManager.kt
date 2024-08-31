@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.android.ddmlib.IDevice
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.execution.process.ProcessHandler
@@ -29,6 +30,7 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
+import org.jetbrains.kotlin.idea.gradleTooling.get
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.lang.Runnable
@@ -39,7 +41,7 @@ class JuggManager @TestOnly constructor(
     val project: Project,
     val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
-    private val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
+    val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
     private val juggServer: JuggServer = JuggServer(project, pathManager),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
@@ -478,6 +480,10 @@ class JuggManager @TestOnly constructor(
 
     fun dumpLogcatErrorLogs(): String {
         return deployTargetManager.dumpErrorLogs()
+    }
+
+    fun getDeviceList(): List<IDevice> {
+        return deployTargetManager.getDevices()
     }
 
     private fun reInitOnCompileContextUpdate() {

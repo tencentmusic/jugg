@@ -81,9 +81,20 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm, char *options,
     JNIEnv* jni = nullptr;
     if (vm->GetEnv((void**)&jni, JNI_VERSION_1_2) != JNI_OK) {
         ALOGE("Error retrieving JNI function table.");
+        if (!markAsJvmtiNotAvailable(options)) {
+            ALOGE("Could not mark JVMTI as unavailable.");
+        }
         return JNI_OK;
     }
-    return HandleStartupAgent(jvmti, jni, options);
+
+    // refer from Apply Changes agent.cc
+    // Startup agents are passed the path to the app data directory.
+    if (options[0] == '/') {
+        // run by ActivityThread.java
+        return HandleStartupAgent(jvmti, jni, options);
+    } else {
+        // run by shell, ignore
+    }
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {

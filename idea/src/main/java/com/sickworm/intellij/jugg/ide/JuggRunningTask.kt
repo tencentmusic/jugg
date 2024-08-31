@@ -165,6 +165,9 @@ class JuggRunningTask(
             deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.INSTALL } -> {
                 JuggDeployData.DeployType.INSTALL
             }
+            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.COMPAT_HOT_FIX } -> {
+                JuggDeployData.DeployType.COMPAT_HOT_FIX
+            }
             deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.HOT_FIX } -> {
                 JuggDeployData.DeployType.HOT_FIX
             }
@@ -263,9 +266,12 @@ class JuggRunningTask(
             "Launch succeeded$suffix"
         } else if (deployType == JuggDeployData.DeployType.HOT_RELOAD) {
             "Deploy changes succeeded$suffix (no need restart App)"
+        } else if (deployType == JuggDeployData.DeployType.COMPAT_HOT_FIX) {
+            "Deploy changes succeeded$suffix (compat mode)"
         } else {
             "Deploy changes succeeded$suffix"
         }
+        logger.debug("notifyLaunched $text")
         SwingUtilities.invokeLater {
             val toolWindowManager: ToolWindowManager = ToolWindowManager.getInstance(project)
             toolWindowManager.notifyByBalloon("Run", MessageType.INFO, text)

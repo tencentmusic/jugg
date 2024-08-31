@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.getInstance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -192,14 +193,38 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getDeployData(isWarmUp: Boolean = false, isNeedPushResourceApk: Boolean = false): JuggDeployData {
+    fun getDeployData(isWarmUp: Boolean = false, isEnableCompatDeploy: Boolean = false): JuggDeployData {
         val deployItems = stagingFiles.values.map { it.toDeployItem() }
         val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
-        if (isNeedPushResourceApk && deployData.overlays.isNotEmpty()) {
-            val resourceApks = resourceApkGenerator.getResourceApkDeployItem(deployData.overlays, deployedFiles)
-            return deployData.copy(overlays = deployData.overlays + resourceApks)
+        if (isEnableCompatDeploy) {
+            return appendCompatDeployFiles(deployData)
         }
         return deployData
+    }
+
+    fun appendCompatDeployFiles(deployData: JuggDeployData): JuggDeployData {
+        var compatDeployData = deployData.copy(isCompatDeploy = true, isPushOverlayOnly = true)
+
+        if (!deployData.isEmpty) {
+            // no need push flag file if empty (dry deploy)
+            val enableFlag = DeployItem(
+                name = BuildConfig.ENABLE_COMPAT_DEPLOY_FLAG_FILE,
+                type = CompileOutput.Type.Asset,
+                checksum = CRC32().let {
+                    it.update(ByteArray(0))
+                    it.value
+                },
+                content = ByteArray(0)
+            )
+            compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays + enableFlag)
+        }
+
+        if (deployData.overlays.isNotEmpty()) {
+            val resourceApks = resourceApkGenerator.getResourceApkDeployItem(compatDeployData.overlays, deployedFiles)
+            compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays + resourceApks)
+        }
+
+        return compatDeployData
     }
 
     @Synchronized

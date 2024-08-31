@@ -18,8 +18,11 @@ class IdeaDeviceAdb(
 
     private val ideaLogger = ideaLoggerArg.getInstance("IdeaDeviceAdb")
 
-    override val deviceName: String
-        get() = device.name
+    override val displayName: String
+        get() = device.getProperty("ro.product.manufacturer") + " " + device.getProperty("ro.product.model")
+
+    override val api: Int
+        get() = device.version.apiLevel
 
     private val logger = LogWrapper(ideaLogger).also {
         it.alwaysLogAsDebug(true)

@@ -87,7 +87,7 @@ interface IAsDeployerCompat {
     }
 
     companion object {
-        const val MIN_DEVICE_API = 30
+        const val MIN_DEVICE_API = 27 // Android 8
     }
 }
 

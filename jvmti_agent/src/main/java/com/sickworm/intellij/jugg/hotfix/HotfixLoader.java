@@ -1,7 +1,11 @@
 package com.sickworm.intellij.jugg.hotfix;
 
 import android.content.Context;
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
+
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HotfixLoader {
 
@@ -16,11 +20,21 @@ public class HotfixLoader {
     }
 
     public static boolean isNeedEnableHotfix() {
-        File flagFile = new File(overlayFilesDir, ".jugg_compat_deploy_enable");
-        File flagFile2 = new File(codeCacheDir, ".jugg_jvmti_not_available");
-        LogUtils.i(TAG, "isNeedEnableHotfix " + flagFile.getName() + " exists " + flagFile.exists());
-        LogUtils.i(TAG, "isNeedEnableHotfix " + flagFile2.getName() + " exists " + flagFile2.exists());
-        return flagFile.exists() || flagFile2.exists();
+        boolean isEnableHotfix = false;
+        if (HotfixLoader.overlayFilesDir.exists()) {
+            File[] files = HotfixLoader.overlayFilesDir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isDirectory()) {
+                        File flagFile = new File(file, BuildConfig.ENABLE_COMPAT_DEPLOY_FLAG_FILE);
+                        if (flagFile.exists()) {
+                            isEnableHotfix = true;
+                        }
+                    }
+                }
+            }
+        }
+        return isEnableHotfix;
     }
 
     public static void install(final Context base) {

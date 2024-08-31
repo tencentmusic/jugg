@@ -4,7 +4,9 @@ import java.io.File
 
 interface IDeviceAdb {
 
-    val deviceName: String
+    val displayName: String?
+
+    val api: Int
 
     fun execAdbShellCmd(cmd: String): String
 
