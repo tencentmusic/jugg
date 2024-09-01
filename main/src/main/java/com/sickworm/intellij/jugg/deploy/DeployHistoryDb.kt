@@ -315,8 +315,8 @@ class DeployHistoryDb(
 
     private fun DeployHistoryData.getDeployLogFile(isTemp: Boolean): File {
         val fileName =
-            if (isTemp) "deploy_${incDeployTimes}.log"
-            else ".deploy_${incDeployTimes}.log.tmp"
+            if (isTemp) ".deploy_${incDeployTimes}.log.tmp"
+            else "deploy_${incDeployTimes}.log"
         return File(deployLogsDir, fileName)
     }
 
