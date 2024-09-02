@@ -113,6 +113,9 @@ class GitFileChangesDetector(
         val gitManagerMap = mutableMapOf<String, IGitManager>()
         dirs.forEach {
             val subModuleGitManager = PlatformApi.createGitManagerAndTrySearchParent(it)
+            if (!subModuleGitManager.hasInitGit) {
+                return@forEach
+            }
             if (subModuleGitManager.rootDir.path !in gitManagerMap.keys) {
                 gitManagerMap[subModuleGitManager.rootDir.path] = subModuleGitManager
             }
