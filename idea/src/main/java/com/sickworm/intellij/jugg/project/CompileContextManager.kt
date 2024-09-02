@@ -416,7 +416,7 @@ class CompileContextManager(
                 }
             }
 
-            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty() && libraryDependencies.isEmpty()) {
+            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {
                 noSourceModules.add(module.name)
                 return@forEach
             }
