@@ -205,6 +205,11 @@ class DeployFileManager(
     fun appendCompatDeployFiles(deployData: JuggDeployData): JuggDeployData {
         var compatDeployData = deployData.copy(isCompatDeploy = true, isPushOverlayOnly = true)
 
+        // filter origin overlay files to avoid deployed by Apply Changes
+        compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays.filter {
+            it.type != CompileOutput.Type.Res && it.type != CompileOutput.Type.Asset
+        })
+
         if (!deployData.isEmpty) {
             // no need push flag file if empty (dry deploy)
             val enableFlag = DeployItem(
@@ -220,7 +225,7 @@ class DeployFileManager(
         }
 
         if (deployData.overlays.isNotEmpty()) {
-            val resourceApks = resourceApkGenerator.getResourceApkDeployItem(compatDeployData.overlays, deployedFiles)
+            val resourceApks = resourceApkGenerator.getResourceApkDeployItem(deployData.overlays, deployedFiles)
             compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays + resourceApks)
         }
 
