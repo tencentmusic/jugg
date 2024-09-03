@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName2
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
@@ -313,6 +314,12 @@ class IncrementalDeployDataDatabase(private val logger: Logger) {
     }
 
     fun isDeployedOverlaysBefore(): Boolean {
+        // if all overlays are special prefix, it means no overlay is deployed
+        // notice: apply changes will detect resource.arsc or res exists.
+        // so only push .jugg_* won't trigger res incremental apply.
+        if (deployedOverlays.all { it.value.name.startsWith(BuildConfig.AAA_JUGG_FLAG_FILE_PREFIX) }) {
+            return false
+        }
         return deployedOverlays.isNotEmpty()
     }
 
