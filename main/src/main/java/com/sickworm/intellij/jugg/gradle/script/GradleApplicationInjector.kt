@@ -71,7 +71,7 @@ class GradleApplicationInjector(
         // Here we use full name to avoid conflicting.
         val manifestRoot: Node = groovy.util.XmlParser().parse(mergedManifest)
         val application = ((manifestRoot.get("application") as? NodeList)?.firstOrNull() as? Node)
-        println("Jugg application: ${application != null}")
+        println("Jugg application node exists: ${application != null}")
         if (application == null) {
             throw IllegalStateException("Wrong format in AndroidManifest, no application node is found !")
         }
@@ -85,6 +85,10 @@ class GradleApplicationInjector(
                 // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
                 attributes[it.key] = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
             }
+        }
+        if (originApplicationName == null) {
+            println("Jugg: originApplicationName is null, add name attribute to application")
+            attributes?.put("android:name", "com.sickworm.intellij.jugg.hotfix.BootstrapApplication")  // BuildConfig.INJECT_APPLICATION_NAME
         }
 
         application.appendNode("meta-data", mapOf(

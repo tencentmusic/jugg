@@ -42,7 +42,7 @@ public class BootstrapApplication extends Application {
     private static final String TAG = HotfixLoader.TAG + "#BootstrapApplication";
     public static final String META_DATA_LABEL_RAW_APPLICATION = BuildConfig.META_DATA_LABEL_RAW_APPLICATION;
 
-    private Application rawApplication;
+    private Application rawApplication = null;
 
     public BootstrapApplication() {
         LogUtils.i(TAG, "BootstrapApplication instance created: @" + Integer.toHexString(hashCode()) );
@@ -64,11 +64,16 @@ public class BootstrapApplication extends Application {
 
     @Override public void onCreate() {
         LogUtils.i(TAG, "onCreate start");
-        replaceApplication();
+        if (rawApplication != null) {
+            replaceApplication();
+        }
 
         super.onCreate();
-        moveActivityLifecycleCallbacks();
-        rawApplication.onCreate();
+
+        if (rawApplication != null) {
+            moveActivityLifecycleCallbacks();
+            rawApplication.onCreate();
+        }
 
         LogUtils.i(TAG, "onCreate done");
     }
@@ -107,8 +112,9 @@ public class BootstrapApplication extends Application {
             ApplicationInfo applicationInfo = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
             if (applicationInfo != null) {
                 rawApplicationName = applicationInfo.metaData.getString(META_DATA_LABEL_RAW_APPLICATION);
-                if (TextUtils.isEmpty(rawApplicationName)) {
-                    throw new IllegalStateException("Can not find meta-data with " + META_DATA_LABEL_RAW_APPLICATION);
+                if (TextUtils.isEmpty(rawApplicationName) || rawApplicationName.equals("null")) {
+                    LogUtils.i(TAG, "generateRawApplication: no raw application, exit generate");
+                    return;
                 }
                 Class<?> clazz = getClassLoader().loadClass(rawApplicationName);
                 rawApplication = (Application) clazz.newInstance();
@@ -121,11 +127,6 @@ public class BootstrapApplication extends Application {
         } catch (Throwable e) {
             LogUtils.e(TAG, "generateRawApplication: error while create instance for rawApplicationName : " + rawApplicationName, e);
             throw new IllegalStateException(e);
-        }
-
-        if (rawApplication == null) {
-            LogUtils.e(TAG, "generateRawApplication: rawApplication == null");
-            throw new IllegalStateException("generateRawApplication: rawApplication == null, Failed to generate raw application for : " + rawApplicationName);
         }
     }
 
