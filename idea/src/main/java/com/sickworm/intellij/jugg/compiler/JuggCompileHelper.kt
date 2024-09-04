@@ -321,11 +321,7 @@ class JuggCompilerHelper(
         var isIncrementalCompileLibrary = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.INCREMENTAL_COMPILE
         val isFallback = dependencyChangeManager.changeStatus == IDependencyChangeManager.ChangeStatus.REBUILD
         logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $isIncrementalCompileLibrary")
-        if (!isIncrementalCompileLibrary && !isFallback) {
-            if (changedBuildFiles.isEmpty() || !JuggSettings.finalIsEnableReadProjectInfoFromGradle) {
-                return
-            }
-
+        if (!isIncrementalCompileLibrary && !isFallback && JuggSettings.isEnableInjectGradleCompile && changedBuildFiles.isNotEmpty()) {
             val lastBuildFilesMap = deployHistoryManager.getLastBuildFiles(changedBuildFiles)
             val step1Result = BuildChangesConfirmDialog.showAndGetResult(project, lastBuildFilesMap.map { it.first.file to it.second })
             var step2Result = ConfirmResult.INVALID
