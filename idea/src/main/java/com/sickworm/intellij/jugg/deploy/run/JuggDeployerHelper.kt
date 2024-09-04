@@ -458,6 +458,12 @@ class JuggDeployerHelper(
             return false
         }
 
+        val isDeviceDeployable = waitingForDeployable(device)
+        if (!isDeviceDeployable) {
+            logger.info("Dry deploy failed for app not launched.")
+            return false
+        }
+
         logger.info("Device online, try dry deploy.")
         return try {
             val dryDeployData = JuggDeployData.forDryDeploy(deployTargetManager.getApks())
