@@ -97,7 +97,12 @@ class JuggDeployer(
 
         // Get the App info. Some from the APK, some from DDMLib.
         val packageName = ApplicationDumper.getPackageName(newFiles)
-        val pids = adb.getPids(packageName)
+        val pids = try {
+            adb.getPids(packageName)
+        } catch (e: Exception) {
+            // on Huawei Android 9: java.lang.IllegalStateException: Device LUGUT19B22001999, do not support REAL_PKG_NAME
+            emptyList()
+        }
         val arch = adb.getArch(pids)
 
         // Get the list of files from the installed app assuming deployment cache is correct.
