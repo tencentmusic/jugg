@@ -5,6 +5,7 @@ import com.android.tools.idea.gradle.dsl.api.dependencies.ArtifactDependencyMode
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import java.io.File
 
 class ProjectInfoReader(private val project: Project, private val logger: Logger) {
@@ -15,6 +16,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
             logger.debug("systemPath: ${File(PathManager.getSystemPath())}")
+            logger.debug("device MIN API: ${IAsDeployerCompat.MIN_DEVICE_API}")
         } catch (e: Exception) {
             logger.error("printProjectInfo failed", e)
         }

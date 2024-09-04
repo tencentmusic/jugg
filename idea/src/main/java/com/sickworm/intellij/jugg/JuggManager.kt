@@ -77,9 +77,9 @@ class JuggManager @TestOnly constructor(
         runTaskSafe("Init Jugg", {
             AsDeployerCompat.init(JuggLogger.getInstance(project, "AsDeployerCompat"))
             loadCustomConfig()
-            ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             tryCreateRunConfigurations(isSyncFinished = false)
             IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
+            ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             logger.info("Start jugg finished.")
 
             // init project info async

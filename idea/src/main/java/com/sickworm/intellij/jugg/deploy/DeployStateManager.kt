@@ -60,18 +60,19 @@ class DeployStateManager(
     }
 
     fun getDeployState(device: IDevice): JuggDeployState {
-        return deployStateMap[device.serialNumber] ?: getNewDeployState(null)
+        return deployStateMap[device.name] ?: getNewDeployState(device)
     }
 
     private fun getNewDeployState(): JuggDeployState {
         deployStateMap = deployTargetManager.getDevices().map {
-            it.serialNumber to getNewDeployState(it)
+            // name includes serial number
+            it.name to getNewDeployState(it)
         }.associate { it }
 
         return if (deployStateMap.isEmpty()) {
             getNewDeployState(null)
         } else {
-            deployStateMap.maxBy { it.value.state.ordinal }.value
+            deployStateMap.minBy { it.value.state.ordinal }.value
         }
     }
 
