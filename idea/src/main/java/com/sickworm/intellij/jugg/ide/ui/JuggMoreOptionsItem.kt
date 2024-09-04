@@ -154,12 +154,7 @@ class JuggMoreOptionsItem(
                         name = "Force use compat deploy for ${adb.displayName}",
                         onGet = { compatDeployHelper.isForceCompatDevice(adb) },
                         onSet = {
-                            val isForceCompatDevice = compatDeployHelper.isForceCompatDevice(adb)
-                            if (isForceCompatDevice) {
-                                compatDeployHelper.clearCompatDeviceRecord(adb)
-                            } else {
-                                compatDeployHelper.recordCompatDeviceRecord(adb)
-                            }
+                            JuggInitializer.getManager(project)?.setForceCompatDevice(adb)
                         }
                     )
                 }

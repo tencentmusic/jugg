@@ -419,6 +419,24 @@ class JuggManager @TestOnly constructor(
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
+    fun setForceCompatDevice(adb: IdeaDeviceAdb) {
+        logger.info("[options] setForceCompatDevice ${adb.displayName}")
+
+        val compatDeployHelper = CompatDeployHelper(JuggInitializer.getManager(project)!!.logger)
+        val isForceCompatDevice = compatDeployHelper.isForceCompatDevice(adb)
+        if (isForceCompatDevice) {
+            compatDeployHelper.clearCompatDeviceRecord(adb)
+        } else {
+            compatDeployHelper.recordCompatDeviceRecord(adb)
+        }
+        // clear lastDeployOverlayIds to force re-reinstall
+        deployHistoryManager.lastDeployOverlayIds = deployHistoryManager.lastDeployOverlayIds.mapValues {
+            "force re-install"
+        }
+        juggRunningTaskStatusManager.resetHasRun()
+    }
+
+
     fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
         runTaskSafe("Mark as Gradle Compiled", {
