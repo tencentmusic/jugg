@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -15,7 +16,6 @@ class CompatDeployHelper(
     private val logger = logger.getInstance("CompatDeployHelper")
 
     companion object {
-        const val ANDROID_11_API = 30
         var type: Type = object : TypeToken<List<CompatDeployRecord>?>() {}.type
     }
 
@@ -46,7 +46,7 @@ class CompatDeployHelper(
     }
 
     fun isEnableCompatDeploy(device: IDeviceAdb, data: JuggDeployData): Boolean {
-        if (device.api < ANDROID_11_API) {
+        if (device.api < IAsDeployerCompat.ANDROID_11_API) {
             // device not supports overlay swap, use compat deploy
             return true
         }

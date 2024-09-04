@@ -120,9 +120,7 @@ class JuggMoreOptionsItem(
                     )
                     if (isConfirmed) {
                         JuggSettings.isEnableInjectGradleCompile = it
-                        JuggInitializer.getManager(project)?.deleteCompileContext()
-                        JuggInitializer.getManager(project)?.enableReadProjectFromGradle()
-                        JuggInitializer.getManager(project)?.removeJuggJvmtiAgents()
+                        JuggInitializer.getManager(project)?.enableInjectGradleCompilation()
                     }
                 }
             )
@@ -142,7 +140,7 @@ class JuggMoreOptionsItem(
                     onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
                     onSet = {
                         JuggSettings.isEnableCompatibleDeploymentMode = it
-                        JuggInitializer.getManager(project)?.removeJuggJvmtiAgents()
+                        JuggInitializer.getManager(project)?.enableCompatibleDeploymentMode()
                     }
                 )
 

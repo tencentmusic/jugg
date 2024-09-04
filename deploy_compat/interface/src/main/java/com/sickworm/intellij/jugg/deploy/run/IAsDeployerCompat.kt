@@ -87,7 +87,19 @@ interface IAsDeployerCompat {
     }
 
     companion object {
-        const val MIN_DEVICE_API = 27 // Android 8
+        const val ANDROID_11_API = 30
+        @Suppress("MemberVisibilityCanBePrivate")
+        const val ANDROID_8_API = 27
+        var MIN_DEVICE_API = ANDROID_11_API // Android 8
+            private set
+
+        fun updateMinApi(isEnableCompatDeploy: Boolean) {
+            MIN_DEVICE_API = if (isEnableCompatDeploy) {
+                ANDROID_8_API
+            } else{
+                ANDROID_11_API
+            }
+        }
     }
 }
 

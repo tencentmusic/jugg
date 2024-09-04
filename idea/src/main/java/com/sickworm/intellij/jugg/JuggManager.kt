@@ -13,10 +13,7 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
-import com.sickworm.intellij.jugg.deploy.run.JuggDeploymentService
-import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
+import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -30,7 +27,6 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
-import org.jetbrains.kotlin.idea.gradleTooling.get
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.lang.Runnable
@@ -83,6 +79,7 @@ class JuggManager @TestOnly constructor(
             loadCustomConfig()
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             tryCreateRunConfigurations(isSyncFinished = false)
+            IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
             logger.info("Start jugg finished.")
 
             // init project info async
@@ -403,9 +400,12 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    fun deleteCompileContext() {
-        logger.info("[options] deleteCompileContext")
+    fun enableInjectGradleCompilation() {
+        logger.info("[options] enableInjectGradleCompilation")
         deployHistoryManager.deleteDeployHistory()
+        enableReadProjectFromGradle()
+        enableCompatibleDeploymentMode()
+        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
     }
 
     fun markAsSyncedAndReInitCompiler() {
@@ -485,8 +485,10 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    fun removeJuggJvmtiAgents() {
-        logger.info("[options] removeJuggJvmtiAgents")
+    fun enableCompatibleDeploymentMode() {
+        logger.info("[options] enableCompatibleDeploymentMode")
+        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
+
         runTaskSafe("Remove Jugg JVMTI agents", {
             val devices = deployTargetManager.getDevices()
             devices.forEach {
