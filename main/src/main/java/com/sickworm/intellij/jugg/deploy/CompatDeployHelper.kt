@@ -84,7 +84,21 @@ class CompatDeployHelper(
         logger.debug("after record: $newRecords")
     }
 
-    fun clearCompatDeviceRecord(device: IDeviceAdb) {
+    fun clearCompatDeviceRecord(device: IDeviceAdb, applications: List<String>? = null) {
+        logger.debug("before clear record: $records")
+        if (applications != null) {
+            val oldRecord = records.find { it.displayName == device.displayName }
+            if (oldRecord?.applications != null) {
+                // try filter applications
+                val newApplications = oldRecord.applications.filter { it !in applications }
+                val newRecords = records.filter { it.displayName != device.displayName }.toMutableList()
+                newRecords.add(CompatDeployRecord(device.displayName, newApplications))
+                records = newRecords
+                logger.debug("after clear record: $newRecords")
+                return
+            }
+        }
+
         val newRecords = records.filter { it.displayName != device.displayName }.toMutableList()
         records = newRecords
         logger.debug("after clear record: $newRecords")

@@ -108,12 +108,9 @@ class JuggDeployerHelper(
             logger.debug("App foreground, no need to restart app.")
         }
 
-        if (isNeedPushAgentAfterDeploy) {
+        if (isNeedPushAgentAfterDeploy && data.isNeedRestartApp) {
             // check JVMTI compatibility issue
             // waiting app foreground (which means JVMTI agent boot finished)
-            if (!deployTargetManager.isAppForeground(device)) {
-                waitingForDeployable(device)
-            }
             val adb = IdeaDeviceAdb(device, logger)
             val isHasJvmtiCompatIssue = JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data)
             if (isHasJvmtiCompatIssue) {
@@ -319,7 +316,7 @@ class JuggDeployerHelper(
                     return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
                 }
 
-                val nextRetryDeployData = deployData.toFallbackToHotFixData().copy(isPushOverlayOnly = true)
+                var nextRetryDeployData = deployData.toFallbackToHotFixData().copy(isPushOverlayOnly = true)
 
                 val isClassModifiedError = (!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError || isInternalError)
                 if (isClassModifiedError || isInstrumentationFailed) {
@@ -337,7 +334,14 @@ class JuggDeployerHelper(
 
                 val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
                 if (isAgentNotResponses) {
-                    logger.info("Deploy agent no response, push files directly and restart.")
+                    logger.info("Deploy agent no response, going to detect JVMTI is available.")
+                    // try detect compat issues
+                    if (detectJvmtiCompatIssue(device, deployData)) {
+                        logger.warn("Detect JVMTI compat issue, fallback to compat deploy mode.")
+                        nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
+                    } else {
+                        logger.info("JVMTI is available, push files directly and restart.")
+                    }
                     return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
                 }
 
@@ -391,6 +395,17 @@ class JuggDeployerHelper(
 
             DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = !isInstall, costTime = costTime(), failedReason = reason)
         }
+    }
+
+    private fun detectJvmtiCompatIssue(device: IDevice, deployData: JuggDeployData): Boolean {
+        val adb = IdeaDeviceAdb(device, logger)
+        val jvmtiAgentManagerHelper = JuggJvmtiAgentManagerHelper(logger)
+        if (jvmtiAgentManagerHelper.isNeedPushAgentAfterDeploy(adb, deployData)) {
+            jvmtiAgentManagerHelper.pushAgentToApps(adb, deployData)
+            deployTargetManager.restartApp(device)
+        }
+
+        return jvmtiAgentManagerHelper.isHasJvmtiCompatIssue(adb, deployData)
     }
 
     private fun updateInfoAfterIncDeploy(launchResult: LaunchResult, deployData: JuggDeployData) {

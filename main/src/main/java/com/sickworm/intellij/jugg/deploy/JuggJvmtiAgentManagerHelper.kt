@@ -63,30 +63,60 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         TimeLogger.end("pushAgentToApps", logger)
     }
 
-    fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData): Boolean {
+    fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData, maxWaitTimeSecond: Long = 5): Boolean {
         if (data.isCompatDeploy) {
             // already in compatible mode, no need check
             logger.debug("already in compatible mode, no need check")
             return false
         }
 
-        data.apks.forEach {
-            if (!isJvmtiAvailable(adb, it.applicationId)) {
-                logger.debug("isHasJvmtiCompatIssue=true for ${it.applicationId}")
-                CompatDeployHelper(logger).recordCompatDeviceRecord(adb, listOf(it.applicationId))
-                return true
+        TimeLogger.start("isHasJvmtiCompatIssue")
+        var waitedTimeSecond = 0
+        val waitGapMillSecond = 1
+        var isHasJvmtiCompatIssue = false
+        while (waitedTimeSecond < maxWaitTimeSecond) {
+            logger.info("(${waitedTimeSecond + 1}/$maxWaitTimeSecond) detecting JVMTI status...")
+            val isJvmtiAvailableResults = data.apks.map {
+                val result = isJvmtiAvailable(adb, it.applicationId)
+                logger.debug("isJvmtiAvailable=$result for ${it.applicationId}")
+                if (result == true) {
+                    CompatDeployHelper(logger).clearCompatDeviceRecord(adb, listOf(it.applicationId))
+                } else if (result == false) {
+                    CompatDeployHelper(logger).recordCompatDeviceRecord(adb, listOf(it.applicationId))
+                }
+                result
             }
+
+            if (isJvmtiAvailableResults.all { it != null }) {
+                isHasJvmtiCompatIssue = isJvmtiAvailableResults.any { it == false }
+                break
+            }
+
+            Thread.sleep(waitGapMillSecond * 1000L)
+            waitedTimeSecond++
         }
-        logger.debug("isHasJvmtiCompatIssue=false")
-        return false
+        logger.debug("Detect finished, isHasJvmtiCompatIssue=$isHasJvmtiCompatIssue")
+        TimeLogger.end("isHasJvmtiCompatIssue", logger)
+
+        return isHasJvmtiCompatIssue
     }
 
-    private fun isJvmtiAvailable(adb: IDeviceAdb, packageName: String): Boolean {
-        val cmd = "run-as $packageName ls code_cache/${BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE}"
+    /**
+     * @return null if not sure
+     */
+    private fun isJvmtiAvailable(adb: IDeviceAdb, packageName: String): Boolean? {
+        val cmd = "run-as $packageName ls -a code_cache"
         val result = adb.execAdbShellCmd(cmd)
         if (result.contains("No such file or directory")) {
+            return null
+        }
+        // priority read not available flag file
+        if (result.contains(BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE)) {
+            return false
+        }
+        if (result.contains(BuildConfig.JVMTI_AVAILABLE_FLAG_FILE)) {
             return true
         }
-        return !result.contains(BuildConfig.JVMTI_NOT_AVAILABLE_FLAG_FILE)
+        return null
     }
 }

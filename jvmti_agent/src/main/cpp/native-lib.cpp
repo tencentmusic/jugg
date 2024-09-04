@@ -52,12 +52,20 @@ const char* kPathSeparator =
 "/";
 #endif
 
-bool markAsJvmtiNotAvailable(char* app_data_dir) {
+bool markAsJvmtiIsAvailable(bool isAvailable, char* app_data_dir) {
     std::string flag_file_path;
-    flag_file_path.append(app_data_dir)
-        .append(kPathSeparator).append("code_cache")
-        .append(kPathSeparator).append(".jugg_jvmti_not_available");
-    ALOGE("Creating flag file: %s", flag_file_path.c_str());
+
+    if (isAvailable) {
+        flag_file_path.append(app_data_dir)
+            .append(kPathSeparator).append("code_cache")
+            .append(kPathSeparator).append(".jugg_jvmti_available");
+        ALOGD("Creating flag file: %s", flag_file_path.c_str());
+    } else {
+        flag_file_path.append(app_data_dir)
+            .append(kPathSeparator).append("code_cache")
+            .append(kPathSeparator).append(".jugg_jvmti_not_available");
+        ALOGE("Creating flag file: %s", flag_file_path.c_str());
+    }
 
     FILE* flag_file = fopen(flag_file_path.c_str(), "w");
     if (flag_file == nullptr) {
@@ -73,7 +81,7 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm, char *options,
     jvmtiEnv* jvmti = nullptr;
     if (vm->GetEnv((void**)&jvmti, JVMTI_VERSION_1_2) != JNI_OK) {
         ALOGE("Error retrieving JVMTI function table.");
-        if (!markAsJvmtiNotAvailable(options)) {
+        if (!markAsJvmtiIsAvailable(false, options)) {
             ALOGE("Could not mark JVMTI as unavailable.");
         }
         return JNI_OK;
@@ -81,11 +89,13 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm, char *options,
     JNIEnv* jni = nullptr;
     if (vm->GetEnv((void**)&jni, JNI_VERSION_1_2) != JNI_OK) {
         ALOGE("Error retrieving JNI function table.");
-        if (!markAsJvmtiNotAvailable(options)) {
+        if (!markAsJvmtiIsAvailable(false, options)) {
             ALOGE("Could not mark JVMTI as unavailable.");
         }
         return JNI_OK;
     }
+
+    markAsJvmtiIsAvailable(true, options);
 
     // refer from Apply Changes agent.cc
     // Startup agents are passed the path to the app data directory.

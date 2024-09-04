@@ -34,6 +34,7 @@ android {
         buildConfigField("String", "INJECT_APPLICATION_NAME", "\"com.sickworm.intellij.jugg.hotfix.BootstrapApplication\"")
         buildConfigField("String", "RESOURCE_APK_NAME", "\"resource.ap_\"")
         buildConfigField("String", "AAA_JUGG_FLAG_FILE_PREFIX", "\".jugg_\"") // add AAA_ to control the order in BuildConfig.java
+        buildConfigField("String", "JVMTI_AVAILABLE_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"jvmti_available\"")
         buildConfigField("String", "JVMTI_NOT_AVAILABLE_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"jvmti_not_available\"")
         buildConfigField("String", "ENABLE_COMPAT_DEPLOY_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"compat_deploy_enable\"")
     }
