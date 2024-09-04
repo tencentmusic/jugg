@@ -165,6 +165,18 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 return@forEach
             }
 
+            fun <T> chooseValue(gradle: T?, ide: T?): T? {
+                if (isNeedUpdateDependency) {
+                    if (gradle != null) {
+                        return gradle
+                    }
+                }
+                if (ide != null) {
+                    return ide
+                }
+                return gradle
+            }
+
             // merge with different strategy
             val mergedModuleInfo = ModuleInfo(
                 name = moduleInfo.name,
@@ -174,21 +186,21 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 sourceDirs = mergeWithBase(name, "sourceDirs", moduleInfo.sourceDirs, gradleModuleInfo.sourceDirs, mergeResult) { it.absolutePath },
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
-                manifestFile = moduleInfo.manifestFile ?: gradleModuleInfo.manifestFile,
+                manifestFile = chooseValue(gradleModuleInfo.manifestFile, moduleInfo.manifestFile),
                 buildVariant = moduleInfo.buildVariant, // only ide can get, gradle is also read from ide project info
-                compileVersion = gradleModuleInfo.compileVersion ?: moduleInfo.compileVersion,
-                minSdkVersion = gradleModuleInfo.minSdkVersion ?: moduleInfo.minSdkVersion,
-                buildToolsVersion = gradleModuleInfo.buildToolsVersion ?: moduleInfo.buildToolsVersion,
-                kotlinJvmTarget = gradleModuleInfo.kotlinJvmTarget ?: moduleInfo.kotlinJvmTarget,
+                compileVersion = chooseValue(gradleModuleInfo.compileVersion, moduleInfo.compileVersion),
+                minSdkVersion = chooseValue(gradleModuleInfo.minSdkVersion, moduleInfo.minSdkVersion),
+                buildToolsVersion = chooseValue(gradleModuleInfo.buildToolsVersion, moduleInfo.buildToolsVersion),
+                kotlinJvmTarget = chooseValue(gradleModuleInfo.kotlinJvmTarget, moduleInfo.kotlinJvmTarget),
                 kotlinFreeCompilerArgs = mergeWithBase(name, "kotlinFreeCompilerArgs", gradleModuleInfo.kotlinFreeCompilerArgs, moduleInfo.kotlinFreeCompilerArgs, mergeResult) { it },
-                javaSourceCompatibility = gradleModuleInfo.javaSourceCompatibility ?: moduleInfo.javaSourceCompatibility,
-                javaTargetCompatibility = gradleModuleInfo.javaTargetCompatibility ?: moduleInfo.javaTargetCompatibility,
+                javaSourceCompatibility = chooseValue(gradleModuleInfo.javaSourceCompatibility, moduleInfo.javaSourceCompatibility),
+                javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
                 buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
                 moduleDependencies = pickLatest(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 libraryDependencies = mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
                 // below fields is only gradle has
-                manifestPlaceHolders = (moduleInfo.manifestPlaceHolders ?: emptyMap()) + (gradleModuleInfo.manifestPlaceHolders ?: emptyMap()),
+                manifestPlaceHolders = gradleModuleInfo.manifestPlaceHolders ?: emptyMap(),
                 annotationProcessorDependencies = gradleModuleInfo.annotationProcessorDependencies,
                 kaptDependencies = gradleModuleInfo.kaptDependencies,
                 javaAnnotationProcessorOptions = gradleModuleInfo.javaAnnotationProcessorOptions,
