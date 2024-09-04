@@ -22,29 +22,35 @@ class GradleApplicationInjector(
         const val PARAM_ENABLE = "jugg.inject.application.enable"
     }
 
-    fun injectApplication() {
+    fun injectApplication(project: Project) {
+        if (!project.plugins.hasPlugin("com.android.application")) {
+            return
+        }
+        println("Jugg: project ${project.name} is android application, inject manifest task")
         val isEnable = rootProject.properties[PARAM_ENABLE] == "true"
         if (!isEnable) {
             println("Jugg: injectApplication is not enable, ignore")
             return
         }
 
-        println("Jugg: injectApplication start")
-        rootProject.subprojects.forEach { project ->
-            if (!project.plugins.hasPlugin("com.android.application")) {
-                return@forEach
-            }
-
-            println("Jugg: project ${project.name} is android application, inject manifest task")
-
-            val androidExt = Reflector(project.extensions.getByName("android"))
-            val applicationVariants = androidExt["applicationVariants"]
-            (applicationVariants?.value as? Collection<Any?>)?.forEach { variant ->
-                injectManifestTask(project, variant)
-            }
-            addRuntimeDependency(project)
+        addRuntimeDependency(project)
+        rootProject.gradle.projectsEvaluated {
+            injectManifestTask(project)
         }
-        println("Jugg: injectApplication end")
+    }
+
+    private fun injectManifestTask(project: Project) {
+        val androidExt = Reflector(project.extensions.getByName("android"))
+        val applicationVariants = androidExt["applicationVariants"]
+        val variants = applicationVariants?.value as? Collection<Any?>
+        println("Jugg: project ${project.name} applicationVariants size: ${variants?.size}")
+        if (variants.isNullOrEmpty()) {
+            throw IllegalStateException("Jugg: project ${project.name} applicationVariants is null or empty")
+        }
+
+        variants.forEach { variant ->
+            injectManifestTask(project, variant)
+        }
     }
 
     private fun injectManifestTask(project: Project, variant: Any?) {

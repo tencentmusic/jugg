@@ -84,8 +84,10 @@ tasks.register('buildReadProjectInfoScript') {
         finalContent.append("\n")
 
         finalContent.append("""
-gradle.projectsEvaluated {
-    GradleApplicationInjector(rootProject).injectApplication()
+gradle.allprojects {
+    project.afterEvaluate {
+        GradleApplicationInjector(rootProject).injectApplication(project)
+    }
 }
 
 gradle.buildFinished(object : Action<BuildResult> {
