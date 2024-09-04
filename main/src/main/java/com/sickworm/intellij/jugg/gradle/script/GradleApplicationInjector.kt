@@ -56,8 +56,9 @@ class GradleApplicationInjector(
 
         manifestTask?.doLast {
             println("Jugg manifestTask replace application variant: $name")
-            val manifestFile = findMergedManifest(manifestTask)
-            tryReplace(manifestFile)
+            findMergedManifest(manifestTask).forEach {
+                tryReplace(it)
+            }
             println("Jugg manifestTask doLast finish")
         }
     }
@@ -108,19 +109,19 @@ class GradleApplicationInjector(
         project.dependencies.add("runtimeOnly", runtimeConfiguration)
     }
 
-    private fun findMergedManifest(task: Task): File {
+    private fun findMergedManifest(task: Task): List<File> {
         // task: ProcessMultiApkApplicationManifest
         val mergedManifestDir = (Reflector(task)["multiApkManifestOutputDirectory"]?.value as? FileSystemLocationProperty<*>)?.asFile?.get()
         if (mergedManifestDir != null) {
             val manifestFile = findMergedManifest(mergedManifestDir)
-            if (manifestFile != null) {
+            if (manifestFile.isNotEmpty()) {
                 return manifestFile
             }
         }
         val mergedManifestDir2 = (Reflector(task)["manifestOutputDirectory"]?.value as? FileSystemLocationProperty<*>)?.asFile?.get()
         if (mergedManifestDir2 != null) {
             val manifestFile2 = findMergedManifest(mergedManifestDir2)
-            if (manifestFile2 != null) {
+            if (manifestFile2.isNotEmpty()) {
                 return manifestFile2
             }
         }
@@ -128,24 +129,25 @@ class GradleApplicationInjector(
         throw IllegalStateException("Jugg mergedManifest: task is null or not exists")
     }
 
-    private fun findMergedManifest(dir: File): File? {
+    private fun findMergedManifest(dir: File): List<File> {
         // ProcessMultiApkApplicationManifest
         val mergedManifest = File(dir, "AndroidManifest.xml")
         if (mergedManifest.exists()) {
             println("Jugg: use manifest file $mergedManifest")
-            return mergedManifest
+            return listOf(mergedManifest)
         }
 
+        // compat with split-abi
         val filesInDir = dir.listFilesRecursively()
-        val guessMergedManifest = filesInDir.find {
+        val guessMergedManifests = filesInDir.filter {
             it.name == "AndroidManifest.xml"
         }
-        if (guessMergedManifest != null) {
-            println("Jugg: use guessMergedManifest $guessMergedManifest")
-            return guessMergedManifest
+        if (guessMergedManifests.isNotEmpty()) {
+            println("Jugg: use guessMergedManifest $guessMergedManifests")
+            return guessMergedManifests
         }
         println("Jugg: findMergedManifest failed in $dir")
-        return null
+        return emptyList()
     }
 
     private fun File.listFilesRecursively(): List<File> {
