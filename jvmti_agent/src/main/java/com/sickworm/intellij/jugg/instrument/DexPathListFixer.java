@@ -20,14 +20,11 @@ public class DexPathListFixer {
     private static final String TAG = InstrumentationHooks.TAG;
 
     public static boolean isNeedFix(Context base) throws NoSuchFieldException, IllegalAccessException, IOException {
-        File noNeedFixFlagFile = new File(base.getCodeCacheDir(), ".no_need_fix_dex_path_list");
-        if (noNeedFixFlagFile.exists()) {
+        if (isNoNeedFixFlagExists(base)) {
             LogUtils.i(TAG, "DexPathListFixer already checked, no need fix");
             return false;
         }
-
-        File needFixFlagFile = new File(base.getCodeCacheDir(), ".need_fix_dex_path_list");
-        if (needFixFlagFile.exists()) {
+        if (isNeedFixFlagExists(base)) {
             LogUtils.i(TAG, "DexPathListFixer already checked, need fix");
             return true;
         }
@@ -66,9 +63,9 @@ public class DexPathListFixer {
 
         LogUtils.i(TAG, "result hasProperlyInjectDexFiles " + hasProperlyInjectDexFiles);
         if (hasProperlyInjectDexFiles) {
-            noNeedFixFlagFile.createNewFile();
+            markAsNoNeedFix(base);
         } else {
-            needFixFlagFile.createNewFile();
+            markAsNeedFix(base);
         }
 
         return !hasProperlyInjectDexFiles;
@@ -91,4 +88,25 @@ public class DexPathListFixer {
         return dexFiles;
     }
 
+    public static Boolean isNoNeedFixFlagExists(Context base) {
+        File noNeedFixFlagFile = new File(base.getCodeCacheDir(), ".no_need_fix_dex_path_list");
+        return noNeedFixFlagFile.exists();
+    }
+
+    private static void markAsNoNeedFix(Context base) throws IOException {
+        File noNeedFixFlagFile = new File(base.getCodeCacheDir(), ".no_need_fix_dex_path_list");
+        //noinspection ResultOfMethodCallIgnored
+        noNeedFixFlagFile.createNewFile();
+    }
+
+    public static Boolean isNeedFixFlagExists(Context base) {
+        File needFixFlagFile = new File(base.getCodeCacheDir(), ".need_fix_dex_path_list");
+        return needFixFlagFile.exists();
+    }
+
+    private static void markAsNeedFix(Context base) throws IOException {
+        File needFixFlagFile = new File(base.getCodeCacheDir(), ".need_fix_dex_path_list");
+        //noinspection ResultOfMethodCallIgnored
+        needFixFlagFile.createNewFile();
+    }
 }

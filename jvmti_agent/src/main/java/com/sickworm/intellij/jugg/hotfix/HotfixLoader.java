@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.hotfix;
 
 import android.content.Context;
+import com.sickworm.intellij.jugg.instrument.DexPathListFixer;
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
 import java.io.File;
@@ -39,7 +40,11 @@ public class HotfixLoader {
 
     public static void install(final Context base) {
         LogUtils.i(TAG, "installDexPatches start...");
-        new DexPatchLoader(base).install();
+        if (DexPathListFixer.isNoNeedFixFlagExists(base) || DexPathListFixer.isNeedFixFlagExists(base)) {
+            LogUtils.i(TAG, "installDexPatches already load by JVMTI agent, skip.");
+        } else {
+            new DexPatchLoader(base).install();
+        }
         LogUtils.i(TAG, "installDexPatches finish.");
         LogUtils.i(TAG, "installResources start...");
         new ResourcesPatchLoader(base).install();
