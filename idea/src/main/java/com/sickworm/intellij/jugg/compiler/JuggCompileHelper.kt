@@ -376,7 +376,7 @@ class JuggCompilerHelper(
 
     private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: GradleOutputParser): DependencyDiffResultSet? {
         gradleProjectInfoLocalFetchManager.writeInitGradleFile()
-        val client = gradleCompileClientManager.getClient(true, pathManager.localClasspathStoragePathManager.classpathDir)
+        val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         client.terminalOutputListener = outputListener
         client.login(options)
 
