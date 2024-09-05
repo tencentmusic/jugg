@@ -271,7 +271,7 @@ class JuggDeployerHelper(
 
                 logger.debug("Deploying data(debug):\n$deployData")
                 logger.info("Deploying data:\n${deployData.toDescString()}")
-                if (deployData.isFullRes) {
+                if (deployData.isFullRes && !deployData.isCompatDeploy) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
                 val finalIsSkipExceptOverlayCheck = isSkipExceptOverlayCheck || isRecoverWithReinstall
