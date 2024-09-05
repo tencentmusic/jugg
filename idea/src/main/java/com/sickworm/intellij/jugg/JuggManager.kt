@@ -304,6 +304,7 @@ class JuggManager @TestOnly constructor(
     fun createRunningTask(
         options: JuggGradleCompileOptions,
         processHandler: SimpleProcessHandler,
+        isForceGradleCompile: Boolean = false,
     ): JuggRunningTask {
         logger.debug("Create running task: ${options.toSafeString()}")
 
@@ -316,7 +317,9 @@ class JuggManager @TestOnly constructor(
             runTaskSafe("Init Incremental Compile", ::action)
         }
         val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
-            juggRunningTaskStatusManager, processHandler, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask)
+            juggRunningTaskStatusManager, processHandler, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
+            isForceGradleCompile = isForceGradleCompile,
+        )
         currentTask = task
 
         // try reload custom config if changed
@@ -392,6 +395,11 @@ class JuggManager @TestOnly constructor(
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
+    }
+
+    fun gradleCompile() {
+        logger.debug("[action] gradleCompile")
+        JuggRunProfileState.executeGradleCompile(project, pathManager)
     }
 
     fun restartApp() {

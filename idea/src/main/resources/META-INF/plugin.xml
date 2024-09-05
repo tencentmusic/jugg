@@ -60,5 +60,16 @@
             <add-to-group group-id="ToolbarRunGroup" anchor="last"/> <!-- old ui -->
             <add-to-group group-id="MainToolbarRight" anchor="first"/> <!-- new ui -->
         </action>
+
+        <action id="jugg.GradleCompileAction"
+                class="com.sickworm.intellij.jugg.ide.ui.GradleCompileAction"
+                text="(Jugg) Fallback to Gradle Compile"
+                description="(Jugg) Fallback to Gradle Compile"
+                icon="/res/icons/fallback.svg"
+        >
+            <add-to-group group-id="RunMenu" anchor="last"/> <!-- menu -->
+            <add-to-group group-id="ToolbarRunGroup" anchor="last"/> <!-- old ui -->
+            <add-to-group group-id="MainToolbarRight" anchor="first"/> <!-- new ui -->
+        </action>
     </actions>
 </idea-plugin>

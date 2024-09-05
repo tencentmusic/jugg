@@ -42,6 +42,7 @@ class JuggRunningTask(
     private val juggCompileHelper: JuggCompilerHelper,
     private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
+    private val isForceGradleCompile: Boolean,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg...") {
 
@@ -65,7 +66,7 @@ class JuggRunningTask(
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
-            val runResult = doRun(options, indicator, false)
+            val runResult = doRun(options, indicator, isForceGradleCompile)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result

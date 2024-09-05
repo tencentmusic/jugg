@@ -1,9 +1,8 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.intellij.execution.DefaultExecutionResult
-import com.intellij.execution.ExecutionResult
-import com.intellij.execution.Executor
+import com.intellij.execution.*
 import com.intellij.execution.configurations.*
+import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
@@ -14,7 +13,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import javax.swing.JComponent
 
 /**
@@ -123,10 +124,37 @@ class JuggRunProfileState(
         processHandler.startNotify()
 
         juggManager.cancelCurrentTask(processHandler) {
-            val task = juggManager.createRunningTask(juggGradleCompileOptions, processHandler)
+            val task = juggManager.createRunningTask(juggGradleCompileOptions, processHandler, forceFallbackNextTime)
+            forceFallbackNextTime = false
             ProgressManager.getInstance().run(task)
         }
 
         return DefaultExecutionResult(consoleView, processHandler)
+    }
+
+
+    companion object {
+
+        private var forceFallbackNextTime = false
+
+        fun executeGradleCompile(project: Project, pathManager: JuggPathManager) {
+            val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
+            if (currentConfiguration?.configuration !is JuggRunConfiguration) {
+                CommonConfirmDialog.showAndGetResult(
+                    "Run failed", "Please select Jugg run configuration first.",
+                    okButtonText = "I got it!"
+                )
+                return
+            }
+            val isConfirm = CommonConfirmDialog.showAndGetResult(
+                "Confirm fallback", "Going to fallback to gradle. Continue?",
+                okButtonText = "Yes",
+                cancelButtonText = "No",
+            )
+            if (isConfirm) {
+                forceFallbackNextTime = true
+                ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
+            }
+        }
     }
 }
