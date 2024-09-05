@@ -34,8 +34,14 @@ compareVersion() {
 }
 
 version=$1
+arch=$2
 instrumentsJarPath="/data/local/tmp/jugg/$version/jugg-instruments.jar"
-agentSoName="jugg_jvmti_agent.so"
+
+if [ "$arch" = "ARCH_32_BIT" ]; then
+  agentSoName="jugg_jvmti_agent_alt.so"
+else
+  agentSoName="jugg_jvmti_agent.so"
+fi
 agentSoOriginPath="/data/local/tmp/jugg/$version/$agentSoName"
 
 # check file exists

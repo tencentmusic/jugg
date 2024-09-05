@@ -13,4 +13,10 @@ interface IDeviceAdb {
     fun push(from: File, to: String): Boolean
 
     fun getDefaultLaunchActivity(apkFile: File): String
+
+    /**
+     * @return ARCH_UNKNOWN / ARCH_32_BIT / ARCH_64_BIT
+     * @see [com.android.tools.deploy.proto.Deploy.Arch]
+     */
+    fun getArch(packageName: String): String
 }

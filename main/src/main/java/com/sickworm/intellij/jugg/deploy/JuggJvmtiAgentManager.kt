@@ -110,7 +110,8 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
             return false
         }
 
-        val runScriptCmd = "run-as $packageName $scriptPath ${BuildConfig.AGENT_VERSION}"
+        val arch = adb.getArch(packageName)
+        val runScriptCmd = "run-as $packageName $scriptPath ${BuildConfig.AGENT_VERSION} $arch"
         return execAdbShellCmd(runScriptCmd)
     }
 
@@ -127,7 +128,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
     companion object {
         private const val WARN_REASON = "some device e.g. HarmonyOS 4.2 may not run correctly"
 
-        const val AGENT_SO_NAME = "${BuildConfig.AGENT_VERSION}-jugg_jvmti_agent.so"
+        const val AGENT_SO_NAME = "${BuildConfig.AGENT_VERSION}-jugg_jvmti_agent" // .so or _alt.so
 
         private fun getAgentBundle(): File {
             return copyResource(BuildConfig.AGENT_BUNDLE_PATH)

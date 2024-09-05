@@ -71,6 +71,18 @@ class IdeaDeviceAdb(
         return ApkReader(apkFile, ideaLogger).getDefaultActivity()!!
     }
 
+    override fun getArch(packageName: String): String {
+        try {
+            val adbClient = AdbClient(device, logger)
+            val pids = adbClient.getPids(packageName)
+            val arch = adbClient.getArch(pids)
+            return arch.name
+        } catch (e: Exception) {
+            ideaLogger.warn("getArch failed $e")
+            return "ARCH_UNKNOWN"
+        }
+    }
+
     companion object {
 
         /**

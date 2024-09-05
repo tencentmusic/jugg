@@ -60,18 +60,8 @@ class JuggDeployTask(
 
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
-        // only print warning and error
-        val logger = object : LogWrapper(logger) {
-            init {
-                alwaysLogAsDebug(true)
-                allowVerbose(true)
-            }
-
-            override fun info(msgFormat: String?, vararg args: Any?) {
-                verbose(msgFormat, *args)
-            }
-        }
         val device = launchContext.device
+        val logger = AdbLogWrapper(logger)
         val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
         val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)

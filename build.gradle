@@ -11,7 +11,7 @@ ext {
     ide_version = '223.7571.182' // Android Studio Giraffe
 //    ide_version = '231.9225.16' // Android Studio Hedgehog, needs Kotlin 1.9.0 and remove Kotlin Android extension plugin
 
-    agentVersion = "1.0.9"
+    agentVersion = "1.0.11"
     agentBundleDir = new File(project.projectDir, "jvmti_agent/build/outputs/bundle/")
     agentGeneratedSourceDir = new File(project.projectDir, "jvmti_agent/build/generated/source/buildConfig/release")
 }
