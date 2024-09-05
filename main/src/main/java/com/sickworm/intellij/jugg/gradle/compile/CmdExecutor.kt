@@ -13,6 +13,7 @@ class CmdExecutor(
     private val logger: Logger,
     /** only use to print to other place e.g. running terminal */
     var terminalOutputListener: IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.IDLE,
+    val debugLogFilter: ((String) -> Boolean)? = null,
 ) {
 
     @Volatile
@@ -142,7 +143,9 @@ class CmdExecutor(
                 return
             }
         }
-        logger.debug(line)
+        if (debugLogFilter != null && debugLogFilter.invoke(line)) {
+            logger.debug(line)
+        }
         terminalOutputListener.onOutput(line)
     }
 

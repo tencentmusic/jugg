@@ -51,7 +51,7 @@ class GradleProjectInfoLocalFetchManager(
     @Volatile
     private var isUpdating: Boolean = false
 
-    private val cmdExecutor = CmdExecutor(logger)
+    private val cmdExecutor = CmdExecutor(logger) { it.startsWith("Jugg:") }
 
     /**
      * Mark as true when:
