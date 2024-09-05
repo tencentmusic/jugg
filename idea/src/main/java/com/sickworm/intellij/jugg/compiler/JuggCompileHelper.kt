@@ -159,12 +159,12 @@ class JuggCompilerHelper(
                 // local compile will auto run after build finish
                 gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = true)
             } else {
-                val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
+                val changedBuildFiles = deployFileManager.getUndeployedFiles().filter {
                     it.type == CompileFile.Type.BuildFile
                 }
                 val lastBuildModifiedTime = changedBuildFiles.maxOfOrNull { it.file.lastModified() } ?: 0L
+                logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
                 if (changedBuildFiles.isNotEmpty()) {
-                    logger.debug("Remote build changed files: ${changedBuildFiles.map { it.file.name }}")
                     gradleProjectInfoLocalFetchManager.markIsNeedUpdate(true, lastBuildModifiedTime)
                     gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForce = false)
                 }
