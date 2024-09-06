@@ -97,6 +97,9 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         }
         logger.debug("Detect finished, isHasJvmtiCompatIssue=$isHasJvmtiCompatIssue")
         TimeLogger.end("isHasJvmtiCompatIssue", logger)
+        if (!isHasJvmtiCompatIssue) {
+            logger.info("Detect finished, JVMTI is available.")
+        }
 
         return isHasJvmtiCompatIssue
     }
