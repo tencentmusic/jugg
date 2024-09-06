@@ -10,10 +10,7 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
-import com.sickworm.intellij.jugg.project.dependency.convertToAbsolutePath
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
@@ -427,6 +424,9 @@ class RemoteGradleCompileClient(
             return
         }
         val commander = PrintStream(channel.outputStream, true)
+        commander.print(String(byteArrayOf(0x03))) // control c
+        commander.flush()
+        // iFt/rsync needs control c twice
         commander.print(String(byteArrayOf(0x03))) // control c
         commander.flush()
         cmdExecutor.release()
