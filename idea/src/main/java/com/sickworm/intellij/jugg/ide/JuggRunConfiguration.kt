@@ -147,7 +147,7 @@ class JuggRunProfileState(
                 return
             }
             val isConfirm = CommonConfirmDialog.showAndGetResult(
-                "Confirm fallback", "Going to fallback to gradle. Continue?",
+                "Confirm fallback", "Jugg is going to fallback to gradle. Continue?",
                 okButtonText = "Yes",
                 cancelButtonText = "No",
             )
