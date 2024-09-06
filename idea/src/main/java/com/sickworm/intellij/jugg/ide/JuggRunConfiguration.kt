@@ -137,7 +137,7 @@ class JuggRunProfileState(
 
         private var forceFallbackNextTime = false
 
-        fun executeGradleCompile(project: Project, pathManager: JuggPathManager) {
+        fun executeGradleCompile(project: Project) {
             val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
             if (currentConfiguration?.configuration !is JuggRunConfiguration) {
                 CommonConfirmDialog.showAndGetResult(

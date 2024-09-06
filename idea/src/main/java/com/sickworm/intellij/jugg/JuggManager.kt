@@ -399,7 +399,7 @@ class JuggManager @TestOnly constructor(
 
     fun gradleCompile() {
         logger.debug("[action] gradleCompile")
-        JuggRunProfileState.executeGradleCompile(project, pathManager)
+        JuggRunProfileState.executeGradleCompile(project)
     }
 
     fun restartApp() {
