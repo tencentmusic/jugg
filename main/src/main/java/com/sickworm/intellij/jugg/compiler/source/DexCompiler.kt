@@ -44,18 +44,13 @@ class DexCompiler(
             finalMinApi
         }
 
-        val classpathDir = File(context.tempCompileDir, "classpath")
-        val costTime = measureTimeMillis {
-            classpathDir.mkdirs()
-            classpathDir.clearDir()
-            context.getAllDesugarClasspath(task.files, module, classpathDir)
-        }
-        logger.debug("getAllDesugarClasspath cost ${costTime}ms, files: ${classpathDir.listFilesRecursively()}")
-
         return try {
+            val classpathDir = File(context.tempCompileDir, "classpath")
+
             val classFiles = task.files.filter { it.file.extension == "class" }
             var classResult = CompileResult(task, emptyList(), emptyList())
             if (classFiles.isNotEmpty()) {
+                getAllDesugarClasspath(classFiles, module, "class_files", classpathDir)
                 classResult = doDex(task, classFiles, classFiles, classpathDir, minApi, true, "")
             }
 
@@ -66,6 +61,7 @@ class DexCompiler(
                     logger.debug("no class changed, skip dex")
                     return@map CompileResult(task, listOf(Result.success(it)), emptyList())
                 }
+                getAllDesugarClasspath(changedClasses, module, it.jarDexFileName, classpathDir)
                 doDex(task, listOf(it), changedClasses, classpathDir, minApi, false, it.jarDexFileName)
             }
             CompileResult(
@@ -80,6 +76,15 @@ class DexCompiler(
             }
             CompileResult(task, details, emptyList())
         }
+    }
+
+    private fun getAllDesugarClasspath(files: List<CompileFile>, module: ModuleInfo, target: String, classpathDir: File) {
+        val costTime = measureTimeMillis {
+            classpathDir.mkdirs()
+            classpathDir.clearDir()
+            context.getAllDesugarClasspath(files, module, classpathDir)
+        }
+        logger.debug("getAllDesugarClasspath for $target, cost ${costTime}ms")
     }
 
     private fun diffJar(compileFile: CompileFile): List<CompileFile> {
