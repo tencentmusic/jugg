@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.run.ClassDeployItem
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -151,9 +152,11 @@ class DeployDataGenerator(
     }
 
     fun getAllInterfacesWithDefaultMethod(classFiles: List<CompileFile>): List<String> {
+        TimeLogger.start("getAllInterfacesWithDefaultMethod")
         val files = classFiles.map { it.file }
         val parser = ClassFileParser(files)
         parser.parse()
+        TimeLogger.end("getAllInterfacesWithDefaultMethod", logger)
         return getAllInterfacesWithDefaultMethod(
             parser.interfaces.toList(), parser.staticInvocationRefs.toList()
         )

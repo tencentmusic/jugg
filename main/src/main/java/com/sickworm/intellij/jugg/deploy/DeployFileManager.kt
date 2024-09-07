@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -331,14 +332,18 @@ class DeployFileManager(
 
     @Synchronized
     fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
+        TimeLogger.start("getAllDesugarClasspath")
         val filteredClassFiles = compileFiles.filter { it.type == CompileFile.Type.Class }
         val defaultInterfaces = deployDataGenerator.getAllInterfacesWithDefaultMethod(filteredClassFiles)
+        logger.debug("getAllDesugarClasspath all defaultInterfaces: $defaultInterfaces")
         val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces, moduleInfo)
+        logger.debug("getAllDesugarClasspath all files: ${files.map { it.file.path }}")
         files.forEach {
             val relativePath = it.file.relativeTo(it.baseDir).path
             val destFile = File(toDir, relativePath)
             it.file.copyTo(destFile, overwrite = true)
         }
+        TimeLogger.end("getAllDesugarClasspath", logger)
     }
 
     /**
