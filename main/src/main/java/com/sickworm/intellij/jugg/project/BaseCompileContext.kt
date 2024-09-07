@@ -311,7 +311,12 @@ class BaseCompileContext(
             return emptyList()
         }
         return try {
-            Gson().fromJson(tempLibraryRecordFile.readText(), Array<LibraryDependency>::class.java).toList()
+            Gson().fromJson(tempLibraryRecordFile.readText(), Array<LibraryDependency>::class.java)
+                .map {
+                    // covert to absolute path file
+                    it.copy(file = File(it.file.path))
+                }
+                .toList()
         } catch (e: Exception) {
             emptyList()
         }
