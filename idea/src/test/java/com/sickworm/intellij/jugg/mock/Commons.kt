@@ -232,6 +232,7 @@ val init = run {
 
     // in tests, we often add change file without really change, so disable checksum check
     JuggSettings.isCheckChecksumWhenFileChanges = false
+    JuggSettings.isEnableWarmUp = false
 }
 
 @Suppress("TestFunctionName")

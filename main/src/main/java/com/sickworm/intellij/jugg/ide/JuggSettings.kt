@@ -58,6 +58,8 @@ object JuggSettings {
     /** limit min compiler error to recreate once */
     const val minErrorToRecreateCompiler = 30
 
+    /** Whether warm up compiler after init compilation. False for unit test. */
+    var isEnableWarmUp: Boolean = true
     /** whether deploy all res files to device after install apk */
     var isEnableWarmUpDeploy: Boolean = false
 

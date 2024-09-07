@@ -552,7 +552,9 @@ class JuggManager @TestOnly constructor(
 
         logger.info("Jugg init complete, start listening file changes.")
 
-        warmUpCompile(isNeedWarmUpDeploy)
+        if (JuggSettings.isEnableWarmUp) {
+            warmUpCompile(isNeedWarmUpDeploy)
+        }
     }
 
     private fun warmUpCompile(isNeedWarmUpDeploy: Boolean) {
