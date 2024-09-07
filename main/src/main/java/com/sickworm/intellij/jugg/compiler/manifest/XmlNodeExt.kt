@@ -18,6 +18,14 @@ val Node.uniqueKey: String get() {
     if (name != null) {
         return "$nodeName:$name"
     }
+    val scheme = this["android:scheme"]
+    if (scheme != null) {
+        return "$nodeName:$scheme"
+    }
+    val mimeType = this["android:mimeType"]
+    if (mimeType != null) {
+        return "$nodeName:$mimeType"
+    }
 
     // use all child as unique key
     val nameSet = mutableSetOf<String>()
