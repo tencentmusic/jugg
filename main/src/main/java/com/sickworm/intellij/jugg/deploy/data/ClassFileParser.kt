@@ -55,17 +55,19 @@ class ClassFileParser(
             superName: String?,
             interfaces: Array<out String>?
         ) {
-            classes.add(name.classSigName)
-            if (this@ClassFileParser.interfaces.contains(name.classSigName)) {
-                this@ClassFileParser.interfaces.remove(name.classSigName)
+            val classSignName = name.classSigName
+            classes.add(classSignName)
+            if (this@ClassFileParser.interfaces.contains(classSignName)) {
+                this@ClassFileParser.interfaces.remove(classSignName)
             }
-            if (this@ClassFileParser.staticInvocationRefs.contains(name.classSigName)) {
-                this@ClassFileParser.staticInvocationRefs.remove(name.classSigName)
+            if (this@ClassFileParser.staticInvocationRefs.contains(classSignName)) {
+                this@ClassFileParser.staticInvocationRefs.remove(classSignName)
             }
 
             interfaces?.forEach {
-                if (!this@ClassFileParser.classes.contains(it.classSigName)) {
-                    this@ClassFileParser.interfaces.add(it.classSigName)
+                val interfaceSigName = it.classSigName
+                if (!this@ClassFileParser.classes.contains(interfaceSigName)) {
+                    this@ClassFileParser.interfaces.add(interfaceSigName)
                 }
             }
             super.visit(version, access, name, signature, superName, interfaces)
@@ -87,8 +89,9 @@ class ClassFileParser(
                     isInterface: Boolean
                 ) {
                     if (opcode == Opcodes.INVOKESTATIC && owner != null) {
-                        if (!this@ClassFileParser.classes.contains(owner.classSigName)) {
-                            staticInvocationRefs.add(owner.classSigName)
+                        val ownerSigName = owner.classSigName
+                        if (!this@ClassFileParser.classes.contains(ownerSigName)) {
+                            staticInvocationRefs.add(ownerSigName)
                         }
                     }
                 }
