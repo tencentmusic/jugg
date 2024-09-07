@@ -12,7 +12,9 @@ import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.mock.MockProject
 import com.intellij.mock.MockRunManager
 import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.ui.popup.Balloon
 import com.intellij.openapi.util.NotNullLazyValue
+import com.intellij.openapi.wm.*
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.*
 import org.mockito.kotlin.any
@@ -54,6 +56,52 @@ class JuggMockProject(private val basePath: File): MockProject(null, {}) {
         return@run deploymentService
     }
 
+    @Suppress("OVERRIDE_DEPRECATION", "UnstableApiUsage")
+    private val toolWindowManager = object : ToolWindowManager() {
+        override val activeToolWindowId: String? get() = null
+        override val focusManager: IdeFocusManager = mock(IdeFocusManager::class.java)
+        override val isEditorComponentActive: Boolean = false
+        override val lastActiveToolWindowId: String? = null
+        override val toolWindowIdSet: Set<String> = emptySet()
+        override val toolWindowIds: Array<String> = emptyArray()
+
+        override fun activateEditorComponent() {
+        }
+
+        override fun canShowNotification(toolWindowId: String): Boolean {
+            return false
+        }
+
+        override fun getToolWindow(id: String?): ToolWindow? {
+            return null
+        }
+
+        override fun getToolWindowBalloon(id: String): Balloon? {
+            return null
+        }
+
+        override fun invokeLater(runnable: Runnable) {
+        }
+
+        override fun isMaximized(window: ToolWindow): Boolean {
+            return false
+        }
+
+        override fun notifyByBalloon(options: ToolWindowBalloonShowOptions) {
+        }
+
+        override fun registerToolWindow(task: RegisterToolWindowTask): ToolWindow {
+            return mock(ToolWindow::class.java)
+        }
+
+        override fun setMaximized(window: ToolWindow, maximized: Boolean) {
+        }
+
+        override fun unregisterToolWindow(id: String) {
+        }
+
+    }
+
     override fun getName(): String {
         return basePath.name
     }
@@ -71,6 +119,9 @@ class JuggMockProject(private val basePath: File): MockProject(null, {}) {
             }
             DebuggerManager::class.java -> {
                 debuggerManager as T
+            }
+            ToolWindowManager::class.java -> {
+                toolWindowManager as T
             }
             else -> super.getService(serviceClass)
         }
