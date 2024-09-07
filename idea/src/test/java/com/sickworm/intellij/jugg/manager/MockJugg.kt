@@ -32,9 +32,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 
-class MockJugg {
-
-    val projectDir: File = projectInfo.projectRoot
+class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     lateinit var project: Project
     lateinit var juggManager: JuggManager
@@ -207,7 +205,7 @@ class MockJugg {
         fileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, logger)
         fileChangesDetector = MockFileChangesDetector()
 
-        deployHistoryManager = DeployHistoryManager(projectInfo.projectRoot, pathManager.databaseDir, fileChangesHandler, logger)
+        deployHistoryManager = DeployHistoryManager(pathManager.projectDir, pathManager.databaseDir, fileChangesHandler, logger)
         deployFileManager = DeployFileManager(logger, pathManager.tmpDir, pathManager.databaseDir, coroutineScope)
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)
