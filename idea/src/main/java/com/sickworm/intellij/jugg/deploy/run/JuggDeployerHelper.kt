@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.IdeInfo
 import com.android.tools.idea.run.ApkInfo
+import com.google.gson.Gson
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
@@ -114,6 +115,13 @@ class JuggDeployerHelper(
             val adb = IdeaDeviceAdb(device, logger)
             val isHasJvmtiCompatIssue = JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data)
             if (isHasJvmtiCompatIssue) {
+                juggServer.report {
+                    action = "jvmti_compat_issue"
+                    detail = Gson().toJson(mapOf(
+                        "device" to adb.displayName,
+                        "application" to data.apks.firstOrNull()?.applicationId,
+                    ))
+                }
                 throw IllegalStateException(REDEPLOY_WITH_COMPAT_MESSAGE)
             }
         }
