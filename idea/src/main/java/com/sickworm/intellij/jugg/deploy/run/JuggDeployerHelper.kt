@@ -466,6 +466,14 @@ class JuggDeployerHelper(
             runTask(device, deployData)
         }
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
+
+        // device need to be deployable, otherwise deployer can not get the correct arch of App.
+        val isDeviceDeployable = waitingForDeployable(device)
+        if (!isDeviceDeployable) {
+            logger.warn("App not deployable after reinstalling.")
+            return false to false
+        }
+
         deployFileManager.resetAfterReinstall()
 
         return true to true

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.sdklib.AndroidVersion
+import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
 import com.android.tools.deployer.*
@@ -101,9 +102,17 @@ class JuggDeployer(
             adb.getPids(packageName)
         } catch (e: Exception) {
             // on Huawei Android 9: java.lang.IllegalStateException: Device LUGUT19B22001999, do not support REAL_PKG_NAME
+            logger.info("getPids exception: $e")
             emptyList()
         }
-        val arch = adb.getArch(pids)
+        var arch = adb.getArch(pids)
+        logger.info("packageName: $packageName, pids: $pids, arch: $arch")
+        if (arch == Deploy.Arch.ARCH_UNKNOWN) {
+            // if arch is unknown, installer will use 32-bit agent, which may apply failed.
+            // in most situation, 64-bit is more common, so set arch to 64-bit.
+            arch = Deploy.Arch.ARCH_64_BIT
+            logger.info("set arch from unknown to 64")
+        }
 
         // Get the list of files from the installed app assuming deployment cache is correct.
         val speculativeDump: DeploymentCacheDatabase.Entry? = deploymentService.withLock {
