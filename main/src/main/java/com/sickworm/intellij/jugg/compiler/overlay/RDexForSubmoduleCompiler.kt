@@ -36,23 +36,27 @@ class RDexForSubmoduleCompiler(
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val rDexOutputDir = File(task.outputDir, context.packageName!!.packageNameToPath)
         val rDexOutputFile = File(rDexOutputDir, "R.dex")
-        val isNeedGenerate = rDexOutputFile.exists() && !generatedModules.contains(module.name)
-                if (!isNeedGenerate) {
+        val isNeedGenerate = rDexOutputFile.exists() && !generatedModules.contains(module.name) && (module != context.tempModule)
+        if (!isNeedGenerate) {
             logger.debug("Module ${module.name} has no R file update, skip generate R.dex")
             return CompileResult(task, emptyList(), emptyList())
         }
 
         val packageName = run getPackageName@{
             val manifestFile = module.manifestFile
-            if (manifestFile == null) {
+            if (manifestFile == null || !manifestFile.exists()) {
                 logger.debug("Module ${module.name} has no manifest file, skip generate R.dex")
                 return CompileResult(task, emptyList(), emptyList())
             }
-            val packageName = RPackageReader(manifestFile, logger).readPackageName()
+            var packageName = RPackageReader(manifestFile, logger).readPackageName()
             if (packageName.isNullOrEmpty()) {
-                logger.warn("Read package name from manifest file ${manifestFile.absolutePath} failed, which should not happened." +
-                        "Compilation may failed because R file generate failed.")
-                return CompileResult(task, emptyList(), emptyList())
+                logger.debug("Module ${module.name} has no package name in manifest file, try namespace ${module.namespace} or applicationId ${module.applicationId}")
+                packageName = module.namespace ?: module.applicationId
+                if (packageName.isNullOrEmpty()) {
+                    logger.warn("Read package name from manifest file ${manifestFile.absolutePath} failed, which should not happened." +
+                            "Compilation may failed because R file generate failed.")
+                    return CompileResult(task, emptyList(), emptyList())
+                }
             }
 
             if (packageName == context.packageName) {

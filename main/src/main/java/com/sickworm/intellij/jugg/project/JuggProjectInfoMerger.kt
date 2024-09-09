@@ -186,7 +186,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 sourceDirs = mergeWithBase(name, "sourceDirs", moduleInfo.sourceDirs, gradleModuleInfo.sourceDirs, mergeResult) { it.absolutePath },
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
-                manifestFile = chooseValue(gradleModuleInfo.manifestFile, moduleInfo.manifestFile),
+                manifestFile = moduleInfo.manifestFile, // gradleModuleInfo.manifestFile may not exist, it will always return debug/AndroidManifestFest.xml
                 buildVariant = moduleInfo.buildVariant, // only ide can get, gradle is also read from ide project info
                 compileVersion = chooseValue(gradleModuleInfo.compileVersion, moduleInfo.compileVersion),
                 minSdkVersion = chooseValue(gradleModuleInfo.minSdkVersion, moduleInfo.minSdkVersion),

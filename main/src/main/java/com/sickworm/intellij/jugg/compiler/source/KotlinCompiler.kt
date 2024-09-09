@@ -237,8 +237,8 @@ class KotlinCompiler(
         }
 
         var rPackageName: String? = null
-        if (isNeedKotlinAndroidExtensions && module.manifestFile != null) {
-            rPackageName = RPackageReader(module.manifestFile, logger).readPackageName()
+        if (isNeedKotlinAndroidExtensions && module.buildPathInfo.mergedManifest.exists()) {
+            rPackageName = RPackageReader(module.buildPathInfo.mergedManifest, logger).readPackageName()
         }
 
         val costTime = System.currentTimeMillis() - startTime
