@@ -36,7 +36,9 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         }
 
         val result = doCompile(task)
-        task.notifyCompiled(task.files)
+        if (!supportedTypes.contains(CompileFile.Type.DexToChangePackageName)) {
+            task.notifyCompiled(task.files)
+        }
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("${this::class.java.simpleName} compile result: $result")
