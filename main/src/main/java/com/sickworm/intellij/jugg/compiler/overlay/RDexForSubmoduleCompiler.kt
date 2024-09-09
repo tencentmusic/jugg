@@ -48,10 +48,14 @@ class RDexForSubmoduleCompiler(
                 logger.debug("Module ${module.name} has no manifest file, skip generate R.dex")
                 return CompileResult(task, emptyList(), emptyList())
             }
-            var packageName = RPackageReader(manifestFile, logger).readPackageName()
-            if (packageName.isNullOrEmpty()) {
-                logger.debug("Module ${module.name} has no package name in manifest file, try namespace ${module.namespace} or applicationId ${module.applicationId}")
-                packageName = module.namespace ?: module.applicationId
+
+            val packageName: String?
+            if (module.namespace != null) {
+                // namespace has higher priority
+                logger.debug("Module ${module.name} has namespace ${module.namespace}, use it as package name")
+                packageName = module.namespace
+            } else {
+                packageName = RPackageReader(manifestFile, logger).readPackageName()
                 if (packageName.isNullOrEmpty()) {
                     logger.warn("Read package name from manifest file ${manifestFile.absolutePath} failed, which should not happened." +
                             "Compilation may failed because R file generate failed.")

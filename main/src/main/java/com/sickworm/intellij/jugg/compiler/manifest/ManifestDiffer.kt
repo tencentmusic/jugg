@@ -88,7 +88,9 @@ class ManifestDiffer {
      * 2. process ${applicationId} to "com.example.app" or something else
      */
     private fun preprocess(node: XmlNode, placeHolders: Map<String, String>?) {
-        val packageName = node.node["package"] ?: placeHolders?.get(JUGG_NAMESPACE_IN_GRADLE)
+        // namespace and package must exist one of them, and namespace has higher priority, or will get in gradle:
+        // Package Name not found in xxx/AndroidManifest.xml, and namespace not specified.
+        val packageName = placeHolders?.get(JUGG_NAMESPACE_IN_GRADLE) ?: node.node["package"]
         preprocess(node.node, packageName, placeHolders)
     }
 
