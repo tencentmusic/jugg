@@ -324,7 +324,7 @@ class JuggDeployerHelper(
                     return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
                 }
 
-                var nextRetryDeployData = deployData.toFallbackToHotFixData().copy(isPushOverlayOnly = true)
+                var nextRetryDeployData = deployData.toFallbackToHotFixData()
 
                 val isClassModifiedError = (!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError || isInternalError)
                 if (isClassModifiedError || isInstrumentationFailed) {

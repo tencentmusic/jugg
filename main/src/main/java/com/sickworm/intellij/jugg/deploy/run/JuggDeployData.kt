@@ -69,6 +69,7 @@ data class JuggDeployData(
         return this.copy(
             hotFixModifiedClasses = this.hotFixModifiedClasses + this.hotReloadModifiedClasses,
             hotReloadModifiedClasses = emptyList(),
+            isPushOverlayOnly = true,
         )
     }
 
