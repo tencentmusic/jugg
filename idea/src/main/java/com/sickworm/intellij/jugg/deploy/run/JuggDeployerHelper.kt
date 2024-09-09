@@ -114,7 +114,7 @@ class JuggDeployerHelper(
             // waiting app foreground (which means JVMTI agent boot finished)
             val adb = IdeaDeviceAdb(device, logger)
             val isHasJvmtiCompatIssue = JuggJvmtiAgentManagerHelper(logger).isHasJvmtiCompatIssue(adb, data)
-            if (isHasJvmtiCompatIssue) {
+            if (isHasJvmtiCompatIssue && !data.isCompatDeploy) {
                 juggServer.report {
                     action = "jvmti_compat_issue"
                     detail = Gson().toJson(mapOf(
