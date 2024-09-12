@@ -5,8 +5,8 @@ import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.gradle.compile.crc32
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Compile res files to .flat files
@@ -31,7 +31,7 @@ class ResourceCompiler(
         val filePathNames = mutableSetOf<String>()
         var isNeedSplitModule = false
         task.files.forEach {
-            val filePathName = it.file.parentFile!!.name + "_" + it.file.nameWithoutExtension
+            val filePathName = it.file.flatFileName
             if (filePathNames.contains(filePathName)) {
                 isNeedSplitModule = true
                 return@forEach
@@ -53,54 +53,61 @@ class ResourceCompiler(
 
     private fun aapt2Compile(task: CompileTask, moduleName: String = ""): CompileResult {
         val subDir = if (moduleName.isEmpty()) "" else "$moduleName/"
-        val outputDir = task.outputDir.absolutePath + "/" + subDir
-        File(outputDir).mkdirs()
+        val outputDir = task.outputDir.resolve(subDir)
+        outputDir.mkdirs()
 
+        val singleResCompileSet = ResCompileSet(
+            task,
+            task.files.filter { it.file.isFile }.associateWith { listOf(it.file) },
+            outputDir.resolve("single_files"),
+        )
         // if compile file is a directory, compile all files in the directory
         val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(task.files, logger)
+        val dirResCompileSet = dirToFilesMap.map { (taskFile, files) ->
+            val compileFile = task.files.find { it.file == taskFile }!!
+            val outputDirName = "${taskFile.path.md5}_${compileFile.dependencyName}"
+            ResCompileSet(
+                task,
+                mapOf(compileFile to files),
+                outputDir.resolve(outputDirName),
+            )
+        }
+        val compileFilesSet: List<ResCompileSet> = dirResCompileSet + listOf(singleResCompileSet)
+        val compileResultSet = compileFilesSet.map {
+            aapt2Compile(it)
+        }
+        val compileResult = compileResultSet.reduce { acc, compileResult -> acc + compileResult }.copy(task = task)
+        return compileResult
+    }
 
-        val resFiles: List<CompileFile> = task.files.flatMap {
-            if (it.file.isFile) {
-                listOf(it)
-            } else if (dirToFilesMap.containsKey(it.file)) {
-                dirToFilesMap[it.file]!!.map { file ->
-                    CompileFile(CompileFile.Type.Resource, file, it.baseDir, context.tempModule)
-                }
-            } else {
-                emptyList()
-            }
-        }
-        if (resFiles.isEmpty()) {
-            return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
+    private fun aapt2Compile(resCompileSet: ResCompileSet): CompileResult {
+        if (resCompileSet.compileFiles.isEmpty()) {
+            return CompileResult(resCompileSet.originTask, resCompileSet.taskFiles.map { Result.success(it) }, emptyList())
         }
 
-        val filesString = resFiles.joinToString(" ") {
-            it.file.absolutePath
+        val filesString = resCompileSet.compileFiles.joinToString(" ") {
+            it.absolutePath
         }
+        resCompileSet.outputDir.mkdirs()
 
         // --legacy is required for: multiple substitutions specified in non-positional format; did you mean to add the formatted="false" attribute?.
-        val command = "compile --legacy -o $outputDir $filesString"
+        val command = "compile --legacy -o ${resCompileSet.outputDir} $filesString"
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
             return CompileResult(
-                task,
-                task.files.map {
+                resCompileSet.originTask,
+                resCompileSet.taskFiles.map {
                     Result.failure(CompileError(it, listOf(0L to "aapt2 compile failed")))
                 },
                 emptyList()
             )
         }
 
-        val outputs = resFiles.map {
-            val fileName = it.file.flatFileName
-            val outputFile = File(outputDir, fileName)
-            return@map CompileOutput(CompileOutput.Type.Res, outputFile, File(outputDir))
-        }
+        val details = resCompileSet.taskFiles.map { compileFile ->
 
-        val details = task.files.map { compileFile ->
             fun toResult(file: File): Result<CompileFile, CompileError> {
                 val fileName = file.flatFileName
-                val outputFile = File(outputDir, fileName)
+                val outputFile = File(resCompileSet.outputDir, fileName)
                 return if (outputFile.exists() && outputFile.length() > 0) {
                     Result.success(compileFile)
                 } else {
@@ -110,10 +117,13 @@ class ResourceCompiler(
                 }
             }
 
-            if (compileFile.file.isFile) {
-                return@map toResult(compileFile.file)
-            } else if (dirToFilesMap.containsKey(compileFile.file)) {
-                val details = dirToFilesMap[compileFile.file]!!.map {
+            val relativeCompileFiles = resCompileSet.compileFileMap[compileFile]!!
+            if (relativeCompileFiles.isEmpty()) {
+                return@map Result.success(compileFile)
+            } else if (relativeCompileFiles.size == 1) {
+                return@map toResult(relativeCompileFiles.first())
+            } else {
+                val details = relativeCompileFiles.map {
                     toResult(it)
                 }
                 val isSuccess = details.all { it.isSuccess }
@@ -123,12 +133,16 @@ class ResourceCompiler(
                     val failedFiles = details.filter { !it.isSuccess }.map { it.file.relativeFile.path }
                     return@map Result.failure(CompileError(compileFile, listOf(0L to "res dir compile to flat failed, failed files: $failedFiles")))
                 }
-            } else {
-                return@map Result.failure(CompileError(compileFile, listOf(0L to "compile file not found $compileFile")))
             }
         }
 
-        return CompileResult(task, details, outputs)
+        val outputs = resCompileSet.compileFiles.map {
+            val fileName = it.flatFileName
+            val outputFile = File(resCompileSet.outputDir, fileName)
+            return@map CompileOutput(CompileOutput.Type.Res, outputFile, resCompileSet.outputDir)
+        }
+
+        return CompileResult(resCompileSet.originTask, details, outputs)
     }
 
     private val File.flatFileName: String get() {
@@ -143,4 +157,17 @@ class ResourceCompiler(
     override fun dispose() {
         aapt2Invoker.release()
     }
+
+    private class ResCompileSet(
+        val originTask: CompileTask,
+        val compileFileMap: Map<CompileFile, List<File>>,
+        val outputDir: File,
+    ) {
+
+        val taskFiles: List<CompileFile> get() = compileFileMap.keys.toList()
+        val compileFiles: List<File> get() = compileFileMap.values.flatten()
+    }
+
+    private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 }

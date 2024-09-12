@@ -32,7 +32,7 @@ object DirToFileMapHelper {
                         return@filter it.crc32 != oldChecksum
                     }
                     logger.debug("${compileFile.dependencyName} full res files: ${allResFiles.size}, " +
-                            "filtered res files: ${filteredResFiles.size}")
+                            "remain res files after filtered: ${filteredResFiles.size}")
                     return@associate compileFile.file to filteredResFiles
                 }
             }
