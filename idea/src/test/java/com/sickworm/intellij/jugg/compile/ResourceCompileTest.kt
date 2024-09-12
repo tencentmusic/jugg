@@ -72,7 +72,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 428, isRJavaChanged = false)
+        checkArscResult(task, result, 416, isRJavaChanged = false)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -91,7 +91,7 @@ class ResourceCompileTest {
         val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 6, isRJavaChanged = false)
+        checkArscResult(task, result, 4, isRJavaChanged = false)
     }
 
     /**
@@ -339,7 +339,7 @@ class ResourceCompileTest {
         val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 27, isRJavaChanged = false)
+        checkArscResult(task, result, 25, isRJavaChanged = false)
     }
 
     @Test
