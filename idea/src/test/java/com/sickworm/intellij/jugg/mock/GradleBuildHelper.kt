@@ -19,8 +19,9 @@ object GradleBuildHelper {
         }
     }
 
-    fun appAssembleDebug() {
-        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug", null, assetsAndroidDir)
+    fun appAssembleDebug(initScriptPath: String? = null) {
+        val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
+        val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug $initArg", null, assetsAndroidDir)
         println("\n----------- assembleDebug start -----------\n")
         println(String(process.inputStream.readBytes()))
         println()

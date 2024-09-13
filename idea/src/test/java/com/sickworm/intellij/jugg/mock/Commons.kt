@@ -75,22 +75,13 @@ val androidPlatform = File("$androidHome/platforms/android-30").also {
 }
 val androidJar = File("$androidPlatform/android.jar")
 
-val androidBuildTools = File("$androidHome/build-tools/30.0.3").also {
-    if (!it.exists()) {
-        throw IllegalStateException("android.jar not found in: $it")
-    }
-}
-
 val context get() = SimpleCompileContext(
     logger = logger,
     tempCompileDir = tempCompileDir,
     tempModuleDir = File(buildDir, "temp_module"),
     androidHome = androidHome,
     androidJar = androidJar,
-    modules = mapOf(mockModule.name to mockModule.copy(
-        name = "app",
-        libraryDependencies = TestProjectDependsLoader.parse()
-    )),
+    modules = AssembleAndroidProjectOnce.getProjectInfo().modules,
     apkInfos = projectInfo.apkInfos,
     projectDir = projectInfo.projectRoot,
     deployedFiles = emptyList(),
