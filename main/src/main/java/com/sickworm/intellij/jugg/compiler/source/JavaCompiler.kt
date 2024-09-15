@@ -45,6 +45,12 @@ class JavaCompiler(
         options.addAll(listOf("-source", module.javaSourceCompatibility ?: "1.8"))
         options.addAll(listOf("-target", module.javaTargetCompatibility ?: "1.8"))
         options.addAll(listOf("-encoding", "UTF-8"))
+        module.javaAnnotationProcessorOptions?.forEach { (key, value) ->
+            options.addAll(listOf("-A$key=\"$value\""))
+        }
+        options.addAll(listOf("-processorpath", module.annotationProcessorDependencies.joinToString(File.pathSeparator) {
+            it.file.path
+        }))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
@@ -70,6 +76,8 @@ class JavaCompiler(
             val outputs = task.outputDir.listFilesRecursively().map {
                 if (it.extension == "class") {
                     CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
+                } else if (it.extension == "java") {
+                    CompileOutput(CompileOutput.Type.Java, it, task.outputDir)
                 } else {
                     // e.g. META-INF/service/xxx
                     CompileOutput(CompileOutput.Type.Res, it, task.outputDir)

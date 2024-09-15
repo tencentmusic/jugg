@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertTrue
 
 class JavaCompileTest {
 
@@ -69,6 +70,42 @@ class JavaCompileTest {
         val task = activityTask
         val result = javaCompiler.compile(task)
         assertCompileResultJava(task, result)
+    }
+
+    @Test
+    fun javaCompileWithARouter() {
+        val task = CompileTask(
+            listOf(
+                CompileFile(CompileFile.Type.Java,
+                    File(assetsAndroidDir, "app/src/main/java/com/example/myapplication/MainActivity2.java"),
+                    File(assetsAndroidDir, "app/src/main/java"),
+                    mockModule,
+                    dependencyPaths = listOf(androidJar.absolutePath)
+                            + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
+                            + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
+                )
+            ),
+            stagingDir,
+        )
+        val result = javaCompiler.compile(task)
+
+        val mapper: OutputFileMapper = {
+            val outputFile = it.file.changeBaseDir(it.baseDir, task.outputDir, "class")
+            listOf(CompileOutput(CompileOutput.Type.Class, outputFile, task.outputDir))
+        }
+        assertCompileResult(task, result, mapper)
+
+        listOf(
+            "ARouter\$\$Group\$\$app.class",
+            "ARouter\$\$Root\$\$app.class",
+            "ARouter\$\$Providers\$\$app.class",
+            "ARouter\$\$Group\$\$app.java",
+            "ARouter\$\$Root\$\$app.java",
+            "ARouter\$\$Providers\$\$app.java"
+        ).forEach { outputFileName ->
+            assertTrue(result.outputs.any { it.file.name == outputFileName }, "missing $outputFileName, " +
+                    "all are:\n${result.outputs.joinToString("\n") { it.file.name }}")
+        }
     }
 
     val interdependenceTask = CompileTask(

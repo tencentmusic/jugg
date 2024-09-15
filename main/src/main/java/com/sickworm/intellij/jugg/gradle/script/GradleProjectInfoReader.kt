@@ -417,7 +417,8 @@ class GradleProjectInfoReader(
             val manifestView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("android-manifest"))
             resolvedArtifacts.addAll(manifestView.artifacts.artifacts)
         } else {
-            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("jar"))
+            // "jar" is not correct when dependency using android-support library, e.g. ARouter
+            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("processed-jar"))
             resolvedArtifacts.addAll(jarView.artifacts.artifacts)
         }
 

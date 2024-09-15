@@ -11,8 +11,11 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
 
+import com.alibaba.android.arouter.facade.annotation.Route;
+
 import java.io.IOException;
 
+@Route(path = "/app/MainActivity2")
 public class MainActivity2 extends AppCompatActivity implements View.OnClickListener {
 
     @Override
