@@ -358,7 +358,7 @@ class CompileContextManager(
                     assetDirs.add(file)
                 } else {
                     val isResDir = file.guessIsResDir()
-                    logger.warn("${module.name} unknown resource dir: ${file}, guess isResDir: $isResDir")
+                    logger.debug("${module.name} unknown resource dir: ${file}, guess isResDir: $isResDir")
                     if (isResDir) {
                         resourceDirs.add(file)
                     } else {
