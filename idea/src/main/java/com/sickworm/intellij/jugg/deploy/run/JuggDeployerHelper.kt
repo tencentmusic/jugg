@@ -468,7 +468,7 @@ class JuggDeployerHelper(
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
 
         // device need to be deployable, otherwise deployer can not get the correct arch of App.
-        val isDeviceDeployable = waitingForDeployable(device)
+        val isDeviceDeployable = waitingForDeployable(device, maxWaitTimeSecond = 6)
         if (!isDeviceDeployable) {
             logger.warn("App not deployable after reinstalling.")
             return false to false
@@ -511,8 +511,7 @@ class JuggDeployerHelper(
         }
     }
 
-    private fun waitingForDeployable(device: IDevice): Boolean {
-        val maxWaitTimeSecond = 3
+    private fun waitingForDeployable(device: IDevice, maxWaitTimeSecond: Int = 3): Boolean {
         var waitedTimeSecond = 0
         val waitGapMillSecond = 1
         while (waitedTimeSecond < maxWaitTimeSecond) {
