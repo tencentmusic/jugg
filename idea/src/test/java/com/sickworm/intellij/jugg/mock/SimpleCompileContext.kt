@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.mock
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.data.SigningConfig
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
@@ -46,6 +47,18 @@ data class SimpleCompileContext(
         }
     }
 
+    private fun getAndroidJarPath(moduleInfo: ModuleInfo): String {
+        if (moduleInfo.compileVersion != null) {
+            val androidJar = File(androidHome, "platforms/android-${moduleInfo.compileVersion}/android.jar")
+            if (androidJar.exists()) {
+                return androidJar.absolutePath
+            }
+        }
+
+        logger.debug("android.jar not found in ${moduleInfo.name}, use ${androidJar.absolutePath} for fallback.")
+        return androidJar.absolutePath
+    }
+
     override val signingConfig: SigningConfig = SigningConfig(
         configName = "debug",
         keystore = File(System.getProperty("user.home"), ".android/debug.keystore"),
@@ -65,18 +78,22 @@ data class SimpleCompileContext(
     }
 
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
-        val androidJar = androidJar.path
+        val androidJar = getAndroidJarPath(moduleInfo)
+
+        var tempDependencies: List<String> = tempModule.buildPathInfo.allClassPath.filter {
+            it.exists()
+        }.map {
+            it.absolutePath
+        }
+        val tempLibraryDependency = tempModule.libraryDependencies
+            .filter { it.isValid && !it.isAndroidManifest && !it.isRes }
+            .map { it.file.absolutePath }
+        tempDependencies = tempDependencies + tempLibraryDependency
 
         val classpathDependencies = moduleInfo.buildPathInfo.allClassPath.filter { file ->
             file.exists()
         }.map { file ->
             file.absolutePath
-        }
-
-        val tempDependencies: List<String> = tempModule.buildPathInfo.allClassPath.filter {
-            it.exists()
-        }.map {
-            it.absolutePath
         }
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
@@ -91,16 +108,14 @@ data class SimpleCompileContext(
             }
         }
         val libraryDependency = moduleInfo.libraryDependencies
-        .filter {
-            it.isJar
-        }
-        .map {
-            it.file.absolutePath
-        }
-
-        if (finalRFiles.isEmpty()) {
-            logger.warn("No R.jar found in project, compile may fail.")
-        }
+            .filter {
+                // filter unnecessary LibraryDependency for source file compilation
+                val isInBuildDir = it.file.isChild(moduleInfo.buildPathInfo.buildDir)
+                !isInBuildDir && it.isValid && !it.isAndroidManifest && !it.isRes
+            }
+            .map {
+                it.file.absolutePath
+            }
 
         val dependencies = mutableListOf(androidJar)
         dependencies.addAll(tempDependencies)
