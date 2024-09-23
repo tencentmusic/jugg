@@ -91,7 +91,7 @@ class SyncFileCommand(
             val configDirArguments = JuggPathManager.RSYNC_PUSH_CONFIG_DIR_ARGUMENTS
                 .replace("--include='/build", "--include='$buildDirPath")
                 .replace("--exclude='/build", "--exclude='$buildDirPath")
-            return "-av --delete $configDirArguments --exclude='build/' --exclude='/local.properties' --exclude='.gradle/' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
+            return "-av --delete $configDirArguments --exclude='build/' --exclude='local.properties' --exclude='.gradle/' --exclude='.idea/' --exclude='*.iml' --exclude='.git/objects/' --exclude='.git/modules/' --exclude='.cxx/'"
         }
     }
 }
