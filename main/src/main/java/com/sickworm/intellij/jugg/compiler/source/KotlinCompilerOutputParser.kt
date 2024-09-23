@@ -151,7 +151,10 @@ class KotlinCompilerOutputParser(
             val filePath = contents[i]
             if (filePath == "Sources:") {
                 for (j in i + 1 until contents.size) {
-                    sourceFile.add(File(contents[j]))
+                    val file = File(contents[j])
+                    if (file.isFile) {
+                        sourceFile.add(File(contents[j]))
+                    }
                 }
                 // reaches end
                 break

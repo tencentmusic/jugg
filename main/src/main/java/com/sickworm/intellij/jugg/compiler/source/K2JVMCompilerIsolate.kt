@@ -85,7 +85,8 @@ class K2JVMCompilerIsolate {
                 throw JuggInternalException.initKotlinCompilerFailed(missingClasspath)
             }
 
-            return URLClassLoader(libraryClasspath.values.toTypedArray(), null)
+            // missing tools.jar, find it in origin class loader
+            return URLClassLoader(libraryClasspath.values.toTypedArray(), this::class.java.classLoader)
         }
     }
 }

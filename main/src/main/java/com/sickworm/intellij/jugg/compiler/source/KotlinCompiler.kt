@@ -4,11 +4,15 @@ import com.intellij.openapi.Disposable
 import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
+import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.ObjectOutputStream
+import java.util.*
 
 class KotlinCompiler(
     context: ICompileContext,
@@ -23,8 +27,8 @@ class KotlinCompiler(
 
     private var hasRecreateAfterInternalError = false
 
-    private var hasFoundKotlinAndroidExtensions: Boolean = false
-    private var kotlinAndroidExtensionsPath: String? = null
+    private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
+    private val kaptPath: String? by lazy { getPluginPath("kotlin-annotation-processing") }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val dependencies = context.getModuleDependencies(module, task)
@@ -39,19 +43,6 @@ class KotlinCompiler(
                     Result.failure(CompileError(it, listOf(0L to "rPackageName not found for KotlinAndroidExtensions")))
                 }
                 return CompileResult(task, details, emptyList())
-            }
-            if (!hasFoundKotlinAndroidExtensions) {
-                val classLoader = this::class.java.classLoader
-                kotlinAndroidExtensionsPath = if (classLoader is UrlClassLoader) {
-                    // running in IDE
-                    val filePath = classLoader.urls.first { it.file.contains("kotlin-android-extensions") }.file
-                    filePath.replace("%20", " ")
-                } else {
-                    // running in test. notion: this may cost 500+ms which will affect compile cost
-                    val filePath = ClassGraph().classpathFiles.first { it.name.startsWith("kotlin-android-extensions") }.path
-                    filePath.replace("%20", " ")
-                }
-                hasFoundKotlinAndroidExtensions = true
             }
             if (kotlinAndroidExtensionsPath == null) {
                 logger.warn("KotlinAndroidExtensions not found in classpath, can not proceed kotlin android extensions.")
@@ -93,7 +84,38 @@ class KotlinCompiler(
             emptyList()
         }
 
-        val javaSourceRoots = module.sourceDirs + context.getGeneratedSourcePaths(module)
+        val kaptArgs = mutableListOf<String>()
+        val kaptTmpDir = context.tempCompileDir.resolve("kapt")
+        val kaptSourceDir = kaptTmpDir.resolve("sources")
+        val kaptClassesDir = kaptTmpDir.resolve("classes")
+        val kaptStubsDir = kaptTmpDir.resolve("stubs")
+        if (module.kaptDependencies.isNotEmpty()) {
+            // see https://kotlinlang.org/docs/kapt.html#use-in-cli
+            logger.debug("kaptPath = $kaptPath")
+            kaptArgs.addAll(listOf(
+                // normal kapt arguments
+                "-Xplugin=$kaptPath",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:sources=${kaptSourceDir}",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:classes=${kaptClassesDir}",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:stubs=${kaptStubsDir}",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:verbose=true",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubs",
+            ))
+
+            module.kaptDependencies.forEach {
+                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apclasspath=${it.file.path}"))
+            }
+
+            // TODO get kapt options
+            val kaptOptions = encodeList(module.javaAnnotationProcessorOptions)
+            if (kaptOptions != null) {
+                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apoptions=${kaptOptions}"))
+            }
+        }
+
+        val javaSourceRoots = (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
+            it.exists()
+        }
 
         var jvmTarget = module.kotlinJvmTarget ?: "1.8"
         if (jvmTarget == "1.6" || jvmTarget == "1.7") {
@@ -133,7 +155,7 @@ class KotlinCompiler(
 
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = extensionArgs + compileArgs + classPathArgs + fileArgs
+        val command = extensionArgs + kaptArgs + compileArgs + classPathArgs + fileArgs
         logCompileCommand(command)
 
         // resolve kotlin extension function unresolved reference
@@ -198,7 +220,17 @@ class KotlinCompiler(
         // copy outputs to task.outputDir
         val outputs = outputParser.outputs.mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
-            val targetFile = it.copyToBaseDir(kotlinClassPath, task.outputDir)
+
+            val targetFile = if (it.isChild(kotlinClassPath)) {
+                it.copyToBaseDir(kotlinClassPath, task.outputDir)
+            } else if (it.isChild(kaptSourceDir)) {
+                it.copyToBaseDir(kaptSourceDir, task.outputDir)
+            } else if (it.isChild(kaptClassesDir)) {
+                it.copyToBaseDir(kaptClassesDir, task.outputDir)
+            } else {
+                logger.debug("unknown output file, ignore: $it")
+                return@mapNotNull null
+            }
             CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 
@@ -306,6 +338,37 @@ class KotlinCompiler(
 
     companion object {
         private var kotlinCompile = K2JVMCompilerIsolate()
+
+        private fun encodeList(options: Map<String, String>?): String? {
+            // see https://kotlinlang.org/docs/kapt.html#use-in-cli
+            if (options == null) {
+                return null
+            }
+            val os = ByteArrayOutputStream()
+            val oos = ObjectOutputStream(os)
+
+            oos.writeInt(options.size)
+            for ((key, value) in options.entries) {
+                oos.writeUTF(key)
+                oos.writeUTF(value)
+            }
+
+            oos.flush()
+            return Base64.getEncoder().encodeToString(os.toByteArray())
+        }
+
+        private fun getPluginPath(name: String): String? {
+            val classLoader = this::class.java.classLoader
+            return if (classLoader is UrlClassLoader) {
+                // running in IDE
+                val filePath = classLoader.urls.firstOrNull { it.file.contains(name) }?.file
+                filePath?.replace("%20", " ")
+            } else {
+                // running in test. notion: this may cost 500+ms which will affect compile cost
+                val filePath = ClassGraph().classpathFiles.firstOrNull { it.name.startsWith(name) }?.path
+                filePath?.replace("%20", " ")
+            }
+        }
     }
 }
 

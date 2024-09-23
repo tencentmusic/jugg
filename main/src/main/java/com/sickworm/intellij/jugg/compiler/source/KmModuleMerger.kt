@@ -50,6 +50,7 @@ class KmModuleMergerForCompilation(
 class KmModuleMerger {
 
     private val kmModule = KmModule()
+    private var version = JvmMetadataVersion.LATEST_STABLE_SUPPORTED
 
     /**
      * merge kotlin module metadata into [kmModule]
@@ -63,6 +64,7 @@ class KmModuleMerger {
             return
         }
         val kmModule = metadata.kmModule
+        version = metadata.version
         this.kmModule.merge(kmModule)
     }
 
@@ -70,7 +72,7 @@ class KmModuleMerger {
      * write kotlin module metadata to file
      */
     fun writeTo(destFile: File) {
-        val metadata = KotlinModuleMetadata(kmModule, JvmMetadataVersion.LATEST_STABLE_SUPPORTED).write()
+        val metadata = KotlinModuleMetadata(kmModule, version).write()
         destFile.also {
             it.parentFile?.mkdirs()
             it.writeBytes(metadata)

@@ -3,6 +3,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-kapt'
 
 android {
     compileSdkVersion 30
@@ -60,5 +61,6 @@ dependencies {
     implementation 'com.alibaba:fastjson:2.0.2.android'
 
     implementation 'com.alibaba:arouter-api:1.5.2'
-    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
+//    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
+    kapt 'com.alibaba:arouter-compiler:1.5.2'
 }
