@@ -129,6 +129,17 @@ class KotlinCompileTest {
         }
     }
 
+    @Test
+    fun kotlinAnnotationParcelizeCompile() {
+        val task = createTask("com/sickworm/jugg/demo/testcase/annotation/kotlin/ParcelizeData.kt")
+        val result = kotlinCompiler.compile(task)
+        assertCompileResult(task, result, mapper)
+
+        val task2 = createTask("com/sickworm/jugg/demo/testcase/annotation/kotlin/ParcelizeData2.kt")
+        val result2 = kotlinCompiler.compile(task2)
+        assertCompileResult(task2, result2, mapper)
+    }
+
     private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult, vararg subclassList: String) {
         val mapper: OutputFileMapper = { file ->
             (subclassList.toList() + "").map {
@@ -139,5 +150,25 @@ class KotlinCompileTest {
             }
         }
         assertCompileResult(task, result, mapper)
+    }
+
+    companion object {
+
+        val mapper: OutputFileMapper = {
+            val outputFile = it.file.changeBaseDir(it.baseDir, stagingDir, "class")
+            listOf(CompileOutput(CompileOutput.Type.Class, outputFile, stagingDir))
+        }
+
+        private fun createTask(path: String): CompileTask {
+            return CompileTask(listOf(ktCompileFile(path)), stagingDir)
+        }
+
+        private fun ktCompileFile(path: String): CompileFile {
+            return CompileFile(CompileFile.Type.Kotlin,
+                File(assetsAndroidDir, "app/src/main/java/$path"),
+                File(assetsAndroidDir, "app/src/main/java"),
+                context.modules.first().value,
+            )
+        }
     }
 }

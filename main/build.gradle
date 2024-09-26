@@ -66,6 +66,7 @@ dependencies {
     // kotlin-annotation-processing will get compile error: org.jetbrains.kotlin.kapt3.Kapt3ComponentRegistrar is not compatible with this version of compiler
     // reason: the argument is com.intellij.mock.MockProject instead of org.jetbrains.kotlin.com.intellij.mock.MockProject
     implementation "org.jetbrains.kotlin:kotlin-annotation-processing-gradle"
+    implementation "org.jetbrains.kotlin:kotlin-parcelize-compiler"
 
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'

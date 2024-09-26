@@ -53,6 +53,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                         it["runtimeLibraryDependencies"] as? List<Int>,
                         it["annotationProcessorDependencies"] as? List<Int>,
                         it["kaptDependencies"] as? List<Int>,
+                        it["kotlinPlugins"] as? List<Int>,
                     )
                 }
                 val dependencyList = json["dependencyList"]!!.map {

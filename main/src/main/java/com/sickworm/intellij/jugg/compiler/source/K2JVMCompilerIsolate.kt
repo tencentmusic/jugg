@@ -21,14 +21,54 @@ import java.net.URLClassLoader
  */
 class K2JVMCompilerIsolate {
 
-    private lateinit var classLoader: ClassLoader
+    var isUseProjectCompiler: Boolean = false
+        private set
+
+    private lateinit var classLoader: URLClassLoader
+    private val currentCompiler: String?
+        get() {
+            if (!::classLoader.isInitialized) {
+                return null
+            }
+            return getCompilerName(classLoader.urLs.toList())
+        }
+
+    /**
+     * Init [classLoader] which is used to load K2JVMCompiler.
+     * Priority use project compiler classpath, if not available use embedded compiler
+     */
+    fun initIfNeeded(projectCompilerClasspath: List<File>?, logger: Logger) {
+        if (forceUseEmbeddedCompiler) {
+            if (!::classLoader.isInitialized) {
+                classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
+            }
+            return
+        }
+
+        try {
+            val projectCompilerClasspathUrls = projectCompilerClasspath?.map { it.toURI().toURL() } ?: emptyList()
+            val currentCompiler = currentCompiler
+            val expectCompiler = getCompilerName(projectCompilerClasspathUrls)
+            if (currentCompiler != null && currentCompiler == expectCompiler) {
+                // no need to renew classLoader
+                return
+            }
+
+            logger.debug("compiler not match, currentCompiler: $currentCompiler, expectCompiler: $expectCompiler. try renew classLoader")
+            classLoader = getIsolateClassLoader(projectCompilerClasspathUrls)
+            // new classLoader by projectCompilerClasspath success, use it
+            isUseProjectCompiler = true
+            logger.debug("use project kotlin compiler")
+        } catch (e: Exception) {
+            // projectCompilerClasspath is not available, use embedded compiler
+            logger.debug("use embedded kotlin compiler, reason: ${e.message}")
+            isUseProjectCompiler = false
+            classLoader = getIsolateClassLoader(ClassGraph().classpathURLs)
+        }
+    }
 
     @Suppress("MoveVariableDeclarationIntoWhen")
     fun exec(printStream: PrintStream, args: Array<String>): ExitCode {
-        if (!::classLoader.isInitialized) {
-            classLoader = getIsolateClassLoader()
-        }
-
         val compileClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
         val compileInstance = compileClass.declaredConstructors[0].newInstance()
         val method = compileClass.getMethod("exec", PrintStream::class.java, Array<String>::class.java)
@@ -53,40 +93,59 @@ class K2JVMCompilerIsolate {
 
         const val VERSION = "1.7"
 
-        private val requiredLibraries = listOf(
-            "annotations-13.0.jar", // as plugin
-            "annotations-23.0.0.jar", // in test
-            "kotlin-compiler-embeddable-1.9.23.jar",
-            "trove4j-1.0.20200330.jar",
-            "kotlin-reflect-1.9.23.jar",
-            "kotlin-stdlib-1.9.23.jar",
-            "kotlin-stdlib-jdk7-1.9.23.jar",
-            "kotlin-stdlib-jdk8-1.9.23.jar"
-        )
-        private val exceptLibrariesSize = requiredLibraries.size - 1 // two annotations inside
+        var forceUseEmbeddedCompiler = false
 
-        private fun getIsolateClassLoader(): ClassLoader {
-            val allClasspath = ClassGraph().classpathURLs
-            val libraryClasspath = mutableMapOf<String, URL>()
-            allClasspath.forEach {
-                val name = File(it.file).name
-                if (!requiredLibraries.contains(name)) {
-                    return@forEach
+        private const val KOTLIN_COMPILER_NAME = "kotlin-compiler-embeddable"
+
+        private val requiredLibraries = setOf(
+            "annotations",
+            "kotlin-compiler-embeddable",
+            "trove4j",
+            "kotlin-reflect",
+            "kotlin-stdlib",
+        )
+
+        /**
+         * Classpath of Jugg, which includes kotlin compiler and its dependencies
+         */
+        private val juggPluginClasspathUrls by lazy { ClassGraph().classpathURLs }
+
+        private fun getIsolateClassLoader(urls: List<URL>): URLClassLoader {
+            val libraryClasspath = filterCompilerLibraries(urls)
+            val missingClasspath = requiredLibraries.filter { libraryName ->
+                !libraryClasspath.any {
+                    File(it.file).name.startsWith(libraryName) && File(it.file).name.endsWith(".jar")
                 }
-                if (libraryClasspath.keys.contains(name)) {
-                    return@forEach
-                }
-                libraryClasspath[name] = it
             }
-            if (libraryClasspath.size != exceptLibrariesSize) {
-                val missingClasspath = requiredLibraries.filter { libraryName ->
-                    !libraryClasspath.keys.contains(libraryName)
-                }
+            if (missingClasspath.isNotEmpty()) {
                 throw JuggInternalException.initKotlinCompilerFailed(missingClasspath)
             }
 
             // missing tools.jar, find it in origin class loader
-            return URLClassLoader(libraryClasspath.values.toTypedArray(), this::class.java.classLoader)
+//            return URLClassLoader(libraryClasspath.toTypedArray(), this::class.java.classLoader)
+            // set parent will load K2JVMCompiler in parent class loader, which will cause class conflict in execution
+            return URLClassLoader(libraryClasspath.toTypedArray(), null)
+        }
+
+        private fun filterCompilerLibraries(allClasspath: Collection<URL>): List<URL> {
+            return allClasspath
+                .filter {
+                    it.isCompilerLibrary
+                }.distinctBy {
+                    it.file
+                }
+        }
+
+        private val URL.isCompilerLibrary: Boolean get() {
+            val name = File(file).name
+            return requiredLibraries.any {
+                name.startsWith(it) && name.endsWith(".jar")
+            }
+        }
+
+        private fun getCompilerName(urls: List<URL>): String? {
+            val compilerDependency = urls.find { File(it.file).name.startsWith(KOTLIN_COMPILER_NAME) }?.file ?: return null
+            return File(compilerDependency).name
         }
     }
 }

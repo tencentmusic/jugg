@@ -8,6 +8,7 @@ import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.attributes.*
+import org.gradle.api.file.FileCollection
 import org.gradle.internal.component.local.model.OpaqueComponentArtifactIdentifier
 import java.io.File
 
@@ -180,6 +181,17 @@ class GradleProjectInfoReader(
                     }
                 }
 
+                var kotlinPlugins: List<File>? = null
+                @Suppress("DEPRECATION")
+                val buildVariantCapital = buildVariant[0].toUpperCase() + buildVariant.substring(1)
+                val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
+                val kotlinTask = project.tasks.findByName(kotlinTaskName)
+                if (kotlinTask != null) {
+                    kotlinPlugins = (Reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()
+                } else {
+                    println("Jugg: can not find kotlin compile task for ${project.standardModuleName} by $kotlinTaskName, skip it.")
+                }
+
                 @Suppress("UNCHECKED_CAST")
                 moduleInfo = moduleInfo.copy(
                     compileVersion = compileSdkVersion?.substringAfter("android-"),
@@ -205,6 +217,7 @@ class GradleProjectInfoReader(
                     namespace = androidExt["namespace"]?.valueString,
                     variants = variants,
                     signingConfigs = signingConfigs,
+                    kotlinPlugins = kotlinPlugins,
                 )
             } catch (e: Throwable) {
                 println("Jugg: get other info for ${project.standardModuleName} failed: $e")

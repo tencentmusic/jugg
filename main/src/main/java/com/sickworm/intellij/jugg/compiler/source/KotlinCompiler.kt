@@ -31,7 +31,20 @@ class KotlinCompiler(
     private val kaptPath: String? by lazy { getPluginPath("kotlin-annotation-processing") }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val dependencies = context.getModuleDependencies(module, task)
+        // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
+        // Jugg will check it again in [initIfNeeded] before use it
+        val kotlinCompilerClasspath = module.kotlinPlugins
+        kotlinCompile.initIfNeeded(kotlinCompilerClasspath, logger)
+
+        val pluginArgs = mutableListOf<String>()
+        if (kotlinCompile.isUseProjectCompiler) {
+            // if we use project compiler, we can use project plugins
+            module.kotlinPlugins?.forEach {
+                pluginArgs.add("-Xplugin=${it.path}")
+            }
+        } else {
+            // we are using embedded compiler, which may conflict with the plugin version in project
+        }
 
         val analyzeResult = analyzeSource(task.files.map { it.file }, module)
         logger.debug("analyzeSource result: $analyzeResult")
@@ -71,17 +84,19 @@ class KotlinCompiler(
             }
         }
 
-        val extensionArgs = if (analyzeResult.isNeedKotlinAndroidExtensions) {
+        val extensionArgs = mutableListOf<String>()
+        if (analyzeResult.isNeedKotlinAndroidExtensions) {
             val variantArgs: List<String> = resourcePaths.flatMap { resourcePath ->
                 listOf("-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}")
             }
-            listOf(
-                "-Xplugin=$kotlinAndroidExtensionsPath",
-                "-P", "plugin:org.jetbrains.kotlin.android:package=${analyzeResult.rPackageName}",
-                "-P", "plugin:org.jetbrains.kotlin.android:experimental=true",
-            ) + variantArgs
-        } else {
-            emptyList()
+            extensionArgs.addAll(variantArgs)
+            extensionArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.android:package=${analyzeResult.rPackageName}"))
+            extensionArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.android:experimental=true"))
+
+            if (!kotlinCompile.isUseProjectCompiler) {
+                // use embedded compiler, we need to add embedded plugin path
+                extensionArgs.add("-Xplugin=$kotlinAndroidExtensionsPath")
+            }
         }
 
         val kaptArgs = mutableListOf<String>()
@@ -99,7 +114,7 @@ class KotlinCompiler(
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:classes=${kaptClassesDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:stubs=${kaptStubsDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:verbose=true",
-                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubs",
+//                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubs",
             ))
 
             module.kaptDependencies.forEach {
@@ -147,6 +162,7 @@ class KotlinCompiler(
         )
 
         var classPathArgs = listOf<String>()
+        val dependencies = context.getModuleDependencies(module, task)
         if (dependencies.isNotEmpty()) {
             classPathArgs = listOf(
                 "-cp", dependencies.joinToString(File.pathSeparator)
@@ -155,7 +171,7 @@ class KotlinCompiler(
 
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = extensionArgs + kaptArgs + compileArgs + classPathArgs + fileArgs
+        val command = pluginArgs + extensionArgs + kaptArgs + compileArgs + classPathArgs + fileArgs
         logCompileCommand(command)
 
         // resolve kotlin extension function unresolved reference

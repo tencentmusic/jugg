@@ -39,6 +39,9 @@ class JuggProjectInfoSerialize(
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
                     annotationProcessorDependencies = convertLibraryToIndexList(it.value.annotationProcessorDependencies),
                     kaptDependencies = convertLibraryToIndexList(it.value.kaptDependencies),
+                    kotlinPlugins = convertLibraryToIndexList(it.value.kotlinPlugins?.map { file ->
+                        LibraryDependency("", file, 0, 0L)
+                    } ?: emptyList())
                 )
             }
             return JuggProjectInfoSerialize(juggProjectInfoExceptModules, dependencyList, modules)
@@ -55,6 +58,7 @@ class JuggProjectInfoSerialize(
                     runtimeLibraryDependencies = serialize.runtimeLibraryDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     annotationProcessorDependencies = serialize.annotationProcessorDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     kaptDependencies = serialize.kaptDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
+                    kotlinPlugins = serialize.kotlinPlugins?.map { dependencyMap[it]!!.file } ?: emptyList(),
                 )
                 return@associate moduleInfo.name to moduleInfo
             }
@@ -71,4 +75,5 @@ class ModuleInfoSerialize(
     val runtimeLibraryDependencies: List<Int>?,
     val annotationProcessorDependencies: List<Int>?,
     val kaptDependencies: List<Int>?,
+    val kotlinPlugins: List<Int>?,
 )
