@@ -55,13 +55,13 @@ class K2JVMCompilerIsolate {
             }
 
             logger.debug("compiler not match, currentCompiler: $currentCompiler, expectCompiler: $expectCompiler. try renew classLoader")
-            classLoader = getIsolateClassLoader(projectCompilerClasspathUrls)
+            classLoader = getIsolateClassLoader(projectCompilerClasspathUrls, isAllIncluded = true)
             // new classLoader by projectCompilerClasspath success, use it
             isUseProjectCompiler = true
-            logger.debug("use project kotlin compiler")
+            logger.debug("kotlin compiler type: project")
         } catch (e: Exception) {
             // projectCompilerClasspath is not available, use embedded compiler
-            logger.debug("use embedded kotlin compiler, reason: ${e.message}")
+            logger.debug("kotlin compiler type: embedded, reason: ${e.message}")
             isUseProjectCompiler = false
             classLoader = getIsolateClassLoader(ClassGraph().classpathURLs)
         }
@@ -110,7 +110,7 @@ class K2JVMCompilerIsolate {
          */
         private val juggPluginClasspathUrls by lazy { ClassGraph().classpathURLs }
 
-        private fun getIsolateClassLoader(urls: List<URL>): URLClassLoader {
+        private fun getIsolateClassLoader(urls: List<URL>, isAllIncluded: Boolean = false): URLClassLoader {
             val libraryClasspath = filterCompilerLibraries(urls)
             val missingClasspath = requiredLibraries.filter { libraryName ->
                 !libraryClasspath.any {
@@ -120,13 +120,19 @@ class K2JVMCompilerIsolate {
             if (missingClasspath.isNotEmpty()) {
                 throw JuggInternalException.initKotlinCompilerFailed(missingClasspath)
             }
+            val finalLibraryClasspath = if (isAllIncluded) urls else libraryClasspath
 
             // missing tools.jar, find it in origin class loader
 //            return URLClassLoader(libraryClasspath.toTypedArray(), this::class.java.classLoader)
             // set parent will load K2JVMCompiler in parent class loader, which will cause class conflict in execution
-            return URLClassLoader(libraryClasspath.toTypedArray(), null)
+            val loader = PriorityURLClassLoader(finalLibraryClasspath.toTypedArray(), lowPriorityParent = this::class.java.classLoader)
+            // it's wired that kapt class loading will use parent class loader that Jugg provided, so wrap it with an empty class loader
+            return URLClassLoader(emptyArray(), loader)
         }
 
+        /**
+         * @return all libraries that are required by kotlin compiler, plugins and other dependencies are not included
+         */
         private fun filterCompilerLibraries(allClasspath: Collection<URL>): List<URL> {
             return allClasspath
                 .filter {

@@ -28,7 +28,6 @@ class KotlinCompiler(
     private var hasRecreateAfterInternalError = false
 
     private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
-    private val kaptPath: String? by lazy { getPluginPath("kotlin-annotation-processing") }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
@@ -104,12 +103,10 @@ class KotlinCompiler(
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (module.kaptDependencies.isNotEmpty()) {
+        if (module.kaptDependencies.isNotEmpty() && kotlinCompile.isUseProjectCompiler) {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
-            logger.debug("kaptPath = $kaptPath")
             kaptArgs.addAll(listOf(
                 // normal kapt arguments
-                "-Xplugin=$kaptPath",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:sources=${kaptSourceDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:classes=${kaptClassesDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:stubs=${kaptStubsDir}",
