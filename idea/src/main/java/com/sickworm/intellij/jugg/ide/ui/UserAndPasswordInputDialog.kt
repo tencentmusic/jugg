@@ -22,6 +22,7 @@ class UserAndPasswordInputDialog(
         } else {
             JTextField()
         }
+        textField.preferredSize = JBUI.size(180, 30)
 
         val constraints = GridBagConstraints()
         constraints.gridx = 0
@@ -43,7 +44,6 @@ class UserAndPasswordInputDialog(
         constraints.gridx = 1
         mainPanel.add(textField, constraints)
 
-        isResizable = false
         init()
     }
 
