@@ -174,7 +174,15 @@ class BaseCompileContext(
             .filter {
                 // filter unnecessary LibraryDependency for source file compilation
                 val isInBuildDir = it.file.isChild(moduleInfo.buildPathInfo.buildDir)
-                !isInBuildDir && it.isValid && !it.isAndroidManifest && !it.isRes
+                if (isInBuildDir || it.isAndroidManifest || it.isRes) {
+                    return@filter false
+                }
+                if (!it.isValid) {
+                    logger.debug("library dependency file ${it.file} not found")
+                    logger.warn("library dependency [${it.name}] not found, maybe sync again helps.")
+                    return@filter false
+                }
+                return@filter true
             }
             .map {
                 it.file.absolutePath
