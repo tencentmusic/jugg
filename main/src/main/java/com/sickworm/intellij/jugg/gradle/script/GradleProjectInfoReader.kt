@@ -370,7 +370,12 @@ class GradleProjectInfoReader(
                 val splits = dependency.name.split(':')
                 if (splits.size == 3) {
                     // external module dependency
-                    val uniqueName = splits[0] + ":" + splits[1] + "/" + dependency.type
+                    var relativePath = ""
+                    if (dependency.isJar && dependency.file.path.contains("jars")) {
+                        // handles aar that contains multiple jars
+                        relativePath = dependency.file.path.substringAfterLast("jars")
+                    }
+                    val uniqueName = splits[0] + ":" + splits[1] + "/" + dependency.type + "/" + relativePath
                     val version = splits[2]
                     val existsDependency = result[uniqueName] as? LibraryDependency
                     if (existsDependency != null) {
