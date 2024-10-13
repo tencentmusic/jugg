@@ -223,18 +223,18 @@ class GradleProjectInfoReader(
                     dependFilterName = "CompileClasspath"
                 }
             }
-            val dependencies = getDependencies(project, dependFilterName, isAndroidDepend = moduleType.isAndroidModule)
+            val dependencies = getDependenciesByConfig(project, dependFilterName, isAndroidDepend = moduleType.isAndroidModule)
             TraceLogger.end("getCompile")
 
             // won't actually use this for now to save time
             val runtimeDependencies = emptyList<Dependency>()
 
             TraceLogger.start("getAnnotation")
-            val annotationProcessorDependencies = getDependencies(project, "annotationProcessor", isAndroidDepend = false)
+            val annotationProcessorDependencies = getDependenciesByConfig(project, "annotationProcessor", isAndroidDepend = false)
             TraceLogger.end("getAnnotation")
 
             TraceLogger.start("getKapt")
-            val kaptDependencies = getDependencies(project, "kapt", isAndroidDepend = false)
+            val kaptDependencies = getDependenciesByConfig(project, "kapt", isAndroidDepend = false)
             TraceLogger.end("getKapt")
 
             moduleInfo = moduleInfo.copy(
@@ -274,7 +274,7 @@ class GradleProjectInfoReader(
         return fixedModulePathMap[relativePath]?.buildVariant ?: defaultVariant
     }
 
-    private fun getDependencies(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {
+    private fun getDependenciesByConfig(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {
         val result = mutableMapOf<String, Dependency>()
         val allNames = project.configurations.names
         val names = allNames.filter { filterConfigs(it, filterName) }
@@ -282,14 +282,14 @@ class GradleProjectInfoReader(
         names.forEach nameForEach@{ name ->
             val configuration = project.configurations.findByName(name) ?: return@nameForEach
             if (configuration.isCanBeResolved) {
-                val subResult = getDependencies(configuration, isAndroidDepend)
+                val subResult = doGetDependencies(configuration, isAndroidDepend)
                 totalReadArtifacts += subResult.size
                 resolveArtifacts += configuration.allDependencies.size
                 result.addToResult(subResult)
             } else {
                 val allDependencies = configuration.allDependencies
                 allDependencies.forEach { dependencyDeclaration: org.gradle.api.artifacts.Dependency ->
-                    val dependencies: List<Dependency> = getDependencies(project, dependencyDeclaration, isAndroidDepend, isNeedResolve)
+                    val dependencies: List<Dependency> = getDependenciesWithoutResolved(project, dependencyDeclaration, isAndroidDepend, isNeedResolve)
                     totalReadArtifacts += dependencies.size
                     result.addToResult(dependencies)
                 }
@@ -299,8 +299,8 @@ class GradleProjectInfoReader(
         return result.values.toMutableList()
     }
 
-    private fun getDependencies(project: Project, dependency: org.gradle.api.artifacts.Dependency,
-                                isAndroidDepend: Boolean, isNeedResolve: Boolean,
+    private fun getDependenciesWithoutResolved(project: Project, dependency: org.gradle.api.artifacts.Dependency,
+                                               isAndroidDepend: Boolean, isNeedResolve: Boolean,
     ): List<Dependency> {
         when (dependency) {
             is ExternalModuleDependency -> {
@@ -318,7 +318,7 @@ class GradleProjectInfoReader(
                     if (printResolveDetail) {
                         println("Jugg: resolve ${dependency.group}:${dependency.name}:${dependency.version}")
                     }
-                    val dependencies = getDependencies(resolvedConfiguration, isAndroidDepend = isAndroidDepend)
+                    val dependencies = doGetDependencies(resolvedConfiguration, isAndroidDepend = isAndroidDepend)
                     if (printResolveDetail) {
                         println("Jugg: resolve result: $dependencies")
                     }
@@ -395,7 +395,7 @@ class GradleProjectInfoReader(
         }
     }
 
-    private fun getDependencies(resolvedConfiguration: Configuration, isAndroidDepend: Boolean): List<Dependency> {
+    private fun doGetDependencies(resolvedConfiguration: Configuration, isAndroidDepend: Boolean): List<Dependency> {
         val result = mutableSetOf<Dependency>()
         // resolve project dependency here, because project dependency won't return by artifactView
         // if it's build directory is deleted
