@@ -66,6 +66,9 @@ class JuggRunningTask(
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
+            if (isForceGradleCompile) {
+                notifyFallback(project, "force fallback")
+            }
             val runResult = doRun(options, indicator, isForceGradleCompile)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
