@@ -65,13 +65,23 @@ class BaseCompileContext(
     override var applicationModule: ModuleInfo? = findApplicationModule()
 
     private fun findApplicationModule(): ModuleInfo? {
-        val applicationModules = modules.values.filter { module ->
+        var applicationModules = modules.values.filter { module ->
             val rFile = module.buildPathInfo.rFilePath
             return@filter rFile.exists()
         }
         if (applicationModules.isEmpty()) {
             logger.debug("get application module failed, no module has R.jar")
-            return null
+
+            // maybe low AGP version, try to find library R file
+            val isLowAgp = modules.values.any { it.buildPathInfo.libraryRFilePathInLowAgp.exists() }
+            logger.debug("it's there any library R file exists? $isLowAgp")
+            if (isLowAgp) {
+                applicationModules = modules.values.filter { !it.buildPathInfo.libraryRFilePathInLowAgp.exists() }
+            }
+            logger.debug("filter applicationModules by library R file: $applicationModules")
+            if (applicationModules.isEmpty()) {
+                return null
+            }
         }
         if (applicationModules.size == 1) {
             logger.debug("get application module returns ${applicationModules.first().name}, with only one has R.jar")
