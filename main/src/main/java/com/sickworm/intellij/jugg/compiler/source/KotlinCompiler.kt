@@ -95,10 +95,18 @@ class KotlinCompiler(
 
         val javaSourceRoots = module.sourceDirs + context.getGeneratedSourcePaths(module)
 
+        var jvmTarget = module.kotlinJvmTarget ?: "1.8"
+        if (jvmTarget == "1.6" || jvmTarget == "1.7") {
+            logger.debug("jvm target is $jvmTarget, force to 1.8 to avoid error: " +
+                    "error: JVM target 1.6 is no longer supported. Please migrate to JVM target 1.8 or above")
+            logger.debug("please skip this check if using kotlin compile in project.")
+            jvmTarget = "1.8"
+        }
+
         val compileArgs = module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
             "-language-version", guessKotlinVersion(module),
-            "-jvm-target", module.kotlinJvmTarget ?: "1.8",
+            "-jvm-target", jvmTarget,
             "-nowarn",
             "-no-stdlib",
             "-no-reflect",
