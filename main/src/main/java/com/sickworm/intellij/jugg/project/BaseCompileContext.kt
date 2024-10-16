@@ -168,12 +168,14 @@ class BaseCompileContext(
         }.map { file ->
             file.absolutePath
         }
+        printClasspathCheck(moduleInfo)
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
             val dependencyModuleInfo = modules[it.moduleName] ?: run {
                 logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
                 return@flatMap emptyList()
             }
+            printClasspathCheck(dependencyModuleInfo)
             dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
                 file.exists()
             }.map { file ->
@@ -218,6 +220,36 @@ class BaseCompileContext(
         }
 
         return dependencies
+    }
+
+    private fun printClasspathCheck(moduleInfo: ModuleInfo) {
+        printParentTree(moduleInfo.buildPathInfo.javaClassPath, moduleInfo.buildPathInfo.moduleRootDir)
+        printParentTree(moduleInfo.buildPathInfo.kotlinClassPath, moduleInfo.buildPathInfo.moduleRootDir)
+    }
+
+    private fun printParentTree(file: File, rootDir: File, level: Int = 3) {
+        try {
+            if (file.exists()) {
+                 return
+            }
+
+            logger.debug("printParentTree: for $file not exists")
+
+            var currentFile: File? = file.parentFile
+            var remainLevel: Int = level
+            while (remainLevel > 0 && currentFile != null) {
+                val isExists = currentFile.exists()
+                val subFiles: Any? = if (isExists) currentFile.listFiles()?.map { it.name } else emptyList()
+                logger.debug("printParentTree: ${currentFile.relativeTo(rootDir)} (exists: $isExists), subFiles: $subFiles")
+                currentFile = currentFile.parentFile
+                remainLevel--
+                if (isExists) {
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("printParentTree failed: $e")
+        }
     }
 
     private fun getAndroidJarPath(moduleInfo: ModuleInfo): String {
