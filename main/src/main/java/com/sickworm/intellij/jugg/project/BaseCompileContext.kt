@@ -191,7 +191,8 @@ class BaseCompileContext(
         if (finalRFiles.isEmpty()) {
             finalRFiles = getRFiles()
             if (finalRFiles.isEmpty()) {
-                logger.warn("No R.jar found in project, compile may fail.")
+                logger.debug("No R.jar found in project, maybe is a low AGP version that will stored in " +
+                        "build/intermediates/javac/debug/compileDebugJavaWithJavac/classes.")
             }
         }
 

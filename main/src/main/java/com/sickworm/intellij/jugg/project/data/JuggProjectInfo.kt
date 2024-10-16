@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.project.data
 
 import java.io.File
+import java.util.*
 import java.util.zip.CRC32
 
 data class JuggProjectInfo(
@@ -97,9 +98,10 @@ data class ModuleBuildPathInfo(
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
     /** on AGP 3.2.1 has different java class path */
+    @Suppress("DEPRECATION")
     private val javaClassPathOld get() = File(
         buildDir,
-        "intermediates/javac/$buildVariant/compileDebugJavaWithJavac/classes"
+        "intermediates/javac/$buildVariant/compile${buildVariant.capitalize(Locale.ROOT)}JavaWithJavac/classes"
     )
     /** java class path */
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew
