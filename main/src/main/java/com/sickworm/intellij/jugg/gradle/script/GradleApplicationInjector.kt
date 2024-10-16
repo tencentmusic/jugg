@@ -53,9 +53,10 @@ class GradleApplicationInjector(
         }
     }
 
+    @Suppress("DefaultLocale")
     private fun injectManifestTask(project: Project, variant: Any?) {
         val name = Reflector(variant)["name"]?.valueString ?: return
-        val capitalizedName = name.capitalize(Locale.ROOT)
+        val capitalizedName = name.capitalize() // compat kotlin 1.4, name.capitalize(Locale.ROOT)
         val manifestTaskName = "process${capitalizedName}Manifest"
         val manifestTask = project.tasks.findByName(manifestTaskName)
         println("Jugg inject manifestTask: $manifestTaskName, task instance: $manifestTask")

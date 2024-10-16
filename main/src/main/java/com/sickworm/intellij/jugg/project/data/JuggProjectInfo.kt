@@ -97,11 +97,14 @@ data class ModuleBuildPathInfo(
 
     /** java class path */
     private val javaClassPathNew get() = File(buildDir, "intermediates/javac/$buildVariant/classes")
+
     /** on AGP 3.2.1 has different java class path */
     @Suppress("DEPRECATION")
-    private val javaClassPathOld get() = File(
+    private val javaClassPathOld
+    @Suppress("DefaultLocale") // for kotlin 1.4
+    get() = File(
         buildDir,
-        "intermediates/javac/$buildVariant/compile${buildVariant.capitalize(Locale.ROOT)}JavaWithJavac/classes"
+        "intermediates/javac/$buildVariant/compile${buildVariant.capitalize()}JavaWithJavac/classes"
     )
     /** java class path */
     val javaClassPath get() = if (javaClassPathOld.exists()) javaClassPathOld else javaClassPathNew

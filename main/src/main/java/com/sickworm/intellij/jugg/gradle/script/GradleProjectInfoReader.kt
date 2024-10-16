@@ -264,7 +264,7 @@ class GradleProjectInfoReader(
     private val defaultVariant: String by lazy {
         fixedModulePathMap.values
             .groupBy { it.buildVariant }
-            .maxByOrNull { it.value.size }
+            .entries.maxByOrNullForKt14 { it.value.size }
             ?.key
             ?: ModuleInfo.DEFAULT_BUILD_VARIANT
     }

@@ -1,3 +1,5 @@
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 // collect files
 File readProjectInfoKtsFile = new File(projectDir, "src/main/resources/gradle/readProjectInfo.gradle.kts")
@@ -100,8 +102,14 @@ gradle.buildFinished(object : Action<BuildResult> {
 })
 """)
         finalContent.append("\n")
+        String rawFinalContent = finalContent.toString()
 
-        readProjectInfoKtsFile.write(finalContent.toString())
+        // compat with Kotlin 1.4 grammar, remove "," in last arguments
+        Pattern pattern = Pattern.compile(", *(//.*)?\\n *\\)")
+        Matcher matcher = pattern.matcher(rawFinalContent);
+        String parsedFinalContent = matcher.replaceAll(") \$1")
 
+        // write it!
+        readProjectInfoKtsFile.write(parsedFinalContent)
     }
 }

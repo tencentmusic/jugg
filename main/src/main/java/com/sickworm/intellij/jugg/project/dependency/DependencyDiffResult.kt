@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.project.dependency
 
 import com.sickworm.intellij.jugg.compiler.manifest.XmlAndroidManifestInfo
+import com.sickworm.intellij.jugg.gradle.script.Utils
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 
@@ -131,7 +132,8 @@ data class DependencyDiffResult(
                             lastDependency.groupAndArtifact == groupAndArtifact
                         }
                         if (removedDependencies.isNotEmpty()) {
-                            val finalDependencies = removedDependencies.maxByOrNull { it.version ?: "" }
+                            // must use Utils instead of extension or will get compile error
+                            val finalDependencies: LibraryDependencySet? = Utils.maxByOrNullForKt14(removedDependencies) { it.version ?: "" }
                             versionChangedLibraries.add(UpdatedLibraryDependency(
                                 addedLibrary.dependency, finalDependencies
                             ))
