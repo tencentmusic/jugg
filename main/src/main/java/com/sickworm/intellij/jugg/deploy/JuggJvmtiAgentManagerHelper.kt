@@ -69,6 +69,11 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
             logger.debug("device isForceCompatDevice, no need check")
             return false
         }
+        val isEnable = JuggSettings.finalIsEnableCompatibleDeploymentMode
+        if (!isEnable) {
+            logger.debug("function is disable, no need check")
+            return false
+        }
 
         TimeLogger.start("isHasJvmtiCompatIssue")
         var waitedTimeSecond = 0
