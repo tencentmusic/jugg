@@ -26,7 +26,12 @@ class BuildFileDiffRequest(
         val contents = createDiffContent(project, newFile, oldFile)
         newContent = contents.first
         oldContent = contents.second
-        putUserData(DiffUserDataKeysEx.EDITORS_HIDE_TITLE, true)
+        try {
+            // no field in low Idea Version
+            putUserData(DiffUserDataKeysEx.EDITORS_HIDE_TITLE, true)
+        } catch (e: Error) {
+            // ignore
+        }
     }
 
     private fun createDiffContent(project: Project, newFile: File, oldFile: File?): Pair<DiffContent?, DiffContent?> {
