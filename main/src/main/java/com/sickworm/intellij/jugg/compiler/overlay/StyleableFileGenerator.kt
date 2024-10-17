@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.FieldNode
 import java.io.BufferedOutputStream
 import java.io.File
+import java.io.InputStream
 import java.util.zip.ZipFile
 
 class StyleableFileGenerator(
@@ -34,7 +35,14 @@ class StyleableFileGenerator(
         }
 
         val rFile = selectedApplicationModule.buildPathInfo.rFilePath
-        return generateStyleableFile(rFile, packageName, outputDir)
+        return if (rFile.exists()) {
+            logger.debug("generateStyleableFile by rFile: ${rFile.absolutePath}")
+            generateStyleableFile(rFile, packageName, outputDir)
+        } else {
+            logger.debug("generateStyleableFile by java classpath: ${selectedApplicationModule.buildPathInfo.javaClassPath}")
+            // low AGP don't have R.jar, it stored in java classpath
+            generateStyleableFile2(selectedApplicationModule.buildPathInfo.javaClassPath, packageName, outputDir)
+        }
     }
 
     @TestOnly
@@ -53,34 +61,55 @@ class StyleableFileGenerator(
                 return null
             }
 
-            val styleablesMerger = StyleablesMerger(logger)
             jarFile.getInputStream(rStyleableEntry).use { ins ->
-                val classReader = ClassReader(ins)
-                val asmClassNode = ClassNode()
-                classReader.accept(asmClassNode, 0)
-                asmClassNode.fields.forEach {
-                    if (it is FieldNode) {
-                        styleablesMerger.acceptVariable(it.name, it.desc)
-                    }
-                }
+                return generateStyleableFile(ins, outputDir)
             }
-            logger.debug("generateStyleableFile success, load styleables: ${styleablesMerger.getResult().size}")
-
-            val outputFile = File(outputDir, "styleables.txt")
-            outputFile.parentFile?.mkdirs()
-
-            BufferedOutputStream(outputFile.outputStream()).use { outs ->
-                styleablesMerger.getResult().forEach {
-                    outs.write("${it.name}:".toByteArray())
-                    outs.write(it.attrs.joinToString(",").toByteArray())
-                    outs.write("\n".toByteArray())
-                }
-                outs.flush()
-            }
-            return outputFile
         }
     }
 
+    private fun generateStyleableFile2(rFileDir: File, packageName: String, outputDir: File): File? {
+        if (!rFileDir.exists()) {
+            logger.warn("generateStyleableFile failed, rFileDir not exists: ${rFileDir.absolutePath}")
+            return null
+        }
+
+        val rStyleableFile = File(rFileDir, packageName.replace('.', '/') + "/R\$styleable.class")
+        logger.debug("generateStyleableFile, rFile: ${rFileDir.absolutePath}, rStyleableFile: $rStyleableFile")
+        if (!rStyleableFile.exists()) {
+            logger.debug("generateStyleableFile failed, $rStyleableFile not found in ${rFileDir.absolutePath}")
+            return null
+        }
+
+        rStyleableFile.inputStream().use { ins ->
+            return generateStyleableFile(ins, outputDir)
+        }
+    }
+
+    private fun generateStyleableFile(ins: InputStream, outputDir: File): File {
+        val styleablesMerger = StyleablesMerger(logger)
+        val classReader = ClassReader(ins)
+        val asmClassNode = ClassNode()
+        classReader.accept(asmClassNode, 0)
+        asmClassNode.fields.forEach {
+            if (it is FieldNode) {
+                styleablesMerger.acceptVariable(it.name, it.desc)
+            }
+        }
+        logger.debug("generateStyleableFile success, load styleables: ${styleablesMerger.getResult().size}")
+
+        val outputFile = File(outputDir, "styleables.txt")
+        outputFile.parentFile?.mkdirs()
+
+        BufferedOutputStream(outputFile.outputStream()).use { outs ->
+            styleablesMerger.getResult().forEach {
+                outs.write("${it.name}:".toByteArray())
+                outs.write(it.attrs.joinToString(",").toByteArray())
+                outs.write("\n".toByteArray())
+            }
+            outs.flush()
+        }
+        return outputFile
+    }
 }
 
 
