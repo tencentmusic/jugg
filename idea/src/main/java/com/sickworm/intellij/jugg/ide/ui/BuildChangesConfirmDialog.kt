@@ -76,7 +76,7 @@ class BuildChangesConfirmDialog(
         mainPanel.preferredSize = Dimension(800, 500)
         mainPanel.add(JBLabel("""
             <html><p>
-            ${"<b>Caution</b>".htmlWarning}: This may cause unexpected build result, Please check changes carefully.
+            ${"<b>Caution</b>".htmlWarning}: If choosing incremental compile, please ensure there is only library dependencies changes.
             <br> <br></p></html>
             """.trimIndent()
         ), BorderLayout.SOUTH)
@@ -143,7 +143,7 @@ class BuildChangesConfirmDialog(
             project: Project,
             changedBuildFiles: List<Pair<File, File?>>,
             title: String = "Build Files Changed Confirm",
-            okButtonText: String = "Find out the Changed Libraries!",
+            okButtonText: String = "Incremental Compile Changed Libraries!",
             fallbackButtonText: String = "Fallback to Gradle",
             leftButtonText: String = "Ignore Gradle Changes",
         ): Result {
