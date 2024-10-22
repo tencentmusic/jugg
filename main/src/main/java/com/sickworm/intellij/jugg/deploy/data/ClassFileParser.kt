@@ -22,20 +22,25 @@ class ClassFileParser(
     fun parse() {
         for (classFile in classFiles) {
             if (classFile.extension == "jar") {
-                val jarFile = ZipFile(classFile)
-                val entries = jarFile.entries()
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    if (entry.name.endsWith(".class")) {
-                        val classReader = ClassReader(jarFile.getInputStream(entry))
-                        val classVisitor = StaticInvocationCollector()
-                        classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+                ZipFile(classFile).use { jarFile ->
+                    val entries = jarFile.entries()
+                    while (entries.hasMoreElements()) {
+                        val entry = entries.nextElement()
+                        if (entry.name.endsWith(".class")) {
+                            jarFile.getInputStream(entry).use { ins ->
+                                val classReader = ClassReader(ins)
+                                val classVisitor = StaticInvocationCollector()
+                                classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+                            }
+                        }
                     }
                 }
             } else {
-                val classReader = ClassReader(classFile.inputStream())
-                val classVisitor = StaticInvocationCollector()
-                classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+                classFile.inputStream().use { ins ->
+                    val classReader = ClassReader(ins)
+                    val classVisitor = StaticInvocationCollector()
+                    classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+                }
             }
         }
 
