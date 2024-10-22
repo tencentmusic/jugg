@@ -464,7 +464,12 @@ class CompileContextManager(
 
     private fun File.guessIsResDir(): Boolean {
         val files = listFiles() ?: return false
-        return files.any { it.name == "drawable" || it.name == "layout" || it.name == "values" }
+        return files.any {
+            it.name.startsWith("drawable") ||
+                    it.name.startsWith("layout") ||
+                    it.name.startsWith("values") ||
+                    it.name.startsWith("mipmap")
+        }
     }
 
     companion object {
