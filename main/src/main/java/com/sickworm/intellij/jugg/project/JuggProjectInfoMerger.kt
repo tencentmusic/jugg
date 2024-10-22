@@ -196,7 +196,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 javaSourceCompatibility = chooseValue(gradleModuleInfo.javaSourceCompatibility, moduleInfo.javaSourceCompatibility),
                 javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
                 buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
-                moduleDependencies = pickLatest(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
+                moduleDependencies = justLog(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 libraryDependencies = mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
                 // below fields is only gradle has
@@ -247,23 +247,25 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
     }
 
     @Suppress("SameParameterValue")
-    private fun <T, K> pickLatest(moduleName: String, type: String,
-                                  base: List<T>, new: List<T>,
-                                  mergeResult: JuggProjectInfoMergeResult,
-                                  selector: (T) -> K,
+    private fun <T, K> justLog(moduleName: String, type: String,
+                               base: List<T>, new: List<T>,
+                               mergeResult: JuggProjectInfoMergeResult,
+                               selector: (T) -> K,
                                   ): List<T> {
         if (mergeResult.isNeedUpdateDependency) {
             val newKeys = new.map { selector(it) }.toSet()
             val baseKeys = base.map { selector(it) }.toSet()
             val addList = newKeys.filter { !baseKeys.contains(it) }
             addList.forEach {
-                mergeResult.addMergedItem(moduleName, type, "+$it")
+                mergeResult.addMergedItem("$moduleName(just log)", type, "+$it")
             }
             val removeList = baseKeys.filter { !newKeys.contains(it) }
             removeList.forEach {
-                mergeResult.addMergedItem(moduleName, type, "-$it")
+                mergeResult.addMergedItem("$moduleName(just log)", type, "-$it")
             }
-            return new
+            // module may read wrong module name, just use IDE.
+            // e.g. "com.sickworm.LiveGroup" which the real name is "LiveGroup"
+            return base
         } else {
             return base
         }
