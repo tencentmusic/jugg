@@ -301,7 +301,12 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                     }
 
                     // version changed, update if needed
-                    if (isNeedUpdateLibraryDependency) {
+                    val isNewDepExist = newDep.file.exists()
+                    if (isNeedUpdateLibraryDependency && !isNewDepExist) {
+                        logger.debug("new library ${newDep.name} not exist, actually won't update it")
+                    }
+
+                    if (isNeedUpdateLibraryDependency && isNewDepExist) {
                         // remove all old version files
                         result.iterator().also { iterator ->
                             while (iterator.hasNext()) {
@@ -315,7 +320,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                         result.add(newDep)
                     }
                     // always record it
-                    mergeResult.addMergeLibraryItem(moduleName, baseDepName, newDep.name)
+                    mergeResult.addMergeLibraryItem(moduleName, baseDepName, newDep.name + if (isNewDepExist) "" else " (not exist, ignore)")
                 }
             }
         }
