@@ -1,12 +1,9 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.deploy.classSigName
+import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
-import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
-import com.sickworm.intellij.jugg.org.objectweb.asm.ClassVisitor
-import com.sickworm.intellij.jugg.org.objectweb.asm.MethodVisitor
-import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
@@ -93,6 +90,19 @@ class ClassFileParser(
                         if (!this@ClassFileParser.classes.contains(ownerSigName)) {
                             staticInvocationRefs.add(ownerSigName)
                         }
+                    }
+                }
+
+                override fun visitInvokeDynamicInsn(
+                    name: String?,
+                    descriptor: String?,
+                    bootstrapMethodHandle: Handle?,
+                    vararg bootstrapMethodArguments: Any?
+                ) {
+                    descriptor ?: return
+                    val originInterface = descriptor.substringAfter(')')
+                    if (!this@ClassFileParser.classes.contains(originInterface)) {
+                        interfaces.add(originInterface)
                     }
                 }
             }

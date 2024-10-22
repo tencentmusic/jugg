@@ -176,6 +176,11 @@ class DeployDataGeneratorTest {
             "com.sickworm.jugg.demo.testcase.defaultinterface.ImplementClassKt1",
             "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterfaceKt;",
         )
+
+        assertDesugarClasspath(
+            "com.sickworm.jugg.demo.testcase.defaultinterface.InvokerClass2",
+            "Lcom/sickworm/jugg/demo/testcase/defaultinterface/DefaultInterfaceLambda;",
+        )
     }
 
     @Test
