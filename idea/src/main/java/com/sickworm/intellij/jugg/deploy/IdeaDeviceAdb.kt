@@ -78,7 +78,8 @@ class IdeaDeviceAdb(
             val arch = adbClient.getArch(pids)
             return arch.name
         } catch (e: Exception) {
-            ideaLogger.warn("getArch failed $e")
+            // e.g. HarmonyOS. Let outside decide which arch to use
+            ideaLogger.debug("getArch failed $e")
             return "ARCH_UNKNOWN"
         }
     }
