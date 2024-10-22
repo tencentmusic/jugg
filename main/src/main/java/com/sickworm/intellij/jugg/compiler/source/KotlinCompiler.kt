@@ -277,6 +277,12 @@ class KotlinCompiler(
             return K2JVMCompilerIsolate.VERSION
         }
 
+        if (kotlinVersion == "1.1" || kotlinVersion == "1.2" || kotlinVersion == "1.3") {
+            logger.debug("guess kotlin version is $kotlinVersion, use min 1.4")
+            return "1.4"
+        }
+
+        logger.debug("guess kotlin version: $kotlinVersion")
         return kotlinVersion
     }
 
