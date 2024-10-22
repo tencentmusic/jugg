@@ -16,6 +16,8 @@ class IntellijLibraryConfigParserTest {
 
     @Suppress("RedundantNullableReturnType")
     fun loadLibraryConfigInTest(): List<String>? {
-        return TestProjectDependsLoader.parse().map { it.file.absolutePath }
+        return TestProjectDependsLoader.parse()
+            .filter { it.isJar }
+            .map { it.file.absolutePath }
     }
 }

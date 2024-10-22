@@ -88,7 +88,11 @@ data class SimpleCompileContext(
                 file.absolutePath
             }
         }
-        val libraryDependency = moduleInfo.libraryDependencies.map {
+        val libraryDependency = moduleInfo.libraryDependencies
+        .filter {
+            it.isJar
+        }
+        .map {
             it.file.absolutePath
         }
 
