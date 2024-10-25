@@ -122,7 +122,10 @@ data class ModuleBuildPathInfo(
         ?: File(rFilePathDir, "R.jar")
 
     // e.g. AGP 3.4.3 don't have rFilePath, so need use R.jar in library module
-    val libraryRFilePathInLowAgp get() = File(buildDir, "intermediates/compile_only_not_namespaced_r_class_jar/$buildVariant/generate${buildVariant.camel}RFile/R.jar")
+    private val libraryRFileDirInLowAgp get() = File(buildDir, "intermediates/compile_only_not_namespaced_r_class_jar/$buildVariant")
+
+    val libraryRFilePathInLowAgp get() = File(libraryRFileDirInLowAgp, "generate${buildVariant.camel}RFile/R.jar").takeIf(File::exists) // AGP 3.4.3
+        ?: File(libraryRFileDirInLowAgp, "R.jar") // AGP 3.5.4
 
     /** kotlin class path */
     val kotlinClassPath get() = File(buildDir, "tmp/kotlin-classes/$buildVariant")
@@ -152,7 +155,7 @@ data class ModuleBuildPathInfo(
     // use to fetch all class path after full build
     val allBuildPathRelative get() = listOf(javaClassPathNew, javaClassPathOld, rFilePathDir, kotlinClassPath,
         javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary, generatedSourcePath,
-        oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFilePathInLowAgp
+        oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp
     ).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
