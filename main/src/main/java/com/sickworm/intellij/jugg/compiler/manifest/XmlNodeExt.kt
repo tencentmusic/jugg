@@ -27,8 +27,11 @@ val Node.uniqueKey: String get() {
         return "$nodeName:$mimeType"
     }
 
-    // use all child as unique key
+    // use all attrs and child as unique key
     val nameSet = mutableSetOf<String>()
+    attributes.forEach {
+        nameSet.add("${it.nodeName}:${it.nodeValue};")
+    }
     childNodes.forEach {
         if (it.nodeType != Node.ELEMENT_NODE) {
             return@forEach
