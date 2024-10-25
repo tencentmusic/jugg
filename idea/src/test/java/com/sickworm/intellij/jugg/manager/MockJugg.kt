@@ -85,6 +85,10 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         renewManager()
         juggManager.recoverDeployContext()
         deployFileManager.reset()
+
+        if (!deployHistoryManager.hasBeenFullCompiled) {
+            throw RuntimeException("loadFromHistory failed")
+        }
     }
 
     /**
