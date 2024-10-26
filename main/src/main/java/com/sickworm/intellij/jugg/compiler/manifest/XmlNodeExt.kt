@@ -91,7 +91,7 @@ fun Element.importChildNotDeep(child: Element, isExcludeToolsAttribute: Boolean)
     return appendChild(importedNode) as Element
 }
 
-fun ManifestDiffResult.DiffElement.diffAttributes(oldNode: Element?) {
+fun ManifestDiffResult.DiffElement.diffAttributes(oldNode: Element?, ignoreAttrs: Set<String>? = null) {
     addedAttributes.clear()
     updatedAttributes.clear()
     removedAttributes.clear()
@@ -102,6 +102,9 @@ fun ManifestDiffResult.DiffElement.diffAttributes(oldNode: Element?) {
     }
 
     node.attributes?.forEach {
+        if (ignoreAttrs != null && it.nodeName in ignoreAttrs) {
+            return@forEach
+        }
         val oldAttribute = remainAttributes.remove(it.nodeName)
         if (oldAttribute == null) {
             addedAttributes.add(it)

@@ -39,7 +39,7 @@ class ManifestDiffer {
     private fun diffNode(parentDiffElement: ManifestDiffResult.DiffElement, newNode: Element, oldNode: Element?) {
         val isNewNode = oldNode == null
         val currentDiffElement = ManifestDiffResult.DiffElement(newNode, isNewNode)
-        currentDiffElement.diffAttributes(oldNode)
+        currentDiffElement.diffAttributes(oldNode, ignoreAttrs[newNode.nodeName])
 
         // process tools node
         val toolsNode = currentDiffElement.addedAttributes.find { it.nodeName == "tools:node" }
@@ -60,8 +60,8 @@ class ManifestDiffer {
                 return@forEach
             }
 
-            if (newChildNode.nodeName == "uses-sdk") {
-                // submodule can also declare uses-sdk, but it's not a good idea to merge them
+            if (newChildNode.nodeName in ignoreNodes) {
+                // submodule can also declare these nodes, but it's not a good idea to merge them
                 // I think it's do more harm than good
                 return@forEach
             }
@@ -131,6 +131,22 @@ class ManifestDiffer {
          * Jugg read namespace from build.gradle, set it into placeholders for [preprocess].
          */
         const val JUGG_NAMESPACE_IN_GRADLE = "jugg.namespace.gradle"
+
+        /**
+         * submodule can also declare these nodes, but it's not a good idea to merge them
+         * I think it's do more harm than good
+         */
+        private val ignoreNodes = setOf(
+            "uses-sdk"
+        )
+
+        /**
+         * submodule can also declare these attributes, but it's not a good idea to merge them
+         * I think it's do more harm than good
+         */
+        private val ignoreAttrs = mapOf(
+            "manifest" to setOf("android:versionCode", "android:versionName", "package"),
+        )
     }
 }
 

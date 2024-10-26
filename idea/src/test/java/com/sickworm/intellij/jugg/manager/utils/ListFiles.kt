@@ -9,6 +9,7 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.name
+import kotlin.io.path.pathString
 
 object ListFiles {
 
@@ -46,7 +47,7 @@ object ListFiles {
                     fileListPerDir.orderAdd(file.toFile())
                 }
 
-                if (file.name == "AndroidManifest.xml") {
+                if (file.name == "AndroidManifest.xml" && !file.pathString.contains("androidTest")) {
                     fileListPerDir.orderAdd(file.toFile())
                 }
                 return FileVisitResult.CONTINUE
