@@ -22,7 +22,6 @@ import org.gradle.internal.impldep.org.eclipse.jgit.treewalk.filter.PathFilterGr
 import java.io.File
 import java.io.IOException
 import java.nio.charset.Charset
-import java.nio.charset.StandardCharsets
 
 
 class GitManager (
@@ -198,15 +197,22 @@ class GitManager (
 
     override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> {
         getGit().use { git ->
+            val ignoreRuleHelper = IgnoreRuleHelper.get(repository)
+            val ignoredFiles = files.filter { ignoreRuleHelper.isIgnored(it) }
+            if (ignoredFiles.size == files.size) {
+                return files
+            }
+
+            val notIgnoredFiles = files.filter { !ignoredFiles.contains(it) }
             val oldCommitTree = getCanonicalTreeParser(git, commitHash)
             val diffResult = git.diff()
-                .setPathFilter(PathFilterGroup.createFromStrings(files.map { file ->
+                .setPathFilter(PathFilterGroup.createFromStrings(notIgnoredFiles.map { file ->
                     file.relativeToOrSelf(rootDir).path
                 }))
                 .setShowNameAndStatusOnly(true)
                 .setOldTree(oldCommitTree)
                 .call()
-            return diffResult.map { File(rootDir, it.newPath) }
+            return ignoredFiles + diffResult.map { File(rootDir, it.newPath) }
         }
     }
 

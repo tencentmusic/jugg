@@ -150,4 +150,41 @@ class DeployHistoryManagerTest {
         assertEquals(2, recoverInfoNew2.deployedFiles.size)
         assertTrue(storageFile2.exists())
     }
+
+    @Test
+    fun testFilterUnchangedFiles() {
+        val storageDir = buildDir
+        gitManager.init() // we need init first after GitManager can search parent directory
+        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, fileChangesHandler, logger)
+
+        gitManager.deleteGit()
+        gitManager.init()
+        gitManager.addAllAndCommit("first commit")
+        historyManager.reInitAfterFullCompiled(projectInfo.apkInfos, mapOf(mockModule.name to mockModule), System.currentTimeMillis())
+
+        val targetFile = File(projectInfo.projectRoot, "app/src/main/java/com/example/myapplication/MainActivity2.java")
+        var result = historyManager.filterUnchangedFiles(listOf(targetFile))
+        assertEquals(1, result.size)
+
+        changeAndRevert(
+            "MainActivity2.crossReference.java" to "MainActivity2.java",
+        ) { _ ->
+            result = historyManager.filterUnchangedFiles(listOf(targetFile))
+            assertEquals(0, result.size)
+        }
+
+        val ignoreFile = File(projectInfo.projectRoot, "local.properties")
+        result = historyManager.filterUnchangedFiles(listOf(ignoreFile))
+        assertEquals(0, result.size)
+        result = historyManager.filterUnchangedFiles(listOf(ignoreFile, targetFile))
+        assertEquals(1, result.size)
+
+        changeAndRevert(
+            "MainActivity2.crossReference.java" to "MainActivity2.java",
+        ) { _ ->
+            result = historyManager.filterUnchangedFiles(listOf(targetFile, ignoreFile))
+            assertEquals(0, result.size)
+        }
+
+    }
 }
