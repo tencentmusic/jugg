@@ -48,11 +48,18 @@ class BuildFileDiffRequest(
             return newContent to oldContent
         } else {
             // VirtualFile content won't refresh immediately, so we read it to bytes
-            val newContent = contentFactory.createFromBytes(project, newFile.readBytes(), LocalFilePath(newFile.path, false))
-            val oldContent = if (oldFile == null || !oldFile.exists()) {
+            val newVirtualFile = LocalFilePath(newFile.path, false).virtualFile
+            val newContent = if (!newFile.exists() || newVirtualFile == null) {
                 contentFactory.create("")
             } else {
-                contentFactory.createFromBytes(project, oldFile.readBytes(), LocalFilePath(oldFile.path, false))
+                contentFactory.createFromBytes(project, newFile.readBytes(), newVirtualFile)
+            }
+
+            val oldVirtualFile = LocalFilePath(oldFile?.path ?: "", false).virtualFile
+            val oldContent = if (oldFile == null || !oldFile.exists() || oldVirtualFile == null) {
+                contentFactory.create("")
+            } else {
+                contentFactory.createFromBytes(project, oldFile.readBytes(), oldVirtualFile)
             }
             return newContent to oldContent
         }

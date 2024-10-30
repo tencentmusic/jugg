@@ -7,6 +7,8 @@ plugins {
 
 ext {
     // see: https://plugins.jetbrains.com/docs/intellij/android-studio.html#android-studio-releases-listing
+    // download Android Studio: https://developer.android.com/studio/archive
+//    ide_version = '211.7628.21' // Android Studio Bumblebee
 //    ide_version = '212.5712.43' // Android Studio Chipmunk, deployer version 27.2.0.0, don't have GradleSyncListenerWithRoot, while GradleSyncListener won't call back after Giraffe
     ide_version = '223.7571.182' // Android Studio Giraffe
 //    ide_version = '231.9225.16' // Android Studio Hedgehog, needs Kotlin 1.9.0 and remove Kotlin Android extension plugin

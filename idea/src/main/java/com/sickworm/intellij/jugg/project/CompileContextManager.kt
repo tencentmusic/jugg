@@ -291,8 +291,13 @@ class CompileContextManager(
             }
             val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
-            val kotlinFreeCompilerArgs: List<String> = buildModel.android().kotlinOptions().freeCompilerArgs()
-                .toList()?.map { it.toString() } ?: emptyList()
+            val kotlinFreeCompilerArgs: List<String> = try {
+                buildModel.android().kotlinOptions().freeCompilerArgs()
+                    .toList()?.map { it.toString() } ?: emptyList()
+            } catch (e: Throwable) {
+                // low AS version, ignore
+                emptyList()
+            }
             val javaSourceCompatibility: String? = buildModel.android().compileOptions().sourceCompatibility()
                 .toLanguageLevel()?.toJavaVersion()?.toString()
             val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
@@ -435,7 +440,7 @@ class CompileContextManager(
             )
 
             modules[moduleInfo.name] = moduleInfo
-            addedModules.add("add ${module.name} -> $moduleInfo")
+            addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo")
 
         }
 
@@ -496,17 +501,29 @@ class CompileContextManager(
             return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
         }
 
+        // e.g. name = example.lib_common
+        // simpleName = lib_common
         // e.g. name = example.lib_common.main
         // simpleName = lib_common
         // e.g. name = example.lib_common.lib2.main
         // simpleName = lib_common.lib2
         private val String.moduleSimpleName: String get() {
-            val name = this
+            var name = this
+            if (name.endsWith(".main")) {
+                name = name.substring(0, name.length - ".main".length)
+            }
+            if (name.endsWith(".test")) {
+                name = name.substring(0, name.length - ".test".length)
+            }
+            if (name.endsWith(".debug")) {
+                name = name.substring(0, name.length - ".debug".length)
+            }
+
             val splits = name.split('.')
             return when (splits.size) {
                 0 -> name
                 1 -> name
-                else -> splits.subList(1, splits.size - 1).joinToString(".")
+                else -> splits.subList(1, splits.size).joinToString(".")
             }
         }
     }

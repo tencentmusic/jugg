@@ -2,13 +2,10 @@ package com.sickworm.intellij.jugg.project
 
 import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
-import com.android.tools.idea.gradle.repositories.search.CachingRepositorySearchFactory
 import com.android.tools.idea.gradle.structure.configurables.PsContextImpl
-import com.android.tools.idea.gradle.structure.model.PsProjectImpl
 import com.android.tools.idea.gradle.structure.model.meta.maybeValue
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.logger.TimeLogger
 
 class GradleVariableHelper(private val logger: Logger) {
 
