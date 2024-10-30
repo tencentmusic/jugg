@@ -196,23 +196,15 @@ class GitManager (
     }
 
     override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> {
-        getGit().use { git ->
-            val ignoreRuleHelper = IgnoreRuleHelper.get(repository)
-            val ignoredFiles = files.filter { ignoreRuleHelper.isIgnored(it) }
-            if (ignoredFiles.size == files.size) {
-                return files
-            }
-
-            val notIgnoredFiles = files.filter { !ignoredFiles.contains(it) }
-            val oldCommitTree = getCanonicalTreeParser(git, commitHash)
-            val diffResult = git.diff()
-                .setPathFilter(PathFilterGroup.createFromStrings(notIgnoredFiles.map { file ->
-                    file.relativeToOrSelf(rootDir).path
-                }))
-                .setShowNameAndStatusOnly(true)
-                .setOldTree(oldCommitTree)
-                .call()
-            return ignoredFiles + diffResult.map { File(rootDir, it.newPath) }
+        val diff = IndexDiff(repository, commitHash, FileTreeIterator(repository))
+        diff.setIgnoreSubmoduleMode(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
+        diff.setFilter(PathFilterGroup.createFromStrings(files.map { file ->
+            file.relativeToOrSelf(rootDir).path
+        }))
+        diff.diff()
+        val status = Status(diff)
+        return (status.uncommittedChanges + status.ignoredNotInIndex).map {
+            File(rootDir, it)
         }
     }
 
