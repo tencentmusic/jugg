@@ -78,7 +78,7 @@ class DeployHistoryManagerTest {
                 mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java".systemBasedPath to
                         if (isWindows) 901992344 else 2808648208 // "/r/n" vs "/n"
                 ),
-                1,
+                2,
             ), deployHistoryData)
         }
 
@@ -101,7 +101,7 @@ class DeployHistoryManagerTest {
                 mapOf("app/src/main/java/com/example/myapplication/MainActivity2.java".systemBasedPath to
                         if (isWindows) 3934764329 else 1715140577 // "/r/n" vs "/n"
                 ),
-                1,
+                2,
             ), deployHistoryData)
         }
     }
@@ -129,7 +129,7 @@ class DeployHistoryManagerTest {
         assertNotNull(recoverInfo)
         assertEquals(0, recoverInfo.deployedFiles.size)
         historyManager.beforeIncrementalCompile(emptyList())
-        historyManager.updateHistoryOnAfterDeployed(emptyList())
+        historyManager.updateHistoryOnAfterDeployed(listOf(deployedFile))
         val recoverInfoNew = historyManager.tryGetContextRecoverInfoFromDb()
         assertNotNull(recoverInfoNew)
         assertEquals(1, recoverInfoNew.deployedFiles.size)
