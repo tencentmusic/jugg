@@ -112,7 +112,9 @@ public class BootstrapApplication extends Application {
             ApplicationInfo applicationInfo = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
             if (applicationInfo != null) {
                 rawApplicationName = applicationInfo.metaData.getString(META_DATA_LABEL_RAW_APPLICATION);
-                if (TextUtils.isEmpty(rawApplicationName) || rawApplicationName.equals("null")) {
+                LogUtils.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
+
+                if (TextUtils.isEmpty(rawApplicationName) || rawApplicationName.equals("null") || BootstrapApplication.class.getName().equals(rawApplicationName)) {
                     LogUtils.i(TAG, "generateRawApplication: no raw application, exit generate");
                     return;
                 }
@@ -121,7 +123,6 @@ public class BootstrapApplication extends Application {
                 Method attachMethod = ContextWrapper.class.getDeclaredMethod("attachBaseContext", Context.class);
                 attachMethod.setAccessible(true);
                 attachMethod.invoke(rawApplication, base);
-                LogUtils.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
                 LogUtils.i(TAG, "generateRawApplication: rawApplication : " + rawApplication);
             }
         } catch (Throwable e) {

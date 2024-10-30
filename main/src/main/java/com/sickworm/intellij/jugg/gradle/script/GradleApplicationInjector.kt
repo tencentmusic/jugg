@@ -87,23 +87,25 @@ class GradleApplicationInjector(
         var originApplicationName: String? = null
         val attributes = application.attributes() as? MutableMap<Any?, Any?>
         println("Jugg attributes size: ${attributes?.size}")
+
+        // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
+        val juggApplicationName = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
         attributes?.forEach {
             if((it.key as? QName)?.localPart == "name") {
                 originApplicationName = it.value?.toString()
-                // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
-                attributes[it.key] = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
+                attributes[it.key] = juggApplicationName
             }
         }
         if (originApplicationName == null) {
             println("Jugg: originApplicationName is null, add name attribute to application")
             attributes?.put("android:name", "com.sickworm.intellij.jugg.hotfix.BootstrapApplication")  // BuildConfig.INJECT_APPLICATION_NAME
+        } else if (originApplicationName != juggApplicationName) {
+            application.appendNode("meta-data", mapOf(
+                // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
+                "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.application", // BuildConfig.META_DATA_LABEL_RAW_APPLICATION
+                "android:value" to originApplicationName,
+            ))
         }
-
-        application.appendNode("meta-data", mapOf(
-            // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
-            "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.application", // BuildConfig.META_DATA_LABEL_RAW_APPLICATION
-            "android:value" to originApplicationName,
-        ))
 
         val printer = XmlNodePrinter(PrintWriter(mergedManifest.absolutePath, "utf-8"))
         printer.isPreserveWhitespace = true
