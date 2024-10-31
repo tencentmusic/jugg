@@ -203,7 +203,7 @@ class GitManager (
         }))
         diff.diff()
         val status = Status(diff)
-        return (status.uncommittedChanges + status.ignoredNotInIndex).map {
+        return status.uncommittedChanges.map {
             File(rootDir, it)
         }
     }

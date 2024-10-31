@@ -175,16 +175,19 @@ class DeployHistoryManagerTest {
 
         val ignoreFile = File(projectInfo.projectRoot, "local.properties")
         result = historyManager.filterUnchangedFiles(listOf(ignoreFile))
-        assertEquals(0, result.size)
-        result = historyManager.filterUnchangedFiles(listOf(ignoreFile, targetFile))
         assertEquals(1, result.size)
+        result = historyManager.filterUnchangedFiles(listOf(ignoreFile, targetFile))
+        assertEquals(2, result.size)
 
         changeAndRevert(
             "MainActivity2.crossReference.java" to "MainActivity2.java",
         ) { _ ->
             result = historyManager.filterUnchangedFiles(listOf(targetFile, ignoreFile))
-            assertEquals(0, result.size)
+            assertEquals(1, result.size)
         }
 
+        val settingsGradle = File(projectInfo.projectRoot, "settings.gradle")
+        result = historyManager.filterUnchangedFiles(listOf(settingsGradle))
+        assertEquals(0, result.size)
     }
 }

@@ -41,7 +41,6 @@ interface IGitManager {
 
     /**
      * git diff [commitHash] [files]
-     * @return changed git files + ignored files
      */
     fun filterChangedFiles(commitHash: String, files: List<File>): List<File>
 

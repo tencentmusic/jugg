@@ -396,6 +396,16 @@ class DeployHistoryDb(
         }
 
         logger.debug("filterUnchangedFiles result: ${unchangedFiles.map { it.name }}")
+
+        val settingsGradleFile = File(projectDir, "settings.gradle")
+        if (files.contains(settingsGradleFile) && unchangedFiles.contains(settingsGradleFile)) {
+            // sorry, but I have to do this.
+            // temp fix settings.gradle that is ignored by git
+            // TODO more elegant
+            logger.debug("filterUnchangedFiles remove settings.gradle from unchanged list")
+            unchangedFiles.remove(settingsGradleFile)
+        }
+
         return unchangedFiles
     }
 
