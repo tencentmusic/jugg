@@ -10,9 +10,10 @@ object TimeLogger {
         timeMap[tag] = System.currentTimeMillis()
     }
 
-    fun end(tag: String, logger: Logger) {
+    fun end(tag: String, logger: Logger): Long {
         val costTime = getCostTime(tag)
         logger.debug("$tag cost $costTime ms")
+        return costTime
     }
 
     fun getCostTime(tag: String): Long {

@@ -89,7 +89,8 @@ class ApkFileModifier(
             logger.warn("It will cost 10-60s to finished, please upgrade to Android Studio JellyFish or later to reduce 90% cost time.")
             insertFileUnderJvm14()
         }
-        TimeLogger.end("insertFiles", logger)
+        val costTime = TimeLogger.end("insertFiles", logger)
+        logger.info(" * Update APK finished, cost $costTime ms.")
 
         return apkFile
     }
@@ -176,11 +177,12 @@ class ApkFileModifier(
         if (exitCode != 0) {
             throw IllegalStateException("zipalign failed, exit code: $exitCode")
         }
-        TimeLogger.end("alignApk", logger)
+        val costTime = TimeLogger.end("alignApk", logger)
+        logger.info(" * Align APK finished, cost $costTime ms.")
     }
 
     private fun resignApk() {
-        TimeLogger.start("resignApk")
+        TimeLogger.start("signApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
         val args = mutableListOf<String>()
@@ -193,6 +195,10 @@ class ApkFileModifier(
         if (signConfig.keyAlias != null) {
             args.add("--ks-key-alias")
             args.add(signConfig.keyAlias.toString())
+            if (signConfig.keyPassword != null) {
+                args.add("--key-pass")
+                args.add("pass:${signConfig.keyPassword}")
+            }
         }
         args.add(tmpAlignedApkFile.absolutePath)
 
@@ -202,7 +208,8 @@ class ApkFileModifier(
         if (exitCode != 0) {
             throw IllegalStateException("AndroidManifest.xml changed and resign APK failed, exit code: $exitCode")
         }
-        TimeLogger.end("resignApk", logger)
+        val costTime = TimeLogger.end("signApk", logger)
+        logger.info(" * Sign APK finished, cost $costTime ms.")
     }
 
     private fun replaceOldApk() {

@@ -240,7 +240,7 @@ class JuggDeployerHelper(
                     if (!isSuccess) {
                         return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason)
                     }
-                    logger.info("Resign APK file finished, cost ${TimeLogger.getCostTime("insertFileAndResignApk")}ms.")
+                    logger.info("Resign APK file finished, cost ${TimeLogger.getCostTime("insertFileAndResignApk")}ms.\n")
                     isNeedReinstallApk = true
                 }
 
