@@ -64,9 +64,9 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
     }
 
     fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData, maxWaitTimeSecond: Long = 5): Boolean {
-        if (CompatDeployHelper(logger).isForceCompatDevice(adb)) {
+        if (CompatDeployHelper(logger).isEnableCompatDeploy(adb, data)) {
             // already in compatible mode, no need check
-            logger.debug("device isForceCompatDevice, no need check")
+            logger.debug("device isEnableCompatDeploy, no need check")
             return false
         }
         val isEnable = JuggSettings.finalIsEnableCompatibleDeploymentMode
