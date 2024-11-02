@@ -14,12 +14,11 @@ import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.*
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
-import com.sickworm.intellij.jugg.ide.ui.ConfirmFallbackDialog
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.*
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -406,11 +405,37 @@ class JuggCompilerHelper(
                 }
             } else {
                 logger.info("No file changes. will fallback to gradle compile.")
-                val isConfirmFallback = ConfirmFallbackDialog.showAndGetResult("No file changes, continue will fallback to gradle.", true)
-                if (!isConfirmFallback) {
-                    compileStatusHolder.cancel()
+
+                val confirmResult =
+                    if (!JuggSettings.isConfirmFallbackWhenNoFileChanges) {
+                        ConfirmResult.POSITIVE
+                    } else {
+                        CommonConfirmDialog.showAndGetOrCancel(
+                            title = "Confirm Fallback to Gradle",
+                            content = "No file changes, do you want to fallback to gradle?",
+                            okButtonText = "Fallback to Gradle",
+                            negativeButtonText = "Don't fallback",
+                            leftButtonText = "Cancel",
+                            doNotAskAction = {
+                                JuggSettings.isConfirmFallbackWhenNoFileChanges = false
+                            }
+                        )
+                    }
+
+                when (confirmResult) {
+                    ConfirmResult.POSITIVE -> {
+                        // fallback to gradle compile
+                        return CompileTaskResult.incrementalFailed(true, "No file changes")
+                    }
+                    ConfirmResult.CANCEL, ConfirmResult.LEFT -> {
+                        // just stop compile
+                        compileStatusHolder.cancel()
+                        return CompileTaskResult.incrementalFailed(false, "No file changes")
+                    }
+                    else -> {
+                        // continue
+                    }
                 }
-                return CompileTaskResult.incrementalFailed(isConfirmFallback, "No file changes")
             }
         }
 

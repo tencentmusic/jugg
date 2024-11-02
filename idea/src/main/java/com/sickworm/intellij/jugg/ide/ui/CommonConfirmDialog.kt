@@ -2,7 +2,9 @@ package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.ide.ConfirmResult
 import java.awt.*
 import java.awt.event.ActionEvent
@@ -17,9 +19,11 @@ class CommonConfirmDialog(
     private val cancelButtonText: String?,
     private val isShowCancelButton: Boolean,
     private val leftButtonText: String?,
+    isShowDoNotAsk: Boolean,
 ) : DialogWrapper(true) {
 
-    private val mainPanel: JPanel = JPanel(BorderLayout())
+    private val mainPanel: JPanel = JPanel(GridBagLayout())
+    val checkBox: JBCheckBox = JBCheckBox("Don't ask me next time")
 
     var isClickLeftButton: Boolean = false
         private set
@@ -29,6 +33,14 @@ class CommonConfirmDialog(
     init {
         title = titleArg
 
+        val constraints = GridBagConstraints()
+        constraints.gridx = 0
+        constraints.gridy = 0
+        constraints.fill = GridBagConstraints.HORIZONTAL
+
+        constraints.insets = JBUI.insets(4, 0, 12, 0)
+        constraints.gridwidth = 1
+
         val jLabel = JBLabel(content)
         val jScrollPane = JScrollPane(jLabel)
         jScrollPane.border = null
@@ -36,8 +48,14 @@ class CommonConfirmDialog(
         // maximumSize not worked, preferredSize won't auto size
 //        val screenSize = Toolkit.getDefaultToolkit().screenSize
 //        mainPanel.preferredSize = Dimension(screenSize.width / 2, screenSize.height / 2)
-        mainPanel.add(jScrollPane)
-        mainPanel.add(jScrollPane, BorderLayout.CENTER)
+        mainPanel.add(jScrollPane, constraints)
+        constraints.gridy++
+
+        if (isShowDoNotAsk) {
+            constraints.insets = JBUI.insetsBottom(4)
+            constraints.gridwidth = 1
+            mainPanel.add(checkBox, constraints)
+        }
 
         isResizable = true
         init()
@@ -100,18 +118,27 @@ class CommonConfirmDialog(
         }
 
         fun showAndGetOrCancel(title: String,
-                             content: String,
-                             okButtonText: String? = null,
-                             cancelButtonText: String? = null,
-                             isShowCancelButton: Boolean = true,
+                               content: String,
+                               okButtonText: String? = null,
+                               negativeButtonText: String? = null,
+                               isShowCancelButton: Boolean = true,
+                               leftButtonText: String? = null,
+                               doNotAskAction: (() -> Unit)? = null,
         ): ConfirmResult {
             var result: ConfirmResult = ConfirmResult.NEGATIVE
             ApplicationManager.getApplication().invokeAndWait {
-                val dialog = CommonConfirmDialog(title, content, okButtonText, cancelButtonText, isShowCancelButton, null)
+                val isShowDoNotAsk = doNotAskAction != null
+                val dialog = CommonConfirmDialog(title, content, okButtonText, negativeButtonText, isShowCancelButton, leftButtonText, isShowDoNotAsk)
                 if (dialog.showAndGet()) {
                     result = ConfirmResult.POSITIVE
                 } else if (dialog.isClickCloseButton) {
                     result = ConfirmResult.CANCEL
+                } else if (dialog.isClickLeftButton) {
+                    result = ConfirmResult.LEFT
+                }
+
+                if (isShowDoNotAsk && dialog.checkBox.isSelected) {
+                    doNotAskAction?.invoke()
                 }
             }
             return result

@@ -5,6 +5,7 @@ enum class ConfirmResult {
     NEGATIVE,
     CANCEL,
     INVALID,
+    LEFT,
     ;
 
     val isConfirmed get() = this == POSITIVE

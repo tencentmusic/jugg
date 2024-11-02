@@ -47,7 +47,7 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
                     |</html>
                     |""".trimMargin(),
                 okButtonText = "Yes, Incremental Compile!",
-                cancelButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
+                negativeButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
             )
             return confirmResult
         } else {
@@ -61,7 +61,7 @@ class DependencyChangeDialogHelper(loggerArg: Logger) {
                 |</html>
                 |""".trimMargin(),
                 okButtonText = "Ignore Build File Changes",
-                cancelButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
+                negativeButtonText = "Fallback to Gradle${if (isRunLater) " Later" else ""}",
             )
             return confirmResult
         }
