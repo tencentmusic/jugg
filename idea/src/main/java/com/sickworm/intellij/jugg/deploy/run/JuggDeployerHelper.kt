@@ -89,6 +89,7 @@ class JuggDeployerHelper(
             throw JuggException.applyChangesFailed(launchResult)
         }
 
+        TimeLogger.start("push_agent")
         var isNeedPushAgentAfterDeploy: Boolean
         runBlocking {
             isNeedPushAgentAfterDeploy = detectJob.await()
@@ -98,6 +99,7 @@ class JuggDeployerHelper(
                 JuggJvmtiAgentManagerHelper(logger).pushAgentToApps(adb, data)
             }
         }
+        launchResult.pushingAgentCostTime = TimeLogger.end("push_agent", logger)
 
         if (data.isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
@@ -109,6 +111,7 @@ class JuggDeployerHelper(
             logger.debug("App foreground, no need to restart app.")
         }
 
+        TimeLogger.start("check_jvmti")
         if (isNeedPushAgentAfterDeploy && data.isNeedRestartApp) {
             // check JVMTI compatibility issue
             // waiting app foreground (which means JVMTI agent boot finished)
@@ -125,6 +128,7 @@ class JuggDeployerHelper(
                 throw IllegalStateException(REDEPLOY_WITH_COMPAT_MESSAGE)
             }
         }
+        launchResult.checkJvmtiCostTime = TimeLogger.end("check_jvmti", logger)
 
         logger.debug("runTask end")
         isRunning = false
@@ -290,7 +294,7 @@ class JuggDeployerHelper(
                     updateInfoAfterIncDeploy(launchResult, deployData)
                 }
 
-                DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
+                DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType, costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime)
             }
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
@@ -622,4 +626,5 @@ data class DeployTaskResult(
     val isCanFallback: Boolean = false,
     val deployType: JuggDeployData.DeployType? = null,
     val failedReason: String? = null,
+    val costTimeExceptCheck: Long = costTime,
 )

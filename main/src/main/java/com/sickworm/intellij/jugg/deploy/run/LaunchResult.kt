@@ -8,4 +8,8 @@ class LaunchResult(
     val errorId: Int,
     val consoleError: String?,
     val overlayIds: Map<String, String>, // applicationId -> overlayId
-)
+) {
+
+    var pushingAgentCostTime: Long = 0
+    var checkJvmtiCostTime: Long = 0
+}

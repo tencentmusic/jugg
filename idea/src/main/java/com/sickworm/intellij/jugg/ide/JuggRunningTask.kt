@@ -250,6 +250,7 @@ class JuggRunningTask(
         val deployTaskResult = juggDeployHelper.deploy(device, isLastDevice, processHandler, indicator, compileTaskResult.isGradleCompile)
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
+        detailMap["cost_time_except_check"] = deployTaskResult.costTimeExceptCheck.toString()
         juggServer.report {
             action = "deploy"
             isSuccess = deployTaskResult.isSuccess
