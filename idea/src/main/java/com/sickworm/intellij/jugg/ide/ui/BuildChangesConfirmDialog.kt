@@ -41,15 +41,15 @@ class BuildChangesConfirmDialog(
     private val mainPanel: JPanel = JPanel(BorderLayout())
 
     private val findChangeButton = object : AbstractAction(findChangeButtonText) {
-        init {
-            putValue("DefaultAction", true)
-        }
         override fun actionPerformed(e: ActionEvent?) {
             result = Result.FIND_CHANGE
             close(CLOSE_EXIT_CODE)
         }
     }
     private val fallbackButton = object : AbstractAction(fallbackButtonText) {
+        init {
+            putValue("DefaultAction", true)
+        }
         override fun actionPerformed(e: ActionEvent?) {
             result = Result.FALLBACK
             close(CLOSE_EXIT_CODE)
@@ -110,7 +110,6 @@ class BuildChangesConfirmDialog(
     override fun createActions(): Array<Action> {
         val actions = ArrayList<Action>()
         actions.add(fallbackButton)
-        actions.add(findChangeButton)
         updateConfirmText()
         return actions.toTypedArray()
     }
@@ -134,7 +133,7 @@ class BuildChangesConfirmDialog(
     }
 
     override fun createLeftSideActions(): Array<Action> {
-        return arrayOf(ignoreButton)
+        return arrayOf(ignoreButton, findChangeButton)
     }
 
     companion object {
@@ -143,9 +142,9 @@ class BuildChangesConfirmDialog(
             project: Project,
             changedBuildFiles: List<Pair<File, File?>>,
             title: String = "Build Files Changed Confirm",
-            okButtonText: String = "Incremental Compile Changed Libraries!",
             fallbackButtonText: String = "Fallback to Gradle",
-            leftButtonText: String = "Ignore Gradle Changes",
+            findChangeButtonText: String = "Incremental Compile Changed Libraries",
+            ignoreButtonText: String = "Ignore Gradle Changes",
         ): Result {
             val sortedChangedBuildFiles = changedBuildFiles.sortedBy {
                 it.first.relativeTo(File(project.basePath!!)).path
@@ -168,7 +167,7 @@ class BuildChangesConfirmDialog(
             lateinit var dialog: BuildChangesConfirmDialog
             ApplicationManager.getApplication().invokeAndWait {
                 dialog = BuildChangesConfirmDialog(
-                    project, title, content, okButtonText, fallbackButtonText, leftButtonText, sortedChangedBuildFiles)
+                    project, title, content, findChangeButtonText, fallbackButtonText, ignoreButtonText, sortedChangedBuildFiles)
                 dialog.showAndGet()
             }
             return dialog.result
