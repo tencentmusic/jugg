@@ -110,7 +110,7 @@ public class BootstrapApplication extends Application {
 
         try {
             ApplicationInfo applicationInfo = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
-            if (applicationInfo != null) {
+            if (applicationInfo != null && applicationInfo.metaData != null) {
                 rawApplicationName = applicationInfo.metaData.getString(META_DATA_LABEL_RAW_APPLICATION);
                 LogUtils.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
 
