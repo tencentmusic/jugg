@@ -8,7 +8,9 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.GitManager
+import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
@@ -100,6 +102,10 @@ class IdeaPlatformApi : IPlatformApi {
 
     override fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
         return GitManager.createGitManagerAndTrySearchParent(dir)
+    }
+
+    override fun createFileMatcher(): IFileMatcher {
+        return FileMatcher()
     }
 
     override fun getIdeVersion(): String {

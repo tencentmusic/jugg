@@ -4,6 +4,7 @@ import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
+import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.ConfirmResult
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
@@ -40,6 +41,8 @@ interface IPlatformApi {
     fun createGitManager(gitRoot: File): IGitManager
 
     fun createGitManagerAndTrySearchParent(dir: File): IGitManager
+
+    fun createFileMatcher(): IFileMatcher
 
     fun getIdeVersion(): String
 
