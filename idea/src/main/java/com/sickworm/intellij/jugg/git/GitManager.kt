@@ -102,6 +102,13 @@ class GitManager (
         }
     }
 
+    override val userName: String? by lazy {
+        try {
+            repository?.config?.getString("user", null, "name")
+        } catch (e: Exception) {
+            "get_git_username_failed_${e.message}"
+        }
+    }
 
     override fun init() {
         Git.init().setDirectory(rootDir)

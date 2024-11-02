@@ -64,7 +64,7 @@ class JuggServer(
 
     private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
 
-    private val username: String = System.getProperty("user.name")
+    private val username: String = getUserName()
 
     // read Version in MANIFEST.MF
     val version: String by lazy(Companion::getVersion)
@@ -299,6 +299,12 @@ class JuggServer(
             return defaultName
         }
         return gitManager.name ?: defaultName
+    }
+
+    private fun getUserName(): String {
+        val defaultName = System.getProperty("user.name") ?: "jugg_user_unknown"
+        val projectDir = pathManager?.projectDir ?: return defaultName
+        return PlatformApi.createGitManagerAndTrySearchParent(projectDir).userName ?: defaultName
     }
 }
 

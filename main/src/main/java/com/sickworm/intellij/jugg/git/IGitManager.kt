@@ -8,7 +8,7 @@ import java.io.File
 interface IGitManager {
 
     /**
-     * root dir to use git
+     * workspace dir to use git
      */
     val rootDir: File
 
@@ -22,6 +22,11 @@ interface IGitManager {
      * something like: git config --local remote.origin.url|sed -n 's#.*\/\([^.]*\)\.git#\1#p'
      */
     val name: String?
+
+    /**
+     * get git username in .git/config or ~/.gitconfig
+     */
+    val userName: String?
 
     /**
      * git status
