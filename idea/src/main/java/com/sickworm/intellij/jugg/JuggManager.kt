@@ -106,16 +106,21 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun loadCustomConfig() {
-        if (!customConfigManager.isConfigChanged()) {
-            return
-        }
-        customConfigManager.config?.let { config ->
-            config.serverUrls?.first()?.let {
-                juggServer.updateServerUrl(it)
+        try {
+            if (!customConfigManager.isConfigChanged()) {
+                return
             }
-            config.buildFileRules.let {
-                fileChangesHandler.updateBuildFileRules(it)
+            customConfigManager.config?.let { config ->
+                config.serverUrls?.first()?.let {
+                    juggServer.updateServerUrl(it)
+                }
+                config.buildFileRules.let {
+                    fileChangesHandler.updateBuildFileRules(it)
+                }
             }
+        } catch (e: Exception) {
+            // maybe structure is updated
+            logger.info("loadCustomConfig failed", e)
         }
     }
 
