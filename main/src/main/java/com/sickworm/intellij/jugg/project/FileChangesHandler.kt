@@ -5,7 +5,9 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.relativePath
+import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
 /**
@@ -19,8 +21,23 @@ class FileChangesHandler(
     IFileChangesHandler
 {
 
-    /*** custom build files given by Jugg backend distinct by projects. */
-    private var customBuildFileList: List<File> = emptyList()
+    companion object {
+        private val defaultMatchRule = """
+            *.gradle
+            *.gradle.kts
+            *.jar
+            *.aar
+            *.aidl
+            local.properties
+            gradle.properties
+        """.trimIndent().split("\n").toList()
+    }
+
+    private var buildFileMatcher: IFileMatcher = PlatformApi.createFileMatcher().also {
+        it.init(projectDir, defaultMatchRule)
+    }
+
+
     private var allModules = emptyList<ModuleInfo>()
     private var compiledModules = emptyList<ModuleInfo>()
 
@@ -82,11 +99,10 @@ class FileChangesHandler(
         return file.mapNotNull(::toChangeFile)
     }
 
-    override fun updateBuildFileList(relativePathList: List<String>) {
-        logger.debug("updateBuildFileList: $relativePathList")
-        customBuildFileList = relativePathList.map {
-            File(projectDir, it)
-        }
+    override fun updateBuildFileRules(rules: List<String>) {
+        logger.debug("updateBuildFileRules: $rules")
+        val newRules = defaultMatchRule + rules
+        buildFileMatcher.init(projectDir, newRules)
     }
 
     private fun toChangeFile(file: File): ChangedFile? {
@@ -99,10 +115,7 @@ class FileChangesHandler(
             return null
         }
 
-        checkBuildGradleAndLibraryFiles(file)?.let {
-            return it
-        }
-        checkBuildProperties(file)?.let {
+        checkBuildFiles(file)?.let {
             return it
         }
         checkAndroidManifest(file)?.let {
@@ -146,26 +159,9 @@ class FileChangesHandler(
         return null
     }
 
-    private fun checkBuildGradleAndLibraryFiles(file: File): ChangedFile? {
+    private fun checkBuildFiles(file: File): ChangedFile? {
         val isInJuggDir = file.isChild(juggRootDir)
         if (isInJuggDir) {
-            return null
-        }
-
-        customBuildFileList.forEach {
-            if (file.absolutePath == it.absolutePath) {
-                return ChangedFile(
-                    CompileFile.Type.BuildFile,
-                    file,
-                    juggRootDir,
-                    ModuleInfo.virtualModule
-                )
-            }
-        }
-
-        val isGradleFile = file.name.endsWith(".gradle") || file.name.endsWith(".gradle.kts")
-        val isLibraryFile = file.name.endsWith(".jar") || file.name.endsWith(".aar")
-        if (!isGradleFile && !isLibraryFile) {
             return null
         }
 
@@ -173,50 +169,18 @@ class FileChangesHandler(
             return null
         }
 
-        getModules().forEach inner@{ module ->
-            val moduleRootDir = module.moduleRootDir
-            if (file.isChild(moduleRootDir)) {
-                return ChangedFile(
-                    CompileFile.Type.BuildFile,
-                    file,
-                    moduleRootDir,
-                    module
-                )
-            }
-        }
-
-        val projectRootDir = getProjectRootDir()
-        if (projectRootDir != null && file.isChild(projectRootDir)) {
-            return ChangedFile(
-                CompileFile.Type.BuildFile,
-                file,
-                projectRootDir,
-                ModuleInfo.virtualModule
-            )
-        }
-
-        return null
-    }
-
-    private fun checkBuildProperties(file: File): ChangedFile? {
-        val isPropertiesFile = (file.name == "local.properties") || (file.name == "gradle.properties")
-        if (!isPropertiesFile) {
+        val isMatched = buildFileMatcher.isMatch(file)
+        if (!isMatched) {
             return null
         }
 
-        val projectRootDir = getProjectRootDir()
-        if (projectRootDir != null && file.parentFile.absolutePath == projectRootDir.absolutePath) {
-            return ChangedFile(
-                CompileFile.Type.BuildFile,
-                file,
-                projectRootDir,
-                ModuleInfo.virtualModule,
-            )
-        }
-
-        return null
+        return ChangedFile(
+            CompileFile.Type.BuildFile,
+            file,
+            projectDir,
+            ModuleInfo.virtualModule
+        )
     }
-
 
     private fun checkAndroidManifest(file: File): ChangedFile? {
         val isAndroidManifest = file.name == "AndroidManifest.xml"

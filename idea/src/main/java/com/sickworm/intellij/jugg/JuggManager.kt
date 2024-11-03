@@ -110,11 +110,11 @@ class JuggManager @TestOnly constructor(
             return
         }
         customConfigManager.config?.let { config ->
-            config.serverUrl?.let {
+            config.serverUrls?.first()?.let {
                 juggServer.updateServerUrl(it)
             }
-            config.buildFileList.let {
-                fileChangesHandler.updateBuildFileList(it)
+            config.buildFileRules.let {
+                fileChangesHandler.updateBuildFileRules(it)
             }
         }
     }

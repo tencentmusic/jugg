@@ -18,8 +18,10 @@ data class VersionData(
 }
 
 data class ProjectCustomConfig(
-    val serverUrl: String? = null,
-    val buildFileList: List<String> = emptyList(),
+    val serverUrls: List<String>? = null,
+    @Deprecated("use buildFileRules after Jugg 2.0.1")
+    val buildFileList: List<String>,
+    val buildFileRules: List<String>,
 )
 
 data class NotificationData(
