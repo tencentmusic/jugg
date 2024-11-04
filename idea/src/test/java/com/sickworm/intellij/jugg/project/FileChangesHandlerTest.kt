@@ -54,7 +54,7 @@ class FileChangesHandlerTest {
             "settings.gradle" to true,
             "app/build.gradle" to true,
             "app/src/main/aidl/ITest.aidl" to true,
-            "../../../../../build.gradle" to true, // no matter where it is
+            "${projectInfo.projectRootDir}/build.gradle" to false, // only detect file in project
             "app_other/build.gradle" to false, // ignore if not exists
         )
 

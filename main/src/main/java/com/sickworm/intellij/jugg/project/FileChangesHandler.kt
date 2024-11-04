@@ -174,12 +174,29 @@ class FileChangesHandler(
             return null
         }
 
-        return ChangedFile(
-            CompileFile.Type.BuildFile,
-            file,
-            projectDir,
-            ModuleInfo.virtualModule
-        )
+        getModules().forEach inner@{ module ->
+            val moduleRootDir = module.moduleRootDir
+            if (file.isChild(moduleRootDir)) {
+                return ChangedFile(
+                    CompileFile.Type.BuildFile,
+                    file,
+                    moduleRootDir,
+                    module
+                )
+            }
+        }
+
+        val projectRootDir = getProjectRootDir()
+        if (projectRootDir != null && file.isChild(projectRootDir)) {
+            return ChangedFile(
+                CompileFile.Type.BuildFile,
+                file,
+                projectRootDir,
+                ModuleInfo.virtualModule
+            )
+        }
+
+        return null
     }
 
     private fun checkAndroidManifest(file: File): ChangedFile? {
