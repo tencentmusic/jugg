@@ -508,8 +508,9 @@ class JuggCompilerHelper(
 
         val costTime = System.currentTimeMillis() - startTime
         logger.info("Compile finished in ${costTime / 1000}s, " +
+                "all: ${compileResult.details.size}, " +
                 "success: ${compileResult.successFiles.size}, " +
-                "failure: ${compileResult.failedFiles.size}.")
+                "failure: ${compileResult.compiledFailedFiles.size}.")
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {

@@ -94,17 +94,20 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
         }
 
-        val results = moduleCompileOrder.map {
+        var results = CompileResult(task, emptyList(), emptyList())
+        moduleCompileOrder.forEach {
             val files = fileGroups[it.moduleRootDir.absolutePath] ?: emptyList()
             if (task.isShouldCancel) {
                 return task.toCancelResult()
             }
-            doModuleCompile(CompileTask(files, task.outputDir, task), it)
+            val result = doModuleCompile(CompileTask(files, task.outputDir, task), it)
+            results += result
+
+            if (!results.isAllSuccess) {
+                return results.quickFailedOthers(task)
+            }
         }
-        if (results.isEmpty()) {
-            return CompileResult(task, emptyList(), emptyList())
-        }
-        return results.reduce { acc, compileResult -> acc + compileResult }.copy(task = task)
+        return results
     }
 
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult

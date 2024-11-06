@@ -63,6 +63,9 @@ class JuggCompiler(
         if (assetCompileTask.isNeedCompile) {
             // overlay assets
             compileResult += assetOverlayCompiler.compile(assetCompileTask)
+            if (!compileResult.isAllSuccess) {
+                return compileResult.quickFailedOthers(task)
+            }
         }
 
         // compile resource
@@ -134,6 +137,9 @@ class JuggCompiler(
                 )
             }
             compileResult += finalResult
+            if (!compileResult.isAllSuccess) {
+                return compileResult.quickFailedOthers(task)
+            }
         }
 
         // build R.dex for all compiling module if needed
@@ -186,6 +192,9 @@ class JuggCompiler(
                 }
             }
             compileResult += sourceCompileResult.copy(outputs = movedOutputs)
+            if (!compileResult.isAllSuccess) {
+                return compileResult.quickFailedOthers(task)
+            }
         }
 
         // compile .class
@@ -198,6 +207,9 @@ class JuggCompiler(
         )
         if (dexCompileTask.isNeedCompile) {
             compileResult += dexCompiler.compile(dexCompileTask)
+        }
+        if (!compileResult.isAllSuccess) {
+            return compileResult.quickFailedOthers(task)
         }
 
         if (task.isShouldCancel) {

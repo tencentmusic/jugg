@@ -38,6 +38,9 @@ class SourceCompiler(
         if (kotlinCompileTask.isNeedCompile) {
             classCompileResult += kotlinCompiler.compile(kotlinCompileTask)
         }
+        if (!classCompileResult.isAllSuccess) {
+            return classCompileResult.quickFailedOthers(task)
+        }
 
         val javaCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Java },
@@ -47,6 +50,10 @@ class SourceCompiler(
         if (javaCompileTask.isNeedCompile) {
             classCompileResult += javaCompiler.compile(javaCompileTask)
         }
+        if (!classCompileResult.isAllSuccess) {
+            return classCompileResult.quickFailedOthers(task)
+        }
+
         // e.g. META-INF/service/xxx
         val otherOutputs = classCompileResult.outputs.filter {
             it.type != CompileOutput.Type.Class
