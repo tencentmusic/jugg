@@ -90,6 +90,7 @@ class RDexForSubmoduleCompiler(
         }
 
         generatedModules.add(module.name)
-        return CompileResult(task, task.files.map { Result.success(it) }, destRDexFiles)
+        // RDexForSubmoduleCompiler has no details because it doesn't really compile files
+        return CompileResult(task, emptyList(), destRDexFiles)
     }
 }
