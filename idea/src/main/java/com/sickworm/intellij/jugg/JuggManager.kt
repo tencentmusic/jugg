@@ -396,6 +396,9 @@ class JuggManager @TestOnly constructor(
         }
         logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
 
+        if (isRemoteCompile) {
+            copyGeneratedSourceToLocal()
+        }
         initCompile(compileContextInfo, emptyList(),
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
@@ -475,8 +478,8 @@ class JuggManager @TestOnly constructor(
     }
 
     fun copyGeneratedSourceToLocal() {
-        logger.info("[test options] copyGeneratedSourceToLocal")
-        runTaskSafe("Copy Generated Source to local", {
+        logger.info("copyGeneratedSourceToLocal")
+        taskRunnerManager.runTaskSafe("Copy Generated Source to local", {
             val modules = compileContextManager.compileContext.modules
             modules.values.forEach {
                 val dirInClasspath = it.buildPathInfo.generatedSourcePath
@@ -495,7 +498,7 @@ class JuggManager @TestOnly constructor(
                 }
                 dirInClasspath.copyRecursively(dirInLocal, overwrite = true)
             }
-        })
+        }, isBlockIncrementalCompile = false)
     }
 
     fun enableCompatibleDeploymentMode() {
@@ -593,7 +596,7 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
+    private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
         taskRunnerManager.runTaskSafe(jobName, action, isNeedShowIndicator)
     }
 
