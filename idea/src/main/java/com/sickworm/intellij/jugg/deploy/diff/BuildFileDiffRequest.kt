@@ -5,8 +5,8 @@ import com.intellij.diff.contents.DiffContent
 import com.intellij.diff.requests.ContentDiffRequest
 import com.intellij.diff.util.DiffUserDataKeysEx
 import com.intellij.ide.highlighter.ArchiveFileType
+import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vcs.LocalFilePath
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
@@ -48,18 +48,11 @@ class BuildFileDiffRequest(
             return newContent to oldContent
         } else {
             // VirtualFile content won't refresh immediately, so we read it to bytes
-            val newVirtualFile = LocalFilePath(newFile.path, false).virtualFile
-            val newContent = if (!newFile.exists() || newVirtualFile == null) {
+            val newContent = contentFactory.createFromBytes(project, newFile.readBytes(), PlainTextFileType.INSTANCE, newFile.path)
+            val oldContent = if (oldFile == null || !oldFile.exists()) {
                 contentFactory.create("")
             } else {
-                contentFactory.createFromBytes(project, newFile.readBytes(), newVirtualFile)
-            }
-
-            val oldVirtualFile = LocalFilePath(oldFile?.path ?: "", false).virtualFile
-            val oldContent = if (oldFile == null || !oldFile.exists() || oldVirtualFile == null) {
-                contentFactory.create("")
-            } else {
-                contentFactory.createFromBytes(project, oldFile.readBytes(), oldVirtualFile)
+                contentFactory.createFromBytes(project, oldFile.readBytes(), PlainTextFileType.INSTANCE, oldFile.path)
             }
             return newContent to oldContent
         }
