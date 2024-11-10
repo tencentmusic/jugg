@@ -85,12 +85,11 @@ class CommonConfirmDialog(
 
     override fun doCancelAction(source: AWTEvent?) {
         super.doCancelAction(source)
-        isClickCloseButton = (source as? WindowEvent)?.id == WindowEvent.WINDOW_CLOSING
-    }
-
-    override fun doOKAction() {
-        super.doOKAction()
-        isClickCloseButton = false
+        if ((source as? WindowEvent)?.id == WindowEvent.WINDOW_CLOSING) {
+            isClickCloseButton = true
+        } else if ((source as? ActionEvent)?.actionCommand == null) {
+            isClickCloseButton = true
+        }
     }
 
     override fun createLeftSideActions(): Array<Action> {
