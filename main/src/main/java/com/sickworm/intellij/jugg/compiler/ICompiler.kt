@@ -247,6 +247,8 @@ interface ICompileContext {
     fun getLastBuildAndroidManifest(file: CompileFile): File?
 
     fun listenUpdate(listener: OnContextUpdate)
+
+    fun printClasspathCheck(moduleInfo: ModuleInfo)
 }
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {

@@ -168,14 +168,12 @@ class BaseCompileContext(
         }.map { file ->
             file.absolutePath
         }
-        printClasspathCheck(moduleInfo)
 
         val moduleDependencies: List<String> = moduleInfo.moduleDependencies.flatMap {
             val dependencyModuleInfo = modules[it.moduleName] ?: run {
                 logger.warn("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
                 return@flatMap emptyList()
             }
-            printClasspathCheck(dependencyModuleInfo)
             dependencyModuleInfo.buildPathInfo.allClassPath.filter { file ->
                 file.exists()
             }.map { file ->
@@ -222,14 +220,25 @@ class BaseCompileContext(
         return dependencies
     }
 
-    private fun printClasspathCheck(moduleInfo: ModuleInfo) {
+    override fun printClasspathCheck(moduleInfo: ModuleInfo) {
+        logger.debug("printClasspathCheck: ${moduleInfo.name}")
+
         printParentTree(moduleInfo.buildPathInfo.javaClassPath, moduleInfo.buildPathInfo.moduleRootDir)
         printParentTree(moduleInfo.buildPathInfo.kotlinClassPath, moduleInfo.buildPathInfo.moduleRootDir)
+        moduleInfo.moduleDependencies.forEach {
+            val dependencyModuleInfo = modules[it.moduleName] ?: run {
+                logger.debug("module ${it.moduleName} not found in ${moduleInfo.name}'s dependencies, maybe sync gradle again helps.")
+                return@forEach
+            }
+            printParentTree(dependencyModuleInfo.buildPathInfo.javaClassPath, dependencyModuleInfo.buildPathInfo.moduleRootDir)
+            printParentTree(dependencyModuleInfo.buildPathInfo.kotlinClassPath, dependencyModuleInfo.buildPathInfo.moduleRootDir)
+        }
     }
 
     private fun printParentTree(file: File, rootDir: File, level: Int = 3) {
         try {
             if (file.exists()) {
+                logger.debug("printParentTree: $file exists")
                  return
             }
 

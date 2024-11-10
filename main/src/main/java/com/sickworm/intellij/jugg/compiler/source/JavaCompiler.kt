@@ -84,6 +84,9 @@ class JavaCompiler(
             hasRecreateAfterInternalError = false
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
         } else {
+            // print infos
+            context.printClasspathCheck(module)
+
             // retry strategy
             val errorCount = compileItems.sumOf { it.errors.size }
             var shouldRecreate = false

@@ -128,4 +128,7 @@ data class SimpleCompileContext(
 
     override fun listenUpdate(listener: OnContextUpdate) {
     }
+
+    override fun printClasspathCheck(moduleInfo: ModuleInfo) {
+    }
 }

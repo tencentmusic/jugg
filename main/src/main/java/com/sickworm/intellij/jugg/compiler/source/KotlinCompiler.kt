@@ -188,6 +188,8 @@ class KotlinCompiler(
         }
 
         if (exitCode != ExitCode.OK) {
+            // print infos
+            context.printClasspathCheck(module)
             return CompileResult(task, outputParser.results, emptyList())
         }
 
