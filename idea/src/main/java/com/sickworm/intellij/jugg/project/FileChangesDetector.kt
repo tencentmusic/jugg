@@ -6,6 +6,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.AsyncFileListener
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
@@ -55,37 +56,32 @@ class FileChangesDetector(
     }
 
     private fun notifyFileChanges(events: MutableList<out VFileEvent>) {
-        val changedFiles = events.flatMap { toFiles(it) }
-        if (changedFiles.isEmpty()) return
-        listener?.onFileChanges(changedFiles)
-    }
+        val changedFiles = mutableListOf<File>()
+        val deletedFiles = mutableListOf<File>()
 
-    private fun toFiles(event: VFileEvent?): List<File> {
-        if (event == null) {
-            return emptyList()
-        }
-
-        val files: List<File> = when (event) {
-
-            is VFileMoveEvent -> {
-                listOf(File(event.oldPath), File(event.newPath))
-            }
-
-            is VFilePropertyChangeEvent -> {
-                if (event.propertyName == VirtualFile.PROP_NAME) {
-                    listOf(File(event.oldPath), File(event.newPath))
-                } else {
-                    emptyList()
+        events.forEach { event ->
+            when (event) {
+                is VFileMoveEvent -> {
+                    deletedFiles.add(File(event.oldPath))
+                    changedFiles.add(File(event.path))
+                }
+                is VFilePropertyChangeEvent -> {
+                    if (event.propertyName == VirtualFile.PROP_NAME) { // rename file
+                        deletedFiles.add(File(event.oldPath))
+                        changedFiles.add(File(event.path))
+                    }
+                }
+                is VFileDeleteEvent -> {
+                    deletedFiles.add(File(event.path))
+                }
+                else -> {
+                    changedFiles.add(File(event.path))
                 }
             }
-
-            else -> {
-                listOf(File(event.path))
-            }
         }
 
-        // ignore hidden files, e.g. .DS_Store
-        return files.filter { !it.isHidden }
+        if (changedFiles.isEmpty() && deletedFiles.isEmpty()) return
+        listener?.onFileChanges(changedFiles, deletedFiles)
     }
 
     private val String.virtualFile: VirtualFile?

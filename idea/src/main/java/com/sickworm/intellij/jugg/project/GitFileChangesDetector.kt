@@ -102,7 +102,7 @@ class GitFileChangesDetector(
         val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb()
         val allChangedFiles = recoverData?.changedFiles ?: emptyList()
         logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, names: ${allChangedFiles.map { it.name }}")
-        listener?.onFileChanges(allChangedFiles)
+        listener?.onFileChanges(allChangedFiles, emptyList())
     }
 
     override fun startListen(listener: FileChangesListener) {

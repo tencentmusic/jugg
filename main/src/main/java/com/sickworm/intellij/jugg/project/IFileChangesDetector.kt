@@ -7,5 +7,5 @@ interface IFileChangesDetector {
 }
 
 interface FileChangesListener {
-    fun onFileChanges(changedFiles: List<File>)
+    fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>)
 }

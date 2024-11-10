@@ -237,7 +237,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
-        processFileChanged(deployContextRecoverInfo.changedFiles, isFromRecover = true)
+        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), isFromRecover = true)
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
@@ -253,9 +253,11 @@ class JuggManager @TestOnly constructor(
         return deployState
     }
 
-    private fun processFileChanged(changedFiles: List<File>, isFromRecover: Boolean) {
-        val deletedFiles = changedFiles.filter { !it.exists() }
+    private fun processFileChanged(changedFiles: List<File>, deletedFiles: List<File>, isFromRecover: Boolean) {
         if (deletedFiles.isNotEmpty()) {
+            deletedFiles.forEach {
+                logger.debug("Detect file deleted: ${it.path}")
+            }
             deployFileManager.removeChangedFile(deletedFiles)
         }
 
@@ -548,13 +550,13 @@ class JuggManager @TestOnly constructor(
         logger.debug("Init compile cost ${costTime}ms")
 
         fileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>) {
-                processFileChanged(changedFiles, isFromRecover = false)
+            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
             }
         })
         gitFileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>) {
-                processFileChanged(changedFiles, isFromRecover = false)
+            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
             }
         })
 
