@@ -94,11 +94,7 @@ class DependencyChangeManagerByGradle(private val logger: Logger) : IDependencyC
                     ChangeStatus.NO_CHANGE
                 }
             } else {
-                if (isBuildChanged) {
-                    ChangeStatus.REBUILD
-                } else {
-                    ChangeStatus.NO_CHANGE
-                }
+                changeStatus // build failed, keep previous status
             }
         }
     }
