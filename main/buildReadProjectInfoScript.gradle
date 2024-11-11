@@ -105,9 +105,9 @@ gradle.buildFinished(object : Action<BuildResult> {
         String rawFinalContent = finalContent.toString()
 
         // compat with Kotlin 1.4 grammar, remove "," in last arguments
-        Pattern pattern = Pattern.compile(", *(//.*)?\\n *\\)")
-        Matcher matcher = pattern.matcher(rawFinalContent);
-        String parsedFinalContent = matcher.replaceAll(") \$1")
+        Pattern pattern = Pattern.compile(", *(//.*)?\\n *\\)(.*)")
+        Matcher matcher = pattern.matcher(rawFinalContent)
+        String parsedFinalContent = matcher.replaceAll(")\$2 \$1")
 
         // write it!
         readProjectInfoKtsFile.write(parsedFinalContent)

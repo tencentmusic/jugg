@@ -69,6 +69,7 @@ class GradleProjectInfoReader(
             projectRootDir = rootProject.projectDir,
             buildVariant = buildVariant,
             buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant),
+            gradleModuleName = project.name,
         )
 
         if (moduleType.isAndroidModule) {

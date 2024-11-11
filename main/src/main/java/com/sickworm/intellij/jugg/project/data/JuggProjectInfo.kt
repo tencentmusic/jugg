@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.project.data
 
 import java.io.File
-import java.util.*
 import java.util.zip.CRC32
 
 data class JuggProjectInfo(
@@ -9,7 +8,7 @@ data class JuggProjectInfo(
 )
 
 data class ModuleInfo(
-    val name: String,
+    val name: String, // unique name with parent module name
     val moduleType: Type,
     val moduleRootDir: File,
     val projectRootDir: File,
@@ -38,6 +37,7 @@ data class ModuleInfo(
     val namespace: String? = null,
     val variants: List<Variant> = emptyList(),
     val signingConfigs: List<SigningConfig>? = null,
+    val gradleModuleName: String? = null, // module name in gradle which will be used in kotlin -module-name
 ) {
 
     enum class Type {

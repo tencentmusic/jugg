@@ -103,6 +103,7 @@ class KotlinCompiler(
             jvmTarget = "1.8"
         }
 
+        val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
         val compileArgs = module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
             "-language-version", guessKotlinVersion(module),
@@ -110,7 +111,7 @@ class KotlinCompiler(
             "-nowarn",
             "-no-stdlib",
             "-no-reflect",
-            "-module-name", "${module.name}_${module.buildVariant}",
+            "-module-name", moduleName,
             "-Xfriend-paths=${kotlinClassPath.absolutePath}",
             "-Xallow-no-source-files",
             "-Xreport-output-files",
