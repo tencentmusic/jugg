@@ -8,6 +8,7 @@ import com.android.tools.deployer.*
 import com.android.tools.tracer.Trace
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
+import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import java.util.Comparator
 
 /**
@@ -109,9 +110,14 @@ class JuggDeployer(
         logger.info("packageName: $packageName, pids: $pids, arch: $arch")
         if (arch == Deploy.Arch.ARCH_UNKNOWN) {
             // if arch is unknown, installer will use 32-bit agent, which may apply failed.
-            // in most situation, 64-bit is more common, so set arch to 64-bit.
-            arch = Deploy.Arch.ARCH_64_BIT
-            logger.info("set arch from unknown to 64")
+            try {
+                val archInApks = ApkInfoReader(newFiles) { logger.info(it) }.getArch()
+                arch = Deploy.Arch.valueOf(archInApks)
+                logger.info("set arch from unknown to $arch")
+            } catch (e: IllegalArgumentException) {
+                logger.info("get arch from apks failed, set to ARCH_64_BIT")
+                arch = Deploy.Arch.ARCH_64_BIT
+            }
         }
 
         // Get the list of files from the installed app assuming deployment cache is correct.
