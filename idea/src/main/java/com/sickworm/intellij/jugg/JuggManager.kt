@@ -261,6 +261,11 @@ class JuggManager @TestOnly constructor(
             deployFileManager.removeChangedFile(deletedFiles)
         }
 
+        changedFiles.forEach {
+            if (!it.path.contains("build")) {
+                logger.debug("Detect file changed (before filter): ${it.path}")
+            }
+        }
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
         realChangedFiles.forEach {
             logger.debug("Detect file changed: [${it.type}]${it.file.path}")

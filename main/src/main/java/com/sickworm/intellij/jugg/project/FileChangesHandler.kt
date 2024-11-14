@@ -96,6 +96,20 @@ class FileChangesHandler(
     }
 
     override fun filter(file: List<File>): List<ChangedFile> {
+        val result = mutableListOf<ChangedFile>()
+        file.forEach {
+            if (it.isDirectory) {
+                it.listFiles()?.toList()?.let { subFiles ->
+                    val subResult = filter(subFiles)
+                    result.addAll(subResult)
+                }
+            } else {
+                val changeFile = toChangeFile(it)
+                if (changeFile != null) {
+                    result.add(changeFile)
+                }
+            }
+        }
         return file.mapNotNull(::toChangeFile)
     }
 
