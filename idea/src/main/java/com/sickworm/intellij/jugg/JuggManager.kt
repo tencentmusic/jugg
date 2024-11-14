@@ -262,7 +262,11 @@ class JuggManager @TestOnly constructor(
         }
 
         changedFiles.forEach {
-            if (!it.path.contains("build")) {
+            if (!it.path.contains("build") &&
+                !it.path.contains(".idea") &&
+                !it.path.contains(".git") &&
+                it.name != ".DS_Store") {
+                // not strict rules, just print it out for debug
                 logger.debug("Detect file changed (before filter): ${it.path}")
             }
         }

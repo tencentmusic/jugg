@@ -110,7 +110,7 @@ class FileChangesHandler(
                 }
             }
         }
-        return file.mapNotNull(::toChangeFile)
+        return result.distinctBy { it.file.path }
     }
 
     override fun updateBuildFileRules(rules: List<String>) {
