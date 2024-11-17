@@ -137,6 +137,7 @@ class GradleOutputParser(
             isCollectingExceptionErrorMsg = true
             isCollectingTaskErrorMsg = false
         }
+
         if (isCollectingExceptionErrorMsg) {
             if (parsedOutput.startsWith("* Try") || parsedOutput.startsWith("===")) {
                 isCollectingExceptionErrorMsg = false
@@ -149,6 +150,9 @@ class GradleOutputParser(
             isCollectingTaskErrorMsg = parsedOutput.contains("FAILED")
         }
         if (isCollectingTaskErrorMsg) {
+            possibleErrorLog.add(parsedOutput)
+        } else if (parsedOutput.startsWith("e:")) {
+            // Kotlin compile error, which may not output in order
             possibleErrorLog.add(parsedOutput)
         }
     }
