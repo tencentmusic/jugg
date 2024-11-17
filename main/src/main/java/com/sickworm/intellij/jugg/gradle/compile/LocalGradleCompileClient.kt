@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -97,8 +98,8 @@ class LocalGradleCompileClient(
         isCanceled = false
 
         val projectRootPath = File(project.basePath!!)
-        if (isWindows) {
-            logger.info("fetchClasspathResult not support windows yet")
+        if (!JuggSettings.isSupportsBackupClasspath) {
+            logger.info("backup classpath not support yet")
             return projectRootPath
         }
 

@@ -15,6 +15,7 @@ class CompileContextDb(
 ) {
 
     private val completeFlagFile = File(dbDir, "complete_flag")
+    private val lastFullCompileFailedFlag = File(dbDir, "last_full_compile_failed_flag")
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
     private val moduleBuildPathDatFile = File(dbDir, "module_builds.json")
@@ -24,6 +25,17 @@ class CompileContextDb(
     private val assetDeployedDir = File(deployedDir, "asset")
 
     val hasBeenFullCompiled: Boolean get() = completeFlagFile.exists()
+
+    var isLastFullCompileFailed: Boolean
+        get() = lastFullCompileFailedFlag.exists()
+        set(value) {
+            if (value) {
+                lastFullCompileFailedFlag.parentFile?.mkdirs()
+                lastFullCompileFailedFlag.createNewFile()
+            } else {
+                lastFullCompileFailedFlag.delete()
+            }
+        }
 
     fun saveCompileContext(
         apkInfos: List<ApkInfo>,

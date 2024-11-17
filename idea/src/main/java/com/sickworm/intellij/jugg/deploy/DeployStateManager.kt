@@ -4,6 +4,7 @@ import com.android.ddmlib.IDevice
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 
 /**
@@ -85,6 +86,10 @@ class DeployStateManager(
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "not gradle compile yet", ideDeployState)
+        }
+
+        if (deployHistoryManager.isLastFullCompileFailed) {
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "last gradle compile not success", ideDeployState)
         }
 
         if (ideDeployState.state != IdeDeployState.State.OK) {

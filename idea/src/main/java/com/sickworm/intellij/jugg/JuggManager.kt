@@ -333,7 +333,7 @@ class JuggManager @TestOnly constructor(
             runTaskSafe("Init Incremental Compile", ::action)
         }
         val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
-            juggRunningTaskStatusManager, processHandler, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
+            juggRunningTaskStatusManager, deployHistoryManager, processHandler, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
             isForceGradleCompile = isForceGradleCompile,
         )
         currentTask = task

@@ -23,6 +23,11 @@ interface IDeployHistoryManager {
     val hasBeenFullCompiled: Boolean
 
     /**
+     * Whether last local full compilation is failed. Use to detect whether is need to fallback.
+     */
+    var isLastFullCompileFailed: Boolean
+
+    /**
      * Records the last overlay ids to verify deployment state before deploy.
      */
     var lastDeployOverlayIds: Map<String, String>

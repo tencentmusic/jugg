@@ -5,6 +5,7 @@ package com.sickworm.intellij.jugg.ide
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.server.listType
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
@@ -68,6 +69,8 @@ object JuggSettings {
      * Enable this can skip JVM-TI process and save time.
      */
     const val isQuickFallbackToHotFix: Boolean = true
+
+    val isSupportsBackupClasspath: Boolean = !isWindows // windows not support rsync, so disable backup classpath
 
     var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 

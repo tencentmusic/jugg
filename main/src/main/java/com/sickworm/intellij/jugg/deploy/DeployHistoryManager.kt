@@ -44,6 +44,12 @@ class DeployHistoryManager(
             hasBeenFullCompiledRuntime
         }
 
+    override var isLastFullCompileFailed: Boolean
+        get() = compileContextDb.isLastFullCompileFailed
+        set(value) {
+            compileContextDb.isLastFullCompileFailed = value
+        }
+
     override var lastDeployOverlayIds: Map<String, String>
         get() = deployHistoryDb.overlayIds
         set(value) {

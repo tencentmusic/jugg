@@ -12,6 +12,7 @@ import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
@@ -38,6 +39,7 @@ class JuggRunningTask(
     private val deployTargetManager: IDeployTargetManager,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val statusManager: IJuggRunningTaskStatusManager,
+    private val deployHistoryManager: IDeployHistoryManager,
     private val processHandler: SimpleProcessHandler,
     private val juggCompileHelper: JuggCompilerHelper,
     private val juggDeployHelper: JuggDeployerHelper,
@@ -76,6 +78,9 @@ class JuggRunningTask(
             val isSuccess = if (runResult.isGradleCompile) runResult.isCompileSuccess else runResult.isDeploySuccess
             val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
             dependencyChangeManager.onEndBuilding(isSuccess, isCanceled)
+            if (runResult.isGradleCompile && !isCanceled) {
+                deployHistoryManager.isLastFullCompileFailed = !runResult.isCompileSuccess
+            }
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)
