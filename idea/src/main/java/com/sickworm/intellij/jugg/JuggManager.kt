@@ -84,14 +84,8 @@ class JuggManager @TestOnly constructor(
 
             // init project info async
             runTaskSafe("Init project info", ::recoverDeployContext)
-
             // init deployment service async
-            JuggDeploymentService.postWithLock {
-                val costTime = measureTimeMillis {
-                    preInit()
-                }
-                logger.debug("JuggDeploymentService.preInit cost ${costTime}ms")
-            }
+            JuggDeploymentService.preInit(logger)
 
             logger.debug("Checking updates...")
             juggServer.checkUpdate {

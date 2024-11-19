@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.outerClassName
+import kotlin.math.min
 
 /**
  * Final data that going to deploy to the device.
@@ -138,6 +139,27 @@ data class JuggDeployData(
 
     override fun toString(): String {
         return toString(true)
+    }
+
+    fun splitData(maxOverlaySize: Int): List<JuggDeployData> {
+        if (overlays.size <= maxOverlaySize) {
+            // no need to split
+            return listOf(this)
+        }
+
+        val splitDataList = mutableListOf<JuggDeployData>()
+        val splitSize = (overlays.size / (maxOverlaySize - 1)) + 1
+        for (i in 0 until splitSize) {
+            val start = i * maxOverlaySize
+            val end = min((i + 1) * maxOverlaySize, overlays.size)
+            val splitData = forDryDeploy(apks).copy(overlays = overlays.subList(start, end))
+            splitDataList.add(splitData)
+        }
+
+        // drop remain fields to the last one, to keep the original behavior
+        splitDataList[splitDataList.size - 1] = this.copy(overlays = splitDataList[splitDataList.size - 1].overlays)
+
+        return splitDataList
     }
 
     companion object {

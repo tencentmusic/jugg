@@ -2,14 +2,13 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.sdklib.AndroidVersion
 import com.android.tools.deploy.proto.Deploy
+import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
-import com.android.tools.deployer.*
 import com.android.tools.tracer.Trace
 import com.android.utils.ILogger
 import com.google.common.collect.ImmutableMap
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
-import java.util.Comparator
 
 /**
  * @see com.android.tools.deployer.Deployer
@@ -62,13 +61,8 @@ class JuggDeployer(
             splitter.cache(apkList)
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
-            val storeStartTime = System.currentTimeMillis()
             logger.info("after install, overlay id: ${oid.sha}, is base install: ${oid.isBaseInstall}")
-            deploymentService.postWithLock {
-                logger.info("before install store")
-                deploymentCacheDatabase.store(adb.serial, appId, apkList, oid)
-                logger.info("after install store, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
-            }
+            deploymentService.storeEntry(adb.serial, appId, apkList, oid, logger)
             result.overlayId = oid.sha
             return result
         }
@@ -121,9 +115,7 @@ class JuggDeployer(
         }
 
         // Get the list of files from the installed app assuming deployment cache is correct.
-        val speculativeDump: DeploymentCacheDatabase.Entry? = deploymentService.withLock {
-            deploymentService.deploymentCacheDatabase[deviceSerial, packageName]
-        }
+        val speculativeDump: DeploymentCacheDatabase.Entry? = deploymentService.loadEntry(deviceSerial, packageName, logger)
 
         val exceptOverlayId = exceptOverlayIds[packageName]
         logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
@@ -149,19 +141,16 @@ class JuggDeployer(
         val overlayUpdate = builder.build(verifyDump, data)
 
         // Perform the swap.
+        val startTime = System.currentTimeMillis()
         val overlayId = AsDeployerCompat.optimisticSwap(
             installer, redefiners, packageName,
             argRestart, pids, arch, overlayUpdate,
             adb, logger,
             data.isPushOverlayOnly,
         )
-        logger.info("after deploy, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
-        val storeStartTime = System.currentTimeMillis()
-        deploymentService.postWithLock {
-            logger.info("before deploy store")
-            deploymentCacheDatabase.store(deviceSerial, packageName, newFiles, overlayId)
-            logger.info("after deploy store, newFiles: ${newFiles.size}, costTime: ${System.currentTimeMillis() - storeStartTime}ms")
-        }
+        val costTime = System.currentTimeMillis() - startTime
+        logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
+        deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
 
         return Result().also {
             it.overlayId = overlayId.sha

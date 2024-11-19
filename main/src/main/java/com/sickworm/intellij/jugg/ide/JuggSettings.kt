@@ -70,6 +70,15 @@ object JuggSettings {
      */
     const val isQuickFallbackToHotFix: Boolean = true
 
+    /**
+     * Apply changes may time out("MessagePipeWrapper read() timeout (5000ms)") on first time
+     * deploy overlays if size is super huge.
+     * For a device made in 2018, deploy 40,000+ overlays need about 4-6s in UpdateOverlay, it's easy to timeout.
+     *
+     * Here we split multiple deploy task to avoid timeout.
+     */
+    const val overlayDeploySplitSize = 20_000
+
     val isSupportsBackupClasspath: Boolean = !isWindows // windows not support rsync, so disable backup classpath
 
     var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")

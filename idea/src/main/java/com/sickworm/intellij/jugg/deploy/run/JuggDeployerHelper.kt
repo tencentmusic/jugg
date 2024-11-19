@@ -81,13 +81,25 @@ class JuggDeployerHelper(
             removeLibraryDexFiles(data, device)
         }
 
-        val task = JuggDeployTask(project, installPathProvider, androidDeployType, data)
+        val dataList = data.splitData(JuggSettings.overlayDeploySplitSize)
+        logger.debug("deploy_to_device size: ${dataList.size}")
 
-        val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
-        val launchResult = task.run(launchContext)
-        if (!launchResult.success) {
-            throw JuggException.applyChangesFailed(launchResult)
+        TimeLogger.start("deploy_to_device")
+        lateinit var launchResult: LaunchResult
+        dataList.forEachIndexed { i, splitData ->
+            if (dataList.size > 1) TimeLogger.start("deploy_to_device_slice$i")
+            logger.debug("deploy_to_device_slice$i, " +
+                    "classes: ${splitData.newClasses.size + splitData.hotFixModifiedClasses.size + splitData.hotReloadModifiedClasses.size}, " +
+                    "overlays: ${splitData.overlays.size}")
+            val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
+            val task = JuggDeployTask(project, installPathProvider, androidDeployType, splitData)
+            launchResult = task.run(launchContext)
+            if (!launchResult.success) {
+                throw JuggException.applyChangesFailed(launchResult)
+            }
+            if (dataList.size > 1) TimeLogger.end("deploy_to_device_slice$i", logger)
         }
+        TimeLogger.end("deploy_to_device", logger)
 
         TimeLogger.start("push_agent")
         var isNeedPushAgentAfterDeploy: Boolean
