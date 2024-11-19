@@ -38,7 +38,7 @@ class IdeaDeviceAdb(
             logger.info("%s", "adb in:  cmd splits to : $cmdList")
             val response = adb.shell(
                 cmdList.toTypedArray(),
-                null, 5L, TimeUnit.MINUTES)
+                null, 5L, TimeUnit.SECONDS)
             if (response.isNotEmpty()) {
                 val extraMsg = String(response, Charsets.UTF_8).trim { it <= ' ' }
                 val logMsg = if (extraMsg.length > 200) {
