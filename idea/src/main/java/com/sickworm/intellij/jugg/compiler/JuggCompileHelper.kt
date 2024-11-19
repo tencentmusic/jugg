@@ -232,6 +232,7 @@ class JuggCompilerHelper(
         isForceInstall: Boolean,
     ): CompileTaskResult? {
         val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
+        val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
         logger.debug("preprocessIncrementalCompile isForceInstall $isForceInstall, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
         if (isForceInstall) {
             return CompileTaskResult.incrementalFailed(true, "force fallback")
@@ -240,14 +241,14 @@ class JuggCompilerHelper(
         checkDeviceFallback()?.let {
             return it
         }
-        if (!isNoFileChangesSinceLastCompile) {
+        if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkFilesRollback()
         }
         checkFilesFallback()?.let {
             return it
         }
 
-        if (!isNoFileChangesSinceLastCompile) {
+        if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkLibraryIncrementalCompile(options, processHandler, indicator) // user may cancel in this step
         }
 
