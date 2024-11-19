@@ -80,16 +80,16 @@ class DeployStateManager(
     private fun getNewDeployState(device: IDevice? = null): JuggDeployState {
         val ideDeployState = ideDeployStateHelper.getIdeDeployState(device, deployTargetManager.getPackageNameOrNull())
 
-        if (isBuildFileChanged) {
-            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "$whatBuildFileChanged changed", ideDeployState)
-        }
-
         if (!deployHistoryManager.hasBeenFullCompiled) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "not gradle compile yet", ideDeployState)
         }
 
         if (deployHistoryManager.isLastFullCompileFailed) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "last gradle compile not success", ideDeployState)
+        }
+
+        if (isBuildFileChanged) {
+            return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "$whatBuildFileChanged changed", ideDeployState)
         }
 
         if (ideDeployState.state != IdeDeployState.State.OK) {
