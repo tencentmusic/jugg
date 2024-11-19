@@ -196,10 +196,21 @@ class JuggCompilerHelper(
             val changedBuildFile = uncompiledFiles.find {
                 it.type == CompileFile.Type.BuildFile
             }
+
+            val isFirstTimeDeploy = deployFileManager.getDeployedFiles().isEmpty()
+            val changedOverlayFiles = uncompiledFiles.filter {
+                it.type == CompileFile.Type.Resource || it.type == CompileFile.Type.Asset
+            }
+
             // unnecessary to check if file size is small and no build file changed
-            val isShouldCheck = uncompiledFiles.size > 20 || (changedBuildFile != null)
+            val isShouldCheck = uncompiledFiles.size > 20
+                    || (changedBuildFile != null)
+                    // some files may regenerate during gradle compile with same content, and it may trigger full overlay deployment
+                    // here we check rollback for them
+                    || (isFirstTimeDeploy && changedOverlayFiles.isNotEmpty())
             logger.debug("checkFilesRollback file size: ${uncompiledFiles.size}, " +
                     "changedBuildFile: ${changedBuildFile != null}, " +
+                    "isFirstTimeDeploy: $isFirstTimeDeploy, changedOverlayFiles: ${changedOverlayFiles.size}, " +
                     "isShouldCheck: $isShouldCheck")
 
             if (isShouldCheck) {
