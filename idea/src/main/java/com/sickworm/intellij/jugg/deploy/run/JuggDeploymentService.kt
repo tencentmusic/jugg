@@ -29,7 +29,7 @@ object JuggDeploymentService {
     val deploymentCacheDatabase: DeploymentCacheDatabase by lazy {
         val deployDbPath = Paths.get(PathManager.getSystemPath(), ".deploy_cache.db")
         DeploymentCacheDatabase(
-            8,
+            4,
             deployDbPath.toFile(),
         )
     }
