@@ -16,3 +16,14 @@ Jugg 跳过了 gradle 构建，这意味着 gradle 相关的能力，如注解�
 Jugg 不需要侵入你的工程代码，配置完成后只需要点击 run 即可使用；
 
 Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会有健全的降级 gradle 编译的流程。你可以随时使用和停用 Jugg 的增量部署功能。
+
+# How to run this project
+```
+./gradlew buildPluginIntranet // build plugin for tencent, output path: ./idea/build/distributions
+./gradlew buildPluginExtranet // build plugin for public(kugou/kuwo), output path: ./idea/build/distributions
+./gradlew runIde // run/debug in runtime IDEA
+```
+
+# Commit rules
+
+Use [feature] [optimize] [bugfix] [test] [other] for commit message head.
