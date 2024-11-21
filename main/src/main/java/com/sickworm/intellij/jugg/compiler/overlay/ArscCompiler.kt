@@ -34,6 +34,7 @@ class ArscCompiler(
     override val isNeedOutputDirEmpty = true
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
+    private val rJavaFixer = RJavaFixer(logger)
 
     private var hasLoaded = false
 
@@ -128,6 +129,11 @@ class ArscCompiler(
                 val error = CompileError(it, listOf(0L to "makeResApk failed"))
                 Result.failure(error)
             }, emptyList())
+        }
+
+        val javaFile = result.find { it.type == CompileOutput.Type.Java }?.file
+        if (javaFile?.exists() == true) {
+            rJavaFixer.fixIfNeeded(javaFile)
         }
 
         return CompileResult(

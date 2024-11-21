@@ -194,7 +194,7 @@ private class ChangePackageWriter(
             val outerClassName = ((outerClassAnnotation.annotation.elements.first().value as EncodedValue).value as TypeIdItem)
                 .descriptor.stringData.string
             val innerClassName = ((innerClassAnnotation.annotation.elements.find { it.name.stringData.string == "name" }
-                !!.value as EncodedValue).value as StringIdItem).stringData.string
+                !!.value as EncodedValue).value as StringIdItem?)?.stringData?.string
             val innerClassAccessFlags = (innerClassAnnotation.annotation.elements.find { it.name.stringData.string == "accessFlags" }
                 !!.value as EncodedValue).value as Int
             cw.visitInnerClass(node.clazz.descriptor.stringData.string.asmSigFormat,
