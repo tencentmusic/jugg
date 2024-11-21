@@ -108,14 +108,14 @@ class LocalGradleCompileClient(
             var rootDir = projectRootPath
             buildDirs.forEach { moduleBuildPathInfo ->
                 val moduleDir = moduleBuildPathInfo.moduleRootDir
-                if (!moduleDir.isChild(rootDir)) {
+                if (!moduleDir.isChild(rootDir) && moduleDir != rootDir) {
                     while (true) {
                         val parentFile = rootDir.parentFile ?: run {
                             logger.warn("fetchClasspathResult failed, can't find parentFile of $moduleDir")
                             return@forEach
                         }
                         rootDir = parentFile
-                        if (moduleDir.isChild(parentFile)) {
+                        if (moduleDir.isChild(rootDir) || moduleDir == rootDir) {
                             return@forEach
                         }
                     }
