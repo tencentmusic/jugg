@@ -44,6 +44,7 @@ class JavaCompiler(
         // ensure class file version for later dex
         options.addAll(listOf("-source", module.javaSourceCompatibility ?: "1.8"))
         options.addAll(listOf("-target", module.javaTargetCompatibility ?: "1.8"))
+        options.addAll(listOf("-encoding", "UTF-8"))
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
