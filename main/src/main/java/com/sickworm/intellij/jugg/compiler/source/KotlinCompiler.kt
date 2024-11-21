@@ -269,13 +269,17 @@ class KotlinCompiler(
         val kotlinStdlibName = module.libraryDependencies.find {
             it.file.name.contains("kotlin-stdlib")
         }?.file?.name
+        logger.debug("kotlin-stdlib kotlinStdlibName $kotlinStdlibName")
         if (kotlinStdlibName == null) {
             logger.debug("kotlin-stdlib not found in module ${module.name}, can not guess kotlin version, use default ${K2JVMCompilerIsolate.VERSION}")
             return K2JVMCompilerIsolate.VERSION
         }
 
         val kotlinVersion = try {
-            kotlinStdlibName.split("-").last().split(".").take(2).joinToString(".")
+            val splits = kotlinStdlibName.split("-")
+            val regex = Regex("[0-9\\.]+")
+            val version = splits.find { it.matches(regex) }?: throw IllegalArgumentException("not a standard stdlib")
+            version.split(".").take(2).joinToString(".")
         } catch (e: Exception) {
             logger.debug("kotlin-stdlib name '$kotlinStdlibName' is not valid, can not guess kotlin version, use default ${K2JVMCompilerIsolate.VERSION}")
             return K2JVMCompilerIsolate.VERSION
