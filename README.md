@@ -17,13 +17,27 @@ Jugg 不需要侵入你的工程代码，配置完成后只需要点击 run 即�
 
 Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会有健全的降级 gradle 编译的流程。你可以随时使用和停用 Jugg 的增量部署功能。
 
-# How to run this project
+# Project Structure
+## Modules
+* **idea**: Plugin layer
+* **main**: Logic layer
+* **deploy_compat**: Compatibility layer for Android Studio
+* **platform_compat**: API Mock for **main** to invoke **idea** API
+* **jvmti_agent**: Agent for JVMTI for deploy compatability
+
+## Core Classes
+* **JuggManager**: Core manager of Jugg
+* **JuggCompilerHelper**: Compile process
+* **JuggDeployHelper**: Deploy process
+* **JuggCompiler**: Compile implementation
+
+# How to Run This Project
 ```
 ./gradlew buildPluginIntranet // build plugin for tencent, output path: ./idea/build/distributions
 ./gradlew buildPluginExtranet // build plugin for public(kugou/kuwo), output path: ./idea/build/distributions
 ./gradlew runIde // run/debug in runtime IDEA
 ```
 
-# Commit rules
+# Commit Rules
 
 Use [feature] [optimize] [bugfix] [test] [other] for commit message head.
