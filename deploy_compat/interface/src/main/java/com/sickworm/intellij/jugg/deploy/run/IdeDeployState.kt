@@ -55,7 +55,7 @@ data class IdeDeployState(
             "unknown device API level",
         )
 
-        val incompatibleDeviceApiLevel = IdeDeployState(
+        val incompatibleDeviceApiLevel get() = IdeDeployState(
             State.INVALID_DEVICE,
             "device API level lower than ${IAsDeployerCompat.MIN_DEVICE_API}",
         )
