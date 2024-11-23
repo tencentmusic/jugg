@@ -138,6 +138,10 @@ class FileChangesHandler(
         checkSource(file)?.let {
             return it
         }
+        // check after source to exclude files in resource and assets
+        checkNativeLib(file)?.let {
+            return it
+        }
 
         return null
     }
@@ -261,6 +265,39 @@ class FileChangesHandler(
         }
 
         return false
+    }
+
+    private val abiFolders = listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+
+    private fun checkNativeLib(file: File): ChangedFile? {
+        // simply check the extension and parent file
+        val isNativeLib = file.extension == "so"
+        if (!isNativeLib) {
+            return null
+        }
+        val isAbiFolder = file.parentFile.name in abiFolders
+        if (!isAbiFolder) {
+            return null
+        }
+
+        val isInJuggDir = file.isChild(juggRootDir)
+        if (isInJuggDir) {
+            return null
+        }
+
+        if (file.isInBuildDir) {
+            return null
+        }
+
+        getModules().forEach inner@{ module ->
+            return ChangedFile(CompileFile.Type.NativeLib, file, file.parentFile.parentFile, module)
+        }
+
+        val projectRootDir = getProjectRootDir()
+        if (projectRootDir != null && file.isChild(projectRootDir)) {
+            return ChangedFile(CompileFile.Type.NativeLib, file, file.parentFile.parentFile, ModuleInfo.virtualModule)
+        }
+        return null
     }
 
     private fun getProjectRootDir(): File? {

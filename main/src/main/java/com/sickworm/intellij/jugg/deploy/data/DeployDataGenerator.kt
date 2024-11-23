@@ -102,7 +102,11 @@ class DeployDataGenerator(
             }
         }
 
-        var overlays = changedOverlays
+        var overlays = changedOverlays.filter {
+            // remove lib/ files in overlays, it will update to apk, and it's large enough to slow down deploy speed
+            val isLib = it.type == CompileOutput.Type.Asset && it.name.startsWith("lib/")
+            return@filter !isLib
+        }
         val isFullRes = isWarmUp || (overlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore())
         if (isFullRes) {
             // first time deploy must do full deployment
