@@ -35,12 +35,14 @@ class DeployDataGenerator(
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
-        return buildDeployData(parsedDex, changedOverlays, isWarmUp, isNeedCheckRecompile, isRecompilation)
+        val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
+        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isRecompilation)
     }
 
     @TestOnly
     fun buildDeployData(parsedDex: ParsedDex,
                         changedOverlays: List<DeployItem>,
+                        changedLibs: List<DeployItem> = emptyList(),
                         isWarmUp: Boolean = false,
                         isNeedCheckRecompile: Boolean = true,
                         @Suppress("UNUSED_PARAMETER")
@@ -102,11 +104,7 @@ class DeployDataGenerator(
             }
         }
 
-        var overlays = changedOverlays.filter {
-            // remove lib/ files in overlays, it will update to apk, and it's large enough to slow down deploy speed
-            val isLib = it.type == CompileOutput.Type.Asset && it.name.startsWith("lib/")
-            return@filter !isLib
-        }
+        var overlays = changedOverlays
         val isFullRes = isWarmUp || (overlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore())
         if (isFullRes) {
             // first time deploy must do full deployment
@@ -131,8 +129,7 @@ class DeployDataGenerator(
         // collect files that need to update to APK and resign, reinstall
         val updateApkFiles = changedOverlays.filter {
             val isAndroidManifest = it.type == CompileOutput.Type.Res && it.name == "AndroidManifest.xml"
-            val isLib = it.type == CompileOutput.Type.Asset && it.name.startsWith("lib/")
-            return@filter isAndroidManifest || isLib
+            return@filter isAndroidManifest
         }.toMutableList()
         if (updateApkFiles.any { it.name == "AndroidManifest.xml" }) {
             // add resources.arsc too
@@ -141,6 +138,7 @@ class DeployDataGenerator(
                 updateApkFiles += resourcesArsc
             }
         }
+        updateApkFiles += changedLibs
 
         val juggDeployData = JuggDeployData(apks,
             newClasses, hotFixModifiedClasses, hotReloadModifiedClasses,

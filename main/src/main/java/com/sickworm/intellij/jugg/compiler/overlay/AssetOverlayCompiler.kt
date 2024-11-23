@@ -36,17 +36,23 @@ class AssetOverlayCompiler(
                 CompileFile.Type.NativeLib -> "lib"
                 else -> throw JuggInternalException.unrecognizedType(it.type.toString())
             }
+            val outputType = when (it.type) {
+                CompileFile.Type.Asset -> CompileOutput.Type.Asset
+                CompileFile.Type.NativeLib -> CompileOutput.Type.NativeLib
+                else -> throw JuggInternalException.unrecognizedType(it.type.toString())
+            }
+
             val outputDir = File(task.outputDir, outputSubDir)
             try {
                 if (it.file.isDirectory) {
                     val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)
                     dirToFilesMap.values.firstOrNull()?.forEach { subFile ->
                         val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
-                        outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
+                        outputs.add(CompileOutput(outputType, outputFile, task.outputDir))
                     }
                 } else {
                     val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
-                    outputs.add(CompileOutput(CompileOutput.Type.Asset, outputFile, task.outputDir))
+                    outputs.add(CompileOutput(outputType, outputFile, task.outputDir))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {

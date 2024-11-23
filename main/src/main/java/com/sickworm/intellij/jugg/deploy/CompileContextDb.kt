@@ -108,6 +108,9 @@ class CompileContextDb(
                 CompileOutput.Type.Asset -> {
                     it.file.copyToBaseDir(it.baseDir, assetDeployedDir)
                 }
+                CompileOutput.Type.NativeLib -> {
+                    // no-op, it has already updated to APK
+                }
                 else -> {
                     logger.warn("Unknown output type: ${it.type} for file: ${it.file}")
                 }

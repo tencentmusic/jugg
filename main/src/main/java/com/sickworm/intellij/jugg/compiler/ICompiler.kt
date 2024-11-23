@@ -136,7 +136,8 @@ data class CompileOutput(
         Class,
         Dex,
         Res, // includes res/**, AndroidManifest.xml, resource.arsc
-        Asset, // includes assets/**, lib/** and all other files except Dex and Res
+        Asset, // includes assets/**, and all other files except Dex and Res
+        NativeLib, // includes lib/**
         Java;
     }
 }
