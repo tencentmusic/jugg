@@ -18,7 +18,7 @@ class MockFileChangesDetector: IFileChangesDetector {
 
 
     fun notifyFileChanges(files: List<File>) {
-        listener?.onFileChanges(files, emptyList())
+        listener?.onFileChanges(files, emptyList(), emptyList())
     }
 
     override fun startListen(listener: FileChangesListener) {

@@ -81,7 +81,7 @@ class FileChangesDetector(
         }
 
         if (changedFiles.isEmpty() && deletedFiles.isEmpty()) return
-        listener?.onFileChanges(changedFiles, deletedFiles)
+        listener?.onFileChanges(changedFiles, deletedFiles, emptyList())
     }
 
     private val String.virtualFile: VirtualFile?

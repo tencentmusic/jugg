@@ -32,14 +32,6 @@ data class ChangedFile(
     val hasCompiledOnce: Boolean get() = compiledTimes > 0
 
     override fun toString(): String {
-        return """
-            ChangedFile(
-                type=$type,
-                file=$file,
-                baseDir=$baseDir,
-                module=${module.name},
-                extraInfo=${extraInfo},
-            )
-        """.trimIndent()
+        return "ChangedFile[$type, file=${file.relativeTo(baseDir)}}, module=${module.name}, extraInfo=${extraInfo}]"
     }
 }

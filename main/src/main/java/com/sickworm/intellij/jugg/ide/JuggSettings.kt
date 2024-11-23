@@ -58,6 +58,8 @@ object JuggSettings {
     const val maxCompileSourceFiles = 150
     /** limit min compiler error to recreate once */
     const val minErrorToRecreateCompiler = 30
+    /** source file size to trigger detect rollback */
+    const val sourceFileSizeToTriggerDetectRollback = 20
 
     /** Whether warm up compiler after init compilation. False for unit test. */
     var isEnableWarmUp: Boolean = true

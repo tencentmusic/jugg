@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.git.IGitManager
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import kotlinx.coroutines.*
@@ -62,7 +63,9 @@ class GitFileChangesDetector(
             checkDelayJob = coroutineScope.launch {
                 delay(waitingFileChangesEndDuration)
                 isWaitingFileChangesEnd = false
-                taskRunnerManager.runTaskSafe("Checking changed files", ::updateChangedFiles)
+                taskRunnerManager.runTaskSafe("Checking changed files", action = {
+                    updateChangedFiles(files)
+                })
             }
         }
     }
@@ -97,12 +100,21 @@ class GitFileChangesDetector(
         return false
     }
 
-    private fun updateChangedFiles() {
+    private fun updateChangedFiles(changedFiles: List<ChangedFile>) {
         logger.debug("updateChangedFiles")
         val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb()
         val allChangedFiles = recoverData?.changedFiles ?: emptyList()
         logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, names: ${allChangedFiles.map { it.name }}")
-        listener?.onFileChanges(allChangedFiles, emptyList())
+
+        var rollbackFiles = emptyList<File>()
+        if (changedFiles.size > JuggSettings.sourceFileSizeToTriggerDetectRollback) {
+            // when git submodule update HEAD, sometimes Idea will call back with all file changed. here we detect rollback
+            rollbackFiles = deployHistoryManager.filterUnchangedFiles(changedFiles.map { it.file})
+            if (rollbackFiles.isNotEmpty()) {
+                logger.debug("updateChangedFiles, found ${rollbackFiles.size} files rollback, files: ${rollbackFiles.map { it.name }}")
+            }
+        }
+        listener?.onFileChanges(allChangedFiles, emptyList(), rollbackFiles)
     }
 
     override fun startListen(listener: FileChangesListener) {

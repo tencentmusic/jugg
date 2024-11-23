@@ -203,7 +203,7 @@ class JuggCompilerHelper(
             }
 
             // unnecessary to check if file size is small and no build file changed
-            val isShouldCheck = uncompiledFiles.size > 20
+            val isShouldCheck = uncompiledFiles.size > JuggSettings.sourceFileSizeToTriggerDetectRollback
                     || (changedBuildFile != null)
                     // some files may regenerate during gradle compile with same content, and it may trigger full overlay deployment
                     // here we check rollback for them
