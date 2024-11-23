@@ -161,6 +161,10 @@ class FileChangesHandler(
 
             val baseResourceDir = module.resourceDirs.find { file.path.startsWith(it.path) }
             if (baseResourceDir != null) {
+                if (file.name == ".DS_Store") {
+                    logger.debug("resource file ${file.name} has invalid extension, ignore")
+                    return null
+                }
                 return ChangedFile(CompileFile.Type.Resource, file, baseResourceDir, module)
             }
 
