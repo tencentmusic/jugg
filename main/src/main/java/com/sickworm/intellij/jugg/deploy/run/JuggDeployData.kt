@@ -141,19 +141,22 @@ data class JuggDeployData(
         return toString(true)
     }
 
-    fun splitData(maxOverlaySize: Int): List<JuggDeployData> {
+    fun splitData(firstMaxOverlaySize: Int, maxOverlaySize: Int): List<JuggDeployData> {
         if (overlays.size <= maxOverlaySize) {
             // no need to split
             return listOf(this)
         }
 
         val splitDataList = mutableListOf<JuggDeployData>()
-        val splitSize = (overlays.size / (maxOverlaySize - 1)) + 1
-        for (i in 0 until splitSize) {
-            val start = i * maxOverlaySize
-            val end = min((i + 1) * maxOverlaySize, overlays.size)
+        var start = 0
+        var end = 0
+        fun remainOverlaySize() = overlays.size - end
+        fun currentSplitOverlaySize() = if (start == 0) firstMaxOverlaySize else maxOverlaySize
+        while (remainOverlaySize() > 0) {
+            end = (start + currentSplitOverlaySize()).coerceAtMost(overlays.size)
             val splitData = forDryDeploy(apks).copy(overlays = overlays.subList(start, end))
             splitDataList.add(splitData)
+            start = end
         }
 
         // drop remain fields to the last one, to keep the original behavior

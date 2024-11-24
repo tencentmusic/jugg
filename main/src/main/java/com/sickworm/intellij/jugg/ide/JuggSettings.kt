@@ -81,6 +81,11 @@ object JuggSettings {
      */
     const val overlayDeploySplitSize = 20_000
 
+    /**
+     * First piece size for split deploy task, it will be slower and need smaller size.
+     */
+    const val overlayDeploySplitSizeFirstSlice = 10_000
+
     val isSupportsBackupClasspath: Boolean = !isWindows // windows not support rsync, so disable backup classpath
 
     var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")

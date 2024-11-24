@@ -81,7 +81,7 @@ class JuggDeployerHelper(
             removeLibraryDexFiles(data, device)
         }
 
-        val dataList = data.splitData(JuggSettings.overlayDeploySplitSize)
+        val dataList = data.splitData(JuggSettings.overlayDeploySplitSizeFirstSlice, JuggSettings.overlayDeploySplitSize)
         logger.debug("deploy_to_device size: ${dataList.size}")
 
         TimeLogger.start("deploy_to_device")
@@ -91,7 +91,8 @@ class JuggDeployerHelper(
             logger.debug("deploy_to_device_slice$i, " +
                     "classes: ${splitData.newClasses.size + splitData.hotFixModifiedClasses.size + splitData.hotReloadModifiedClasses.size}, " +
                     "overlays: ${splitData.overlays.size}")
-            val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSkipExceptOverlayCheck)
+            val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
+            val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSliceSkipExceptOverlayCheck)
             val task = JuggDeployTask(project, installPathProvider, androidDeployType, splitData)
             launchResult = task.run(launchContext)
             if (!launchResult.success) {
