@@ -81,7 +81,8 @@ class JuggDeployerHelper(
             removeLibraryDexFiles(data, device)
         }
 
-        val dataList = data.splitData(JuggSettings.overlayDeploySplitSizeFirstSlice, JuggSettings.overlayDeploySplitSize)
+        val (firstSliceSize, sliceSize) = SliceDeployHelper(logger).get(IdeaDeviceAdb(device, logger))
+        val dataList = data.splitData(firstSliceSize, sliceSize)
         logger.debug("deploy_to_device size: ${dataList.size}")
 
         TimeLogger.start("deploy_to_device")
@@ -374,9 +375,16 @@ class JuggDeployerHelper(
                 val isClassNotFoundException = reason.contains("Class not found")
                 // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
                 val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
+                // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
+                val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
 
-                if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch) {
+                if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
                     val (isNeedRecover, isNeedTryDeyDeployFirst) = when {
+                        isDeployTimeout -> {
+                            logger.warn("Got deploy timeout exception, reduce overlay and retry")
+                            SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(device, logger))
+                            true to false
+                        }
                         isOverlayIdNotCorrect -> {
                             logger.info("Deploy history mismatch with the device, try recover deploy state.")
                             true to false

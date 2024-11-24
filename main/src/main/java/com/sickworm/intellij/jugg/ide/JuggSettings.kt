@@ -90,6 +90,8 @@ object JuggSettings {
 
     var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 
+    var sliceDeployRecordJson: String by propertiesComponent.delegate(defaultValue = "")
+
     /**
      * Use this for Jugg run configuration arguments if first set.
      */

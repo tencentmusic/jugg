@@ -20,7 +20,7 @@ class JuggDeployer(
     private val service: UIService,
     private val exceptOverlayIds: Map<String, String>,
     private val isSkipExceptOverlayCheck: Boolean,
-    private val logger: ILogger
+    private val logger: AdbLogWrapper
 ) {
 
     /**
@@ -142,18 +142,26 @@ class JuggDeployer(
 
         // Perform the swap.
         val startTime = System.currentTimeMillis()
-        val overlayId = AsDeployerCompat.optimisticSwap(
-            installer, redefiners, packageName,
-            argRestart, pids, arch, overlayUpdate,
-            adb, logger,
-            data.isPushOverlayOnly,
-        )
-        val costTime = System.currentTimeMillis() - startTime
-        logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
-        deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
+        try {
+            val overlayId = AsDeployerCompat.optimisticSwap(
+                installer, redefiners, packageName,
+                argRestart, pids, arch, overlayUpdate,
+                adb, logger,
+                data.isPushOverlayOnly,
+            )
+            val costTime = System.currentTimeMillis() - startTime
+            logger.info("after deploy, cost: ${costTime}ms, overlay id: ${overlayId.sha}, is base install: ${overlayId.isBaseInstall}, isPushOverlayOnly: ${data.isPushOverlayOnly}")
+            deploymentService.storeEntry(deviceSerial, packageName, newFiles, overlayId, logger)
 
-        return Result().also {
-            it.overlayId = overlayId.sha
+            return Result().also {
+                it.overlayId = overlayId.sha
+            }
+        } catch (e: Exception) {
+            if (logger.isDeployTimeout) {
+                throw IllegalStateException("optimisticSwap failed by MessagePipeWrapper read() timeout, origin: ${e.message}", e)
+            } else {
+                throw e
+            }
         }
     }
 
