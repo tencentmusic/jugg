@@ -22,7 +22,7 @@ object DirToFileMapHelper {
                     return@associate compileFile.file to allResFiles
                 } else {
                     // filter no changed files
-                    logger.debug("${compileFile.dependencyName} has relative old res files: ${compileFile.oldRes}")
+                    logger.debug("${compileFile.dependencyName}[${compileFile.relativeFile}] has relative old files: ${compileFile.oldRes}")
                     val checksumMap = relativeOldFiles.associate {
                         it.relativeTo(relativeOldResDirectory).path to it.crc32
                     }
@@ -31,8 +31,8 @@ object DirToFileMapHelper {
                         val oldChecksum = checksumMap[relativePath] ?: return@filter true
                         return@filter it.crc32 != oldChecksum
                     }
-                    logger.debug("${compileFile.dependencyName} full res files: ${allResFiles.size}, " +
-                            "remain res files after filtered: ${filteredResFiles.size}")
+                    logger.debug("${compileFile.dependencyName} full files: ${allResFiles.size}, " +
+                            "remain files after filtered: ${filteredResFiles.size}")
                     return@associate compileFile.file to filteredResFiles
                 }
             }

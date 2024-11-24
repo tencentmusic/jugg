@@ -104,7 +104,7 @@ class DependencyDiffResultHelper(
 
         // Guess assets and lib dir. (info is missing from Idea. through gradle is able to get it, but I want to guess it all)
         val guessedDirs: MutableSet<File> = mutableSetOf()
-        changedFiles.toList().forEach {
+        diffResult.newLibraryDependencies.forEach {
             val parentFile = it.file.parentFile ?: return@forEach
             val assetDir = File(parentFile, "assets")
             if (!guessedDirs.contains(assetDir) && assetDir.exists() && assetDir.isDirectory && assetDir.listFiles()?.isNotEmpty() == true) {
@@ -115,7 +115,7 @@ class DependencyDiffResultHelper(
                         file = assetDir,
                         baseDir = assetDir,
                         module = tempModule,
-                    ).withDependencyName(it.dependencyName)
+                    ).withDependencyName(it.name)
                         .withOldRes(relativeOldFiles[assetDir.absolutePath])
                 )
             }
@@ -128,7 +128,7 @@ class DependencyDiffResultHelper(
                         file = libDir,
                         baseDir = libDir,
                         module = tempModule,
-                    ).withDependencyName(it.dependencyName)
+                    ).withDependencyName(it.name)
                         .withOldRes(relativeOldFiles[libDir.absolutePath])
                 )
             }
