@@ -290,7 +290,10 @@ class FileChangesHandler(
         }
 
         getModules().forEach inner@{ module ->
-            return ChangedFile(CompileFile.Type.NativeLib, file, file.parentFile.parentFile, module)
+            val moduleRootDir = module.moduleRootDir
+            if (file.isChild(moduleRootDir)) {
+                return ChangedFile(CompileFile.Type.NativeLib, file, file.parentFile.parentFile, ModuleInfo.virtualModule)
+            }
         }
 
         val projectRootDir = getProjectRootDir()
