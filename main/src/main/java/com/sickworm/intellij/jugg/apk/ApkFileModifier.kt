@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.apk
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -96,9 +97,19 @@ class ApkFileModifier(
     }
 
     private fun insertFileJvm14(): File {
+        val apkFileToUpdate = if (isWindows) {
+            // sometimes will get "The process cannot access the file because it is being used by another process" on ZipFileSystem.close()
+            // so copy it out
+            tmpUpdateApkFile.delete()
+            apkFile.copyTo(tmpUpdateApkFile)
+            tmpUpdateApkFile
+        } else {
+            apkFile
+        }
+
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
 
-        val zipDisk: URI = URI.create("jar:" + apkFile.toURI().toString())
+        val zipDisk: URI = URI.create("jar:" + apkFileToUpdate.toURI().toString())
         FileSystems.newFileSystem(zipDisk, zipProperties).use { zipFileSystem ->
             insertFiles.forEach { (path, content) ->
                 val pathInZipFile: Path = zipFileSystem.getPath(path)
@@ -112,7 +123,7 @@ class ApkFileModifier(
             }
         }
 
-        return apkFile
+        return apkFileToUpdate
     }
 
     private fun insertFileUnderJvm14(): File {
