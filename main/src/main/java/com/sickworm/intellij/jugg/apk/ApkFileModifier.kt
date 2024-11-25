@@ -214,6 +214,12 @@ class ApkFileModifier(
         args.add(tmpAlignedApkFile.absolutePath)
 
         val cmdString = "$apksigner ${args.joinToString(" ")}"
+        val cmdStringSafeForPrint = cmdString
+            .replace(signConfig.storePassword ?: "null", "***")
+            .replace(signConfig.keyAlias ?: "null", "***")
+            .replace(signConfig.keyPassword ?: "null", "***")
+        logger.debug("signConfig storeType: ${signConfig.storeType}, cmdString: $cmdStringSafeForPrint")
+
         val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true)
         val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
         if (exitCode != 0) {
