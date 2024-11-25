@@ -38,7 +38,7 @@ class FileLogger(
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
 
         private fun createPatternName(): String {
-            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date()) + ".log"
+            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date()) + ".log"
         }
 
         private fun createLogger(dir: File, patterName: String): Logger {
@@ -49,24 +49,21 @@ class FileLogger(
                 if (it.handlers.isNotEmpty()) {
                     it.handlers.clone().forEach { handler ->
                         it.removeHandler(handler)
-                        (handler as? NoLockFileHandler)?.close()
+                        (handler as? FileHandler)?.close()
                     }
                 }
                 // yyyy-MM-dd_HH-mm-ss.log
-                try {
-                    val loggerHandler = createFileHandler(dir, patterName)
-                    it.addHandler(loggerHandler)
-                    removeOldLogFiles(dir)
-                } catch (e: Exception) {
-                    com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
-                        .warn("createFileHandler error", e)
-                }
+                val loggerHandler = createFileHandler(dir, patterName)
+                it.addHandler(loggerHandler)
+                removeOldLogFiles(dir)
             }
         }
 
 
-        private fun createFileHandler(dir: File, name: String): NoLockFileHandler {
-            val loggerHandler = NoLockFileHandler(dir.absolutePath + "/" + name, 1, false)
+        private fun createFileHandler(dir: File, name: String): FileHandler {
+            val loggerHandler = FileHandler(
+                dir.absolutePath + "/" + name,
+                0, 1, false)
             val formatter = object : SimpleFormatter() {
 
                 private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s%n"
@@ -84,23 +81,29 @@ class FileLogger(
             }
             loggerHandler.formatter = formatter
 
-            // link file to compile_latest.log and compile_latest-1.log
-            val latestLogFile = File(dir, LATEST_LOG_NAME)
-            if (latestLogFile.exists()) {
-                val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
-                if (lastLatestLogFile.exists()) {
-                    lastLatestLogFile.delete()
+            try {
+                // link file to compile_latest.log and compile_latest-1.log
+                val latestLogFile = File(dir, LATEST_LOG_NAME)
+                if (latestLogFile.exists()) {
+                    val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
+                    if (lastLatestLogFile.exists()) {
+                        lastLatestLogFile.delete()
+                    }
+                    val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
+                    Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
+                    latestLogFile.delete()
                 }
-                val lastLatestPath = Files.readSymbolicLink(latestLogFile.toPath())
-                Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
-                latestLogFile.delete()
-            }
 
-            latestLogFile.delete()
-            val source = Path.of(dir.absolutePath, name)
-            val link = latestLogFile.toPath()
-            val relativePath = link.parent.relativize(source)
-            Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
+                latestLogFile.delete()
+                val source = Path.of(dir.absolutePath, name)
+                val link = latestLogFile.toPath()
+                val relativePath = link.parent.relativize(source)
+                Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
+            } catch (e: Exception) {
+                // robust
+                com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
+                    .warn("createFileHandler error", e)
+            }
 
             return loggerHandler
         }
@@ -128,7 +131,7 @@ class FileLogger(
     fun resetLatestCompileLog() {
         logger.handlers.clone().forEach {
             logger.removeHandler(it)
-            (it as? NoLockFileHandler)?.close()
+            (it as? FileHandler)?.close()
         }
         patternName = createPatternName()
         val newHandler = createFileHandler(dir, patternName)
@@ -139,7 +142,7 @@ class FileLogger(
     fun dispose() {
         logger.handlers.clone().forEach {
             logger.removeHandler(it)
-            (it as? NoLockFileHandler)?.close()
+            (it as? FileHandler)?.close()
         }
     }
 }
