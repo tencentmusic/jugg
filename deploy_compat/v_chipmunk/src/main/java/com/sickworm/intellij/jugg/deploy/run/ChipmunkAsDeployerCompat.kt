@@ -319,7 +319,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
             try {
                 logger.debug("getSuggestRunConfiguration gradleAndroidModel: ${gradleAndroidModel?.getDesc()}")
             } catch (e: Throwable) {
-                logger.warn("print gradleAndroidModel failed", e)
+                logger.debug("print gradleAndroidModel failed", e)
             }
             gradleAndroidModel ?: return null
 
