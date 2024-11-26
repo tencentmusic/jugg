@@ -24,6 +24,7 @@ class ApkFileModifier(
     private val signConfig: SigningConfig,
     private val androidHome: File,
     private val logger: Logger,
+    private val signEnvs: List<String>? = null,
 ) {
 
     private val tmpUpdateApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_updated")
@@ -221,7 +222,7 @@ class ApkFileModifier(
         logger.debug("signConfig storeType: ${signConfig.storeType}, cmdString: $cmdStringSafeForPrint")
 
         val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true)
-        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
+        val exitCode = CmdExecutor(cmd.logger).invoke(cmd, signEnvs)
         if (exitCode != 0) {
             throw IllegalStateException("AndroidManifest.xml changed and resign APK failed, exit code: $exitCode")
         }

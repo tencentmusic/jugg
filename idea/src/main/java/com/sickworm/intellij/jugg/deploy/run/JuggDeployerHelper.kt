@@ -13,6 +13,7 @@ import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -570,7 +571,10 @@ class JuggDeployerHelper(
             logger.warn("Unable to update APK, signing config not found.")
             return false to "AndroidManifest.xml changed and signing config not found"
         }
-        val modifier = ApkFileModifier(apkFile, signingConfig, compileContext.androidHome, logger.getInstance("ApkFileModifier"))
+        val modifier = ApkFileModifier(apkFile, signingConfig, compileContext.androidHome,
+            logger.getInstance("ApkFileModifier"),
+            LocalGradleCompileClient.buildCompileEnv(project, logger),
+        )
         try {
             files.forEach {
                 modifier.addFile(it.name, it.content)
