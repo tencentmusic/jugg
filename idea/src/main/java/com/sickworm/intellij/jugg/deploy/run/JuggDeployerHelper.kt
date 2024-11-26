@@ -571,10 +571,9 @@ class JuggDeployerHelper(
             logger.warn("Unable to update APK, signing config not found.")
             return false to "AndroidManifest.xml changed and signing config not found"
         }
-        val modifier = ApkFileModifier(apkFile, signingConfig, compileContext.androidHome,
-            logger.getInstance("ApkFileModifier"),
-            LocalGradleCompileClient.buildCompileEnv(project, logger),
-        )
+        val modifier = ApkFileModifier(
+            apkFile, signingConfig, compileContext.androidHome, logger.getInstance("ApkFileModifier"),
+            envArray = LocalGradleCompileClient.buildCompileEnv(project, logger, isUseLatestJdk = true))
         try {
             files.forEach {
                 modifier.addFile(it.name, it.content)

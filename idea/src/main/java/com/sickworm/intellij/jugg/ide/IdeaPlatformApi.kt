@@ -6,7 +6,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
-import com.sickworm.intellij.jugg.deploy.run.AndroidRunConfig
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.GitManager
@@ -44,7 +43,7 @@ class IdeaPlatformApi : IPlatformApi {
         return AsDeployerCompat.parseApks(apkFiles)
     }
 
-    override fun getGradleJdkPath(project: Project, logger: Logger): String? {
+    override fun getGradleJdkPath(project: Project, logger: Logger, isUseLatestJdk: Boolean): String? {
         var gradleJdkPath: String? = null
 
         val javaHome = System.getenv("JAVA_HOME")
@@ -75,9 +74,34 @@ class IdeaPlatformApi : IPlatformApi {
                 return@firstNotNullOfOrNull jdk.homePath!!
             }
         }
+
+        if (isUseLatestJdk) {
+            var maxGradleJdk: Sdk? = null
+            AsDeployerCompat.getModuleManager(project).modules.forEach { module ->
+                val moduleRootManager = ModuleRootManager.getInstance(module)
+                val jdk: Sdk = moduleRootManager.sdk ?: return@forEach
+                if (jdk.sdkType != JavaSdk.getInstance()) {
+                    return@forEach
+                }
+                if (jdk.homePath == null) {
+                    return@forEach
+                }
+                val comparator = jdk.sdkType.versionComparator()
+                if (maxGradleJdk == null || comparator.compare(jdk, maxGradleJdk) > 0) {
+                    maxGradleJdk = jdk
+                }
+            }
+            if (maxGradleJdk != null) {
+                gradleJdkPath = maxGradleJdk!!.homePath
+                logger.debug("use latest gradleJdkPath: $gradleJdkPath, version: ${maxGradleJdk?.versionString}")
+            }
+        }
+
         if (gradleJdkPath == null) {
             logger.debug("can't find gradleJdkPath in modules, use JAVA_HOME $javaHome instead")
             gradleJdkPath = javaHome
+        } else {
+            logger.debug("final use gradleJdkPath: $gradleJdkPath")
         }
         return gradleJdkPath
     }

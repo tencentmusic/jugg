@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -247,8 +246,8 @@ class LocalGradleCompileClient(
             return dependencyDiffResult
         }
 
-        fun buildCompileEnv(project: Project, logger: Logger): List<String> {
-            val gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger)
+        fun buildCompileEnv(project: Project, logger: Logger, isUseLatestJdk: Boolean = false): List<String> {
+            val gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger, isUseLatestJdk)
             val androidHomePath = PlatformApi.getAndroidHomePath(logger)
             val envArray: MutableList<String> = System.getenv().entries
                 .filter {
