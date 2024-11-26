@@ -63,9 +63,7 @@ class GitFileChangesDetector(
             checkDelayJob = coroutineScope.launch {
                 delay(waitingFileChangesEndDuration)
                 isWaitingFileChangesEnd = false
-                taskRunnerManager.runTaskSafe("Checking changed files", action = {
-                    updateChangedFiles(files)
-                })
+                taskRunnerManager.runTaskSafe("Checking changed files", ::updateChangedFiles)
             }
         }
     }
@@ -100,21 +98,13 @@ class GitFileChangesDetector(
         return false
     }
 
-    private fun updateChangedFiles(changedFiles: List<ChangedFile>) {
+    private fun updateChangedFiles() {
         logger.debug("updateChangedFiles")
         val recoverData = deployHistoryManager.tryGetContextRecoverInfoFromDb()
         val allChangedFiles = recoverData?.changedFiles ?: emptyList()
         logger.debug("updateChangedFiles, allChangedFiles size: ${allChangedFiles.size}, names: ${allChangedFiles.map { it.name }}")
 
-        var rollbackFiles = emptyList<File>()
-        if (changedFiles.size > JuggSettings.sourceFileSizeToTriggerDetectRollback) {
-            // when git submodule update HEAD, sometimes Idea will call back with all file changed. here we detect rollback
-            rollbackFiles = deployHistoryManager.filterUnchangedFiles(changedFiles.map { it.file})
-            if (rollbackFiles.isNotEmpty()) {
-                logger.debug("updateChangedFiles, found ${rollbackFiles.size} files rollback, files: ${rollbackFiles.map { it.name }}")
-            }
-        }
-        listener?.onFileChanges(allChangedFiles, emptyList(), rollbackFiles)
+        listener?.onFileChanges(allChangedFiles, emptyList())
     }
 
     override fun startListen(listener: FileChangesListener) {

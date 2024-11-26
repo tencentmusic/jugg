@@ -231,7 +231,7 @@ class JuggManager @TestOnly constructor(
         logger.debug("Start recover deploy history...")
         deployTargetManager.setApks(deployContextRecoverInfo.compileContextInfo.apkInfos)
         // step 3: recover changed files
-        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), emptyList(), isFromRecover = true)
+        processFileChanged(deployContextRecoverInfo.changedFiles, emptyList(), isFromRecover = true)
 
         logger.debug("Deploy history recover successfully, no need full compile.")
     }
@@ -250,17 +250,12 @@ class JuggManager @TestOnly constructor(
     private fun processFileChanged(
         changedFiles: List<File>,
         deletedFiles: List<File>,
-        rollbackFiles: List<File>,
         isFromRecover: Boolean,
     ) {
         // prints file changed info
         if (deletedFiles.isNotEmpty()) {
             logger.debug("Detect file deleted: ${deletedFiles.map { it.name }}")
             deployFileManager.removeChangedFile(deletedFiles)
-        }
-        if (rollbackFiles.isNotEmpty()) {
-            logger.debug("Detect file rolled back: ${rollbackFiles.map { it.name }}")
-            deployFileManager.removeChangedFile(rollbackFiles)
         }
         if (changedFiles.isNotEmpty()) {
             // not strict rules, just print it out for debug
@@ -270,7 +265,9 @@ class JuggManager @TestOnly constructor(
                     !it.path.contains(".git") &&
                     it.name != ".DS_Store"
             }
-            logger.debug("Detect file changed (before filter): ${simpleFilterFiles.map { it.path }}")
+            if (simpleFilterFiles.isNotEmpty()) {
+                logger.debug("Detect file changed (before filter): ${simpleFilterFiles.map { it.path }}")
+            }
         }
 
         val realChangedFiles = fileChangesHandler.filter(changedFiles)
@@ -562,13 +559,13 @@ class JuggManager @TestOnly constructor(
         logger.debug("Init compile cost ${costTime}ms")
 
         fileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>, rollbackFiles: List<File>) {
-                processFileChanged(changedFiles, deletedFiles, emptyList(),  isFromRecover = false)
+            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
             }
         })
         gitFileChangesDetector.startListen(object: FileChangesListener {
-            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>, rollbackFiles: List<File>) {
-                processFileChanged(changedFiles, deletedFiles, rollbackFiles, isFromRecover = false)
+            override fun onFileChanges(changedFiles: List<File>, deletedFiles: List<File>) {
+                processFileChanged(changedFiles, deletedFiles, isFromRecover = false)
             }
         })
 
