@@ -4,6 +4,7 @@ import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -76,24 +77,29 @@ class IdeaPlatformApi : IPlatformApi {
         }
 
         if (isUseLatestJdk) {
-            var maxGradleJdk: Sdk? = null
-            AsDeployerCompat.getModuleManager(project).modules.forEach { module ->
-                val moduleRootManager = ModuleRootManager.getInstance(module)
-                val jdk: Sdk = moduleRootManager.sdk ?: return@forEach
+            var maxJdk: Sdk? = null
+            val allJdks = ProjectJdkTable.getInstance().allJdks
+            val allJdkString = allJdks.map {
+                it.name + (": ${it.versionString}") + " (" + it.homePath + ")"
+            }
+            logger.debug("use latest gradleJdkPath, all available jdks: $allJdkString")
+            allJdks.forEach { jdk ->
                 if (jdk.sdkType != JavaSdk.getInstance()) {
+                    logger.debug("skip jdk: ${jdk.name}, type: ${jdk.sdkType}")
                     return@forEach
                 }
                 if (jdk.homePath == null) {
+                    logger.debug("skip jdk: ${jdk.name}, homePath is null")
                     return@forEach
                 }
                 val comparator = jdk.sdkType.versionComparator()
-                if (maxGradleJdk == null || comparator.compare(jdk, maxGradleJdk) > 0) {
-                    maxGradleJdk = jdk
+                if (maxJdk == null || comparator.compare(jdk, maxJdk) > 0) {
+                    maxJdk = jdk
                 }
             }
-            if (maxGradleJdk != null) {
-                gradleJdkPath = maxGradleJdk!!.homePath
-                logger.debug("use latest gradleJdkPath: $gradleJdkPath, version: ${maxGradleJdk?.versionString}")
+            if (maxJdk != null) {
+                gradleJdkPath = maxJdk!!.homePath
+                logger.debug("use latest gradleJdkPath: $gradleJdkPath, version: ${maxJdk?.versionString}")
             }
         }
 
