@@ -78,7 +78,7 @@ data class JuggDeployData(
         val builder = StringBuilder()
         builder.append("JuggDeployData ($deployType): ")
         if (isFull) {
-            builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy\n")
+            builder.append("isFullRes: $isFullRes, isWarmUp: $isWarmUp, isInstall: $isInstall, isPushOverlayOnly: $isPushOverlayOnly, isNeedRestartApp: $isNeedRestartApp, isCompatDeploy: $isCompatDeploy, isNeedRestartActivity:$isNeedRestartActivity\n")
             if (updateApkFiles.isNotEmpty()) {
                 builder.append("update apks: ${updateApkFiles.map { it.name }}")
             }
