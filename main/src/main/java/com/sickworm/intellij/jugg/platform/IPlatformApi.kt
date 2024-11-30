@@ -33,7 +33,9 @@ interface IPlatformApi {
 
     fun parseApks(apkFiles: List<String>): List<Apk>
 
-    fun getGradleJdkPath(project: Project, logger: Logger, isUseLatestJdk: Boolean = false): String?
+    fun allAvailableJavaHomes(): List<String>
+
+    fun getGradleJdkPath(project: Project, logger: Logger): String?
 
     fun getAndroidHomePath(logger: Logger): String?
 

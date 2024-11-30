@@ -246,8 +246,8 @@ class LocalGradleCompileClient(
             return dependencyDiffResult
         }
 
-        fun buildCompileEnv(project: Project, logger: Logger, isUseLatestJdk: Boolean = false): List<String> {
-            val gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger, isUseLatestJdk)
+        fun buildCompileEnv(project: Project, logger: Logger): List<String> {
+            val gradleJdkPath = PlatformApi.getGradleJdkPath(project, logger)
             val androidHomePath = PlatformApi.getAndroidHomePath(logger)
             val envArray: MutableList<String> = System.getenv().entries
                 .filter {

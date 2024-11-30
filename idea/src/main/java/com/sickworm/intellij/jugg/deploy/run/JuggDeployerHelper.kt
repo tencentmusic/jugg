@@ -573,7 +573,7 @@ class JuggDeployerHelper(
         }
         val modifier = ApkFileModifier(
             apkFile, signingConfig, compileContext.androidHome, logger.getInstance("ApkFileModifier"),
-            envArray = LocalGradleCompileClient.buildCompileEnv(project, logger, isUseLatestJdk = true))
+            envArray = LocalGradleCompileClient.buildCompileEnv(project, logger))
         try {
             files.forEach {
                 modifier.addFile(it.name, it.content)

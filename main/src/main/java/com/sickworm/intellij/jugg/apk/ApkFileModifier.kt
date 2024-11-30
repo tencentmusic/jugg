@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.SigningConfig
 import org.apache.tools.zip.ZipEntry
 import org.apache.tools.zip.ZipOutputStream
@@ -34,11 +35,14 @@ class ApkFileModifier(
     private val buildToolsFolder: File by lazy {
         val buildToolsFolder = File(androidHome, "build-tools").listFiles()
             ?.filter {
+                if (!it.isDirectory) {
+                    return@filter false
+                }
                 it.listFiles()?.any { subDir ->
                     subDir.nameWithoutExtension == "zipalign"
                 } == true
             }?.maxByOrNull {
-                it.name
+                BuildToolsVersionComparator(it.name)
             }
         if (buildToolsFolder?.exists() != true) {
             throw IllegalStateException("Can't find build-tools folder in $androidHome")
@@ -221,13 +225,71 @@ class ApkFileModifier(
             .replace(signConfig.keyPassword ?: "null", "***")
         logger.debug("signConfig storeType: ${signConfig.storeType}, cmdString: $cmdStringSafeForPrint")
 
-        val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true)
-        val exitCode = CmdExecutor(cmd.logger).invoke(cmd, envArray)
-        if (exitCode != 0) {
-            throw IllegalStateException("AndroidManifest.xml changed and resign APK failed, exit code: $exitCode")
-        }
+        doResign(cmdString)
         val costTime = TimeLogger.end("signApk", logger)
         logger.info(" * Sign APK finished, cost $costTime ms.")
+    }
+
+    private fun doResign(cmdString: String) {
+        val availableJdksForSign = PlatformApi.allAvailableJavaHomes().filter { javaHome ->
+            if (envArray == null) {
+                return@filter true
+            }
+            !envArray.contains("JAVA_HOME=$javaHome")
+        }
+
+        var isLastTry = availableJdksForSign.isEmpty()
+        val outputFilter: ((String) -> Boolean) = outputFilter@{ output: String ->
+            if (!isLastTry) {
+                logger.debug(output)
+                return@outputFilter false
+            }
+            return@outputFilter true
+        }
+
+        val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true, outputFilter = outputFilter)
+        val exitCode = CmdExecutor(cmd.logger).invoke(cmd, envArray)
+        if (exitCode == 0) {
+            logger.debug("doResign success")
+            return
+        }
+
+        // Oops, apksigner failed maybe JDK is incorrect. try all available JDKs
+        logger.debug("doResign failed, exit code: $exitCode, try to resign with all available JDKs: $availableJdksForSign")
+        if (availableJdksForSign.isEmpty()) {
+            logger.debug("doResign failed, exit code: $exitCode, no JDKs available for resign")
+        } else {
+            availableJdksForSign.forEachIndexed { index, javaHome ->
+                logger.debug("doResign try JAVA_HOME: $javaHome")
+                if (envArray != null && envArray.contains("JAVA_HOME=$javaHome")) {
+                    logger.debug("doResign try skip for already try")
+                    return@forEachIndexed
+                }
+                isLastTry = index == availableJdksForSign.size - 1
+                val newEnvArray = replaceJavaHome(envArray, javaHome)
+                val newExitCode = CmdExecutor(cmd.logger).invoke(cmd, newEnvArray)
+                if (newExitCode == 0) {
+                    logger.debug("doResign try success with JAVA_HOME: $javaHome")
+                    return
+                }
+            }
+        }
+
+        logger.debug("doResign failed after all try")
+        throw IllegalStateException("AndroidManifest.xml changed and resign APK failed, exit code: $exitCode")
+    }
+
+    private fun replaceJavaHome(envArray: List<String>?, jdkPath: String): List<String> {
+        if (envArray == null) {
+            return listOf("JAVA_HOME=$jdkPath")
+        }
+        return envArray.map {
+            if (it.startsWith("JAVA_HOME=")) {
+                "JAVA_HOME=$jdkPath"
+            } else {
+                it
+            }
+        }
     }
 
     private fun replaceOldApk() {
