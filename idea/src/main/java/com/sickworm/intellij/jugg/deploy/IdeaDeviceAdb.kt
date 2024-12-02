@@ -16,7 +16,7 @@ class IdeaDeviceAdb(
     ideaLoggerArg: Logger,
 ) : IDeviceAdb {
 
-    private val ideaLogger = ideaLoggerArg.getInstance("IdeaDeviceAdb")
+    private val logger = ideaLoggerArg.getInstance("IdeaDeviceAdb")
 
     override val displayName: String
         get() = device.getProperty("ro.product.manufacturer") + " " + device.getProperty("ro.product.model")
@@ -24,18 +24,18 @@ class IdeaDeviceAdb(
     override val api: Int
         get() = device.version.apiLevel
 
-    private val logger = LogWrapper(ideaLogger).also {
+    private val loggerWrapper = LogWrapper(logger).also {
         it.alwaysLogAsDebug(true)
         it.allowVerbose(true)
     }
-    private val adb = AdbClient(device, this.logger)
+    private val adb = AdbClient(device, this.loggerWrapper)
 
     @Synchronized
     override fun execAdbShellCmd(cmd: String): String {
         try {
             val cmdList = cmd.splitIgnoringQuotes()
-            logger.info("%s", "adb in:  adb shell $cmd")
-            logger.info("%s", "adb in:  cmd splits to : $cmdList")
+            logger.debug("adb in:  adb shell $cmd")
+            logger.debug("adb in:  cmd splits to : $cmdList")
             val response = adb.shell(
                 cmdList.toTypedArray(),
                 null, 5L, TimeUnit.SECONDS)
@@ -46,12 +46,12 @@ class IdeaDeviceAdb(
                 } else {
                     extraMsg
                 }
-                logger.info("%s", "adb out: $logMsg")
+                logger.debug("adb out: $logMsg")
                 return extraMsg
             }
             return ""
         } catch (e: Exception) {
-            logger.error(e, "invoke execAdbShellCmd failed")
+            logger.warn("invoke execAdbShellCmd failed", e)
             throw JuggException.invokeAdbFailed2(cmd, e)
         }
     }
@@ -62,24 +62,24 @@ class IdeaDeviceAdb(
             adb.push(from.path, to)
             true
         } catch (e: Exception) {
-            logger.error(e, "adb push failed, from: $from, to: $to")
+            logger.warn("adb push failed, from: $from, to: $to", e)
             false
         }
     }
 
     override fun getDefaultLaunchActivity(apkFile: File): String {
-        return ApkReader(apkFile, ideaLogger).getDefaultActivity()!!
+        return ApkReader(apkFile, logger).getDefaultActivity()!!
     }
 
     override fun getArch(packageName: String): String {
         try {
-            val adbClient = AdbClient(device, logger)
+            val adbClient = AdbClient(device, loggerWrapper)
             val pids = adbClient.getPids(packageName)
             val arch = adbClient.getArch(pids)
             return arch.name
         } catch (e: Exception) {
             // e.g. HarmonyOS. Let outside decide which arch to use
-            ideaLogger.debug("getArch failed $e")
+            logger.debug("getArch failed $e")
             return "ARCH_UNKNOWN"
         }
     }
