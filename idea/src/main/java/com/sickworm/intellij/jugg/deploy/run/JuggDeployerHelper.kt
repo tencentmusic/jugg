@@ -248,6 +248,10 @@ class JuggDeployerHelper(
                 }
 
                 deployData = retryDeployData ?: deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk(device, deployData))
+                if (CompatDeployHelper(logger).isHasRelaunchActivityIssues(IdeaDeviceAdb(device, logger))) {
+                    deployData = deployData.copy(isHasRelaunchActivityIssues = true)
+                }
+
                 var isNeedReinstallApk = false
                 val isRetry = retryReason != null // retry means we have already resigned the apk
                 if (deployData.isNeedUpdateApk && !isRetry) {

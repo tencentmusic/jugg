@@ -48,4 +48,8 @@ class CmdAdb(loggerArg: Logger): IDeviceAdb {
     override fun getArch(packageName: String): String {
         return "ARCH_64_BIT"
     }
+
+    override fun getProperty(name: String): String? {
+        return null
+    }
 }

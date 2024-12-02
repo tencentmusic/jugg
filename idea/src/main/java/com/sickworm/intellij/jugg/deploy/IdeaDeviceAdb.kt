@@ -84,6 +84,10 @@ class IdeaDeviceAdb(
         }
     }
 
+    override fun getProperty(name: String): String? {
+        return device.getProperty(name)
+    }
+
     companion object {
 
         /**

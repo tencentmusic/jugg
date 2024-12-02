@@ -103,6 +103,13 @@ class CompatDeployHelper(
         records = newRecords
         logger.debug("after clear record: $newRecords")
     }
+
+    fun isHasRelaunchActivityIssues(device: IDeviceAdb): Boolean {
+        // Xiaomi HyperOS 2 has problem with relaunch activity
+        val isXiaomiHyperOs2 = device.getProperty("ro.mi.os.version.code") == "2"
+        logger.debug("isHasRelaunchActivityIssues, isXiaomiHyperOs2: $isXiaomiHyperOs2")
+        return isXiaomiHyperOs2
+    }
 }
 
 data class CompatDeployRecord(

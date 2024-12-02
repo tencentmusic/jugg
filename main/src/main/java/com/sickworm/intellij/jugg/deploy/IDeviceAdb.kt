@@ -19,4 +19,9 @@ interface IDeviceAdb {
      * @see [com.android.tools.deploy.proto.Deploy.Arch]
      */
     fun getArch(packageName: String): String
+
+    /**
+     * equals: adb shell "getprop | grep $name"
+     */
+    fun getProperty(name: String): String?
 }

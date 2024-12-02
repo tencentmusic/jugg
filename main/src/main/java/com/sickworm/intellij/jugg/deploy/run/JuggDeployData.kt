@@ -42,6 +42,8 @@ data class JuggDeployData(
     val isPushOverlayOnly: Boolean = false,
     /** is using compat deploy */
     val isCompatDeploy: Boolean = false,
+    /** Device can not update overlays without restart App. Occurs in Xiaomi HyperOS 2 */
+    val isHasRelaunchActivityIssues: Boolean = false,
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
@@ -50,7 +52,9 @@ data class JuggDeployData(
             overlays.isEmpty()
 
     /** is restart app after deployment */
-    val isNeedRestartApp: Boolean get() = hotFixModifiedClasses.isNotEmpty() || (isPushOverlayOnly && !isEmpty)
+    val isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty()
+            || (isPushOverlayOnly && !isEmpty)
+            || (isNeedRestartActivity && isHasRelaunchActivityIssues)
 
     // for now, we always restart activity excepts warm up and restart app
     val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp && !isEmpty
