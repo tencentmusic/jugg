@@ -81,11 +81,11 @@ class FileLogger(
             }
             loggerHandler.formatter = formatter
 
+            val latestLogFile = File(dir, LATEST_LOG_NAME)
+            val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
             try {
                 // link file to compile_latest.log and compile_latest-1.log
-                val latestLogFile = File(dir, LATEST_LOG_NAME)
                 if (latestLogFile.exists()) {
-                    val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
                     if (lastLatestLogFile.exists()) {
                         lastLatestLogFile.delete()
                     }
@@ -93,7 +93,13 @@ class FileLogger(
                     Files.createSymbolicLink(lastLatestLogFile.toPath(), lastLatestPath)
                     latestLogFile.delete()
                 }
+            } catch (e: Exception) {
+                // robust
+                com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
+                    .warn("createFileHandler $lastLatestLogFile error", e)
+            }
 
+            try {
                 latestLogFile.delete()
                 val source = Path.of(dir.absolutePath, name)
                 val link = latestLogFile.toPath()
@@ -102,7 +108,7 @@ class FileLogger(
             } catch (e: Exception) {
                 // robust
                 com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
-                    .warn("createFileHandler error", e)
+                    .warn("createFileHandler $latestLogFile error", e)
             }
 
             return loggerHandler
