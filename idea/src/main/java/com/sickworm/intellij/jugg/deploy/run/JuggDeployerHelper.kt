@@ -386,8 +386,13 @@ class JuggDeployerHelper(
                 if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
                     val (isNeedRecover, isNeedTryDeyDeployFirst) = when {
                         isDeployTimeout -> {
-                            logger.warn("Got deploy timeout exception, reduce overlay and retry")
-                            SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(device, logger))
+                            val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
+                            if (isNeedReduce) {
+                                logger.warn("Got deploy timeout exception, reduce overlay and retry")
+                                SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(device, logger))
+                            } else {
+                                logger.warn("Got deploy timeout exception, retry")
+                            }
                             true to false
                         }
                         isOverlayIdNotCorrect -> {
