@@ -20,15 +20,24 @@ class DependencyDiffResultHelper(
         // relative path to old jar file
         // diff with full build dependencies, because library dex are in one file, which can not incremental update
         val relativeOldJar: MutableMap<String, File> = mutableMapOf()
-        diffResultWithFull.updatedLibraries.forEach {
-            val newJar = it.dependency?.libraries?.find(LibraryDependency::isJar)
-            val oldJar = it.oldDependency?.libraries?.find(LibraryDependency::isJar)
-            if (newJar != null && oldJar != null && newJar.file.path != oldJar.file.path) {
+        diffResultWithFull.updatedLibraries.forEach updatedLibrary@{ updatedLibrary ->
+            updatedLibrary.dependency?.libraries?.forEach library@{ library ->
+                val newJar = library.takeIf { it.isJar } ?: return@library
+                val oldJar = updatedLibrary.oldDependency?.libraries?.find { newJar.isRelativeOldDependencyJar(it) }
+                if (oldJar == null) {
+                    logger.debug("$library has no relative old jar")
+                    return@library
+                }
+                if (newJar.file.path == oldJar.file.path) {
+                    logger.debug("new jar file is same with old, skip: ${library.name} -> ${oldJar.file}")
+                    return@library
+                }
                 if (!oldJar.file.exists()) {
                     logger.debug("old jar file not found, it may be deleted by gradle: ${oldJar.name} -> ${oldJar.file}")
-                } else {
-                    relativeOldJar[newJar.file.absolutePath] = oldJar.file
+                    return@library
                 }
+                logger.debug("${newJar.file} has relative files: ${oldJar.file}")
+                relativeOldJar[newJar.file.absolutePath] = oldJar.file
             }
         }
 

@@ -228,7 +228,43 @@ data class LibraryDependency(
         else -> "unknown"
     }
 
+    /**
+     * Finds out relative old dependency jar file
+     * e.g.
+     * jetified-sdk-for-jugg-7.29-release/jars/classes.jar
+     * matches
+     * jetified-sdk-for-jugg-7.28-release/jars/classes.jar
+     *
+     * jetified-sdk-for-jugg-7.29-release/jars/libs/classes.jar
+     * matches
+     * jetified-sdk-for-jugg-7.28-release/jars/libs/classes.jar
+     */
+    @Suppress("RedundantIf")
+    fun isRelativeOldDependencyJar(other: LibraryDependency): Boolean {
+        if (!isJar || !other.isJar) {
+            return false
+        }
+        if (file.name != other.file.name) {
+            return false
+        }
+        val myParentFile: File = file.parentFile
+        val otherParentFile: File = other.file.parentFile
+        if (myParentFile.name != otherParentFile.name) {
+            return false
+        }
+        return true
+    }
+
     override fun toString(): String {
+        if (isJar) {
+            return if (file.parentFile.name == "jars") {
+                // e.g. classes.jar in aar
+                "$name/${file.name})"
+            } else {
+                // e.g. libs/micro_annotation.jar in aar
+                "$name/${file.parentFile.name}/${file.name})"
+            }
+        }
         return "$name/$type"
     }
 

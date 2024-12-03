@@ -15,7 +15,7 @@ val ChangedFile.dependencyName: String
     get() = extraInfo[KEY_DEPENDENCY_NAME] as String
 
 val ChangedFile.jarDexFileName: String
-    get() = dependencyNameToDexFileName(dependencyName)
+    get() = dependencyNameToDexFileName(file, dependencyName)
 
 val CompileFile.isDependency: Boolean
     get() = extraInfo.containsKey(KEY_DEPENDENCY_NAME)
@@ -24,7 +24,7 @@ val CompileFile.dependencyName: String
     get() = extraInfo[KEY_DEPENDENCY_NAME] as? String ?: "unknown_dependency"
 
 val CompileFile.jarDexFileName: String
-    get() = dependencyNameToDexFileName(dependencyName)
+    get() = dependencyNameToDexFileName(file, dependencyName)
 
 // e.g. Gradle: reactive-streams-1.0.3.jar
 fun ChangedFile.withDependencyName(name: String): ChangedFile {
@@ -103,29 +103,38 @@ fun CompileFile.withOldRes(file: File?): CompileFile {
 
 
 // e.g. org.reactivestreams:reactive-streams:1.0.3 -> #org.reactivestreams#reactive-streams.dex
-private fun dependencyNameToDexFileName(libraryName: String): String {
-    try {
+// e.g. libs/micro_annotation.jar in org.reactivestreams:reactive-streams:1.0.3 -> #org.reactivestreams#reactive-streams#libs#micro_annotation.dex
+private fun dependencyNameToDexFileName(file: File, libraryName: String): String {
+    val baseName = try {
         if (libraryName.contains(":")) {
             // e.g. org.reactivestreams:reactive-streams:1.0.3 -> #org.reactivestreams#reactive-streams.dex
             val (group, name, _) = libraryName.split(":")
-            return "#$group#$name.dex"
+            "#$group#$name"
         } else {
             // e.g. ./app/libs/library2.v2.jar -> #app#libs#library2#library2.v2.dex
-            return libraryName
+            libraryName
                 .replace("./", "#")
                 .replace("/", "#")
                 .replace(".\\", "#")
                 .replace("\\", "#")
-                .replace(".jar", "") + ".dex"
+                .replace(".jar", "")
         }
     } catch (e: Exception) {
-        return libraryName
+        libraryName
             .replace("./", "#")
             .replace("/", "#")
             .replace(".\\", "#")
             .replace("\\", "#")
-            .replace(".jar", "") + ".dex"
+            .replace(".jar", "")
     }
+
+    var subName = ""
+    if (file.parentFile.name != "jars" || file.name != "classes.jar") {
+        // it's not the main classes.jar, use unique name
+        subName = "#${file.parentFile.name}#${file.nameWithoutExtension}"
+    }
+
+    return "$baseName$subName.dex"
 }
 
 val ApkInfo.apkInfoKey: String
