@@ -67,7 +67,8 @@ fun copyResource(resourcePath: String): File {
     // location in AS: ~/Library/Caches/Google/AndroidStudio2024.1/jugg
     val storePath = File(storeRootDir, resourcePath)
     val isTestEnv = storeRootDir.path.contains("build") && storeRootDir.path.contains("idea-sandbox")
-    if (storePath.exists() && !isTestEnv) {
+    val isAlwaysUpdate = isTestEnv && !isWindows // Windows not allowed to delete it when it's running
+    if (storePath.exists() && !isAlwaysUpdate) {
         return storePath
     }
     storePath.parentFile.mkdirs()
