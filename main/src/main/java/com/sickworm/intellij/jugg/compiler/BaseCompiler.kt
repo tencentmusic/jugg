@@ -51,8 +51,13 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
                 }
             } else {
                 val itemNames = task.files.map {
-                    val prefix = if (it.isDependency) "${it.dependencyName}/" else ""
-                    prefix + it.file.name
+                    if (it.isDependency) {
+                        return@map when (it.type) {
+                            CompileFile.Type.Class -> it.jarDexFileName
+                            else -> "${it.dependencyName}/${it.file.name}"
+                        }
+                    }
+                    return@map it.file.name
                 }.distinct()
                 "[" + itemNames.joinToString(", ") + "]"
             }
