@@ -143,10 +143,12 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 
     private fun readFileContentFromApk(apk: File, path: String): ByteArray {
-        val zipFile = ZipFile(apk)
-        val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
-        val inputStream = zipFile.getInputStream(entry)
-        return inputStream.readAllBytes()
+        ZipFile(apk).use { zipFile ->
+            val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
+            zipFile.getInputStream(entry).use { inputStream ->
+                return inputStream.readAllBytes()
+            }
+        }
     }
 
     @Synchronized

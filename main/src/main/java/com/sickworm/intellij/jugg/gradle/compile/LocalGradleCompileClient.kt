@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -90,7 +91,15 @@ class LocalGradleCompileClient(
         } else {
             logger.debug("Find apk: ${apkFile.absolutePath}")
         }
-        return GradleCompileResult.success(apkFile)
+
+        // copy out for avoiding deleted by gradle
+        TimeLogger.start("copyLocalApkFile")
+        val juggPathManager = JuggPathManager(File(juggGradleCompileOptions.projectRootPath))
+        val outputApkFile = File(juggPathManager.localClasspathStoragePathManager.apkDir, apkFile.name)
+        apkFile.copyTo(outputApkFile, overwrite = true)
+        TimeLogger.end("copyLocalApkFile", logger)
+
+        return GradleCompileResult.success(outputApkFile)
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File {
