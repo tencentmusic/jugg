@@ -456,6 +456,10 @@ class JuggManager @TestOnly constructor(
         } else {
             compatDeployHelper.recordCompatDeviceRecord(adb)
         }
+        forceReInstallNextTime()
+    }
+
+    fun forceReInstallNextTime() {
         // clear lastDeployOverlayIds to force re-reinstall
         deployHistoryManager.lastDeployOverlayIds = deployHistoryManager.lastDeployOverlayIds.mapValues {
             "force re-install"

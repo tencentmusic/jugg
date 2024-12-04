@@ -146,14 +146,24 @@ class JuggRunProfileState(
                 )
                 return
             }
-            val isConfirm = CommonConfirmDialog.showAndGetResult(
+            val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
                 "Confirm fallback", "Jugg is going to fallback to gradle. Continue?",
                 okButtonText = "Yes",
-                cancelButtonText = "No",
+                negativeButtonText = "No",
+                leftButtonText = "Just Reinstall",
             )
-            if (isConfirm) {
-                forceFallbackNextTime = true
-                ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
+            when (confirmResult) {
+                ConfirmResult.POSITIVE -> {
+                    forceFallbackNextTime = true
+                    ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
+                }
+                ConfirmResult.LEFT -> {
+                    JuggInitializer.getManager(project)?.forceReInstallNextTime()
+                    ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
+                }
+                else -> {
+                    // no-op
+                }
             }
         }
     }
