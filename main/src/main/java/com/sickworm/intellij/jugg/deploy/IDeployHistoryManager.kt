@@ -33,6 +33,11 @@ interface IDeployHistoryManager {
     var lastDeployOverlayIds: Map<String, String>
 
     /**
+     * Mark to force reinstall apk on next running.
+     */
+    var isForceReinstall: Boolean
+
+    /**
      * Delete the deployment history and fallback at next time compilation.
      */
     fun deleteDeployHistory()

@@ -56,6 +56,17 @@ class DeployHistoryManager(
             deployHistoryDb.overlayIds = value
         }
 
+    override var isForceReinstall: Boolean
+        get() {
+            return lastDeployOverlayIds.any { it.value == "force re-install" }
+        }
+        set(value) {
+            if (!value) {
+                throw IllegalArgumentException("isForceReinstall can only be set to true")
+            }
+            lastDeployOverlayIds = lastDeployOverlayIds.mapValues { "force re-install" }
+        }
+
     override fun deleteDeployHistory() {
         hasBeenFullCompiledRuntime = false
         compileContextDb.deleteCompileContext()

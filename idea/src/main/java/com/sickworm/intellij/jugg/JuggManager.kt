@@ -461,9 +461,7 @@ class JuggManager @TestOnly constructor(
 
     fun forceReInstallNextTime() {
         // clear lastDeployOverlayIds to force re-reinstall
-        deployHistoryManager.lastDeployOverlayIds = deployHistoryManager.lastDeployOverlayIds.mapValues {
-            "force re-install"
-        }
+        deployHistoryManager.isForceReinstall = true
         juggRunningTaskStatusManager.resetHasRun()
     }
 

@@ -472,25 +472,32 @@ class JuggDeployerHelper(
             logger.info("App not ready to deploy, recover deploy state from history.")
         }
 
+        val isForceReinstall = deployHistoryManager.isForceReinstall
+        val reinstallTips = if (isForceReinstall) {
+            "User triggerred, start reinstalling app..."
+        } else {
+            "Deploy state not match, start reinstalling app..."
+        }
+
         // dry deploy first, if success, no need to reinstall and recover
-        if (isNeedTryDeyDeployFirst) {
+        if (isNeedTryDeyDeployFirst && !isForceReinstall) {
             val isSuccess = tryDryDeploy(device, isSkipExceptOverlayCheck)
             if (isSuccess) {
                 logger.info("Deploy state matched, no need reinstall app.")
                 return true to false
             } else {
-                logger.warn("Deploy state not match, start reinstalling app...")
+                logger.warn(reinstallTips)
                 indicator?.text = "Reinstalling app..."
-                JuggRunningTask.notifyByBalloon(project, "Deploy state not match, start reinstalling app...")
+                JuggRunningTask.notifyByBalloon(project, reinstallTips)
             }
         } else if (isInstallUpdateApk) {
             logger.info("App updated, start reinstalling app...")
             indicator?.text = "Installing app..."
             JuggRunningTask.notifyByBalloon(project, "App updated, start reinstalling app...")
         } else {
-            logger.warn("Deploy state not match, start reinstalling app...")
+            logger.warn(reinstallTips)
             indicator?.text = "Reinstalling app..."
-            JuggRunningTask.notifyByBalloon(project, "Deploy state not match, start reinstalling app...")
+            JuggRunningTask.notifyByBalloon(project, reinstallTips)
         }
 
         // recover deploy state for device
