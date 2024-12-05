@@ -323,12 +323,12 @@ class DeployHistoryDb(
     fun filterUnchangedFiles(files: List<File>): List<File> {
         if (!isAvailable) {
             logger.debug("filterUnchangedFiles failed, Git not init in this project.")
-            return files
+            return emptyList()
         }
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile) ?: run {
             logger.debug("filterUnchangedFiles failed, Project has no deployment history.")
-            return files
+            return emptyList()
         }
 
         val gitFileMap = mutableMapOf<File, MutableList<File>>()
@@ -336,7 +336,7 @@ class DeployHistoryDb(
 
         if (deployHistoryData.fullCompileGitCommitHash == null) {
             logger.debug("filterUnchangedFiles failed, Project has no full compile history.")
-            return files
+            return emptyList()
         }
         gitFileMap[projectDir] = mutableListOf()
         gitCommitMap[projectDir] = deployHistoryData.fullCompileGitCommitHash
