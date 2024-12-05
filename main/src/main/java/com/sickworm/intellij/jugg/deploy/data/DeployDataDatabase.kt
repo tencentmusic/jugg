@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName2
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
@@ -125,30 +126,34 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun addFullRes(changedOverlays: List<DeployItem>, isNeedRes: Boolean, isNeedAsset: Boolean): List<DeployItem> {
+        TimeLogger.start("addFullRes")
+
         val nameSet = changedOverlays.map { it.name }.toSet()
         val overlays = mutableListOf<DeployItem>()
         overlays.addAll(changedOverlays)
         val overlayInfos = database.values.flatMap { it.getResInfos(isNeedRes, isNeedAsset) }
-        overlayInfos.forEach {
-            if (nameSet.contains(it.name)) return@forEach
-            val deployItem = DeployItem(
-                name = it.name,
-                type = if (it.isRes) CompileOutput.Type.Res else CompileOutput.Type.Asset,
-                checksum = it.checksum,
-                content = readFileContentFromApk(apks.first().files.first().apkFile, it.name)
-            )
-            overlays.add(deployItem)
-        }
-        return overlays
-    }
+        logger.debug("addFullRes, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
 
-    private fun readFileContentFromApk(apk: File, path: String): ByteArray {
+        val apk = apks.first().files.first().apkFile
         ZipFile(apk).use { zipFile ->
-            val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
-            zipFile.getInputStream(entry).use { inputStream ->
-                return inputStream.readAllBytes()
+            overlayInfos.forEach {
+                if (nameSet.contains(it.name)) return@forEach
+                val path = it.name
+                val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
+                val content = zipFile.getInputStream(entry).use { inputStream ->
+                    inputStream.readAllBytes()
+                }
+                val deployItem = DeployItem(
+                    name = it.name,
+                    type = if (it.isRes) CompileOutput.Type.Res else CompileOutput.Type.Asset,
+                    checksum = it.checksum,
+                    content = content
+                )
+                overlays.add(deployItem)
             }
         }
+        TimeLogger.end("addFullRes", logger)
+        return overlays
     }
 
     @Synchronized
