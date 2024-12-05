@@ -24,9 +24,12 @@ class ResourceApkGenerator(
     private var resourceApkFile = File(databaseDir, BuildConfig.RESOURCE_APK_NAME)
 
     fun getResourceApkDeployItem(changedOverlays: List<DeployItem>, deployedFiles: Map<String, CompileOutput>): List<DeployItem> {
-        TimeLogger.start("update resource apk")
+        val isApkExists = resourceApkFile.exists()
+        logger.debug("getResourceApkDeployItem, isApkExists: $isApkExists")
+        TimeLogger.start("getResourceApkDeployItem")
+
         val resourceModifier = ResourceApkModifier(resourceApkFile, logger)
-        if (!resourceApkFile.exists()) {
+        if (!isApkExists) {
             val nameSet = mutableSetOf<String>()
             val deployedItems = mutableListOf<DeployItem>()
             changedOverlays.forEach {
@@ -52,8 +55,8 @@ class ResourceApkGenerator(
         } else {
             resourceModifier.incrementalUpdateResourceApk(changedOverlays)
         }
-        TimeLogger.end("update resource apk", logger)
 
+        TimeLogger.end("getResourceApkDeployItem", logger)
         return resourceModifier.toDeployItems()
     }
 

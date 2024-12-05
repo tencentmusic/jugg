@@ -23,12 +23,15 @@ class ResourceApkModifier(
         resourceApkFile.delete()
         resourceApkFile.createNewFile()
         ZipOutputStream(resourceApkFile.outputStream()).use { os ->
-            overlays.forEach { overlay ->
-                val entry = ZipEntry(overlay.name)
-                os.putNextEntry(entry)
-                os.write(overlay.content)
-                os.closeEntry()
-            }
+            val overlay = overlays.first() // must include one entry to create a normal ZIP file
+            val entry = ZipEntry(overlay.name)
+            os.putNextEntry(entry)
+            os.write(overlay.content)
+            os.closeEntry()
+        }
+        // write other overlays into ZIP file
+        if (overlays.size > 1) {
+            incrementalUpdateResourceApk(overlays.subList(1, overlays.size))
         }
     }
 
