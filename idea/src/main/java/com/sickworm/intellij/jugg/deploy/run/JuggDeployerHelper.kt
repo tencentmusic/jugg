@@ -436,7 +436,17 @@ class JuggDeployerHelper(
                 logger.debug(e)
             }
 
-            DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = !isInstall, costTime = costTime(), failedReason = reason)
+            // in this case, just stop deploy and waiting user trigger again
+            val isUserRestrict = reason.contains("INSTALL_FAILED_USER_RESTRICT")
+            // in this case, device may disconnect suddenly
+            val isDeviceNotFound = reason.contains("device") && reason.contains("not found")
+            val isNeedStopDeploy = isUserRestrict || isDeviceNotFound
+            if (isNeedStopDeploy) {
+                logger.warn("\nDeploy Stopped.")
+            }
+            val isCanFallback = !isInstall && !isNeedStopDeploy
+
+            DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = isCanFallback, costTime = costTime(), failedReason = reason)
         }
     }
 

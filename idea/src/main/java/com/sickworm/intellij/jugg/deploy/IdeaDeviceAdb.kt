@@ -51,7 +51,7 @@ class IdeaDeviceAdb(
             }
             return ""
         } catch (e: Exception) {
-            logger.warn("invoke execAdbShellCmd failed", e)
+            logger.debug("invoke execAdbShellCmd failed", e)
             throw JuggException.invokeAdbFailed2(cmd, e)
         }
     }

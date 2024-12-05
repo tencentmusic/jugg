@@ -77,7 +77,7 @@ class DeployTargetManager(
         return try {
             AdbCmdHelper(device, logger).isAppForeground(getPackageName())
         } catch (e: Exception) {
-            logger.error("isAppForeground failed, got exception:", e)
+            logger.debug("isAppForeground failed, got exception:", e)
             false
         }
     }

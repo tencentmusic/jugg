@@ -45,7 +45,7 @@ class JuggDeployer(
         packageName: String, apks: List<String>, options: InstallOptions, argInstallMode: InstallMode
     ): Result {
         val result = Result()
-        Trace.begin("install").use {
+        try {
             val splitter = CachedDexSplitter(deploymentService.dexDatabase, D8DexSplitter())
             var installMode = argInstallMode
             if (installMode == InstallMode.DELTA) {
@@ -65,6 +65,14 @@ class JuggDeployer(
             deploymentService.storeEntry(adb.serial, appId, apkList, oid, logger)
             result.overlayId = oid.sha
             return result
+        } catch (e: Exception) {
+            val realErrorMessage = logger.realErrorMessage
+            logger.info("Install failed, error: \"${realErrorMessage}\"", e)
+            if (realErrorMessage != null) {
+                throw IllegalStateException("Install failed, error: \"${realErrorMessage}\"", e)
+            } else {
+                throw e
+            }
         }
     }
 
@@ -157,8 +165,10 @@ class JuggDeployer(
                 it.overlayId = overlayId.sha
             }
         } catch (e: Exception) {
-            if (logger.isDeployTimeout) {
-                throw IllegalStateException("optimisticSwap failed by MessagePipeWrapper read() timeout, origin: ${e.message}", e)
+            val realErrorMessage = logger.realErrorMessage
+            logger.info("Deploy failed, error: \"${realErrorMessage}\"", e)
+            if (realErrorMessage != null) {
+                throw IllegalStateException("Deploy failed, error: \"${realErrorMessage}\"", e)
             } else {
                 throw e
             }

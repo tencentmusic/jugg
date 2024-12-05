@@ -6,9 +6,9 @@ import com.intellij.openapi.diagnostic.Logger
 /**
  * only print warning and error
  */
-class AdbLogWrapper(logger: Logger) : LogWrapper(logger) {
+class AdbLogWrapper(private val logger: Logger) : LogWrapper(logger) {
 
-    var isDeployTimeout = false
+    var realErrorMessage: String? = null
         private set
 
     init {
@@ -22,22 +22,26 @@ class AdbLogWrapper(logger: Logger) : LogWrapper(logger) {
 
     override fun warning(msgFormat: String?, vararg args: Any?) {
         super.warning(msgFormat, *args)
-        checkDeployTimeout(msgFormat)
+        checkMessage(msgFormat, *args)
     }
 
     override fun error(t: Throwable?, msgFormat: String?, vararg args: Any?) {
         super.error(t, msgFormat, *args)
-        checkDeployTimeout(msgFormat)
+        checkMessage(msgFormat, *args)
     }
 
     override fun verbose(msgFormat: String?, vararg args: Any?) {
         super.verbose(msgFormat, *args)
-        checkDeployTimeout(msgFormat)
+        checkMessage(msgFormat, *args)
     }
 
-    private fun checkDeployTimeout(msgFormat: String?) {
-        if (msgFormat?.contains("MessagePipeWrapper read() timeout") == true) {
-            isDeployTimeout = true
+    private fun checkMessage(msgFormat: String?, vararg args: Any?) {
+        msgFormat ?: return
+        val message = String.format(msgFormat, *args)
+        if (message.contains("MessagePipeWrapper read() timeout")) {
+            realErrorMessage = message
+        } else if (message.contains("device") && message.contains("not found")) {
+            realErrorMessage = message
         }
     }
 }
