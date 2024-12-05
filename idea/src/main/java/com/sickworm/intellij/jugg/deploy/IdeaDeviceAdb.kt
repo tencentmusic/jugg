@@ -67,8 +67,8 @@ class IdeaDeviceAdb(
         }
     }
 
-    override fun getDefaultLaunchActivity(apkFile: File): String {
-        return ApkReader(apkFile, logger).getDefaultActivity()!!
+    override fun getDefaultLaunchActivity(apkFile: File): String? {
+        return ApkReader(apkFile, logger).getDefaultActivity()
     }
 
     override fun getArch(packageName: String): String {
