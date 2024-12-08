@@ -82,6 +82,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
             )
             ClassDeployItem(it, classes.values.toList())
         }
+        ClassStringPool.clear()
         return ParsedDex(classDeployItem, methodRefs, fieldRefs, subclassRefs)
     }
 
@@ -142,6 +143,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 jobs.joinAll()
             }
         }
+        ClassStringPool.clear()
     }
 
     private fun parseDex(dexFileName: String, bytes: ByteArray,
@@ -155,7 +157,6 @@ class ApkParser: CoroutineScope by CoroutineScope(
         val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
-        ClassStringPool.clear()
     }
 
     fun parseEntries(apkInfo: ApkInfo): ApkEntries {
