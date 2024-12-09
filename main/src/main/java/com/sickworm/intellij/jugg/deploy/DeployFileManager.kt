@@ -313,6 +313,7 @@ class DeployFileManager(
 
     @Synchronized
     fun getRecompileFiles(isRecompilation: Boolean): RecompileFiles {
+        logger.debug("getRecompileFiles, isRecompilation=$isRecompilation")
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
@@ -363,7 +364,7 @@ class DeployFileManager(
             val missingFiles = effectedSourceFiles.filter { fileName ->
                 !sourceFiles.any { it.name == fileName }
             }
-            logger.warn("missing source files: $missingFiles")
+            logger.warn("getEffectedSourceFiles: missing source files: $missingFiles")
         }
 
         if (sourceFiles.isEmpty()) {

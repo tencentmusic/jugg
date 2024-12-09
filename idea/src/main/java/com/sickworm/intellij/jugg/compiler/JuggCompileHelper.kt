@@ -534,6 +534,7 @@ class JuggCompilerHelper(
             val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
 
             TimeLogger.start("CheckEffectByTopLevelClass")
+            logger.debug("CheckEffectByTopLevelClass compiledFilesThisTime: $compiledFilesThisTime, undeployedFiles: $undeployedFiles, recompileFiles: $recompileFiles")
             val compiledFilesThisTimeSet = compiledFilesThisTime.map { it.file.absolutePath }.toSet()
             val undeployedFilesSet = undeployedFiles.map { it.file.absolutePath }.toSet()
             val unCompiledEffectedFiles = changedFiles.filter { changedFile ->
