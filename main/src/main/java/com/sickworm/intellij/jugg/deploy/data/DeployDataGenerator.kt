@@ -61,50 +61,56 @@ class DeployDataGenerator(
         val changedFieldRef = mutableListOf<FieldNode>()
         val changedAbstractClasses = mutableListOf<ClassNode>()
         val deletedNormalMethodClasses = mutableListOf<ClassNode>()
-        changedClasses.forEach {
+        changedClasses.forEach changedClasses@{
             if (it.isMultipleDex || it.isLibraryDex) {
                 logger.debug("deploy dex ${it.name} is multiple dex / library dex, need hot fix.")
                 hotFixModifiedClasses.add(it)
-                return@forEach
             }
+            it.classNodes.forEach classNodes@{ newClassNode ->
+                val className = newClassNode.className
+                val oldClassNode: ClassNode? = oldClassNodes[className]
+                if (oldClassNode == null) {
+                    newClasses.add(it)
+                    return@classNodes
+                }
 
-            val newClassNode = it.classNodes.first()
-            val className = newClassNode.className
-            val oldClassNode: ClassNode? = oldClassNodes[className]
-            if (oldClassNode == null) {
-                newClasses.add(it)
-                return@forEach
-            }
+                // compare class node difference
+                val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
 
-            // compare class node difference
-            val result = ClassNodeComparator(oldClassNode, newClassNode).compare()
-            if (result.isCanHotReload) {
-                // no breaking changes, hot reload
-                logger.debug("class $className structure not changed: $result")
-                hotReloadModifiedClasses.add(it)
-            } else {
-                // different structure, hot fix
-                logger.debug("class $className structure changed, need hot fix: $result")
-                hotFixModifiedClasses.add(it)
-            }
+                if (result.isCanHotReload) {
+                    logger.debug("class $className structure not changed: $result")
+                } else {
+                    logger.debug("class $className structure changed, need hot fix: $result")
+                }
+                if (!(it.isMultipleDex || it.isLibraryDex)) {
+                    if (result.isCanHotReload) {
+                        // no breaking changes, hot reload
+                        hotReloadModifiedClasses.add(it)
+                    } else {
+                        // different structure, hot fix
+                        hotFixModifiedClasses.add(it)
+                    }
+                }
 
-            // we don't care about abstract, because it won't affect class bytecode.
-            // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
-            changedMethodRef.addAll(result.effectMethods)
-            changedFieldRef.addAll(result.deletedFields)
-            if (result.isAddedAbstractMethodForNonAbstractClass) {
-                changedAbstractClasses.add(newClassNode)
-            }
+                // we don't care about abstract, because it won't affect class bytecode.
+                // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
+                changedMethodRef.addAll(result.effectMethods)
+                changedFieldRef.addAll(result.deletedFields)
+                if (result.isAddedAbstractMethodForNonAbstractClass) {
+                    changedAbstractClasses.add(newClassNode)
+                }
 
-            val deletedNormalMethod = result.effectMethods.filter { method ->
-                !method.name.contains("$")
-            }
-            if (deletedNormalMethod.isNotEmpty()) {
-                deletedNormalMethodClasses.add(newClassNode)
+                val deletedNormalMethod = result.effectMethods.filter { method ->
+                    !method.name.contains("$")
+                }
+                if (deletedNormalMethod.isNotEmpty()) {
+                    deletedNormalMethodClasses.add(newClassNode)
+                }
             }
         }
 
         var overlays = changedOverlays
+        logger.debug("changedOverlays: $overlays")
         val isFullRes = isWarmUp || (overlays.isNotEmpty() && !deployDataDatabase.isDeployedOverlaysBefore())
         if (isFullRes) {
             // first time deploy must do full deployment
