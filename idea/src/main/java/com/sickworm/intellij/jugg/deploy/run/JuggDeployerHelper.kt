@@ -384,46 +384,53 @@ class JuggDeployerHelper(
                 val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
 
                 if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
-                    val (isNeedRecover, isNeedTryDeyDeployFirst) = when {
+                    var isNeedRecover = true
+                    var isNeedTryDeyDeployFirst = false
+                    var isRetryDirectly = false
+                    when {
                         isDeployTimeout -> {
                             val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
                             if (isNeedReduce) {
                                 logger.warn("Got deploy timeout exception, reduce overlay and retry")
                                 SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(device, logger))
                             } else {
-                                logger.warn("Got deploy timeout exception, retry")
+                                logger.warn("Got deploy timeout exception, retry after 5s.")
+                                Thread.sleep(5_000)
+                                isRetryDirectly = true
                             }
-                            true to false
                         }
                         isOverlayIdNotCorrect -> {
                             logger.info("Deploy history mismatch with the device, try recover deploy state.")
-                            true to false
                         }
                         isClassNotFoundException -> {
                             logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
-                            true to true
+                            isNeedTryDeyDeployFirst = true
                         }
                         isOverlayIdNotMatch -> {
                             logger.info("The device's deploy status mismatch with this project, try recover deploy state.")
-                            true to true
+                            isNeedTryDeyDeployFirst = true
                         }
-                        else -> false to false
+                        else -> {
+                            logger.warn("Got unknown exception. $reason")
+                            isNeedRecover = false
+                        }
                     }
                     if (isNeedRecover) {
-                        val (isSuccess, _) = recoverDeployState(device, indicator, isNeedTryDeyDeployFirst, isSkipExceptOverlayCheck)
-                        val result: DeployTaskResult = if (!isSuccess) {
-                            logger.info("Try recover deploy state failed on retry.")
-                            DeployTaskResult(isSuccess = false, costTime = costTime(),
-                                failedReason = "Try recover deploy state failed on retry.")
-                        } else {
-                            logger.info("Try recover deploy state success on retry.")
-                            juggServer.report {
-                                action = "incremental_deploy_retry_after_recover"
-                                detail = reason
+                        if (!isRetryDirectly) {
+                            val (isSuccess, _) = recoverDeployState(device, indicator, isNeedTryDeyDeployFirst, isSkipExceptOverlayCheck)
+                            if (!isSuccess) {
+                                logger.info("Try recover deploy state failed on retry.")
+                                DeployTaskResult(isSuccess = false, costTime = costTime(),
+                                    failedReason = "Try recover deploy state failed on retry.")
+                            } else {
+                                logger.info("Try recover deploy state success on retry.")
+                                juggServer.report {
+                                    action = "incremental_deploy_retry_after_recover"
+                                    detail = reason
+                                }
                             }
-                            deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, startTime = startTime, isSkipExceptOverlayCheck = true)
                         }
-                        return result.copy(costTime = costTime())
+                        return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, startTime = startTime, isSkipExceptOverlayCheck = true)
                     }
                 }
             }
@@ -520,7 +527,7 @@ class JuggDeployerHelper(
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
 
         // device need to be deployable, otherwise deployer can not get the correct arch of App.
-        val isDeviceDeployable = waitingForDeployable(device, maxWaitTimeSecond = 12)
+        val isDeviceDeployable = waitingForDeployable(device, maxWaitTimeSecond = 5)
         if (!isDeviceDeployable) {
             logger.warn("App not deployable after reinstalling.")
             return false to false
