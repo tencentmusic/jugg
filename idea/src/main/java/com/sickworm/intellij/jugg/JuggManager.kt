@@ -254,7 +254,14 @@ class JuggManager @TestOnly constructor(
     ) {
         // prints file changed info
         if (deletedFiles.isNotEmpty()) {
-            logger.debug("Detect file deleted: ${deletedFiles.map { it.name }}")
+            // not strict rules, just print it out for debug
+            val simpleFilterFiles = changedFiles.filter {
+                !it.path.contains("build") &&
+                        !it.path.contains(".idea") &&
+                        !it.path.contains(".git") &&
+                        it.name != ".DS_Store"
+            }
+            logger.debug("Detect file deleted: ${simpleFilterFiles.map { it.name }}")
             deployFileManager.removeChangedFile(deletedFiles)
         }
         if (changedFiles.isNotEmpty()) {
