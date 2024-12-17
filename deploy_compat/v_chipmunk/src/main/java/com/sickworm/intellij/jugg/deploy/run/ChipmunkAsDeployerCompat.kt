@@ -269,16 +269,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         val androidConfigSettings = allConfigSettings.filter { it.type is AndroidRunConfigurationType }
         logger.debug("androidConfigSettings ${androidConfigSettings.map { it.name }}")
 
-
-        // compatible with old jugg config. if project has old config "jugg:app" and the module have none app module,
-        // ignore suggest to avoid duplicate configs
-        val hasOldConfigs = androidConfigSettings.all { it.name != "app" }
-                && existsModuleForRunConfig.any { it == "app" }
-        if (hasOldConfigs) {
-            logger.debug("getSuggestRunConfigurations: detect old jugg config, ignore suggest")
-            return emptyList()
-        }
-
         androidConfigSettings.forEach { configSettings ->
             val suggestRunConfig = getSuggestRunConfiguration(configSettings, project, logger)
             if (suggestRunConfig == null) {
