@@ -42,6 +42,8 @@ abstract class BaseSshCommand : ISshCommand {
 
     abstract val baseCommand: String
 
+    private val resultEcho = "(Jugg) ${this::class.simpleName} result: "
+
     /**
      * add echo at last to confirm exec finished and get the result
      * '\n' to avoid control ascii code on the line start
@@ -53,10 +55,10 @@ abstract class BaseSshCommand : ISshCommand {
             baseCommand
         }
         val command = if (isWindows) {
-            val escapeResultEcho = RESULT_ECHO.replace("(", "^(").replace(")", "^)")
+            val escapeResultEcho = resultEcho.replace("(", "^(").replace(")", "^)")
             "$fixedBaseCommand && (echo. & echo ${escapeResultEcho}0& echo.) || (echo. & echo ${escapeResultEcho}1& echo.)"
         } else {
-            "$fixedBaseCommand ; echo \"\n$RESULT_ECHO\$?\n\""
+            "$fixedBaseCommand ; echo \"\n$resultEcho\$?\n\""
         }
         if (isNeedSetChineseLanguage && !isWindows) {
             return "export LC_CTYPE=\"zh_CN.utf8\" ; $command"
@@ -65,14 +67,10 @@ abstract class BaseSshCommand : ISshCommand {
     }
 
     override fun hasFinishWithResult(terminalOutputLine: String): Int? {
-        if (terminalOutputLine.startsWith(RESULT_ECHO) && !terminalOutputLine.endsWith("?")) {
-            return terminalOutputLine.substring(RESULT_ECHO.length).toInt()
+        if (terminalOutputLine.startsWith(resultEcho) && !terminalOutputLine.endsWith("?")) {
+            return terminalOutputLine.substring(resultEcho.length).toInt()
         }
         return null
-    }
-
-    companion object {
-        private const val RESULT_ECHO = "(Jugg) command result: "
     }
 }
 
