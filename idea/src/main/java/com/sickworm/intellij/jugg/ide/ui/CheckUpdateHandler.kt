@@ -32,10 +32,6 @@ class CheckUpdateHandler(
             }
         }
 
-        if (versionData.templateList.isNotEmpty()) {
-            JuggSettings.compileTemplateList = versionData.templateList
-        }
-
         if (versionData.customConfigJson != null) {
             versionData.customConfigJson?.let {
                 customConfigManager.updateDefaultConfig(it)

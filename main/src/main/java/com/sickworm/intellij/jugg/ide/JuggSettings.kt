@@ -22,7 +22,6 @@ object JuggSettings {
 
     // default compile settings
     private var defaultCompileSettingsJson: String by propertiesComponent.delegate(defaultValue = "")
-    private var compileTemplateListJson: String by propertiesComponent.delegate(defaultValue = "")
 
     var isConfirmFallbackWhenNoFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
 
@@ -112,67 +111,12 @@ object JuggSettings {
                 } catch (e: Exception) {
                     // ignore
                 }
-            } else if (compileTemplateList.isNotEmpty()) {
-                // use first template settings
-                default = compileTemplateList.first()
             }
             return default
         }
         set(value) {
             defaultCompileSettingsJson = Gson().toJson(value)
         }
-
-    private var compileTemplateListCache: List<RunConfigurationTemplate>? = null
-    var compileTemplateList: List<RunConfigurationTemplate>
-        get() {
-            compileTemplateListCache?.let {
-                return it
-            }
-            val compileTemplateList = compileTemplateListJson
-            if (compileTemplateList.isEmpty()) {
-                return emptyList()
-            }
-
-            try {
-                compileTemplateListCache = GsonBuilder()
-                    .registerTypeAdapter(String::class.java, RunConfigurationTemplate.typeAdapter)
-                    .create()
-                    .fromJson(compileTemplateList, RunConfigurationTemplate.listType)
-            } catch (e: Exception) {
-                // ignore
-            }
-            return compileTemplateListCache ?: emptyList()
-        }
-        set(value) {
-            compileTemplateListCache = null // don't save it directly, because value won't be processed by typeAdapter
-            compileTemplateListJson = Gson().toJson(value)
-        }
-
-    init {
-        // compat with old version of Jugg
-        if (defaultCompileSettingsJson.isEmpty() && propertiesComponent.getValue("defaultCompileCommand", "") != "") {
-            val recoverTemplate = RunConfigurationTemplate(
-                "Default",
-                propertiesComponent.getValue("defaultCompileCommand"),
-                propertiesComponent.getValue("defaultOutputApkName"),
-                propertiesComponent.getBoolean("defaultIsRemoteCompile"),
-                propertiesComponent.getValue("defaultRemoteSshUser"),
-                propertiesComponent.getValue("defaultRemoteSshIp"),
-                propertiesComponent.getValue("defaultRemoteSshPassword"),
-                propertiesComponent.getInt("defaultRemoteSshPort", 0),
-                propertiesComponent.getValue("defaultLocalToRemoteIftConfigName"),
-                propertiesComponent.getValue("defaultLocalToRemoteSyncPath"),
-                propertiesComponent.getValue("defaultRemoteSyncPath"),
-                propertiesComponent.getValue("defaultRemoteToLocalIftConfigName"),
-                propertiesComponent.getValue("defaultRemoteToLocalSyncPath"),
-                propertiesComponent.getValue("defaultHttpProxyIp"),
-                propertiesComponent.getInt("defaultHttpProxyPort", 0),
-                propertiesComponent.getBoolean("defaultIsSyncAllProjects"),
-                SyncMode.IFT.modeName,
-            )
-            defaultCompileSettingsJson = Gson().toJson(recoverTemplate)
-        }
-    }
 }
 
 /**

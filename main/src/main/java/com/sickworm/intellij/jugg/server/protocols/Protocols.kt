@@ -7,6 +7,7 @@ data class VersionData(
     val latestVersion: String,
     val isNeedUpgrade: Boolean,
     val downloadUrl: String,
+    @Deprecated("wont' use after v1.2.0")
     val templateList: List<RunConfigurationTemplate>,
     val notification: NotificationData?,
     val customConfigJson: ProjectCustomConfig?,
