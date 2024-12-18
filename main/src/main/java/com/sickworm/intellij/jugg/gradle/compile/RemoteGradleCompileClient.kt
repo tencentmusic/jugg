@@ -196,7 +196,23 @@ class RemoteGradleCompileClient(
             availableKeys.addAll(keysInConfig)
         }
 
-        return availableKeys.toList()
+        val filteredAvailableKeys = availableKeys.filter {
+            if (!File(it).exists()) {
+                logger.debug("ignore key $it, file not exists")
+                return@filter false
+            }
+            if (!File(it).canRead()) {
+                logger.debug("ignore key $it, file can't read")
+                return@filter false
+            }
+            if (!File(it).readText().startsWith("-")) {
+                logger.debug("ignore key $it, file not starts with -")
+                return@filter false
+            }
+            return@filter true
+        }
+
+        return filteredAvailableKeys
     }
 
     private fun File.toHomeAbsolutePath(): String {
@@ -210,6 +226,7 @@ class RemoteGradleCompileClient(
     private fun JSch.addIdentitySafe(keyPath: String) {
         try {
             addIdentity(keyPath)
+            logger.debug("addIdentity success, keyPath $keyPath")
         } catch (e: JSchException) {
             logger.debug("addIdentity failed, keyPath $keyPath is invalid. error: ${e.message}")
         }
