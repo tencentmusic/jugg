@@ -261,7 +261,9 @@ class JuggManager @TestOnly constructor(
                         !it.path.contains(".git") &&
                         it.name != ".DS_Store"
             }
-            logger.debug("Detect file deleted: ${simpleFilterFiles.map { it.name }}")
+            if (simpleFilterFiles.isNotEmpty()) {
+                logger.debug("Detect file deleted: ${simpleFilterFiles.map { it.name }}")
+            }
             deployFileManager.removeChangedFile(deletedFiles)
         }
         if (changedFiles.isNotEmpty()) {
