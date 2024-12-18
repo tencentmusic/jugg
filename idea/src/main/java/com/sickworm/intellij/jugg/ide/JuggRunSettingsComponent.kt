@@ -12,6 +12,8 @@ import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.compiler.ReportConfirmDialog
 import com.sickworm.intellij.jugg.compiler.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
@@ -242,6 +244,7 @@ class JuggRunSettingsComponent : JComponent() {
             return
         }
 
+        ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
         val deferred = JuggServer(project).reportAndUploadLogs()
         deferred.invokeOnCompletion {
             val uploadResult = deferred.getCompleted()

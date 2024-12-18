@@ -5,6 +5,7 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient.Companion.parseDiffSet
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggException
@@ -17,7 +18,7 @@ import java.io.InputStream
 import java.io.PrintStream
 
 class RemoteGradleCompileClient(
-    project: Project,
+    private val project: Project,
     private val isRemoteWindows: Boolean = false,
     private val logger: com.intellij.openapi.diagnostic.Logger = JuggLogger.getInstance(project, "RemoteGradleCompileClient"),
 ) : IGradleCompileClient {
@@ -356,6 +357,12 @@ class RemoteGradleCompileClient(
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
+        if (!JuggSettings.isEnableBackupClasspath) {
+            logger.info("isSupportsBackupClasspath is false, skip fetchClasspathResult")
+            val projectRootPath = File(project.basePath!!)
+            return projectRootPath
+        }
+
         val (channel, gradleCompileSettings) = checkLoginOnStart()
 
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {

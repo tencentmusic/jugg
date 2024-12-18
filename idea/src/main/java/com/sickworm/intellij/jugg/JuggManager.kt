@@ -536,6 +536,11 @@ class JuggManager @TestOnly constructor(
         })
     }
 
+    fun setEnableBackupClasspath() {
+        logger.info("[options] setEnableBackupClasspath ${JuggSettings.isEnableBackupClasspath}")
+        deployHistoryManager.deleteDeployHistory()
+    }
+
     fun dumpLogcatErrorLogs(): String {
         return deployTargetManager.dumpErrorLogs()
     }

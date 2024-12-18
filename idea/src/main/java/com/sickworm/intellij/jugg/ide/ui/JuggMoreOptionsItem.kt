@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide.ui
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.CompatDeployHelper
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.ide.JuggInitializer
@@ -156,6 +157,23 @@ class JuggMoreOptionsItem(
                         }
                     )
                 }
+            }
+
+            if (!isWindows) {
+                createOption(
+                    name = "Enable backup classpath",
+                    onGet = { JuggSettings.isEnableBackupClasspath },
+                    onSet = {
+                        val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                            "Confirm Switch Backup Classpath",
+                            "<html>This will effects compilation stability. Continue?</html>"
+                        )
+                        if (isConfirmed) {
+                            JuggSettings.isEnableBackupClasspath = it
+                            JuggInitializer.getManager(project)?.setEnableBackupClasspath()
+                        }
+                    }
+                )
             }
 
             createSplitLine("(Test) Mock Events")

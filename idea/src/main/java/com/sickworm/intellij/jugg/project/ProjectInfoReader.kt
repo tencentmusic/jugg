@@ -1,7 +1,5 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
-import com.android.tools.idea.gradle.dsl.api.dependencies.ArtifactDependencyModel
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -13,6 +11,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
+            logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
             logger.debug("systemPath: ${File(PathManager.getSystemPath())}")

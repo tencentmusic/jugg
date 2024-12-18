@@ -5,6 +5,7 @@ package com.sickworm.intellij.jugg.ide
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
+import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.server.listType
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
@@ -86,7 +87,10 @@ object JuggSettings {
      */
     const val overlayDeploySplitSizeFirstSlice = 10_000
 
-    val isSupportsBackupClasspath: Boolean = !isWindows // windows not support rsync, so disable backup classpath
+    // windows not support rsync, so disable backup classpath
+    // macOS below 10.13 may not work properly, default disabled too
+    private val macOsOld = isMac && ((System.getProperty("os.version")?.split(".")?.getOrNull(0)?.toIntOrNull() ?: 0) <= 12)
+    var isEnableBackupClasspath: Boolean by propertiesComponent.delegate(defaultValue = !isWindows && !macOsOld)
 
     var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 

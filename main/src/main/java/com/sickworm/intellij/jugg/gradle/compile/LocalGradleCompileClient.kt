@@ -106,8 +106,8 @@ class LocalGradleCompileClient(
         isCanceled = false
 
         val projectRootPath = File(project.basePath!!)
-        if (!JuggSettings.isSupportsBackupClasspath) {
-            logger.info("backup classpath not support yet")
+        if (!JuggSettings.isEnableBackupClasspath) {
+            logger.info("isSupportsBackupClasspath is false, skip fetchClasspathResult")
             return projectRootPath
         }
 
