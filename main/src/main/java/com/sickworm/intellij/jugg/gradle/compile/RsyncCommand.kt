@@ -8,7 +8,7 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 
 abstract class RsyncCommand(val options: JuggGradleCompileOptions, keyPathList: List<String>): BaseSshCommand() {
 
-    private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString { "-i $it" }
+    private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString(" ") { "-i $it" }
 
     protected val sshArguments = "-e 'ssh -p ${options.remoteSshPort} $keyPathArguments'"
 
