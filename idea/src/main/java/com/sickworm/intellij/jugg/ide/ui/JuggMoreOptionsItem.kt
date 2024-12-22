@@ -113,7 +113,7 @@ class JuggMoreOptionsItem(
                 onSet = { JuggInitializer.getManager(project)?.setCustomServerUrl() }
             )
 
-            createSplitLine("Experimental functions")
+            createSplitLine("Function switches")
 
             createOption(
                 name = "Enable inject Gradle compilation",
