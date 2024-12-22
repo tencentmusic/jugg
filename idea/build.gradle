@@ -49,60 +49,6 @@ sourceSets {
     }
 }
 
-// copy different config.properties to jar depending on build type
-tasks.register('jarExtranet') {
-    doFirst {
-        copy {
-            from 'src/main/config/extranet'
-            into 'src/main/config/final'
-            include 'config.properties'
-        }
-    }
-    //noinspection ConfigurationAvoidance
-    tasks.findByName('processResources').dependsOn('jarExtranet')
-}
-tasks.register('buildPluginExtranet') {
-    dependsOn('buildPlugin')
-    dependsOn('jarExtranet')
-    doLast {
-        // rename
-        File file = new File("${buildDir}/distributions/${archivesBaseName}-${version}.zip")
-        File newFile = new File("${buildDir}/distributions/${archivesBaseName}-extranet-${version}.zip")
-        file.renameTo(newFile)
-    }
-}
-
-tasks.register('jarIntranet') {
-    doFirst {
-        copy {
-            from 'src/main/config/intranet'
-            into 'src/main/config/final'
-            include 'config.properties'
-        }
-    }
-    //noinspection ConfigurationAvoidance
-    tasks.findByName('processResources').dependsOn('jarIntranet')
-}
-tasks.register('buildPluginIntranet') {
-    dependsOn('buildPlugin')
-    dependsOn('jarIntranet')
-    doLast {
-        // delete extranet zip
-        new File("${buildDir}/distributions").listFiles().collect().forEach {
-            if (it.name.contains('extranet')) {
-                it.delete()
-            }
-        }
-    }
-}
-
-if (!file('src/main/config/final/config.properties').exists()) {
-    File sourceFile = file("src/main/config/intranet/config.properties")
-    File destFile = file("src/main/config/final/config.properties")
-    destFile.parentFile.mkdirs()
-    Files.copy(Paths.get(sourceFile.path), Paths.get(destFile.path))
-}
-
 patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log.html").getText('UTF-8')
 
 runIde {

@@ -29,6 +29,8 @@ interface IPlatformApi {
         content: String,
         subTitle: String? = null,
         isPassword: Boolean = false,
+        defaultInputText: String? = null,
+        title: String? = null,
     ): String?
 
     fun parseApks(apkFiles: List<String>): List<Apk>

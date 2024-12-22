@@ -7,7 +7,6 @@ import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isWindows
-import com.sickworm.intellij.jugg.server.listType
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
 import kotlin.reflect.KProperty
@@ -117,6 +116,9 @@ object JuggSettings {
         set(value) {
             defaultCompileSettingsJson = Gson().toJson(value)
         }
+
+    var serverUrl: String? by propertiesComponent.delegate(defaultValue = null)
+    var serverExpireTimeMill: Long by propertiesComponent.delegate(defaultValue = 0L)
 }
 
 /**
@@ -144,6 +146,10 @@ private class PropertiesDelegate(
             java.lang.Integer::class.java, Int::class.java -> propertiesComponent.getInt(name, (defaultValue as? Int?: 0))
             java.lang.Float::class.java, Float::class.java -> propertiesComponent.getFloat(name, (defaultValue as? Float?: 0f))
             java.lang.Boolean::class.java, Boolean::class.java -> propertiesComponent.getBoolean(name, (defaultValue as? Boolean?: false))
+            java.lang.Long::class.java, Long::class.java -> {
+                val defaultValue = defaultValue as? Long ?: 0L
+                propertiesComponent.getValue(name, defaultValue.toString()).toLongOrNull() ?: defaultValue
+            }
             String::class.java -> propertiesComponent.getValue(name, (defaultValue as? String?: ""))
             else -> throw IllegalArgumentException("PropertiesDelegate not support class $clazz")
         }
@@ -159,7 +165,8 @@ private class PropertiesDelegate(
             java.lang.Integer::class.java, Int::class.java -> propertiesComponent.setValue(name, i as Int, (defaultValue as? Int?: 0))
             java.lang.Float::class.java, Float::class.java -> propertiesComponent.setValue(name, i as Float, (defaultValue as? Float?: 0f))
             java.lang.Boolean::class.java, Boolean::class.java -> propertiesComponent.setValue(name, i as Boolean, (defaultValue as? Boolean?: false))
-            String::class.java -> propertiesComponent.setValue(name, i as String, (defaultValue as? String?: ""))
+            java.lang.Long::class.java, Long::class.java -> propertiesComponent.setValue(name, i.toString(), (defaultValue as? Long ?: 0L).toString())
+            String::class.java -> propertiesComponent.setValue(name, i as String?, (defaultValue as? String?: ""))
             else -> throw IllegalArgumentException("PropertiesDelegate not support class $clazz")
         }
     }

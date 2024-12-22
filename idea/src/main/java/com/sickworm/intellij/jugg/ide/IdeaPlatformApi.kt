@@ -36,8 +36,8 @@ class IdeaPlatformApi : IPlatformApi {
         return DependencyChangeDialogHelper(logger).showChangeConfirmDialog(diffResult, isRunLater)
     }
 
-    override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean): String? {
-        return UserAndPasswordInputDialog.showAndGetResult(content, subTitle, isPassword)
+    override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? {
+        return UserAndPasswordInputDialog.showAndGetResult(content, subTitle, isPassword, defaultInputText, title)
     }
 
     override fun parseApks(apkFiles: List<String>): List<Apk> {

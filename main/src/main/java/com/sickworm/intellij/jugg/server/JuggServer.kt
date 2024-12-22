@@ -4,9 +4,11 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -21,7 +23,6 @@ import java.io.File
 import java.io.IOException
 import java.net.URLEncoder
 import java.security.MessageDigest
-import java.util.*
 import java.util.jar.Manifest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -43,13 +44,6 @@ class JuggServer(
 
     companion object {
 
-        private val properties: Properties = run {
-            val cl = JuggServer::class.java.classLoader
-            val properties = Properties()
-            properties.load(cl.getResourceAsStream("config.properties"))
-            return@run properties
-        }
-
         private fun getVersion(): String {
             val cl = JuggServer::class.java.classLoader
             val manifest = Manifest(cl.getResourceAsStream("META-INF/MANIFEST.MF"))
@@ -57,12 +51,14 @@ class JuggServer(
         }
     }
 
-    private var serverUrl: String? = properties.getProperty("jugg.reportServer")
+    private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
+
+    private val juggServerChooser = JuggServerChooser(logger)
+    private val serverUrl: String? get() = JuggSettings.serverUrl
     private val reportEventUrl get() = "$serverUrl/report_event"
     private val checkUpdateUrl get() = "$serverUrl/check_update"
     private val reportIssueUrl get() = "$serverUrl/report_issue"
 
-    private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
 
     private val username: String = getUserName()
 
@@ -183,10 +179,6 @@ class JuggServer(
         }
     }
 
-    fun updateServerUrl(url: String) {
-        serverUrl = url
-    }
-
     private fun zipTo(destFile: File, sourceFiles: List<File>) {
         if (destFile.exists()) {
             destFile.delete()
@@ -274,6 +266,8 @@ class JuggServer(
 
     private fun doReport(data: ReportEventData) {
         try {
+            juggServerChooser.updateServerIfExpired()
+
             if (serverUrl == null) {
                 logger.debug("report ${data.action} skip: serverUrl is null")
                 return
@@ -305,6 +299,16 @@ class JuggServer(
         val defaultName = System.getProperty("user.name") ?: "jugg_user_unknown"
         val projectDir = pathManager?.projectDir ?: return defaultName
         return PlatformApi.createGitManagerAndTrySearchParent(projectDir).userName ?: defaultName
+    }
+
+    fun updateServer(servers: List<ServerRule>?) {
+        launch {
+            juggServerChooser.updateServer(servers)
+        }
+    }
+
+    fun setCustomServer() {
+        juggServerChooser.setCustomServer()
     }
 }
 

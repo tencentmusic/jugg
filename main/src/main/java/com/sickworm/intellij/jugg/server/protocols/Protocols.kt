@@ -19,7 +19,7 @@ data class VersionData(
 }
 
 data class ProjectCustomConfig(
-    val serverUrls: List<String>? = null,
+    val servers: List<ServerRule>? = null,
     @Deprecated("use buildFileRules after Jugg 2.0.1")
     val buildFileList: List<String>,
     val buildFileRules: List<String>,
@@ -30,4 +30,9 @@ data class NotificationData(
     val content: String,
     val buttonText: String,
     val jumpUrl: String,
+)
+
+data class ServerRule(
+    val url: String,
+    val checkReachableHost: String?,
 )

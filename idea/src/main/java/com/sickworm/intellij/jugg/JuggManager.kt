@@ -105,9 +105,7 @@ class JuggManager @TestOnly constructor(
                 return
             }
             customConfigManager.config?.let { config ->
-                config.serverUrls?.first()?.let {
-                    juggServer.updateServerUrl(it)
-                }
+                juggServer.updateServer(config.servers)
                 config.buildFileRules.let {
                     fileChangesHandler.updateBuildFileRules(it)
                 }
@@ -521,6 +519,11 @@ class JuggManager @TestOnly constructor(
                 dirInClasspath.copyRecursively(dirInLocal, overwrite = true)
             }
         }, isBlockIncrementalCompile = false)
+    }
+
+    fun setCustomServerUrl() {
+        logger.info("[options] setNewServerUrl")
+        juggServer.setCustomServer()
     }
 
     fun enableCompatibleDeploymentMode() {

@@ -109,6 +109,11 @@ class JuggMoreOptionsItem(
                 { JuggInitializer.getManager(project)?.copyGeneratedSourceToLocal() }
             )
 
+            createOption(
+                name = "Set custom server URL",
+                onSet = { JuggInitializer.getManager(project)?.setCustomServerUrl() }
+            )
+
             createSplitLine("Experimental functions")
 
             createOption(

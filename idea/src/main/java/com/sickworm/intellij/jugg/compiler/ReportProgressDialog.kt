@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.util.ui.JBUI
+import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.server.UploadResult
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -50,10 +51,10 @@ class ReportProgressDialog : DialogWrapper(true) {
 
     fun setResult(uploadResult: UploadResult) {
         val text = if (uploadResult.isSuccess) {
-            "Report success. Report ID: ${uploadResult.reportId ?: "null"}"
+            "<html>Report success. Report ID: ${uploadResult.reportId ?: "null"}<br/>Server: ${JuggSettings.serverUrl}</html>"
         } else {
             setOKButtonText("Copy Error and Close")
-            "Report failed. Error: ${uploadResult.errorMessage}"
+            "<html>Report failed. Error: ${uploadResult.errorMessage}<br/>Server: ${JuggSettings.serverUrl}</html>"
         }
 
         val copyText = if (uploadResult.isSuccess) {
@@ -62,7 +63,7 @@ class ReportProgressDialog : DialogWrapper(true) {
             text
         }
         getButton(okAction)?.addActionListener {
-            saveTextToClipboard("Jugg report ID: $copyText")
+            saveTextToClipboard("Jugg report ID: $copyText\nServer: ${JuggSettings.serverUrl}")
         }
 
         isOKActionEnabled = true
