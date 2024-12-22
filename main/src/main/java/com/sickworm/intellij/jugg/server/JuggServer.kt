@@ -148,6 +148,9 @@ class JuggServer(
                     logger.warn(errorMessage)
                     return@async UploadResult.fail(errorMessage)
                 }
+                val logFiles = logDir.listFiles()?.filter {
+                    !it.name.startsWith("compile_latest") && !it.name.endsWith(".lck")
+                } ?: emptyList()
 
                 logger.debug("start dump logcatErrorLogs")
                 val logcatErrorLog = PlatformApi.dumpLogcatErrorLogs(project) ?: "null"
@@ -158,7 +161,7 @@ class JuggServer(
                 logcatFile.writeText(logcatErrorLog)
                 logger.debug("dump logcatErrorLogs finished")
 
-                zipTo(destFile, listOf(logDir, logcatFile))
+                zipTo(destFile, logFiles + logcatFile)
                 val uploadResult = uploadFile(destFile)
                 if (!uploadResult.isSuccess) {
                     logger.warn("reportAndUploadLogs failed: ${uploadResult.errorMessage}")
