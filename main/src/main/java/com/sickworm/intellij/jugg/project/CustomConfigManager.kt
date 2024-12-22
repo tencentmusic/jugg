@@ -21,11 +21,11 @@ class CustomConfigManager(
     private var cacheKey: String = "null"
     private var configCache: ProjectCustomConfig? = null
 
-    val config: ProjectCustomConfig? = null
+    val config: ProjectCustomConfig?
         get() {
             val newCacheKey = getCacheKey()
             if (cacheKey != newCacheKey) {
-                logger.debug("Custom config changed from $field to $newCacheKey, reload it.")
+                logger.debug("Custom config changed from $cacheKey to $newCacheKey, reload it.")
                 configCache = loadDefaultConfig()
                 cacheKey = newCacheKey
             }
