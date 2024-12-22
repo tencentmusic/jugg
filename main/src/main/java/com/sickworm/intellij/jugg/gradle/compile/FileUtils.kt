@@ -33,6 +33,15 @@ fun File.isChild(parent: File): Boolean {
         .startsWith(parent.absolutePath.replace("\\", "/") + "/", ignoreCase = isCaseInsensitiveOs)
 }
 
+fun File.pathEquals(other: File?): Boolean {
+    if (other == null) return false
+    val isCaseInsensitiveOs = isWindows || isMac // Windows and Mac are case insensitive
+    return this.path.replace("\\", "/").equals(
+        other.path.replace("\\", "/"),
+        ignoreCase = isCaseInsensitiveOs,
+    )
+}
+
 /** Used to generate hash of a file */
 private val crc32Digest = CRC32()
 

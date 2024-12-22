@@ -29,6 +29,10 @@ class JuggPathManager(val projectDir: File) {
     val ideProjectInfoFile = File(projectInfosDir, "project_infos.json")
     val gradleProjectInfoFile = File(projectInfosDir, "gradle_project_infos.json")
     val markProjectInfoNeedUpdateFlagFile = File(projectInfosDir, "is_dirty")
+    val historyProjectDirFile = File(projectInfosDir, "history_project_dir.txt")
+
+    val compileContextDbDir = File(databaseDir, "compile_context.db")
+    val deployHistoryDbDir = File(databaseDir, "deploy_history.db")
 
     val localClasspathStoragePathManager = LocalClasspathStoragePathManager(File(juggRootDir, "classpath"))
 

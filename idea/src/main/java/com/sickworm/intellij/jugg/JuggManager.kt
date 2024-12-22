@@ -10,6 +10,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.io.FileUtil
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
@@ -42,8 +43,7 @@ class JuggManager @TestOnly constructor(
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
-        pathManager.projectDir,
-        pathManager.databaseDir,
+        pathManager,
         fileChangesHandler,
         JuggLogger.getInstance(project, "DeployHistoryManager")
     ),
@@ -80,6 +80,7 @@ class JuggManager @TestOnly constructor(
             tryCreateRunConfigurations(isSyncFinished = false)
             IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
+            deployHistoryManager.checkProjectDirChanged()
             logger.info("Start jugg finished.")
 
             // init project info async

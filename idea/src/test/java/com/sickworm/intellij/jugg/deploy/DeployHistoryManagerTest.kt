@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.manager.changeAndRevert
@@ -23,15 +24,16 @@ class DeployHistoryManagerTest {
     @Before
     fun checkoutDir() {
         clearBuild()
+        pathManager.databaseDir.clearDir()
         Runtime.getRuntime().exec("git checkout $assetsAndroidDir").waitFor()
         gitManager.deleteGit()
     }
 
     @Test
     fun testHistoryDb() {
-        val storageDir = buildDir
+        val storageDir = pathManager.databaseDir
         gitManager.init() // we need init first after GitManager can search parent directory
-        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, fileChangesHandler, logger)
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
         gitManager.deleteGit()
         assertFalse(historyManager.isRecoverFeatureAvailable)
@@ -61,7 +63,7 @@ class DeployHistoryManagerTest {
 
         changeAndRevert("MainActivity2.changeMethodReturn.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
-                ChangedFile(CompileFile.Type.Java, file, File(""), mockModule)
+                ChangedFile(CompileFile.Type.Java, file, File(assetsAndroidDir, "app/src/main/java"), mockModule)
             }
             assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
             historyManager.beforeIncrementalCompile(changedFiles)
@@ -84,7 +86,7 @@ class DeployHistoryManagerTest {
 
         changeAndRevert("MainActivity2.addMethod.java" to "MainActivity2.java") { files ->
             val changedFiles = files.map { file ->
-                ChangedFile(CompileFile.Type.Java, file, File(""), mockModule)
+                ChangedFile(CompileFile.Type.Java, file, File(assetsAndroidDir, "app/src/main/java"), mockModule)
             }
             assertEquals(1, historyManager.tryGetContextRecoverInfoFromDb()?.changedFiles?.size)
             historyManager.beforeIncrementalCompile(changedFiles)
@@ -108,9 +110,9 @@ class DeployHistoryManagerTest {
 
     @Test
     fun testDeployDb() {
-        val storageDir = buildDir
+        val storageDir = pathManager.databaseDir
         gitManager.init() // we need init first after GitManager can search parent directory
-        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, fileChangesHandler, logger)
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
         gitManager.deleteGit()
         gitManager.init()
@@ -153,9 +155,8 @@ class DeployHistoryManagerTest {
 
     @Test
     fun testFilterUnchangedFiles() {
-        val storageDir = buildDir
         gitManager.init() // we need init first after GitManager can search parent directory
-        val historyManager = DeployHistoryManager(projectInfo.projectRoot, storageDir, fileChangesHandler, logger)
+        val historyManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
         gitManager.deleteGit()
         gitManager.init()

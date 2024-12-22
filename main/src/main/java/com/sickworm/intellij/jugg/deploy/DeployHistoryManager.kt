@@ -3,9 +3,11 @@ package com.sickworm.intellij.jugg.deploy
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.gradle.compile.pathEquals
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
@@ -14,18 +16,17 @@ import java.io.File
  * All operation must be thread-safe.
  */
 class DeployHistoryManager(
-    private val projectDir: File,
-    private val storageDir: File,
+    private val pathManager: JuggPathManager,
     private val fileChangesHandler: IFileChangesHandler,
     private val logger: Logger,
     private val deployHistoryDb: DeployHistoryDb = DeployHistoryDb(
-        projectDir = projectDir,
-        dbDir = File(storageDir, "deploy_history.db"),
+        projectDir = pathManager.projectDir,
+        dbDir = pathManager.deployHistoryDbDir,
         fileChangesHandler = fileChangesHandler,
         logger = logger,
     ),
     private val compileContextDb: CompileContextDb = CompileContextDb(
-        dbDir = File(storageDir, "compile_context.db"),
+        dbDir = pathManager.compileContextDbDir,
         logger = logger,
     ),
 ): IDeployHistoryManager {
@@ -151,5 +152,42 @@ class DeployHistoryManager(
 
     override fun getDeployHistoryData(): DeployHistoryData? {
         return deployHistoryDb.getDeployHistoryData()
+    }
+
+    /**
+     * Current project directory is history.
+     * Used to detect whether user copied the project
+     */
+    private var historyProjectDir: File?
+        get() {
+            return pathManager.historyProjectDirFile.takeIf { it.exists() }
+                ?.readText(Charsets.UTF_8)
+                ?.let { File(it) }
+        }
+        set(value) {
+            val historyProjectDirFile = pathManager.historyProjectDirFile
+            if (value != null) {
+                historyProjectDirFile.parentFile?.mkdirs()
+                historyProjectDirFile.writeText(value.path, Charsets.UTF_8)
+            } else {
+                historyProjectDirFile.delete()
+            }
+        }
+
+    override fun checkProjectDirChanged() {
+        // check project info is changed (e.g. user copied/moved a project)
+        val historyProjectDir = historyProjectDir
+        val realProjectDir = pathManager.projectDir
+        logger.debug("checkProjectDirChanged, historyProjectDir: $historyProjectDir, realProjectDir: $realProjectDir")
+        if (realProjectDir.pathEquals(historyProjectDir)) {
+            logger.debug("Project dir is not changed, continue to recover from deploy history later")
+        } else {
+            if (historyProjectDir != null) {
+                logger.debug("Project dir is changed, delete database: ${pathManager.databaseDir}")
+                pathManager.databaseDir.deleteRecursively()
+            }
+            logger.debug("Update history project dir to $realProjectDir")
+            this.historyProjectDir = realProjectDir
+        }
     }
 }

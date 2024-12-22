@@ -81,6 +81,8 @@ interface IDeployHistoryManager {
     fun getLastBuildFiles(files: List<ChangedFile>): List<Pair<ChangedFile, File?>>
 
     fun getDeployHistoryData(): DeployHistoryData?
+
+    fun checkProjectDirChanged()
 }
 
 /**
