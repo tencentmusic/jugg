@@ -105,8 +105,7 @@ class JuggMoreOptionsItem(
 
             createOption(
                 name = "Copy generated source to local",
-                { false },
-                { JuggInitializer.getManager(project)?.copyGeneratedSourceToLocal() }
+                onSet = { JuggInitializer.getManager(project)?.copyGeneratedSourceToLocal() }
             )
 
             createOption(
