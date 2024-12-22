@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.compiler.isMac
+import com.sickworm.intellij.jugg.compiler.isWindows
 import java.io.File
 import java.util.zip.CRC32
 
@@ -26,8 +28,9 @@ fun File.findFilesRecursively(fileNameRegex: Regex): File? {
 }
 
 fun File.isChild(parent: File): Boolean {
+    val isCaseInsensitiveOs = isWindows || isMac // Windows and Mac are case insensitive
     return this.absolutePath.replace("\\", "/")
-        .startsWith(parent.absolutePath.replace("\\", "/") + "/", ignoreCase = true)
+        .startsWith(parent.absolutePath.replace("\\", "/") + "/", ignoreCase = isCaseInsensitiveOs)
 }
 
 /** Used to generate hash of a file */
