@@ -4,13 +4,16 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
+import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.File
+import java.util.jar.Manifest
 
 class ProjectInfoReader(private val project: Project, private val logger: Logger) {
 
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
+            logger.debug("plugin version: ${getPluginVersion()}, compile time: ${getPluginCompileTime()}")
             logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
@@ -36,4 +39,17 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         return gradleDistributionUrl
     }
 
+    private fun getPluginCompileTime(): String {
+        val cl = JuggServer::class.java.classLoader
+        cl.getResourceAsStream("META-INF/compile_time")!!.use {
+            return String(it.readAllBytes()).replace("\n", " ")
+        }
+    }
+
+    private fun getPluginVersion(): String {
+        val cl = JuggServer::class.java.classLoader
+        cl.getResourceAsStream("META-INF/MANIFEST.MF")!!.use {
+            return Manifest(it).mainAttributes.getValue("Version") ?: "unknown"
+        }
+    }
 }

@@ -3,6 +3,7 @@ import java.nio.file.Paths
 
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.text.SimpleDateFormat
 
 plugins {
     id 'java'
@@ -23,6 +24,11 @@ def versionName = '2.0.0-rc2'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
+
+// record compile time
+def compileTime = System.currentTimeMillis()
+def compileDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())
+new File("$rootDir/idea/src/main/resources/META-INF/compile_time").write("$compileDate\n$compileTime")
 
 sourceCompatibility = 11
 targetCompatibility = 11

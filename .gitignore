@@ -21,3 +21,4 @@ local.properties
 /main/src/main/resources/gradle/
 /main/src/test/java/local
 /idea/src/test/java/local
+/idea/src/main/resources/META-INF/compile_time
