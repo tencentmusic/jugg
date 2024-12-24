@@ -190,4 +190,8 @@ class DeployHistoryManager(
             this.historyProjectDir = realProjectDir
         }
     }
+
+    override fun updateDontFilterIgnoredFileRules(rules: List<String>) {
+        deployHistoryDb.updateDontFilterIgnoredFileRules(pathManager.projectDir, rules)
+    }
 }

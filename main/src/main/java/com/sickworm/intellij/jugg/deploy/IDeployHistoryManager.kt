@@ -83,6 +83,11 @@ interface IDeployHistoryManager {
     fun getDeployHistoryData(): DeployHistoryData?
 
     fun checkProjectDirChanged()
+
+    /**
+     * Update the ignore update build file rules to filter result of [filterUnchangedFiles]
+     */
+    fun updateDontFilterIgnoredFileRules(rules: List<String>)
 }
 
 /**

@@ -10,7 +10,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.io.FileUtil
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
@@ -110,6 +109,7 @@ class JuggManager @TestOnly constructor(
                 config.buildFileRules.let {
                     fileChangesHandler.updateBuildFileRules(it)
                 }
+                deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
             }
         } catch (e: Exception) {
             // maybe structure is updated

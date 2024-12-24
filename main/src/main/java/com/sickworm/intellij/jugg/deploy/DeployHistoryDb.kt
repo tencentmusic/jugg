@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.clearDir
+import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.gradle.compile.crc32
@@ -403,16 +404,17 @@ class DeployHistoryDb(
             }
         }
 
-        logger.debug("filterUnchangedFiles result: ${unchangedFiles.map { it.name }}")
-
-        val settingsGradleFile = File(projectDir, "settings.gradle")
-        if (files.contains(settingsGradleFile) && unchangedFiles.contains(settingsGradleFile)) {
-            // sorry, but I have to do this.
-            // temp fix settings.gradle that is ignored by git
-            // TODO more elegant
-            logger.debug("filterUnchangedFiles remove settings.gradle from unchanged list")
-            unchangedFiles.remove(settingsGradleFile)
+        unchangedFiles.removeIf {
+            // ignored files will be listed in unchangedFiles.
+            // if it is force to detect changes, remove them here.
+            if (dontFilterIgnoreFileMatcher.isMatch(it)) {
+                logger.debug("File $it is in don't filter file matcher list, skip it.")
+                return@removeIf true
+            }
+            return@removeIf false
         }
+
+        logger.debug("filterUnchangedFiles result: ${unchangedFiles.map { it.name }}")
 
         return unchangedFiles
     }
@@ -483,6 +485,12 @@ class DeployHistoryDb(
 
     fun getDeployHistoryData(): DeployHistoryData? {
         return DeployHistoryData.load(deployHistoryFile)
+    }
+
+    private var dontFilterIgnoreFileMatcher: IFileMatcher = PlatformApi.createFileMatcher()
+
+    fun updateDontFilterIgnoredFileRules(projectDir: File, rules: List<String>) {
+        dontFilterIgnoreFileMatcher.init(projectDir, rules)
     }
 
     private fun File.findClosestParent(directories: Collection<File>): File? {

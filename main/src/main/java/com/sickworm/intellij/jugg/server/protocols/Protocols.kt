@@ -23,6 +23,8 @@ data class ProjectCustomConfig(
     @Deprecated("use buildFileRules after Jugg 2.0.1")
     val buildFileList: List<String>,
     val buildFileRules: List<String>,
+    /** don't filter ignored files in filterUnchangedFiles. e.g. Detect changes for ignored build files */
+    val dontFilterIgnoredFileRules: List<String>,
 )
 
 data class NotificationData(
