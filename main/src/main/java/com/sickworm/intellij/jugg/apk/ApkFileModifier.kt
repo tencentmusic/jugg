@@ -27,8 +27,6 @@ class ApkFileModifier(
     private val envArray: List<String>? = null,
 ) {
 
-    private val tmpUpdateApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_updated")
-    private val tmpAlignedApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_aligned")
     private val insertFiles = mutableListOf<Pair<String, ByteArray>>()
 
     private val buildToolsFolder: File by lazy {
@@ -56,25 +54,21 @@ class ApkFileModifier(
 
     fun insertAndResign() {
         TimeLogger.start("insertAndResign")
-        clearTempFile()
-        val apkFile = updateFiles()
-        alignApk(apkFile)
-        resignApk()
-        replaceOldApk()
-        clearTempFile()
+        var tmpApkFile = updateFiles(apkFile)
+        tmpApkFile = alignApk(tmpApkFile)
+        tmpApkFile = resignApk(tmpApkFile)
+        replaceOldApk(tmpApkFile, apkFile)
         TimeLogger.end("insertAndResign", logger)
     }
 
     fun updateDirectly() {
         TimeLogger.start("updateDirectly")
-        clearTempFile()
-        updateFiles()
-        replaceOldApk()
-        clearTempFile()
+        val tmpApkFile = updateFiles(apkFile)
+        replaceOldApk(tmpApkFile, apkFile)
         TimeLogger.end("updateDirectly", logger)
     }
 
-    private fun updateFiles(): File {
+    private fun updateFiles(apkFile: File): File {
         TimeLogger.start("insertFiles")
         // ref: https://docs.oracle.com/en/java/javase/14/docs/api/jdk.zipfs/module-summary.html
         // use FileSystems API can reduce cost time to 1-2s, while use standard ZIP API will cost 40-50s
@@ -87,22 +81,20 @@ class ApkFileModifier(
         // D to I haven't tested
         val jvmVersion = Runtime.version().version()
         logger.debug("JVM version: $jvmVersion")
-        val apkFile = if (jvmVersion[0] >= 14) {
-            insertFileJvm14()
+        val tmpApkFile = if (jvmVersion[0] >= 14) {
+            insertFileJvm14(apkFile)
         } else {
             logger.warn("JVM version is ${jvmVersion[0]}, use standard ZIP API to update Zip files.")
             logger.warn("It will cost 10-60s to finished, please upgrade to Android Studio JellyFish or later to reduce 90% cost time.")
-            insertFileUnderJvm14()
+            insertFileUnderJvm14(apkFile)
         }
         val costTime = TimeLogger.end("insertFiles", logger)
         logger.info(" * Update APK finished, cost $costTime ms.")
 
-        return apkFile
+        return tmpApkFile
     }
 
-    private fun insertFileJvm14(): File {
-        val apkFileToUpdate = apkFile
-
+    private fun insertFileJvm14(apkFileToUpdate: File): File {
         val zipProperties = mapOf("create" to "false", "compressionMethod" to "STORED")
 
         val zipDisk: URI = URI.create("jar:" + apkFileToUpdate.toURI().toString())
@@ -122,8 +114,11 @@ class ApkFileModifier(
         return apkFileToUpdate
     }
 
-    private fun insertFileUnderJvm14(): File {
-        tmpUpdateApkFile.delete()
+    private fun insertFileUnderJvm14(apkFile: File): File {
+        val tmpUpdateApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_updated")
+        if (tmpUpdateApkFile.exists() && !tmpUpdateApkFile.delete()) {
+            throw IllegalStateException("delete $tmpUpdateApkFile failed")
+        }
         apkFile.copyTo(tmpUpdateApkFile)
 
         val remainInsertFiles: MutableMap<String, ByteArray> = insertFiles.associate { it.first to it.second }.toMutableMap()
@@ -174,8 +169,13 @@ class ApkFileModifier(
         return tmpUpdateApkFile
     }
 
-    private fun alignApk(tmpUpdateApkFile: File) {
+    private fun alignApk(tmpUpdateApkFile: File): File {
         TimeLogger.start("alignApk")
+        val tmpAlignedApkFile = File(apkFile.parentFile, ".${apkFile.name}.tmp_aligned")
+        if (tmpAlignedApkFile.exists() && !tmpAlignedApkFile.delete()) {
+            throw IllegalStateException("delete $tmpAlignedApkFile failed")
+        }
+
         // see: https://developer.android.com/tools/zipalign
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
         val cmdString = "$zipalign -f 4 ${tmpUpdateApkFile.absolutePath} ${tmpAlignedApkFile.absolutePath}"
@@ -186,9 +186,10 @@ class ApkFileModifier(
         }
         val costTime = TimeLogger.end("alignApk", logger)
         logger.info(" * Align APK finished, cost $costTime ms.")
+        return tmpAlignedApkFile
     }
 
-    private fun resignApk() {
+    private fun resignApk(tmpApkFile: File): File {
         TimeLogger.start("signApk")
         // see: https://developer.android.com/tools/apksigner
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
@@ -207,7 +208,7 @@ class ApkFileModifier(
                 args.add("pass:${signConfig.keyPassword}")
             }
         }
-        args.add(tmpAlignedApkFile.absolutePath)
+        args.add(tmpApkFile.absolutePath)
 
         val cmdString = "$apksigner ${args.joinToString(" ")}"
         val cmdStringSafeForPrint = cmdString
@@ -219,6 +220,8 @@ class ApkFileModifier(
         doResign(cmdString)
         val costTime = TimeLogger.end("signApk", logger)
         logger.info(" * Sign APK finished, cost $costTime ms.")
+
+        return tmpApkFile
     }
 
     private fun doResign(cmdString: String) {
@@ -283,24 +286,21 @@ class ApkFileModifier(
         }
     }
 
-    private fun replaceOldApk() {
+    private fun replaceOldApk(tmpApkFile: File, outputFile: File) {
         TimeLogger.start("replaceApk")
-        if (tmpAlignedApkFile.exists()) {
-            if (apkFile.exists()) {
-                if (!apkFile.delete()) {
-                    throw IllegalStateException("Delete $apkFile failed")
+        if (tmpApkFile != outputFile) {
+            if (outputFile.exists()) {
+                if (!outputFile.delete()) {
+                    throw IllegalStateException("Delete $outputFile failed")
                 }
             }
-            if (!tmpAlignedApkFile.renameTo(apkFile)) {
-                throw IllegalStateException("Rename $tmpAlignedApkFile to $apkFile failed")
+            if (!tmpApkFile.renameTo(outputFile)) {
+                throw IllegalStateException("Rename $tmpApkFile to $outputFile failed")
             }
+        } else {
+            logger.debug("replaceOldApk skipped, apk file not changed")
         }
         TimeLogger.end("replaceApk", logger)
-    }
-
-    private fun clearTempFile() {
-        tmpAlignedApkFile.delete()
-        tmpUpdateApkFile.delete()
     }
 
     fun verify() {
