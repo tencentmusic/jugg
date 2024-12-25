@@ -206,7 +206,7 @@ class GitManager (
         val diff = IndexDiff(repository, commitHash, FileTreeIterator(repository))
         diff.setIgnoreSubmoduleMode(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
         diff.setFilter(PathFilterGroup.createFromStrings(files.map { file ->
-            file.relativeToOrSelf(rootDir).path
+            file.relativeToOrSelf(rootDir).path.replace('\\', '/')
         }))
         diff.diff()
         val status = Status(diff)
