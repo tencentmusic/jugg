@@ -6,6 +6,7 @@ plugins {
 
 sourceCompatibility = 11
 targetCompatibility = 11
+version getDirCommitId(rootDir.relativePath(projectDir))
 
 compileKotlin {
     kotlinOptions.jvmTarget = "11"

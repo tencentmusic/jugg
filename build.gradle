@@ -5,6 +5,12 @@ plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.9.23' apply false
 }
 
+def versionName = '2.0.0-rc3'
+def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
+def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
+def pluginVersionArg = "${versionName}-${gitBranchPrefix}"
+println("Plugin Version: $pluginVersionArg")
+
 ext {
     // see: https://plugins.jetbrains.com/docs/intellij/android-studio.html#android-studio-releases-listing
     // download Android Studio: https://developer.android.com/studio/archive
@@ -16,6 +22,15 @@ ext {
     agentVersion = "1.0.13"
     agentBundleDir = new File(project.projectDir, "jvmti_agent/build/outputs/bundle/")
     agentGeneratedSourceDir = new File(project.projectDir, "jvmti_agent/build/generated/source/buildConfig/release")
+
+    pluginVersion = pluginVersionArg
+
+    getDirCommitId = { path ->
+        def command = "git -C $rootDir log -n 1 --format=%h -- $path"
+        def commitHash = command.execute().text.trim()
+        println "$path commit hash is: ${commitHash}"
+        return commitHash
+    }
 }
 
 // Fix:
