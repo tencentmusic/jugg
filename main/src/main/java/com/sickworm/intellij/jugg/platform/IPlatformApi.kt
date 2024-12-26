@@ -11,6 +11,8 @@ import java.io.File
 
 interface IPlatformApi {
 
+    val pluginVersion: String
+
     fun showDialog(
         title: String,
         content: String,

@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 import javax.swing.JComponent
 
 /**
@@ -42,7 +43,7 @@ class JuggRunConfiguration(
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        val pathManager = JuggInitializer.getManager(project)!!.pathManager
+        val pathManager = JuggPathManager(File(project.basePath!!))
         val gradleCompileOptions = state!!.toCompileOptions(pathManager)
         return JuggRunProfileState(project, gradleCompileOptions)
     }

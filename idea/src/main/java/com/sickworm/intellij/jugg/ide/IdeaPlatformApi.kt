@@ -18,9 +18,17 @@ import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.File
+import java.util.jar.Manifest
 
 class IdeaPlatformApi : IPlatformApi {
+
+    override val pluginVersion: String by lazy {
+        val cl = IdeaPlatformApi::class.java.classLoader
+        val manifest = Manifest(cl.getResourceAsStream("META-INF/MANIFEST.MF"))
+        manifest.mainAttributes.getValue("Version") ?: "unknown"
+    }
 
     override fun showDialog(
         title: String,

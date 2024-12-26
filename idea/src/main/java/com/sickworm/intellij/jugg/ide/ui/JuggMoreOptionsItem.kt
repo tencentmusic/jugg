@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.logger.JuggLogger
 
 class JuggMoreOptionsItem(
     val name: String,
@@ -60,7 +61,7 @@ class JuggMoreOptionsItem(
 
     companion object {
 
-        fun createOptions(project: Project?, options: JuggRunConfigurationOptions): ActionGroup {
+        fun createOptions(project: Project, options: JuggRunConfigurationOptions): ActionGroup {
             val group = DefaultActionGroup()
             getOptionList(project, options).forEach {
                 if (it.isSplitLine) {
@@ -72,7 +73,7 @@ class JuggMoreOptionsItem(
             return group
         }
 
-        private fun getOptionList(project: Project?, options: JuggRunConfigurationOptions): List<JuggMoreOptionsItem> {
+        private fun getOptionList(project: Project, options: JuggRunConfigurationOptions): List<JuggMoreOptionsItem> {
 
             val items = mutableListOf<JuggMoreOptionsItem>()
 
@@ -151,8 +152,8 @@ class JuggMoreOptionsItem(
 
                 val devices = JuggInitializer.getManager(project)?.getDeviceList()
                 devices?.forEach {
-                    val compatDeployHelper = CompatDeployHelper(JuggInitializer.getManager(project)!!.logger)
-                    val adb = IdeaDeviceAdb(it, DefaultLogger(""))
+                    val compatDeployHelper = CompatDeployHelper(JuggLogger.getInstance(project, "CompatDeployHelper"))
+                    val adb = IdeaDeviceAdb(it, DefaultLogger("CompatDeployHelper"))
                     createOption(
                         name = "Force use compat deploy for ${adb.displayName}",
                         onGet = { compatDeployHelper.isForceCompatDevice(adb) },

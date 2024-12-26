@@ -4,20 +4,17 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.loader.IJuggManager
+import com.sickworm.intellij.jugg.loader.JuggLoader
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 object JuggInitializer {
 
-    private val instanceSet = mutableMapOf<String, JuggManager>()
+    private val instanceSet = mutableMapOf<String, IJuggManager>()
 
     private val logger = Logger.getInstance("JuggInitializer")
-
-    init {
-        PlatformApi.impl = IdeaPlatformApi()
-    }
 
     private fun tryGetProjectLogger(project: Project) = try {
         JuggLogger.getInstance(project, "JuggInitializer")
@@ -45,12 +42,7 @@ object JuggInitializer {
             return
         }
 
-        val pathManager = JuggPathManager(File(projectDir))
-        JuggLogger.register(project, pathManager.logDir)
-        tryGetProjectLogger(project)?.info("Start Init Jugg on ${project.basePath}")
-
-        val juggManager = JuggManager(project, pathManager)
-        juggManager.init()
+        val juggManager = JuggLoader.loadManager(project, File(projectDir))
         instanceSet[projectDir] = juggManager
     }
 
@@ -64,14 +56,7 @@ object JuggInitializer {
         JuggLogger.unregister(project)
     }
 
-    @Synchronized
-    fun releaseAll() {
-        instanceSet.values.forEach {
-            release(it.project)
-        }
-    }
-
-    fun getManager(project: Project?): JuggManager? {
+    fun getManager(project: Project?): IJuggManager? {
         if (project == null) {
             return null
         }

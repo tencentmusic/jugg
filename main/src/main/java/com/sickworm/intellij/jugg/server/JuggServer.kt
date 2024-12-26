@@ -23,7 +23,6 @@ import java.io.File
 import java.io.IOException
 import java.net.URLEncoder
 import java.security.MessageDigest
-import java.util.jar.Manifest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -42,15 +41,6 @@ class JuggServer(
     private val pathManager: JuggPathManager? = JuggPathManager(File(project.basePath!!)),
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
-    companion object {
-
-        private fun getVersion(): String {
-            val cl = JuggServer::class.java.classLoader
-            val manifest = Manifest(cl.getResourceAsStream("META-INF/MANIFEST.MF"))
-            return manifest.mainAttributes.getValue("Version") ?: "unknown"
-        }
-    }
-
     private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
 
     private val juggServerChooser = JuggServerChooser(logger)
@@ -63,7 +53,7 @@ class JuggServer(
     private val username: String = getUserName()
 
     // read Version in MANIFEST.MF
-    val version: String by lazy(Companion::getVersion)
+    val version: String = PlatformApi.pluginVersion
 
     private val projectId: String by lazy { getName(project.name) }
     private val requestToken = (project.basePath + "_" + username).md5.substring(0, 8)
