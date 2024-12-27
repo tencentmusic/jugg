@@ -5,7 +5,7 @@ class Reflector(val value: Any?) {
     val valueString: String? get() = value?.toString()
 
     /** get property */
-    fun get(propertyName: String): Reflector? {
+    fun getProperty(propertyName: String): Reflector? {
         value ?: return null
         try {
             val getMethodName = if (propertyName.startsWith("is")) propertyName else "get${propertyName.camel}"
@@ -68,5 +68,5 @@ class Reflector(val value: Any?) {
 }
 
 operator fun Reflector?.get(propertyName: String): Reflector? {
-    return this?.get(propertyName)
+    return this?.getProperty(propertyName)
 }

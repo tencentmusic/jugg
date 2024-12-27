@@ -9,10 +9,9 @@ import groovy.util.XmlNodePrinter
 import groovy.xml.QName
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.file.FileSystemLocationProperty
+import org.gradle.api.provider.Property
 import java.io.File
 import java.io.PrintWriter
-import java.util.*
 
 class GradleApplicationInjector(
     private val rootProject: Project,
@@ -120,14 +119,16 @@ class GradleApplicationInjector(
 
     private fun findMergedManifest(task: Task): List<File> {
         // task: ProcessMultiApkApplicationManifest
-        val mergedManifestDir = (Reflector(task)["multiApkManifestOutputDirectory"]?.value as? FileSystemLocationProperty<*>)?.asFile?.get()
+        val dirValue = (Reflector(task)["multiApkManifestOutputDirectory"]?.value as? Property<*>)?.get()
+        val mergedManifestDir: File? = (dirValue as? org.gradle.api.file.FileSystemLocation)?.asFile
         if (mergedManifestDir != null) {
             val manifestFile = findMergedManifest(mergedManifestDir)
             if (manifestFile.isNotEmpty()) {
                 return manifestFile
             }
         }
-        val mergedManifestDir2 = (Reflector(task)["manifestOutputDirectory"]?.value as? FileSystemLocationProperty<*>)?.asFile?.get()
+        val dirValue2 = (Reflector(task)["manifestOutputDirectory"]?.value as? Property<*>)?.get()
+        val mergedManifestDir2: File? = (dirValue2 as? org.gradle.api.file.FileSystemLocation)?.asFile
         if (mergedManifestDir2 != null) {
             val manifestFile2 = findMergedManifest(mergedManifestDir2)
             if (manifestFile2.isNotEmpty()) {
@@ -135,7 +136,7 @@ class GradleApplicationInjector(
             }
         }
 
-        throw IllegalStateException("Jugg mergedManifest: task is null or not exists")
+        throw IllegalStateException("Jugg mergedManifest: task is null or not exists in: multiApkManifestOutputDirectory:$mergedManifestDir or manifestOutputDirectory:$mergedManifestDir2")
     }
 
     private fun findMergedManifest(dir: File): List<File> {
