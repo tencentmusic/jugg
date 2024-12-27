@@ -56,7 +56,7 @@ class AdbCmdHelper(
 
     fun dumpErrorLog(limit: Int = 100000): String {
         logger.debug("dumpErrorLog: $limit")
-        return execAdbShellCmd("logcat -t$limit | grep -e 'AndroidRuntime' -e 'jugg'")
+        return execAdbShellCmd("logcat -t$limit -s \"jugg-jvmti *:W\"")
     }
 
     fun deleteDeployedDexFile(packageName: String, filePath: String) {
