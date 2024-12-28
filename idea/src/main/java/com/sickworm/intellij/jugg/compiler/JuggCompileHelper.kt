@@ -255,7 +255,7 @@ class JuggCompilerHelper(
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
             checkFilesRollback()
         }
-        checkFilesFallback()?.let {
+        checkFilesFallback(deployFileManager.getUncompiledFiles())?.let {
             return it
         }
 
@@ -291,9 +291,8 @@ class JuggCompilerHelper(
     /**
      * @return need fallback when result is not null
      */
-    private fun checkFilesFallback(): CompileTaskResult? {
+    private fun checkFilesFallback(undeployedFiles: List<ChangedFile>): CompileTaskResult? {
         // too many changes fallback
-        val undeployedFiles = deployFileManager.getUncompiledFiles()
         val undeployedSourceFiles = undeployedFiles.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
         }
@@ -572,6 +571,9 @@ class JuggCompilerHelper(
 
             if (unCompiledEffectedFiles.isNotEmpty()) {
                 logger.info("Compile success, but found effected source files, continue compile. Files: ${unCompiledEffectedFiles.map { it.file.name }}")
+                checkFilesFallback(unCompiledEffectedFiles)?.let {
+                    return it
+                }
                 nextCompileFiles.addAll(unCompiledEffectedFiles)
             }
 
