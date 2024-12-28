@@ -92,6 +92,17 @@ class DeployDataGenerator(
                     }
                 }
 
+                val isRSubClass = oldClassNode.isRSubClass
+                if (isRSubClass) {
+                    // reason why R subclass don't add effected methods and fields:
+                    // 1. R subclass will only add constant fields.
+                    // 2. R subclass may print lots of added fields after handled by RDexForSubmoduleCompiler for gradle submodule.
+                    // 3. (important) R subclass will delete lots of fields after handled by RFileFixer for gradle submodule,
+                    //    which will trigger most of the source files that reference R to be recompiled!
+                    logger.debug("class $className is R subclass, don't add effected methods and fields.")
+                    return@classNodes
+                }
+
                 // we don't care about abstract, because it won't affect class bytecode.
                 // ignore abstract can stop recompile when redex interface class default method (which will make methods be not abstract)
                 changedMethodRef.addAll(result.effectMethods)
@@ -198,6 +209,17 @@ class DeployDataGenerator(
         return deployDataDatabase.isEnableDesugared()
     }
 
-    private val String.isInnerClass: Boolean
-        get() = contains('$')
+    private val rClassList = listOf(
+        "R\$anim",  "R\$animator",  "R\$array",  "R\$attr",  "R\$bool",  "R\$color",  "R\$drawable",  "R\$fraction",  "R\$id",  "R\$interpolator",  "R\$layout",  "R\$mipmap",  "R\$raw",  "R\$string",  "R\$style","R\$styleable",  "R\$xml",
+    )
+
+    private val ClassNode.isRSubClass: Boolean get() {
+        val classSimpleName = className.substringAfterLast("/")
+        if (classSimpleName.startsWith("R$")) {
+            if (rClassList.any { classSimpleName.startsWith(it) }) {
+                return true
+            }
+        }
+        return false
+    }
 }

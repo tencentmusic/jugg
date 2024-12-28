@@ -176,10 +176,16 @@ class ClassNodeDiffResult(
     }
 
     private fun List<FieldNode>.toFieldsString(): String {
+        if (this.size > 100) {
+            return "(total ${this.size}, only print first 100) ${subList(0, 100).toFieldsString()} ..."
+        }
         return this.map { it.toStringWithoutOwner() }.toString()
     }
 
     private fun List<MethodNode>.toMethodsString(): String {
+        if (this.size > 100) {
+            return "(total ${this.size}, only print first 100) ${subList(0, 100).toMethodsString()} ..."
+        }
         return this.map { it.toStringWithoutOwner() }.toString()
     }
 }
