@@ -46,8 +46,12 @@ private class ChangePackageWriter(
         val classPackageSigPrefix = className.substringBeforeLast("/")
         val newClassPackageSigPrefix = "L" + newPackageName.replace(".", "/")
         val newClassSigName = className.replace(classPackageSigPrefix, newClassPackageSigPrefix)
+        val newSuperClass = superClass?.let {
+            // RJavaFixer let R class has superclass
+            superClass.replace(classPackageSigPrefix, newClassPackageSigPrefix)
+        }
 
-        val writerClassVisitor = writer.visit(access_flags, newClassSigName, superClass, interfaceNames)
+        val writerClassVisitor = writer.visit(access_flags, newClassSigName, newSuperClass, interfaceNames)
         return object : DexClassVisitor(writerClassVisitor) {
             override fun visitAnnotation(name: String?, visibility: Visibility?): DexAnnotationVisitor {
                 val superVisitor = super.visitAnnotation(name, visibility)
@@ -97,8 +101,9 @@ private class ChangePackageWriter(
             }
 
             override fun visitMethod(accessFlags: Int, method: Method): DexMethodVisitor {
-                return if (method.owner == className) {
-                    val superVisitor = super.visitMethod(accessFlags, Method(newClassSigName, method.name, method.proto))
+                val newMethod = transferNewMethodIfNeeded(method)
+                return if (newMethod != null) {
+                    val superVisitor = super.visitMethod(accessFlags, newMethod)
                     return object : DexMethodVisitor(superVisitor) {
                         override fun visitCode(): DexCodeVisitor {
                             val superVisitorVisitCode = super.visitCode()
@@ -112,8 +117,9 @@ private class ChangePackageWriter(
                                 }
 
                                 override fun visitMethodStmt(op: Op?, args: IntArray?, method: Method) {
-                                    if (method.owner == className) {
-                                        super.visitMethodStmt(op, args, Method(newClassSigName, method.name, method.proto))
+                                    val newMethodStmt = transferNewMethodIfNeeded(method)
+                                    if (newMethodStmt != null) {
+                                        super.visitMethodStmt(op, args, newMethodStmt)
                                     } else {
                                         super.visitMethodStmt(op, args, method)
                                     }
@@ -139,6 +145,24 @@ private class ChangePackageWriter(
                 } else {
                     super.visitMethod(accessFlags, method)
                 }
+            }
+
+            private fun transferNewMethodIfNeeded(method: Method): Method? {
+                var newMethod: Method? = null
+                if (method.owner.startsWith(classPackageSigPrefix)) {
+                    newMethod = Method(
+                        method.owner.replace(classPackageSigPrefix, newClassPackageSigPrefix),
+                        method.name,
+                        // RJavaFixer let R class new function
+                        Proto(
+                            method.proto.parameterTypes
+                                .map { it.replace(classPackageSigPrefix, newClassPackageSigPrefix) }
+                                .toTypedArray(),
+                            method.proto.returnType,
+                        )
+                    )
+                }
+                return newMethod
             }
 
             override fun visitField(accessFlags: Int, field: Field, value: Any?): DexFieldVisitor {
