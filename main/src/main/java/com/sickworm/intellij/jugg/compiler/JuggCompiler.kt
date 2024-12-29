@@ -148,7 +148,7 @@ class JuggCompiler(
                 CompileTask(
                     files = rJavaResultOutputs.map {
                         CompileFile(CompileFile.Type.DexToChangePackageName, it.file, it.baseDir, context.tempModule)
-                    } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin },
+                    } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin || it.type == CompileFile.Type.Resource },
                     outputDir = classesOutputDir,
                     parentTask = task,
                 )

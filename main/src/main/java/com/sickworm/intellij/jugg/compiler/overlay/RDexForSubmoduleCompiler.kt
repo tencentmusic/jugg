@@ -17,7 +17,7 @@ class RDexForSubmoduleCompiler(
 ): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type>
-        get() = listOf(CompileFile.Type.DexToChangePackageName, CompileFile.Type.Java, CompileFile.Type.Kotlin)
+        get() = listOf(CompileFile.Type.DexToChangePackageName, CompileFile.Type.Java, CompileFile.Type.Kotlin, CompileFile.Type.Resource)
 
     // we don't persist generated modules, it's ok to generate once for each module
     private var generatedModules = mutableSetOf<String>()
