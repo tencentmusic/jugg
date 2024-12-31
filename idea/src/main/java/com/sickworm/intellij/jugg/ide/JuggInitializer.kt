@@ -3,11 +3,9 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.JuggManager
-import com.sickworm.intellij.jugg.loader.IJuggManager
+import com.sickworm.intellij.jugg.IJuggManager
 import com.sickworm.intellij.jugg.loader.JuggLoader
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
 object JuggInitializer {
@@ -62,13 +60,6 @@ object JuggInitializer {
         }
         return instanceSet[project.bashPathOrDefault]
     }
-}
-
-enum class SyncEvent {
-    STARTED,
-    SKIPPED,
-    SUCCEEDED,
-    FAILED
 }
 
 val Project.bashPathOrDefault get() = basePath ?: "null"

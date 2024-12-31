@@ -125,9 +125,8 @@ class JuggRunProfileState(
         processHandler.startNotify()
 
         juggManager.cancelCurrentTask(processHandler) {
-            val task = juggManager.createRunningTask(juggGradleCompileOptions, processHandler, forceFallbackNextTime)
+            juggManager.runTask(juggGradleCompileOptions, processHandler, forceFallbackNextTime)
             forceFallbackNextTime = false
-            ProgressManager.getInstance().run(task)
         }
 
         return DefaultExecutionResult(consoleView, processHandler)

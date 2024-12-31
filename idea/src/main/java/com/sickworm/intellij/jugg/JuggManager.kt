@@ -7,6 +7,7 @@ import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
@@ -25,7 +26,7 @@ import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
-import com.sickworm.intellij.jugg.loader.IJuggManager
+import com.sickworm.intellij.jugg.IJuggManager
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -326,7 +327,16 @@ class JuggManager @TestOnly constructor(
         currentTask.cancel(onFinish)
     }
 
-    override fun createRunningTask(
+    override fun runTask(
+        options: JuggGradleCompileOptions,
+        processHandler: IProcessHandler,
+        isForceGradleCompile: Boolean
+    ) {
+        val task = createRunningTask(options, processHandler, isForceGradleCompile)
+        ProgressManager.getInstance().run(task)
+    }
+
+    private fun createRunningTask(
         options: JuggGradleCompileOptions,
         processHandler: IProcessHandler,
         isForceGradleCompile: Boolean,

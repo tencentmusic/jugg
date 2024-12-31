@@ -1,12 +1,11 @@
-package com.sickworm.intellij.jugg.loader
+package com.sickworm.intellij.jugg
 
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.JuggRunningTask
-import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.IProcessHandler
+import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.SyncEvent
 
 interface IJuggManager: Disposable {
 
@@ -14,11 +13,11 @@ interface IJuggManager: Disposable {
 
     fun onSyncEvent(syncEvent: SyncEvent)
 
-    fun createRunningTask(
+    fun runTask(
         options: JuggGradleCompileOptions,
         processHandler: IProcessHandler,
         isForceGradleCompile: Boolean = false,
-    ): JuggRunningTask
+    )
 
     fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit)
 

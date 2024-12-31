@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.IJuggManager
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.ide.IdeaPlatformApi
 import com.sickworm.intellij.jugg.logger.JuggLogger

@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.IJuggManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.lang.reflect.Proxy
