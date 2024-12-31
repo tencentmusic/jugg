@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.IProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -201,7 +202,7 @@ class JuggDeployerHelper(
     @Suppress("KotlinConstantConditions")
     fun deploy(device: IDevice,
                isLastDevice: Boolean,
-               processHandler: ProcessHandler? = null,
+               processHandler: IProcessHandler? = null,
                indicator: ProgressIndicator? = null,
                isInstall: Boolean = false,
                isWarmUp: Boolean = false,
@@ -213,7 +214,7 @@ class JuggDeployerHelper(
 
         fun costTime(): Long { return System.currentTimeMillis() - startTime }
 
-        if (processHandler != null && (processHandler.isProcessTerminating || processHandler.isProcessTerminated)) {
+        if (processHandler != null && (processHandler.isCanceled)) {
             logger.warn("Deploy canceled.")
             return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "deploy canceled")
         }

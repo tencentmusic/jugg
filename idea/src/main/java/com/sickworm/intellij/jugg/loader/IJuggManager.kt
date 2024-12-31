@@ -1,14 +1,12 @@
 package com.sickworm.intellij.jugg.loader
 
 import com.android.ddmlib.IDevice
-import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.Disposable
-import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.SyncEvent
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.ide.IProcessHandler
 
 interface IJuggManager: Disposable {
 
@@ -18,11 +16,11 @@ interface IJuggManager: Disposable {
 
     fun createRunningTask(
         options: JuggGradleCompileOptions,
-        processHandler: SimpleProcessHandler,
+        processHandler: IProcessHandler,
         isForceGradleCompile: Boolean = false,
     ): JuggRunningTask
 
-    fun cancelCurrentTask(processHandler: ProcessHandler, onFinish: () -> Unit)
+    fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit)
 
     fun gradleCompile()
 
@@ -34,11 +32,11 @@ interface IJuggManager: Disposable {
 
     fun enableReadProjectFromGradle()
 
-    fun setForceCompatDevice(adb: IdeaDeviceAdb)
+    fun setForceCompatDevice(adb: IDeviceAdb)
 
     fun forceReInstallNextTime()
 
-    fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions)
+    fun markAsGradleCompiledAndReInitCompiler(compileOptions: JuggGradleCompileOptions)
 
     fun copyGeneratedSourceToLocal()
 

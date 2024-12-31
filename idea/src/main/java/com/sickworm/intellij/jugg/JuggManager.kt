@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg
 import com.android.ddmlib.IDevice
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
-import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
@@ -15,7 +14,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.ide.IProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -25,8 +24,8 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
+import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.loader.IJuggManager
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -310,7 +309,7 @@ class JuggManager @TestOnly constructor(
     @Volatile
     private var currentTask: JuggRunningTask? = null
 
-    override fun cancelCurrentTask(processHandler: ProcessHandler, onFinish: () -> Unit) {
+    override fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit) {
         val currentTask = currentTask
         if (currentTask == null) {
             logger.debug("Current task is null")
@@ -329,7 +328,7 @@ class JuggManager @TestOnly constructor(
 
     override fun createRunningTask(
         options: JuggGradleCompileOptions,
-        processHandler: SimpleProcessHandler,
+        processHandler: IProcessHandler,
         isForceGradleCompile: Boolean,
     ): JuggRunningTask {
         logger.debug("Create running task: ${options.toSafeString()}")
@@ -456,7 +455,7 @@ class JuggManager @TestOnly constructor(
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
-    override fun setForceCompatDevice(adb: IdeaDeviceAdb) {
+    override fun setForceCompatDevice(adb: IDeviceAdb) {
         logger.info("[options] setForceCompatDevice ${adb.displayName}")
 
         val compatDeployHelper = CompatDeployHelper(logger)
@@ -476,11 +475,9 @@ class JuggManager @TestOnly constructor(
     }
 
 
-    override fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
+    override fun markAsGradleCompiledAndReInitCompiler(compileOptions: JuggGradleCompileOptions) {
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
         runTaskSafe("Mark as Gradle Compiled", {
-            val compileOptions = options.toCompileOptions(pathManager)
-
             // login and get apks
             dependencyChangeManager.onStartBuilding()
             val result = juggCompilerHelper.gradleCompile(

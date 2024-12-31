@@ -19,7 +19,6 @@ import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -40,7 +39,7 @@ class JuggRunningTask(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val statusManager: IJuggRunningTaskStatusManager,
     private val deployHistoryManager: IDeployHistoryManager,
-    private val processHandler: SimpleProcessHandler,
+    private val processHandler: IProcessHandler,
     private val juggCompileHelper: JuggCompilerHelper,
     private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
@@ -289,7 +288,7 @@ class JuggRunningTask(
     }
 
     private fun failedAndActiveRunWindowIfNotCanceled() {
-        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+        if (processHandler.isCanceled) {
             return
         }
         SwingUtilities.invokeLater {
@@ -300,7 +299,7 @@ class JuggRunningTask(
 
     private fun stop(indicator: ProgressIndicator) {
         indicator.stop()
-        if (!processHandler.isProcessTerminated) {
+        if (!processHandler.isCanceled) {
             processHandler.detachProcess()
         }
         if (onFinishListener != null) {

@@ -15,7 +15,7 @@ import com.sickworm.intellij.jugg.gradle.compile.*
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.ide.IProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.*
@@ -58,13 +58,13 @@ class JuggCompilerHelper(
     @Synchronized
     fun compile(
         options: JuggGradleCompileOptions,
-        processHandler: SimpleProcessHandler,
+        processHandler: IProcessHandler,
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
         val result = doCompile(options, processHandler, indicator, isForceInstall)
 
-        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+        if (processHandler.isCanceled) {
             logger.warn("Compile canceled.")
             return result.copy(
                 isSuccess = false,
@@ -78,7 +78,7 @@ class JuggCompilerHelper(
     @Synchronized
     private fun doCompile(
         options: JuggGradleCompileOptions,
-        processHandler: SimpleProcessHandler,
+        processHandler: IProcessHandler,
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult {
@@ -94,7 +94,7 @@ class JuggCompilerHelper(
         val isGradleCompile = incrementalResult != null
 
         val startTime = System.currentTimeMillis()
-        if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+        if (processHandler.isCanceled) {
             return CompileTaskResult.incrementalCanceled(startTime)
         }
 
@@ -111,13 +111,13 @@ class JuggCompilerHelper(
                 detail = incrementalResult.failedReason
             }
 
-            if (processHandler.isProcessTerminating || processHandler.isProcessTerminated) {
+            if (processHandler.isCanceled) {
                 return CompileTaskResult.incrementalCanceled(startTime)
             }
 
             if (incrementalResult.isSuccess) {
                 return incrementalResult
-            } else if (!incrementalResult.isCanFallback && !(processHandler.isProcessTerminating || processHandler.isProcessTerminated)) {
+            } else if (!incrementalResult.isCanFallback && !(processHandler.isCanceled)) {
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
                 return incrementalResult
@@ -144,7 +144,7 @@ class JuggCompilerHelper(
 
     fun gradleCompile(
         options: JuggGradleCompileOptions,
-        processHandler: SimpleProcessHandler,
+        processHandler: IProcessHandler,
         indicator: ProgressIndicator,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
@@ -238,7 +238,7 @@ class JuggCompilerHelper(
 
     private fun preprocessIncrementalCompile(
         options: JuggGradleCompileOptions,
-        processHandler: SimpleProcessHandler,
+        processHandler: IProcessHandler,
         indicator: ProgressIndicator,
         isForceInstall: Boolean,
     ): CompileTaskResult? {
@@ -322,7 +322,7 @@ class JuggCompilerHelper(
     }
 
     private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions,
-                                               processHandler: SimpleProcessHandler,
+                                               processHandler: IProcessHandler,
                                                indicator: ProgressIndicator,
     ) {
         val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {

@@ -5,6 +5,7 @@ import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Key
+import com.sickworm.intellij.jugg.ide.IProcessHandler
 import org.apache.log4j.Level
 import java.io.OutputStream
 
@@ -12,15 +13,15 @@ import java.io.OutputStream
  * Implementation of ProcessHandler, handle detach and destroy process.
  */
 class SimpleProcessHandler : ProcessHandler(),
-    AnsiEscapeDecoder.ColoredTextAcceptor {
+    AnsiEscapeDecoder.ColoredTextAcceptor, IProcessHandler {
 
     private val myAnsiEscapeDecoder = AnsiEscapeDecoder()
 
-    var cancelAction: (() -> Unit)? = null
+    override var cancelAction: (() -> Unit)? = null
 
-    val isCanceled get() = isProcessTerminating || isProcessTerminated
+    override val isCanceled get() = isProcessTerminating || isProcessTerminated
 
-    var isCanceledByNextTask = false
+    override var isCanceledByNextTask = false
 
     override fun destroyProcessImpl() {
         detachProcessImpl()
@@ -53,7 +54,7 @@ class SimpleProcessHandler : ProcessHandler(),
 /**
  * Usage: Listen project log and output by ProcessHandler
  */
-class ProcessHandlerLoggerWrapper(var processHandler: ProcessHandler): Logger() {
+class ProcessHandlerLoggerWrapper(private var processHandler: IProcessHandler): Logger() {
 
     override fun isDebugEnabled(): Boolean {
         return true

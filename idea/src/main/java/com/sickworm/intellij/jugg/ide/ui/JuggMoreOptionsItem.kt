@@ -9,7 +9,10 @@ import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 
 class JuggMoreOptionsItem(
     val name: String,
@@ -204,7 +207,9 @@ class JuggMoreOptionsItem(
                         "<html>This will skip gradle compilation and re-init, but the behavior of Jugg may incorrect.<br>Are you sure to continue?</html>"
                     )
                     if (isConfirmed) {
-                        JuggInitializer.getManager(project)?.markAsGradleCompiledAndReInitCompiler(options)
+                        val pathManager = JuggPathManager(File(project.basePath!!))
+                        val compileOptions = options.toCompileOptions(pathManager)
+                        JuggInitializer.getManager(project)?.markAsGradleCompiledAndReInitCompiler(compileOptions)
                     }
                 }
             )

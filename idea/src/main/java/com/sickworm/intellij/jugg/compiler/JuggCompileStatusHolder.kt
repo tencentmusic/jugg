@@ -2,13 +2,13 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.ide.IProcessHandler
 
 /**
  * Show compile progress to indicator
  */
 class JuggCompileStatusHolder(
-    private val processHandler: SimpleProcessHandler,
+    private val processHandler: IProcessHandler,
     private val indicator: ProgressIndicator,
     private val logger: Logger,
 ) : CompileStatusHolder {
@@ -18,7 +18,7 @@ class JuggCompileStatusHolder(
     private val compiledFiles: MutableSet<CompileFile> = mutableSetOf()
 
     override val isShouldCancel: Boolean
-        get() = processHandler.isProcessTerminating || processHandler.isProcessTerminated
+        get() = processHandler.isCanceled
 
     override fun setCompileFiles(files: List<CompileFile>) {
         setTimes++

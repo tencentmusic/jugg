@@ -1,13 +1,11 @@
 package com.sickworm.intellij.jugg.ide
 
-import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*
@@ -20,7 +18,7 @@ class JuggGradleCompileTask(
     private val project: Project,
     private val compileClient: IGradleCompileClient,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
-    private val processHandler: SimpleProcessHandler,
+    private val processHandler: IProcessHandler,
     private val indicator: ProgressIndicator,
     private val isOnlyFetchResult: Boolean,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
@@ -77,7 +75,7 @@ class JuggGradleCompileTask(
         }
         updateTimeJob.cancel()
 
-        val isCanceled = indicator.isCanceled || processHandler.isProcessTerminated
+        val isCanceled = indicator.isCanceled || processHandler.isCanceled
         if (result.isSuccess) {
             logger.info("\nBUILD SUCCESSFUL in ${costTime / 1000}s.\n")
         } else if (isCanceled) {
@@ -99,7 +97,7 @@ class JuggGradleCompileTask(
 
 class GradleOutputParser(
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
-    private val processHandler: ProcessHandler,
+    private val processHandler: IProcessHandler,
     private val indicator: ProgressIndicator,
     private val logger: Logger,
 ) : IGradleCompileClient.TerminalOutputListener {
