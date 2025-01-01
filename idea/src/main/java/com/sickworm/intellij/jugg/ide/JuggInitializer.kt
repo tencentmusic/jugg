@@ -10,21 +10,15 @@ import java.io.File
 
 object JuggInitializer {
 
-    private val instanceSet = mutableMapOf<String, IJuggManager>()
+    private val instanceSet = mutableMapOf<String, JuggLoader>()
 
     private val logger = Logger.getInstance("JuggInitializer")
-
-    private fun tryGetProjectLogger(project: Project) = try {
-        JuggLogger.getInstance(project, "JuggInitializer")
-    } catch (e: Exception) {
-        null
-    }
 
 
     @Synchronized
     fun onSyncEvent(project: Project, syncEvent: SyncEvent) {
-        val juggManager = instanceSet[project.basePath]
-        juggManager?.onSyncEvent(syncEvent)
+        val instance = instanceSet[project.basePath]
+        instance?.juggManager?.onSyncEvent(syncEvent)
     }
 
     @Synchronized
@@ -40,25 +34,22 @@ object JuggInitializer {
             return
         }
 
-        val juggManager = JuggLoader.loadManager(project, File(projectDir))
-        instanceSet[projectDir] = juggManager
+        val instance = JuggLoader(project, File(projectDir))
+        instanceSet[projectDir] = instance
+        instance.init()
     }
 
     @Synchronized
     fun release(project: Project) {
-        val juggManager = instanceSet.remove(project.bashPathOrDefault)
-        tryGetProjectLogger(project)?.info("Release Jugg on ${project.basePath}")
-
-        juggManager ?: return
-        Disposer.dispose(juggManager)
-        JuggLogger.unregister(project)
+        val instance = instanceSet.remove(project.bashPathOrDefault)
+        instance?.release()
     }
 
     fun getManager(project: Project?): IJuggManager? {
         if (project == null) {
             return null
         }
-        return instanceSet[project.bashPathOrDefault]
+        return instanceSet[project.bashPathOrDefault]?.juggManager
     }
 }
 

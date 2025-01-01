@@ -11,17 +11,26 @@ import java.lang.reflect.Proxy
  * Init JuggManager by loading Jugg classes from JAR files.
  * Supports hot update.
  */
-object JuggLoader {
+class JuggLoader(private val project: Project, private val projectDir: File) {
 
-    fun loadManager(project: Project, projectDir: File): IJuggManager {
+    var juggManager: IJuggManager? = null
+        private set
+    private var juggManagerCreator: IJuggManagerCreator? = null
 
+    fun init() {
+        loadManager(project, projectDir)
+    }
+
+
+    private fun loadManager(project: Project, projectDir: File) {
         try {
-            val juggManager = getInstance(project, projectDir)
-            juggManager.init()
-            return juggManager
+            createInstance(project, projectDir)
         } catch (e: Exception) {
-            // oops, use embedded jars
-            val juggManager = JuggManagerCreator(project, projectDir, "embedded").create()
+            // oops, use embedded jars directly
+            val juggManagerCreator = JuggManagerCreator(project, projectDir, "embedded_directly")
+            this.juggManagerCreator = juggManagerCreator
+            juggManager = juggManagerCreator.create()
+
             val logger = JuggLogger.getInstance(project, "JuggLoader")
             logger.warn("Jugg loading error", e)
             logger.warn("Jugg loading error, use embedded jars.")
@@ -29,32 +38,40 @@ object JuggLoader {
                 JuggLogger.unregister(project)
                 throw e
             }
-            return juggManager
         }
     }
 
-    private fun getInstance(project: Project, projectDir: File): IJuggManager {
-        val classLoader = getClassLoader()
+    private fun createInstance(project: Project, projectDir: File) {
+        val classLoader: ClassLoader
+        val creatorName: String
+        if (JuggHotUpdateManager.isHotUpdateAvailable) {
+            classLoader = getHotUpdateClassLoader()
+            creatorName = "hot_update"
+        } else {
+            classLoader = getOriginClassLoader()
+            creatorName = "embedded"
+        }
+
         val juggCreatorObj = classLoader
             .loadClass(JuggManagerCreator::class.java.name)
             .getConstructor(Project::class.java, File::class.java, String::class.java)
-            .newInstance(project, projectDir, "hot_update")
+            .newInstance(project, projectDir, creatorName)
         val juggManagerObj = juggCreatorObj::class.java.getMethod("create").invoke(juggCreatorObj)
 
-        // use delegate to implement IJuggManager to invoke cross classloader
-        return Proxy.newProxyInstance(
+        // use delegate invoke cross classloader
+        juggManagerCreator = Proxy.newProxyInstance(
+            IJuggManagerCreator::class.java.classLoader,
+            arrayOf<Class<*>>(IJuggManagerCreator::class.java)
+        ) { _, method, args ->
+            method.invoke(juggCreatorObj, *(args ?: emptyArray()))
+        } as IJuggManagerCreator
+
+        juggManager = Proxy.newProxyInstance(
             IJuggManager::class.java.classLoader,
             arrayOf<Class<*>>(IJuggManager::class.java)
         ) { _, method, args ->
             method.invoke(juggManagerObj, *(args ?: emptyArray()))
         } as IJuggManager
-    }
-
-    private fun getClassLoader(): ClassLoader {
-        if (JuggHotUpdateManager.isHotUpdateAvailable) {
-            return getHotUpdateClassLoader()
-        }
-        return getOriginClassLoader()
     }
 
     private fun getHotUpdateClassLoader(): ClassLoader {
@@ -72,6 +89,10 @@ object JuggLoader {
 
     private fun getOriginClassLoader(): ClassLoader {
         return JuggLoader::class.java.classLoader
+    }
+
+    fun release() {
+        juggManagerCreator?.release()
     }
 
     private val isTestEnv: Boolean
