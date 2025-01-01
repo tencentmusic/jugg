@@ -463,66 +463,10 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    fun enableInjectGradleCompilation() {
-        logger.info("[options] enableInjectGradleCompilation")
-        deployHistoryManager.deleteDeployHistory()
-        enableReadProjectFromGradle()
-        enableCompatibleDeploymentMode()
-        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
-    }
-
-    fun markAsSyncedAndReInitCompiler() {
-        logger.info("[test options] markAsSyncedAndReInitCompiler")
-        onSyncEvent(SyncEvent.SUCCEEDED)
-    }
-
-    fun enableReadProjectFromGradle() {
-        logger.info("[options] enableReadProjectFromGradle")
-        pathManager.gradleProjectInfoFile.delete()
-        onSyncEvent(SyncEvent.SUCCEEDED)
-    }
-
-    fun setForceCompatDevice(adb: IDeviceAdb) {
-        logger.info("[options] setForceCompatDevice ${adb.displayName}")
-
-        val compatDeployHelper = CompatDeployHelper(logger)
-        val isForceCompatDevice = compatDeployHelper.isForceCompatDevice(adb)
-        if (isForceCompatDevice) {
-            compatDeployHelper.clearCompatDeviceRecord(adb)
-        } else {
-            compatDeployHelper.recordCompatDeviceRecord(adb)
-        }
-        forceReInstallNextTime()
-    }
-
-    private fun forceReInstallNextTime() {
+    fun forceReInstallNextTime() {
         // clear lastDeployOverlayIds to force re-reinstall
         deployHistoryManager.isForceReinstall = true
         juggRunningTaskStatusManager.resetHasRun()
-    }
-
-
-    fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
-        logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
-        runTaskSafe("Mark as Gradle Compiled", {
-            // login and get apks
-            dependencyChangeManager.onStartBuilding()
-            val compileOptions = options.toCompileOptions(pathManager)
-            val result = juggCompilerHelper.gradleCompile(
-                compileOptions,
-                SimpleProcessHandler(),
-                taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
-                isOnlyFetchResult = true,
-            )
-            dependencyChangeManager.onEndBuilding(result.isSuccess, result.isCanceled)
-            if (!result.isSuccess) {
-                logger.warn("gradleCompile(isOnlyFetchResult) failed, please check log for details.")
-                return@runTaskSafe
-            }
-
-            // re-init compiler and mark all compiled
-            initIncrementalCompileAfterFullBuild(System.currentTimeMillis(), compileOptions.isRemoteCompile)
-        })
     }
 
     fun copyGeneratedSourceToLocal() {
@@ -549,35 +493,12 @@ class JuggManager @TestOnly constructor(
         }, isBlockIncrementalCompile = false)
     }
 
-    fun setCustomServerUrl() {
-        logger.info("[options] setNewServerUrl")
-        juggServer.setCustomServer()
-    }
-
-    fun enableCompatibleDeploymentMode() {
-        logger.info("[options] enableCompatibleDeploymentMode")
-        IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
-
-        runTaskSafe("Remove Jugg JVMTI agents", {
-            val devices = deployTargetManager.getDevices()
-            devices.forEach {
-                val result = JuggJvmtiAgentManager(IdeaDeviceAdb(it, logger), logger).removeAllAgents()
-                logger.debug("Remove Jugg JVMTI agents result: $result, device: $it")
-            }
-        })
-    }
-
-    fun setEnableBackupClasspath() {
-        logger.info("[options] setEnableBackupClasspath ${JuggSettings.isEnableBackupClasspath}")
-        deployHistoryManager.deleteDeployHistory()
-    }
-
     override fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup {
-        return JuggMoreOptionsItem.createOptions(project, options, this)
-    }
-
-    fun getDevices(): List<IDevice> {
-        return deployTargetManager.getDevices()
+        return MoreOptionsManager(
+            this, pathManager, taskRunnerManager,
+            deployHistoryManager, deployTargetManager, juggRunningTaskStatusManager, dependencyChangeManager,
+            juggCompilerHelper, juggServer, logger,
+        ).createOptions(options)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
