@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.ide
 
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.LocalClasspathStoragePathManager
 import java.io.File
 

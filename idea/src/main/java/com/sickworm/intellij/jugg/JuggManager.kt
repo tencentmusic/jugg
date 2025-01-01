@@ -1,10 +1,14 @@
 package com.sickworm.intellij.jugg
 
 import com.android.ddmlib.IDevice
+import com.intellij.execution.DefaultExecutionResult
+import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -25,13 +29,15 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
+import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
+import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
-import com.sickworm.intellij.jugg.IJuggManager
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.lang.Runnable
+import javax.swing.SwingUtilities
 import kotlin.system.measureTimeMillis
 
 
@@ -310,7 +316,7 @@ class JuggManager @TestOnly constructor(
     @Volatile
     private var currentTask: JuggRunningTask? = null
 
-    override fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit) {
+    private fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit) {
         val currentTask = currentTask
         if (currentTask == null) {
             logger.debug("Current task is null")
@@ -328,12 +334,23 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun runTask(
-        options: JuggGradleCompileOptions,
-        processHandler: IProcessHandler,
-        isForceGradleCompile: Boolean
-    ) {
-        val task = createRunningTask(options, processHandler, isForceGradleCompile)
-        ProgressManager.getInstance().run(task)
+        options: JuggRunConfigurationOptions,
+        isForceGradleCompile: Boolean,
+        isForceReinstallNextTime: Boolean
+    ): ExecutionResult {
+        if (isForceReinstallNextTime) {
+            forceReInstallNextTime()
+        }
+        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+        val processHandler = SimpleProcessHandler()
+        consoleView.attachToProcess(processHandler)
+        processHandler.startNotify()
+
+        cancelCurrentTask(processHandler) {
+            val task = createRunningTask(options.toCompileOptions(pathManager), processHandler, isForceGradleCompile)
+            ProgressManager.getInstance().run(task)
+        }
+        return DefaultExecutionResult(consoleView, processHandler)
     }
 
     private fun createRunningTask(
@@ -446,7 +463,7 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    override fun enableInjectGradleCompilation() {
+    fun enableInjectGradleCompilation() {
         logger.info("[options] enableInjectGradleCompilation")
         deployHistoryManager.deleteDeployHistory()
         enableReadProjectFromGradle()
@@ -454,18 +471,18 @@ class JuggManager @TestOnly constructor(
         IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
     }
 
-    override fun markAsSyncedAndReInitCompiler() {
+    fun markAsSyncedAndReInitCompiler() {
         logger.info("[test options] markAsSyncedAndReInitCompiler")
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
-    override fun enableReadProjectFromGradle() {
+    fun enableReadProjectFromGradle() {
         logger.info("[options] enableReadProjectFromGradle")
         pathManager.gradleProjectInfoFile.delete()
         onSyncEvent(SyncEvent.SUCCEEDED)
     }
 
-    override fun setForceCompatDevice(adb: IDeviceAdb) {
+    fun setForceCompatDevice(adb: IDeviceAdb) {
         logger.info("[options] setForceCompatDevice ${adb.displayName}")
 
         val compatDeployHelper = CompatDeployHelper(logger)
@@ -478,18 +495,19 @@ class JuggManager @TestOnly constructor(
         forceReInstallNextTime()
     }
 
-    override fun forceReInstallNextTime() {
+    private fun forceReInstallNextTime() {
         // clear lastDeployOverlayIds to force re-reinstall
         deployHistoryManager.isForceReinstall = true
         juggRunningTaskStatusManager.resetHasRun()
     }
 
 
-    override fun markAsGradleCompiledAndReInitCompiler(compileOptions: JuggGradleCompileOptions) {
+    fun markAsGradleCompiledAndReInitCompiler(options: JuggRunConfigurationOptions) {
         logger.info("[test options] markAsGradleCompiledAndReInitCompiler")
         runTaskSafe("Mark as Gradle Compiled", {
             // login and get apks
             dependencyChangeManager.onStartBuilding()
+            val compileOptions = options.toCompileOptions(pathManager)
             val result = juggCompilerHelper.gradleCompile(
                 compileOptions,
                 SimpleProcessHandler(),
@@ -507,7 +525,7 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    override fun copyGeneratedSourceToLocal() {
+    fun copyGeneratedSourceToLocal() {
         logger.info("copyGeneratedSourceToLocal")
         taskRunnerManager.runTaskSafe("Copy Generated Source to local", {
             val modules = compileContextManager.compileContext.modules
@@ -531,12 +549,12 @@ class JuggManager @TestOnly constructor(
         }, isBlockIncrementalCompile = false)
     }
 
-    override fun setCustomServerUrl() {
+    fun setCustomServerUrl() {
         logger.info("[options] setNewServerUrl")
         juggServer.setCustomServer()
     }
 
-    override fun enableCompatibleDeploymentMode() {
+    fun enableCompatibleDeploymentMode() {
         logger.info("[options] enableCompatibleDeploymentMode")
         IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
 
@@ -549,17 +567,32 @@ class JuggManager @TestOnly constructor(
         })
     }
 
-    override fun setEnableBackupClasspath() {
+    fun setEnableBackupClasspath() {
         logger.info("[options] setEnableBackupClasspath ${JuggSettings.isEnableBackupClasspath}")
         deployHistoryManager.deleteDeployHistory()
     }
 
-    override fun dumpLogcatErrorLogs(): String {
-        return deployTargetManager.dumpErrorLogs()
+    override fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup {
+        return JuggMoreOptionsItem.createOptions(project, options, this)
     }
 
-    override fun getDeviceList(): List<IDevice> {
+    fun getDevices(): List<IDevice> {
         return deployTargetManager.getDevices()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun reportIssue() {
+        val dialog = ReportProgressDialog()
+        ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
+        val logcatErrorLog = deployTargetManager.dumpErrorLogs()
+        val deferred = JuggServer(project).reportAndUploadLogs(logcatErrorLog)
+        deferred.invokeOnCompletion {
+            val uploadResult = deferred.getCompleted()
+            SwingUtilities.invokeLater {
+                dialog.setResult(uploadResult)
+            }
+        }
+        dialog.show()
     }
 
     private fun reInitOnCompileContextUpdate() {

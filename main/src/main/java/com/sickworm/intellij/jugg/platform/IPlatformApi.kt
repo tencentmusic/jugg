@@ -51,5 +51,4 @@ interface IPlatformApi {
 
     fun getIdeVersion(): String
 
-    fun dumpLogcatErrorLogs(project: Project): String?
 }

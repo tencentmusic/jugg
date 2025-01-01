@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.compiler
+package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.util.ui.JBUI

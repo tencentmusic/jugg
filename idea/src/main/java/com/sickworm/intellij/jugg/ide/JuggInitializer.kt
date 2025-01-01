@@ -2,10 +2,8 @@ package com.sickworm.intellij.jugg.ide
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.IJuggManager
 import com.sickworm.intellij.jugg.loader.JuggLoader
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 
 object JuggInitializer {

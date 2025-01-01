@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.loader
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.IJuggManager
+import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.lang.reflect.Proxy
@@ -63,19 +64,21 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             IJuggManagerCreator::class.java.classLoader,
             arrayOf<Class<*>>(IJuggManagerCreator::class.java)
         ) { _, method, args ->
-            method.invoke(juggCreatorObj, *(args ?: emptyArray()))
+            juggCreatorObj::class.java.getMethod(method.name, *method.parameterTypes)
+                .invoke(juggCreatorObj, *(args ?: emptyArray()))
         } as IJuggManagerCreator
 
         juggManager = Proxy.newProxyInstance(
             IJuggManager::class.java.classLoader,
             arrayOf<Class<*>>(IJuggManager::class.java)
         ) { _, method, args ->
-            method.invoke(juggManagerObj, *(args ?: emptyArray()))
+            juggManagerObj::class.java.getMethod(method.name, *method.parameterTypes)
+                .invoke(juggManagerObj, *(args ?: emptyArray()))
         } as IJuggManager
     }
 
     private fun getHotUpdateClassLoader(): ClassLoader {
-        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines()
+        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }
         val jarFiles = jarFileNames.map { jarFileName ->
             val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
@@ -84,7 +87,11 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             return@map jarFile
         }
 
-        return PriorityURLClassLoader(jarFiles.map { it.toURI().toURL() }.toTypedArray(), getOriginClassLoader())
+        return PriorityURLClassLoader(
+            jarFiles.map { it.toURI().toURL() }.toTypedArray(),
+            getOriginClassLoader(),
+            hotUpdateBlackList,
+        )
     }
 
     private fun getOriginClassLoader(): ClassLoader {
@@ -95,6 +102,27 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
         juggManagerCreator?.release()
     }
 
-    private val isTestEnv: Boolean
-        get() = PathManager.getSystemPath().replace("\\", "/").contains("idea/build/idea-sandbox/system")
+    companion object {
+        private val isTestEnv: Boolean
+            get() = PathManager.getSystemPath().replace("\\", "/").contains("idea/build/idea-sandbox/system")
+
+        /**
+         * These classes can not be loaded by hot update class loader, because they need to communicate
+         * with the IDE class loader.
+         * Which means they cannot be hot updated.
+         */
+        private val hotUpdateBlackList = setOf(
+            // They are loaded before JuggManager created.
+            JuggInitializer::class.java.name,
+            JuggLoader::class.java.name,
+
+            // They are used by IDE and will get "Cannot invoke" error in idea.log if using custom classloader
+            JuggConfigurationType::class.java.name,
+
+            // They are in IJuggManagerIdeApi and invoke by IDE, which will get "NoSuchMethodError" error in idea.log if using custom classloader
+            SyncEvent::class.java.name,
+            JuggRunConfigurationOptions::class.java.name,
+            SyncMode::class.java.name,
+        )
+    }
 }

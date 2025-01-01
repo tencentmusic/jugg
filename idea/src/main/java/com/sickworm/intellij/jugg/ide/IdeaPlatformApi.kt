@@ -137,7 +137,4 @@ class IdeaPlatformApi : IPlatformApi {
         return AsDeployerCompat.ideVersion.toString()
     }
 
-    override fun dumpLogcatErrorLogs(project: Project): String? {
-        return JuggInitializer.getManager(project)?.dumpLogcatErrorLogs()
-    }
 }

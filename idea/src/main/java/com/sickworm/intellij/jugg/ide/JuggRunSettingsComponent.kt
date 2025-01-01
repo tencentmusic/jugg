@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.ide.DataManager
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.JBPopup
@@ -9,16 +10,9 @@ import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
-import com.sickworm.intellij.jugg.compiler.ReportConfirmDialog
-import com.sickworm.intellij.jugg.compiler.ReportProgressDialog
-import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.ProjectInfoReader
+import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
-import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
-import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.awt.Dimension
 import java.awt.GridLayout
 import javax.swing.*
@@ -145,7 +139,7 @@ class JuggRunSettingsComponent : JComponent() {
             updateJuggRunConfigurationOptions(options)
 
             val title = "More Options"
-            val group = JuggMoreOptionsItem.createOptions(project, options)
+            val group = JuggInitializer.getManager(project)?.getMoreOptions(options) ?: DefaultActionGroup()
             val dataContext = DataManager.getInstance().getDataContext(moreOptionsButton)
             val popup = JBPopupFactory.getInstance().createActionGroupPopup(
                 title, group, dataContext,
@@ -236,23 +230,13 @@ class JuggRunSettingsComponent : JComponent() {
         }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     private fun doUpload(project: Project) {
-        val dialog = ReportProgressDialog()
         val isConfirmed = ReportConfirmDialog().showAndGet()
         if (!isConfirmed) {
             return
         }
 
-        ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
-        val deferred = JuggServer(project).reportAndUploadLogs()
-        deferred.invokeOnCompletion {
-            val uploadResult = deferred.getCompleted()
-            SwingUtilities.invokeLater {
-                dialog.setResult(uploadResult)
-            }
-        }
-        dialog.show()
+        JuggInitializer.getManager(project)?.reportIssue()
     }
 
     private fun addPair(left: JComponent?, right: JComponent?, leftWidth: Int, isAlignEnd: Boolean = false): JPanel {

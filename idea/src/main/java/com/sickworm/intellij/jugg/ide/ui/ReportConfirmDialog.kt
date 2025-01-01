@@ -1,15 +1,18 @@
-package com.sickworm.intellij.jugg.compiler
+package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.util.ui.JBUI
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import javax.swing.*
+import javax.swing.JComponent
+import javax.swing.JLabel
+import javax.swing.JPanel
 
 class ReportConfirmDialog : DialogWrapper(true) {
 
     private val mainPanel: JPanel = JPanel(GridBagLayout())
-    private val contentLabel: JLabel = JLabel("Report will collect the logs in this project and upload, confirm report?")
+    private val contentLabel: JLabel =
+        JLabel("Report will collect the logs in this project and upload, confirm report?")
 
     init {
         title = "Confirm Report"

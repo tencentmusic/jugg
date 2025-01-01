@@ -122,7 +122,7 @@ class JuggServer(
         }
     }
 
-    fun reportAndUploadLogs(): Deferred<UploadResult> {
+    fun reportAndUploadLogs(logcatErrorLog: String): Deferred<UploadResult> {
         return async {
             logger.debug("reportAndUploadLogs start")
             val pathManager = pathManager ?: return@async UploadResult.fail("pathManager is null")
@@ -143,7 +143,6 @@ class JuggServer(
                 } ?: emptyList()
 
                 logger.debug("start dump logcatErrorLogs")
-                val logcatErrorLog = PlatformApi.dumpLogcatErrorLogs(project) ?: "null"
                 val logcatFile = File(pathManager.tmpDir, "logcat.log")
                 if (logcatFile.exists()) {
                     logcatFile.delete()

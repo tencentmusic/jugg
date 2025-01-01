@@ -3,16 +3,13 @@ package com.sickworm.intellij.jugg.ide.ui
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.CompatDeployHelper
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
-import com.sickworm.intellij.jugg.ide.JuggInitializer
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.JuggSettings
-import com.sickworm.intellij.jugg.ide.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import java.io.File
 
 class JuggMoreOptionsItem(
     val name: String,
@@ -64,9 +61,9 @@ class JuggMoreOptionsItem(
 
     companion object {
 
-        fun createOptions(project: Project, options: JuggRunConfigurationOptions): ActionGroup {
+        fun createOptions(project: Project, options: JuggRunConfigurationOptions, juggManager: JuggManager): ActionGroup {
             val group = DefaultActionGroup()
-            getOptionList(project, options).forEach {
+            getOptionList(project, options, juggManager).forEach {
                 if (it.isSplitLine) {
                     group.addSeparator(it.name)
                 } else {
@@ -76,7 +73,7 @@ class JuggMoreOptionsItem(
             return group
         }
 
-        private fun getOptionList(project: Project, options: JuggRunConfigurationOptions): List<JuggMoreOptionsItem> {
+        private fun getOptionList(project: Project, options: JuggRunConfigurationOptions, juggManager: JuggManager): List<JuggMoreOptionsItem> {
 
             val items = mutableListOf<JuggMoreOptionsItem>()
 
@@ -109,12 +106,12 @@ class JuggMoreOptionsItem(
 
             createOption(
                 name = "Copy generated source to local",
-                onSet = { JuggInitializer.getManager(project)?.copyGeneratedSourceToLocal() }
+                onSet = { juggManager.copyGeneratedSourceToLocal() }
             )
 
             createOption(
                 name = "Set custom server URL",
-                onSet = { JuggInitializer.getManager(project)?.setCustomServerUrl() }
+                onSet = { juggManager.setCustomServerUrl() }
             )
 
             createSplitLine("Function switches")
@@ -129,7 +126,7 @@ class JuggMoreOptionsItem(
                     )
                     if (isConfirmed) {
                         JuggSettings.isEnableInjectGradleCompile = it
-                        JuggInitializer.getManager(project)?.enableInjectGradleCompilation()
+                        juggManager.enableInjectGradleCompilation()
                     }
                 }
             )
@@ -140,7 +137,7 @@ class JuggMoreOptionsItem(
                     onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
                     onSet = {
                         JuggSettings.isEnableReadProjectInfoFromGradle = it
-                        JuggInitializer.getManager(project)?.enableReadProjectFromGradle()
+                        juggManager.enableReadProjectFromGradle()
                     }
                 )
 
@@ -149,19 +146,19 @@ class JuggMoreOptionsItem(
                     onGet = { JuggSettings.isEnableCompatibleDeploymentMode },
                     onSet = {
                         JuggSettings.isEnableCompatibleDeploymentMode = it
-                        JuggInitializer.getManager(project)?.enableCompatibleDeploymentMode()
+                        juggManager.enableCompatibleDeploymentMode()
                     }
                 )
 
-                val devices = JuggInitializer.getManager(project)?.getDeviceList()
-                devices?.forEach {
+                val devices = juggManager.getDevices()
+                devices.forEach {
                     val compatDeployHelper = CompatDeployHelper(JuggLogger.getInstance(project, "CompatDeployHelper"))
                     val adb = IdeaDeviceAdb(it, DefaultLogger("CompatDeployHelper"))
                     createOption(
                         name = "Force use compat deploy for ${adb.displayName}",
                         onGet = { compatDeployHelper.isForceCompatDevice(adb) },
                         onSet = {
-                            JuggInitializer.getManager(project)?.setForceCompatDevice(adb)
+                            juggManager.setForceCompatDevice(adb)
                         }
                     )
                 }
@@ -178,7 +175,7 @@ class JuggMoreOptionsItem(
                         )
                         if (isConfirmed) {
                             JuggSettings.isEnableBackupClasspath = it
-                            JuggInitializer.getManager(project)?.setEnableBackupClasspath()
+                            juggManager.setEnableBackupClasspath()
                         }
                     }
                 )
@@ -194,7 +191,7 @@ class JuggMoreOptionsItem(
                         "<html>This will reload project info and re-init, but dependencies won't update without sync.<br>Are you sure to continue?</html>"
                     )
                     if (isConfirmed) {
-                        JuggInitializer.getManager(project)?.markAsSyncedAndReInitCompiler()
+                        juggManager.markAsSyncedAndReInitCompiler()
                     }
                 }
             )
@@ -207,9 +204,7 @@ class JuggMoreOptionsItem(
                         "<html>This will skip gradle compilation and re-init, but the behavior of Jugg may incorrect.<br>Are you sure to continue?</html>"
                     )
                     if (isConfirmed) {
-                        val pathManager = JuggPathManager(File(project.basePath!!))
-                        val compileOptions = options.toCompileOptions(pathManager)
-                        JuggInitializer.getManager(project)?.markAsGradleCompiledAndReInitCompiler(compileOptions)
+                        juggManager.markAsGradleCompiledAndReInitCompiler(options)
                     }
                 }
             )

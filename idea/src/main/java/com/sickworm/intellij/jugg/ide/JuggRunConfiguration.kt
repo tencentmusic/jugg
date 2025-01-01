@@ -3,20 +3,15 @@ package com.sickworm.intellij.jugg.ide
 import com.intellij.execution.*
 import com.intellij.execution.configurations.*
 import com.intellij.execution.executors.DefaultRunExecutor
-import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import java.io.File
 import javax.swing.JComponent
 
 /**
@@ -43,9 +38,7 @@ class JuggRunConfiguration(
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
-        val pathManager = JuggPathManager(File(project.basePath!!))
-        val gradleCompileOptions = state!!.toCompileOptions(pathManager)
-        return JuggRunProfileState(project, gradleCompileOptions)
+        return JuggRunProfileState(project, state!!)
     }
 }
 
@@ -114,28 +107,22 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
  */
 class JuggRunProfileState(
     private val project: Project,
-    private val juggGradleCompileOptions: JuggGradleCompileOptions,
+    private val options: JuggRunConfigurationOptions,
 ) : RunProfileState {
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
         val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
-        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
-        val processHandler = SimpleProcessHandler()
-        consoleView.attachToProcess(processHandler)
-        processHandler.startNotify()
-
-        juggManager.cancelCurrentTask(processHandler) {
-            juggManager.runTask(juggGradleCompileOptions, processHandler, forceFallbackNextTime)
-            forceFallbackNextTime = false
-        }
-
-        return DefaultExecutionResult(consoleView, processHandler)
+        val executionResult = juggManager.runTask(options, forceFallbackNextTime, forceReinstallNextTime)
+        forceFallbackNextTime = false
+        forceReinstallNextTime = false
+        return executionResult
     }
 
 
     companion object {
 
         private var forceFallbackNextTime = false
+        private var forceReinstallNextTime = false
 
         fun executeGradleCompile(project: Project) {
             val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
@@ -158,7 +145,7 @@ class JuggRunProfileState(
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
                 }
                 ConfirmResult.LEFT -> {
-                    JuggInitializer.getManager(project)?.forceReInstallNextTime()
+                    forceReinstallNextTime = true
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
                 }
                 else -> {
