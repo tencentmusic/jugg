@@ -131,6 +131,23 @@ class JuggMoreOptionsItem(
                 }
             )
 
+            if (!isWindows) {
+                createOption(
+                    name = "Enable backup classpath",
+                    onGet = { JuggSettings.isEnableBackupClasspath },
+                    onSet = {
+                        val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                            "Confirm Switch Backup Classpath",
+                            "<html>This will effects compilation stability. Continue?</html>"
+                        )
+                        if (isConfirmed) {
+                            JuggSettings.isEnableBackupClasspath = it
+                            juggManager.setEnableBackupClasspath()
+                        }
+                    }
+                )
+            }
+
             if (JuggSettings.isEnableInjectGradleCompile) {
                 createOption(
                     name = "Enable read project info from Gradle",
@@ -162,23 +179,6 @@ class JuggMoreOptionsItem(
                         }
                     )
                 }
-            }
-
-            if (!isWindows) {
-                createOption(
-                    name = "Enable backup classpath",
-                    onGet = { JuggSettings.isEnableBackupClasspath },
-                    onSet = {
-                        val isConfirmed = CommonConfirmDialog.showAndGetResult(
-                            "Confirm Switch Backup Classpath",
-                            "<html>This will effects compilation stability. Continue?</html>"
-                        )
-                        if (isConfirmed) {
-                            JuggSettings.isEnableBackupClasspath = it
-                            juggManager.setEnableBackupClasspath()
-                        }
-                    }
-                )
             }
 
             createSplitLine("(Test) Mock Events")
