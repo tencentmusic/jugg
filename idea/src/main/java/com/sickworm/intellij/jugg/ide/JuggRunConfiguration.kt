@@ -23,8 +23,6 @@ class JuggRunConfiguration(
     name: String
 ) : RunConfigurationBase<JuggRunConfigurationOptions>(project, factory, name) {
 
-    private val editor = JuggSettingsEditor()
-
     init {
         AsDeployerCompat.setAllowSelectDevice(this)
     }
@@ -34,7 +32,7 @@ class JuggRunConfiguration(
     }
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> {
-        return editor
+        return JuggSettingsEditor()
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
