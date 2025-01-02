@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.loader
 
-import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.IJuggManager
-import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.ide.SyncEvent
+import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
+import com.sickworm.intellij.jugg.ide.JuggConfigurationType
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import java.io.File
 import java.lang.reflect.Proxy
 
@@ -14,7 +14,7 @@ import java.lang.reflect.Proxy
  */
 class JuggLoader(private val project: Project, private val projectDir: File) {
 
-    var juggManager: IJuggManager? = null
+    var juggManager: IJuggManagerCaller? = null
         private set
     private var juggManagerCreator: IJuggManagerCreator? = null
 
@@ -31,14 +31,7 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             val juggManagerCreator = JuggManagerCreator(project, projectDir, "embedded_directly")
             this.juggManagerCreator = juggManagerCreator
             juggManager = juggManagerCreator.create()
-
-            val logger = JuggLogger.getInstance(project, "JuggLoader")
-            logger.warn("Jugg loading error", e)
-            logger.warn("Jugg loading error, use embedded jars.")
-            if (isTestEnv) {
-                JuggLogger.unregister(project)
-                throw e
-            }
+            juggManagerCreator.printCreateError(e)
         }
     }
 
@@ -69,12 +62,12 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
         } as IJuggManagerCreator
 
         juggManager = Proxy.newProxyInstance(
-            IJuggManager::class.java.classLoader,
-            arrayOf<Class<*>>(IJuggManager::class.java)
+            IJuggManagerCaller::class.java.classLoader,
+            arrayOf<Class<*>>(IJuggManagerCaller::class.java)
         ) { _, method, args ->
             juggManagerObj::class.java.getMethod(method.name, *method.parameterTypes)
                 .invoke(juggManagerObj, *(args ?: emptyArray()))
-        } as IJuggManager
+        } as IJuggManagerCaller
     }
 
     private fun getHotUpdateClassLoader(): ClassLoader {
@@ -103,8 +96,6 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
     }
 
     companion object {
-        private val isTestEnv: Boolean
-            get() = PathManager.getSystemPath().replace("\\", "/").contains("idea/build/idea-sandbox/system")
 
         /**
          * These classes can not be loaded by hot update class loader, because they need to communicate
@@ -122,7 +113,6 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             // They are in IJuggManagerIdeApi and invoke by IDE, which will get "NoSuchMethodError" error in idea.log if using custom classloader
             SyncEvent::class.java.name,
             JuggRunConfigurationOptions::class.java.name,
-            SyncMode::class.java.name,
         )
     }
 }

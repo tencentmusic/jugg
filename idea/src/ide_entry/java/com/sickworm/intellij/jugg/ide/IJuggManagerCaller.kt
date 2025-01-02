@@ -1,12 +1,13 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.ide
 
 import com.intellij.execution.ExecutionResult
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
-import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
-import com.sickworm.intellij.jugg.ide.SyncEvent
 
-interface IJuggManager: Disposable {
+/**
+ * API that IDE will call to interact with JuggManager.
+ */
+interface IJuggManagerCaller: Disposable {
 
     fun init()
 

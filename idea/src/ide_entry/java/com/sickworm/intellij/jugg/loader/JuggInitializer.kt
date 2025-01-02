@@ -1,9 +1,9 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.IJuggManager
-import com.sickworm.intellij.jugg.loader.JuggLoader
+import com.sickworm.intellij.jugg.ide.SyncEvent
+import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
 import java.io.File
 
 object JuggInitializer {
@@ -43,12 +43,12 @@ object JuggInitializer {
         instance?.release()
     }
 
-    fun getManager(project: Project?): IJuggManager? {
+    fun getManager(project: Project?): IJuggManagerCaller? {
         if (project == null) {
             return null
         }
         return instanceSet[project.bashPathOrDefault]?.juggManager
     }
-}
 
-val Project.bashPathOrDefault get() = basePath ?: "null"
+    private val Project.bashPathOrDefault get() = basePath ?: "null"
+}

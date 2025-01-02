@@ -12,6 +12,7 @@ import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import javax.swing.JComponent
 
 /**

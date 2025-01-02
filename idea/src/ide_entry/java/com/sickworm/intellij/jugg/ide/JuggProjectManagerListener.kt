@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ide
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManagerListener
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 
 class JuggProjectManagerListener : ProjectManagerListener {
 

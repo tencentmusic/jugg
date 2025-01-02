@@ -10,7 +10,9 @@ import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.awt.Dimension

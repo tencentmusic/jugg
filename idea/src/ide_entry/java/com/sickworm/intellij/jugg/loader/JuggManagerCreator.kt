@@ -1,10 +1,11 @@
 package com.sickworm.intellij.jugg.loader
 
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.IJuggManager
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.ide.IdeaPlatformApi
+import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -20,9 +21,9 @@ class JuggManagerCreator(
     private val creatorName: String,
     ): IJuggManagerCreator {
 
-    private var juggManager: IJuggManager? = null
+    private var juggManager: IJuggManagerCaller? = null
 
-    override fun create(): IJuggManager {
+    override fun create(): IJuggManagerCaller {
         if (juggManager != null) {
             throw IllegalStateException("Jugg already init on ${projectDir}, aborted.")
         }
@@ -54,10 +55,25 @@ class JuggManagerCreator(
         }
         JuggLogger.unregister(project)
     }
+
+    override fun printCreateError(e: Throwable) {
+        val logger = JuggLogger.getInstance(project, "JuggLoader")
+        logger.warn("Jugg loading error", e)
+        logger.warn("Jugg loading error, use embedded jars.")
+        if (isTestEnv) {
+            JuggLogger.unregister(project)
+            throw e
+        }
+    }
+
+    private val isTestEnv: Boolean
+        get() = PathManager.getSystemPath().replace("\\", "/").contains("idea/build/idea-sandbox/system")
+
 }
 
 
 interface IJuggManagerCreator {
-    fun create(): IJuggManager
+    fun create(): IJuggManagerCaller
     fun release()
+    fun printCreateError(e: Throwable)
 }

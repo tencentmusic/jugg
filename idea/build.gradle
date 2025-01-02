@@ -40,8 +40,8 @@ intellij {
 
 sourceSets {
     main {
-        resources {
-            srcDirs += 'src/main/config/final'
+        java {
+            srcDirs += 'src/ide_entry/java'
         }
     }
 }

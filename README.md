@@ -24,6 +24,7 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
 * **deploy_compat**: Compatibility layer for Android Studio
 * **platform_compat**: API Mock for **main** to invoke **idea** API
 * **jvmti_agent**: Agent for JVMTI for deploy compatability
+* **aapt2-inclink**: AAPT2 incremental link native libraries
 
 ## Core Classes
 * **JuggManager**: Core manager of Jugg

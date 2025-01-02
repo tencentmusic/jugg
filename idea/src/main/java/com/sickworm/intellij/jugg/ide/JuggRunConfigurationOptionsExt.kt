@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide
 
+import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide
 import com.android.tools.idea.gradle.project.sync.GradleSyncListenerWithRoot
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import org.jetbrains.annotations.SystemIndependent
 
 
