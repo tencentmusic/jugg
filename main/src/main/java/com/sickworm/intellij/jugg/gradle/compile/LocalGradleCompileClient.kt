@@ -3,8 +3,8 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi

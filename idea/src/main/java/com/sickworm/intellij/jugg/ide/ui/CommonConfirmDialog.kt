@@ -5,7 +5,7 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
-import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import java.awt.*
 import java.awt.event.ActionEvent
 import java.awt.event.WindowEvent

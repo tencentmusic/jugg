@@ -17,8 +17,10 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.ide.IProcessHandler
-import com.sickworm.intellij.jugg.ide.*
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -331,12 +333,8 @@ class JuggManager @TestOnly constructor(
         currentTask.cancel(onFinish)
     }
 
-    override fun runTask(
-        options: JuggRunConfigurationOptions,
-        isForceGradleCompile: Boolean,
-        isForceReinstallNextTime: Boolean
-    ): ExecutionResult {
-        if (isForceReinstallNextTime) {
+    override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
+        if (ForceGradleCompileHelper.isForceReinstallNextTime) {
             forceReInstallNextTime()
         }
         val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
@@ -345,9 +343,11 @@ class JuggManager @TestOnly constructor(
         processHandler.startNotify()
 
         cancelCurrentTask(processHandler) {
-            val task = createRunningTask(options.toCompileOptions(pathManager), processHandler, isForceGradleCompile)
+            val task = createRunningTask(options.toCompileOptions(pathManager), processHandler, ForceGradleCompileHelper.isForceGradleCompileNextTime)
             ProgressManager.getInstance().run(task)
         }
+        ForceGradleCompileHelper.isForceReinstallNextTime = false
+        ForceGradleCompileHelper.isForceGradleCompileNextTime = false
         return DefaultExecutionResult(consoleView, processHandler)
     }
 
@@ -452,7 +452,7 @@ class JuggManager @TestOnly constructor(
 
     override fun gradleCompile() {
         logger.debug("[action] gradleCompile")
-        JuggRunProfileState.executeGradleCompile(project)
+        ForceGradleCompileHelper.executeGradleCompile(project)
     }
 
     override fun restartApp() {
@@ -497,6 +497,10 @@ class JuggManager @TestOnly constructor(
             deployHistoryManager, deployTargetManager, juggRunningTaskStatusManager, dependencyChangeManager,
             juggCompilerHelper, juggServer, logger,
         ).createOptions(options)
+    }
+
+    override fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent {
+        return JuggRunSettingsComponent()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

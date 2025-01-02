@@ -5,7 +5,7 @@ import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
 import java.lang.reflect.Type
 

@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.bean
 
 enum class SyncMode(val modeName: String) {
     IFT("iFt"),

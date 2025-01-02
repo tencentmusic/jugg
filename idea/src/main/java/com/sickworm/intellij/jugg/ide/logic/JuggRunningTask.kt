@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.logic
 
 import com.android.ddmlib.IDevice
 import com.google.gson.Gson
@@ -18,6 +18,8 @@ import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.ui.ProcessHandlerLoggerWrapper
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager

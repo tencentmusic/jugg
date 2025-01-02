@@ -19,6 +19,7 @@ version pluginVersion
 // record compile time
 def compileTime = System.currentTimeMillis()
 def compileDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())
+new File("$rootDir/idea/src/main/resources/META-INF").mkdirs()
 new File("$rootDir/idea/src/main/resources/META-INF/compile_time").write("$compileDate\n$compileTime")
 
 sourceCompatibility = 11
@@ -42,6 +43,9 @@ sourceSets {
     main {
         java {
             srcDirs += 'src/ide_entry/java'
+        }
+        resources {
+            srcDirs += 'src/ide_entry/resources'
         }
     }
 }

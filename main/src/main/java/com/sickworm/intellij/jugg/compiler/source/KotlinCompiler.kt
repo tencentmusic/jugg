@@ -5,7 +5,7 @@ import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File

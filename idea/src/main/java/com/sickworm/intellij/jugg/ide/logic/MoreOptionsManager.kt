@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.logic
 
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.actionSystem.ActionGroup
@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.SyncEvent
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler

@@ -13,11 +13,7 @@ interface IJuggManagerCaller: Disposable {
 
     fun onSyncEvent(syncEvent: SyncEvent)
 
-    fun runTask(
-        options: JuggRunConfigurationOptions,
-        isForceGradleCompile: Boolean = false,
-        isForceReinstallNextTime: Boolean = false,
-    ): ExecutionResult
+    fun runTask(options: JuggRunConfigurationOptions): ExecutionResult
 
     fun gradleCompile()
 
@@ -26,4 +22,6 @@ interface IJuggManagerCaller: Disposable {
     fun reportIssue()
 
     fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup
+
+    fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent
 }

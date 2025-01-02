@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.sickworm.intellij.jugg.gradle.script.GradleApplicationInjector
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File

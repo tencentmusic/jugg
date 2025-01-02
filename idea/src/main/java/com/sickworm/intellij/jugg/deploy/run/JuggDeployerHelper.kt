@@ -14,9 +14,9 @@ import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.ide.JuggRunningTask
-import com.sickworm.intellij.jugg.ide.JuggSettings
-import com.sickworm.intellij.jugg.ide.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance

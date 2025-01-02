@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.util.ui.JBUI
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.server.UploadResult
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout

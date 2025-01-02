@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File
 

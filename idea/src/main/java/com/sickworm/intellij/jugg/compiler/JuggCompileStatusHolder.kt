@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
-import com.sickworm.intellij.jugg.ide.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 
 /**
  * Show compile progress to indicator

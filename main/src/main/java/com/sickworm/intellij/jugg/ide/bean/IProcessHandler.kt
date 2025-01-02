@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.bean
 
 import com.intellij.openapi.util.Key
 

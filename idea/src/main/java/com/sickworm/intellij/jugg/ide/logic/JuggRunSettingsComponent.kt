@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.ide.DataManager
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -10,7 +10,9 @@ import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
+import com.sickworm.intellij.jugg.ide.IJuggRunSettingsComponent
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
@@ -23,7 +25,9 @@ import kotlin.math.max
 /**
  * Run configuration settings UI
  */
-class JuggRunSettingsComponent : JComponent() {
+class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
+
+    override val component: JComponent = this
 
     private val topButtonsContainer: JPanel = JPanel().also {
         it.border = JBUI.Borders.empty(0, 4)
@@ -162,7 +166,7 @@ class JuggRunSettingsComponent : JComponent() {
         topButtonsContainer.add(moreOptionsButton)
     }
 
-    fun updateUi(settings: JuggRunConfigurationOptions, configName: String) {
+    override fun updateUi(settings: JuggRunConfigurationOptions, configName: String) {
         updateUi(settings.toRunConfigurationTemplate(), configName)
     }
 
@@ -200,7 +204,7 @@ class JuggRunSettingsComponent : JComponent() {
     }
 
     // must run after updateUi for moreOptionsButton updates
-    fun initUpload(project: Project) {
+    override fun initUpload(project: Project) {
         if (reportIssueActionLink.actionListeners.isEmpty()) {
             reportIssueActionLink.addActionListener {
                 doUpload(project)
@@ -210,7 +214,7 @@ class JuggRunSettingsComponent : JComponent() {
         }
     }
 
-    fun updateJuggRunConfigurationOptions(options: JuggRunConfigurationOptions?) {
+    override fun updateJuggRunConfigurationOptions(options: JuggRunConfigurationOptions?) {
         val component = this
         options?.also {
             it.compileCommand = component.compileCommandTextField.text

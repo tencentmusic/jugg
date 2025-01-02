@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.project
 
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo

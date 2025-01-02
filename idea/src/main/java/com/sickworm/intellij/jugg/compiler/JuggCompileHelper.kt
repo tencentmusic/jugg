@@ -13,9 +13,13 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.*
 import com.sickworm.intellij.jugg.ide.*
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.ide.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.*

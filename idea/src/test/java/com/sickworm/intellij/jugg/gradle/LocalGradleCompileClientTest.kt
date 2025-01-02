@@ -7,9 +7,9 @@ import com.intellij.openapi.module.ModuleManager
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
-import com.sickworm.intellij.jugg.ide.toCompileOptions
+import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*

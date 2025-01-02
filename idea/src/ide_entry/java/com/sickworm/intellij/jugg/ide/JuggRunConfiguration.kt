@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.ide
 
 import com.intellij.execution.*
 import com.intellij.execution.configurations.*
-import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.components.BaseState
@@ -11,7 +10,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import javax.swing.JComponent
 
@@ -48,7 +46,7 @@ class JuggConfigurationType : ConfigurationTypeBase(
     this::class.toString(),
     "Jugg",
     "Run Jugg compilation",
-    NotNullLazyValue.createValue { IconManager.getInstance().getIcon("res/icon_run_configuration.svg", JuggConfigurationType::class.java) },
+    NotNullLazyValue.createValue { IconManager.getInstance().getIcon("res/icons/run_configuration.svg", JuggConfigurationType::class.java) },
 ) {
     init {
         addFactory(object : ConfigurationFactory(this) {
@@ -86,17 +84,22 @@ class JuggSettingsEditor : SettingsEditor<JuggRunConfiguration>() {
 
     override fun resetEditorFrom(s: JuggRunConfiguration) {
         val state = s.state ?: return
-        (component as JuggRunSettingsComponent).updateUi(state, s.name)
-        (component as JuggRunSettingsComponent).initUpload(s.project)
+        val component = component as JuggRunSettingsComponentWrapper
+        if (component.impl == null) {
+            val impl = JuggInitializer.getManager(s.project)?.getJuggRunSettingsComponent() ?: return
+            component.setImpl(impl)
+        }
+        component.impl?.updateUi(state, s.name)
+        component.impl?.initUpload(s.project)
     }
 
     override fun applyEditorTo(s: JuggRunConfiguration) {
-        val component = component as JuggRunSettingsComponent
-        component.updateJuggRunConfigurationOptions(s.state)
+        val component = component as JuggRunSettingsComponentWrapper
+        component.impl?.updateJuggRunConfigurationOptions(s.state)
     }
 
     override fun createEditor(): JComponent {
-        return JuggRunSettingsComponent()
+        return JuggRunSettingsComponentWrapper()
     }
 
 }
@@ -111,46 +114,7 @@ class JuggRunProfileState(
 
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult {
         val juggManager = JuggInitializer.getManager(project) ?: return DefaultExecutionResult()
-        val executionResult = juggManager.runTask(options, forceFallbackNextTime, forceReinstallNextTime)
-        forceFallbackNextTime = false
-        forceReinstallNextTime = false
+        val executionResult = juggManager.runTask(options)
         return executionResult
-    }
-
-
-    companion object {
-
-        private var forceFallbackNextTime = false
-        private var forceReinstallNextTime = false
-
-        fun executeGradleCompile(project: Project) {
-            val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
-            if (currentConfiguration?.configuration !is JuggRunConfiguration) {
-                CommonConfirmDialog.showAndGetResult(
-                    "Run failed", "Please select Jugg run configuration first.",
-                    okButtonText = "I got it!"
-                )
-                return
-            }
-            val confirmResult = CommonConfirmDialog.showAndGetOrCancel(
-                "Confirm fallback", "Jugg is going to fallback to gradle. Continue?",
-                okButtonText = "Yes",
-                negativeButtonText = "No",
-                leftButtonText = "Just Reinstall",
-            )
-            when (confirmResult) {
-                ConfirmResult.POSITIVE -> {
-                    forceFallbackNextTime = true
-                    ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
-                }
-                ConfirmResult.LEFT -> {
-                    forceReinstallNextTime = true
-                    ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
-                }
-                else -> {
-                    // no-op
-                }
-            }
-        }
     }
 }

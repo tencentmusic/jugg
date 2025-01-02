@@ -4,7 +4,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.git.IGitManager
-import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import kotlinx.coroutines.*

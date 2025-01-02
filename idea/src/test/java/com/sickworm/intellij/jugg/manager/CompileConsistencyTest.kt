@@ -7,7 +7,7 @@ import com.googlecode.d2j.reader.MultiDexFileReader
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.manager.utils.ListFiles
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.mock.logger

@@ -4,7 +4,6 @@ import com.android.ddmlib.IDevice
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
-import com.sickworm.intellij.jugg.ide.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 
 /**

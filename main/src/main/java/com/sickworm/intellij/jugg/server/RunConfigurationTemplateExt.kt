@@ -4,7 +4,7 @@ import com.google.gson.TypeAdapter
 import com.google.gson.reflect.TypeToken
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonWriter
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.lang.reflect.Type
 

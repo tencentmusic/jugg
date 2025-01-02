@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance

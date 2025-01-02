@@ -1,6 +1,4 @@
-@file:Suppress("ConstPropertyName")
-
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.bean
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder

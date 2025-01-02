@@ -6,8 +6,8 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
-import com.sickworm.intellij.jugg.ide.IProcessHandler
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*

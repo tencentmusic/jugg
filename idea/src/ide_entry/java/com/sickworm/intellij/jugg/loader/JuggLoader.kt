@@ -1,10 +1,7 @@
 package com.sickworm.intellij.jugg.loader
 
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.ide.SyncEvent
-import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
-import com.sickworm.intellij.jugg.ide.JuggConfigurationType
-import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.*
 import java.io.File
 import java.lang.reflect.Proxy
 
@@ -113,6 +110,7 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             // They are in IJuggManagerIdeApi and invoke by IDE, which will get "NoSuchMethodError" error in idea.log if using custom classloader
             SyncEvent::class.java.name,
             JuggRunConfigurationOptions::class.java.name,
+            IJuggRunSettingsComponent::class.java.name,
         )
     }
 }

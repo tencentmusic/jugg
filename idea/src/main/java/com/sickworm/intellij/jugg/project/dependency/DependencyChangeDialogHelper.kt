@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.logger.getInstance
 
 class DependencyChangeDialogHelper(loggerArg: Logger) {

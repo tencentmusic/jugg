@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.server
 
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.manager.MockJugg
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sun.nio.file.SensitivityWatchEventModifier

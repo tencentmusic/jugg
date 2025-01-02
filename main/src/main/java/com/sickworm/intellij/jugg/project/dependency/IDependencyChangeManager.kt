@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.project.dependency
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.ide.ConfirmResult
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 

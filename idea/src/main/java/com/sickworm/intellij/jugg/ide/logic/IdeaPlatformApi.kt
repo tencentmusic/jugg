@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.logic
 
 import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
@@ -12,13 +12,13 @@ import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
+import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.File
 import java.util.jar.Manifest
 

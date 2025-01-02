@@ -5,7 +5,7 @@ import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Key
-import com.sickworm.intellij.jugg.ide.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import org.apache.log4j.Level
 import java.io.OutputStream
 

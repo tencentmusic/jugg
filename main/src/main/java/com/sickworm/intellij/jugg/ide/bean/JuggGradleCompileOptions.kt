@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.bean
 
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.JuggException

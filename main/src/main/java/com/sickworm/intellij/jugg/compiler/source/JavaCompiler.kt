@@ -6,7 +6,7 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import javax.tools.*

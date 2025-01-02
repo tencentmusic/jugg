@@ -4,7 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.ide.JuggSettings
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager

@@ -1,6 +1,8 @@
-package com.sickworm.intellij.jugg.ide
+package com.sickworm.intellij.jugg.ide.logic
 
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 
@@ -52,4 +54,22 @@ fun JuggRunConfigurationOptions.toRunConfigurationTemplate(): RunConfigurationTe
         httpProxyPort = options.httpProxyPort,
         syncMode = options.syncMode,
     )
+}
+
+
+fun JuggRunConfigurationOptions.setDefaultRemoteOption(template: RunConfigurationTemplate) {
+    isRemoteCompile = template.isRemoteCompile
+    remoteSshUser = template.remoteSshUser
+    remoteSshPassword = template.remoteSshPassword
+    remoteSshIp = template.remoteSshIp
+    remoteSshPort = template.remoteSshPort
+    localToRemoteIftConfigName = template.localToRemoteIftConfigName
+    localToRemoteSyncPath = template.localToRemoteSyncPath
+    remoteSyncPath = template.remoteSyncPath
+    remoteToLocalIftConfigName = template.remoteToLocalIftConfigName
+    remoteToLocalSyncPath = template.remoteToLocalSyncPath
+    httpProxyIp = template.httpProxyIp
+    httpProxyPort = template.httpProxyPort
+    isSyncAllProjects = template.isSyncAllProjects
+    syncMode = template.syncMode
 }
