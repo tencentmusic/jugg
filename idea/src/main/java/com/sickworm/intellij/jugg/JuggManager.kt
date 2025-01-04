@@ -4,7 +4,6 @@ import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
-import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
@@ -33,6 +32,7 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -47,7 +47,8 @@ class JuggManager @TestOnly constructor(
     val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     val logger: Logger = JuggLogger.getInstance(project, "JuggManager"),
-    private val juggServer: JuggServer = JuggServer(project, pathManager),
+    private val juggServer: JuggServer = JuggServer(project, pathManager, coroutineScope),
+    private val juggHotUpdateDownloader: JuggHotUpdateDownloader = JuggHotUpdateDownloader(juggServer, logger),
     private val fileChangesHandler: IFileChangesHandler = FileChangesHandler(pathManager.projectDir, pathManager.juggRootDir, JuggLogger.getInstance(project, "FileChangesHandler")),
     private val fileChangesDetector: IFileChangesDetector = FileChangesDetector(project, pathManager.projectDir),
     private val deployHistoryManager: IDeployHistoryManager = DeployHistoryManager(
@@ -104,6 +105,7 @@ class JuggManager @TestOnly constructor(
                 )
                 checkUpdateHandler.handle(it)
                 loadCustomConfig()
+                juggHotUpdateDownloader.init(project)
             }
         })
     }
@@ -513,7 +515,7 @@ class JuggManager @TestOnly constructor(
         val dialog = ReportProgressDialog()
         ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
         val logcatErrorLog = deployTargetManager.dumpErrorLogs()
-        val deferred = JuggServer(project).reportAndUploadLogs(logcatErrorLog)
+        val deferred = juggServer.reportAndUploadLogs(logcatErrorLog)
         deferred.invokeOnCompletion {
             val uploadResult = deferred.getCompleted()
             SwingUtilities.invokeLater {

@@ -30,11 +30,24 @@ data class ProjectCustomConfig(
 data class NotificationData(
     val title: String,
     val content: String,
-    val buttonText: String,
-    val jumpUrl: String,
+    val buttonText: String?,
+    val jumpUrl: String?,
 )
 
 data class ServerRule(
     val url: String,
     val checkReachableHost: String?,
+)
+
+data class HotUpdateData(
+    val isNeedUpdate: Boolean,
+    val targetVersion: String,
+    val updateInfo: NotificationData?,
+    val jarFileInfos: List<JarFileInfo>,
+)
+
+data class JarFileInfo(
+    val uniqueName: String,
+    val url: String,
+    val md5: String,
 )

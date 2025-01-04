@@ -31,12 +31,16 @@ class JuggCommonNotification(private val project: Project) {
                 data.title, data.content,
                 NotificationType.INFORMATION
             )
-        notification.addAction(object : AnAction(data.buttonText) {
-            override fun actionPerformed(e: AnActionEvent) {
-                // open download url
-                BrowserUtil.browse(data.jumpUrl)
-            }
-        })
+        if (!data.buttonText.isNullOrEmpty()) {
+            notification.addAction(object : AnAction(data.buttonText) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    val jumpUrl = data.buttonText
+                    if (!jumpUrl.isNullOrEmpty()) {
+                        BrowserUtil.browse(jumpUrl)
+                    }
+                }
+            })
+        }
         notification.notify(project)
     }
 }

@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import com.sickworm.intellij.jugg.server.protocols.VersionData
 import kotlinx.coroutines.*
@@ -38,8 +39,9 @@ import java.util.zip.ZipOutputStream
  */
 class JuggServer(
     private val project: Project,
-    private val pathManager: JuggPathManager? = JuggPathManager(File(project.basePath!!)),
-): CoroutineScope by CoroutineScope(Dispatchers.IO) {
+    private val pathManager: JuggPathManager,
+    private val coroutineScope: CoroutineScope,
+): CoroutineScope by coroutineScope {
 
     private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
 
@@ -48,6 +50,7 @@ class JuggServer(
     private val reportEventUrl get() = "$serverUrl/report_event"
     private val checkUpdateUrl get() = "$serverUrl/check_update"
     private val reportIssueUrl get() = "$serverUrl/report_issue"
+    private val checkHotUpdateUrl get() = "$serverUrl/check_hot_update"
 
 
     private val username: String = getUserName()
@@ -125,7 +128,6 @@ class JuggServer(
     fun reportAndUploadLogs(logcatErrorLog: String): Deferred<UploadResult> {
         return async {
             logger.debug("reportAndUploadLogs start")
-            val pathManager = pathManager ?: return@async UploadResult.fail("pathManager is null")
             // zip log directory
             val fileName = "${requestToken}_${System.currentTimeMillis()}".md5.substring(0, 8)
             pathManager.tmpDir.mkdirs()
@@ -279,7 +281,6 @@ class JuggServer(
     }
 
     private fun getName(defaultName: String): String {
-        val pathManager = pathManager ?: return defaultName
         val gitManager = PlatformApi.createGitManagerAndTrySearchParent(pathManager.projectDir)
         if (!gitManager.hasInitGit) {
             return defaultName
@@ -289,7 +290,7 @@ class JuggServer(
 
     private fun getUserName(): String {
         val defaultName = System.getProperty("user.name") ?: "jugg_user_unknown"
-        val projectDir = pathManager?.projectDir ?: return defaultName
+        val projectDir = pathManager.projectDir
         return PlatformApi.createGitManagerAndTrySearchParent(projectDir).userName ?: defaultName
     }
 
@@ -301,6 +302,42 @@ class JuggServer(
 
     fun setCustomServer() {
         juggServerChooser.setCustomServer()
+    }
+
+    fun checkHotUpdate(): HotUpdateData? {
+        try {
+            if (serverUrl == null) {
+                logger.debug("checkHotUpdate skip: serverUrl is null")
+                return null
+            }
+
+            val request: Request = Request.Builder()
+                .url("checkHotUpdateUrl?version=$version")
+                .get()
+                .build()
+
+            val response = client.newCall(request).execute()
+            logger.debug("checkHotUpdate response: [${response.code}] ${response.body?.string()}")
+            return Gson().fromJson(response.body?.string(), HotUpdateData::class.java)
+        } catch (e: Exception) {
+            logger.debug("checkHotUpdate failed: ${e.message}")
+            return null
+        }
+    }
+
+    fun downloadFile(url: String, targetFile: File) {
+        targetFile.parentFile.mkdirs()
+        targetFile.delete()
+        targetFile.createNewFile()
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+        client.newCall(request).execute().body?.byteStream()?.use { input ->
+            targetFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
     }
 }
 

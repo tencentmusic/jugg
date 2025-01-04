@@ -5,9 +5,11 @@ import java.io.File
 
 object JuggHotUpdateManager {
 
-    val storageDir: File = File(PathManager.getSystemPath(), "jugg/hot_update")
+    val hotUpdateDir: File = File(PathManager.getSystemPath(), "jugg/hot_update")
+    val storageDir: File = File(hotUpdateDir, "jars")
 
-    val loadListFile = File(storageDir, "load_list.txt")
+    /** jar file list to be loaded */
+    val loadListFile = File(hotUpdateDir, "load_list.txt")
 
     val isHotUpdateAvailable: Boolean get() = loadListFile.exists()
 }

@@ -22,3 +22,4 @@ local.properties
 /main/src/test/java/local
 /idea/src/test/java/local
 /idea/src/main/resources/META-INF/compile_time
+/idea/src/main/resources/change_log/

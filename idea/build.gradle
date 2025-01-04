@@ -1,3 +1,5 @@
+import org.apache.commons.io.FileUtils
+
 import java.text.SimpleDateFormat
 
 plugins {
@@ -50,7 +52,8 @@ sourceSets {
     }
 }
 
-patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log.html").getText('UTF-8')
+patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
+FileUtils.copyDirectory(file("${rootProject.rootDir}/change_log") , file("src/main/resources/change_log"))
 
 runIde {
     // default 11_0_11b1341.57 and will get Access Denied
