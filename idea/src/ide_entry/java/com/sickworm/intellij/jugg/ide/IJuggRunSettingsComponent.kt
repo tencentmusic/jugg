@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.openapi.project.Project
+import javax.swing.BoxLayout
 import javax.swing.JComponent
 
 interface IJuggRunSettingsComponent {
@@ -17,6 +18,7 @@ class JuggRunSettingsComponentWrapper : JComponent() {
 
     fun setImpl(impl: IJuggRunSettingsComponent) {
         removeAll()
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
         add(impl.component)
         this.impl = impl
     }

@@ -3,14 +3,14 @@ package com.sickworm.intellij.jugg.loader
 import java.net.URL
 import java.net.URLClassLoader
 
-class PriorityURLClassLoader(
+class JuggPriorityURLClassLoader(
     urls: Array<URL>,
     private val lowPriorityParent: ClassLoader,
-    private val blackList: Set<String> = emptySet()
+    private val isInBlackList: (String) -> Boolean = { false }
 ) : URLClassLoader(urls, null) {
 
-    override fun loadClass(name: String?, resolve: Boolean): Class<*> {
-        if (blackList.contains(name)) {
+    override fun loadClass(name: String, resolve: Boolean): Class<*> {
+        if (isInBlackList(name)) {
             return lowPriorityParent.loadClass(name)
         }
         return try {

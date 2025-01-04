@@ -182,6 +182,7 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun setAllowSelectDevice(runConfiguration: RunConfigurationBase<*>) {
         // special api, call before project init, we just loop all impl
+        // special api, can not hot update
         compatImplList.forEach {
             try {
                 it.impl.value.setAllowSelectDevice(runConfiguration)

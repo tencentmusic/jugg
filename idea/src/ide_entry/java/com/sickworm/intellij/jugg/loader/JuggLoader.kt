@@ -77,11 +77,13 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             return@map jarFile
         }
 
-        return PriorityURLClassLoader(
+        return JuggPriorityURLClassLoader(
             jarFiles.map { it.toURI().toURL() }.toTypedArray(),
             getOriginClassLoader(),
-            hotUpdateBlackList,
-        )
+        ) {
+            val packageName = it.substring(0, it.lastIndexOf('.'))
+            canNotHotUpdatePackage.contains(packageName)
+        }
     }
 
     private fun getOriginClassLoader(): ClassLoader {
@@ -93,24 +95,9 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
     }
 
     companion object {
-
-        /**
-         * These classes can not be loaded by hot update class loader, because they need to communicate
-         * with the IDE class loader.
-         * Which means they cannot be hot updated.
-         */
-        private val hotUpdateBlackList = setOf(
-            // They are loaded before JuggManager created.
-            JuggInitializer::class.java.name,
-            JuggLoader::class.java.name,
-
-            // They are used by IDE and will get "Cannot invoke" error in idea.log if using custom classloader
-            JuggConfigurationType::class.java.name,
-
-            // They are in IJuggManagerIdeApi and invoke by IDE, which will get "NoSuchMethodError" error in idea.log if using custom classloader
-            SyncEvent::class.java.name,
-            JuggRunConfigurationOptions::class.java.name,
-            IJuggRunSettingsComponent::class.java.name,
-        )
+        val canNotHotUpdatePackage = setOf(
+            "com.sickworm.intellij.jugg.loader",
+            "com.sickworm.intellij.jugg.ide",
+            )
     }
 }

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.ide
 
 import com.intellij.execution.ExecutionResult
+import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 

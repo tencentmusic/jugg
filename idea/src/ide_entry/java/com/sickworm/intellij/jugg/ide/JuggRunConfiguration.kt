@@ -7,6 +7,7 @@ import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.ui.IconManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -19,12 +20,8 @@ import javax.swing.JComponent
 class JuggRunConfiguration(
     project: Project,
     factory: ConfigurationFactory,
-    name: String
+    name: String,
 ) : RunConfigurationBase<JuggRunConfigurationOptions>(project, factory, name) {
-
-    init {
-        AsDeployerCompat.setAllowSelectDevice(this)
-    }
 
     override fun getType(): ConfigurationType {
         return JuggConfigurationType.getInstance()
@@ -36,6 +33,21 @@ class JuggRunConfiguration(
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
         return JuggRunProfileState(project, state!!)
+    }
+
+    override fun <T : Any?> getUserData(key: Key<T>): T? {
+        ensureSetAllowSelectDevice() // JuggRunConfiguration creation will invoke here first
+        return super.getUserData(key)
+    }
+
+    private var lastSetObj: Any? = null
+
+    private fun ensureSetAllowSelectDevice() {
+        if (lastSetObj !== get()) {
+            // map will recreate
+            AsDeployerCompat.setAllowSelectDevice(this)
+            lastSetObj = get()
+        }
     }
 }
 

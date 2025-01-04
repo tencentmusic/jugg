@@ -4,6 +4,7 @@ import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
@@ -143,22 +144,26 @@ class JuggManager @TestOnly constructor(
 
     override fun onSyncEvent(syncEvent: SyncEvent) {
         logger.debug("onSyncEvent: $syncEvent")
-        when (syncEvent) {
-            SyncEvent.SUCCEEDED -> {
-                tryCreateRunConfigurations(isSyncFinished = true)
-                runTaskSafe("Update project info", ::updateProjectInfo)
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+        try {
+            when (syncEvent) {
+                SyncEvent.SUCCEEDED -> {
+                    tryCreateRunConfigurations(isSyncFinished = true)
+                    runTaskSafe("Update project info", ::updateProjectInfo)
+                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+                }
+                SyncEvent.SKIPPED -> {
+                    tryCreateRunConfigurations(isSyncFinished = false)
+                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+                }
+                SyncEvent.STARTED -> {
+                    dependencyChangeManager.onStartSyncing(isFromIde = true)
+                }
+                SyncEvent.FAILED -> {
+                    dependencyChangeManager.onEndSyncing(isFromIde = true, false, compileContextManager.compileContext)
+                }
             }
-            SyncEvent.SKIPPED -> {
-                tryCreateRunConfigurations(isSyncFinished = false)
-                gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
-            }
-            SyncEvent.STARTED -> {
-                dependencyChangeManager.onStartSyncing(isFromIde = true)
-            }
-            SyncEvent.FAILED -> {
-                dependencyChangeManager.onEndSyncing(isFromIde = true, false, compileContextManager.compileContext)
-            }
+        } catch (e: Throwable) {
+            logger.warn("onSyncEvent failed: ", e)
         }
     }
 
