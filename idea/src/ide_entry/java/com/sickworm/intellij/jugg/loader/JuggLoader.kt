@@ -68,6 +68,18 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
     }
 
     private fun getHotUpdateClassLoader(): ClassLoader {
+        if (cacheHotUpdateClassLoader != null) {
+            if (cacheKey == getCacheKey()) {
+                return cacheHotUpdateClassLoader!!
+            }
+        }
+
+        cacheHotUpdateClassLoader = createHotUpdateClassLoader()
+        cacheKey = getCacheKey()
+        return cacheHotUpdateClassLoader!!
+    }
+
+    private fun createHotUpdateClassLoader(): ClassLoader {
         val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }.toSet()
         clearOutdatedJarBeforeFirstTimeLoad(jarFileNames)
         val jarFiles = jarFileNames.map { jarFileName ->
@@ -119,6 +131,13 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
                     it.delete()
                 }
             }
+        }
+
+        private var cacheKey: String? = null
+        private var cacheHotUpdateClassLoader: ClassLoader? = null
+
+        private fun getCacheKey(): String {
+            return JuggHotUpdateManager.loadListFile.lastModified().toString()
         }
     }
 }
