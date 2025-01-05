@@ -80,8 +80,13 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
         return JuggPriorityURLClassLoader(
             jarFiles.map { it.toURI().toURL() }.toTypedArray(),
             getOriginClassLoader(),
-        ) {
-            val packageName = it.substring(0, it.lastIndexOf('.'))
+        ) block@{ className ->
+            // using origin class loader to load classes in canNotHotUpdatePackage except JuggManagerCreator
+            // package in loader and ide is unable to hot update because these classes will initialized by Idea.
+            if (className == JuggManagerCreator::class.java.name) {
+                return@block false
+            }
+            val packageName = className.substring(0, className.lastIndexOf('.'))
             canNotHotUpdatePackage.contains(packageName)
         }
     }
