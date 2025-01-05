@@ -68,7 +68,8 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
     }
 
     private fun getHotUpdateClassLoader(): ClassLoader {
-        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }
+        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }.toSet()
+        clearOutdatedJarBeforeFirstTimeLoad(jarFileNames)
         val jarFiles = jarFileNames.map { jarFileName ->
             val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
             if (!jarFile.exists()) {
@@ -104,5 +105,20 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
             "com.sickworm.intellij.jugg.loader",
             "com.sickworm.intellij.jugg.ide",
             )
+
+        private var isFirstTimeLoad = true
+
+        @Synchronized
+        private fun clearOutdatedJarBeforeFirstTimeLoad(jarFileNames: Set<String>) {
+            if (!isFirstTimeLoad) {
+                return
+            }
+            isFirstTimeLoad = false
+            JuggHotUpdateManager.storageDir.listFiles()?.forEach {
+                if (!jarFileNames.contains(it.name)) {
+                    it.delete()
+                }
+            }
+        }
     }
 }

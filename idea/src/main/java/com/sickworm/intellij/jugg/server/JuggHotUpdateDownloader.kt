@@ -125,15 +125,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, logger: Logger
             downloadFiles.add(downloadFile)
         }
 
-        // 3. delete outdated jars
-        JuggHotUpdateManager.storageDir.listFiles()?.forEach {
-            if (!hotUpdateData.uniqueNames.contains(it.name)) {
-                logEvent("delete outdated jar: ${it.absolutePath}")
-                it.delete()
-            }
-        }
-
-        // 4. check whether jar files is complete
+        // 3. check whether jar files is complete
         val expectJarFiles = hotUpdateData.uniqueNames.map {
             File(JuggHotUpdateManager.storageDir, it).path
         }
@@ -144,7 +136,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, logger: Logger
             throw IllegalStateException("jar file missing after downloaded: $missingJarFiles")
         }
 
-        // 5. record new hot update data
+        // 4. record new hot update data
         logEvent("downloadHotUpdate write new hot update data")
 
         val tmpHotUpdateDataFile = File("${hotUpdateDataFile.path}.tmp")
