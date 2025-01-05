@@ -15,20 +15,17 @@ import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File
-import java.util.jar.Manifest
 
 class IdeaPlatformApi : IPlatformApi {
 
     override val pluginVersion: String by lazy {
-        val cl = IdeaPlatformApi::class.java.classLoader
-        val manifest = Manifest(cl.getResourceAsStream("META-INF/MANIFEST.MF"))
-        manifest.mainAttributes.getValue("Version") ?: "unknown"
+        ProjectInfoReader.juggPluginInfoManifest?.mainAttributes?.getValue("Version") ?: "unknown"
     }
 
     override fun showDialog(

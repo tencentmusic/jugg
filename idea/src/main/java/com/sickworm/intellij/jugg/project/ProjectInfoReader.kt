@@ -4,7 +4,6 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
-import com.sickworm.intellij.jugg.server.JuggServer
 import java.io.File
 import java.util.jar.Manifest
 
@@ -13,8 +12,8 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
-            logger.debug("plugin version: ${getPluginVersion()}, compile time: ${getPluginCompileTime()}")
-            logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}, os.arch: ${System.getProperty("os.arch")}")
+            logger.debug("plugin info: ${getPluginCompileInfo()}")
+            logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
             logger.debug("systemPath: ${File(PathManager.getSystemPath())}")
@@ -39,17 +38,26 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         return gradleDistributionUrl
     }
 
-    private fun getPluginCompileTime(): String {
-        val cl = JuggServer::class.java.classLoader
-        cl.getResourceAsStream("META-INF/compile_time")!!.use {
-            return String(it.readAllBytes()).replace("\n", " ")
+    private fun getPluginCompileInfo(): String {
+        val stringBuilder = StringBuilder()
+        if (juggPluginInfoManifest == null) {
+            stringBuilder.append("juggPluginInfoManifest not found")
+        } else if (juggPluginInfoManifest?.mainAttributes.isNullOrEmpty()) {
+            stringBuilder.append("juggPluginInfoManifest.mainAttributes not found")
         }
+        juggPluginInfoManifest?.mainAttributes?.forEach {
+            stringBuilder.append("${it.key}: ${it.value}, ")
+        }
+        return stringBuilder.toString()
     }
 
-    private fun getPluginVersion(): String {
-        val cl = JuggServer::class.java.classLoader
-        cl.getResourceAsStream("META-INF/MANIFEST.MF")!!.use {
-            return Manifest(it).mainAttributes.getValue("Version") ?: "unknown"
+    companion object {
+        val juggPluginInfoManifest: Manifest? by lazy {
+            val cl = ProjectInfoReader::class.java.classLoader
+            cl.getResourceAsStream("META-INF/JUGG_PLUGIN_INFO.MF")?.use {
+                return@lazy Manifest(it)
+            }
+            null
         }
     }
 }

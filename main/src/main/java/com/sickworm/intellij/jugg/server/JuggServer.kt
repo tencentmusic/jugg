@@ -55,7 +55,6 @@ class JuggServer(
 
     private val username: String = getUserName()
 
-    // read Version in MANIFEST.MF
     val version: String = PlatformApi.pluginVersion
 
     private val projectId: String by lazy { getName(project.name) }
@@ -312,7 +311,7 @@ class JuggServer(
             }
 
             val request: Request = Request.Builder()
-                .url("checkHotUpdateUrl?version=$version")
+                .url("$checkHotUpdateUrl?version=$version")
                 .get()
                 .build()
 
@@ -320,7 +319,7 @@ class JuggServer(
             logger.debug("checkHotUpdate response: [${response.code}] ${response.body?.string()}")
             return Gson().fromJson(response.body?.string(), HotUpdateData::class.java)
         } catch (e: Exception) {
-            logger.debug("checkHotUpdate failed: ${e.message}")
+            logger.debug("checkHotUpdate failed: $e")
             return null
         }
     }
