@@ -316,8 +316,9 @@ class JuggServer(
                 .build()
 
             val response = client.newCall(request).execute()
-            logger.debug("checkHotUpdate response: [${response.code}] ${response.body?.string()}")
-            return Gson().fromJson(response.body?.string(), HotUpdateData::class.java)
+            val content = response.body?.string()
+            logger.debug("checkHotUpdate response: [${response.code}] $content")
+            return Gson().fromJson(content, HotUpdateData::class.java)
         } catch (e: Exception) {
             logger.debug("checkHotUpdate failed: $e")
             return null

@@ -19,9 +19,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Download hot update jars from Jugg server.
  * Jugg has one isolate instance for each project, but only one instance will do the download work.
  */
-class JuggHotUpdateDownloader(private val juggServer: JuggServer, logger: Logger) {
+class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Logger) {
 
-    private val logger = logger.getInstance("JuggHotUpdateDownloader")
+    private val logger = loggerArg.getInstance("JuggHotUpdateDownloader")
     private val hotUpdateDataFile = File(JuggHotUpdateManager.hotUpdateDir, "hot_update_data.json")
     private val firstUpdateFlag = File(JuggHotUpdateManager.hotUpdateDir, "first_update_flag")
 
