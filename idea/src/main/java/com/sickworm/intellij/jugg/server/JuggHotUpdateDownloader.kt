@@ -13,6 +13,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.lang.ref.WeakReference
+import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -108,12 +109,16 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         logEvent("downloadHotUpdate needDownloadJars: $needDownloadJars")
         val downloadFiles = mutableListOf<File>()
         needDownloadJars.forEach { key ->
-            val url = hotUpdateData.jarFileInfos.first { it.uniqueName == key }.url
+            val jarFileInfo = hotUpdateData.jarFileInfos.first { it.uniqueName == key }
             val tmpDownloadFile = File(JuggHotUpdateManager.storageDir, "$key.tmp")
             tmpDownloadFile.delete()
-            logEvent("download $key start, url $url")
+            logEvent("download $key start, url ${jarFileInfo.url}")
             try {
-                juggServer.downloadFile(url, tmpDownloadFile)
+                juggServer.downloadFile(jarFileInfo.url, tmpDownloadFile)
+                val fileMd5 = tmpDownloadFile.md5()
+                if (fileMd5 != jarFileInfo.md5) {
+                    throw IllegalStateException("md5 check failed, expect: ${jarFileInfo.md5}, actual: $fileMd5")
+                }
             } catch (e: Exception) {
                 logEvent("download $key failed: $e")
                 throw e
@@ -178,6 +183,13 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
                 it.get()?.onEvent(msg, e)
             }
         }
+
+        private fun File.md5(): String {
+            val md = MessageDigest.getInstance("MD5")
+            md.update(readBytes())
+            return md.digest().joinToString("") { "%02x".format(it) }
+        }
+
     }
 
     /**
