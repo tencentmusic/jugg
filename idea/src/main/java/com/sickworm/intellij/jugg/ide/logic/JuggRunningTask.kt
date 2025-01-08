@@ -257,6 +257,8 @@ class JuggRunningTask(
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         detailMap["cost_time_except_check"] = deployTaskResult.costTimeExceptCheck.toString()
+        detailMap["device_manufacturer"] = device.getProperty("ro.product.manufacturer") ?: "null"
+        detailMap["device_model"] = device.getProperty("ro.product.model") ?: "null"
         juggServer.report {
             action = "deploy"
             isSuccess = deployTaskResult.isSuccess
