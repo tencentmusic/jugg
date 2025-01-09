@@ -237,11 +237,6 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     }
 
     private fun doUpload(project: Project) {
-        val isConfirmed = ReportConfirmDialog().showAndGet()
-        if (!isConfirmed) {
-            return
-        }
-
         JuggInitializer.getManager(project)?.reportIssue()
     }
 

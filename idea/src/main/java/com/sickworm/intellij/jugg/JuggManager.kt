@@ -30,6 +30,7 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
+import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
@@ -519,13 +520,20 @@ class JuggManager @TestOnly constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun reportIssue() {
+        val isConfirmed = ReportConfirmDialog().showAndGet()
+        if (!isConfirmed) {
+            return
+        }
+
         val dialog = ReportProgressDialog()
-        ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
-        val logcatErrorLog = deployTargetManager.dumpErrorLogs()
-        val deferred = juggServer.reportAndUploadLogs(logcatErrorLog)
-        deferred.invokeOnCompletion {
-            val uploadResult = deferred.getCompleted()
-            SwingUtilities.invokeLater {
+        taskRunnerManager.runBackgroundSafe("Report issue") {
+            dialog.setProgress("Dumping logcat...")
+            ProjectInfoReader(project, JuggLogger.getInstance(project, "ProjectInfoReader")).printInfo()
+            val logcatErrorLog = deployTargetManager.dumpErrorLogs()
+            dialog.setProgress("Uploading logs...")
+            val deferred = juggServer.reportAndUploadLogs(logcatErrorLog)
+            deferred.invokeOnCompletion {
+                val uploadResult = deferred.getCompleted()
                 dialog.setResult(uploadResult)
             }
         }

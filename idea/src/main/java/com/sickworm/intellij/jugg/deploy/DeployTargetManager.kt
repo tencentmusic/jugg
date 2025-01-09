@@ -100,7 +100,12 @@ class DeployTargetManager(
         stringBuilder.append("Devices: ${devices.map { it.name }}\n")
         devices.forEach { device ->
             stringBuilder.append("[Dump Device: ${device.name} start]\n")
-            stringBuilder.append(AdbCmdHelper(device, logger).dumpErrorLog())
+            val content = try {
+                AdbCmdHelper(device, logger).dumpErrorLog()
+            } catch (e: Exception) {
+                "Dump error logs failed: ${e.message}"
+            }
+            stringBuilder.append(content)
             stringBuilder.append("\n[Dump Device: ${device.name} end]\n")
         }
         stringBuilder.append("[Dump error logs end]\n")
