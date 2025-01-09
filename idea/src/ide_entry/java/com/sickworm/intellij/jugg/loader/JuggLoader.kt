@@ -93,14 +93,17 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
         return JuggPriorityURLClassLoader(
             jarFiles.map { it.toURI().toURL() }.toTypedArray(),
             getOriginClassLoader(),
-        ) block@{ className ->
+        ) isUseOriginClassLoader@{ className ->
             // using origin class loader to load classes in canNotHotUpdatePackage except JuggManagerCreator
             // package in loader and ide is unable to hot update because these classes will initialized by Idea.
             if (className == JuggManagerCreator::class.java.name) {
-                return@block false
+                return@isUseOriginClassLoader false
+            }
+            if (canNotHotUpdateClass.contains(className)) {
+                return@isUseOriginClassLoader true
             }
             val packageName = className.substring(0, className.lastIndexOf('.'))
-            canNotHotUpdatePackage.contains(packageName)
+            return@isUseOriginClassLoader canNotHotUpdatePackage.contains(packageName)
         }
     }
 
@@ -116,7 +119,14 @@ class JuggLoader(private val project: Project, private val projectDir: File) {
         val canNotHotUpdatePackage = setOf(
             "com.sickworm.intellij.jugg.loader",
             "com.sickworm.intellij.jugg.ide",
+            "com.intellij",
             )
+        val canNotHotUpdateClass = setOf(
+            // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, java.util.List, java.util.function.Consumer, int, kotlin.jvm.internal.DefaultConstructorMarker)
+            // com.intellij.ui.components.DropDownLink.<init>(java.lang.Object, kotlin.jvm.functions.Function1)
+            "kotlin.jvm.internal.DefaultConstructorMarker",
+            "kotlin.jvm.functions.Function1",
+        )
 
         private var isFirstTimeLoad = true
 
