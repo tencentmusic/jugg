@@ -43,7 +43,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         juggServer.launch {
             while (juggServer.isActive) {
                 try {
-                    val hotUpdateData = checkHotUpdate()
+                    val hotUpdateData = checkHotUpdate(isPositiveCheck = false)
                     if (hotUpdateData != null && hotUpdateData.isNeedUpdate) {
                         downloadHotUpdate(hotUpdateData)
                     }
@@ -74,7 +74,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
     }
 
     @Synchronized
-    private fun checkHotUpdate(): HotUpdateData? {
+    fun checkHotUpdate(isPositiveCheck: Boolean): HotUpdateData? {
         logger.debug("checkHotUpdate")
         val durationSinceLastUpdate = System.currentTimeMillis() - lastRequestTime
         if (durationSinceLastUpdate < REQUEST_MIN_DURATION_MILL) {
@@ -82,13 +82,13 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
             return null
         }
 
-        val hotUpdateData: HotUpdateData? = juggServer.checkHotUpdate()
+        val hotUpdateData: HotUpdateData? = juggServer.checkHotUpdate(isPositiveCheck)
         logEvent("checkHotUpdate: $hotUpdateData")
         return hotUpdateData
     }
 
     @Synchronized
-    private fun downloadHotUpdate(hotUpdateData: HotUpdateData) {
+    fun downloadHotUpdate(hotUpdateData: HotUpdateData) {
         // 1. compare with current hot update data
         logEvent("downloadHotUpdate start")
         var currentHotUpdateData: HotUpdateData? = null

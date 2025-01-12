@@ -9,7 +9,7 @@ import java.lang.reflect.Proxy
  * Init JuggManager by loading Jugg classes from JAR files.
  * Supports hot update.
  */
-class JuggLoader(private val project: Project, private val projectDir: File) {
+class JuggLoader(val project: Project, val projectDir: File) {
 
     var juggManager: IJuggManagerCaller? = null
         private set

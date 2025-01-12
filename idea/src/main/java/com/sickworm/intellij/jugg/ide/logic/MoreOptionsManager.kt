@@ -14,13 +14,16 @@ import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.ide.ui.CheckUpdatesProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
 
 class MoreOptionsManager(
@@ -29,10 +32,10 @@ class MoreOptionsManager(
     private val taskRunnerManager: TaskRunnerManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val deployTargetManager: IDeployTargetManager,
-    private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager,
     private val dependencyChangeManager: IDependencyChangeManager,
     private val juggCompilerHelper: JuggCompilerHelper,
     private val juggServer: JuggServer,
+    private val juggHotUpdateDownloader: JuggHotUpdateDownloader,
     logger: Logger,
 ) {
 
@@ -89,6 +92,11 @@ class MoreOptionsManager(
         createOption(
             name = "Set custom server URL",
             onSet = { setCustomServerUrl() }
+        )
+
+        createOption(
+            name = "Check updates (current ${juggServer.version})",
+            onSet = { checkUpdates() }
         )
 
         createSplitLine("Function switches")
@@ -270,6 +278,28 @@ class MoreOptionsManager(
 
     private fun getDevices(): List<IDevice> {
         return deployTargetManager.getDevices()
+    }
+
+    private fun checkUpdates() {
+        val dialog = CheckUpdatesProgressDialog()
+
+        taskRunnerManager.runBackgroundSafe("Check updates") {
+            val hotUpdateData = juggHotUpdateDownloader.checkHotUpdate(isPositiveCheck = true)
+            dialog.setHotUpdateData(hotUpdateData) {
+                taskRunnerManager.runBackgroundSafe("Download updates") {
+                    try {
+                        juggHotUpdateDownloader.downloadHotUpdate(hotUpdateData!!)
+                        dialog.setResult(hotUpdateData.targetVersion, true, null) {
+                            JuggInitializer.reopenAllProjectsAsync()
+                        }
+                    } catch (e: Exception) {
+                        logger.warn("Download updates failed: ", e)
+                        dialog.setResult(hotUpdateData!!.targetVersion, false, e.toString(), null)
+                    }
+                }
+            }
+        }
+        dialog.show()
     }
 
 }

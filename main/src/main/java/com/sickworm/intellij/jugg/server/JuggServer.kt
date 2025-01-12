@@ -303,7 +303,7 @@ class JuggServer(
         juggServerChooser.setCustomServer()
     }
 
-    fun checkHotUpdate(): HotUpdateData? {
+    fun checkHotUpdate(isPositiveCheckout: Boolean): HotUpdateData? {
         try {
             if (serverUrl == null) {
                 logger.debug("checkHotUpdate skip: serverUrl is null")
@@ -311,7 +311,7 @@ class JuggServer(
             }
 
             val request: Request = Request.Builder()
-                .url("$checkHotUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}")
+                .url("$checkHotUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}&isPositiveCheckout=$isPositiveCheckout")
                 .get()
                 .build()
 

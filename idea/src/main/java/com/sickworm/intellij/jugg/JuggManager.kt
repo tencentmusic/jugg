@@ -502,8 +502,8 @@ class JuggManager @TestOnly constructor(
     override fun getMoreOptions(options: JuggRunConfigurationOptions): ActionGroup {
         return MoreOptionsManager(
             this, pathManager, taskRunnerManager,
-            deployHistoryManager, deployTargetManager, juggRunningTaskStatusManager, dependencyChangeManager,
-            juggCompilerHelper, juggServer, logger,
+            deployHistoryManager, deployTargetManager, dependencyChangeManager,
+            juggCompilerHelper, juggServer, juggHotUpdateDownloader, logger,
         ).createOptions(options)
     }
 
