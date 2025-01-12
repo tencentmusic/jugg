@@ -7,7 +7,6 @@ import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
-import com.sickworm.intellij.jugg.server.protocols.NotificationData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -100,8 +99,9 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
                 logEvent("downloadHotUpdate get currentHotUpdateData failed: $e")
             }
         }
+        val oldCurrentJarFiles = JuggHotUpdateManager.storageDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
         val needDownloadJars = hotUpdateData.uniqueNames.toMutableSet()
-        currentHotUpdateData?.uniqueNames?.forEach {
+        oldCurrentJarFiles.forEach {
             needDownloadJars.remove(it)
         }
 
@@ -134,7 +134,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         val expectJarFiles = hotUpdateData.uniqueNames.map {
             File(JuggHotUpdateManager.storageDir, it).path
         }
-        val currentJarFiles = JuggHotUpdateManager.storageDir.listFiles()!!.map { it.path }
+        val currentJarFiles = JuggHotUpdateManager.storageDir.listFiles()?.map { it.path } ?: emptySet()
         val missingJarFiles = expectJarFiles.filter { !currentJarFiles.contains(it) }
         if (missingJarFiles.isNotEmpty()) {
             logEvent("jar file missing after downloaded: $missingJarFiles")
