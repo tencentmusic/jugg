@@ -311,7 +311,7 @@ class JuggServer(
             }
 
             val request: Request = Request.Builder()
-                .url("$checkHotUpdateUrl?version=$version")
+                .url("$checkHotUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}")
                 .get()
                 .build()
 
