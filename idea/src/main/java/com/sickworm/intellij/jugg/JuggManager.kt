@@ -510,7 +510,7 @@ class JuggManager @TestOnly constructor(
     override fun getJuggRunSettingsComponent(): IJuggRunSettingsComponent {
         try {
             val result = JuggRunSettingsComponent()
-            logger.warn("getJuggRunSettingsComponent ok")
+            logger.debug("getJuggRunSettingsComponent ok")
             return result
         } catch (e: LinkageError) {
             logger.warn("getJuggRunSettingsComponent failed: ", e)
