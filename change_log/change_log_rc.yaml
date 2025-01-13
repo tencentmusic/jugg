@@ -1,0 +1,4 @@
+- version: 2.1.0-rc1
+  date: 2025.01.13
+  updates:
+    - supports hot update from server
