@@ -171,9 +171,9 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
 
     companion object {
         /** request every hour */
-        private const val REQUEST_DURATION_MILL = 60 * 60 * 1000L // 1 hour
+        private const val REQUEST_DURATION_MILL = 4 * 60 * 60 * 1000L // 4 hours
         /** Jugg has multiple instances, each instance will request isolate. avoid request too frequency */
-        private const val REQUEST_MIN_DURATION_MILL = 30 * 60 * 1000L // 30 minutes
+        private const val REQUEST_MIN_DURATION_MILL = 1 * 60 * 60 * 1000L // 1 hour
 
         private var lastRequestTime = 0L
 
