@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RemoteGradleCompileClient
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
-import com.sickworm.intellij.jugg.ide.toCompileOptions
+import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.JuggPathManager
