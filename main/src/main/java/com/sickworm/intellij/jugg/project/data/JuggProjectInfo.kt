@@ -150,11 +150,11 @@ data class ModuleBuildPathInfo(
     val mergedManifest get() = listOf(oldLibraryMergedManifestDir, applicationMergedManifestDir, libraryMergedManifestDir)
         .firstNotNullOfOrNull { it.findManifestInDir() } ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
 
-    val allClassPath get() = listOf(javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPath, javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary, libraryRFilePathInLowAgp)
+    val allClassPath get() = listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
 
     // use to fetch all class path after full build
-    val allBuildPathRelative get() = listOf(javaClassPathNew, javaClassPathOld, rFilePathDir, kotlinClassPath,
-        javaClassPathForJavaLibrary, kotlinClassPathForJavaLibrary, generatedSourcePath,
+    val allBuildPathRelative get() = listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
+        kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp
     ).map { it.relativeTo(moduleRootDir) }
 
