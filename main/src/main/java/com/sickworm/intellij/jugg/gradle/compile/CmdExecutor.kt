@@ -19,13 +19,12 @@ class CmdExecutor(
     @Volatile
     private var currentRunningProcess: Process? = null
 
-    fun invoke(command: ISshCommand, envArray: List<String>? = null, sshLoginPassword: String? = null): Int {
+    fun invoke(command: ISshCommand, envArray: List<String>? = null): Int {
+        val printSafeCommand = command.getPrintSafeCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
+        logger.debug("CmdExecutor invoke command: $printSafeCommand")
+
         val commandString = command.getCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
-        if (command.isSecureCommand) {
-            logger.debug("CmdExecutor invoke command: (secure)")
-        } else {
-            logger.debug("CmdExecutor invoke command: $commandString")
-        }
+        val sshLoginPassword = if (command is RsyncCommand) command.password else null
         val commands = if (sshLoginPassword != null) {
             if (isWindows) {
                 throw JuggException.rSyncNotSupportsWindows()

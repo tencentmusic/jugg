@@ -34,8 +34,11 @@ interface ISshCommand {
      */
     fun isCanOutput(line: String): Boolean = true
 
-    /** won't print command if isSecureCmd=true */
-    val isSecureCommand: Boolean get() = false
+    /**
+     * @return the command that can print in log file.
+     */
+    fun getPrintSafeCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String =
+        getCommand(isNeedSetChineseLanguage, isWindows)
 }
 
 abstract class BaseSshCommand : ISshCommand {

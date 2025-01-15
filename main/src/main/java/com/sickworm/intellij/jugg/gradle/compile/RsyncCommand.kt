@@ -1,16 +1,18 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.sickworm.intellij.jugg.compiler.copyResource
+import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.gradle.compile.SyncFileCommand.Companion.getRsyncArguments
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
-import com.sickworm.intellij.jugg.ide.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 
 
-abstract class RsyncCommand(val options: JuggGradleCompileOptions, keyPathList: List<String>): BaseSshCommand() {
+abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathList: List<String>): BaseSshCommand() {
 
     private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString(" ") { "-i $it" }
 
-    protected val sshArguments = "-e 'ssh -p ${options.remoteSshPort} $keyPathArguments'"
+    protected val sshArguments = "-e '${getSshPathArg(password)}ssh -p $remoteSshPort $keyPathArguments'"
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains("Are you sure you want to continue connecting")) {
@@ -18,40 +20,77 @@ abstract class RsyncCommand(val options: JuggGradleCompileOptions, keyPathList: 
         }
         return super.getInput(terminalOutputLine)
     }
+
+    override fun getPrintSafeCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
+        if (password == null) {
+            return getCommand(isNeedSetChineseLanguage, isWindows)
+        }
+        val originCommand = getCommand(isNeedSetChineseLanguage, isWindows)
+        return originCommand.replace(password, "******")
+    }
+
+    companion object {
+
+        private val isArch64 = System.getProperty("os.arch") == "aarch64"
+        private val isUseSshpass = isMac && isArch64 // expect will be stuck on macOS arm chip
+
+        fun getSshPathArg(password: String?): String {
+            if (!isUseSshpass) {
+                // use old way: expect
+                return ""
+            }
+
+            if (password.isNullOrEmpty()) {
+                return ""
+            }
+            if (File(password).exists() && File(password).isAbsolute) {
+                // it's a ssh key
+                return ""
+            }
+            return "${getSshPassPath()} -p $password "
+        }
+
+        private fun getSshPassPath(): String {
+            return copyResource("/tools/darwin/sshpass-aarch64-15").path
+        }
+    }
 }
 
 class RsyncSyncFileCommand(
-    options: JuggGradleCompileOptions,
+    password: String?,
+    remoteSshPort: Int,
     keyPathList: List<String>,
     localProjectIftPath: String,
     remoteProjectPath: String,
     remoteProjectSyncRelativePath: String,
-) : RsyncCommand(options, keyPathList) {
+) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
     private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath)
     override val baseCommand: String = """rsync $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
 }
 
 class RsyncFetchOutputCommand(
-    options: JuggGradleCompileOptions,
+    password: String?,
+    remoteSshPort: Int,
     keyPathList: List<String>,
     outputApkPath: String,
     remoteToLocalClasspathPath: String,
-) : RsyncCommand(options, keyPathList) {
+) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
     override val baseCommand: String = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $outputApkPath $remoteToLocalClasspathPath"""
 
 }
 
 open class RsyncFetchClasspathCommand(
-    options: JuggGradleCompileOptions,
+    password: String?,
+    remoteSshPort: Int,
     keyPathList: List<String>,
     private val remoteProjectPath: String,
     private val remoteToLocalClasspathPath: String,
     private val modules: List<ModuleBuildPathInfo>,
     private val additionalFetchPath: List<String> = emptyList(),
     private val isNeedDeleteArg: Boolean = true,
-) : RsyncCommand(options, keyPathList) {
+) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
     private var rsyncArguments = ""
 
@@ -64,12 +103,14 @@ open class RsyncFetchClasspathCommand(
 }
 
 class RsyncFetchChangedLibraryCommand(
-    options: JuggGradleCompileOptions,
+    password: String?,
+    remoteSshPort: Int,
     keyPathList: List<String>,
     remoteProjectPath: String,
     remoteToLocalClasspathPath: String,
 ): RsyncFetchClasspathCommand(
-    options,
+    password,
+    remoteSshPort,
     keyPathList,
     remoteProjectPath,
     remoteToLocalClasspathPath,

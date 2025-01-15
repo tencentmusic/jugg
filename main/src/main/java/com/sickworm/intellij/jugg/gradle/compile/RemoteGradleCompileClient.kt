@@ -274,7 +274,8 @@ class RemoteGradleCompileClient(
         val fetchOutputCommand = if (gradleCompileSettings.syncMode.isRsync) {
             val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
             RsyncFetchOutputCommand(
-                gradleCompileSettings,
+                finalPasswordOrKey,
+                gradleCompileSettings.remoteSshPort,
                 keyPathList,
                 absoluteApkPath,
                 gradleCompileSettings.remoteToLocalProjectRsyncPath,
@@ -330,7 +331,8 @@ class RemoteGradleCompileClient(
 
         val syncFileCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncSyncFileCommand(
-                gradleCompileSettings,
+                finalPasswordOrKey,
+                gradleCompileSettings.remoteSshPort,
                 keyPathList,
                 gradleCompileSettings.localSyncRsyncPath,
                 gradleCompileSettings.remoteSyncRootRsyncPath,
@@ -367,7 +369,8 @@ class RemoteGradleCompileClient(
 
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncFetchClasspathCommand(
-                gradleCompileSettings,
+                finalPasswordOrKey,
+                gradleCompileSettings.remoteSshPort,
                 keyPathList,
                 gradleCompileSettings.remoteSyncRootRsyncPath,
                 gradleCompileSettings.remoteToLocalRootRsyncPath,
@@ -414,7 +417,8 @@ class RemoteGradleCompileClient(
 
         val fetchChangedLibraryCommand = if (gradleCompileSettings.syncMode.isRsync) {
             RsyncFetchChangedLibraryCommand(
-                gradleCompileSettings,
+                finalPasswordOrKey,
+                gradleCompileSettings.remoteSshPort,
                 keyPathList,
                 gradleCompileSettings.remoteSyncRootRsyncPath,
                 gradleCompileSettings.remoteToLocalRootRsyncPath,
@@ -464,7 +468,7 @@ class RemoteGradleCompileClient(
         val result = if (command is RsyncCommand) {
             // invoke at local and using expect login into ssh
             cmdExecutor.terminalOutputListener = terminalOutputListener
-            val result = cmdExecutor.invoke(command, sshLoginPassword = finalPasswordOrKey)
+            val result = cmdExecutor.invoke(command)
             if (!isCanceled && result == IGradleCompileClient.Error.RESULT_CHANNEL_CLOSED) {
                 logger.warn("process exit without print result, behavior may incorrect")
                 IGradleCompileClient.Error.SUCCESS

@@ -14,7 +14,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         val startTime = System.currentTimeMillis()
         try {
             logger.debug("plugin version: ${getPluginVersion()}, compile time: ${getPluginCompileTime()}")
-            logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")
+            logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}, os.arch: ${System.getProperty("os.arch")}")
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
             logger.debug("systemPath: ${File(PathManager.getSystemPath())}")

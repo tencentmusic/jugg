@@ -20,7 +20,7 @@ test {
 archivesBaseName = 'jugg'
 group 'com.sickworm.intellij'
 
-def versionName = '2.0.0-rc3'
+def versionName = '2.0.0-rc4'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 version "${versionName}-${gitBranchPrefix}"
