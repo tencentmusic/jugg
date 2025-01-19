@@ -1,3 +1,8 @@
+- version: 2.1.0-rc2
+  date: 2025.01.19
+  updates:
+    - resource incremental compile supports mac aarch64 without rosetta
+
 - version: 2.1.0-rc1
   date: 2025.01.13
   updates:
