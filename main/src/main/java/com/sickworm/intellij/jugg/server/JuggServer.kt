@@ -22,6 +22,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
+import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
@@ -311,7 +312,11 @@ class JuggServer(
             }
 
             val request: Request = Request.Builder()
-                .url("$checkHotUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}&isPositiveCheckout=$isPositiveCheckout")
+                .url("$checkHotUpdateUrl?version=$version" +
+                        "&requestToken=$$requestToken" +
+                        "&username=${URLEncoder.encode(username, "UTF-8")}" +
+                        "&projectName=${URLEncoder.encode(projectId, "UTF-8")}" +
+                        "&isPositiveCheckout=$isPositiveCheckout")
                 .get()
                 .build()
 
