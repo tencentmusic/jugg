@@ -40,7 +40,7 @@ namespace aapt {
 const char* CommandTestFixture::kDefaultPackageName = "com.aapt.command.test";
 
 void ClearDirectory(const android::StringPiece& path) {
-  const std::string root_dir = path.to_string();
+  const std::string root_dir = std::string(path);
   std::unique_ptr<DIR, decltype(closedir)*> dir(opendir(root_dir.data()), closedir);
   if (!dir) {
     StdErrDiagnostics().Error(DiagMessage() << android::base::SystemErrorCodeToString(errno));

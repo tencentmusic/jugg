@@ -47,14 +47,14 @@ std::string GetSafePath(const StringPiece& arg) {
 
   return path8;
 #else
-  return arg.to_string();
+  return std::string(arg);
 #endif
 }
 
 void Command::AddRequiredFlag(const StringPiece& name, const StringPiece& description,
                               std::string* value, uint32_t flags) {
   auto func = [value, flags](const StringPiece& arg) -> bool {
-    *value = (flags & Command::kPath) ? GetSafePath(arg) : arg.to_string();
+    *value = (flags & Command::kPath) ? GetSafePath(arg) : std::string(arg);
     return true;
   };
 
@@ -64,7 +64,7 @@ void Command::AddRequiredFlag(const StringPiece& name, const StringPiece& descri
 void Command::AddRequiredFlagList(const StringPiece& name, const StringPiece& description,
                                   std::vector<std::string>* value, uint32_t flags) {
   auto func = [value, flags](const StringPiece& arg) -> bool {
-    value->push_back((flags & Command::kPath) ? GetSafePath(arg) : arg.to_string());
+    value->push_back((flags & Command::kPath) ? GetSafePath(arg) : std::string(arg));
     return true;
   };
 
@@ -74,7 +74,7 @@ void Command::AddRequiredFlagList(const StringPiece& name, const StringPiece& de
 void Command::AddOptionalFlag(const StringPiece& name, const StringPiece& description,
                               Maybe<std::string>* value, uint32_t flags) {
   auto func = [value, flags](const StringPiece& arg) -> bool {
-    *value = (flags & Command::kPath) ? GetSafePath(arg) : arg.to_string();
+    *value = (flags & Command::kPath) ? GetSafePath(arg) : std::string(arg);
     return true;
   };
 
@@ -84,7 +84,7 @@ void Command::AddOptionalFlag(const StringPiece& name, const StringPiece& descri
 void Command::AddOptionalFlagList(const StringPiece& name, const StringPiece& description,
                                   std::vector<std::string>* value, uint32_t flags) {
   auto func = [value, flags](const StringPiece& arg) -> bool {
-    value->push_back((flags & Command::kPath) ? GetSafePath(arg) : arg.to_string());
+    value->push_back((flags & Command::kPath) ? GetSafePath(arg) : std::string(arg));
     return true;
   };
 
@@ -94,7 +94,7 @@ void Command::AddOptionalFlagList(const StringPiece& name, const StringPiece& de
 void Command::AddOptionalFlagList(const StringPiece& name, const StringPiece& description,
                                   std::unordered_set<std::string>* value) {
   auto func = [value](const StringPiece& arg) -> bool {
-    value->insert(arg.to_string());
+    value->insert(std::string(arg));
     return true;
   };
 
@@ -121,7 +121,7 @@ void Command::AddOptionalSubcommand(std::unique_ptr<Command>&& subcommand, bool 
 }
 
 void Command::SetDescription(const StringPiece& description) {
-  description_ = description.to_string();
+  description_ = std::string(description);
 }
 
 void Command::Usage(std::ostream* out) {

@@ -121,8 +121,8 @@ static Maybe<ResourcePathData> ExtractResourcePathData(const std::string& path, 
     }
   }
 
-  return ResourcePathData{Source(path),          dir_str.to_string(),    name.to_string(),
-                          extension.to_string(), config_str.to_string(), config};
+  return ResourcePathData{Source(path), std::string(dir_str), std::string(name),
+    std::string(extension), std::string(config_str), config};
 }
 
 static std::string BuildIntermediateContainerFilename(const ResourcePathData& data) {
@@ -540,20 +540,21 @@ static bool CompilePng(IAaptContext* context, const CompileOptions& options,
       buffer.AppendBuffer(std::move(filtered_png_buffer));
     }
 
-    if (context->IsVerbose()) {
-      // For debugging only, use the legacy PNG cruncher and compare the resulting file sizes.
-      // This will help catch exotic cases where the new code may generate larger PNGs.
-      std::stringstream legacy_stream(content.to_string());
-      BigBuffer legacy_buffer(4096);
-      Png png(context->GetDiagnostics());
-      if (!png.process(path_data.source, &legacy_stream, &legacy_buffer, {})) {
-        return false;
-      }
+    // jugg: compile failed to create std::stringstream
+    // if (context->IsVerbose()) {
+    //   // For debugging only, use the legacy PNG cruncher and compare the resulting file sizes.
+    //   // This will help catch exotic cases where the new code may generate larger PNGs.
+    //   std::stringstream legacy_stream(content);
+    //   BigBuffer legacy_buffer(4096);
+    //   Png png(context->GetDiagnostics());
+    //   if (!png.process(path_data.source, &legacy_stream, &legacy_buffer, {})) {
+    //     return false;
+    //   }
 
-      context->GetDiagnostics()->Note(DiagMessage(path_data.source)
-                                      << "legacy=" << legacy_buffer.size()
-                                      << " new=" << buffer.size());
-    }
+    //   context->GetDiagnostics()->Note(DiagMessage(path_data.source)
+    //                                   << "legacy=" << legacy_buffer.size()
+    //                                   << " new=" << buffer.size());
+    // }
   }
 
   io::BigBufferInputStream buffer_in(&buffer);

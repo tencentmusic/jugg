@@ -169,7 +169,7 @@ static void XMLCALL CharacterDataHandler(void* user_data, const char* s, int len
   stack->last_text_node = util::make_unique<Text>();
   stack->last_text_node->line_number = XML_GetCurrentLineNumber(parser);
   stack->last_text_node->column_number = XML_GetCurrentColumnNumber(parser);
-  stack->last_text_node->text = str.to_string();
+  stack->last_text_node->text = std::string(str);
 }
 
 static void XMLCALL CommentDataHandler(void* user_data, const char* comment) {
@@ -439,7 +439,7 @@ void Element::RemoveAttribute(const StringPiece& ns, const StringPiece& name) {
 Attribute* Element::FindOrCreateAttribute(const StringPiece& ns, const StringPiece& name) {
   Attribute* attr = FindAttribute(ns, name);
   if (attr == nullptr) {
-    attributes.push_back(Attribute{ns.to_string(), name.to_string()});
+    attributes.push_back(Attribute{std::string(ns), std::string(name)});
     attr = &attributes.back();
   }
   return attr;

@@ -83,6 +83,10 @@
         "iterator": "cpp",
         "__memory": "cpp",
         "__functional_base": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "charconv": "cpp",
+        "execution": "cpp",
+        "print": "cpp",
+        "span": "cpp"
     }
 }

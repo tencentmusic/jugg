@@ -357,7 +357,7 @@ void SerializeTableToPb(const ResourceTable& table, pb::ResourceTable* out_table
       if (type->id) {
         pb_type->mutable_type_id()->set_id(type->id.value());
       }
-      pb_type->set_name(to_string(type->type).to_string());
+      pb_type->set_name(std::string(to_string(type->type)));
 
       for (const std::unique_ptr<ResourceEntry>& entry : type->entries) {
         pb::Entry* pb_entry = pb_type->add_entry();
@@ -420,7 +420,7 @@ static pb::Reference_Type SerializeReferenceTypeToPb(Reference::Type type) {
 static void SerializeReferenceToPb(const Reference& ref, pb::Reference* pb_ref) {
   pb_ref->set_id(ref.id.value_or_default(ResourceId(0x0)).id);
 
-  if (ref.name) {
+if (ref.name) {
     pb_ref->set_name(ref.name.value().to_string());
   }
 

@@ -132,7 +132,7 @@ std::unique_ptr<ZipFileCollection> ZipFileCollection::Create(
     }
 
     std::unique_ptr<IFile> file = util::make_unique<ZipFile>(collection->handle_, zip_data,
-        Source(zip_entry_path, path.to_string()));
+        Source(zip_entry_path, std::string(path)));
     collection->files_by_name_[zip_entry_path] = file.get();
     collection->files_.push_back(std::move(file));
   }
@@ -146,7 +146,7 @@ std::unique_ptr<ZipFileCollection> ZipFileCollection::Create(
 }
 
 IFile* ZipFileCollection::FindFile(const StringPiece& path) {
-  auto iter = files_by_name_.find(path.to_string());
+  auto iter = files_by_name_.find(std::string(path));
   if (iter != files_by_name_.end()) {
     return iter->second;
   }

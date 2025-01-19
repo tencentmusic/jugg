@@ -627,14 +627,14 @@ int IncLinkCommand::Action(const std::vector<std::string>& args) {
   for (std::string& extra_package : extra_java_packages_) {
     // A given package can actually be a colon separated list of packages.
     for (StringPiece package : util::Split(extra_package, ':')) {
-      options_.extra_java_packages.insert(package.to_string());
+      options_.extra_java_packages.insert(std::string(package));
     }
   }
 
   if (product_list_) {
     for (StringPiece product : util::Tokenize(product_list_.value(), ',')) {
       if (product != "" && product != "default") {
-        options_.products.insert(product.to_string());
+        options_.products.insert(std::string(product));
       }
     }
   }

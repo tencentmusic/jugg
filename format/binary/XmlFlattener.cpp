@@ -79,7 +79,7 @@ class XmlFlattenerVisitor : public xml::ConstVisitor {
   }
 
   void Visit(const xml::Text* node) override {
-    std::string text = util::TrimWhitespace(node->text).to_string();
+    std::string text = std::string(util::TrimWhitespace(node->text));
 
     // Skip whitespace only text nodes.
     if (text.empty()) {

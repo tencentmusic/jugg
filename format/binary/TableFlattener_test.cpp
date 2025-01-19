@@ -289,7 +289,7 @@ TEST_F(TableFlattenerTest, FlattenArray) {
   ASSERT_EQ(util::DeviceToHost16(entry->count), 2u);
 
   // Check that the value and name of the array entries are correct
-  auto values = (const ResTable_map*)(((const uint8_t *)entry) + entry->size);
+  auto values = (const ResTable_map*)(((const uint8_t *)entry) + entry->full.size);
   ASSERT_EQ(values->value.data, 1u);
   ASSERT_EQ(values->name.ident, android::ResTable_map::ATTR_MIN);
   ASSERT_EQ((values+1)->value.data, 2u);

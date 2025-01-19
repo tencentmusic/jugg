@@ -41,7 +41,7 @@ class DirectoryWriter : public IArchiveWriter {
   DirectoryWriter() = default;
 
   bool Open(const StringPiece& out_dir) {
-    dir_ = out_dir.to_string();
+    dir_ = std::string(out_dir);
     file::FileType type = file::GetFileType(dir_);
     if (type == file::FileType::kNonexistant) {
       error_ = "directory does not exist";
@@ -60,7 +60,7 @@ class DirectoryWriter : public IArchiveWriter {
 
     std::string full_path = dir_;
     file::AppendPath(&full_path, path);
-    file::mkdirs(file::GetStem(full_path).to_string());
+    file::mkdirs(std::string(file::GetStem(full_path)));
 
     file_ = {::android::base::utf8::fopen(full_path.c_str(), "wb"), fclose};
     if (!file_) {
@@ -133,7 +133,7 @@ class ZipFileWriter : public IArchiveWriter {
   ZipFileWriter() = default;
 
   bool Open(const StringPiece& path) {
-    file_ = {::android::base::utf8::fopen(path.to_string().c_str(), "w+b"), fclose};
+    file_ = {::android::base::utf8::fopen(std::string(path).c_str(), "w+b"), fclose};
     if (!file_) {
       error_ = SystemErrorCodeToString(errno);
       return false;

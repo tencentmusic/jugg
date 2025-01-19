@@ -309,20 +309,20 @@ class PackageFlattener {
     T* result = buffer->NextBlock<T>();
     ResTable_entry* out_entry = (ResTable_entry*)result;
     if (entry->entry->visibility.level == Visibility::Level::kPublic) {
-      out_entry->flags |= ResTable_entry::FLAG_PUBLIC;
+      out_entry->full.flags |= ResTable_entry::FLAG_PUBLIC;
     }
 
     if (entry->value->IsWeak()) {
-      out_entry->flags |= ResTable_entry::FLAG_WEAK;
+      out_entry->full.flags |= ResTable_entry::FLAG_WEAK;
     }
 
     if (!IsItem) {
-      out_entry->flags |= ResTable_entry::FLAG_COMPLEX;
+      out_entry->full.flags |= ResTable_entry::FLAG_COMPLEX;
     }
 
-    out_entry->flags = util::HostToDevice16(out_entry->flags);
-    out_entry->key.index = util::HostToDevice32(entry->entry_key);
-    out_entry->size = util::HostToDevice16(sizeof(T));
+    out_entry->full.flags = util::HostToDevice16(out_entry->full.flags);
+    out_entry->full.key.index = util::HostToDevice32(entry->entry_key);
+    out_entry->full.size = util::HostToDevice16(sizeof(T));
     return result;
   }
 

@@ -53,7 +53,7 @@ class Context : public IAaptContext {
   }
 
   void SetCompilationPackage(const android::StringPiece& package) {
-    compilation_package_ = package.to_string();
+    compilation_package_ = std::string(package);
   }
 
   uint8_t GetPackageId() override {
@@ -112,7 +112,7 @@ class ContextBuilder {
   }
 
   ContextBuilder& SetCompilationPackage(const android::StringPiece& package) {
-    context_->compilation_package_ = package.to_string();
+    context_->compilation_package_ = std::string(package);
     return *this;
   }
 

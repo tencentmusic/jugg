@@ -181,7 +181,7 @@ StringPool::Ref StringPool::MakeRefImpl(const StringPiece& str, const Context& c
   }
 
   std::unique_ptr<Entry> entry(new Entry());
-  entry->value = str.to_string();
+  entry->value = std::string(str);
   entry->context = context;
   entry->index_ = strings_.size();
   entry->ref_ = 0;

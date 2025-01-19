@@ -85,7 +85,7 @@ class Value {
   }
 
   void SetComment(const android::StringPiece& str) {
-    comment_ = str.to_string();
+    comment_ = str;
   }
 
   void SetComment(std::string&& str) {

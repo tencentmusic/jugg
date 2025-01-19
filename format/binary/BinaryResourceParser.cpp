@@ -371,18 +371,18 @@ bool BinaryResourceParser::ParseType(const ResourceTablePackage* package,
     }
 
     const ResourceName name(package->name, *parsed_type,
-                            util::GetString(key_pool_, util::DeviceToHost32(entry->key.index)));
+                            util::GetString(key_pool_, util::DeviceToHost32(entry->full.key.index)));
     const ResourceId res_id(package->id.value(), type->id, static_cast<uint16_t>(it.index()));
 
     std::unique_ptr<Value> resource_value;
-    if (entry->flags & ResTable_entry::FLAG_COMPLEX) {
-      const ResTable_map_entry* mapEntry = static_cast<const ResTable_map_entry*>(entry);
+    if (entry->full.flags & ResTable_entry::FLAG_COMPLEX) {
+      const ResTable_map_entry* mapEntry = entry->map_entry();
 
       // TODO(adamlesinski): Check that the entry count is valid.
       resource_value = ParseMapEntry(name, config, mapEntry);
     } else {
       const Res_value* value =
-          (const Res_value*)((const uint8_t*)entry + util::DeviceToHost32(entry->size));
+          (const Res_value*)((const uint8_t*)entry + util::DeviceToHost32(entry->full.size));
       resource_value = ParseValue(name, config, *value);
     }
 
@@ -397,7 +397,7 @@ bool BinaryResourceParser::ParseType(const ResourceTablePackage* package,
       return false;
     }
 
-    if (entry->flags & ResTable_entry::FLAG_PUBLIC) {
+    if (entry->full.flags & ResTable_entry::FLAG_PUBLIC) {
       Visibility visibility;
       visibility.level = Visibility::Level::kPublic;
       if (!table_->SetVisibilityWithIdMangled(name, visibility, res_id, diag_)) {

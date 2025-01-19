@@ -31,13 +31,13 @@ namespace aapt {
 
 class Command {
  public:
-  explicit Command(const android::StringPiece& name) : name_(name.to_string()),
+  explicit Command(const android::StringPiece& name) : name_(name),
                                                        short_name_(""),
-                                                       full_subcommand_name_(name.to_string()) {}
+                                                       full_subcommand_name_(name) {}
 
   explicit Command(const android::StringPiece& name, const android::StringPiece& short_name)
-      : name_(name.to_string()), short_name_(short_name.to_string()),
-        full_subcommand_name_(name.to_string()) {}
+      : name_(name), short_name_(short_name),
+        full_subcommand_name_(name) {}
 
   virtual ~Command() = default;
 
@@ -93,7 +93,7 @@ class Command {
     explicit Flag(const android::StringPiece& name, const android::StringPiece& description,
                   const bool is_required, const size_t num_args,
                   std::function<bool(const android::StringPiece& value)>&& action)
-        : name(name.to_string()), description(description.to_string()), is_required(is_required),
+        : name(name), description(description), is_required(is_required),
           num_args(num_args), action(std::move(action)) {}
 
     const std::string name;

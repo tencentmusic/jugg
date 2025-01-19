@@ -403,7 +403,7 @@ int OptimizeCommand::Action(const std::vector<std::string>& args) {
     if (!kept_artifacts_.empty()) {
       for (const std::string& artifact_str : kept_artifacts_) {
         for (const StringPiece& artifact : util::Tokenize(artifact_str, ',')) {
-          options_.kept_artifacts.insert(artifact.to_string());
+          options_.kept_artifacts.insert(std::string(artifact));
         }
       }
     }

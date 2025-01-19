@@ -64,7 +64,7 @@ static bool IsValidSymbol(const StringPiece& symbol) {
 // Java symbols can not contain . or -, but those are valid in a resource name.
 // Replace those with '_'.
 std::string JavaClassGenerator::TransformToFieldName(const StringPiece& symbol) {
-  std::string output = symbol.to_string();
+  std::string output = std::string(symbol);
   for (char& c : output) {
     if (c == '.' || c == '-') {
       c = '_';
@@ -308,7 +308,8 @@ void JavaClassGenerator::ProcessStyleable(const ResourceNameRef& name, const Res
         return true;
       }
       const StringPiece attr_comment_line = entry.symbol.value().attribute->GetComment();
-      return attr_comment_line.contains("@removed") || attr_comment_line.contains("@hide");
+      return attr_comment_line.find("@removed") != std::string::npos ||
+             attr_comment_line.find("@hide") != std::string::npos;
     });
     documentation_attrs.erase(documentation_remove_iter, documentation_attrs.end());
 
@@ -376,7 +377,7 @@ void JavaClassGenerator::ProcessStyleable(const ResourceNameRef& name, const Res
         comment = styleable_attr.symbol.value().attribute->GetComment();
       }
 
-      if (comment.contains("@removed")) {
+      if (comment.find("@removed") != std::string::npos) {
         // Removed attributes are public but hidden from the documentation, so
         // don't emit them as part of the class documentation.
         continue;

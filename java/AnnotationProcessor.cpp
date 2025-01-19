@@ -74,7 +74,7 @@ void AnnotationProcessor::AppendCommentLine(std::string comment) {
     if (idx != std::string::npos) {
       // Captures all parameters associated with the specified annotation rule
       // by matching the first pair of parantheses after the rule.
-      std::regex re(rule.doc_str.to_string() + "\\s*\\((.+)\\)");
+      std::regex re(std::string(rule.doc_str) + "\\s*\\((.+)\\)");
       std::smatch match_result;
       const bool is_match = std::regex_search(comment, match_result, re);
       // We currently only capture and preserve parameters for SystemApi.
@@ -97,7 +97,7 @@ void AnnotationProcessor::AppendCommentLine(std::string comment) {
 
   // If there was trimming to do, copy the string.
   if (trimmed.size() != comment.size()) {
-    comment = trimmed.to_string();
+    comment = std::string(trimmed);
   }
 
   if (!has_comments_) {
@@ -112,7 +112,7 @@ void AnnotationProcessor::AppendComment(const StringPiece& comment) {
   for (StringPiece line : util::Tokenize(comment, '\n')) {
     line = util::TrimWhitespace(line);
     if (!line.empty()) {
-      AppendCommentLine(line.to_string());
+      AppendCommentLine(std::string(line));
     }
   }
 }

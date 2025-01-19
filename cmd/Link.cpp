@@ -113,7 +113,7 @@ class LinkContext : public IAaptContext {
   }
 
   void SetCompilationPackage(const StringPiece& package_name) {
-    compilation_package_ = package_name.to_string();
+    compilation_package_ = std::string(package_name);
   }
 
   uint8_t GetPackageId() override {
@@ -246,7 +246,7 @@ static bool FlattenXml(IAaptContext* context, const xml::XmlResource& xml_res,
       }
 
       io::BigBufferInputStream input_stream(&buffer);
-      return io::CopyInputStreamToArchive(context, &input_stream, path.to_string(),
+      return io::CopyInputStreamToArchive(context, &input_stream, std::string(path),
                                           ArchiveEntry::kCompress, writer);
     } break;
 
@@ -256,7 +256,7 @@ static bool FlattenXml(IAaptContext* context, const xml::XmlResource& xml_res,
       SerializeXmlOptions options;
       options.remove_empty_text_nodes = (path == kAndroidManifestPath);
       SerializeXmlResourceToPb(xml_res, &pb_node);
-      return io::CopyProtoToArchive(context, &pb_node, path.to_string(), ArchiveEntry::kCompress,
+      return io::CopyProtoToArchive(context, &pb_node, std::string(path), ArchiveEntry::kCompress,
                                     writer);
     } break;
   }
@@ -318,7 +318,7 @@ uint32_t GetCompressionFlags(const StringPiece& str, T options) {
   }
 
   if (options.regex_to_not_compress
-      && std::regex_search(str.to_string(), options.regex_to_not_compress.value())) {
+      && std::regex_search(std::string(str), options.regex_to_not_compress.value())) {
     return 0;
   }
 
@@ -2305,14 +2305,14 @@ int LinkCommand::Action(const std::vector<std::string>& args) {
   for (std::string& extra_package : extra_java_packages_) {
     // A given package can actually be a colon separated list of packages.
     for (StringPiece package : util::Split(extra_package, ':')) {
-      options_.extra_java_packages.insert(package.to_string());
+      options_.extra_java_packages.insert(std::string(package));
     }
   }
 
   if (product_list_) {
     for (StringPiece product : util::Tokenize(product_list_.value(), ',')) {
       if (product != "" && product != "default") {
-        options_.products.insert(product.to_string());
+        options_.products.insert(std::string(product));
       }
     }
   }

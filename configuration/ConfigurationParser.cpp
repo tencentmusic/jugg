@@ -353,7 +353,7 @@ const StringPiece& AbiToString(Abi abi) {
  */
 Maybe<std::string> ToBaseName(std::string result, const StringPiece& apk_name, IDiagnostics* diag) {
   const StringPiece ext = file::GetExtension(apk_name);
-  size_t end_index = apk_name.to_string().rfind(ext.to_string());
+  size_t end_index = std::string(apk_name).rfind(std::string(ext));
   const std::string base_name =
       (end_index != std::string::npos) ? std::string{apk_name.begin(), end_index} : "";
 
@@ -376,7 +376,7 @@ Maybe<std::string> ToBaseName(std::string result, const StringPiece& apk_name, I
     // If no extension is specified, and the name template does not end in the current extension,
     // add the existing extension.
     if (!util::EndsWith(result, ext)) {
-      result.append(ext.to_string());
+      result.append(std::string(ext));
     }
   }
 
@@ -386,7 +386,7 @@ Maybe<std::string> ToBaseName(std::string result, const StringPiece& apk_name, I
 Maybe<std::string> ConfiguredArtifact::ToArtifactName(const StringPiece& format,
                                                       const StringPiece& apk_name,
                                                       IDiagnostics* diag) const {
-  Maybe<std::string> base = ToBaseName(format.to_string(), apk_name, diag);
+  Maybe<std::string> base = ToBaseName(std::string(format), apk_name, diag);
   if (!base) {
     return {};
   }
@@ -451,7 +451,7 @@ Maybe<std::vector<OutputArtifact>> ConfigurationParser::Parse(
   }
 
   // Convert from a parsed configuration to a list of artifacts for processing.
-  const std::string& apk_name = file::GetFilename(apk_path).to_string();
+  const std::string& apk_name = std::string(file::GetFilename(apk_path));
   std::vector<OutputArtifact> output_artifacts;
 
   PostProcessingConfiguration& config = maybe_config.value();
@@ -522,7 +522,7 @@ bool ArtifactFormatTagHandler(PostProcessingConfiguration* config, Element* root
   for (auto& node : root_element->children) {
     xml::Text* t;
     if ((t = NodeCast<xml::Text>(node.get())) != nullptr) {
-      config->artifact_format = TrimWhitespace(t->text).to_string();
+      config->artifact_format = std::string(TrimWhitespace(t->text));
       break;
     }
   }
@@ -564,7 +564,7 @@ bool AbiGroupTagHandler(PostProcessingConfiguration* config, Element* root_eleme
       for (auto& node : child->children) {
         xml::Text* t;
         if ((t = NodeCast<xml::Text>(node.get())) != nullptr) {
-          auto abi = kStringToAbiMap.find(TrimWhitespace(t->text).to_string());
+          auto abi = kStringToAbiMap.find(std::string(TrimWhitespace(t->text)));
           if (abi != kStringToAbiMap.end()) {
             group.push_back(abi->second);
           } else {
@@ -808,7 +808,7 @@ bool GlTextureGroupTagHandler(PostProcessingConfiguration* config, Element* root
         for (auto& node : element->children) {
           xml::Text* t;
           if ((t = NodeCast<xml::Text>(node.get())) != nullptr) {
-            result.texture_paths.push_back(TrimWhitespace(t->text).to_string());
+            result.texture_paths.push_back(std::string(TrimWhitespace(t->text)));
           }
         }
       }
@@ -845,7 +845,7 @@ bool DeviceFeatureGroupTagHandler(PostProcessingConfiguration* config, Element* 
       for (auto& node : child->children) {
         xml::Text* t;
         if ((t = NodeCast<xml::Text>(node.get())) != nullptr) {
-          group.push_back(TrimWhitespace(t->text).to_string());
+          group.push_back(std::string(TrimWhitespace(t->text)));
           break;
         }
       }

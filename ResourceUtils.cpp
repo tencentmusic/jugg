@@ -543,7 +543,7 @@ Maybe<int> ParseSdkVersion(const StringPiece& str) {
   const StringPiece::const_iterator begin = std::begin(trimmed_str);
   const StringPiece::const_iterator end = std::end(trimmed_str);
   const StringPiece::const_iterator codename_end = std::find(begin, end, '.');
-  entry = GetDevelopmentSdkCodeNameVersion(trimmed_str.substr(begin, codename_end));
+  entry = GetDevelopmentSdkCodeNameVersion(StringPiece(begin, codename_end - begin));
   if (entry) {
     return entry.value();
   }

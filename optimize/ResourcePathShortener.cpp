@@ -64,7 +64,7 @@ int OptimalShortenedLength(int num_resources) {
 
 std::string GetShortenedPath(const android::StringPiece& shortened_filename,
     const android::StringPiece& extension, int collision_count) {
-  std::string shortened_path = "res/" + shortened_filename.to_string();
+  std::string shortened_path = "res/" + std::string(shortened_filename);
   if (collision_count > 0) {
     shortened_path += std::to_string(collision_count);
   }

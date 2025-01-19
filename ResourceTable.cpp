@@ -104,7 +104,7 @@ ResourceTablePackage* ResourceTable::CreatePackageAllowingDuplicateNames(const S
   }
 
   std::unique_ptr<ResourceTablePackage> new_package = util::make_unique<ResourceTablePackage>();
-  new_package->name = name.to_string();
+  new_package->name = std::string(name);
   new_package->id = id;
   return packages.emplace(iter, std::move(new_package))->get();
 }
@@ -118,7 +118,7 @@ ResourceTablePackage* ResourceTable::FindOrCreatePackage(const StringPiece& name
   }
 
   std::unique_ptr<ResourceTablePackage> new_package = util::make_unique<ResourceTablePackage>();
-  new_package->name = name.to_string();
+  new_package->name = std::string(name);
   return packages.emplace(iter, std::move(new_package))->get();
 }
 

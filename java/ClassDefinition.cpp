@@ -28,7 +28,7 @@ void ClassMember::Print(bool /*final*/, Printer* printer, bool strip_api_annotat
 }
 
 void MethodDefinition::AppendStatement(const StringPiece& statement) {
-  statements_.push_back(statement.to_string());
+  statements_.push_back(std::string(statement));
 }
 
 void MethodDefinition::Print(bool final, Printer* printer, bool) const {

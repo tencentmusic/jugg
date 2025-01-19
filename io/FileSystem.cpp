@@ -81,7 +81,7 @@ std::unique_ptr<FileCollection> FileCollection::Create(const android::StringPiec
 
   std::vector<std::string> sorted_files;
   while (struct dirent *entry = readdir(d.get())) {
-    std::string prefix_path = root.to_string();
+    std::string prefix_path = std::string(root);
     file::AppendPath(&prefix_path, entry->d_name);
 
     // The directory to iterate over looking for files
@@ -119,11 +119,11 @@ std::unique_ptr<FileCollection> FileCollection::Create(const android::StringPiec
 }
 
 IFile* FileCollection::InsertFile(const StringPiece& path) {
-  return (files_[path.to_string()] = util::make_unique<RegularFile>(Source(path))).get();
+  return (files_[std::string(path)] = util::make_unique<RegularFile>(Source(path))).get();
 }
 
 IFile* FileCollection::FindFile(const StringPiece& path) {
-  auto iter = files_.find(path.to_string());
+  auto iter = files_.find(std::string(path));
   if (iter != files_.end()) {
     return iter->second.get();
   }

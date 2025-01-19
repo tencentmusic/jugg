@@ -494,7 +494,7 @@ static bool RenameManifestPackage(const StringPiece& package_override, xml::Elem
   CHECK(attr != nullptr);
 
   std::string original_package = std::move(attr->value);
-  attr->value = package_override.to_string();
+  attr->value = std::string(package_override);
 
   xml::Element* application_el = manifest_el->FindChild({}, "application");
   if (application_el != nullptr) {

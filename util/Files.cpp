@@ -188,7 +188,7 @@ void AppendPath(std::string* base, StringPiece part) {
   }
 
   #ifdef _WIN32
-  std::string strPart = part.to_string();
+  std::string strPart = std::string(part);
   std::replace(strPart.begin(), strPart.end(), '/', '\\');
   part = StringPiece(strPart);
   #endif
@@ -199,7 +199,7 @@ std::string BuildPath(std::vector<const StringPiece>&& args) {
   if (args.empty()) {
     return "";
   }
-  std::string out = args[0].to_string();
+  std::string out = std::string(args[0]);
   for (int i = 1; i < args.size(); i++) {
     file::AppendPath(&out, args[i]);
   }
@@ -250,7 +250,7 @@ Maybe<FileMap> MmapPath(const std::string& path, std::string* out_error) {
 bool AppendArgsFromFile(const StringPiece& path, std::vector<std::string>* out_arglist,
                         std::string* out_error) {
   std::string contents;
-  if (!ReadFileToString(path.to_string(), &contents, true /*follow_symlinks*/)) {
+  if (!ReadFileToString(std::string(path), &contents, true /*follow_symlinks*/)) {
     if (out_error) {
       *out_error = "failed to read argument-list file";
     }
@@ -260,7 +260,7 @@ bool AppendArgsFromFile(const StringPiece& path, std::vector<std::string>* out_a
   for (StringPiece line : util::Tokenize(contents, ' ')) {
     line = util::TrimWhitespace(line);
     if (!line.empty()) {
-      out_arglist->push_back(line.to_string());
+      out_arglist->push_back(std::string(line));
     }
   }
   return true;
@@ -269,7 +269,7 @@ bool AppendArgsFromFile(const StringPiece& path, std::vector<std::string>* out_a
 bool AppendSetArgsFromFile(const StringPiece& path, std::unordered_set<std::string>* out_argset,
                            std::string* out_error) {
   std::string contents;
-  if(!ReadFileToString(path.to_string(), &contents, true /*follow_symlinks*/)) {
+  if(!ReadFileToString(std::string(path), &contents, true /*follow_symlinks*/)) {
     if (out_error) {
       *out_error = "failed to read argument-list file";
     }
@@ -279,7 +279,7 @@ bool AppendSetArgsFromFile(const StringPiece& path, std::unordered_set<std::stri
   for (StringPiece line : util::Tokenize(contents, ' ')) {
     line = util::TrimWhitespace(line);
     if (!line.empty()) {
-      out_argset->insert(line.to_string());
+      out_argset->insert(std::string(line));
     }
   }
   return true;
@@ -352,7 +352,7 @@ bool FileFilter::operator()(const std::string& filename, FileType type) const {
 
 Maybe<std::vector<std::string>> FindFiles(const android::StringPiece& path, IDiagnostics* diag,
                                           const FileFilter* filter) {
-  const std::string root_dir = path.to_string();
+  const std::string root_dir = std::string(path);
   std::unique_ptr<DIR, decltype(closedir)*> d(opendir(root_dir.data()), closedir);
   if (!d) {
     diag->Error(DiagMessage() << SystemErrorCodeToString(errno));

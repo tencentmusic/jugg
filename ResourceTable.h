@@ -62,10 +62,10 @@ struct AllowNew {
 struct Overlayable {
   Overlayable() = default;
    Overlayable(const android::StringPiece& name, const android::StringPiece& actor)
-       : name(name.to_string()), actor(actor.to_string()) {}
+       : name(name), actor(actor) {}
    Overlayable(const android::StringPiece& name, const android::StringPiece& actor,
                     const Source& source)
-       : name(name.to_string()), actor(actor.to_string()), source(source ){}
+       : name(name), actor(actor), source(source ){}
 
   static const char* kActorScheme;
   std::string name;
@@ -95,7 +95,7 @@ class ResourceConfigValue {
   std::unique_ptr<Value> value;
 
   ResourceConfigValue(const android::ConfigDescription& config, const android::StringPiece& product)
-      : config(config), product(product.to_string()) {}
+      : config(config), product(product) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ResourceConfigValue);
@@ -122,7 +122,7 @@ class ResourceEntry {
   // The resource's values for each configuration.
   std::vector<std::unique_ptr<ResourceConfigValue>> values;
 
-  explicit ResourceEntry(const android::StringPiece& name) : name(name.to_string()) {}
+  explicit ResourceEntry(const android::StringPiece& name) : name(name) {}
   explicit ResourceEntry(const std::string nameArg) : name(nameArg) {}
 
   ResourceConfigValue* FindValue(const android::ConfigDescription& config);

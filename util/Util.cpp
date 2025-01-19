@@ -46,7 +46,7 @@ static std::vector<std::string> SplitAndTransform(
   StringPiece::const_iterator current;
   do {
     current = std::find(start, end, sep);
-    parts.emplace_back(str.substr(start, current).to_string());
+    parts.emplace_back(start, current);
     if (f) {
       std::string& part = parts.back();
       std::transform(part.begin(), part.end(), part.begin(), f);
@@ -183,14 +183,14 @@ Maybe<std::string> GetFullyQualifiedClassName(const StringPiece& package,
   }
 
   if (util::IsJavaClassName(classname)) {
-    return classname.to_string();
+    return std::string(classname);
   }
 
   if (package.empty()) {
     return {};
   }
 
-  std::string result = package.to_string();
+  std::string result = std::string(package);
   if (classname.data()[0] != '.') {
     result += '.';
   }
@@ -469,7 +469,7 @@ typename Tokenizer::iterator& Tokenizer::iterator::operator++() {
   const char* end = str_.end();
   if (start == end) {
     end_ = true;
-    token_.assign(token_.end(), 0);
+    token_ = StringPiece(token_.end(), 0);
     return *this;
   }
 
@@ -477,12 +477,12 @@ typename Tokenizer::iterator& Tokenizer::iterator::operator++() {
   const char* current = start;
   while (current != end) {
     if (*current == separator_) {
-      token_.assign(start, current - start);
+      token_ = StringPiece(start, current - start);
       return *this;
     }
     ++current;
   }
-  token_.assign(start, end - start);
+  token_ = StringPiece(start, end - start);
   return *this;
 }
 
@@ -539,7 +539,7 @@ StringPiece16 GetString16(const android::ResStringPool& pool, size_t idx) {
 
 std::string GetString(const android::ResStringPool& pool, size_t idx) {
   if (auto str = pool.string8At(idx); str.ok()) {
-    return ModifiedUtf8ToUtf8(str->to_string());
+    return ModifiedUtf8ToUtf8(std::string(*str));
   }
   return Utf16ToUtf8(GetString16(pool, idx));
 }

@@ -42,8 +42,8 @@ static const char kArgEnd = '}';
 
 class PseudoMethodNone : public PseudoMethodImpl {
  public:
-  std::string Text(const StringPiece& text) override { return text.to_string(); }
-  std::string Placeholder(const StringPiece& text) override { return text.to_string(); }
+  std::string Text(const StringPiece& text) override { return std::string(text); }
+  std::string Placeholder(const StringPiece& text) override { return std::string(text); }
 };
 
 class PseudoMethodBidi : public PseudoMethodImpl {
@@ -116,7 +116,7 @@ std::string Pseudolocalizer::Text(const StringPiece& text) {
       }
       size_t size = nextpos - lastpos;
       if (size) {
-        std::string chunk = text.substr(lastpos, size).to_string();
+        std::string chunk = std::string(text.substr(lastpos, size));
         if (pseudo) {
           chunk = impl_->Text(chunk);
         } else if (str[lastpos] == kArgStart && str[nextpos - 1] == kArgEnd) {
@@ -437,7 +437,7 @@ std::string PseudoMethodAccent::Text(const StringPiece& source) {
 
 std::string PseudoMethodAccent::Placeholder(const StringPiece& source) {
   // Surround a placeholder with brackets
-  return kPlaceholderOpen + source.to_string() + kPlaceholderClose;
+  return kPlaceholderOpen + std::string(source) + kPlaceholderClose;
 }
 
 std::string PseudoMethodBidi::Text(const StringPiece& source) {
@@ -477,7 +477,7 @@ std::string PseudoMethodBidi::Text(const StringPiece& source) {
 
 std::string PseudoMethodBidi::Placeholder(const StringPiece& source) {
   // Surround a placeholder with directionality change sequence
-  return kRlm + kRlo + source.to_string() + kPdf + kRlm;
+  return kRlm + kRlo + std::string(source) + kPdf + kRlm;
 }
 
 }  // namespace aapt

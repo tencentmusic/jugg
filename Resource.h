@@ -288,7 +288,7 @@ inline ::std::ostream& operator<<(::std::ostream& out, const ResourceType& val) 
 
 inline ResourceName::ResourceName(const android::StringPiece& p, ResourceType t,
                                   const android::StringPiece& e)
-    : package(p.to_string()), type(t), entry(e.to_string()) {}
+    : package(p), type(t), entry(e) {}
 
 inline int ResourceName::compare(const ResourceName& other) const {
   int cmp = package.compare(other.package);
