@@ -105,10 +105,10 @@ class CompatDeployHelper(
     }
 
     fun isHasRelaunchActivityIssues(device: IDeviceAdb): Boolean {
-        // Xiaomi HyperOS 2 has problem with relaunch activity
-        val isXiaomiHyperOs2 = device.getProperty("ro.mi.os.version.code") == "2"
-        logger.debug("isHasRelaunchActivityIssues, isXiaomiHyperOs2: $isXiaomiHyperOs2")
-        return isXiaomiHyperOs2
+        // Android 15 has problem with relaunch activity
+        val isAndroid15 = device.api >= 35
+        logger.debug("isHasRelaunchActivityIssues, isAndroid15: $isAndroid15")
+        return isAndroid15
     }
 }
 

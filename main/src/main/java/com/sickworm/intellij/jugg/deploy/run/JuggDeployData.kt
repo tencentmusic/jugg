@@ -42,7 +42,7 @@ data class JuggDeployData(
     val isPushOverlayOnly: Boolean = false,
     /** is using compat deploy */
     val isCompatDeploy: Boolean = false,
-    /** Device can not update overlays without restart App. Occurs in Xiaomi HyperOS 2 */
+    /** Device can not update overlays without restart App. Occurs in Android 15(api 35) */
     val isHasRelaunchActivityIssues: Boolean = false,
 ) {
 
