@@ -79,6 +79,7 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
     }
 
     fun setResult(newVersion: String, isSuccess: Boolean, failedReason: String?, onConfirmReopenProject: (() -> Unit)?) {
+        cancelAction.isEnabled = true // or X button will not work
         SwingUtilities.invokeLater {
             progressBar.isVisible = false
             if (isSuccess) {
@@ -95,7 +96,6 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
                 textLabel.text = "Update failed, reason: $failedReason. Please report to the admin."
                 getButton(okAction)?.isVisible = false
                 getButton(cancelAction)?.isVisible = true
-                cancelAction.isEnabled = true
             }
         }
     }
