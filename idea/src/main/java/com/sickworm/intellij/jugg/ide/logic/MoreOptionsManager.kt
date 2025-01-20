@@ -290,6 +290,7 @@ class MoreOptionsManager(
                     try {
                         juggHotUpdateDownloader.downloadHotUpdate(hotUpdateData!!)
                         dialog.setResult(hotUpdateData.targetVersion, true, null) {
+                            dialog.disposeIfNeeded()
                             JuggInitializer.reopenAllProjectsAsync()
                         }
                     } catch (e: Exception) {
