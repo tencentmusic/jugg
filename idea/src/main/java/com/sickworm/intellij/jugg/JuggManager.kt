@@ -620,6 +620,7 @@ class JuggManager @TestOnly constructor(
 
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
+        juggHotUpdateDownloader.release()
         coroutineScope.cancel()
     }
 }

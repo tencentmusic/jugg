@@ -14,6 +14,7 @@ import java.io.File
 import java.lang.ref.WeakReference
 import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Download hot update jars from Jugg server.
@@ -36,8 +37,12 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         notifyHotUpdateIfNeeded(project)
     }
 
+    fun release() {
+        hotUpdateListeners.remove(listener)
+    }
+
     private fun start() {
-        hotUpdateListeners.add(WeakReference(listener)) // listen hot update event
+        hotUpdateListeners.add(listener) // listen global hot update event
         lastRequestTime = 0L // refresh request frequency limit
 
         juggServer.launch {
@@ -177,10 +182,10 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
 
         private var lastRequestTime = 0L
 
-        private val hotUpdateListeners = CopyOnWriteArrayList<WeakReference<HotUpdateListener>>()
+        private val hotUpdateListeners = CopyOnWriteArraySet<HotUpdateListener>()
         private fun logEvent(msg: String, e: Throwable? = null) {
             hotUpdateListeners.forEach {
-                it.get()?.onEvent(msg, e)
+                it.onEvent(msg, e)
             }
         }
 
