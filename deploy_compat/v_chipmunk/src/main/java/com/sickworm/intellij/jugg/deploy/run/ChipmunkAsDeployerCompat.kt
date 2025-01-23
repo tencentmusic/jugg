@@ -347,7 +347,7 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return "GradleAndroidModel: " +
                 "moduleName: ${moduleName}, " +
                 "rootDirPath: ${rootDirPath}, " +
-                "variantNames: ${variantNames}, " +
+                "variantNames: ${try { variantNames } catch (e: Throwable) { e::class.simpleName }}, " +
                 "minSdkVersion: ${minSdkVersion}, " +
                 "isDebuggable: ${isDebuggable}, " +
                 "variant: ${selectedVariant.name}, " +
