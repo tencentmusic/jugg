@@ -40,6 +40,8 @@ data class ModuleInfo(
     val gradleModuleName: String? = null, // module name in gradle which will be used in kotlin -module-name
 ) {
 
+    val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")
+
     enum class Type {
         Application,
         Library,
@@ -90,6 +92,10 @@ data class ModuleBuildPathInfo(
     val moduleRootDir: File,
     /** build variant. e.g. debug, release, developmentDebug */
     val buildVariant: String,
+    /** custom classpath specific by project config */
+    val customClasspath: List<String>? = null,
+    /** custom sync file path specific by project config */
+    val customSyncFilePath: List<String>? = null,
 ) {
 
     /** build root dir */
@@ -150,13 +156,18 @@ data class ModuleBuildPathInfo(
     val mergedManifest get() = listOf(oldLibraryMergedManifestDir, applicationMergedManifestDir, libraryMergedManifestDir)
         .firstNotNullOfOrNull { it.findManifestInDir() } ?: File(libraryMergedManifestDir, "AndroidManifest.xml")
 
-    val allClassPath get() = listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
+    private val customClasspathFiles get() = customClasspath?.map { File(moduleRootDir, it) } ?: emptyList()
+    private val customSyncFiles get() = customSyncFilePath?.map { File(moduleRootDir, it) } ?: emptyList()
+
+    val syncToLocalPathList get() = customSyncFiles + listOf(generatedSourcePath)
+
+    val allClassPath get() = customClasspathFiles + listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePath, kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, libraryRFilePathInLowAgp)
 
     // use to fetch all class path after full build
-    val allBuildPathRelative get() = listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
+    val allBuildPathRelative get() = (listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp
-    ).map { it.relativeTo(moduleRootDir) }
+    ) + customClasspathFiles + customSyncFiles).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)
 

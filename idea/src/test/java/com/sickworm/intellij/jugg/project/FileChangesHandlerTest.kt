@@ -102,7 +102,7 @@ class FileChangesHandlerTest {
             assertEquals(false, isMatch, "file: $path")
         }
 
-        handler.updateBuildFileRules(rules)
+        handler.updateBuildFileRules(rules, emptyList())
 
         // pass after update rules
         buildTestCase.forEach { (path, result) ->

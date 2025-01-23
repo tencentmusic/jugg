@@ -1,4 +1,8 @@
+@file:Suppress("PLUGIN_IS_NOT_ENABLED")
+
 package com.sickworm.intellij.jugg.server.protocols
+
+import kotlinx.serialization.Serializable
 
 @Suppress("PropertyName", "unused")
 data class EventData(val version: String, val ide_version: String, val username: String, val project_id: String, val session_id: String, val action: String, val is_success: Boolean, val cost_time: Int, val detail: String?)
@@ -25,6 +29,18 @@ data class ProjectCustomConfig(
     val buildFileRules: List<String>,
     /** don't filter ignored files in filterUnchangedFiles. e.g. Detect changes for ignored build files */
     val dontFilterIgnoredFileRules: List<String>,
+    val moduleCustomConfigs: List<ModuleCustomConfig>?,
+)
+
+@Serializable
+data class ModuleCustomConfig(
+    val moduleStdPath: String, // platform independent path
+    /** sync and add these path to classpath */
+    val customClasspath: List<String>,
+    /** sync these paths */
+    val customSyncFilePath: List<String>,
+    /** don't filter ignored modules in FileChangesHandler.compiledModules */
+    val isDoNotIgnored: Boolean,
 )
 
 data class NotificationData(

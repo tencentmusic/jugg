@@ -19,9 +19,9 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.*
+import com.sickworm.intellij.jugg.server.protocols.ModuleCustomConfig
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData
-import org.jetbrains.annotations.TestOnly
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
@@ -103,12 +103,34 @@ class CompileContextManager(
         }
     }
 
-    @TestOnly
     fun getProjectInfo(): JuggProjectInfo {
-        juggProjectInfoMerger.juggProjectInfo?.let {
-            return it
+        var juggProjectInfo = juggProjectInfoMerger.juggProjectInfo ?: initProjectInfo()
+        if (moduleCustomConfigs.isNotEmpty()) {
+            val modules = juggProjectInfo.modules.mapValues { (_, module) ->
+                val config = moduleCustomConfigs.find { it.moduleStdPath == module.moduleStdPath }
+                if (config == null) {
+                    return@mapValues module
+                }
+                return@mapValues module.copy(buildPathInfo = module.buildPathInfo.copy(
+                    customClasspath = config.customClasspath,
+                    customSyncFilePath = config.customSyncFilePath,
+                ))
+            }
+            juggProjectInfo = juggProjectInfo.copy(modules = modules)
         }
-        return initProjectInfo()
+        return juggProjectInfo
+    }
+
+    private var moduleCustomConfigs: List<ModuleCustomConfig> = emptyList()
+
+    fun updateCustomClasspath(moduleCustomConfigs: List<ModuleCustomConfig>) {
+        if (this.moduleCustomConfigs == moduleCustomConfigs) {
+            return
+        }
+        logger.debug("updateCustomClasspath: $moduleCustomConfigs")
+        this.moduleCustomConfigs = moduleCustomConfigs
+
+        compileContextInside.update(modules = getProjectInfo().modules)
     }
 
     fun ensureInitProjectInfo() {
@@ -132,7 +154,7 @@ class CompileContextManager(
     }
 
     private fun updateCompileContextByFullBuildInfo(compileContextInfo: CompileContextInfo) {
-        val guessBuildPathBaseDir: File? = compileContext.modules.firstNotNullOfOrNull { (name, module) ->
+        val guessBuildPathBaseDir: File? = getProjectInfo().modules.firstNotNullOfOrNull { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name] ?: return@firstNotNullOfOrNull null
             val relativePath = module.buildPathInfo.buildDir.relativeTo(module.buildPathInfo.projectRootDir)
             if (newBuildPathInfo.buildDir.endsWith(relativePath)) {
@@ -142,10 +164,13 @@ class CompileContextManager(
             }
         }
 
-        val copyModules: Map<String, ModuleInfo> = compileContext.modules.map { (name, module) ->
+        val copyModules: Map<String, ModuleInfo> = getProjectInfo().modules.map { (name, module) ->
             val newBuildPathInfo = compileContextInfo.moduleBuildPathInfos[name]
             if (newBuildPathInfo != null) {
-                return@map name to module.copy(buildPathInfo = newBuildPathInfo)
+                return@map name to module.copy(buildPathInfo = newBuildPathInfo.copy(
+                    customClasspath = module.buildPathInfo.customClasspath,
+                    customSyncFilePath = module.buildPathInfo.customSyncFilePath,
+                ))
             }
 
             logger.info("build path of module($name) is missing, maybe module is synced after full build. " +
@@ -159,6 +184,8 @@ class CompileContextManager(
                 module.projectRootDir,
                 module.moduleRootDir.changeBaseDir(module.projectRootDir, guessBuildPathBaseDir),
                 module.buildVariant,
+                customClasspath = module.buildPathInfo.customClasspath,
+                customSyncFilePath = module.buildPathInfo.customSyncFilePath,
             )
             if (guessedBuildPathInfo.buildDir.exists()) {
                 logger.info("guess build path success: ${guessedBuildPathInfo.buildDir}")

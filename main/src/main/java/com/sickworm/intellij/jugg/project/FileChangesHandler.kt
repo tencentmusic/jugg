@@ -37,15 +37,28 @@ class FileChangesHandler(
         it.init(projectDir, defaultMatchRule)
     }
 
+    private var doNotIgnoreModulePaths = emptyList<String>()
+
 
     private var allModules = emptyList<ModuleInfo>()
     private var compiledModules = emptyList<ModuleInfo>()
 
+    @Suppress("ConvertArgumentToSet")
     override fun init(compileContext: ICompileContext) {
         logger.debug("init FileChangesHandler")
-        val notCompiledModuleNames = findNotCompiledWithApplicationModules(compileContext)
         allModules = compileContext.modules.values.toList()
-        compiledModules = compileContext.modules.values.filter { !notCompiledModuleNames.contains(it.name) }
+
+        val notCompiledModuleNames = findNotCompiledWithApplicationModules(compileContext)
+        val ignoreModules = allModules.filter { module ->
+            if (doNotIgnoreModulePaths.contains(module.moduleStdPath)) {
+                return@filter false
+            }
+            if (notCompiledModuleNames.contains(module.name)) {
+                return@filter true
+            }
+            return@filter false
+        }
+        compiledModules = allModules - ignoreModules
         val sourceDirs = compiledModules.flatMap { it.sourceDirs }
         val resourceDirs = compiledModules.flatMap { it.resourceDirs }
         val assetDirs = compiledModules.flatMap { it.assetsDirs }
@@ -58,7 +71,7 @@ class FileChangesHandler(
             |    asset dirs:
             |        ${assetDirs.relativePath(projectDir) }
             |    ignore modules(won't compile):
-            |        $notCompiledModuleNames
+            |        ${ignoreModules.joinToString(", ") { "${it.moduleStdPath}(${it.name})" }}
             |""".trimMargin())
     }
 
@@ -113,10 +126,37 @@ class FileChangesHandler(
         return result.distinctBy { it.file.path }
     }
 
-    override fun updateBuildFileRules(rules: List<String>) {
-        logger.debug("updateBuildFileRules: $rules")
+    override fun updateBuildFileRules(rules: List<String>, doNotIgnoreModulePaths: List<String>) {
+        logger.debug("updateBuildFileRules: $rules, doNotIgnoreModulePaths: $doNotIgnoreModulePaths")
         val newRules = defaultMatchRule + rules
         buildFileMatcher.init(projectDir, newRules)
+        this.doNotIgnoreModulePaths = doNotIgnoreModulePaths
+
+        if (allModules.isNotEmpty()) {
+            appendCompiledModules()
+        }
+    }
+
+    private fun appendCompiledModules() {
+        doNotIgnoreModulePaths.forEach { doNotIgnoreModulePath ->
+            val isNotInCompiledModules = compiledModules.all {
+                it.moduleStdPath != doNotIgnoreModulePath
+            }
+            if (isNotInCompiledModules) {
+                val relativeModule = allModules.find {
+                    it.moduleStdPath == doNotIgnoreModulePath
+                }
+                if (relativeModule == null) {
+                    logger.debug("doNotIgnoreModulePath not found for $doNotIgnoreModulePath")
+                } else {
+                    compiledModules = compiledModules + relativeModule
+                    logger.debug("doNotIgnoreModulePath add $doNotIgnoreModulePath, " +
+                            "srcDirs: ${relativeModule.sourceDirs}, " +
+                            "resourceDirs: ${relativeModule.resourceDirs}, " +
+                            "assetDirs: ${relativeModule.assetsDirs}")
+                }
+            }
+        }
     }
 
     private fun toChangeFile(file: File): ChangedFile? {

@@ -16,7 +16,7 @@ interface IFileChangesHandler {
      */
     fun filter(file: List<File>): List<ChangedFile>
 
-    fun updateBuildFileRules(rules: List<String>)
+    fun updateBuildFileRules(rules: List<String>, doNotIgnoreModulePaths: List<String>)
 }
 
 data class ChangedFile(

@@ -39,7 +39,6 @@ import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.lang.Runnable
-import javax.swing.SwingUtilities
 import kotlin.system.measureTimeMillis
 
 
@@ -118,10 +117,9 @@ class JuggManager @TestOnly constructor(
             }
             customConfigManager.config?.let { config ->
                 juggServer.updateServer(config.servers)
-                config.buildFileRules.let {
-                    fileChangesHandler.updateBuildFileRules(it)
-                }
+                fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs.map { it.moduleStdPath })
                 deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
+                compileContextManager.updateCustomClasspath(config.moduleCustomConfigs)
             }
         } catch (e: Exception) {
             // maybe structure is updated
@@ -479,22 +477,24 @@ class JuggManager @TestOnly constructor(
         logger.info("copyGeneratedSourceToLocal")
         taskRunnerManager.runTaskSafe("Copy Generated Source to local", {
             val modules = compileContextManager.compileContext.modules
-            modules.values.forEach {
-                val dirInClasspath = it.buildPathInfo.generatedSourcePath
-                val dirInLocal = ModuleBuildPathInfo(it.projectRootDir, it.moduleRootDir, it.buildVariant).generatedSourcePath
-                logger.debug("Copy generated source from $dirInClasspath to $dirInLocal")
-                if (!dirInClasspath.exists()) {
-                    logger.debug("Skip copy, $dirInClasspath not exists")
-                    return@forEach
+            modules.values.forEach module@{
+                val baseDir = ModuleBuildPathInfo(it.projectRootDir, it.moduleRootDir, it.buildVariant).buildDir
+                it.buildPathInfo.syncToLocalPathList.forEach { fileOrDirInClasspath ->
+                    val fileOrDirInLocal = fileOrDirInClasspath.changeBaseDir(it.buildPathInfo.buildDir, baseDir)
+                    logger.debug("Copy generated source from $fileOrDirInClasspath to $fileOrDirInLocal")
+                    if (!fileOrDirInClasspath.exists()) {
+                        logger.debug("Skip copy, $fileOrDirInClasspath not exists")
+                        return@forEach
+                    }
+                    if (fileOrDirInClasspath.path.equals(fileOrDirInLocal.path)) {
+                        logger.debug("Skip copy, source and target are the same")
+                        return@forEach
+                    }
+                    if (fileOrDirInLocal.exists() && !fileOrDirInLocal.isDirectory) {
+                        fileOrDirInLocal.delete()
+                    }
+                    fileOrDirInClasspath.copyRecursively(fileOrDirInLocal, overwrite = true)
                 }
-                if (dirInClasspath.path.equals(dirInLocal.path)) {
-                    logger.debug("Skip copy, source and target are the same")
-                    return@forEach
-                }
-                if (dirInLocal.exists() && !dirInLocal.isDirectory) {
-                    dirInLocal.delete()
-                }
-                dirInClasspath.copyRecursively(dirInLocal, overwrite = true)
             }
         }, isBlockIncrementalCompile = false)
     }

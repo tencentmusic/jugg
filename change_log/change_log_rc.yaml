@@ -1,3 +1,8 @@
+- version: 2.1.0-rc3
+  date: 2025.01.23
+  updates:
+    - supports customize build output path from server
+
 - version: 2.1.0-rc2
   date: 2025.01.19
   updates:
