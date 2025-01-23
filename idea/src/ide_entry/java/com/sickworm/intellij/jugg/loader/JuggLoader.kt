@@ -35,7 +35,11 @@ class JuggLoader(val project: Project, val projectDir: File) {
     private fun createInstance(project: Project, projectDir: File) {
         val classLoader: ClassLoader
         val creatorName: String
-        if (JuggHotUpdateManager.isHotUpdateAvailable) {
+        if (JuggHotUpdateManager.isEmbeddedUpdated) {
+            JuggHotUpdateManager.clearHotUpdate()
+            classLoader = getOriginClassLoader()
+            creatorName = "embedded_updated"
+        } else if (JuggHotUpdateManager.isHotUpdateAvailable) {
             classLoader = getHotUpdateClassLoader()
             creatorName = "hot_update"
         } else {
