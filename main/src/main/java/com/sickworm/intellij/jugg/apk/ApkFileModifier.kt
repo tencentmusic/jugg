@@ -179,7 +179,7 @@ class ApkFileModifier(
         // see: https://developer.android.com/tools/zipalign
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
         val cmdString = "$zipalign -f 4 ${tmpUpdateApkFile.absolutePath} ${tmpAlignedApkFile.absolutePath}"
-        val cmd = SimpleSshCommand(cmdString, logger, outputFilter = { !it.endsWith("header mismatch") })
+        val cmd = SimpleSshCommand(cmdString, logger, outputFilter = { line, _ -> !line.endsWith("header mismatch") })
         val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
         if (exitCode != 0) {
             throw IllegalStateException("zipalign failed, exit code: $exitCode")
@@ -233,7 +233,7 @@ class ApkFileModifier(
         }
 
         var isLastTry = availableJdksForSign.isEmpty()
-        val outputFilter: ((String) -> Boolean) = outputFilter@{ output: String ->
+        val outputFilter: ((String, Boolean) -> Boolean) = outputFilter@{ output: String, isError: Boolean ->
             if (!isLastTry) {
                 logger.debug(output)
                 return@outputFilter false

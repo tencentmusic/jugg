@@ -5,12 +5,12 @@ import com.intellij.openapi.diagnostic.Logger
 class SimpleSshCommand(
     override val baseCommand: String,
     val logger: Logger,
-    private val outputFilter: ((String) -> Boolean)? = null,
+    private val outputFilter: ((String, Boolean) -> Boolean)? = null,
     private val isSecureCommand: Boolean = false,
 ): BaseSshCommand() {
 
-    override fun isCanOutput(line: String): Boolean {
-        return outputFilter?.invoke(line) ?: true
+    override fun isCanOutput(line: String, isError: Boolean): Boolean {
+        return outputFilter?.invoke(line, isError) ?: true
     }
 
     override fun getPrintSafeCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {

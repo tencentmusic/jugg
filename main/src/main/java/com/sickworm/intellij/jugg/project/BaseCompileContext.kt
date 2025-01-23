@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
@@ -17,6 +18,7 @@ import com.sickworm.intellij.jugg.project.data.SigningConfig
 import java.io.File
 
 class BaseCompileContext(
+    private val project: Project,
     override val logger: Logger,
     override var tempCompileDir: File,
     override var tempModuleDir: File,
@@ -149,6 +151,9 @@ class BaseCompileContext(
     }
 
     override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
+
+    override val cmdCompileEnv: List<String>
+        get() = LocalGradleCompileClient.buildCompileEnv(project, logger)
 
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)

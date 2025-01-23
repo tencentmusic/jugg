@@ -1,0 +1,53 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'java'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+
+File customConfigs = new File('custom/config.properties')
+
+if (customConfigs.exists()) {
+    println("Custom mode.")
+
+    Properties properties = new Properties()
+    properties.load(customConfigs.newDataInputStream())
+
+    archivesBaseName = properties.getProperty("jugg.custom.compiler.name")
+    version = properties.getProperty("jugg.custom.compiler.version")
+
+    sourceSets {
+        main {
+            java {
+                srcDirs = ['src/custom/java']
+            }
+            resources {
+                srcDirs = ['src/custom/resources']
+            }
+        }
+    }
+} else {
+    println("Demo mode.")
+    archivesBaseName = 'demo_compilers'
+    version = '1.0'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    annotationProcessor 'com.google.auto.service:auto-service:1.1.1'
+    implementation 'com.google.auto.service:auto-service-annotations:1.1.1'
+
+    implementation project(':main')
+    implementation project(':platform_compat:base_api')
+}

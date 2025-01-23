@@ -4,6 +4,7 @@ include ':main'
 include ':idea'
 include ':jvmti_agent'
 include ':aapt2-inclink'
+include ':custom_compilers'
 
 include ':deploy_compat:interface'
 include ':deploy_compat:v_chipmunk'

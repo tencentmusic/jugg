@@ -63,7 +63,7 @@ class CmdExecutor(
                         val line = reader.readLine()
                         if (line != null) {
                             if (line.isNotEmpty()) {
-                                if (command.isCanOutput(line)) {
+                                if (command.isCanOutput(line, isError = true)) {
                                     printToStreamError(line)
                                 }
                             }
@@ -86,7 +86,7 @@ class CmdExecutor(
                 val line = reader.readLine()
                 if (line != null) {
                     if (line.isNotEmpty()) {
-                        if (command.isCanOutput(line)) {
+                        if (command.isCanOutput(line, isError = false)) {
                             printToStream(line)
                         }
                     }

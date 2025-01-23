@@ -117,9 +117,9 @@ class JuggManager @TestOnly constructor(
             }
             customConfigManager.config?.let { config ->
                 juggServer.updateServer(config.servers)
-                fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs.map { it.moduleStdPath })
+                fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs?.map { it.moduleStdPath } ?: emptyList())
                 deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
-                compileContextManager.updateCustomClasspath(config.moduleCustomConfigs)
+                compileContextManager.updateCustomClasspath(config.moduleCustomConfigs ?: emptyList())
             }
         } catch (e: Exception) {
             // maybe structure is updated

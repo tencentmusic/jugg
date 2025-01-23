@@ -32,7 +32,7 @@ interface ISshCommand {
     /**
      * @return true if the output should not print
      */
-    fun isCanOutput(line: String): Boolean = true
+    fun isCanOutput(line: String, isError: Boolean): Boolean = true
 
     /**
      * @return the command that can print in log file.

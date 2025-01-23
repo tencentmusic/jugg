@@ -203,6 +203,17 @@ interface ICompiler: Disposable {
     fun compile(task: CompileTask): CompileResult
 
     fun warmUp() = Unit
+
+    /**
+     * for custom compiler, if return true, it will be executed before normal compile
+     */
+    val isBeforeNormalCompile: Boolean get() = false
+
+    /**
+     * consume compile files
+     * @return the rest files that should be compiled by other compilers
+     */
+    fun consumeFiles(files: List<CompileFile>): List<CompileFile> = files
 }
 
 interface ICompileContext {
@@ -238,6 +249,8 @@ interface ICompileContext {
     val isEnableDesugared: Boolean
 
     val modulesWithOrder: List<ModuleInfo>
+
+    val cmdCompileEnv: List<String>
 
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 

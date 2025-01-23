@@ -14,6 +14,8 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
 
     val logger = context.logger.getInstance(this::class.java.simpleName)
 
+    override val supportedTypes: List<CompileFile.Type> = CompileFile.Type.values().toList()
+
     init {
         @Suppress("LeakingThis")
         (Disposer.register(parent, this))

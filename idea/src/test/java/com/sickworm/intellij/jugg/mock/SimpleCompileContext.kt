@@ -33,6 +33,8 @@ data class SimpleCompileContext(
 
     override val modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
+    override val cmdCompileEnv: List<String> = emptyList()
+
     private val finalRFiles: List<String> by lazy {
         return@lazy modules.mapNotNull { module ->
             val rFile = module.value.buildPathInfo.rFilePath
