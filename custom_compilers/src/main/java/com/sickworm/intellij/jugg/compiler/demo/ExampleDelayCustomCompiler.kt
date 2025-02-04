@@ -5,7 +5,7 @@ package com.sickworm.intellij.jugg.compiler.demo
 import com.google.auto.service.AutoService
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.ICompilerCreator
+import com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator
 
 class ExampleDelayCustomCompiler(private val context: ICompileContext) : ICompiler {
 

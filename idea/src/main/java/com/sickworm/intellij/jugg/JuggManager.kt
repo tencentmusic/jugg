@@ -13,6 +13,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
@@ -73,6 +74,7 @@ class JuggManager @TestOnly constructor(
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, coroutineScope),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
+    private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
     constructor(
@@ -120,6 +122,7 @@ class JuggManager @TestOnly constructor(
                 fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs?.map { it.moduleStdPath } ?: emptyList())
                 deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
                 compileContextManager.updateCustomClasspath(config.moduleCustomConfigs ?: emptyList())
+                customCompilerManager.updateCustomCompilers(config.customCompilePlugins ?: emptyMap())
             }
         } catch (e: Exception) {
             // maybe structure is updated

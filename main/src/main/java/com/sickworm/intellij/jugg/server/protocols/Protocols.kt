@@ -30,6 +30,11 @@ data class ProjectCustomConfig(
     /** don't filter ignored files in filterUnchangedFiles. e.g. Detect changes for ignored build files */
     val dontFilterIgnoredFileRules: List<String>,
     val moduleCustomConfigs: List<ModuleCustomConfig>?,
+    /**
+     * custom compile plugins. maybe absolute/relative local file path, or download url.
+     * Map<name, path or url>
+     */
+    val customCompilePlugins: Map<String, String>?,
 )
 
 @Serializable

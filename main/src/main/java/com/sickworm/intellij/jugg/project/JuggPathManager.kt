@@ -40,6 +40,8 @@ class JuggPathManager(val projectDir: File) {
     val runtimeJarFilePath = File(configDir, "jugg-runtime.jar")
     val initGradleFileRelativePath: String = initGradleFilePath.relativeTo(projectDir).path
 
+    val customCompilerDir = File(configDir, "custom_compilers")
+
     companion object {
         const val RSYNC_PUSH_CONFIG_DIR_ARGUMENTS = "--include='/build' --include='/build/jugg' " +
                 "--include='/build/jugg/config' --include='/build/jugg/config/**' " +
