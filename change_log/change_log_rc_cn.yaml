@@ -1,3 +1,8 @@
+- version: 2.1.0-rc5
+  date: 2025.01.23
+  updates:
+    - 修复依赖库变更太多时无法显示出来
+
 - version: 2.1.0-rc3
   date: 2025.01.23
   updates:

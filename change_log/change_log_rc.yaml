@@ -1,3 +1,8 @@
+- version: 2.1.0-rc5
+  date: 2025.01.23
+  updates:
+    - fix dependency cannot show in dialog when it's too much
+
 - version: 2.1.0-rc3
   date: 2025.01.23
   updates:
