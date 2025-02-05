@@ -10,6 +10,7 @@ import java.awt.*
 import java.awt.event.ActionEvent
 import java.awt.event.WindowEvent
 import javax.swing.*
+import kotlin.math.min
 
 
 class CommonConfirmDialog(
@@ -44,10 +45,13 @@ class CommonConfirmDialog(
         val jLabel = JBLabel(content)
         val jScrollPane = JScrollPane(jLabel)
         jScrollPane.border = null
+        jScrollPane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
 
-        // maximumSize not worked, preferredSize won't auto size
-//        val screenSize = Toolkit.getDefaultToolkit().screenSize
-//        mainPanel.preferredSize = Dimension(screenSize.width / 2, screenSize.height / 2)
+        val screenSize = Toolkit.getDefaultToolkit().screenSize
+        jScrollPane.preferredSize = Dimension(
+            jScrollPane.preferredSize.width,
+            min(jLabel.preferredSize.height, screenSize.height / 2))
+
         mainPanel.add(jScrollPane, constraints)
         constraints.gridy++
 
