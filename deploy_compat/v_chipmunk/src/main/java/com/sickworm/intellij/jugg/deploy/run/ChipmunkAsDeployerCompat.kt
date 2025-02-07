@@ -5,8 +5,8 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.Deployer.InstallMode
-import com.android.tools.deployer.OptimisticApkSwapper.OverlayUpdate
 import com.android.tools.deployer.model.Apk
+import com.android.tools.idea.adb.AdbService
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.gradle.model.IdeAndroidArtifact
 import com.android.tools.idea.gradle.model.IdeAndroidProject
@@ -28,6 +28,7 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
+import org.jetbrains.android.sdk.AndroidSdkUtils
 import java.io.File
 import java.util.*
 
@@ -76,7 +77,10 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return project.getProjectSystem().getApkProvider(config)!!
     }
 
-    override fun getDevices(project: Project): List<IDevice>? {
+    /**
+     * @see com.android.tools.idea.run.deployment.DeviceAndSnapshotComboBoxTarget.getDevices (will boot avd)
+     */
+    override fun getSelectedDevices(project: Project): List<IDevice>? {
         val deployTargetContext = DeployTargetContext()
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
 
@@ -92,6 +96,15 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         }
 
         return null
+    }
+
+    /**
+     * @see com.android.tools.idea.run.deployment.DdmlibAndroidDebugBridge.getDevices
+     */
+    override fun getConnectedDevices(project: Project): List<IDevice>? {
+        val adb = AndroidSdkUtils.getAdb(project)?.toPath() ?: return null
+        val debugBridge = AdbService.getInstance().getDebugBridge(adb.toFile())
+        return debugBridge.get().devices?.toList()
     }
 
     override fun getInstaller(

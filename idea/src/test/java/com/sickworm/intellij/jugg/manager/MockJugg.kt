@@ -178,7 +178,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
                 return projectInfo.apkInfos
             }
 
-            override fun getDevices(): List<IDevice> {
+            override fun getSelectedDevices(): List<IDevice> {
                 return adbDeviceHelper.getDeviceList()
             }
 

@@ -465,7 +465,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun restartApp() {
-        AsDeployerCompat.getDevices(project)?.forEach {
+        AsDeployerCompat.getSelectedDevices(project)?.forEach {
             deployTargetManager.restartApp(it)
         }
     }
@@ -599,7 +599,7 @@ class JuggManager @TestOnly constructor(
             }
             if (isNeedWarmUpDeploy) {
                 launch(Dispatchers.IO) {
-                    val devices = deployTargetManager.getDevices()
+                    val devices = deployTargetManager.getSelectedDevices()
                     devices.forEachIndexed { index, device ->
                         val isLastDevice = index == devices.size - 1
                         val result = juggDeployerHelper.deploy(device, isLastDevice, processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)

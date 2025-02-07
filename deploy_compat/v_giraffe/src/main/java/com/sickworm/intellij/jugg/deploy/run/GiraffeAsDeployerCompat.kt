@@ -16,7 +16,7 @@ import com.intellij.openapi.project.Project
  */
 open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
 
-    override fun getDevices(project: Project): List<IDevice>? {
+    override fun getSelectedDevices(project: Project): List<IDevice>? {
         val deployTargetContext = DeployTargetContext()
         val deployTarget = deployTargetContext.currentDeployTargetProvider.getDeployTarget(project)
 

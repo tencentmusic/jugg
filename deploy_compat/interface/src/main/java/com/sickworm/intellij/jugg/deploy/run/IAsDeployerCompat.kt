@@ -19,7 +19,9 @@ interface IAsDeployerCompat {
 
     fun getApkProvider(project: Project, config: AndroidRunConfiguration): ApkProvider
 
-    fun getDevices(project: Project): List<IDevice>?
+    fun getSelectedDevices(project: Project): List<IDevice>?
+
+    fun getConnectedDevices(project: Project): List<IDevice>?
 
     fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller
 

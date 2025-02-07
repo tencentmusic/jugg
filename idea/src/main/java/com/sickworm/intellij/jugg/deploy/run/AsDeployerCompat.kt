@@ -120,8 +120,12 @@ object AsDeployerCompat : IAsDeployerCompat {
         return impl.getApkProvider(project, config)
     }
 
-    override fun getDevices(project: Project): List<IDevice>? {
-        return impl.getDevices(project)
+    override fun getSelectedDevices(project: Project): List<IDevice>? {
+        return impl.getSelectedDevices(project)
+    }
+
+    override fun getConnectedDevices(project: Project): List<IDevice>? {
+        return impl.getConnectedDevices(project)
     }
 
     override fun getInstaller(installersFolder: String, adb: AdbClient, logger: ILogger): AdbInstaller {

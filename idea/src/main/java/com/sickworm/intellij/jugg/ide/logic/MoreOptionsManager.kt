@@ -152,7 +152,7 @@ class MoreOptionsManager(
                 }
             )
 
-            val devices = getDevices()
+            val devices = deployTargetManager.getConnectedDevices()
             devices.forEach {
                 val compatDeployHelper = CompatDeployHelper(logger)
                 val adb = IdeaDeviceAdb(it, DefaultLogger("CompatDeployHelper"))
@@ -263,7 +263,7 @@ class MoreOptionsManager(
         IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
 
         taskRunnerManager.runTaskSafe("Remove Jugg JVMTI agents", {
-            val devices = deployTargetManager.getDevices()
+            val devices = deployTargetManager.getSelectedDevices()
             devices.forEach {
                 val result = JuggJvmtiAgentManager(IdeaDeviceAdb(it, logger), logger).removeAllAgents()
                 logger.debug("Remove Jugg JVMTI agents result: $result, device: $it")
@@ -274,10 +274,6 @@ class MoreOptionsManager(
     private fun setEnableBackupClasspath() {
         logger.info("[options] setEnableBackupClasspath ${JuggSettings.isEnableBackupClasspath}")
         deployHistoryManager.deleteDeployHistory()
-    }
-
-    private fun getDevices(): List<IDevice> {
-        return deployTargetManager.getDevices()
     }
 
     private fun checkUpdates() {

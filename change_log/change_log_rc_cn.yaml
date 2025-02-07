@@ -1,3 +1,8 @@
+- version: 2.1.0-rc6
+  date: 2025.02.07
+  updates:
+    - 修复在没有连接设备的时候，编译会触发虚拟机启动
+
 - version: 2.1.0-rc5
   date: 2025.01.23
   updates:

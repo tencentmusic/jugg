@@ -15,7 +15,15 @@ interface IDeployTargetManager {
 
     fun getApks(): List<ApkInfo>
 
-    fun getDevices(): List<IDevice>
+    /**
+     * @return devices that selected by IDE select box. Will boot AVD if needed.
+     */
+    fun getSelectedDevices(): List<IDevice>
+
+    /**
+     * @return devices that is online in adb.
+     */
+    fun getConnectedDevices(): List<IDevice>
 
     fun startApp(device: IDevice): Boolean
 
@@ -30,15 +38,15 @@ interface IDeployTargetManager {
     fun dumpErrorLogs(): String = ""
 
     val hasDevice: Boolean
-        get() = getDevices().isNotEmpty()
+        get() = getSelectedDevices().isNotEmpty()
 
     fun getDeviceNameList(): String? {
         return try {
-            val device = getDevices()
+            val device = getSelectedDevices()
             if (device.isEmpty()) {
                 return null
             }
-            getDevices().joinToString(", ") { it.name }
+            getSelectedDevices().joinToString(", ") { it.name }
         } catch (e: Exception) {
             null
         }

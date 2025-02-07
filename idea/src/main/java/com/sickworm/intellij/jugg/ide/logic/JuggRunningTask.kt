@@ -144,8 +144,7 @@ class JuggRunningTask(
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = false, isDeploySuccess = false)
         }
 
-        val devices = deployTargetManager.getDevices()
-        if (devices.isEmpty()) {
+        if (!deployTargetManager.hasDevice) {
             val deployType = if (compileTaskResult.isGradleCompile) {
                 "installing"
             } else {
@@ -163,6 +162,7 @@ class JuggRunningTask(
 
         var totalDeployTime = 0L
         val deployTaskResultList = mutableListOf<DeployTaskResult>()
+        val devices = deployTargetManager.getSelectedDevices()
         val isMultipleDevices = devices.size > 1
         devices.forEachIndexed { index, device ->
             val isLastDevice = index == devices.size - 1

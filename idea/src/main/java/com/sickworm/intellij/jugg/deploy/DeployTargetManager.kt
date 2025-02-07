@@ -25,9 +25,30 @@ class DeployTargetManager(
         return apks
     }
 
-    override fun getDevices(): List<IDevice> {
+    override fun getSelectedDevices(): List<IDevice> {
         try {
-            val devices = AsDeployerCompat.getDevices(project)
+            if (getConnectedDevices().isEmpty()) {
+                return emptyList() // avoid booting AVD if no device connected
+            }
+            val devices = AsDeployerCompat.getSelectedDevices(project)
+            if (devices.isNullOrEmpty()) {
+                return emptyList()
+            }
+
+            return devices
+        } catch (e: Exception) {
+            if (e is JuggException) {
+                logger.debug("getDevice failed: ${e.message}")
+            } else {
+                logger.error("getDevice failed", e)
+            }
+            throw e
+        }
+    }
+
+    override fun getConnectedDevices(): List<IDevice> {
+        try {
+            val devices = AsDeployerCompat.getConnectedDevices(project)
             if (devices.isNullOrEmpty()) {
                 return emptyList()
             }
@@ -96,7 +117,7 @@ class DeployTargetManager(
     override fun dumpErrorLogs(): String {
         val stringBuilder = StringBuilder()
         stringBuilder.append("[Dump error logs start]\n")
-        val devices = getDevices()
+        val devices = getSelectedDevices()
         stringBuilder.append("Devices: ${devices.map { it.name }}\n")
         devices.forEach { device ->
             stringBuilder.append("[Dump Device: ${device.name} start]\n")

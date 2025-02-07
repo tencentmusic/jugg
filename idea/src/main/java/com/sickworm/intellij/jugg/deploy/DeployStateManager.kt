@@ -64,7 +64,7 @@ class DeployStateManager(
     }
 
     private fun getNewDeployState(): JuggDeployState {
-        deployStateMap = deployTargetManager.getDevices().map {
+        deployStateMap = deployTargetManager.getSelectedDevices().map {
             // name includes serial number
             it.name to getNewDeployState(it)
         }.associate { it }
