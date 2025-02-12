@@ -112,7 +112,7 @@ class CompileContextDb(
                     // no-op, it has already updated to APK
                 }
                 else -> {
-                    logger.warn("Unknown output type: ${it.type} for file: ${it.file}")
+                    logger.debug("Unknown output type: ${it.type} for file: ${it.file}")
                 }
             }
         }
