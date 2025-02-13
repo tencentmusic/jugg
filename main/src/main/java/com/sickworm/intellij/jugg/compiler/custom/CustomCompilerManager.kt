@@ -6,9 +6,11 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.ICompiler
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.JuggServer
+import com.sickworm.intellij.jugg.server.protocols.CustomCompilerInfo
 import kotlinx.coroutines.launch
 import java.io.File
 import java.net.URLClassLoader
+import java.security.MessageDigest
 import java.util.*
 
 class CustomCompilerManager(
@@ -22,13 +24,14 @@ class CustomCompilerManager(
 
     private var customCompilerJars = listOf<File>()
 
-    fun updateCustomCompilers(customCompilers: Map<String, String>) {
+    fun updateCustomCompilers(customCompilers: List<CustomCompilerInfo>?) {
         logger.debug("updateCustomCompilers $customCompilers")
-        if (customCompilers.isEmpty()) {
+        if (customCompilers == null) {
+            logger.debug("updateCustomCompilers with null config, exit.")
             return
         }
         customCompilerJars = customCompilers.mapNotNull {
-            updateCustomCompiler(it.key, it.value)
+            updateCustomCompiler(it)
         }
         // clear deprecated jars
         customCompilerDir.listFiles()?.forEach { file ->
@@ -45,22 +48,37 @@ class CustomCompilerManager(
         }
     }
 
-    private fun updateCustomCompiler(name: String, path: String): File? {
+    private fun updateCustomCompiler(customCompilerInfo: CustomCompilerInfo): File? {
+        val file = getCustomCompiler(customCompilerInfo)
+        if (file != null) {
+            val md5 = file.md5()
+            if (md5 != customCompilerInfo.md5) {
+                logger.debug("custom compiler $file md5 mismatch, delete it")
+                file.delete()
+                return null
+            }
+        }
+        return file
+    }
+
+    private fun getCustomCompiler(customCompilerInfo: CustomCompilerInfo): File? {
+        val name = customCompilerInfo.jarFileName
+        val path = customCompilerInfo.path
         val absFile = File(path)
         if (absFile.isAbsolute && absFile.exists()) {
-            logger.debug("custom compiler $absFile exists, add it directly")
+            logger.debug("custom compiler $absFile exists")
             return absFile
         }
         val relativeFile = File(projectDir, path)
         if (relativeFile.exists()) {
-            logger.debug("custom compiler $relativeFile exists, add it directly")
+            logger.debug("custom compiler $relativeFile exists")
             return relativeFile
         }
 
         if (path.startsWith("http")) {
             val targetFile = customCompilerDir.resolve(name)
             if (targetFile.exists()) {
-                logger.debug("http target file $targetFile exists, add it directly")
+                logger.debug("http target file $targetFile exists")
                 return targetFile
             } else {
                 logger.debug("http target file $targetFile not exists, download it later")
@@ -72,22 +90,73 @@ class CustomCompilerManager(
         return null
     }
 
-    private fun downloadCompilers(customCompilers: Map<String, String>) {
-        customCompilers.forEach { (name, path) ->
-            if (path.startsWith("http")) {
-                downloadCompiler(name, path)
+    private fun downloadCompilers(customCompilers: List<CustomCompilerInfo>) {
+        var isNeedReset = false
+        customCompilers.forEach {
+            if (it.path.startsWith("http")) {
+                downloadCompiler(it)
+                isNeedReset = true
             }
+        }
+        if (isNeedReset) {
+            resetCompilerJars()
         }
     }
 
-    private fun downloadCompiler(name: String, path: String) {
-        val targetFile = customCompilerDir.resolve(name)
-        try {
-            juggServer.downloadFile(path, targetFile)
-            logger.debug("target file $targetFile download finished")
-        } catch (e: Exception) {
-            logger.warn("error downloading target file $targetFile, skip. error: $e")
+    private fun downloadCompiler(customCompilerInfo: CustomCompilerInfo) {
+        val targetFile = customCompilerDir.resolve(customCompilerInfo.jarFileName)
+        if (targetFile.exists() && targetFile.length() > 0) {
+            return
         }
+        try {
+            juggServer.downloadFile(customCompilerInfo.path, targetFile)
+            logger.debug("success download $customCompilerInfo")
+            val md5 = targetFile.md5()
+            if (md5 != customCompilerInfo.md5) {
+                logger.debug("custom compiler $customCompilerInfo md5 mismatch, actual: $md5. delete it")
+                targetFile.delete()
+            }
+        } catch (e: Exception) {
+            logger.warn("error downloading $customCompilerInfo, skip. error: $e")
+        }
+    }
+
+    private var customCompilers: List<ICompiler> = listOf()
+
+    @Synchronized
+    fun getCustomCompilers(context: ICompileContext, parent: Disposable): List<ICompiler> {
+        if (customCompilerJars.isNotEmpty() && customCompilers.isEmpty()) {
+            customCompilers = createCustomCompilers(context, parent)
+            logger.debug("create custom compilers finished: $customCompilers")
+        }
+        return customCompilers
+    }
+
+    private fun createCustomCompilers(context: ICompileContext, parent: Disposable): List<ICompiler> {
+        val urls = customCompilerJars.map { it.toURI().toURL() }.toTypedArray()
+        val classLoader = URLClassLoader(urls, this::class.java.classLoader)
+        val customCompilers = mutableListOf<ICompiler>()
+        ServiceLoader.load(ICompilerCreator::class.java, classLoader).forEach {
+            val compiler = it.create(context, parent)
+            customCompilers.add(compiler)
+        }
+        return customCompilers
+    }
+
+    @Synchronized
+    private fun resetCompilerJars() {
+        customCompilerJars = customCompilerDir.listFiles()?.filter { it.name.endsWith(".jar") } ?: emptyList()
+        customCompilers.forEach {
+            it.dispose()
+        }
+        this.customCompilers = emptyList() // recreate next time
+        logger.debug("resetCompilerJars: $customCompilerJars")
+    }
+
+    private fun File.md5(): String {
+        val md = MessageDigest.getInstance("MD5")
+        md.update(readBytes())
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
 }

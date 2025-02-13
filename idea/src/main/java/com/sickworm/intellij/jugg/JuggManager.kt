@@ -122,7 +122,7 @@ class JuggManager @TestOnly constructor(
                 fileChangesHandler.updateBuildFileRules(config.buildFileRules, config.moduleCustomConfigs?.map { it.moduleStdPath } ?: emptyList())
                 deployHistoryManager.updateDontFilterIgnoredFileRules(config.dontFilterIgnoredFileRules)
                 compileContextManager.updateCustomClasspath(config.moduleCustomConfigs ?: emptyList())
-                customCompilerManager.updateCustomCompilers(config.customCompilePlugins ?: emptyMap())
+                customCompilerManager.updateCustomCompilers(config.customCompilers)
             }
         } catch (e: Exception) {
             // maybe structure is updated
@@ -545,7 +545,7 @@ class JuggManager @TestOnly constructor(
 
     private fun reInitOnCompileContextUpdate() {
         deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
-        juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+        juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this, customCompilerManager::getCustomCompilers)
         fileChangesHandler.init(compileContextManager.compileContext)
         gitFileChangesDetector.init(pathManager.projectDir, compileContextManager.compileContext.modules)
     }

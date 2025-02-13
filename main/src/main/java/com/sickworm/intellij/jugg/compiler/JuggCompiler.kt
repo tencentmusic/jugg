@@ -12,6 +12,7 @@ import java.io.File
 class JuggCompiler(
     context: ICompileContext,
     parent: Disposable,
+    private val customCompilersGetter: ((ICompileContext, Disposable) -> List<ICompiler>) = { _, _ -> emptyList() },
 ): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
@@ -52,9 +53,21 @@ class JuggCompiler(
         val overlayOutputDir = File(task.outputDir, "overlays")
         val classesOutputDir = File(task.outputDir, "classes")
 
+        // custom compilers
+        var compileFiles = task.files
+        val customCompilers = customCompilersGetter.invoke(context, this)
+        logger.debug("custom compilers: ${customCompilers.joinToString { this::class.java.name }}")
+        val beforeCustomCompilers = customCompilers.filter { it.isBeforeNormalCompile }
+        beforeCustomCompilers.forEach {
+            compileFiles = it.consumeFiles(compileFiles)
+            val compileTask = CompileTask(compileFiles, task.outputDir, task)
+            val subCompileResult = it.compile(compileTask)
+            compileResult += subCompileResult
+        }
+
         // compile asset
         val assetCompileTask = CompileTask(
-            files = task.files.filter {
+            files = compileFiles.filter {
                 it.type == CompileFile.Type.Asset || it.type == CompileFile.Type.NativeLib
             },
             outputDir = overlayOutputDir,
@@ -70,7 +83,7 @@ class JuggCompiler(
 
         // compile resource
         val resourceCompileTask = CompileTask(
-            files = task.files.filter {
+            files = compileFiles.filter {
                 it.type == CompileFile.Type.Resource || it.type == CompileFile.Type.AndroidManifest
             },
             outputDir = task.outputDir,
@@ -148,7 +161,7 @@ class JuggCompiler(
                 CompileTask(
                     files = rJavaResultOutputs.map {
                         CompileFile(CompileFile.Type.DexToChangePackageName, it.file, it.baseDir, context.tempModule)
-                    } + task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin || it.type == CompileFile.Type.Resource },
+                    } + compileFiles.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin || it.type == CompileFile.Type.Resource },
                     outputDir = classesOutputDir,
                     parentTask = task,
                 )
@@ -169,7 +182,7 @@ class JuggCompiler(
 
         // compile source
         val sourceCompileTask = CompileTask(
-            files = task.files.filter {
+            files = compileFiles.filter {
                 it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
             },
             outputDir = classesOutputDir,
@@ -199,7 +212,7 @@ class JuggCompiler(
 
         // compile .class
         val dexCompileTask = CompileTask(
-            files = task.files.filter {
+            files = compileFiles.filter {
                 it.type == CompileFile.Type.Class
             },
             outputDir = classesOutputDir,
@@ -210,6 +223,19 @@ class JuggCompiler(
         }
         if (!compileResult.isAllSuccess) {
             return compileResult.quickFailedOthers(task)
+        }
+
+        if (task.isShouldCancel) {
+            return task.toCancelResult()
+        }
+
+        // custom compilers
+        val afterCustomCompilers = customCompilers.filter { !it.isBeforeNormalCompile }
+        afterCustomCompilers.forEach {
+            compileFiles = it.consumeFiles(compileFiles)
+            val compileTask = CompileTask(compileFiles, task.outputDir, task)
+            val subCompileResult = it.compile(compileTask)
+            compileResult += subCompileResult
         }
 
         if (task.isShouldCancel) {
