@@ -338,10 +338,25 @@ class JuggServer(
             .url(url)
             .get()
             .build()
-        client.newCall(request).execute().body?.byteStream()?.use { input ->
-            targetFile.outputStream().use { output ->
-                input.copyTo(output)
+        try {
+            val result = client.newCall(request).execute()
+            if (result.code != 200) {
+                logger.debug("downloadFile failed: [${result.code}] ${result.body?.string()}")
+                targetFile.delete()
+                return
             }
+            result.body?.byteStream()?.use { input ->
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (targetFile.length() == 0L) {
+                logger.debug("downloadFile failed: file length is 0")
+                targetFile.delete()
+            }
+        } catch (e: Exception) {
+            logger.debug("downloadFile failed: $e")
+            targetFile.delete()
         }
     }
 }

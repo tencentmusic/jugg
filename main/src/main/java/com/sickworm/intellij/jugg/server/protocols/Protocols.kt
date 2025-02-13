@@ -32,9 +32,8 @@ data class ProjectCustomConfig(
     val moduleCustomConfigs: List<ModuleCustomConfig>?,
     /**
      * custom compile plugins. maybe absolute/relative local file path, or download url.
-     * Map<name, path or url>
      */
-    val customCompilePlugins: Map<String, String>?,
+    val customCompilers: List<CustomCompilerInfo>?,
 )
 
 @Serializable
@@ -72,3 +71,10 @@ data class JarFileInfo(
     val url: String,
     val md5: String,
 )
+
+data class CustomCompilerInfo(
+    val jarFileName: String,
+    val path: String,
+    val md5: String,
+)
+
