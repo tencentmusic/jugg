@@ -210,7 +210,7 @@ class CompileContextManager(
 
         val context = BaseCompileContext(
             project,
-            logger = JuggLogger.getInstance(project, "Compiler"),
+            logger = JuggLogger.getInstance(project, "BaseCompileContext"),
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
             tempModuleDir = File(pathManager.compileRootDir, "temp_module"),
