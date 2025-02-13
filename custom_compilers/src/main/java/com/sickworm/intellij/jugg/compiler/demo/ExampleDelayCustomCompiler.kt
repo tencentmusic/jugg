@@ -10,7 +10,7 @@ import com.sickworm.intellij.jugg.compiler.custom.ICompilerCreator
 class ExampleDelayCustomCompiler(private val context: ICompileContext) : ICompiler {
 
     @AutoService(ICompilerCreator::class)
-    companion object Creator : ICompilerCreator {
+    class Creator : ICompilerCreator {
         override fun create(context: ICompileContext, parent: Disposable): ICompiler {
             return ExampleDelayCustomCompiler(context)
         }
@@ -22,14 +22,14 @@ class ExampleDelayCustomCompiler(private val context: ICompileContext) : ICompil
         if (context.projectDir.name != "MyApplicationIntellij") {
             return CompileResult(task, emptyList(), emptyList())
         }
-        context.logger.info("[ExampleCustomCompiler] I'm in!")
+        context.logger.info("[ExampleDelayCustomCompiler] I'm in!")
         Thread.sleep(1000)
-        context.logger.info("[ExampleCustomCompiler] I'm done!")
+        context.logger.info("[ExampleDelayCustomCompiler] I'm done!")
         return CompileResult(task, emptyList(), emptyList())
     }
 
     override fun dispose() {
-        context.logger.debug("[ExampleCustomCompiler] I'm disposed!")
+        context.logger.debug("[ExampleDelayCustomCompiler] I'm disposed!")
     }
 
 }

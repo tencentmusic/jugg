@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 class ExampleAssembleCustomCompiler(context: ICompileContext, parent: Disposable) : BaseCompiler(context, parent) {
 
     @AutoService(ICompilerCreator::class)
-    companion object Creator : ICompilerCreator {
+    class Creator : ICompilerCreator {
         override fun create(context: ICompileContext, parent: Disposable): ICompiler {
             return ExampleAssembleCustomCompiler(context, parent)
         }
@@ -25,19 +25,19 @@ class ExampleAssembleCustomCompiler(context: ICompileContext, parent: Disposable
         }
 
         val sourceFiles = task.files.filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
-        if (sourceFiles.isNotEmpty()) {
+        if (sourceFiles.isEmpty()) {
             return CompileResult(task, emptyList(), emptyList())
         }
 
-        logger.info("Detect protocol file change, start generating protocol jar...")
-        val cmd = SimpleSshCommand("./gradlew :app:generateDebugSources", logger, outputFilter = { _, isError ->
+        logger.info("Detect source file change, start generateDebugSources...")
+        val cmd = SimpleSshCommand("cd ${context.projectDir} && ./gradlew :app:generateDebugSources", logger, outputFilter = { _, isError ->
             isError
         })
         val result = CmdExecutor(logger).invoke(cmd, context.cmdCompileEnv)
         if (result == 0) {
-            logger.info("Generate protocol jar success.")
+            logger.info("Generate debug source success.")
         } else {
-            logger.warn("Generate protocol jar failed. See log for more details.")
+            logger.warn("Generate debug source failed. See log for more details.")
         }
         return CompileResult(task, sourceFiles.map { Result.failure(CompileError(it, listOf(-1L to "assemble failed"))) }, emptyList())
     }
