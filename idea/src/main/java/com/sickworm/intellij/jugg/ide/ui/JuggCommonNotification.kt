@@ -1,7 +1,10 @@
 package com.sickworm.intellij.jugg.ide.ui
 
 import com.intellij.ide.BrowserUtil
-import com.intellij.notification.*
+import com.intellij.notification.NotificationDisplayType
+import com.intellij.notification.NotificationGroup
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
@@ -25,12 +28,9 @@ class JuggCommonNotification(private val project: Project) {
     }
 
     private fun doShow(data: NotificationData) {
-        val notification = NotificationGroupManager.getInstance()
-            .getNotificationGroup("Jugg Notification Group")
-            .createNotification(
-                data.title, data.content,
-                NotificationType.INFORMATION
-            )
+        val notificationGroup = getGroup()
+        val notification = notificationGroup.createNotification(
+            data.title, data.content, NotificationType.INFORMATION)
         if (!data.buttonText.isNullOrEmpty()) {
             notification.addAction(object : AnAction(data.buttonText) {
                 override fun actionPerformed(e: AnActionEvent) {
@@ -42,5 +42,19 @@ class JuggCommonNotification(private val project: Project) {
             })
         }
         notification.notify(project)
+    }
+
+    private fun getGroup(isSticky: Boolean = true): NotificationGroup {
+        if (isSticky) {
+            if (NotificationGroup.isGroupRegistered("Jugg Important Notification")) {
+                return NotificationGroupManager.getInstance().getNotificationGroup("Jugg Important Notification")
+            }
+        } else {
+            if (NotificationGroup.isGroupRegistered("Jugg Notification")) {
+                return NotificationGroupManager.getInstance().getNotificationGroup("Jugg Notification")
+            }
+        }
+        // hot update compat
+        return NotificationGroupManager.getInstance().getNotificationGroup("Jugg Notification Group")
     }
 }

@@ -45,7 +45,10 @@
                 id="jugg.JuggConfigurationType"
                 implementation="com.sickworm.intellij.jugg.ide.JuggConfigurationType"
         />
-        <notificationGroup id="Jugg Notification Group"
+        <notificationGroup id="Jugg Important Notification"
+                           displayType="STICKY_BALLOON"
+                           key="notification.group.name"/>
+        <notificationGroup id="Jugg Notification"
                            displayType="BALLOON"
                            key="notification.group.name"/>
     </extensions>
