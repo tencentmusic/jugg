@@ -60,13 +60,16 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
     }
 
     private fun notifyHotUpdateIfNeeded(project: Project) {
-        if (!firstUpdateFlag.exists()) {
+        val isFirstTimeBootAfterUpdate = firstUpdateFlag.exists()
+        logger.debug("notifyHotUpdateIfNeeded $isFirstTimeBootAfterUpdate")
+        if (!isFirstTimeBootAfterUpdate) {
             return
         }
         try {
             val currentHotUpdateData = Gson().fromJson(hotUpdateDataFile.readText(), HotUpdateData::class.java)
             firstUpdateFlag.delete()
             val notificationData = currentHotUpdateData.updateInfo
+            logger.debug("show notifyHotUpdateIfNeeded ${currentHotUpdateData.updateInfo}")
             if (notificationData != null) {
                 JuggCommonNotification(project).show(notificationData)
             }
