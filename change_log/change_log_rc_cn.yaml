@@ -1,3 +1,8 @@
+- version: 2.1.0-rc8
+  date: 2025.02.18
+  updates:
+    - 修复代码编译失败又编译成功后，小概率部署失败触发降级
+
 - version: 2.1.0-rc6
   date: 2025.02.07
   updates:

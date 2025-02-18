@@ -1,3 +1,8 @@
+- version: 2.1.0-rc8
+  date: 2025.02.18
+  updates:
+    - fix "Deploy Changes failed" sometimes when last time compile failed
+
 - version: 2.1.0-rc6
   date: 2025.02.07
   updates:
