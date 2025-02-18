@@ -39,7 +39,7 @@ class SourceCompiler(
             classCompileResult += kotlinCompiler.compile(kotlinCompileTask)
         }
         if (!classCompileResult.isAllSuccess) {
-            return classCompileResult.quickFailedOthers(task)
+            return classCompileResult.quickFailedOthers(task, isClearOutput = true)
         }
 
         val javaCompileTask = CompileTask(
@@ -51,7 +51,7 @@ class SourceCompiler(
             classCompileResult += javaCompiler.compile(javaCompileTask)
         }
         if (!classCompileResult.isAllSuccess) {
-            return classCompileResult.quickFailedOthers(task)
+            return classCompileResult.quickFailedOthers(task, isClearOutput = true)
         }
 
         // e.g. META-INF/service/xxx

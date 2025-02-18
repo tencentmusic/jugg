@@ -164,7 +164,7 @@ data class CompileResult(
     val compiledFailedFiles get() = details.filter { it.isFailed && it.getFailure().errors != quickFailedErrors }
     val notCompiledFiles get() = details.filter { it.isFailed && it.getFailure().errors == quickFailedErrors }
 
-    fun quickFailedOthers(parentTask: CompileTask): CompileResult {
+    fun quickFailedOthers(parentTask: CompileTask, isClearOutput: Boolean = false): CompileResult {
         val details: List<Result<CompileFile, CompileError>> = parentTask.files.map { file ->
             val compiledDetails = details.find { it.file == file }
             if (compiledDetails != null) {
@@ -176,7 +176,7 @@ data class CompileResult(
         return CompileResult(
             parentTask,
             details,
-            outputs
+            if (isClearOutput) emptyList() else outputs
         )
     }
 
