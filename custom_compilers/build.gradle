@@ -17,7 +17,7 @@ repositories {
 }
 
 
-File customConfigs = new File('custom/config.properties')
+def customConfigs = file('src/custom/config.properties')
 
 if (customConfigs.exists()) {
     println("Custom mode.")
@@ -27,14 +27,15 @@ if (customConfigs.exists()) {
 
     archivesBaseName = properties.getProperty("jugg.custom.compiler.name")
     version = properties.getProperty("jugg.custom.compiler.version")
+    def folder = properties.getProperty("jugg.custom.compiler.dir")
 
     sourceSets {
         main {
             java {
-                srcDirs = ['src/custom/java']
+                srcDirs = ["src/custom/$folder/java"]
             }
             resources {
-                srcDirs = ['src/custom/resources']
+                srcDirs = ["/src/custom/$folder/resources"]
             }
         }
     }
