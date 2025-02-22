@@ -59,8 +59,8 @@ class JuggCompiler(
         logger.debug("custom compilers: ${customCompilers.joinToString { this::class.java.name }}")
         val beforeCustomCompilers = customCompilers.filter { it.isBeforeNormalCompile }
         beforeCustomCompilers.forEach {
-            compileFiles = it.consumeFiles(compileFiles)
             val compileTask = CompileTask(compileFiles, task.outputDir, task)
+            compileFiles = it.consumeFiles(compileFiles)
             val subCompileResult = it.compile(compileTask)
             compileResult += subCompileResult
         }
@@ -232,8 +232,8 @@ class JuggCompiler(
         // custom compilers
         val afterCustomCompilers = customCompilers.filter { !it.isBeforeNormalCompile }
         afterCustomCompilers.forEach {
-            compileFiles = it.consumeFiles(compileFiles)
             val compileTask = CompileTask(compileFiles, task.outputDir, task)
+            compileFiles = it.consumeFiles(compileFiles)
             val subCompileResult = it.compile(compileTask)
             compileResult += subCompileResult
         }
