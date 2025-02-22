@@ -110,6 +110,11 @@ class CustomCompilerManager(
         }
         try {
             juggServer.downloadFile(customCompilerInfo.path, targetFile)
+            val isSuccess = targetFile.exists() && targetFile.length() > 0
+            if (!isSuccess) {
+                logger.debug("failed to download $customCompilerInfo")
+                return
+            }
             logger.debug("success download $customCompilerInfo")
             val md5 = targetFile.md5()
             if (md5 != customCompilerInfo.md5) {
