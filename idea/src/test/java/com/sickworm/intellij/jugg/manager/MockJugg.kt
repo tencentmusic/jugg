@@ -182,6 +182,10 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
                 return adbDeviceHelper.getDeviceList()
             }
 
+            override fun getConnectedDevices(): List<IDevice> {
+                return adbDeviceHelper.getDeviceList()
+            }
+
             override fun startApp(device: IDevice): Boolean {
                 AdbCmdHelper(device, logger).startDefaultApp(projectInfo.packageName, projectInfo.apkInfos)
                 return true
