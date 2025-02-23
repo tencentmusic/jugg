@@ -1,3 +1,8 @@
+- version: 2.1.0-rc10
+  date: 2025.02.23
+  updates:
+    - 支持不同工程的使用不同的自定义编译器，如触发协议打包
+
 - version: 2.1.0-rc8
   date: 2025.02.18
   updates:
