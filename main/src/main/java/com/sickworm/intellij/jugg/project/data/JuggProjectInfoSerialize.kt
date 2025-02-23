@@ -34,6 +34,7 @@ class JuggProjectInfoSerialize(
                     it.value.copy(
                         libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
                         annotationProcessorDependencies = emptyList(), kaptDependencies = emptyList(),
+                        kotlinPlugins = emptyList(),
                     ),
                     libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
