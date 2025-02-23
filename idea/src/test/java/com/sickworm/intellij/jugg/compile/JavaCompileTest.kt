@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compile
 import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.JavaCompiler
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
@@ -74,10 +75,13 @@ class JavaCompileTest {
 
     @Test
     fun javaCompileWithARouter() {
+        if (!JuggSettings.isEnableApt) {
+            return
+        }
         val task = CompileTask(
             listOf(
                 CompileFile(CompileFile.Type.Java,
-                    File(assetsAndroidDir, "app/src/main/java/com/example/myapplication/MainActivity2.java"),
+                    File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/annotation/java/JavaARouterActivity.java"),
                     File(assetsAndroidDir, "app/src/main/java"),
                     mockModule,
                     dependencyPaths = listOf(androidJar.absolutePath)
@@ -95,16 +99,33 @@ class JavaCompileTest {
         }
         assertCompileResult(task, result, mapper)
 
-        listOf(
-            "ARouter\$\$Group\$\$app.class",
-            "ARouter\$\$Root\$\$app.class",
-            "ARouter\$\$Providers\$\$app.class",
-            "ARouter\$\$Group\$\$app.java",
-            "ARouter\$\$Root\$\$app.java",
-            "ARouter\$\$Providers\$\$app.java"
-        ).forEach { outputFileName ->
-            assertTrue(result.outputs.any { it.file.name == outputFileName }, "missing $outputFileName, " +
-                    "all are:\n${result.outputs.joinToString("\n") { it.file.name }}")
+        checkARouterResult(result, mapOf(
+            "app" to listOf("/app/activity", "/app/activity_kt")
+        ))
+    }
+
+    private fun checkARouterResult(
+        result: CompileResult,
+        routerMap: Map<String, List<String>>,
+    ) {
+        routerMap.forEach { (group, routes) ->
+            listOf(
+                "ARouter\$\$Group\$\$$group.class",
+                "ARouter\$\$Root\$\$$group.class",
+                "ARouter\$\$Providers\$\$$group.class",
+                "ARouter\$\$Group\$\$$group.java",
+                "ARouter\$\$Root\$\$$group.java",
+                "ARouter\$\$Providers\$\$$group.java",
+            ).forEach { outputFileName ->
+                assertTrue(result.outputs.any { it.file.name == outputFileName }, "missing $outputFileName, " +
+                        "all are:\n${result.outputs.joinToString("\n") { it.file.name }}")
+            }
+
+            val groupJavaFile = result.outputs.find { it.file.name == "ARouter\$\$Group\$\$$group.java" }!!
+            val content = groupJavaFile.file.readText()
+            routes.forEach { route ->
+                assertTrue(content.contains("\"$route\""), "missing route $route in ${groupJavaFile.file.path}")
+            }
         }
     }
 
