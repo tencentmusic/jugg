@@ -2,6 +2,7 @@
   date: 2025.02.23
   updates:
     - supports customize compiler for different projects
+    - fix local.properties not excluded when sync multiple projects in remote build
 
 - version: 2.1.0-rc8
   date: 2025.02.18
