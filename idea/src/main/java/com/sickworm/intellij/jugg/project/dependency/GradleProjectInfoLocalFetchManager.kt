@@ -88,6 +88,10 @@ class GradleProjectInfoLocalFetchManager(
      * 2. start remote compile
      */
     fun runUpdateIfNeeded(isForce: Boolean = false) {
+        // make sure we have checked the gradle project info data
+        // gradleProjectInfoFile will be deleted if data is invalid
+        compileContextManager.ensureInitProjectInfo()
+
         logger.debug("runUpdateIfNeeded isNeedUpdate $isNeedUpdate, isUpdating $isUpdating, isForce: $isForce")
         if (!isForce && (!isNeedUpdate || isUpdating)) {
             logger.debug("no need execute update, exit")

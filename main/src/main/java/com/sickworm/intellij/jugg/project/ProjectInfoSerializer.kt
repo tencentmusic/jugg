@@ -53,6 +53,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             return juggProjectInfo
         } catch (e: Exception) {
             logger.debug("Failed to load project info from ${dataFile.absolutePath}, $e")
+            dataFile.delete()
             memoryCache = null
             return null
         }

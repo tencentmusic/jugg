@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.project.data
 
+import com.sickworm.intellij.jugg.project.JuggException
+
 /**
  * Compress the [JuggProjectInfo] to a smaller data structure.
  */
@@ -7,10 +9,12 @@ class JuggProjectInfoSerialize(
     val juggProjectInfoExceptModules: JuggProjectInfo,
     val dependencyList: List<LibraryDependency>,
     val modules: List<ModuleInfoSerialize>,
+    val version: Int = VERSION, // gson won't use default value if not exists, so it's ok to write it here
 ) {
 
-
     companion object {
+
+        private const val VERSION = 2
 
         fun serialize(juggProjectInfo: JuggProjectInfo): JuggProjectInfoSerialize {
             val dependencyList = mutableListOf<LibraryDependency>()
@@ -52,6 +56,11 @@ class JuggProjectInfoSerialize(
         }
 
         fun deserialize(projectInfoSerialize: JuggProjectInfoSerialize): JuggProjectInfo {
+            if (projectInfoSerialize.version != VERSION) {
+                throw IllegalArgumentException("Project info too old, version=${projectInfoSerialize.version}, " +
+                        "expectVersion=$VERSION. Please update your project.")
+            }
+
             val dependencyMap = mutableMapOf<Int, LibraryDependency>()
             projectInfoSerialize.dependencyList.forEachIndexed { index, libraryDependency ->
                 dependencyMap[index] = libraryDependency
