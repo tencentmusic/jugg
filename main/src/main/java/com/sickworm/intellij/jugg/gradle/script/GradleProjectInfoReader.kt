@@ -192,6 +192,8 @@ class GradleProjectInfoReader(
                     println("Jugg: can not find kotlin compile task for ${project.standardModuleName} by $kotlinTaskName, skip it.")
                 }
 
+                val kotlinExtensions: List<File>? = project.configurations.findByName("kotlin-extension")?.files?.toList()
+
                 @Suppress("UNCHECKED_CAST")
                 moduleInfo = moduleInfo.copy(
                     compileVersion = compileSdkVersion?.substringAfter("android-"),
@@ -218,6 +220,7 @@ class GradleProjectInfoReader(
                     variants = variants,
                     signingConfigs = signingConfigs,
                     kotlinPlugins = kotlinPlugins,
+                    kotlinExtensions = kotlinExtensions,
                 )
             } catch (e: Throwable) {
                 println("Jugg: get other info for ${project.standardModuleName} failed: $e")

@@ -1,3 +1,10 @@
+- version: 2.2.0-rc1
+  date: 2025.02.24
+  updates:
+    - supports Kotlin compose
+    - supports Kotlin @Parcelize annotation
+    - supports using project Kotlin compiler
+
 - version: 2.1.0-rc10
   date: 2025.02.23
   updates:

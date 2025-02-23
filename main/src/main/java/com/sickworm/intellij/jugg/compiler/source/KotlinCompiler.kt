@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.ByteArrayOutputStream
@@ -34,7 +35,9 @@ class KotlinCompiler(
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
         // Jugg will check it again in [initIfNeeded] before use it
-        val kotlinCompilerClasspath = module.kotlinPlugins
+        val kotlinCompilerClasspath = mutableListOf<File>()
+        kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
+        kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
         kotlinCompile.initIfNeeded(kotlinCompilerClasspath, logger)
 
         val pluginArgs = mutableListOf<String>()
@@ -105,7 +108,7 @@ class KotlinCompiler(
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (isEnableKapt && module.kaptDependencies.isNotEmpty() && kotlinCompile.isUseProjectCompiler) {
+        if (kotlinCompile.isUseProjectCompiler && isEnableKapt && module.kaptDependencies.isNotEmpty() && kotlinCompile.isUseProjectCompiler) {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             kaptArgs.addAll(listOf(
                 // normal kapt arguments
@@ -124,6 +127,21 @@ class KotlinCompiler(
             val kaptOptions = encodeList(module.javaAnnotationProcessorOptions)
             if (kaptOptions != null) {
                 kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apoptions=${kaptOptions}"))
+            }
+        }
+
+        val composeArgs = mutableListOf<String>()
+        if (kotlinCompile.isUseProjectCompiler && analyzeResult.isNeedCompileCompose) {
+            val composeExtension = module.kotlinExtensions?.find {
+                it.path.contains("androidx.compose")
+            }
+            if (composeExtension == null) {
+                logger.warn("Compose extension not found in classpath, compile result may be incorrect.")
+            } else {
+                composeArgs.add("-Xplugin=${composeExtension.path}")
+                composeArgs.addAll(listOf("-P", "plugin:androidx.compose.plugins.idea:enabled=true"))
+                composeArgs.addAll(listOf("-P", "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true"))
+                composeArgs.add("-Xallow-unstable-dependencies")
             }
         }
 
@@ -170,7 +188,7 @@ class KotlinCompiler(
 
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = pluginArgs + extensionArgs + kaptArgs + compileArgs + classPathArgs + fileArgs
+        val command = pluginArgs + extensionArgs + kaptArgs + composeArgs + compileArgs + classPathArgs + fileArgs
         logCompileCommand(command)
 
         // resolve kotlin extension function unresolved reference
@@ -278,19 +296,32 @@ class KotlinCompiler(
     }
 
     private fun analyzeSource(files: List<File>, module: ModuleInfo): KotlinSourceAnalyzeResult {
-        val startTime = System.currentTimeMillis()
+        TimeLogger.start("analyzeSource")
+
         var isNeedKotlinAndroidExtensions = false
+        var isNeedCompileCompose = false
+
+        // Check features by checking import. It's not 100% accurate, but whatever.
         files.forEach root@{ file ->
             file.readLines().forEach {
-                if (!it.startsWith("import")) {
+                val line = it.trim()
+                if (line.isEmpty()) {
                     return@forEach
                 }
-                if (it.startsWith("import kotlinx.android.synthetic.")) {
-                    logger.debug("find kotlinx.android.synthetic in $file")
+                if (!line.startsWith("import") && !line.startsWith("package")) {
+                    // imports are only allowed in the beginning of file
+                    // check import finished
+                    return@root
+                }
+
+                val importContent = line.substringAfter("import").trim()
+                if (importContent.startsWith("kotlinx.android.synthetic.")) {
+                    logger.debug("find kotlinx.android.synthetic import in $file")
                     isNeedKotlinAndroidExtensions = true
                 }
-                if (isNeedKotlinAndroidExtensions) {
-                    return@root
+                if (importContent.startsWith("androidx.compose.")) {
+                    logger.debug("find androidx.compose import in $file")
+                    isNeedCompileCompose = true
                 }
             }
         }
@@ -300,9 +331,8 @@ class KotlinCompiler(
             rPackageName = RPackageReader(module.buildPathInfo.mergedManifest, logger).readPackageName()
         }
 
-        val costTime = System.currentTimeMillis() - startTime
-        logger.debug("analyze kotlin source cost: $costTime ms")
-        return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName)
+        TimeLogger.end("analyzeSource", logger)
+        return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName, isNeedCompileCompose)
     }
 
     private var guessKotlinVersionCache = mapOf<String, String>()
@@ -390,4 +420,5 @@ class KotlinCompiler(
 private data class KotlinSourceAnalyzeResult(
     val isNeedKotlinAndroidExtensions: Boolean,
     val rPackageName: String?,
+    val isNeedCompileCompose: Boolean,
 )

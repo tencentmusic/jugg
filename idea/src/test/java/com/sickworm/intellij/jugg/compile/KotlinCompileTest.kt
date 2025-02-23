@@ -140,6 +140,13 @@ class KotlinCompileTest {
         assertCompileResult(task2, result2, mapper)
     }
 
+    @Test
+    fun kotCompilerWithCompose() {
+        val task = createTask("com/sickworm/jugg/demo/testcase/compose/MainComposeActivity.kt")
+        val result = kotlinCompiler.compile(task)
+        assertCompileResult(task, result, mapper)
+    }
+
     private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult, vararg subclassList: String) {
         val mapper: OutputFileMapper = { file ->
             (subclassList.toList() + "").map {

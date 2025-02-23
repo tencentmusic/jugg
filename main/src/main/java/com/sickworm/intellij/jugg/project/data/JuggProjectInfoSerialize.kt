@@ -34,7 +34,7 @@ class JuggProjectInfoSerialize(
                     it.value.copy(
                         libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
                         annotationProcessorDependencies = emptyList(), kaptDependencies = emptyList(),
-                        kotlinPlugins = emptyList(),
+                        kotlinPlugins = emptyList(), kotlinExtensions = emptyList(),
                     ),
                     libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
@@ -42,7 +42,10 @@ class JuggProjectInfoSerialize(
                     kaptDependencies = convertLibraryToIndexList(it.value.kaptDependencies),
                     kotlinPlugins = convertLibraryToIndexList(it.value.kotlinPlugins?.map { file ->
                         LibraryDependency("", file, 0, 0L)
-                    } ?: emptyList())
+                    } ?: emptyList()),
+                    kotlinExtensions = convertLibraryToIndexList(it.value.kotlinExtensions?.map { file ->
+                        LibraryDependency("", file, 0, 0L)
+                    } ?: emptyList()),
                 )
             }
             return JuggProjectInfoSerialize(juggProjectInfoExceptModules, dependencyList, modules)
@@ -60,6 +63,7 @@ class JuggProjectInfoSerialize(
                     annotationProcessorDependencies = serialize.annotationProcessorDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     kaptDependencies = serialize.kaptDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     kotlinPlugins = serialize.kotlinPlugins?.map { dependencyMap[it]!!.file } ?: emptyList(),
+                    kotlinExtensions = serialize.kotlinExtensions?.map { dependencyMap[it]!!.file } ?: emptyList(),
                 )
                 return@associate moduleInfo.name to moduleInfo
             }
@@ -77,4 +81,5 @@ class ModuleInfoSerialize(
     val annotationProcessorDependencies: List<Int>?,
     val kaptDependencies: List<Int>?,
     val kotlinPlugins: List<Int>?,
+    val kotlinExtensions: List<Int>?,
 )

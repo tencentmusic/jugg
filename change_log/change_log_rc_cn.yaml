@@ -1,3 +1,10 @@
+- version: 2.2.0-rc1
+  date: 2025.02.24
+  updates:
+    - 支持 Kotlin compose 编译
+    - 支持 Kotlin @Parcelize 注解
+    - 优先使用工程的 Kotlin 编译器版本，以解决 Kotlin 1.4 以下和 2.0 以上 语法不兼容等问题（可以在设置中关闭）
+
 - version: 2.1.0-rc10
   date: 2025.02.23
   updates:
