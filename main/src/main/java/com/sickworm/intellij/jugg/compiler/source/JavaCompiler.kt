@@ -28,6 +28,8 @@ class JavaCompiler(
     private var compiler: JavaCompiler = getJavaCompiler(logger)
     private val fileManager: StandardJavaFileManager = compiler.getStandardFileManager(null, null, null)
 
+    private val isEnableApt get() = JuggSettings.isEnableApt
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
@@ -38,8 +40,6 @@ class JavaCompiler(
         val options = mutableListOf("-d", task.outputDir.absolutePath)
         val dependencies = context.getModuleDependencies(module, task)
         options.add("-g") // generate debug info, e.g. local variable name
-        options.add("-proc:none") // The javac -proc option can be used to disable annotation processing
-                                  // see https://openjdk.org/groups/compiler/processing-code.html
         options.addAll(listOf("-cp", dependencies.joinToString(File.pathSeparator)))
         // ensure class file version for later dex
         options.addAll(listOf("-source", module.javaSourceCompatibility ?: "1.8"))
@@ -48,9 +48,24 @@ class JavaCompiler(
         module.javaAnnotationProcessorOptions?.forEach { (key, value) ->
             options.addAll(listOf("-A$key=\"$value\""))
         }
-        options.addAll(listOf("-processorpath", module.annotationProcessorDependencies.joinToString(File.pathSeparator) {
-            it.file.path
-        }))
+
+        if (isEnableApt) {
+            val annotationProcessorPath = (module.annotationProcessorDependencies + module.kaptDependencies)
+                .filter {
+                    if (!it.file.exists()) {
+                        logger.warn("Annotation processor dependency not found: $it, maybe sync again helps.")
+                        return@filter false
+                    }
+                    true
+                }
+                .map { it.file.path }
+                .toSet()
+            options.addAll(listOf("-processorpath", annotationProcessorPath.joinToString(File.pathSeparator)))
+            options.addAll(listOf("-sourcepath", module.sourceDirs.joinToString(File.pathSeparator)))
+        } else {
+            options.add("-proc:none") // The javac -proc option can be used to disable annotation processing
+            // see https://openjdk.org/groups/compiler/processing-code.html
+        }
 
         // compile error listener
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->

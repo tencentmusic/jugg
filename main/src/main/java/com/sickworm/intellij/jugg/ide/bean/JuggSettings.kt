@@ -92,6 +92,8 @@ object JuggSettings {
 
     var sliceDeployRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 
+    const val isEnableApt: Boolean = false
+
     /**
      * Use this for Jugg run configuration arguments if first set.
      */

@@ -29,6 +29,8 @@ class KotlinCompiler(
 
     private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
 
+    private val isEnableKapt get() = JuggSettings.isEnableApt
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
         // Jugg will check it again in [initIfNeeded] before use it
@@ -103,7 +105,7 @@ class KotlinCompiler(
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (module.kaptDependencies.isNotEmpty() && kotlinCompile.isUseProjectCompiler) {
+        if (isEnableKapt && module.kaptDependencies.isNotEmpty() && kotlinCompile.isUseProjectCompiler) {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             kaptArgs.addAll(listOf(
                 // normal kapt arguments

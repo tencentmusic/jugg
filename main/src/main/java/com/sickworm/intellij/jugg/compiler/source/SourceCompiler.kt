@@ -30,20 +30,34 @@ class SourceCompiler(
 
         // Kotlin must go first because in the cross-reference case, Java depends on Kotlin compile output
         // while Kotlin don't (kotlin can use -Xjava-source-roots argument)
+        var kotlinAptJavaFiles = emptyList<CompileFile>()
         val kotlinCompileTask = CompileTask(
             files = task.files.filter { it.type == CompileFile.Type.Kotlin },
             outputDir = File(context.tempCompileDir, "kotlin"),
             parentTask = compileTask,
         )
         if (kotlinCompileTask.isNeedCompile) {
-            classCompileResult += kotlinCompiler.compile(kotlinCompileTask)
+            val kotlinCompileResult = kotlinCompiler.compile(kotlinCompileTask)
+            if (!kotlinCompileResult.isAllSuccess) {
+                val otherDetails: List<Result<CompileFile, CompileError>> = task.files
+                    .filter { it.type != CompileFile.Type.Kotlin }
+                    .map {
+                        Result.failure(CompileError(it, listOf(-1L to "Kotlin compile failed, skip")))
+                    }
+                return CompileResult(task, kotlinCompileResult.details + otherDetails, kotlinCompileResult.outputs)
+            }
+
+            kotlinAptJavaFiles = kotlinCompileResult.outputs
+                .filter { it.type == CompileOutput.Type.Java }
+                .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
+            classCompileResult += kotlinCompileResult
         }
         if (!classCompileResult.isAllSuccess) {
             return classCompileResult.quickFailedOthers(task, isClearOutput = true)
         }
 
         val javaCompileTask = CompileTask(
-            files = task.files.filter { it.type == CompileFile.Type.Java },
+            files = task.files.filter { it.type == CompileFile.Type.Java } + kotlinAptJavaFiles,
             outputDir = File(context.tempCompileDir, "java"),
             parentTask = compileTask,
         )
