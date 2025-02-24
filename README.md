@@ -25,6 +25,7 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
 * **platform_compat**: API Mock for **main** to invoke **idea** API
 * **jvmti_agent**: Agent for JVMTI for deploy compatability
 * **aapt2-inclink**: AAPT2 incremental link native libraries
+* **custom_compilers**: Build custom compilers for customize project
 
 ## Core Classes
 * **JuggManager**: Core manager of Jugg
@@ -34,8 +35,7 @@ Jugg 也不会带来消极的体验。在增量部署策略失败的时候，会
 
 # How to Run This Project
 ```
-./gradlew buildPluginIntranet // build plugin for tencent, output path: ./idea/build/distributions
-./gradlew buildPluginExtranet // build plugin for public(kugou/kuwo), output path: ./idea/build/distributions
+./gradlew buildPlugin // build plugin, output path: ./idea/build/distributions
 ./gradlew runIde // run/debug in runtime IDEA
 ```
 
