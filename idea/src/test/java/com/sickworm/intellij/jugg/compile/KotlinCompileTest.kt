@@ -142,6 +142,11 @@ class KotlinCompileTest {
 
     @Test
     fun kotCompilerWithCompose() {
+        test1()
+        test1()
+    }
+
+    private fun test1() {
         val task = createTask("com/sickworm/jugg/demo/testcase/compose/MainComposeActivity.kt")
         val result = kotlinCompiler.compile(task)
         assertCompileResult(task, result, mapper)

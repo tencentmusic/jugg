@@ -30,7 +30,9 @@ class K2JVMCompilerIsolate {
             if (!::classLoader.isInitialized) {
                 return null
             }
-            return getCompilerName(classLoader.urLs.toList())
+            // why use parent ? see getIsolateClassLoader
+            val urls = (classLoader.parent as? URLClassLoader)?.urLs ?: return null
+            return getCompilerName(urls.toList())
         }
 
     /**

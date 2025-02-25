@@ -1,3 +1,8 @@
+- version: 2.2.0-rc3
+  date: 2025.02.25
+  updates:
+    - 修复 2.2.0-rc1 Kotlin 编译器变慢，原因：Kotlin 编译器复用逻辑不正确，每次都重新创建
+
 - version: 2.2.0-rc1
   date: 2025.02.24
   updates:

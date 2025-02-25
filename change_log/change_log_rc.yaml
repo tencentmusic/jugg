@@ -1,3 +1,8 @@
+- version: 2.2.0-rc3
+  date: 2025.02.25
+  updates:
+    - fix Kotlin compile slower than before by compiler not reuse
+
 - version: 2.2.0-rc1
   date: 2025.02.24
   updates:
