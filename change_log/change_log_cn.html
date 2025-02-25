@@ -1,0 +1,272 @@
+<h1>更新日志</h1>
+<h2>2.2.0 (2025.02.24)</h2>
+<ol>
+    <li>[feature] 支持 Kotlin compose 编译</li>
+    <li>[feature] 支持 Kotlin @Parcelize 注解</li>
+    <li>[feature] 优先使用工程的 Kotlin 编译器版本，以解决 Kotlin 1.4 以下和 2.0 以上 语法不兼容等问题</li>
+</ol>
+
+<h2>2.1.0 (2025.02.23)</h2>
+<ol>
+    <li>[feature] 支持热更新，服务器下发自动更新！</li>
+    <li>[feature] 资源增量编译支持原生 ARM 架构（不依赖 Rosetta）</li>
+    <li>[feature] 支持不同工程的使用不同的自定义编译器，如触发协议打包</li>
+    <li>[bugfix] 修复首次打开项目时选择不了设备的问题（仅首次）</li>
+    <li>[bugfix] 修复代码编译失败又编译成功后，小概率部署失败触发降级</li>
+    <li>[bugfix] 修复远程编译同步多个工程时，local.properties 也被同步上去的问题</li>
+</ol>
+<h2>2.0.1 (2024.01.15)</h2>
+<ol>
+    <li>[feature] 支持 native library 增量更新</li>
+    <li>[feature] 兼容 Android Studio Bumblebee 版本</li>
+    <li>[feature] 兼容 Kotlin 1.4 版本</li>
+    <li>[feature] 支持从服务端下发降级文件识别规则</li>
+    <li>[optimize] 部分文件编译失败时提前结束编译</li>
+    <li>[optimize] Gradle 编译后自动复制 generated/source</li>
+    <li>[optimize] 优化部分 UI 体验</li>
+    <li>[optimize] 增强 Kotlin 编译器错误日志收集能力</li>
+    <li>[optimize] 当上次 Gradle 构建失败时下次依然降级，更符合用户预期</li>
+    <li>[optimize] 优化 "Init Incremental Compile" 阶段内存占用</li>
+    <li>[bugfix] 修复与 AGP 3.4.2/3.5.4（Android Gradle 插件）的兼容性问题</li>
+    <li>[bugfix] 修复实现包含默认方法的接口 lambda 表达式时出现的 AbstractMethodError</li>
+    <li>[bugfix] 修复 ks-key-alias 包含密码时输入等待导致的死循环</li>
+    <li>[bugfix] 修复修改新文件大小写后编译失败问题</li>
+    <li>[bugfix] 修复通过文件管理器删除并恢复目录后变更文件丢失问题</li>
+    <li>[bugfix] 修复资源文件超过 40,000 个时部署易超时问题</li>
+    <li>[bugfix] 修复 Android 15 系统热重载后资源变更未生效问题</li>
+    <li>[bugfix] 修复 aar 包含多个 jar 时库模块增量编译异常</li>
+    <li>[bugfix] 修复库模块增量编译中为接口添加默认方法导致的 AbstractMethodError</li>
+    <li>[bugfix] 修复偶现的 "Sync file from local to remote failed, please check your sync client is opened." 错误</li>
+    <li>[bugfix] 修复使用 rsync 与 SSH 密钥时 APK 获取失败问题</li>
+    <li>[bugfix] 修复复制已编译项目后 Jugg 运行异常问题</li>
+    <li>[bugfix] 修复 Git 子模块中使用 kotlinx.android.synthetic 的页面触发 RJavaFixer 后崩溃问题</li>
+    <li>[bugfix] 修复编译日志中部分错误堆栈信息丢失问题（根据原文结构补充完整）</li>
+</ol>
+<h2>2.0.0 (2024.10.14)</h2>
+<ol>
+    <li>[feature] 支持 Android 11 以下设备！</li>
+    <li>[feature] 支持依赖库增量编译！</li>
+    <li>[feature] 支持 AndroidManifest.xml 增量编译！</li>
+    <li>[feature] 支持将 generated/source 复制至本地</li>
+    <li>[feature] 兼容 Gradle 8.x 版本</li>
+    <li>[feature] 自动忽略不会编译为 APK 的模块</li>
+    <li>[feature] 新增一键回退按钮</li>
+    <li>[optimize] 设备连接后避免重复编译文件</li>
+    <li>[optimize] IDE 界面显示更详细的编译进度信息</li>
+    <li>[bugfix] 修复 Git 切换分支或拉取代码后文件变更可能丢失，需重新打开项目才生效的问题</li>
+    <li>[bugfix] 修复 IDE 同步后偶现依赖缺失导致的 "unresolved declaration" 错误</li>
+    <li>[bugfix] 修复部署过多类时出现的 SQLite 异常："[SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long)"</li>
+    <li>[bugfix] 修复新项目无法记忆上次编译使用的同步模式</li>
+    <li>[bugfix] 修复华为 HarmonyOS 4.2 系统热修复部署无效问题</li>
+    <li>[bugfix] 修复小米 HyperOS 系统部署时出现 MISS_AGENT_RESPONSE 错误</li>
+    <li>[bugfix] 修复 Jugg 同步文件时无法终止 Gradle 编译进程</li>
+    <li>[bugfix] 修复 Windows 系统触发文件回滚检查时意外回滚文件问题</li>
+</ol>
+<h2>1.2.3 (2024.07.12)</h2>
+<ol>
+    <li>[feature] 支持 Git worktree 工作树</li>
+    <li>[feature] 支持 Git 子模块</li>
+    <li>[optimize] 尝试修复首次初始化时 "No R.jar found in project, compile may fail." 的问题</li>
+    <li>[bugfix] 修复特定场景下使用本地构建时因 "AndroidManifest.xml changed" 错误回退的问题</li>
+    <li>[bugfix] 修复 Git 回滚文件至无变更状态后，重新打开项目时变更文件丢失问题</li>
+</ol>
+<h2>1.2.2 (2024.06.26)</h2>
+<ol>
+    <li>[feature] 支持 Kotlin 1.9 版本</li>
+    <li>[optimize] 修复 "Jugg compile not init" 问题（低概率发生），该问题由项目信息初始化偶发失败导致</li>
+    <li>[bugfix] 修复全量构建后 aapt2 进程泄漏问题</li>
+    <li>[bugfix] 修复新建项目首次打开时 Jugg 运行配置未生成问题</li>
+    <li>[bugfix] 修复新增 declare-styleable 后调用 R.styleable.* 引发的 NoSuchFieldError</li>
+    <li>[bugfix] 修复使用 kotlinx.android.synthetic（KAE）时新增 id 后调用 R.id.* 引发的 NoSuchFieldError</li>
+    <li>[bugfix] 修复 Windows 本地构建失败问题</li>
+    <li>[bugfix] 修复热重载出现 "JVMTI_ERROR_INTERNAL" 错误导致的部署失败</li>
+    <li>[bugfix] 修复无物理设备时，项目打开后偶发自动启动 AVD 模拟器问题</li>
+    <li>[bugfix] 修复为 Kotlin 接口添加默认实现 / 参数时引发的 AbstractMethodError</li>
+</ol>
+<h2>1.2.1 (2024.04.24)</h2>
+<ol>
+    <li>[feature] 一键访问优化：自动检测编译命令与输出 APK 路径</li>
+    <li>[feature] 问题反馈时自动导出 logcat 日志</li>
+    <li>[feature] 若上次安装失败且无文件变更时直接重试安装</li>
+    <li>[optimize] 项目打开后即初始化项目信息（无需等待同步完成或跳过同步）</li>
+    <li>[optimize] 修复 "WARN: getInputStream () should be called before connect ()" 警告日志</li>
+    <li>[optimize] 默认配置使用独立名称避免下次扫描覆盖常规配置</li>
+    <li>[bugfix] 修复顶层函数添加可选参数时，同时编译声明文件与调用文件导致的 NoSuchMethodError</li>
+    <li>[bugfix] 修复扩展编译未正确生效导致的 NoSuchMethodError</li>
+    <li>[bugfix] 修复 Hedgehog 及以上版本自动检测编译命令与 APK 路径失败问题</li>
+    <li>[bugfix] 修复存在过多 SSH 密钥时远程登录失败问题</li>
+    <li>[bugfix] 修复重新打开项目后 Gradle 同步导致的项目根目录 gradle 文件变更丢失</li>
+    <li>[bugfix] 修复其他插件更新时意外触发 Jugg 发布的问题</li>
+    <li>[bugfix] 修复当默认接口是修改类的父接口时，因脱糖失败引发的 AbstractMethodError</li>
+</ol>
+<h2>1.2.0 (2024.02.04)</h2>
+<ol>
+    <li>[feature] 支持检测文件回滚操作</li>
+    <li>[feature] 支持自定义服务器 URL 与构建文件检测</li>
+    <li>[feature] 支持从服务端拉取通知消息</li>
+    <li>[feature] 在 "More options" 中添加测试用模拟事件功能</li>
+    <li>[feature] 支持远程编译时使用 rsync 同步</li>
+    <li>[feature] 支持 SSH 密钥登录</li>
+    <li>[optimize] 通过启用 Java 8 脱糖并移除 redex 逻辑，优化 DEX 文件过多导致的 OOM 问题</li>
+    <li>[optimize] 复制本地类路径至 Jugg 目录避免 Gradle 破坏</li>
+    <li>[optimize] 无错误或错误过多时重建编译器重试机制</li>
+    <li>[optimize] 提升本地模式 APK 文件搜索速度</li>
+    <li>[bugfix] 修复重新打开项目后 Gradle 编译期间变更文件丢失问题</li>
+    <li>[bugfix] 修复 "com.android.tools.r8.CompilationFailedException: Compilation failed to complete" 的 DEX 错误</li>
+    <li>[bugfix] 修复重新打开项目后运行配置可能重置问题</li>
+    <li>[bugfix] 修复 SourceFileManager 误删回滚文件问题</li>
+    <li>[bugfix] 修复 d8 编译错误："java.lang.NoSuchMethodError: 'com.android.tools.r8.jetbrains.kotlinx.metadata.jvm.KotlinClassMetadata"</li>
+    <li>[bugfix] 修复新增 R.id 资源在源码编译后出现 "error: unresolved reference" 错误</li>
+    <li>[bugfix] 修复旧版本升级后运行配置被覆盖问题</li>
+    <li>[bugfix] 修复 "Waiting Jugg initializing finish" 与 "Warm Up Compile" 间的死锁问题</li>
+    <li>[bugfix] 修复 Chipmunk 版本处理 DEX 文件时的 IllegalArgumentException 异常</li>
+    <li>[bugfix] 修复全量编译后数据库损坏时无法重新初始化问题</li>
+    <li>[bugfix] 修复同步项目后自定义构建文件变更丢失问题</li>
+</ol>
+<h2>1.1.13 (2024.01.13)</h2>
+<ol>
+    <li>[optimize] 当 JavaTask 无错误调用失败时重新创建 JavaCompiler 实例</li>
+    <li>[bugfix] 修复 Hedgehog 版本后运行配置未创建问题</li>
+    <li>[bugfix] 修复因环境变量未正确设置导致的本地 Gradle 编译失败</li>
+    <li>[bugfix] 修复新增接口静态方法调用代码时出现的 AbstractMethodError</li>
+    <li>[bugfix] 修复接口默认实现修改后未更新问题</li>
+    <li>[bugfix] 修复 "org.sqlite.SQLiteException: [tr] String or BLOB exceeds size limit (statement too long)" 错误</li>
+    <li>[bugfix] 修复 redex 错误 "Compilation failed to complete，Caused by: XXXX is defined multiple times"</li>
+    <li>[bugfix] 修复多模块编译时 strings.xml 出现的 "unresolved reference" 问题</li>
+    <li>[bugfix] 修复重新打开 IDE 后运行配置重置问题</li>
+    <li>[bugfix] 修复远程同步路径与项目路径相同时出现的 "must be the parent of project path" 错误</li>
+    <li>[bugfix] 修复 Windows 系统路径混用 "/" 和 "\\" 导致的 "Run configuration is invalid" 问题</li>
+    <li>[bugfix] 修复 Android Studio Dolphin 版本无法监听同步事件问题</li>
+    <li>[bugfix] 修复新增静态对象字段时出现的 NullPointerException</li>
+    <li>[bugfix] 修复删除接口默认方法重写时未触发重打包导致的 AbstractMethodError</li>
+    <li>[bugfix] 修复 A 触发 B 重打包时，B 实现包含默认方法的 C 接口导致的 AbstractMethodError</li>
+</ol>
+<h2>1.1.12 (2023.12.22)</h2>
+<ol>
+    <li>[feature] 运行配置支持模板选择功能</li>
+    <li>[feature] "No file changes" 时显示确认对话框</li>
+    <li>[optimize] 针对大型项目提高 "Too many changes" 的限制阈值</li>
+    <li>[optimize] 不再依赖 Android 运行配置即可使用 Jugg</li>
+    <li>[optimize] 确保 Jugg 初始化完成后再启动新编译任务</li>
+    <li>[optimize] 用户体验：增加更多进度指示状态</li>
+    <li>[bugfix] 修复本地编译问题（原文此处不完整，建议补充完整后继续翻译）</li>
+</ol>
+<h2>1.1.11 (2023.12.13)</h2>
+<ol>
+    <li>[feature] 在主工具栏添加 "Restart App" 按钮</li>
+    <li>[feature] 通过设备选择框支持多设备并行部署</li>
+    <li>[feature] local.properties 和 gradle.properties 变更时自动回退至 Gradle 编译</li>
+    <li>[feature] 支持多项目同步功能</li>
+    <li>[feature] 独立远程运行配置模块</li>
+    <li>[optimize] 通过创建 JuggDeploymentService 替代 DeploymentService 提升部署速度</li>
+    <li>[optimize] 避免增量链接失败后所有资源编译中断</li>
+    <li>[optimize] 添加 maxCompileSourceFiles 限制，超限时回退 Gradle 编译</li>
+    <li>[optimize] 进度指示器增加运行时间显示</li>
+    <li>[optimize] 重新启用 KotlinCompiler 预热以加速 "配置编译环境" 阶段</li>
+    <li>[bugfix] 修复因 compileSdkVersion 不匹配导致的 android.jar API 错误，优先使用模块的 compileSdkVersion</li>
+    <li>[bugfix] 修复新 IDE 中 isNeedReloadProjectInfo 始终为 true 的问题</li>
+    <li>[bugfix] 修复重新解析 Gradle 时异常导致的初始化项目信息失败</li>
+    <li>[bugfix] 修复 Kotlin 语言版本与 build.gradle 不匹配导致的 "and is not allowed on a nullable receiver" 错误</li>
+    <li>[bugfix] 修复远程同步路径以 '/' 结尾时获取类路径失败的问题</li>
+</ol>
+<h2>1.1.10 (2023.12.08)</h2>
+<ol>
+    <li>[feature] 支持 Android Studio Iguana 版本</li>
+    <li>[optimize] 终止 aapt2 进程后自动重载资源表</li>
+    <li>[optimize] 支持 Git 根目录为项目父目录的工程恢复功能</li>
+    <li>[optimize] 清理冗余引用记录（减少 50% 数据量）</li>
+    <li>[bugfix] 修复调用静态接口方法时出现的 NoSuchMethodError</li>
+    <li>[bugfix] 修复 Android Studio Chipmunk/Dolphin 版本无法初始化项目信息问题</li>
+    <li>[bugfix] 修复 aapt2-inclink 进程泄漏问题</li>
+    <li>[bugfix] 修复 kotlin-android-extensions 插件相关错误</li>
+</ol>
+<h2>1.1.9 (2023.11.22)</h2>
+<ol>
+    <li>[feature] 全面支持 Windows 系统！</li>
+    <li>[optimize] 不再重建 K2JVMCompilerIsolate 以提升编译速度</li>
+    <li>[optimize] 支持编译过程中取消操作</li>
+    <li>[optimize] 加速初始化：移除 KotlinCompiler 预热步骤（效果有限）</li>
+    <li>[optimize] 受影响源文件不再保存至 DeployFileManager，避免重复编译</li>
+    <li>[bugfix] 修复样式属性索引在编译 styleables 后不正确的问题</li>
+    <li>[bugfix] 修复使用 Data Binding 时 Kotlin 编译错误（"类型不匹配"、"无法访问类"），将生成源码添加至 - Xjava-source-roots 参数中</li>
+    <li>[bugfix] 修复异常 "[SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))"</li>
+    <li>[bugfix] 修复文件曾编译成功后，因调用方法被修改引发的 AbstractMethodError</li>
+    <li>[bugfix] 修复 "org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: file_infos.path)" 错误</li>
+    <li>[bugfix] 修复偶尔尝试编译已删除文件的问题</li>
+</ol>
+<h2>1.1.8 (2023.11.15)</h2>
+<ol>
+    <li>[feature] 支持指定远程同步路径（可选配置）</li>
+    <li>[feature] 远程编译支持空密码，点击运行时显示密码输入弹窗</li>
+    <li>[optimize] 新增回退策略：当编译次数即将超过 10 次时，回退至 Gradle 编译</li>
+    <li>[optimize] 存在热修复文件时全量回退至热修复模式以提升性能</li>
+    <li>[optimize] 增强编译 SDK 版本获取的健壮性</li>
+    <li>[optimize] 对话框密码字段隐藏显示</li>
+    <li>[optimize] 从 ModuleJdkOrderEntry 读取编译 SDK 版本以提高准确性</li>
+    <li>[bugfix] 修复 Windows 系统远程编译运行失败问题</li>
+    <li>[bugfix] 支持构建变体，修复非 "debug" 变体时类路径文件缺失问题</li>
+</ol>
+<h2>1.1.7 (2023.11.3)</h2>
+<ol>
+    <li>[optimize] 优化部署结果提示信息</li>
+    <li>[optimize] 改进平台与构建工具获取逻辑</li>
+    <li>[bugfix] 修复支持 Giraffe 版本后对 Flamingo 及以下版本的兼容性问题</li>
+    <li>[bugfix] 通过 Windows 单元测试，修复启动失败和资源编译问题</li>
+    <li>[bugfix] 修复获取错误 Android Home 路径的问题</li>
+</ol>
+<h2>1.1.6 (2023.10.30)</h2>
+<ol>
+    <li>[feature] 资源编译功能支持 Linux 和 Windows 平台</li>
+    <li>[optimize] 代理无响应时延迟 5 秒重试机制</li>
+    <li>[optimize] 将可部署状态等待时间从 5 秒缩短至 3 秒</li>
+    <li>[optimize] 更新增量更新数据库条件以提升性能</li>
+    <li>[bugfix] 修复远程模式下全量构建后 Gradle 同步导致的编译失败问题，尝试推测基础目录并补全缺失的类路径</li>
+    <li>[bugfix] 修复因删除范围过大导致增量更新数据库后引用丢失问题</li>
+    <li>[bugfix] 修复重新打开项目时新增文件缺失问题</li>
+</ol>
+<h2>1.1.5 (2023.10.25)</h2>
+<ol>
+    <li>[feature] 支持在添加新抽象方法时获取影响源文件</li>
+    <li>[optimize] 不再部署 R.dex（因 R 字段已被内联），提升部署速度与兼容性</li>
+    <li>[optimize] 将 Kotlin 编译错误路径转为绝对路径，支持 IDE 内点击跳转</li>
+    <li>[bugfix] 修复 Gradle 同步后因依赖未更新导致的编译失败问题</li>
+</ol>
+<h2>1.1.4 (2023.10.18)</h2>
+<ol>
+    <li>[feature] 新增问题反馈功能，在运行配置窗口添加反馈按钮</li>
+    <li>[feature] 支持远程编译子目录功能，添加本地到远程同步路径配置字段</li>
+    <li>[feature] 收集并展示编译失败时的 Gradle 错误输出信息</li>
+    <li>[optimize] 改进进度指示器的用户体验</li>
+    <li>[optimize] 优化回退原因提示逻辑</li>
+    <li>[bugfix] 修复提交代码时未添加已部署文件的问题</li>
+    <li>[bugfix] 修复本地编译错误：改用项目 Java SDK 而非环境变量 JAVA_HOME，确保与 Gradle JDK 版本一致</li>
+    <li>[bugfix] 修复 Jugg 目录存在.DS_Store 文件时编译失败的问题</li>
+    <li>[bugfix] 修复因 aapt2 生成 'layout-v22' XML 导致布局文件修改未生效的问题</li>
+    <li>[bugfix] 修复第二次编译新布局 XML 时出现 "file not found" 错误的问题</li>
+</ol>
+<h2>1.1.3 (2023.10.09)</h2>
+<ol>
+    <li>[bugfix] 修复 R.styleable 未生成问题，使 aapt2 支持导入 R.styleable</li>
+    <li>[bugfix] 修复 R 文件编译后出现的 Gradle 错误 "Type xxx.R${'\$'} anim is defined multiple times"</li>
+    <li>[bugfix] 修复 "org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (Expression tree is too large (maximum depth 1000))" 导致的意外停止问题</li>
+</ol>
+<h2>1.1.2 (2023.10.07)</h2>
+<ol>
+    <li>[bugfix] 修复使用不同项目但相同包名的设备时部署状态异常问题</li>
+    <li>[bugfix] 修复同一项目多设备部署时状态显示错误问题</li>
+</ol>
+<h2>1.1.1 (2023.10.06)</h2>
+<ol>
+    <li>[bugfix] 修复重新打开项目后 Jugg 未加载最新资源表的问题</li>
+    <li>[bugfix] 修复项目关闭后 aapt2 守护进程未退出的问题</li>
+    <li>[bugfix] 临时解决 "R+ Device should have FULL debugger swap support" 错误提示</li>
+    <li>[optimize] 标记 Gradle 编译期间修改的文件为未编译状态</li>
+</ol>
+<h2>1.1.0 (2023.10.06)</h2>
+<ol>
+    <li>[feature] 资源编译功能支持添加 ID 标识</li>
+</ol>
+<h2>1.0.0 (2023.9.15)</h2>
+<ol>
+    <li>首个正式发布版本</li>
+</ol>
