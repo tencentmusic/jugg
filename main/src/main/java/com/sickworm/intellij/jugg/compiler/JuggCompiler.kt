@@ -62,6 +62,9 @@ class JuggCompiler(
             val compileTask = CompileTask(compileFiles, task.outputDir, task)
             compileFiles = it.consumeFiles(compileFiles)
             val subCompileResult = it.compile(compileTask)
+            if (!subCompileResult.isAllSuccess) {
+                return subCompileResult.quickFailedOthers(task)
+            }
             compileResult += subCompileResult
         }
 
@@ -235,6 +238,9 @@ class JuggCompiler(
             val compileTask = CompileTask(compileFiles, task.outputDir, task)
             compileFiles = it.consumeFiles(compileFiles)
             val subCompileResult = it.compile(compileTask)
+            if (!subCompileResult.isAllSuccess) {
+                return subCompileResult.quickFailedOthers(task)
+            }
             compileResult += subCompileResult
         }
 
