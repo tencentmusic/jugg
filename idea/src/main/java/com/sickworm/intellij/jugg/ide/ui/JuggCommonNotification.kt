@@ -16,7 +16,7 @@ import com.sickworm.intellij.jugg.server.protocols.NotificationData
 class JuggCommonNotification(private val project: Project) {
 
     fun showUpgrade(downloadUrl: String) {
-        show(NotificationData("Jugg is ready to upgrade", "", "Download", downloadUrl))
+        show(NotificationData("Jugg is ready to upgrade", "", "Download", downloadUrl, false))
     }
 
     fun show(data: NotificationData) {
@@ -28,7 +28,7 @@ class JuggCommonNotification(private val project: Project) {
     }
 
     private fun doShow(data: NotificationData) {
-        val notificationGroup = getGroup()
+        val notificationGroup = getGroup(data.isSticky)
         val notification = notificationGroup.createNotification(
             data.title, data.content, NotificationType.INFORMATION)
         if (!data.buttonText.isNullOrEmpty()) {
@@ -44,7 +44,7 @@ class JuggCommonNotification(private val project: Project) {
         notification.notify(project)
     }
 
-    private fun getGroup(isSticky: Boolean = true): NotificationGroup {
+    private fun getGroup(isSticky: Boolean): NotificationGroup {
         if (isSticky) {
             if (NotificationGroup.isGroupRegistered("Jugg Important Notification")) {
                 return NotificationGroupManager.getInstance().getNotificationGroup("Jugg Important Notification")

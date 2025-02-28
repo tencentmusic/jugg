@@ -52,6 +52,7 @@ data class NotificationData(
     val content: String,
     val buttonText: String?,
     val jumpUrl: String?,
+    val isSticky: Boolean,
 )
 
 data class ServerRule(
