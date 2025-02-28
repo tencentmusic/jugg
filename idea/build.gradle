@@ -28,6 +28,9 @@ Compile-Date: $compileDate
 Compile-Timestamp: $compileTime
 """)
 
+// clean distribution
+new File("$rootDir/idea/build/distributions").deleteDir()
+
 sourceCompatibility = 11
 targetCompatibility = 11
 
