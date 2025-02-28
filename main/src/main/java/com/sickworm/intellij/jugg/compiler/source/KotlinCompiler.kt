@@ -108,7 +108,7 @@ class KotlinCompiler(
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (kotlinCompile.isUseProjectCompiler && isEnableKapt && module.kaptDependencies.isNotEmpty() && kotlinCompile.isUseProjectCompiler) {
+        if (kotlinCompile.isUseProjectCompiler && isEnableKapt && module.kaptDependencies.isNotEmpty()) {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             kaptArgs.addAll(listOf(
                 // normal kapt arguments
@@ -150,17 +150,15 @@ class KotlinCompiler(
         }
 
         var jvmTarget = module.kotlinJvmTarget ?: "1.8"
-        if (jvmTarget == "1.6" || jvmTarget == "1.7") {
+        if (!kotlinCompile.isUseProjectCompiler && (jvmTarget == "1.6" || jvmTarget == "1.7")) {
             logger.debug("jvm target is $jvmTarget, force to 1.8 to avoid error: " +
                     "error: JVM target 1.6 is no longer supported. Please migrate to JVM target 1.8 or above")
-            logger.debug("please skip this check if using kotlin compile in project.")
             jvmTarget = "1.8"
         }
 
         val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
-        val compileArgs = module.kotlinFreeCompilerArgs + listOf(
+        val compileArgs = (module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
-            "-language-version", guessKotlinVersion(module),
             "-jvm-target", jvmTarget,
             "-nowarn",
             "-no-stdlib",
@@ -176,7 +174,11 @@ class KotlinCompiler(
             // we have to set output dir to kotlin compiled class path to resolve
             // 'xxx' is a public API property declared in different module
             "-d", kotlinClassPath.absolutePath,
-        )
+        )).toMutableList()
+        if (!kotlinCompile.isUseProjectCompiler) {
+            // use embedded compiler, we need to set the language version
+            compileArgs.addAll(listOf("-language-version", guessKotlinVersion(module)))
+        }
 
         var classPathArgs = listOf<String>()
         val dependencies = context.getModuleDependencies(module, task)

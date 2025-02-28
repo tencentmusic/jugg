@@ -1,7 +1,12 @@
+- version: 2.2.0-rc4
+  date: 2025.02.25
+  updates:
+    - 使用工程 Kotlin 编译器时，不再执行使用插件内置 Kotlin 编译器时的兼容处理
+
 - version: 2.2.0-rc3
   date: 2025.02.25
   updates:
-    - 修复 2.2.0-rc1 Kotlin 编译器变慢，原因：Kotlin 编译器复用逻辑不正确，每次都重新创建
+    - 修复 2.2.0-rc1 引入的 Kotlin 编译器变慢问题
 
 - version: 2.2.0-rc1
   date: 2025.02.24
