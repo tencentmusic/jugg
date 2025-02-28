@@ -44,6 +44,7 @@ class K2JVMCompilerIsolate {
             if (!::classLoader.isInitialized) {
                 classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
             }
+            isUseProjectCompiler = false
             return
         }
 
