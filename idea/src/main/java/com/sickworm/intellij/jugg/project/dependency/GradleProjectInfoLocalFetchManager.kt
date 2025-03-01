@@ -93,7 +93,7 @@ class GradleProjectInfoLocalFetchManager(
         compileContextManager.ensureInitProjectInfo()
 
         logger.debug("runUpdateIfNeeded isNeedUpdate $isNeedUpdate, isUpdating $isUpdating, isForce: $isForce")
-        if (!isForce && (!isNeedUpdate || isUpdating)) {
+        if (isUpdating || (!isForce && !isNeedUpdate)) {
             logger.debug("no need execute update, exit")
             return
         }
@@ -101,6 +101,7 @@ class GradleProjectInfoLocalFetchManager(
         taskRunnerManager.runBackgroundSafe("Update project info from gradle", ::update)
     }
 
+    @Synchronized
     private fun update(isKeepDaemon: Boolean = false): Boolean {
         try {
             isUpdating = true
@@ -138,6 +139,7 @@ class GradleProjectInfoLocalFetchManager(
 
     private var hasWrote = false
 
+    @Synchronized
     fun writeInitGradleFile() {
         val initGradleFile = pathManager.initGradleFilePath
         if (hasWrote && initGradleFile.exists()) {

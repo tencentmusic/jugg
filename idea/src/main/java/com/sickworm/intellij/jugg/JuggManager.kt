@@ -130,11 +130,20 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    private fun updateProjectInfo() {
-        // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
-        juggRunningTaskStatusManager.resetHasRun()
+    private fun updateProjectInfo(isAfterSync: Boolean) {
+        if (isAfterSync) {
+            // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
+            juggRunningTaskStatusManager.resetHasRun()
+        }
 
-        val isSuccess = compileContextManager.updateCompileContextAfterSync()
+        // update project info if needed
+        var isForceUpdateGradle = false
+        val isSuccess = compileContextManager.updateCompileContext(isAfterSync) {
+            isForceUpdateGradle = true
+        }
+        gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForceUpdateGradle)
+
+        // reinit compiler after update compile context
         if (isSuccess) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
@@ -152,12 +161,11 @@ class JuggManager @TestOnly constructor(
             when (syncEvent) {
                 SyncEvent.SUCCEEDED -> {
                     tryCreateRunConfigurations(isSyncFinished = true)
-                    runTaskSafe("Update project info", ::updateProjectInfo)
-                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+                    runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = true) })
                 }
                 SyncEvent.SKIPPED -> {
                     tryCreateRunConfigurations(isSyncFinished = false)
-                    gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+                    runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = false) })
                 }
                 SyncEvent.STARTED -> {
                     dependencyChangeManager.onStartSyncing(isFromIde = true)

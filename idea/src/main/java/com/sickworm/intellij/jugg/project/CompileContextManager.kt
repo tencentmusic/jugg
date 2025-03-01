@@ -27,13 +27,7 @@ import org.jetbrains.jps.model.java.JavaSourceRootType
 import java.io.File
 
 /**
- * Manage context for JuggCompiler.
- * Do:
- * 1. read project structure
- * 2. read android sdk information
- * 3. parse apk
- * 4. generate class path
- * ...
+ * Manage [ICompileContext] for JuggCompiler.
  */
 class CompileContextManager(
     private val project: Project,
@@ -69,16 +63,31 @@ class CompileContextManager(
     /**
      * Invoke after IDE sync and IDE project info is updated.
      */
-    fun updateCompileContextAfterSync(): Boolean {
-        logger.debug("updateCompileContextAfterSync")
+    fun updateCompileContext(isAfterSync: Boolean, updateGradleAsync: () -> Unit): Boolean {
+        logger.debug("updateCompileContext isAfterSync: $isAfterSync")
+
         ensureInitProjectInfo()
-        updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
-        juggProjectInfoMerger.afterSync(projectInfoSerializer)
-        compileContextInside.update(modules = getProjectInfo().modules)
-        compileContextInfo?.let {
-            updateCompileContextByFullBuildInfo(it)
+
+        var isNeedReloadProjectInfo = isAfterSync
+        if (projectInfoSerializer.load()?.checkMissing("ide", logger) == true) {
+            logger.debug("updateCompileContext ide checkMissing true, reload project info")
+            isNeedReloadProjectInfo = true
         }
-        return true
+        if (isNeedReloadProjectInfo) {
+            updateProjectInfoFromIde(isNeedReloadProjectInfo = true)
+            juggProjectInfoMerger.afterSync(projectInfoSerializer)
+            compileContextInside.update(modules = getProjectInfo().modules)
+            compileContextInfo?.let {
+                updateCompileContextByFullBuildInfo(it)
+            }
+        }
+
+        if (gradleProjectInfoSerializer.load()?.checkMissing("gradle", logger) == true) {
+            logger.debug("updateCompileContext gradle checkMissing true, reload gradle project info")
+            updateGradleAsync()
+        }
+
+        return isNeedReloadProjectInfo
     }
 
     /**
@@ -569,4 +578,23 @@ private fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File
         ?: moduleFile?.parent
         ?: return null
     return VfsUtil.virtualToIoFile(virtualFile)
+}
+
+private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean {
+    val checkSet = mutableSetOf<String>()
+    var isMissing = false
+    modules.values.forEach modules@{ module ->
+        module.libraryDependencies.forEach {
+            if (it.file.path in checkSet) {
+                return@forEach
+            }
+            checkSet.add(it.file.path)
+            if (!it.file.exists()) {
+                isMissing = true
+                logger.debug("Missing library dependency $it, path: ${it.file.path}")
+            }
+        }
+    }
+    logger.debug("checkMissing for $name, isMissing: $isMissing")
+    return isMissing
 }
