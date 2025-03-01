@@ -1,3 +1,8 @@
+- version: 2.2.0-rc5
+  date: 2025.03.01
+  updates:
+    - 优化依赖库被 gradle 清理导致编译失败问题，优化依赖修复策略
+
 - version: 2.2.0-rc4
   date: 2025.02.25
   updates:
