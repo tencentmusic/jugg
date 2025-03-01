@@ -338,7 +338,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
     }
 
     private fun Long.timeStampToTime(): String {
-        return SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date(this))
+        return SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(this))
     }
 }
 
