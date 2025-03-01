@@ -19,6 +19,8 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.*
+import com.sickworm.intellij.jugg.project.merger.IJuggProjectInfoMerger
+import com.sickworm.intellij.jugg.project.merger.JuggProjectInfoMerger
 import com.sickworm.intellij.jugg.server.protocols.ModuleCustomConfig
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData

@@ -1,11 +1,11 @@
-package com.sickworm.intellij.jugg.project
+package com.sickworm.intellij.jugg.project.merger
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.text.SimpleDateFormat
@@ -19,6 +19,9 @@ import java.util.*
  *  1.2. IDE sometimes miss some dependencies, especially huge library.
  *
  * 2. project info from gradle may not reliable, it needs time to proof.
+ *
+ * 3. gradle may delete libraries cache to clear space.
+ *
  */
 interface IJuggProjectInfoMerger {
 
@@ -138,6 +141,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         }
         val finalGradleProjectInfo = JuggProjectInfo(finalUpdateModules)
 
+        val libraryMerger = JuggProjectInfoLibraryMerger(logger)
         ideProjectInfo.modules.forEach { (name, moduleInfo) ->
             val gradleModuleInfo = finalGradleProjectInfo.modules[name]
             if (gradleModuleInfo == null) {
@@ -185,7 +189,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
                 buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
                 moduleDependencies = justLog(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
-                libraryDependencies = mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
+                libraryDependencies = libraryMerger.mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
                 // below fields is only gradle has
                 manifestPlaceHolders = gradleModuleInfo.manifestPlaceHolders ?: emptyMap(),
@@ -258,82 +262,6 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             return base
         } else {
             return base
-        }
-    }
-
-    private fun mergeLibrariesWithBase(moduleName: String,
-                                       base: List<LibraryDependency>, new: List<LibraryDependency>,
-                                       mergeResult: JuggProjectInfoMergeResult,
-                                       isNeedUpdateLibraryDependency: Boolean): List<LibraryDependency> {
-        // map<name without version, name>
-        val nameMap = mutableMapOf<String, String>()
-        base.forEach {
-            nameMap[getNameWithoutVersion(it.name)] = it.name
-        }
-        val result: MutableList<LibraryDependency> by lazy { base.toMutableList() }
-
-        var hasUpdate = false
-        new.forEach { newDep ->
-            val newNameWithoutVersion = getNameWithoutVersion(newDep.name)
-            val baseDepName = nameMap[newNameWithoutVersion]
-            if (baseDepName == null) {
-                // not exists, add directly
-                hasUpdate = true
-                result.add(newDep)
-                mergeResult.addMergeLibraryItem(moduleName, null, newDep.name)
-            } else {
-                if (newDep.name != baseDepName) {
-                    // sometimes gradle project info will get a different name but same file as ide project info
-                    val relativeLibraryDependencies = base.find {
-                        it.name == baseDepName && it.type == newDep.type
-                    }
-                    if (relativeLibraryDependencies?.crc32 == newDep.crc32) {
-                        // same file, ignore it
-                        return@forEach
-                    }
-
-                    // version changed, update if needed
-                    val isNewDepExist = newDep.file.exists()
-                    if (isNeedUpdateLibraryDependency && !isNewDepExist) {
-                        logger.debug("new library ${newDep.name} not exist, actually won't update it")
-                    }
-
-                    if (isNeedUpdateLibraryDependency && isNewDepExist) {
-                        // remove all old version files
-                        result.iterator().also { iterator ->
-                            while (iterator.hasNext()) {
-                                val baseDep = iterator.next()
-                                if (baseDep.name == baseDepName) {
-                                    iterator.remove()
-                                }
-                            }
-                        }
-                        hasUpdate = true
-                        result.add(newDep)
-                    }
-                    // always record it
-                    mergeResult.addMergeLibraryItem(moduleName, baseDepName, newDep.name + if (isNewDepExist) "" else " (not exist, ignore)")
-                }
-            }
-        }
-
-        return if (!hasUpdate) {
-            base
-        } else {
-            result
-        }
-    }
-
-    private var nameWithoutVersionCache = mutableMapOf<String, String>()
-
-    private fun getNameWithoutVersion(name: String): String {
-        return nameWithoutVersionCache.getOrPut(name) {
-            val colonCount = name.count { it == ':' }
-            if (colonCount == 2) {
-                name.substringBeforeLast(':')
-            } else {
-                name
-            }
         }
     }
 
