@@ -131,6 +131,8 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun updateProjectInfo(isAfterSync: Boolean) {
+        logger.debug("updateProjectInfo isAfterSync: $isAfterSync")
+
         if (isAfterSync) {
             // gradle sync finished, reset hasRun flag to avoid "No file changes" fallback
             juggRunningTaskStatusManager.resetHasRun()
@@ -138,13 +140,14 @@ class JuggManager @TestOnly constructor(
 
         // update project info if needed
         var isForceUpdateGradle = false
-        val isSuccess = compileContextManager.updateCompileContext(isAfterSync) {
+        val isUpdated = compileContextManager.updateCompileContext(isAfterSync) {
             isForceUpdateGradle = true
         }
+        logger.debug("updateProjectInfo isUpdated: $isUpdated, isForceUpdateGradle: $isForceUpdateGradle")
         gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(isForceUpdateGradle)
 
         // reinit compiler after update compile context
-        if (isSuccess) {
+        if (isUpdated) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
             warmUpCompile(isNeedWarmUpDeploy = false)
@@ -465,6 +468,9 @@ class JuggManager @TestOnly constructor(
             isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
+
+        // checks whether project info is missing(cleaned by gradle)
+        updateProjectInfo(false)
     }
 
     override fun gradleCompile() {
