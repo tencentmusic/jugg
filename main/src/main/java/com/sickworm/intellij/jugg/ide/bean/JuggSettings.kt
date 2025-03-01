@@ -49,6 +49,8 @@ object JuggSettings {
     var isEnableCompatibleDeploymentMode: Boolean by propertiesComponent.delegate(defaultValue = true)
     val finalIsEnableCompatibleDeploymentMode get() = isEnableInjectGradleCompile && isEnableCompatibleDeploymentMode
 
+    var isUseProjectKotlinCompiler: Boolean by propertiesComponent.delegate(defaultValue = true)
+
     /** limit max source modules to compile for better performance */
     const val maxCompileSourceModules = 50
     /** limit max source files to compile for better performance */

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.source
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
@@ -40,8 +41,9 @@ class K2JVMCompilerIsolate {
      * Priority use project compiler classpath, if not available use embedded compiler
      */
     fun initIfNeeded(projectCompilerClasspath: List<File>?, logger: Logger) {
-        if (forceUseEmbeddedCompiler) {
-            if (!::classLoader.isInitialized) {
+        if (!JuggSettings.isUseProjectKotlinCompiler) {
+            logger.debug("kotlin compiler use embedded compiler by user setting")
+            if (!::classLoader.isInitialized || isUseProjectCompiler) {
                 classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
             }
             isUseProjectCompiler = false
@@ -50,7 +52,7 @@ class K2JVMCompilerIsolate {
 
         try {
             val projectCompilerClasspathUrls = projectCompilerClasspath?.map { it.toURI().toURL() } ?: emptyList()
-            val currentCompiler = currentCompiler
+            val currentCompiler = if (isUseProjectCompiler) currentCompiler else null
             val expectCompiler = getCompilerName(projectCompilerClasspathUrls)
             if (currentCompiler != null && currentCompiler == expectCompiler) {
                 // no need to renew classLoader
@@ -65,8 +67,10 @@ class K2JVMCompilerIsolate {
         } catch (e: Exception) {
             // projectCompilerClasspath is not available, use embedded compiler
             logger.debug("kotlin compiler type: embedded, reason: ${e.message}")
+            if (!::classLoader.isInitialized || isUseProjectCompiler) {
+                classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
+            }
             isUseProjectCompiler = false
-            classLoader = getIsolateClassLoader(ClassGraph().classpathURLs)
         }
     }
 

@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.android.ddmlib.IDevice
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.diagnostic.DefaultLogger
@@ -149,6 +148,15 @@ class MoreOptionsManager(
                 onSet = {
                     JuggSettings.isEnableCompatibleDeploymentMode = it
                     enableCompatibleDeploymentMode()
+                }
+            )
+
+
+            createOption(
+                name = "Enable use project Kotlin compiler",
+                onGet = { JuggSettings.isUseProjectKotlinCompiler },
+                onSet = {
+                    JuggSettings.isUseProjectKotlinCompiler = it
                 }
             )
 
