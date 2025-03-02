@@ -41,7 +41,9 @@ class KotlinCompilerOutputParser(
             } else if (innerOutputs.keys.any { it.absolutePath == file.file.absolutePath}){
                 Result.success(file)
             } else {
-                Result.failure(CompileError(file, listOf(-1L to "no outputs")))
+                logger.debug("File ${file.file.absolutePath} has no output, mark as success")
+                // compat for parse output, it's ok to just read result code of KotlinCompiler
+                Result.success(file)
             }
         }
 
@@ -152,8 +154,10 @@ class KotlinCompilerOutputParser(
             if (filePath == "Sources:") {
                 for (j in i + 1 until contents.size) {
                     val file = File(contents[j])
-                    if (file.isFile) {
+                    if (file.exists()) {
                         sourceFile.add(File(contents[j]))
+                    } else {
+                        logger.debug("Failed to parse output message, source file not exists: $file")
                     }
                 }
                 // reaches end
@@ -164,13 +168,14 @@ class KotlinCompilerOutputParser(
             if (file.exists()) {
                 outputFiles.add(file)
             } else {
-                logger.debug("Failed to parse output message, file not exists: $file")
+                logger.debug("Failed to parse output message, output file not exists: $file")
             }
         }
 
         if (sourceFile.isEmpty()) {
             logger.warn("Failed to parse output message with no source file: $message")
-            return
+            // compat for parse output, it's ok to just read result code of KotlinCompiler
+            sourceFile.add(File("unknown"))
         }
 
         if (outputFiles.isEmpty()) {
