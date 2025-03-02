@@ -357,6 +357,7 @@ class JuggServer(
         } catch (e: Exception) {
             logger.debug("downloadFile failed: $e")
             targetFile.delete()
+            throw e
         }
     }
 }
