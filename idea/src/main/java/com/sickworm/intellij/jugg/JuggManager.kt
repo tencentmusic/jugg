@@ -156,6 +156,13 @@ class JuggManager @TestOnly constructor(
                 dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
             }
         }
+
+        // check dependency again to avoid missing dependency(in ide little chance)
+        if (isAfterSync) {
+            taskRunnerManager.runBackgroundSafe("Check Project Info Delay", delayMs = 5000L) {
+                updateProjectInfo(isAfterSync = false)
+            }
+        }
     }
 
     override fun onSyncEvent(syncEvent: SyncEvent) {

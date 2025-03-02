@@ -71,7 +71,7 @@ class CompileContextManager(
         ensureInitProjectInfo()
 
         var isNeedReloadProjectInfo = isAfterSync
-        if (projectInfoSerializer.load()?.checkMissing("ide", logger) == true) {
+        if (!isAfterSync && projectInfoSerializer.load()?.checkMissing("ide", logger) == true) {
             logger.debug("updateCompileContext ide checkMissing true, reload project info")
             isNeedReloadProjectInfo = true
         }
@@ -87,6 +87,11 @@ class CompileContextManager(
         if (gradleProjectInfoSerializer.load()?.checkMissing("gradle", logger) == true) {
             logger.debug("updateCompileContext gradle checkMissing true, reload gradle project info")
             updateGradleAsync()
+        }
+        val isFixIdeProjectInfo = !isAfterSync && isNeedReloadProjectInfo
+        if (isFixIdeProjectInfo) {
+            val isMissing = projectInfoSerializer.load()?.checkMissing("ide", logger)
+            logger.debug("updateCompileContext ide double checkMissing $isMissing, (won't do again if still missing)")
         }
 
         return isNeedReloadProjectInfo
@@ -584,7 +589,10 @@ private fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File
 
 private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean {
     val checkSet = mutableSetOf<String>()
+    val isMissingMainJarMap = mutableMapOf<String, Boolean>()
     var isMissing = false
+    val transformsPath = ".gradle${File.separator}caches${File.separator}transforms"
+    val mainJarPath = "jars${File.separator}classes.jar"
     modules.values.forEach modules@{ module ->
         module.libraryDependencies.forEach {
             if (it.file.path in checkSet) {
@@ -595,8 +603,25 @@ private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean 
                 isMissing = true
                 logger.debug("Missing library dependency $it, path: ${it.file.path}")
             }
+            val isInTransforms = it.file.path.contains(transformsPath)
+            if (isInTransforms) {
+                val isMainJar = it.file.path.contains(mainJarPath)
+                if (isMainJar) {
+                    isMissingMainJarMap[it.name] = false
+                } else if (!it.isJar) {
+                    isMissingMainJarMap.getOrPut(it.name) { true }
+                }
+            }
         }
     }
+
+    isMissingMainJarMap.forEach { (name, isMissingJar) ->
+        if (isMissingJar) {
+            logger.debug("Missing classes.jar $name")
+            isMissing = true
+        }
+    }
+
     logger.debug("checkMissing for $name, isMissing: $isMissing")
     return isMissing
 }

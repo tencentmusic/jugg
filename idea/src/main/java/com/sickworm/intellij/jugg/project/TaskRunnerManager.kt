@@ -28,8 +28,15 @@ class TaskRunnerManager(
     private var retryInitDelayMill = 3_000L
 
     fun runBackgroundSafe(jobName: String, action: Runnable) {
+        runBackgroundSafe(jobName, 0L, action)
+    }
+
+    fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable) {
         launch {
             try {
+                if (delayMs > 0) {
+                    delay(delayMs)
+                }
                 logger.debug("background job <$jobName> start")
                 val costTime = measureTimeMillis {
                     action.run()
