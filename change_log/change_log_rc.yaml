@@ -1,3 +1,8 @@
+- version: 2.2.0-rc6
+  date: 2025.03.02
+  updates:
+    - compat for parse KotlinCompiler output
+
 - version: 2.2.0-rc5
   date: 2025.03.01
   updates:
