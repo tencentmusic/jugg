@@ -18,6 +18,11 @@ class JuggProjectInfoLibraryMergerTest {
     private lateinit var newLibraries: MutableList<LibraryDependency>
     private lateinit var mergeResult: JuggProjectInfoMergeResult
     private lateinit var libraryMerger: JuggProjectInfoLibraryMerger
+    private lateinit var baseMultiJarDependency: List<LibraryDependency>
+    private lateinit var newMultiJarDependency: List<LibraryDependency>
+    private lateinit var baseSingleJarDependency: List<LibraryDependency>
+    private lateinit var newSingleJarDependency: List<LibraryDependency>
+
 
     private val aNewLibrary = LibraryDependency(
         "test_org.eclipse.dirigible:test_dirigible-commons-config:11.2.5",
@@ -42,6 +47,33 @@ class JuggProjectInfoLibraryMergerTest {
         newLibraries = baseLibraries.toMutableList()
         libraryMerger = JuggProjectInfoLibraryMerger(logger)
         mergeResult = JuggProjectInfoMergeResult.createEmpty().copy(isNeedUpdateDependency = true)
+        baseMultiJarDependency = createFakeLibrarySet("test_group:test_artifact:1.2.3", buildDir.resolve("base"))
+        newMultiJarDependency = createFakeLibrarySet("test_group:test_artifact:1.2.3", buildDir.resolve("new"))
+        baseSingleJarDependency = baseMultiJarDependency.filter { !it.file.path.contains("jars/libs") }
+        newSingleJarDependency = newMultiJarDependency.filter { !it.file.path.contains("jars/libs") }
+    }
+
+    @Suppress("SameParameterValue")
+    private fun createFakeLibrarySet(name: String, baseDir: File): List<LibraryDependency> {
+        val jarFile1 = File(baseDir, "jars/classes.jar")
+        jarFile1.parentFile.mkdirs()
+        jarFile1.writeText(jarFile1.absolutePath)
+        val jarDep1 = LibraryDependency(name, jarFile1)
+
+        val jarFile2 = File(baseDir, "jars/libs/classes.jar")
+        jarFile2.parentFile.mkdirs()
+        jarFile2.writeText(jarFile2.absolutePath)
+        val jarDep2 = LibraryDependency(name, jarFile2)
+
+        val manifestFile = File(baseDir, "AndroidManifest.xml")
+        manifestFile.writeText(manifestFile.absolutePath)
+        val manifestDep = LibraryDependency(name, manifestFile)
+
+        val resFile = File(baseDir, "res")
+        resFile.mkdirs()
+        val resDep = LibraryDependency(name, resFile)
+
+        return listOf(jarDep1, jarDep2, manifestDep, resDep)
     }
 
     @Test
@@ -118,29 +150,51 @@ class JuggProjectInfoLibraryMergerTest {
 
     @Test
     fun testMultipleDeleteUpdate() {
-        // multiple delete update requires same file name
+        val removedDep = baseMultiJarDependency.find { it.file.path.endsWith("jars/classes.jar") }!!
+        removedDep.file.delete()
+        baseLibraries.addAll(baseMultiJarDependency)
 
-        val copyFile1 = File(buildDir, "base/libs/kotlin-stdlib-1.3.72.jar") // not exists
-        copyFile1.deleteRecursively()
-        val rxjava30v2 = LibraryDependency(
-            rxjava30.name,
-            copyFile1,
-        )
+        val addedDep = newMultiJarDependency.find { it.file.path.endsWith("jars/classes.jar") }!!
+        newLibraries.addAll(newMultiJarDependency)
 
-        val copyFile = File(buildDir, "new/libs/kotlin-stdlib-1.3.72.jar") // exists
-        copyFile.parentFile.mkdirs()
-        File(assetsDir, "libs/dirigible-commons-config-11.2.5.jar").copyTo(copyFile, overwrite = true)
-        val rxjava30v3 = LibraryDependency(
-            rxjava30.name,
-            copyFile,
-        )
-        baseLibraries.add(rxjava30)
-        baseLibraries.add(rxjava30v2)
-        newLibraries.add(rxjava30)
-        newLibraries.add(rxjava30v3)
-        checkResult(expectAdded = listOf(rxjava30v3), expectRemoved = listOf(rxjava30v2))
+        checkResult(expectAdded = listOf(addedDep), expectRemoved = listOf(removedDep))
     }
 
+    @Test
+    fun testSingleJarMissingUpdate() {
+        val missingDep = baseSingleJarDependency.find { it.file.path.endsWith("jars/classes.jar") }!!
+        baseSingleJarDependency = baseSingleJarDependency.filter { it != missingDep }
+        baseLibraries.addAll(baseSingleJarDependency)
+
+        val addedDep = newSingleJarDependency.find { it.file.path.endsWith("jars/classes.jar") }!!
+        newLibraries.addAll(newSingleJarDependency)
+
+        checkResult(expectAdded = listOf(addedDep))
+    }
+
+    @Test
+    fun testMultipleJarPartMissingUpdate() {
+        val missingDep = baseMultiJarDependency.find { it.file.path.endsWith("jars/classes.jar") }!!
+        baseMultiJarDependency = baseMultiJarDependency.filter { it != missingDep }
+        baseLibraries.addAll(baseMultiJarDependency)
+
+        val addedDep = newMultiJarDependency.find { it.file.path.endsWith("jars/classes.jar") }!!
+        newLibraries.addAll(newMultiJarDependency)
+
+        checkResult(expectAdded = listOf(addedDep))
+    }
+
+    @Test
+    fun testMultipleJarPartMissingUpdate2() {
+        val missingDep = baseMultiJarDependency.find { it.file.path.endsWith("jars/libs/classes.jar") }!!
+        baseMultiJarDependency = baseMultiJarDependency.filter { it != missingDep }
+        baseLibraries.addAll(baseMultiJarDependency)
+
+        val addedDep = newMultiJarDependency.find { it.file.path.endsWith("jars/libs/classes.jar") }!!
+        newLibraries.addAll(newMultiJarDependency)
+
+        checkResult(expectAdded = listOf(addedDep))
+    }
 
     private fun checkResult(
         expectAdded: List<LibraryDependency> = emptyList(),

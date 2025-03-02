@@ -41,18 +41,19 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
             val baseName = baseDepItems.first().name
             val newName = newDepItems.first().name
             val isVersionChanged = baseName != newName
-            val isSingleJar = baseDepItems.count { it.type == "jar" } <= 1
+            val isSingleJar = newDepItems.count { it.type == "jar" } <= 1
             newDepItems.forEach { newDep ->
                 val baseDep = baseDepItems.find {
                     it.getMergeName(isSingleJar) == newDep.getMergeName(isSingleJar)
                 }
 
+                if (!newDep.isExists) {
+                    logger.debug("new dep $newDep not exist, won't update, base dep: $baseDep")
+                    return@forEach
+                }
+
                 // condition 1. version changed + new dep exist + need update
                 if (isVersionChanged) {
-                    if (!newDep.isExists) {
-                        logger.debug("new library ${newDep.name} not exist, actually won't update it")
-                        return@forEach
-                    }
                     if (baseDep?.isExists == true) {
                         // sometimes gradle project info will get a different name but same file as ide project info
                         if ((baseDep.file.path == newDep.file.path) || (baseDep.crc32 == newDep.crc32)) {
@@ -60,6 +61,7 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
                             return@forEach
                         }
                     }
+                    // remove all old version files and add news
                     if (isNeedUpdateLibraryDependency) {
                         result.removeIf { it.name == baseName }
                         result.add(newDep.library)
@@ -67,23 +69,25 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
                     }
                     val suffix = if (!isNeedUpdateLibraryDependency) " (not update)" else ""
                     mergeResult.addMergeLibraryItem(moduleName, baseDep?.name, (newDep.name + suffix))
-                } else {
+                } else if (baseDep != null) {
                     // condition 2. version not changed
                     // but: base dep not exist + new dep exist
-                    if (baseDep == null) {
-                        return@forEach
-                    }
                     if (!baseDep.isExists) {
-                        logger.debug("base library $baseDep not exist, new dep: $newDep")
-                    }
-                    if (!baseDep.isExists && newDep.isExists) {
+                        // replace old deleted file and add new one
                         result.removeIf { it == baseDep.library }
                         result.add(newDep.library)
                         hasUpdate = true
 
-                        val suffix = " (fix deleted)"
+                        val suffix = " (fix deleted with ${newDep.file.path})"
                         mergeResult.addMergeLibraryItem(moduleName, baseDep.name, (newDep.name + suffix))
                     }
+                } else {
+                    // condition 3. version not changed + base dep missing
+                    result.add(newDep.library)
+                    hasUpdate = true
+
+                    val suffix = " (fix missing with ${newDep.file.path})"
+                    mergeResult.addMergeLibraryItem(moduleName, null, (newDep.name + suffix))
                 }
             }
         }
