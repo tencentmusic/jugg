@@ -306,6 +306,7 @@ class JuggManager @TestOnly constructor(
                 !it.path.contains("build") &&
                     !it.path.contains(".idea") &&
                     !it.path.contains(".git") &&
+                    !it.path.contains(".gradle") &&
                     it.name != ".DS_Store"
             }
             if (simpleFilterFiles.isNotEmpty()) {
