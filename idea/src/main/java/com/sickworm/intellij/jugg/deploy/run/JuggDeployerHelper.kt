@@ -448,7 +448,9 @@ class JuggDeployerHelper(
             val isUserRestrict = reason.contains("INSTALL_FAILED_USER_RESTRICT")
             // in this case, device may disconnect suddenly
             val isDeviceNotFound = reason.contains("device") && reason.contains("not found")
-            val isNeedStopDeploy = isUserRestrict || isDeviceNotFound
+            // in this case, device is lost connection or version downgrade something
+            val isApkInstallFailed = reason.contains("The application could not be installed.")
+            val isNeedStopDeploy = isUserRestrict || isDeviceNotFound || isApkInstallFailed
             if (isNeedStopDeploy) {
                 logger.warn("\nDeploy Stopped.")
             }
