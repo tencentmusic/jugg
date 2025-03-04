@@ -365,24 +365,24 @@ class JuggDeployerHelper(
                 }
 
                 val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
-                if (isAgentNotResponses) {
+                // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
+                val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
+                if (isAgentNotResponses || isDeployTimeout) {
                     logger.info("Deploy agent no response, going to detect JVMTI is available.")
                     // try detect compat issues
                     if (detectJvmtiCompatIssue(device, deployData)) {
                         logger.warn("Detect JVMTI compat issue, fallback to compat deploy mode.")
                         nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
+                        return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
                     } else {
-                        logger.info("JVMTI is available, push files directly and restart.")
+                        logger.info("JVMTI is available.")
                     }
-                    return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
                 }
 
                 val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
                 val isClassNotFoundException = reason.contains("Class not found")
                 // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
                 val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
-                // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
-                val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
 
                 if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
                     var isNeedRecover = true
