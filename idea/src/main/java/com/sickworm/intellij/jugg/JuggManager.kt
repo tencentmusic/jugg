@@ -436,22 +436,30 @@ class JuggManager @TestOnly constructor(
             return@measureTimeMillisWithResult result
         }
         logger.debug("fetchClasspathResult cost ${costTime2}ms")
-        logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir")
-        if (classpathRootDir == null || !classpathRootDir.exists()) {
-            logger.warn("Fetch classpath failed, please check log for details.")
-            return
-        }
-        // wrap local CompileContextInfo to CompileContextInfo fetched from remote
-        allModules = allModules.values
-            .map {
-                it.copy(buildPathInfo = ModuleBuildPathInfo(
-                    classpathRootDir,
-                    File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
-                    it.buildVariant,
-                )
-                )
+        logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir," +
+                "exists = ${classpathRootDir?.exists()}, children = ${classpathRootDir?.listFiles()?.map { it.path }}")
+        if (classpathRootDir != null && classpathRootDir.exists()) {
+            // wrap local CompileContextInfo to CompileContextInfo fetched from build
+            allModules = allModules.values
+                .map {
+                    it.copy(buildPathInfo = ModuleBuildPathInfo(
+                        classpathRootDir,
+                        File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
+                        it.buildVariant,
+                    )
+                    )
+                }
+                .associateBy { it.name }
+        } else {
+            if (isRemoteCompile) {
+                logger.warn("Fetch classpath failed, please check log for details.")
+                // unable to continue
+                return
+            } else {
+                logger.debug("Fetch classpath failed, use local classpath instead.")
+                // just continue use local build classpath
             }
-            .associateBy { it.name }
+        }
 
         val (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
             pathManager.compileRootDir.clearDir()
