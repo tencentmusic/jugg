@@ -375,7 +375,7 @@ class JuggDeployerHelper(
                         nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
                         return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
                     } else {
-                        logger.info("JVMTI is available.")
+                        logger.debug("JVMTI is available.") // detectJvmtiCompatIssue will log info
                     }
                 }
 
