@@ -42,7 +42,7 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
 
     override fun createActions(): Array<Action> {
         setOKButtonText("Update")
-        setCancelButtonText("Close")
+        setCancelButtonText("Cancel")
         return arrayOf(okAction, cancelAction)
     }
 
@@ -57,11 +57,12 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
                 textLabel.text = "Jugg is already the latest version."
                 getButton(okAction)?.isVisible = false
                 getButton(cancelAction)?.isVisible = true
-                cancelAction.isEnabled = true
+                setCancelButtonText("Close")
             } else {
                 textLabel.text = "<html>New version available: <b>${hotUpdateData.targetVersion}</b>. Confirm update?</html>"
                 okAction.isEnabled = true
                 cancelAction.isEnabled = true
+                setCancelButtonText("Cancel")
                 getButton(okAction)?.removeAll()
                 getButton(okAction)?.addActionListener {
                     startDownload(hotUpdateData.targetVersion)
@@ -74,12 +75,11 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
     private fun startDownload(targetVersion: String) {
         progressBar.isVisible = true
         okAction.isEnabled = false
-        cancelAction.isEnabled = false
         textLabel.text = "Downloading $targetVersion..."
     }
 
     fun setResult(newVersion: String, isSuccess: Boolean, failedReason: String?, onConfirmReopenProject: (() -> Unit)?) {
-        cancelAction.isEnabled = true // or X button will not work
+        setCancelButtonText("Close")
         SwingUtilities.invokeLater {
             progressBar.isVisible = false
             if (isSuccess) {

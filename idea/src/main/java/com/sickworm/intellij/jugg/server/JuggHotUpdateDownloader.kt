@@ -79,7 +79,6 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         }
     }
 
-    @Synchronized
     fun checkHotUpdate(isPositiveCheck: Boolean): HotUpdateData? {
         logger.debug("checkHotUpdate")
         val durationSinceLastUpdate = System.currentTimeMillis() - lastRequestTime
