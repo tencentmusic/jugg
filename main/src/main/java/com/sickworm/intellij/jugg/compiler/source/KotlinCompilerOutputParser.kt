@@ -150,12 +150,13 @@ class KotlinCompilerOutputParser(
         val sourceFile = mutableListOf<File>()
         // first line is "output: output:", ignore
         for (i in 1 until contents.size) {
-            val filePath = contents[i]
+            val filePath = contents[i].trim().replace("\n", "")
             if (filePath == "Sources:") {
                 for (j in i + 1 until contents.size) {
-                    val file = File(contents[j])
+                    val sourceFilePath = contents[j].trim().replace("\n", "")
+                    val file = File(sourceFilePath)
                     if (file.exists()) {
-                        sourceFile.add(File(contents[j]))
+                        sourceFile.add(file)
                     } else {
                         logger.debug("Failed to parse output message, source file not exists: $file")
                     }
