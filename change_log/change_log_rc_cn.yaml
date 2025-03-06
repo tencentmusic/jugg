@@ -1,3 +1,8 @@
+- version: 2.2.0-rc8
+  date: 2025.03.06
+  updates:
+    - 修复使用工程 Kotlin 编译器时，编译错误 module was compiled with an incompatible version
+
 - version: 2.2.0-rc6
   date: 2025.03.02
   updates:

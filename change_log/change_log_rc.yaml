@@ -1,3 +1,8 @@
+- version: 2.2.0-rc7
+  date: 2025.03.06
+  updates:
+    - fix kotlin compile error "incompatible version of kotlin" when using project compiler
+
 - version: 2.2.0-rc6
   date: 2025.03.02
   updates:
