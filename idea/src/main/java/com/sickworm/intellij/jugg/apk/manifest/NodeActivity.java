@@ -29,6 +29,9 @@ public class NodeActivity {
   protected boolean myExported = true;
   protected List<IntentFilter> myIntentFilters = new ArrayList<>();
 
+  protected String myTargetActivity = null;
+  protected String myTargetActivityQname = null;
+
   /**
    * Parse an activity xml element (see https://developer.android.com/guide/topics/manifest/activity-element).
    */
@@ -47,6 +50,13 @@ public class NodeActivity {
         myEnabled = value.isEmpty() || "true".equals(value);
       } else if ("exported".equals(attribute)) {
         myExported = value.isEmpty() || "true".equals(value);
+      } else if ("targetActivity".equals(attribute)) {
+        myTargetActivity = value;
+        if (myTargetActivity.startsWith(".")) {
+          myTargetActivityQname = packageName + myTargetActivity;
+        } else {
+          myTargetActivityQname = myTargetActivity;
+        }
       }
     }
 
@@ -122,6 +132,14 @@ public class NodeActivity {
   @NotNull
   String getName() {
     return myName;
+  }
+
+  @Nullable
+  public String getRealActivityQname() {
+    if (myTargetActivityQname != null) {
+      return myTargetActivityQname;
+    }
+    return myQname;
   }
 
   @NotNull

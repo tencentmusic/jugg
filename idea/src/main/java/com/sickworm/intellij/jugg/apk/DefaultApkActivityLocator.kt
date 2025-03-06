@@ -57,7 +57,7 @@ class DefaultApkActivityLocator(val logger: Logger) {
         if (launchableActivities.isEmpty()) {
             return null
         } else if (launchableActivities.size == 1) {
-            return launchableActivities[0].qualifiedName
+            return launchableActivities[0].realActivityQname
         }
 
         // Prefer the launcher which has the CATEGORY_DEFAULT intent filter.
@@ -65,8 +65,8 @@ class DefaultApkActivityLocator(val logger: Logger) {
         // https://code.google.com/p/android/issues/detail?id=67068
         val defaultLauncher = findDefaultLauncher(launchableActivities)
         return if (defaultLauncher != null) {
-            defaultLauncher.qualifiedName
-        } else launchableActivities[0].qualifiedName
+            defaultLauncher.realActivityQname
+        } else launchableActivities[0].realActivityQname
 
         // Just return the first one we find
     }
