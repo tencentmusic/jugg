@@ -431,9 +431,6 @@ class JuggCompilerHelper(
                             okButtonText = "Fallback to Gradle",
                             negativeButtonText = "Don't fallback",
                             leftButtonText = "Cancel",
-                            doNotAskAction = {
-                                JuggSettings.isConfirmFallbackWhenNoFileChanges = false
-                            }
                         )
                     }
 
