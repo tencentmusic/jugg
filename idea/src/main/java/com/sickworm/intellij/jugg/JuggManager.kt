@@ -450,6 +450,10 @@ class JuggManager @TestOnly constructor(
                     )
                 }
                 .associateBy { it.name }
+            val logInfo = allModules.entries.joinToString {
+                "${it.key}: ${it.value.buildPathInfo.buildDir}: exists: ${it.value.moduleRootDir.exists()}"
+            }
+            logger.debug("fetchClasspathResult dir info: $logInfo")
         } else {
             if (isRemoteCompile) {
                 logger.warn("Fetch classpath failed, please check log for details.")
