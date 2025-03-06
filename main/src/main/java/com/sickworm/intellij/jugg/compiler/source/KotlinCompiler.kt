@@ -381,7 +381,7 @@ class KotlinCompiler(
 
         val kotlinStdlibName = module.libraryDependencies.find {
             it.file.name.contains("kotlin-stdlib")
-        }?.file?.name
+        }?.file?.nameWithoutExtension
         logger.debug("kotlin-stdlib kotlinStdlibName $kotlinStdlibName")
         if (kotlinStdlibName == null) {
             logger.debug("kotlin-stdlib not found in module ${module.name}, can not guess kotlin version, use default ${K2JVMCompilerIsolate.VERSION}")
