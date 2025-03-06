@@ -16,7 +16,6 @@ class KmModuleMergerTest {
 
         val merger = KmModuleMerger()
         assertEquals("""
-annotations: []
 optionalAnnotationClasses: []
 packageParts:
 
@@ -25,7 +24,6 @@ packageParts:
         val newKmModuleFile = File(assetsKotlinDir, "kotlin_module/app_debug_new.kotlin_module")
         merger.merge(newKmModuleFile)
         assertEquals("""
-annotations: []
 optionalAnnotationClasses: []
 packageParts:
    key: com.sickworm.jugg.demo.testcase.ktextension
@@ -37,7 +35,6 @@ packageParts:
         val oldKmModuleFile = File(assetsKotlinDir, "kotlin_module/app_debug_old.kotlin_module")
         merger.merge(oldKmModuleFile)
         assertEquals("""
-annotations: []
 optionalAnnotationClasses: []
 packageParts:
    key: com.sickworm.jugg.demo.testcase.ktextension
@@ -52,7 +49,6 @@ packageParts:
         val newMerger = KmModuleMerger()
         newMerger.merge(outputFile)
         assertEquals("""
-annotations: []
 optionalAnnotationClasses: []
 packageParts:
    key: com.sickworm.jugg.demo.testcase.ktextension
