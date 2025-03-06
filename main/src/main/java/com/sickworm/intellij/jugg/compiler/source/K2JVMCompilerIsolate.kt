@@ -40,6 +40,7 @@ class K2JVMCompilerIsolate {
      * Init [classLoader] which is used to load K2JVMCompiler.
      * Priority use project compiler classpath, if not available use embedded compiler
      */
+    @Synchronized
     fun initIfNeeded(projectCompilerClasspath: List<File>?, logger: Logger) {
         if (!JuggSettings.isUseProjectKotlinCompiler) {
             logger.debug("kotlin compiler use embedded compiler by user setting")
@@ -47,6 +48,11 @@ class K2JVMCompilerIsolate {
                 classLoader = getIsolateClassLoader(juggPluginClasspathUrls)
             }
             isUseProjectCompiler = false
+            return
+        }
+
+        if (::classLoader.isInitialized) {
+            logger.debug("kotlin compiler initialized, isUseProjectCompiler $isUseProjectCompiler")
             return
         }
 
@@ -75,6 +81,7 @@ class K2JVMCompilerIsolate {
     }
 
     @Suppress("MoveVariableDeclarationIntoWhen")
+    @Synchronized
     fun exec(printStream: PrintStream, args: Array<String>): ExitCode {
         val compileClass = classLoader.loadClass("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
         val compileInstance = compileClass.declaredConstructors[0].newInstance()
@@ -100,8 +107,6 @@ class K2JVMCompilerIsolate {
 
         const val VERSION = "1.7"
 
-        var forceUseEmbeddedCompiler = false
-
         private const val KOTLIN_COMPILER_NAME = "kotlin-compiler-embeddable"
 
         private val requiredLibraries = setOf(
@@ -119,11 +124,7 @@ class K2JVMCompilerIsolate {
 
         private fun getIsolateClassLoader(urls: List<URL>, isAllIncluded: Boolean = false): URLClassLoader {
             val libraryClasspath = filterCompilerLibraries(urls)
-            val missingClasspath = requiredLibraries.filter { libraryName ->
-                !libraryClasspath.any {
-                    File(it.file).name.startsWith(libraryName) && File(it.file).name.endsWith(".jar")
-                }
-            }
+            val missingClasspath = getMissingClasspath(libraryClasspath)
             if (missingClasspath.isNotEmpty()) {
                 throw JuggInternalException.initKotlinCompilerFailed(missingClasspath)
             }
@@ -135,6 +136,24 @@ class K2JVMCompilerIsolate {
             val loader = PriorityURLClassLoader(finalLibraryClasspath.toTypedArray(), lowPriorityParent = this::class.java.classLoader)
             // it's wired that kapt class loading will use parent class loader that Jugg provided, so wrap it with an empty class loader
             return URLClassLoader(emptyArray(), loader)
+        }
+
+        private fun getMissingClasspath(libraryClasspath: List<URL>): List<String> {
+            return requiredLibraries.filter { libraryName ->
+                !libraryClasspath.any {
+                    File(it.file).name.startsWith(libraryName) && File(it.file).name.endsWith(".jar")
+                }
+            }
+        }
+
+        fun getKotlinCompilerVersion(projectCompilerClasspath: List<File>?): String? {
+            val urls = projectCompilerClasspath?.map { it.toURI().toURL() } ?: return null
+            val missingClasspath = getMissingClasspath(urls)
+            if (missingClasspath.isNotEmpty()) {
+                // can not use as kotlin compiler
+                return null
+            }
+            return getCompilerName(urls)
         }
 
         /**
