@@ -409,9 +409,15 @@ class KotlinCompiler(
 
     override fun warmUp() {
         val startTime = System.currentTimeMillis()
-        val selectModule = context.modules.values.maxByOrNull {
-            it.moduleDependencies.size + it.libraryDependencies.size
-        }
+        val selectModule = context.modules.values
+            .filter { module ->
+                // don't run on java-only module, it will generate dirty .kotlin_module
+                val isKotlinModule = !module.kotlinPlugins.isNullOrEmpty() ||
+                        module.libraryDependencies.any { it.name.contains("kotlin-stdlib") }
+                return@filter isKotlinModule
+            }.maxByOrNull {
+                it.moduleDependencies.size + it.libraryDependencies.size
+            }
         logger.debug("start KotlinCompiler warm up, selectModule: ${selectModule?.name}")
         if (selectModule != null) {
             doModuleCompile(CompileTask(emptyList(), context.tempCompileDir, CompileStatusHolder.DEFAULT), selectModule)
