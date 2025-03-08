@@ -166,8 +166,14 @@ class KotlinCompiler(
 
         val composeArgs = mutableListOf<String>()
         if (kotlinCompile.isUseProjectCompiler && analyzeResult.isNeedCompileCompose) {
-            val composeExtension = module.kotlinExtensions?.find {
+            var composeExtension = module.kotlinExtensions?.find {
                 it.path.contains("androidx.compose")
+            }
+            if (composeExtension == null) {
+                // kotlin 2.0
+                composeExtension = module.kotlinPlugins?.find {
+                    it.path.contains("kotlin-compose-compiler")
+                }
             }
             if (composeExtension == null) {
                 logger.warn("Compose extension not found in classpath, compile result may be incorrect.")

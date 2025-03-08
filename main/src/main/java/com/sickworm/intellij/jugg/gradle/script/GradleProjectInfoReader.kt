@@ -188,6 +188,13 @@ class GradleProjectInfoReader(
                 val kotlinTask = project.tasks.findByName(kotlinTaskName)
                 if (kotlinTask != null) {
                     kotlinPlugins = (Reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()
+                    // compat for Kotlin 2.0
+                    if (kotlinPlugins.isNullOrEmpty()) {
+                        val kotlinClasspath20 = (Reflector(kotlinTask)["defaultCompilerClasspath\$kotlin_gradle_plugin_common"]?.value as? FileCollection)?.toList()
+                        if (kotlinClasspath20 != null) {
+                            kotlinPlugins = (kotlinPlugins ?: emptyList()) + kotlinClasspath20
+                        }
+                    }
                 } else {
                     println("Jugg: can not find kotlin compile task for ${project.standardModuleName} by $kotlinTaskName, skip it.")
                 }
