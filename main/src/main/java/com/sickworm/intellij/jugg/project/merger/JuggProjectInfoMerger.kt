@@ -77,8 +77,10 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
 
         val buildUpdateTime = build?.dataFile?.lastModified() ?: -1L
         val localFetchUpdateTime = localFetch?.dataFile?.lastModified() ?: -1L
+        val ideUpdateTime = ide?.dataFile?.lastModified() ?: -1L
         logger.debug("buildUpdateTime ${buildUpdateTime.timeStampToTime()}, " +
-                "localFetchUpdateTime ${localFetchUpdateTime.timeStampToTime()}")
+                "localFetchUpdateTime ${localFetchUpdateTime.timeStampToTime()}, " +
+                "ideUpdateTime ${ideUpdateTime.timeStampToTime()}")
         val gradle = if (buildUpdateTime > localFetchUpdateTime) {
             logger.debug("use build as gradle project info")
             build
@@ -93,7 +95,6 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         }
 
         var isNeedUpdateLibraryDependency = true
-        val ideUpdateTime = ide?.dataFile?.lastModified() ?: -1L
         val gradleUpdateTime = gradle.dataFile.lastModified()
         if (ideUpdateTime > gradleUpdateTime) {
             logger.debug("ide project info is newer than gradle project info, isNeedUpdateLibraryDependency=false")

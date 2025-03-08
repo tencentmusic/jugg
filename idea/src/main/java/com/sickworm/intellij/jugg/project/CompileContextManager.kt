@@ -592,7 +592,8 @@ private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean 
     val isMissingMainJarMap = mutableMapOf<String, Boolean>()
     var isMissing = false
     val transformsPath = ".gradle${File.separator}caches${File.separator}transforms"
-    val mainJarPath = "jars${File.separator}classes.jar"
+    val mainJarPath = "${File.separator}jars${File.separator}classes.jar"
+    val jarsInAarPath = "${File.separator}jars${File.separator}"
     modules.values.forEach modules@{ module ->
         module.libraryDependencies.forEach {
             if (it.file.path in checkSet) {
@@ -608,8 +609,14 @@ private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean 
                 val isMainJar = it.file.path.contains(mainJarPath)
                 if (isMainJar) {
                     isMissingMainJarMap[it.name] = false
-                } else if (!it.isJar) {
-                    isMissingMainJarMap.getOrPut(it.name) { true }
+                } else {
+                    // it's in aar, not a single jar file
+                    // single jar e.g. .gradle/caches/transforms-3/17e312c0844272be122cda16e44e6281/transformed/jetified-kotlin-android-extensions-runtime-1.7.20.jar
+                    // aar e.g. .gradle/caches/transforms-3/52bab67b7bd54999d3274c1962b69133/transformed/jetified-sdk-for-jugg/jars/classes.jar
+                    val isInAar = !it.isJar || it.file.path.contains(jarsInAarPath)
+                    if (isInAar) {
+                        isMissingMainJarMap.getOrPut(it.name) { true } // mark as maybe missing
+                    }
                 }
             }
         }
