@@ -79,7 +79,7 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
                         hasUpdate = true
 
                         val suffix = " (fix deleted with ${newDep.file.path})"
-                        mergeResult.addMergeLibraryItem(moduleName, baseDep.name, (newDep.name + suffix))
+                        mergeResult.addMergeLibraryItem(moduleName, baseDep.name, (newDep.name + suffix), isFixMissingOrDelete = true)
                     }
                 } else {
                     // condition 3. version not changed + base dep missing
@@ -87,7 +87,7 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
                     hasUpdate = true
 
                     val suffix = " (fix missing with ${newDep.file.path})"
-                    mergeResult.addMergeLibraryItem(moduleName, null, (newDep.name + suffix))
+                    mergeResult.addMergeLibraryItem(moduleName, null, (newDep.name + suffix), isFixMissingOrDelete = true)
                 }
             }
         }

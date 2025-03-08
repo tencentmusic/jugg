@@ -98,6 +98,15 @@ class CompileContextManager(
     }
 
     /**
+     * Try to find out missing libraries by merge.
+     * @return true if fix some dependencies.
+     */
+    fun triggerMerge(): Boolean {
+        val result = juggProjectInfoMerger.afterSync(projectInfoSerializer)
+        return result.isFixMissingOrDelete
+    }
+
+    /**
      * Invoke after use confirm incremental compile libraries.
      */
     fun updateTempLibraries(addedTempLibraries: List<LibraryDependency>?, removedTempLibraries: List<LibraryDependency>?) {

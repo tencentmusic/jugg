@@ -280,12 +280,15 @@ data class JuggProjectInfoMergeResult(
 
     val mergedItems: Map<String, Map<String, Set<String>>> = _mergeItems
     val mergeLibraryItems: Map<String, Set<Pair<String?, String>>> = _mergeLibraryItems
+    var isFixMissingOrDelete: Boolean = false
+        private set
 
     fun addMergedItem(moduleName: String, type: String, value: String) {
        _mergeItems.getOrPut(moduleName) { mutableMapOf() }.getOrPut(type) { mutableSetOf() }.add(value)
     }
 
-    fun addMergeLibraryItem(moduleName: String, old: String?, new: String) {
+    fun addMergeLibraryItem(moduleName: String, old: String?, new: String, isFixMissingOrDelete: Boolean = false) {
+        this.isFixMissingOrDelete = this.isFixMissingOrDelete || isFixMissingOrDelete
         _mergeLibraryItems.getOrPut(moduleName) { mutableSetOf() }.add(Pair(old, new))
     }
 

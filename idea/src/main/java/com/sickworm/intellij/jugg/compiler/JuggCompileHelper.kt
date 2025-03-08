@@ -59,6 +59,9 @@ class JuggCompilerHelper(
         Disposer.register(this, it)
     }
 
+    private val dependencyMissingResolver = DependencyMissingResolver(
+        compileContextManager, gradleProjectInfoLocalFetchManager, logger)
+
     @Synchronized
     fun compile(
         options: JuggGradleCompileOptions,
@@ -478,6 +481,7 @@ class JuggCompilerHelper(
         undeployedFiles: List<ChangedFile>,
         compileStatusHolder: CompileStatusHolder,
         compiledFilesThisTime: List<ChangedFile> = emptyList(), // used for avoid recompilation dead loop
+        isRetry: Boolean = false,
     ): CompileTaskResult {
         if (compileStatusHolder.isShouldCancel) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
@@ -587,7 +591,18 @@ class JuggCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), compileStatusHolder, compiledFilesThisTime = undeployedFiles + compiledFilesThisTime)
+                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), compileStatusHolder, compiledFilesThisTime = compiledFilesThisTime, isRetry = isRetry)
+            }
+        }
+
+        if (!isSuccess && !isRetry) {
+            val isCanRetry = dependencyMissingResolver.resolve(compileResult)
+            logger.debug("DependencyMissingResolver isCanRetry: $isCanRetry")
+            if (isCanRetry) {
+                logger.info("\nCompile failed, but try fixing dependency success, retry compile once.\n")
+                return doIncrementalCompile(compiler, undeployedFiles, compileStatusHolder,
+                    compiledFilesThisTime = compiledFilesThisTime,
+                    isRetry = true)
             }
         }
 
