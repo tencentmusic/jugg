@@ -4,10 +4,13 @@ import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.KotlinCompiler
+import com.sickworm.intellij.jugg.compiler.source.KotlinCompilerOutputParser
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class KotlinCompileTest {
@@ -150,6 +153,22 @@ class KotlinCompileTest {
         val task = createTask("com/sickworm/jugg/demo/testcase/compose/MainComposeActivity.kt")
         val result = kotlinCompiler.compile(task)
         assertCompileResult(task, result, mapper)
+    }
+
+    @Test
+    fun testMetadataError() {
+        val message = "/Users/sickworm/MyApplication/build/jugg/classpath/root/MyApplication/app/build/tmp/kotlin-classes/" +
+                "debug/META-INF/app_debug.kotlin_module: error: module was compiled with an incompatible version of Kotlin." +
+                "The binary version of its metadata is 1.7.0, expected version is 1.1.16."
+        assertTrue(KotlinCompilerOutputParser.MetadataVersionError.isMyError(message))
+        val metadataVersionError = KotlinCompilerOutputParser.MetadataVersionError.create(message)
+        assertNotNull(metadataVersionError)
+        assertEquals(message, metadataVersionError.message)
+        assertEquals(
+            "/Users/sickworm/MyApplication/build/jugg/classpath/root/MyApplication/app/build/tmp/kotlin-classes/debug/META-INF/app_debug.kotlin_module",
+            metadataVersionError.metadataFile.path)
+        assertEquals("1.7.0", metadataVersionError.actualVersion)
+        assertEquals("1.1.16", metadataVersionError.expectVersion)
     }
 
     private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult, vararg subclassList: String) {

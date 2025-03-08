@@ -28,10 +28,14 @@ class KmModuleMergerForCompilation(
             }
     }
 
-    fun save() {
+    fun save(targetVersion: JvmMetadataVersion? = null) {
         kmModuleFileMap.forEach { (filePath, merger) ->
             val destFile = File(filePath)
-            merger.writeTo(destFile)
+            if (targetVersion == null) {
+                merger.writeTo(destFile)
+            } else {
+                merger.writeTo(destFile, targetVersion)
+            }
         }
     }
 
@@ -71,12 +75,19 @@ class KmModuleMerger {
     /**
      * write kotlin module metadata to file
      */
-    fun writeTo(destFile: File) {
-        val metadata = KotlinModuleMetadata(kmModule, version).write()
+    fun writeTo(destFile: File, targetVersion: JvmMetadataVersion) {
+        val metadata = KotlinModuleMetadata(kmModule, targetVersion).write()
         destFile.also {
             it.parentFile?.mkdirs()
             it.writeBytes(metadata)
         }
+    }
+
+    fun writeTo(destFile: File) {
+        // why not optional argument? KmModuleMergerTest will have compilation error:
+        // Cannot access class 'kotlinx.metadata.jvm.JvmMetadataVersion'.
+        // Check your module classpath for missing or conflicting dependencies
+        writeTo(destFile, version)
     }
 
     fun getExtensionClasses(): List<String> {

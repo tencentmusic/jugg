@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileError
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.Result
+import kotlinx.metadata.jvm.JvmMetadataVersion
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
@@ -46,6 +47,9 @@ class KotlinCompilerOutputParser(
                 Result.success(file)
             }
         }
+
+    var metadataVersionErrors = mutableListOf<MetadataVersionError>()
+        private set
 
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
     /** Map<SourceFile, List<OutputClassFile>> */
@@ -96,6 +100,21 @@ class KotlinCompilerOutputParser(
     private val errorRegex = Regex("(.*):(.*):(.*): error: (.*)")
 
     private fun parseErrorMessage(message: String): String {
+
+        // e.g.
+        // /Users/sickworm/MyApplication/build/jugg/classpath/root/MyApplication/app/build/tmp/kotlin-classes/
+        // debug/META-INF/app_debug.kotlin_module: error: module was compiled with an incompatible version of Kotlin.
+        // The binary version of its metadata is 1.7.0, expected version is 1.1.16.
+        if (MetadataVersionError.isMyError(message)) {
+            val error = MetadataVersionError.create(message)
+            if (error != null) {
+                metadataVersionErrors.add(error)
+            }
+            logger.debug("found metadata error message: $message, error: $error")
+            return message
+        }
+
+
         // e.g.
         // src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/ #soft wrap
         // testcase/CaseKtSmartCast.kt:9:26: error: smart cast to 'MutableList<String>' is impossible, #soft wrap
@@ -210,6 +229,55 @@ class KotlinCompilerOutputParser(
                 "error" -> ERROR
                 "output" -> OUTPUT
                 else -> null
+            }
+        }
+    }
+
+    data class MetadataVersionError(
+        val message: String,
+        val metadataFile: File,
+        val actualVersion: String,
+        val expectVersion: String,
+        val expectMetadataVersion: JvmMetadataVersion,
+    ) {
+
+        companion object {
+
+            fun isMyError(message: String): Boolean {
+                return message.contains("metadata") && message.contains("expected version")
+            }
+
+            fun create(message: String): MetadataVersionError? {
+                if (!isMyError(message)) {
+                    return null
+                }
+
+                // The binary version of its metadata is 1.7.0, expected version is 1.1.16.
+                val regex = Regex("(.*): error: .* is ([0-9.]+), expected version is ([0-9.]+)\\.")
+                val matchResult = regex.find(message)
+                if (matchResult == null || matchResult.groups.size != 4) {
+                    return null
+                }
+
+                val metadataFile = File(matchResult.groups[1]!!.value)
+                val actualVersion = matchResult.groups[2]!!.value
+                val expectVersion = matchResult.groups[3]!!.value
+                val expectMetadataVersion: JvmMetadataVersion? = run {
+                    val splits = expectVersion.split(".")
+                    val major = splits.getOrNull(0)?.toIntOrNull()
+                    val minor = splits.getOrNull(1)?.toIntOrNull()
+                    val patch = splits.getOrNull(2)?.toIntOrNull()
+                    if (major == null || minor == null) {
+                        return@run null
+                    }
+                    return@run JvmMetadataVersion(major, minor, patch ?: 0)
+                }
+
+                if (expectMetadataVersion == null) {
+                    return null
+                }
+
+                return MetadataVersionError(message, metadataFile, actualVersion, expectVersion, expectMetadataVersion)
             }
         }
     }

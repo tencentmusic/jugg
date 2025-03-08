@@ -26,7 +26,7 @@ class KotlinCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
-    private var hasRecreateAfterInternalError = false
+    private var hasRetryCompile = false
 
     private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
 
@@ -247,6 +247,12 @@ class KotlinCompiler(
         logger.debug("kotlin compile result code: $exitCode")
 
         // retry strategy
+        if (!hasRetryCompile && handleMetadataError(outputParser)) {
+            hasRetryCompile = true
+            logger.info("Kotlin compile failed with metadata error, retry once.")
+            return doModuleCompile(task, module)
+        }
+
         val errorResults = outputParser.results.sumOf {
             if (it.isSuccess) 0 else it.getFailure().errors.size
         }
@@ -263,10 +269,10 @@ class KotlinCompiler(
             shouldRecreate = true
         }
         if (shouldRecreate) {
-            logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRecreateAfterInternalError")
-            if (!hasRecreateAfterInternalError) {
+            logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRetryCompile")
+            if (!hasRetryCompile) {
                 logger.warn("\n$retryReason, retry with recreating compiler once.\n")
-                hasRecreateAfterInternalError = true
+                hasRetryCompile = true
                 kotlinCompile = K2JVMCompilerIsolate()
                 return doModuleCompile(task, module)
             }
@@ -283,6 +289,7 @@ class KotlinCompiler(
         if (exitCode != ExitCode.OK) {
             // print infos
             context.printClasspathCheck(module)
+            hasRetryCompile = false
             return CompileResult(task, outputParser.results, emptyList())
         }
 
@@ -303,8 +310,29 @@ class KotlinCompiler(
             CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 
-        hasRecreateAfterInternalError = false
+        hasRetryCompile = false
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
+    }
+
+    private fun handleMetadataError(outputParser: KotlinCompilerOutputParser): Boolean {
+        if (outputParser.metadataVersionErrors.isEmpty()) {
+            return false
+        }
+
+        logger.debug("found metadata error message size ${outputParser.metadataVersionErrors.size}")
+        outputParser.metadataVersionErrors.forEach { metadataError ->
+            try {
+                val errorMerger = KmModuleMergerForCompilation(metadataError.metadataFile.parentFile.parentFile)
+                errorMerger.loadAndMerge()
+                errorMerger.save(metadataError.expectMetadataVersion)
+                logger.debug("save ${metadataError.metadataFile} from ${metadataError.actualVersion} to " +
+                        "${metadataError.expectVersion} success")
+            } catch (e: Exception) {
+                logger.debug("save ${metadataError.metadataFile} from ${metadataError.actualVersion} to " +
+                        "${metadataError.expectVersion} .kotlin_module failed, just delete it.", e)
+            }
+        }
+        return true
     }
 
     private fun logCompileCommand(options: List<String>) {
