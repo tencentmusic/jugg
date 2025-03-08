@@ -1,4 +1,11 @@
-- version: 2.2.0-rc7
+- version: 2.2.0-rc9
+  date: 2025.03.08
+  updates:
+    - fix cannot use project Kotlin compiler for Kotlin 2.0
+    - add dependency check after compile failed
+    - fix dependency not auto recover if there is only one jar in whole transforms
+
+- version: 2.2.0-rc8
   date: 2025.03.06
   updates:
     - fix kotlin compile error "incompatible version of kotlin" when using project compiler
