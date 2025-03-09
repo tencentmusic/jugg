@@ -124,6 +124,7 @@ class HookTransform : public Transform {
       if (hook.entry_hook != MethodHooks::kNoHook) {
         const ir::MethodId entry_hook(kHookClassName, hook.entry_hook.c_str());
         mi.AddTransformation<slicer::EntryHook>(
+        // covert this as object. slicer in AOSP has this feature, but my version doesn't.(compile fail)
 //            entry_hook, slicer::EntryHook::Tweak::ThisAsObject);
             entry_hook);
       }
