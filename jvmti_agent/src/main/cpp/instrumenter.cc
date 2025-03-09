@@ -193,6 +193,19 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         { instantiateApplication }
     );
 
+    const HookTransform resManager(
+        "android/app/ResourcesManager",
+        "createAssetManager",
+        "(Landroid/content/res/ResourcesKey;)Landroid/content/res/AssetManager;", // used in Android 8 at least, 13 at most
+        "createAssetManagerEnter", "createAssetManagerExit");
+
+    const HookTransform resManagerNew(
+        "android/app/ResourcesManager",
+        "createAssetManager",
+        "(Landroid/content/res/ResourcesKey;Landroid/app/ResourcesManager$ApkAssetsSupplier;)Landroid/content/res/AssetManager;", // used in Android 14 at least
+        "createAssetManagerNewEnter", "createAssetManagerNewExit");
+
+
     bool success = true;
   success &=
       CheckJvmti(jvmti->SetEventNotificationMode(
@@ -201,7 +214,12 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
 
   // Only bother to use transform caching with IWI, since the package manager
   // will wipe the cache on a normal installation.
-  success &= ApplyTransforms(jvmti, jni, kNoCache, { &application, &appComponentFactory });
+  success &= ApplyTransforms(jvmti, jni, kNoCache, { &application, &appComponentFactory, &resManager });
+
+  if (success) {
+    // method may not exists
+    ApplyTransforms(jvmti, jni, kNoCache, { &resManagerNew });
+  }
 
   // Failing to disable this event does not actually have any bearing on
   // whether or not instrumentation was a success, so we do not modify the

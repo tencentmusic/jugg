@@ -3,10 +3,18 @@ package com.sickworm.intellij.jugg.instrument;
 import android.annotation.SuppressLint;
 import android.app.Application;
 import android.app.Instrumentation;
+import android.app.ResourcesManager;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.res.ApkAssets;
+import android.content.res.AssetManager;
+import android.content.res.ResourcesKey;
 import com.sickworm.intellij.jugg.hotfix.HotfixLoader;
 import com.sickworm.intellij.jugg.hotfix.LogUtils;
+import com.sickworm.intellij.jugg.hotfix.ReflectUtil;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 
 /** @noinspection unused*/
 public class InstrumentationHooks {
@@ -76,5 +84,81 @@ public class InstrumentationHooks {
             return application;
         }
         return (Application) base.getClassLoader().loadClass(application.getClass().getName()).newInstance();
+    }
+
+    private static boolean isNeedFixThisAssetManager = false;
+
+    public static void createAssetManagerEnter(ResourcesManager assetManager, ResourcesKey resourcesKey) {
+        LogUtils.d(TAG, "createAssetManagerEnter");
+        String resDir = resourcesKey.mResDir;
+        isNeedFixThisAssetManager = isNeedFixThisAssetManager(resourcesKey);
+        LogUtils.i(TAG, "createAssetManager resDir: " + resDir + ", isNeedFixThisAssetManager " + isNeedFixThisAssetManager);
+    }
+
+    public static AssetManager createAssetManagerExit(AssetManager assetManager) {
+        LogUtils.d(TAG, "createAssetManagerExit");
+        if (isNeedFixThisAssetManager) {
+            tryFixOutSideApk(assetManager);
+        }
+        return assetManager;
+    }
+
+    private static boolean isNeedFixThisAssetManagerNew = false;
+
+    public static void createAssetManagerNewEnter(ResourcesManager assetManager, ResourcesKey resourcesKey, ResourcesManager.ApkAssetsSupplier apkAssetsSupplier) {
+        LogUtils.d(TAG, "createAssetManagerNewEnter");
+        String resDir = resourcesKey.mResDir;
+        isNeedFixThisAssetManagerNew = isNeedFixThisAssetManager(resourcesKey);
+        LogUtils.i(TAG, "createAssetManagerNew resDir: " + resDir + ", isNeedFixThisAssetManagerNew " + isNeedFixThisAssetManagerNew);
+    }
+
+    public static AssetManager createAssetManagerNewExit(AssetManager assetManager) {
+        LogUtils.d(TAG, "createAssetManagerNewExit");
+        if (!isNeedFixThisAssetManagerNew) {
+            return assetManager;
+        }
+
+        tryFixOutSideApk(assetManager);
+        return assetManager;
+    }
+
+    /**
+     * Apply changes will inject overlays into AssetManager, no matter whether it's in app or standalone apk.
+     * Resource cannot be found if it created through Context.getPackageManager().getResourcesForApplication
+     *
+     * Solution: Here we detect standalone apk and remove Apply changes overlays from AssetManager.
+     */
+    private static boolean isNeedFixThisAssetManager(ResourcesKey resourcesKey) {
+        String resDir = resourcesKey.mResDir;
+        // it's a standalone resources, should not insert apply changes overlay
+        return resDir != null && !resDir.startsWith("/data/app");
+    }
+
+    private static boolean isApplyChangesOverlay(String path) {
+        return path.contains("/code_cache/.overlay/");
+    }
+
+    private static void tryFixOutSideApk(AssetManager assetManager) {
+        try {
+            Method getApkAssetsMethod = ReflectUtil.findMethod(assetManager, "getApkAssets");
+            ApkAssets[] apkAssets = (ApkAssets[]) getApkAssetsMethod.invoke(assetManager);
+
+            Method setApkAssetsMethod = ReflectUtil.findMethod(assetManager, "setApkAssets", ApkAssets[].class, boolean.class);
+
+            ArrayList<ApkAssets> newApkAssets = new ArrayList<>();
+            //noinspection DataFlowIssue
+            for (ApkAssets apkAsset : apkAssets) {
+                String assetPath = apkAsset.getAssetPath();
+                if (isApplyChangesOverlay(assetPath)) {
+                    LogUtils.i(TAG, "tryFixOutSideApk remove assetPath: " + assetPath);
+                } else {
+                    newApkAssets.add(apkAsset);
+                }
+            }
+
+            setApkAssetsMethod.invoke(assetManager, newApkAssets.toArray(new ApkAssets[0]), false);
+        } catch (Throwable e) {
+            LogUtils.e(TAG, "tryFixOutSideApk failed", e);
+        }
     }
 }

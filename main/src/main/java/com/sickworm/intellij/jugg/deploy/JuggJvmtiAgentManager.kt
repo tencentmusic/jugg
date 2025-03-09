@@ -74,7 +74,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
     }
 
     private fun isAgentBundlePushed(): Boolean {
-        val cmd = "[ -d $agentDirPathOnDevice ] && echo success || echo failed"
+        val cmd = "[ -d $agentDirPathOnDevice ] && [ \$(find $agentDirPathOnDevice -maxdepth 1 -type f -printf '.' | wc -c) -eq 4 ] && echo success || echo failed"
         return execAdbShellCmd(cmd)
     }
 
