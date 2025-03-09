@@ -1,3 +1,9 @@
+- version: 2.2.0-rc10
+  date: 2025.03.09
+  updates:
+    - 修复用 PackageManager.getResourcesForApplication 加载独立 APK 的资源时，找不到资源（给 Apply Changes 擦屁股 +1）
+    - 修复 Android 8.0 启动空指针
+
 - version: 2.2.0-rc9
   date: 2025.03.08
   updates:

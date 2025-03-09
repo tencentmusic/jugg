@@ -1,3 +1,9 @@
+- version: 2.2.0-rc10
+  date: 2025.03.09
+  updates:
+    - fix cannot found resource when loading standalone apk by PackageManager.getResourcesForApplication
+    - fix NullPointException on Android 8.0 when deployment
+
 - version: 2.2.0-rc9
   date: 2025.03.08
   updates:
