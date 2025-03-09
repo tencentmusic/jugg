@@ -292,6 +292,9 @@ class JuggDeployerHelper(
                 // get deploy data again after resigning apk (trigger full res deploy)
                 if (isRecoverWithReinstall) {
                     deployData = deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk(device, deployData))
+                    if (CompatDeployHelper(logger).isHasRelaunchActivityIssues(IdeaDeviceAdb(device, logger))) {
+                        deployData = deployData.copy(isHasRelaunchActivityIssues = true)
+                    }
                 }
 
                 val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||
