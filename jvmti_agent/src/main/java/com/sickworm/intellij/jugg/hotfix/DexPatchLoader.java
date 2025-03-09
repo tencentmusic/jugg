@@ -67,7 +67,16 @@ class DexPatchLoader {
                 final Class<?> baseDexClassLoaderClass = Class.forName("dalvik.system.BaseDexClassLoader");
                 final Object pathList = ReflectUtil.getField(baseDexClassLoaderClass, "pathList", classLoader);
                 final Object baseElements = ReflectUtil.getField(pathList.getClass(), "dexElements", pathList);
-                final DexClassLoader dexClassLoader = new DexClassLoader(file.getAbsolutePath(), null, nativeLibraryPath, classLoader);
+
+                DexClassLoader dexClassLoader;
+                try {
+                    dexClassLoader = new DexClassLoader(file.getAbsolutePath(), null, nativeLibraryPath, classLoader);
+                } catch (NullPointerException e) {
+                    // compat for 8.0
+                    File optimizedDirectory = new File(HotfixLoader.codeCacheDir, "opt/" + file.getName());
+                    recreateDirectory(optimizedDirectory);
+                    dexClassLoader = new DexClassLoader(file.getAbsolutePath(), optimizedDirectory.getAbsolutePath(), nativeLibraryPath, classLoader);
+                }
 
                 Object obj = ReflectUtil.getField(baseDexClassLoaderClass, "pathList", dexClassLoader);
                 Object dexElements = ReflectUtil.getField(obj.getClass(), "dexElements", obj);
@@ -79,5 +88,32 @@ class DexPatchLoader {
             throw new RuntimeException(TAG + " : Error while install incremental dex files：", ex);
         }
         LogUtils.i(TAG, "installDexInternal: end inject all incremental dex to classloader.");
+    }
+
+    private static void recreateDirectory(File dir) {
+        if (dir.exists()) {
+            deleteDirectory(dir);
+        }
+        if (!dir.mkdirs()) {
+            throw new RuntimeException("create dir failed: " + dir.getAbsolutePath());
+        }
+    }
+
+    private static void deleteDirectory(File rootFile) {
+        if (rootFile.isDirectory()) {
+            File[] files = rootFile.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    deleteDirectory(file);
+                }
+            }
+            if (!rootFile.delete()) {
+                throw new RuntimeException("delete dir failed: " + rootFile.getAbsolutePath());
+            }
+        } else {
+            if (!rootFile.delete()) {
+                throw new RuntimeException("delete file failed: " + rootFile.getAbsolutePath());
+            }
+        }
     }
 }

@@ -38,7 +38,7 @@ public class HotfixLoader {
         return isEnableHotfix;
     }
 
-    public static void install(final Context base) {
+    public synchronized static void install(final Context base) {
         LogUtils.i(TAG, "installDexPatches start...");
         if (DexPathListFixer.isNoNeedFixFlagExists(base) || DexPathListFixer.isNeedFixFlagExists(base)) {
             LogUtils.i(TAG, "installDexPatches already load by JVMTI agent, skip.");
@@ -51,7 +51,7 @@ public class HotfixLoader {
         LogUtils.i(TAG, "installResources finish.");
     }
 
-    public static void installDex(final Context base) {
+    public synchronized static void installDex(final Context base) {
         new DexPatchLoader(base).install();
     }
 }

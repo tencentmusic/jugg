@@ -91,7 +91,7 @@ interface IAsDeployerCompat {
     companion object {
         const val ANDROID_11_API = 30
         @Suppress("MemberVisibilityCanBePrivate")
-        const val ANDROID_8_API = 27
+        const val ANDROID_8_API = 26
         var MIN_DEVICE_API = ANDROID_11_API // Android 8
             private set
 
