@@ -591,7 +591,10 @@ class JuggCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), compileStatusHolder, compiledFilesThisTime = compiledFilesThisTime, isRetry = isRetry)
+                return doIncrementalCompile(compiler, nextCompileFiles.distinct(), compileStatusHolder,
+                    compiledFilesThisTime = undeployedFiles + compiledFilesThisTime,
+                    isRetry = isRetry,
+                )
             }
         }
 
