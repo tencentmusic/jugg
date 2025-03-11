@@ -398,6 +398,13 @@ class BaseCompileContext(
     private fun getSuggestedPlatformApi(modules: Map<String, ModuleInfo>): String {
         val versionsInGradle = modules.values.map { it.name to it.compileVersion }
         var version = getLatestVersion(versionsInGradle.map { it.second?.substringAfter("android-") } )
+        if (version != null && version.isLargerThan("34")) {
+            // aapt2 not supports android-35.jar for now.
+            // error: 'match_parent' is incompatible with attribute layout_height (attr) dimension|enum
+            // Need some time to fix it.
+            version = "34"
+        }
+
         val rootDir = File(androidHome, "platforms")
         logger.debug("getSuggestedPlatformApi version: $version, versions in gradle: $versionsInGradle")
 
@@ -413,6 +420,11 @@ class BaseCompileContext(
         if (version == null) {
             val versionsInSdk = rootDir.listFiles()?.mapNotNull {
                 if (!it.name.startsWith("android-")) return@mapNotNull null
+                // aapt2 not supports android-35.jar for now.
+                // error: 'match_parent' is incompatible with attribute layout_height (attr) dimension|enum
+                // Need some time to fix it.
+                if (it.name.substring("android-".length).isLargerThan("34")) return@mapNotNull null
+
                 it.name.substring("android-".length)
             }
             version = getLatestVersion(versionsInSdk)
