@@ -95,7 +95,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
     @Synchronized
     fun downloadHotUpdate(hotUpdateData: HotUpdateData) {
         // 1. compare with current hot update data
-        logEvent("downloadHotUpdate start")
+        logEvent("downloadHotUpdate start, target dir: ${JuggHotUpdateManager.storageDir}")
         var currentHotUpdateData: HotUpdateData? = null
         if (hotUpdateDataFile.exists()) {
             try {
