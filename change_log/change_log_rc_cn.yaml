@@ -1,3 +1,8 @@
+- version: 2.2.0-rc12
+  date: 2025.03.12
+  updates:
+    - 支持 Android Studio Meerkat
+
 - version: 2.2.0-rc10
   date: 2025.03.09
   updates:
