@@ -71,6 +71,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
+            IdeVersion("Android Studio Meerkat", "IA", "243.22562.218"),
+            lazy { MeerkatAsDeployerCompat() }
+        ),
+        CompatImpl(
             IdeVersion("Android Studio Iguana", "IA", "232.10227.8"),
             lazy { IguanaAsDeployerCompat() },
         ),
