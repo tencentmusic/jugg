@@ -1,3 +1,8 @@
+- version: 2.2.0-rc13
+  date: 2025.03.12
+  updates:
+    - make dependency missing fix more reliable
+
 - version: 2.2.0-rc12
   date: 2025.03.12
   updates:

@@ -597,7 +597,6 @@ private fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File
 }
 
 private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean {
-    val checkSet = mutableSetOf<String>()
     val isMissingMainJarMap = mutableMapOf<String, Boolean>()
     var isMissing = false
     val transformsPath = ".gradle${File.separator}caches${File.separator}transforms"
@@ -605,10 +604,6 @@ private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean 
     val jarsInAarPath = "${File.separator}jars${File.separator}"
     modules.values.forEach modules@{ module ->
         module.libraryDependencies.forEach {
-            if (it.file.path in checkSet) {
-                return@forEach
-            }
-            checkSet.add(it.file.path)
             if (!it.file.exists()) {
                 isMissing = true
                 logger.debug("Missing library dependency $it, path: ${it.file.path}")
