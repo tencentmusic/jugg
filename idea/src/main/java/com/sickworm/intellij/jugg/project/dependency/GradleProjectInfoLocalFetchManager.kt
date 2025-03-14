@@ -74,10 +74,11 @@ class GradleProjectInfoLocalFetchManager(
                 logger.debug("gradle project info already update after last build file modified, ignore")
                 return
             }
-            if (ideProjectInfoFileLastModifiedTime > lastBuildModifiedTime) {
-                logger.debug("ide project info already update after last build file modified, ignore")
-                return
-            }
+            // still need updates, because gradle project has unique infos we need
+//            if (ideProjectInfoFileLastModifiedTime > lastBuildModifiedTime) {
+//                logger.debug("ide project info already update after last build file modified, ignore")
+//                return
+//            }
         }
         this.isNeedUpdate = isNeedUpdate
     }
