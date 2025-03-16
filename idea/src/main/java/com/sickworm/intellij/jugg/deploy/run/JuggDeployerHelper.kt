@@ -20,6 +20,7 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
@@ -117,7 +118,18 @@ class JuggDeployerHelper(
         }
         launchResult.pushingAgentCostTime = TimeLogger.end("push_agent", logger)
 
-        if (data.isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
+        var isNeedRestartApp = data.isNeedRestartApp
+        if (isNeedPushAgentAfterDeploy && !isNeedRestartApp) {
+            val adb = IdeaDeviceAdb(device, logger)
+            if (PlatformApi.isHasRelaunchActivityIssues(adb, logger)) {
+                // fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat
+                // restart app to let fix works
+                logger.info("Fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat at first time, Restart app.")
+                isNeedRestartApp = true
+            }
+        }
+
+        if (isNeedRestartApp || androidDeployType == AndroidDeployType.INSTALL) {
             logger.debug("Restarting app...")
             deployTargetManager.restartApp(device)
         } else if (!deployTargetManager.isAppForeground(device)) {
@@ -128,7 +140,8 @@ class JuggDeployerHelper(
         }
 
         TimeLogger.start("check_jvmti")
-        if (isNeedPushAgentAfterDeploy && data.isNeedRestartApp) {
+
+        if (isNeedPushAgentAfterDeploy && isNeedRestartApp) {
             // check JVMTI compatibility issue
             // waiting app foreground (which means JVMTI agent boot finished)
             val adb = IdeaDeviceAdb(device, logger)
@@ -249,9 +262,6 @@ class JuggDeployerHelper(
                 }
 
                 deployData = retryDeployData ?: deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk(device, deployData))
-                if (CompatDeployHelper(logger).isHasRelaunchActivityIssues(IdeaDeviceAdb(device, logger))) {
-                    deployData = deployData.copy(isHasRelaunchActivityIssues = true)
-                }
 
                 var isNeedReinstallApk = false
                 val isRetry = retryReason != null // retry means we have already resigned the apk
@@ -292,9 +302,6 @@ class JuggDeployerHelper(
                 // get deploy data again after resigning apk (trigger full res deploy)
                 if (isRecoverWithReinstall) {
                     deployData = deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk(device, deployData))
-                    if (CompatDeployHelper(logger).isHasRelaunchActivityIssues(IdeaDeviceAdb(device, logger))) {
-                        deployData = deployData.copy(isHasRelaunchActivityIssues = true)
-                    }
                 }
 
                 val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||

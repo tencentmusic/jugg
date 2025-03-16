@@ -205,6 +205,20 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
         "(Landroid/content/res/ResourcesKey;Landroid/app/ResourcesManager$ApkAssetsSupplier;)Landroid/content/res/AssetManager;", // used in Android 14 at least
         "createAssetManagerNewEnter", "createAssetManagerNewExit");
 
+    const MethodHooks sendMessage(
+        "sendMessage",
+        "(ILjava/lang/Object;IIZ)V",
+        "sendMessageEnter", "sendMessageExit");
+
+    const MethodHooks handleApplicationInfoChanged(
+        "handleApplicationInfoChanged",
+        "(Landroid/content/pm/ApplicationInfo;)V",
+        MethodHooks::kNoHook, "handleApplicationInfoChangedExit");
+
+    const HookTransform activityThread(
+        "android/app/ActivityThread",
+        { sendMessage, handleApplicationInfoChanged }
+    );
 
     bool success = true;
   success &=
@@ -214,7 +228,7 @@ bool Instrument(jvmtiEnv* jvmti, JNIEnv* jni, const std::string& jar,
 
   // Only bother to use transform caching with IWI, since the package manager
   // will wipe the cache on a normal installation.
-  success &= ApplyTransforms(jvmti, jni, kNoCache, { &application, &appComponentFactory, &resManager });
+  success &= ApplyTransforms(jvmti, jni, kNoCache, { &application, &appComponentFactory, &resManager, &activityThread });
 
   if (success) {
     // method may not exists

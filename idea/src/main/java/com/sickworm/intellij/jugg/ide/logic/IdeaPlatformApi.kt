@@ -7,7 +7,9 @@ import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IFileMatcher
@@ -135,4 +137,15 @@ class IdeaPlatformApi : IPlatformApi {
         return AsDeployerCompat.ideVersion.toString()
     }
 
+    override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean {
+        // Android 15 has problem with relaunch activity
+        val isAndroid15 = device.api >= 35
+        val meerkatVersion = IdeVersion("Android Studio Meerkat", "IA", "243.22562.218")
+        val isBelowAndroidStudioMeerkat = AsDeployerCompat.ideVersion < meerkatVersion
+        val isHasRelaunchActivityIssues = isAndroid15 && isBelowAndroidStudioMeerkat
+        logger.debug("isHasRelaunchActivityIssues $isHasRelaunchActivityIssues, " +
+                "isAndroid15: $isAndroid15, " +
+                "isBelowAndroidStudioMeerkat: $isBelowAndroidStudioMeerkat")
+        return isAndroid15
+    }
 }

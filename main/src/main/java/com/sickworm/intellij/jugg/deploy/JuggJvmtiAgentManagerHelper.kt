@@ -63,6 +63,19 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         TimeLogger.end("pushAgentToApps", logger)
     }
 
+    fun attachAgentToApps(adb: IDeviceAdb, data: JuggDeployData) {
+        val isEnable = JuggSettings.finalIsEnableCompatibleDeploymentMode
+        if (!isEnable) {
+            logger.debug("Skip attach agent to apps for not enabled")
+            return
+        }
+        TimeLogger.start("attachAgentToApps")
+        data.apks.forEach {
+            JuggJvmtiAgentManager(adb, logger).attachAgentToApp(it.applicationId)
+        }
+        TimeLogger.end("attachAgentToApps", logger)
+    }
+
     fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData, maxWaitTimeSecond: Long = 5): Boolean {
         if (CompatDeployHelper(logger).isEnableCompatDeploy(adb, data)) {
             // already in compatible mode, no need check

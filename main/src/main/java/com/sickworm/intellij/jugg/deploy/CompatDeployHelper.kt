@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.platform.IPlatformApi
 import java.lang.reflect.Type
 
 class CompatDeployHelper(
@@ -104,12 +105,6 @@ class CompatDeployHelper(
         logger.debug("after clear record: $newRecords")
     }
 
-    fun isHasRelaunchActivityIssues(device: IDeviceAdb): Boolean {
-        // Android 15 has problem with relaunch activity
-        val isAndroid15 = device.api >= 35
-        logger.debug("isHasRelaunchActivityIssues, isAndroid15: $isAndroid15")
-        return isAndroid15
-    }
 }
 
 data class CompatDeployRecord(

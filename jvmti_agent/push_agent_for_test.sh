@@ -1,7 +1,5 @@
 #!/bin/bash
 
-cd "$(dirname "$0")"
-
 # check arguments
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <package-name>"
@@ -9,13 +7,22 @@ if [ $# -eq 0 ]; then
 fi
 PACKAGE_NAME=$1
 
+# build agent first
+cd "$(dirname "$0")/../"
+./gradlew :jvmti_agent:buildAgentBundle
+if [ $? -ne 0 ]; then
+    echo "Error: Build agent failed"
+    exit 2
+fi
+
 # get agent version
+cd "$(dirname "$0")"
 DEPLOY_DIR="build/outputs/bundle/deploy"
 VERSION_FILE=$(ls "$DEPLOY_DIR" | grep -E 'jugg-agent-bundle-(.*).zip' | head -1)
 
 if [ -z "$VERSION_FILE" ]; then
     echo "Error: No version file found in $DEPLOY_DIR"
-    exit 2
+    exit 3
 fi
 
 VERSION=$(echo "$VERSION_FILE" | sed -E 's/jugg-agent-bundle-(.*).zip/\1/')

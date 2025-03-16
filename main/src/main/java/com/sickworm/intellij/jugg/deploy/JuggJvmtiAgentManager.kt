@@ -18,6 +18,9 @@ interface IJuggJvmtiAgentManager {
     fun pushAgentToApp(packageName: String): Boolean
 
     fun removeAllAgents(): Boolean
+
+    fun attachAgentToApp(packageName: String): Boolean
+
 }
 
 class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJuggJvmtiAgentManager {
@@ -73,6 +76,13 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         return execAdbShellCmd(cmd)
     }
 
+    override fun attachAgentToApp(packageName: String): Boolean {
+        val agentSuffix = if (is32AgentPushed(packageName)) "_alt.so" else ".so"
+        val appDir = "/data/data/$packageName"
+        val cmd = "am attach-agent $packageName $appDir/${agentSoDestPathStartsWith}${agentSuffix}=$appDir"
+        return execAdbShellCmd(cmd)
+    }
+
     private fun isAgentBundlePushed(): Boolean {
         val cmd = "[ -d $agentDirPathOnDevice ] && [ \$(find $agentDirPathOnDevice -maxdepth 1 -type f -printf '.' | wc -c) -eq 4 ] && echo success || echo failed"
         return execAdbShellCmd(cmd)
@@ -80,6 +90,11 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
 
     private fun isAgentPushed(packageName: String): Boolean {
         val cmd = "run-as $packageName ls $agentSoDestPathStartsWith && echo success || echo failed"
+        return execAdbShellCmd(cmd)
+    }
+
+    private fun is32AgentPushed(packageName: String): Boolean {
+        val cmd = "run-as $packageName ls ${agentSoDestPathStartsWith}_alt.so && echo success || echo failed"
         return execAdbShellCmd(cmd)
     }
 

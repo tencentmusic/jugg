@@ -1,9 +1,7 @@
 package com.sickworm.intellij.jugg.instrument;
 
 import android.annotation.SuppressLint;
-import android.app.Application;
-import android.app.Instrumentation;
-import android.app.ResourcesManager;
+import android.app.*;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.ApkAssets;
@@ -125,7 +123,7 @@ public class InstrumentationHooks {
     /**
      * Apply changes will inject overlays into AssetManager, no matter whether it's in app or standalone apk.
      * Resource cannot be found if it created through Context.getPackageManager().getResourcesForApplication
-     *
+     * <p>
      * Solution: Here we detect standalone apk and remove Apply changes overlays from AssetManager.
      */
     private static boolean isNeedFixThisAssetManager(ResourcesKey resourcesKey) {
@@ -160,5 +158,20 @@ public class InstrumentationHooks {
         } catch (Throwable e) {
             LogUtils.e(TAG, "tryFixOutSideApk failed", e);
         }
+    }
+
+    public static void sendMessageEnter(ActivityThread activityThread, int what, Object obj, int arg1, int arg2, boolean async) {
+        LogUtils.d(TAG, "sendMessageEnter what: " + what);
+        Android15ApplyChangesFixer.sendMessageEnter(activityThread, what, obj, arg1, arg2, async);
+    }
+
+    public static void sendMessageExit() {
+        LogUtils.d(TAG, "sendMessageExit");
+        Android15ApplyChangesFixer.sendMessageExit();
+    }
+
+    public static void handleApplicationInfoChangedExit() {
+        LogUtils.d(TAG, "handleApplicationInfoChangedExit");
+        Android15ApplyChangesFixer.restartActivityIfNeeded();
     }
 }
