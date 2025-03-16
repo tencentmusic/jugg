@@ -76,7 +76,7 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         TimeLogger.end("attachAgentToApps", logger)
     }
 
-    fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData, maxWaitTimeSecond: Long = 5): Boolean {
+    fun isHasJvmtiCompatIssue(adb: IDeviceAdb, data: JuggDeployData, maxWaitTimeSecond: Long = 3): Boolean {
         if (CompatDeployHelper(logger).isEnableCompatDeploy(adb, data)) {
             // already in compatible mode, no need check
             logger.debug("device isEnableCompatDeploy, no need check")
@@ -89,11 +89,17 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
         }
 
         TimeLogger.start("isHasJvmtiCompatIssue")
-        var waitedTimeSecond = 0
-        val waitGapMillSecond = 1
+        var waitedTimeMillSecond = 0L
+        val waitGapMillSecond = 100L
         var isHasJvmtiCompatIssue = false
-        while (waitedTimeSecond < maxWaitTimeSecond) {
-            logger.info("(${waitedTimeSecond + 1}/$maxWaitTimeSecond) detecting JVMTI status...")
+        while (waitedTimeMillSecond < maxWaitTimeSecond * 1000L) {
+            if (waitedTimeMillSecond % 1000L == 0L) {
+                val waitedTimeSecond = waitedTimeMillSecond / 1000
+                logger.info("(${waitedTimeSecond + 1}/$maxWaitTimeSecond) detecting JVMTI status...")
+            }
+            Thread.sleep(waitGapMillSecond)
+            waitedTimeMillSecond += waitGapMillSecond
+
             val isJvmtiAvailableResults = data.apks.map {
                 val result = isJvmtiAvailable(adb, it.applicationId)
                 logger.debug("isJvmtiAvailable=$result for ${it.applicationId}")
@@ -110,8 +116,6 @@ class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
                 break
             }
 
-            Thread.sleep(waitGapMillSecond * 1000L)
-            waitedTimeSecond++
         }
         logger.debug("Detect finished, isHasJvmtiCompatIssue=$isHasJvmtiCompatIssue")
         TimeLogger.end("isHasJvmtiCompatIssue", logger)
