@@ -1,3 +1,8 @@
+- version: 2.2.0-rc15
+  date: 2025.03.17
+  updates:
+    - fix Android 15 cannot use hot reload under Android Studio Meerkat
+
 - version: 2.2.0-rc14
   date: 2025.03.14
   updates:

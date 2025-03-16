@@ -1,3 +1,8 @@
+- version: 2.2.0-rc15
+  date: 2025.03.17
+  updates:
+    - 修复 Android 15 在 Android Studio Meerkat 以下版本无法使用热重载
+
 - version: 2.2.0-rc14
   date: 2025.03.14
   updates:
