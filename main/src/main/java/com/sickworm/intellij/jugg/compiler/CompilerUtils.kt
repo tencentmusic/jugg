@@ -72,7 +72,6 @@ fun copyResource(resourcePath: String): File {
         return storePath
     }
     storePath.parentFile.mkdirs()
-    storePath.parentFile.clearDir()
     JuggCompiler::class.java.getResource(resourcePath)!!.openStream().use { ins ->
         storePath.outputStream().use { ous ->
             ins.copyTo(ous)
