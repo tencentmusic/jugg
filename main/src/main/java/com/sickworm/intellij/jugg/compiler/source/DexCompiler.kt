@@ -150,15 +150,21 @@ class DexCompiler(
 
         dexFileMaker.dex(tempOutput, files.map { it.file }, listOf(classpathDir.absolutePath),
             context.androidJar, minApi, isFilePerClass)
-        val dexFiles: List<File> = if (isFilePerClass) {
-            tempOutput.listFilesRecursively()
+        val dexFiles: List<File>
+        if (isFilePerClass) {
+            dexFiles = tempOutput.listFilesRecursively()
         } else {
             val dexFile = File(tempOutput, "classes.dex")
-            val renameDexFile = File(tempOutput, outputDexName)
-            if (!dexFile.renameTo(renameDexFile)) {
-                throw IllegalStateException("rename dex file failed: ${dexFile.absolutePath} -> ${renameDexFile.absolutePath}")
+            if (!dexFile.exists()) {
+                // no exception, and no classes.dex, which means jar has no classes inside. e.g. kotlin-stdlib-common-1.3.71.jar
+                dexFiles = emptyList()
+            } else {
+                val renameDexFile = File(tempOutput, outputDexName)
+                if (!dexFile.renameTo(renameDexFile)) {
+                    throw IllegalStateException("rename dex file failed: ${dexFile.absolutePath} -> ${renameDexFile.absolutePath}")
+                }
+                dexFiles = listOf(renameDexFile)
             }
-            listOf(renameDexFile)
         }
 
         val details: List<Result<CompileFile, CompileError>> = inputFiles.map {
