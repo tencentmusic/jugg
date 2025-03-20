@@ -142,7 +142,7 @@ class CmdExecutor(
                 return
             }
         }
-        if (debugLogFilter != null && debugLogFilter.invoke(line)) {
+        if (debugLogFilter == null || debugLogFilter.invoke(line)) {
             logger.debug(line)
         }
         terminalOutputListener.onOutput(line)
