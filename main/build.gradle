@@ -73,6 +73,12 @@ dependencies {
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'
 
+    // databinding, using kotlin 1.9.20
+    //noinspection AnnotationProcessorOnCompilePath
+    implementation 'androidx.databinding:databinding-compiler:8.7.3'
+    implementation 'androidx.databinding:databinding-compiler-common:8.7.3'
+
+
     // backend
     implementation "com.squareup.okhttp3:okhttp:4.9.1"
 
