@@ -270,12 +270,12 @@ data class LibraryDependency(
 
     override fun toString(): String {
         if (isJar) {
-            return if (file.parentFile.name == "jars") {
-                // e.g. classes.jar in aar
-                "$name/${file.name})"
+            return if (file.parentFile.name == "jars" || !file.path.contains("caches${File.separator}transforms-")) {
+                // e.g. classes.jar in aar, or jar not in aar
+                "$name(${file.name})"
             } else {
                 // e.g. libs/micro_annotation.jar in aar
-                "$name/${file.parentFile.name}/${file.name})"
+                "$name(${file.parentFile.name}/${file.name})"
             }
         }
         return "$name/$type"
