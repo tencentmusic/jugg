@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -152,7 +153,21 @@ class JuggServer(
                 logcatFile.writeText(logcatErrorLog)
                 logger.debug("dump logcatErrorLogs finished")
 
-                zipTo(destFile, logFiles + logcatFile)
+                val files = mutableListOf<File>()
+                files.addAll(logFiles)
+                files.add(logcatFile)
+
+                if (pathManager.projectInfosDir.exists()) {
+                    files.add(pathManager.projectInfosDir)
+                }
+                if (pathManager.remoteDiffDir.exists()) {
+                    files.add(pathManager.remoteDiffDir)
+                }
+                if (pathManager.tmpGradleProjectInfo.exists()) {
+                    files.add(pathManager.tmpGradleProjectInfo)
+                }
+
+                zipTo(destFile, files)
                 val uploadResult = uploadFile(destFile)
                 if (!uploadResult.isSuccess) {
                     logger.warn("reportAndUploadLogs failed: ${uploadResult.errorMessage}")
@@ -196,8 +211,8 @@ class JuggServer(
                     }
 
                     if (sourceFile.isDirectory) {
-                        sourceFile.listFiles()?.forEach {
-                            val path = it.relativeTo(sourceFile).path
+                        sourceFile.listFilesRecursively().forEach {
+                            val path = it.relativeTo(sourceFile.parentFile).path
                             writeZip(it, path)
                         }
                     } else if (sourceFile.isFile) {
