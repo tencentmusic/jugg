@@ -111,7 +111,9 @@ class GradleProjectInfoLocalFetchManager(
 
             val daemonArg = if (isKeepDaemon) "" else "--no-daemon"
             val localFetchCommand = CompileProjectCommand(
-                "./gradlew --dry-run --console=plain $daemonArg -I ${pathManager.initGradleFilePath.absolutePath}",
+                // cannot use --dry-run only on Gradle 8.x, it cannot get kotlin task
+                // assembleDebug is ok to use as default command, it won't cost much more than :app:assembleDevelopmentFreeDebug
+                "./gradlew assembleDebug --dry-run --console=plain $daemonArg -I ${pathManager.initGradleFilePath.absolutePath}",
                 pathManager.projectDir.path,
                 pathManager.initGradleFileRelativePath
             )
