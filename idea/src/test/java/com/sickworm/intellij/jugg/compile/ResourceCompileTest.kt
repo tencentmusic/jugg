@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compile
 
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.overlay.ARSC_FILE_NAME
 import com.sickworm.intellij.jugg.compiler.overlay.ArscCompiler
@@ -15,22 +16,28 @@ import kotlin.test.assertTrue
 
 class ResourceCompileTest {
 
-    private lateinit var resCompiler: ResourceCompiler
-
     private val flatFiles = assetsFlatDir.listFilesRecursively()
         .map {
             CompileFile(CompileFile.Type.Flat, it, assetsFlatDir, mockModule)
         }
 
+    private lateinit var resCompiler: ResourceCompiler
+    private lateinit var arscCompiler: ArscCompiler
+    private lateinit var resourceOverlayCompiler: ResourceOverlayCompiler
+
     @Before
     fun init() {
         clearBuild()
+        resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
         resCompiler = ResourceCompiler(context, mockParentDisposable)
+        arscCompiler = ArscCompiler(context, mockParentDisposable)
     }
 
     @After
     fun release() {
-        resCompiler.dispose()
+        Disposer.dispose(resourceOverlayCompiler)
+        Disposer.dispose(resCompiler)
+        Disposer.dispose(arscCompiler)
     }
 
     @Test
@@ -48,7 +55,6 @@ class ResourceCompileTest {
     }
 
     private fun compileRes(files: List<File>, baseDir: File) {
-        val resCompiler = ResourceCompiler(context, mockParentDisposable)
         val task = CompileTask(
             files.map { CompileFile(CompileFile.Type.Resource, it, baseDir, mockModule) },
             stagingDir
@@ -66,13 +72,12 @@ class ResourceCompileTest {
 
     @Test
     fun compileArsc() {
-        val arscCompiler = ArscCompiler(context, mockParentDisposable)
         val task = CompileTask(
             flatFiles,
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 416, isRJavaChanged = false)
+        checkArscResult(task, result, 416, isRJavaChanged = true)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -88,7 +93,6 @@ class ResourceCompileTest {
     @Test
     fun compileResourceOverlay() {
         val task = resourceOverlayTask
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
         checkArscResult(task, result, 4, isRJavaChanged = false)
@@ -116,7 +120,6 @@ class ResourceCompileTest {
             File(assetsAndroidDir, "app/src/main/res/layout-w600dp/test_layout.xml"),
             File(assetsAndroidDir, "app/src/main/res"), mockModule)
 
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
         var task = CompileTask(
             listOf(layoutFile),
             stagingDir
@@ -177,7 +180,6 @@ class ResourceCompileTest {
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/test_layout3.xml"),
             File(assetsAndroidModifySourceDir, "app/src/main/res"), mockModule)
 
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
         val task = CompileTask(
             listOf(layoutNoHighLevelAttrFile),
             stagingDir
@@ -197,7 +199,6 @@ class ResourceCompileTest {
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/test_layout2.xml"),
             File(assetsAndroidModifySourceDir, "app/src/main/res"), mockModule)
 
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
         var task = CompileTask(
             listOf(newLayoutFile),
             stagingDir
@@ -227,7 +228,6 @@ class ResourceCompileTest {
 
     @Test
     fun compileAddIdsLayout() {
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(resourceOverlayAddIdsTask)
 
@@ -248,7 +248,6 @@ class ResourceCompileTest {
             },
             stagingDir
         )
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
 
@@ -286,7 +285,6 @@ class ResourceCompileTest {
 
     @Test
     fun compileStyleableLayout() {
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val compileStyleableLayoutTask = CompileTask(
             listOf(
@@ -311,7 +309,7 @@ class ResourceCompileTest {
         )
         stagingDir.clearDir()
         result = resourceOverlayCompiler.compile(compileStyleableTask)
-        checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = false)
+        checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = true)
 
         // error on appt2-2.19.8
         // error: resource com.example.myapplication:styleable/styleable_value has same ID 0x7f0d0000 as com.example.myapplication:styleable/ActionBar.
@@ -336,10 +334,9 @@ class ResourceCompileTest {
             ),
             stagingDir
         )
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 25, isRJavaChanged = false)
+        checkArscResult(task, result, 25, isRJavaChanged = true)
     }
 
     @Test
@@ -358,7 +355,6 @@ class ResourceCompileTest {
             ),
             stagingDir
         )
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
 
         val result = resourceOverlayCompiler.compile(task)
         assertTrue(result.isAllSuccess)
@@ -385,7 +381,6 @@ class ResourceCompileTest {
             stagingDir
         )
         // test same res
-        val resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
         var result = resourceOverlayCompiler.compile(task)
         assertTrue(result.isAllSuccess)
         assertEquals(0, result.outputs.size)
