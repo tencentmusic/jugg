@@ -1,3 +1,11 @@
+- version: 2.2.0-rc17
+  date: 2025.03.22
+  updates:
+    - fix no changes found in library incremental compilation when updates jar on Windows
+    - fix library incremental compilation failed when detects kotlin changed sometimes
+    - fix cannot use project Kotlin compiler for Gradle 8.0 (fallback to built-in, no effect)
+    - fix android.enableJetifier=false cannot read Gradle dependency jar path (fallback mechanism, no effect)
+
 - version: 2.2.0-rc15
   date: 2025.03.17
   updates:

@@ -1,3 +1,11 @@
+- version: 2.2.0-rc17
+  date: 2025.03.22
+  updates:
+    - 修复 Windows 更新 jar 并执行依赖库增量编译时，找不到依赖变化
+    - 修复偶现依赖库增量编译失败
+    - 修复 Gradle 8.0 无法使用工程 Kotlin 编译器（兜底内置，不影响使用）
+    - 修复 android.enableJetifier=false 时无法读取 Gradle 依赖 jar 文件路径（兜底机制，不影响使用）
+
 - version: 2.2.0-rc15
   date: 2025.03.17
   updates:
