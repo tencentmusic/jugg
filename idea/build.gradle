@@ -28,8 +28,11 @@ Compile-Date: $compileDate
 Compile-Timestamp: $compileTime
 """)
 
-// clean distribution
-new File("$rootDir/idea/build/distributions").deleteDir()
+tasks.findByName("buildPlugin").doFirst {
+    // clean older distribution
+    new File("$rootDir/idea/build/distributions").deleteDir()
+    new File("$rootDir/idea/build/distributions").mkdirs()
+}
 
 sourceCompatibility = 11
 targetCompatibility = 11
