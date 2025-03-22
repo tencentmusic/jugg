@@ -99,7 +99,7 @@ class GradleProjectInfoLocalFetchManager(
             return
         }
 
-        taskRunnerManager.runBackgroundSafe("Update project info from gradle", ::update)
+        taskRunnerManager.runTaskSafe("Update project info from gradle", ::update, isBlockIncrementalCompile = false)
     }
 
     @Synchronized
