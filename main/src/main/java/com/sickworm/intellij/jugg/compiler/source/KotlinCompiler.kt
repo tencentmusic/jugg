@@ -184,6 +184,16 @@ class KotlinCompiler(
                 composeArgs.add("-Xallow-unstable-dependencies")
             }
         }
+        if (!kotlinCompile.isUseProjectCompiler) {
+            if (analyzeResult.isNeedCompileCompose) {
+                logger.warn("It seems you're compiling compose, but the feature is not enabled.")
+                if (JuggSettings.isUseProjectKotlinCompiler) {
+                    logger.warn("Please enable \"Enable use project Kotlin compiler\" in Jugg run configurations to avoid runtime crash.")
+                } else {
+                    logger.warn("Please try fallback once, if it's still not working, please report to the admin.")
+                }
+            }
+        }
 
         val javaSourceRoots = (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
             it.exists()
