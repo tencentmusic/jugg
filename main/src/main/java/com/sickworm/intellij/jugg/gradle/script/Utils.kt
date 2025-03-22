@@ -4,7 +4,7 @@ fun printException(e: Throwable) {
     val stackTrace = e.stackTrace
     stackTrace.forEach {
         if (it.fileName?.contains(".gradle.kts") == true) {
-            println(it)
+            println("Jugg: $it")
         }
     }
 }
