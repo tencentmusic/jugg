@@ -65,11 +65,13 @@ class ResourceCompiler(
         val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(task.files, logger)
         val dirResCompileSet = dirToFilesMap.map { (taskFile, files) ->
             val compileFile = task.files.find { it.file == taskFile }!!
-            val outputDirName = "${taskFile.path.md5}_${compileFile.dependencyName}"
+            val outputDirName = taskFile.path.md5
+            val outputSubDir = outputDir.resolve(outputDirName)
+            logger.debug("res dir ${taskFile.path}, output $outputSubDir")
             ResCompileSet(
                 task,
                 mapOf(compileFile to files),
-                outputDir.resolve(outputDirName),
+                outputSubDir,
             )
         }
         val compileFilesSet: List<ResCompileSet> = dirResCompileSet + listOf(singleResCompileSet)
