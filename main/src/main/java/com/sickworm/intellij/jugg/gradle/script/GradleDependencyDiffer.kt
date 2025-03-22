@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.gradle.script
 
-import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.data.*
+import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.project.dependency.LibraryDependencySet
 import com.sickworm.intellij.jugg.project.dependency.UpdatedLibraryDependency
-import com.sickworm.intellij.jugg.project.data.*
 import groovy.json.JsonBuilder
 import org.gradle.api.*
 import java.io.File
@@ -177,6 +177,7 @@ class GradleDependencyDiffer(
     private fun copyLibraryFile(library: LibraryDependency, outputDir: File): LibraryDependency {
         val relativePath = library.file.absolutePath
             .substringAfter(".gradle") // path after .gradle
+            .removeRoot()
             .replace("/.", "/") // remove hide presentation
             .replace("\\.", "\\") // remove hide presentations
         val outputFile = File(outputDir, relativePath)
@@ -192,5 +193,22 @@ class GradleDependencyDiffer(
             }
         }
         return library.copy(file = outputFile.relativeTo(outputDir))
+    }
+
+    private val macRootRegex = Regex("^(/+).*")
+    private val windowRootRegex = Regex("^(\\w+:\\\\+).*")
+
+    private fun String.removeRoot(): String {
+        macRootRegex.find(this)?.groupValues?.let {
+            if (it.size >= 2) {
+                return this.substring(it[1].length)
+            }
+        }
+        windowRootRegex.find(this)?.groupValues?.let {
+            if (it.size >= 2) {
+                return this.substring(it[1].length)
+            }
+        }
+        return this
     }
 }
