@@ -135,7 +135,11 @@ class GradleProjectInfoReader(
                         assetDirs.addAll(it)
                     }
                     (sourceSets.invoke("getManifestFile")?.value as? File)?.let {
-                        manifestFile = it
+                        if (it.exists()) {
+                            // Simply filter non-exist variant manifest.
+                            // It may have multiple manifests, and we just get one for now.
+                            manifestFile = it
+                        }
                     }
                 }
 

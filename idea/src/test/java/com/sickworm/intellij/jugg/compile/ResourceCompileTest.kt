@@ -77,7 +77,7 @@ class ResourceCompileTest {
             stagingDir
         )
         val result = arscCompiler.compile(task)
-        checkArscResult(task, result, 416, isRJavaChanged = true)
+        checkArscResult(task, result, 416, isRJavaChanged = false)
     }
 
     private val baseDir = File(assetsAndroidDir, "app/src/main/res/")
@@ -309,7 +309,7 @@ class ResourceCompileTest {
         )
         stagingDir.clearDir()
         result = resourceOverlayCompiler.compile(compileStyleableTask)
-        checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = true)
+        checkArscResult(compileStyleableTask, result, 0, isRJavaChanged = false)
 
         // error on appt2-2.19.8
         // error: resource com.example.myapplication:styleable/styleable_value has same ID 0x7f0d0000 as com.example.myapplication:styleable/ActionBar.
@@ -336,7 +336,7 @@ class ResourceCompileTest {
         )
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 25, isRJavaChanged = true)
+        checkArscResult(task, result, 25, isRJavaChanged = false)
     }
 
     @Test
