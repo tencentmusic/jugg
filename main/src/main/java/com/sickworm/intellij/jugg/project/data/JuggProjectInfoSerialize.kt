@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.project.data
 
-import com.sickworm.intellij.jugg.project.JuggException
+import java.io.File
 
 /**
  * Compress the [JuggProjectInfo] to a smaller data structure.
@@ -14,7 +14,7 @@ class JuggProjectInfoSerialize(
 
     companion object {
 
-        private const val VERSION = 2
+        private const val VERSION = 3
 
         fun serialize(juggProjectInfo: JuggProjectInfo): JuggProjectInfoSerialize {
             val dependencyList = mutableListOf<LibraryDependency>()
@@ -32,9 +32,21 @@ class JuggProjectInfoSerialize(
                 }
             }
 
+            fun convertFileToIndexList(files: List<File>?): List<Int>? {
+                if (files.isNullOrEmpty()) return null
+                return files.map { file ->
+                    val oldIndex = dependencyIndexMap[file.absolutePath]
+                    if (oldIndex != null) return@map oldIndex
+                    val newIndex = dependencyList.size
+                    dependencyIndexMap[file.absolutePath] = newIndex
+                    dependencyList.add(LibraryDependency("standalone_file_${file.name}", file, 0L, 0L))
+                    return@map newIndex
+                }
+            }
+
             val juggProjectInfoExceptModules = juggProjectInfo.copy(modules = emptyMap())
             val modules: List<ModuleInfoSerialize> = juggProjectInfo.modules.map {
-                return@map ModuleInfoSerialize(
+                val moduleInfoSerialize = ModuleInfoSerialize(
                     it.value.copy(
                         libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
                         annotationProcessorDependencies = emptyList(), kaptDependencies = emptyList(),
@@ -44,12 +56,15 @@ class JuggProjectInfoSerialize(
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
                     annotationProcessorDependencies = convertLibraryToIndexList(it.value.annotationProcessorDependencies),
                     kaptDependencies = convertLibraryToIndexList(it.value.kaptDependencies),
-                    kotlinPlugins = convertLibraryToIndexList(it.value.kotlinPlugins?.map { file ->
-                        LibraryDependency("", file, 0, 0L)
-                    } ?: emptyList()),
-                    kotlinExtensions = convertLibraryToIndexList(it.value.kotlinExtensions?.map { file ->
-                        LibraryDependency("", file, 0, 0L)
-                    } ?: emptyList()),
+                    kotlinPlugins = null,
+                    kotlinExtensions = null,
+                )
+
+                // covert kotlinPlugins and kotlinExtensions at last, because it has no dependency name
+                // and it may make dirty the dependencyIndexMap
+                return@map moduleInfoSerialize.update(
+                    kotlinPlugins = convertFileToIndexList(it.value.kotlinPlugins),
+                    kotlinExtensions = convertFileToIndexList(it.value.kotlinExtensions),
                 )
             }
             return JuggProjectInfoSerialize(juggProjectInfoExceptModules, dependencyList, modules)
@@ -91,4 +106,14 @@ class ModuleInfoSerialize(
     val kaptDependencies: List<Int>?,
     val kotlinPlugins: List<Int>?,
     val kotlinExtensions: List<Int>?,
-)
+) {
+
+    fun update(kotlinPlugins: List<Int>?, kotlinExtensions: List<Int>?): ModuleInfoSerialize {
+        return ModuleInfoSerialize(
+            moduleInfoExceptLibraries,
+            libraryDependencies, runtimeLibraryDependencies,
+            annotationProcessorDependencies, kaptDependencies,
+            kotlinPlugins, kotlinExtensions
+        )
+    }
+}
