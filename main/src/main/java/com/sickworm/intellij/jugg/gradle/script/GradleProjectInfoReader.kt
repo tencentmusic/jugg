@@ -25,8 +25,12 @@ class GradleProjectInfoReader(
 
     private var modulesNames = setOf<String>()
 
+    private val isEnableJetifier: Boolean = rootProject.properties["android.enableJetifier"] == "true"
+
     fun getProjectInfo(): JuggProjectInfo {
         TraceLogger.clear()
+        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, isEnableJetifier: $isEnableJetifier")
+
         // load dependenciesCache
         // we can not use lastProjectInfo for cache because it misses the info of transitive dependencies
         TraceLogger.start("loadDependencyCrcCache")
@@ -437,7 +441,9 @@ class GradleProjectInfoReader(
         val resolvedArtifacts = mutableSetOf<ResolvedArtifactResult>()
         if (isAndroidDepend) {
             // "processed-jar" matched the jar get by IDE
-            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("processed-jar"))
+            // "processed-jar" returns empty list if jetifier not enabled
+            val jarArtifactType = if (isEnableJetifier) "processed-jar" else "jar"
+            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter(jarArtifactType))
             resolvedArtifacts.addAll(jarView.artifacts.artifacts)
             val resView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("android-res"))
             resolvedArtifacts.addAll(resView.artifacts.artifacts)
@@ -445,7 +451,9 @@ class GradleProjectInfoReader(
             resolvedArtifacts.addAll(manifestView.artifacts.artifacts)
         } else {
             // "jar" is not correct when dependency using android-support library, e.g. ARouter
-            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("processed-jar"))
+            // "processed-jar" returns empty list if jetifier not enabled
+            val jarArtifactType = if (isEnableJetifier) "processed-jar" else "jar"
+            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter(jarArtifactType))
             resolvedArtifacts.addAll(jarView.artifacts.artifacts)
         }
 
