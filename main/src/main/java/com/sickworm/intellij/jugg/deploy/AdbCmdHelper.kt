@@ -56,7 +56,7 @@ class AdbCmdHelper(
 
     fun dumpErrorLog(limit: Int = 100000): String {
         logger.debug("dumpErrorLog: $limit")
-        return execAdbShellCmd("logcat -t$limit -s \"jugg-jvmti *:W\"")
+        return execAdbShellCmd("logcat -t$limit -s \"jugg *:W\"")
     }
 
     fun deleteDeployedDexFile(packageName: String, filePath: String) {
