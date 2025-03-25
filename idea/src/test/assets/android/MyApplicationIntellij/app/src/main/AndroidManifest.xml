@@ -28,6 +28,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+            <activity
+            android:name="com.sickworm.jugg.demo.testcase.databinding.DataBindingJavaDemoActivity"
+            android:exported="true"
+        />
+        <activity
+            android:name="com.sickworm.jugg.demo.testcase.databinding.DataBindingKotlinDemoActivity"
+            android:exported="true"
+        />
     </application>
 
 </manifest>
