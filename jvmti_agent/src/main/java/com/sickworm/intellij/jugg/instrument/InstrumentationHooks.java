@@ -87,6 +87,9 @@ public class InstrumentationHooks {
     private static boolean isNeedFixThisAssetManager = false;
 
     public static void createAssetManagerEnter(ResourcesManager assetManager, ResourcesKey resourcesKey) {
+        if (isEnableHotfix()) {
+            return;
+        }
         LogUtils.d(TAG, "createAssetManagerEnter");
         String resDir = resourcesKey.mResDir;
         isNeedFixThisAssetManager = isNeedFixThisAssetManager(resourcesKey);
@@ -94,6 +97,9 @@ public class InstrumentationHooks {
     }
 
     public static AssetManager createAssetManagerExit(AssetManager assetManager) {
+        if (isEnableHotfix()) {
+            return assetManager;
+        }
         LogUtils.d(TAG, "createAssetManagerExit");
         if (isNeedFixThisAssetManager) {
             tryFixOutSideApk(assetManager);
@@ -104,6 +110,9 @@ public class InstrumentationHooks {
     private static boolean isNeedFixThisAssetManagerNew = false;
 
     public static void createAssetManagerNewEnter(ResourcesManager assetManager, ResourcesKey resourcesKey, ResourcesManager.ApkAssetsSupplier apkAssetsSupplier) {
+        if (isEnableHotfix()) {
+            return;
+        }
         LogUtils.d(TAG, "createAssetManagerNewEnter");
         String resDir = resourcesKey.mResDir;
         isNeedFixThisAssetManagerNew = isNeedFixThisAssetManager(resourcesKey);
@@ -161,17 +170,43 @@ public class InstrumentationHooks {
     }
 
     public static void sendMessageEnter(ActivityThread activityThread, int what, Object obj, int arg1, int arg2, boolean async) {
+        if (isEnableHotfix()) {
+            return;
+        }
         LogUtils.d(TAG, "sendMessageEnter what: " + what);
         Android15ApplyChangesFixer.sendMessageEnter(activityThread, what, obj, arg1, arg2, async);
     }
 
     public static void sendMessageExit() {
+        if (isEnableHotfix()) {
+            return;
+        }
         LogUtils.d(TAG, "sendMessageExit");
         Android15ApplyChangesFixer.sendMessageExit();
     }
 
     public static void handleApplicationInfoChangedExit() {
+        if (isEnableHotfix()) {
+            return;
+        }
         LogUtils.d(TAG, "handleApplicationInfoChangedExit");
         Android15ApplyChangesFixer.restartActivityIfNeeded();
+    }
+
+    private static boolean isEnableHotfixCheckFlag = false;
+    private static boolean isEnableHotfixCache = false;
+
+    private synchronized static boolean isEnableHotfix() {
+        if (!isEnableHotfixCheckFlag) {
+            try {
+                isEnableHotfixCache = HotfixLoader.isNeedEnableHotfix();
+                isEnableHotfixCheckFlag = true;
+                LogUtils.i(TAG, "isEnableHotfixCache: " + isEnableHotfixCache);
+            } catch (Exception e) {
+                // not enable yet
+                LogUtils.i(TAG, "isEnableHotfixCache not init yet, ignore");
+            }
+        }
+        return isEnableHotfixCache;
     }
 }
