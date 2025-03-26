@@ -74,7 +74,7 @@ class DeployHistoryManager(
         deployHistoryDb.deleteHistory()
     }
 
-    override fun tryGetContextRecoverInfoFromDb(): DeployContextRecoverInfo? {
+    override fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean): DeployContextRecoverInfo? {
         if (!isRecoverFeatureAvailable) {
             logger.warn("tryGetContextRecoverInfoFromDb failed, recover feature not available")
             return null
@@ -82,7 +82,7 @@ class DeployHistoryManager(
         logger.debug("tryGetContextRecoverInfoFromDb recover feature is available")
 
         val startTime = System.currentTimeMillis()
-        val changedFiles = deployHistoryDb.getChangedFilesSinceLastFullCompiled()?.filter { it.isFile }
+        val changedFiles = deployHistoryDb.getChangedFilesSinceLastFullCompiled(isOnInit)?.filter { it.isFile }
         val changedFilesTime = System.currentTimeMillis()
 
         val compileContextInfo = compileContextDb.getCompileBuildPathInfoFromDb()

@@ -1,3 +1,8 @@
+- version: 2.2.0-rc19
+  date: 2025.03.27
+  updates:
+    - fix can not use incremental compilation after git operation failed
+
 - version: 2.2.0-rc17
   date: 2025.03.22
   updates:

@@ -69,16 +69,22 @@ class DeployHistoryDb(
             overlayIdsFile.writeText(string)
         }
 
-    fun getChangedFilesSinceLastFullCompiled(): List<File>? {
+    fun getChangedFilesSinceLastFullCompiled(isOnInit: Boolean): List<File>? {
+        logger.debug("getChangedFilesSinceLastFullCompiled isOnInit $isOnInit")
         if (!isAvailable) {
             logger.info("Git not init in this project.")
-            deleteHistory()
+            if (isOnInit) {
+                deleteHistory()
+            }
             return null
         }
 
         val deployHistoryData = DeployHistoryData.load(deployHistoryFile)
-        if (deployHistoryData == null) {
-            logger.info("Project has not been deployed yet, need full compile first.")
+        if (deployHistoryData?.fullCompileGitCommitHash == null) {
+            logger.info("Project has not been commit yet, fullCompileGitCommitHash is null, need full compile first.")
+            if (isOnInit) {
+                deleteHistory()
+            }
             return null
         }
         val dirAndCommitMap = mutableMapOf<String, String?>()
@@ -208,40 +214,51 @@ class DeployHistoryDb(
         deleteHistory()
 
         val newDeployHistoryData: DeployHistoryData = if (isAvailable) {
-            val newCommitHash = gitManager.getLastCommitHash()
-            val changedFiles = mutableMapOf<String, Long>()
-
-            // add changed files in project root
-            logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from: $${gitManager.rootDir}")
-            val mainChangedFiles = gitManager.getUncommittedFiles()
-                .filter { it.exists() } // ignore deleted files
-                .associate { it.toChangedFilePair(startCompileTime) }
-            changedFiles.putAll(mainChangedFiles)
-
-            val submoduleGitManagers = getSubmoduleGitManagers(modules.values)
-            // add changed files in submodules
-            val sumModuleChangedFile = submoduleGitManagers.values.map { submoduleGitManager ->
-                logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from submodule: ${submoduleGitManager.rootDir}")
-                submoduleGitManager.getUncommittedFiles()
-                    .filter { it.exists() } // ignore deleted files
-                    .associate { it.toChangedFilePair(startCompileTime) }
+            try {
+                createDeployHistoryData(modules, startCompileTime)
+            } catch (e: Exception) {
+                logger.debug("createDeployHistoryData failed ", e)
+                logger.warn("CreateDeployHistoryData failed, won't enable deploy history.")
+                DeployHistoryData(null, null, 0, emptyMap())
             }
-            sumModuleChangedFile.forEach {
-                changedFiles.putAll(it)
-            }
-            // get map of <submodule, commit>
-            val subModulesFullCompileGitCommitHash = submoduleGitManagers.mapValues { (_, submoduleGitManager) ->
-                submoduleGitManager.getLastCommitHash()
-            }
-
-            DeployHistoryData(newCommitHash, subModulesFullCompileGitCommitHash, 0, changedFiles)
         } else {
-            DeployHistoryData(null, null,0, emptyMap())
+            logger.debug("createDeployHistoryData git not available")
+            DeployHistoryData(null, null, 0, emptyMap())
         }
         newDeployHistoryData.save(deployHistoryFile)
         updateBuildFilesAfterFullBuild(newDeployHistoryData)
 
         logger.debug("resetHistoryAfterFullCompiled newDeployHistoryData: $newDeployHistoryData")
+    }
+
+    private fun createDeployHistoryData(modules: Map<String, ModuleInfo>, startCompileTime: Long): DeployHistoryData {
+        val newCommitHash = gitManager.getLastCommitHash()
+        val changedFiles = mutableMapOf<String, Long>()
+
+        // add changed files in project root
+        logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from: $${gitManager.rootDir}")
+        val mainChangedFiles = gitManager.getUncommittedFiles()
+            .filter { it.exists() } // ignore deleted files
+            .associate { it.toChangedFilePair(startCompileTime) }
+        changedFiles.putAll(mainChangedFiles)
+
+        val submoduleGitManagers = getSubmoduleGitManagers(modules.values)
+        // add changed files in submodules
+        val sumModuleChangedFile = submoduleGitManagers.values.map { submoduleGitManager ->
+            logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from submodule: ${submoduleGitManager.rootDir}")
+            submoduleGitManager.getUncommittedFiles()
+                .filter { it.exists() } // ignore deleted files
+                .associate { it.toChangedFilePair(startCompileTime) }
+        }
+        sumModuleChangedFile.forEach {
+            changedFiles.putAll(it)
+        }
+        // get map of <submodule, commit>
+        val subModulesFullCompileGitCommitHash = submoduleGitManagers.mapValues { (_, submoduleGitManager) ->
+            submoduleGitManager.getLastCommitHash()
+        }
+
+        return DeployHistoryData(newCommitHash, subModulesFullCompileGitCommitHash, 0, changedFiles)
     }
 
     private fun updateBuildFilesAfterFullBuild(newDeployHistoryData: DeployHistoryData) {

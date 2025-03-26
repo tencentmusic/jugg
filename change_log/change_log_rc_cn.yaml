@@ -1,3 +1,8 @@
+- version: 2.2.0-rc19
+  date: 2025.03.27
+  updates:
+    - 修复非必需的 Git 操作失败时，无法使用增量编译
+
 - version: 2.2.0-rc17
   date: 2025.03.22
   updates:

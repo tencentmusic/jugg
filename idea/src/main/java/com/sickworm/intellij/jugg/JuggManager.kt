@@ -248,7 +248,7 @@ class JuggManager @TestOnly constructor(
     fun recoverDeployContext() {
         logger.debug("Start recover deploy context")
 
-        val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb()
+        val deployContextRecoverInfo = deployHistoryManager.tryGetContextRecoverInfoFromDb(isOnInit = true)
         if (deployContextRecoverInfo == null) {
             logger.debug("Can not recover from deploy history, please run gradle compile first")
             return
