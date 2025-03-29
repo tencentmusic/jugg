@@ -43,7 +43,7 @@ interface IDeployHistoryManager {
     fun deleteDeployHistory()
 
     /**
-     * @return False if [hasBeenFullCompiled] is false. Otherwise, return true.
+     * @return recover info if we can recover by git.
      */
     fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean = true): DeployContextRecoverInfo?
 
