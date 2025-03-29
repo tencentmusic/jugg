@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
 import com.sickworm.intellij.jugg.compiler.overlay.RDexForSubmoduleCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
@@ -264,5 +265,6 @@ class JuggCompiler(
 
     override fun dispose() {
         logger.debug("dispose")
+        KotlinCompilerInvoker.reset()
     }
 }

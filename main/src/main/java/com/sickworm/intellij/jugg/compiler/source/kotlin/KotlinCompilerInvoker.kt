@@ -1,13 +1,12 @@
-package com.sickworm.intellij.jugg.compiler.source
+package com.sickworm.intellij.jugg.compiler.source.kotlin
 
-import com.intellij.openapi.Disposable
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.lang.UrlClassLoader
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.overlay.RPackageReader
+import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.gradle.compile.isChild
-import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import io.github.classgraph.ClassGraph
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.ByteArrayOutputStream
@@ -15,16 +14,7 @@ import java.io.File
 import java.io.ObjectOutputStream
 import java.util.*
 
-class KotlinCompiler(
-    context: ICompileContext,
-    parent: Disposable,
-): BaseCompiler(context, parent) {
-
-    override val supportedTypes = listOf(CompileFile.Type.Kotlin)
-
-    override val isNeedOutputDirEmpty = false
-
-    override val isNeedPrintProgress: Boolean = true
+class KotlinCompilerInvoker {
 
     private var hasRetryCompile = false
     private var tryDisablePlugins: List<File> = emptyList()
@@ -35,46 +25,27 @@ class KotlinCompiler(
 
     private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
 
-    private val isEnableKapt get() = JuggSettings.isEnableApt
-
     private var kotlinCompile = K2JVMCompilerIsolate()
 
-    private val projectKotlinCompilerClasspath: List<File>? by lazy {
-        logger.debug("projectKotlinCompilerClasspath start")
-        val classpathMap = mutableMapOf<String, MutableSet<File>>()
-        val voteMap = mutableMapOf<String, Int>()
-        context.modules.values.forEach { module ->
-            val kotlinCompilerClasspath = mutableListOf<File>()
-            kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
-            kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
-            kotlinCompilerClasspath.filter {
-                val isExists = it.exists()
-                if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
-                isExists
-            }
-            val kotlinCompilerVersion = K2JVMCompilerIsolate.getKotlinCompilerVersion(kotlinCompilerClasspath) ?: "not_found"
-            classpathMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }
-            // collect all available kotlin compiler classpath, some plugins may not appear in all modules
-            classpathMap[kotlinCompilerVersion]!!.addAll(kotlinCompilerClasspath)
+    private lateinit var projectKotlinCompilerClasspath: List<File>
 
-            // records which is most common one(usually project should not have second compiler, but just for safety)
-            voteMap.getOrPut(kotlinCompilerVersion) { 0 }
-            voteMap[kotlinCompilerVersion] = voteMap[kotlinCompilerVersion]!! + 1
+    data class Options(
+        val isEnableKapt: Boolean = false,
+        val isNeedKotlinAndroidExtensions: Boolean = false,
+        val isNeedCompileCompose: Boolean = false,
+        val rPackageName: String? = null,
+    )
+
+    fun compile(
+        context: ICompileContext,
+        module: ModuleInfo,
+        task: CompileTask,
+        logger: Logger,
+        options: Options,
+    ): CompileResult {
+        if (!::projectKotlinCompilerClasspath.isInitialized) {
+            projectKotlinCompilerClasspath = initProjectKotlinCompilerClasspath(logger, context) ?: emptyList()
         }
-
-        logger.debug("projectKotlinCompilerClasspath classpathMap: $classpathMap")
-        logger.debug("projectKotlinCompilerClasspath voteMap: $voteMap")
-        val chooseVersion = voteMap
-            .filter { it.key != "not_found" } // filter out not found
-            .maxByOrNull { it.value } // pick the most common one
-            ?.key
-        val chooseClasspath = classpathMap[chooseVersion]
-        logger.debug("projectKotlinCompilerClasspath chooseVersion: $chooseVersion, chooseClasspath: $chooseClasspath")
-
-        return@lazy chooseClasspath?.toList()
-    }
-
-    override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
         // Jugg will check it again in [initIfNeeded] before use it
         kotlinCompile.initIfNeeded(projectKotlinCompilerClasspath, logger)
@@ -102,11 +73,8 @@ class KotlinCompiler(
             // we are using embedded compiler, which may conflict with the plugin version in project
         }
 
-        val analyzeResult = analyzeSource(task.files.map { it.file }, module)
-        logger.debug("analyzeSource result: $analyzeResult")
-
-        if (analyzeResult.isNeedKotlinAndroidExtensions) {
-            if (analyzeResult.rPackageName == null) {
+        if (options.isNeedKotlinAndroidExtensions) {
+            if (options.rPackageName == null) {
                 logger.warn("found KotlinAndroidExtensions, but rPackageName is null, failed to proceed.")
                 val details: List<Result<CompileFile, CompileError>> = task.files.map {
                     Result.failure(CompileError(it, listOf(0L to "rPackageName not found for KotlinAndroidExtensions")))
@@ -141,12 +109,12 @@ class KotlinCompiler(
         }
 
         val extensionArgs = mutableListOf<String>()
-        if (analyzeResult.isNeedKotlinAndroidExtensions) {
+        if (options.isNeedKotlinAndroidExtensions) {
             val variantArgs: List<String> = resourcePaths.flatMap { resourcePath ->
                 listOf("-P", "plugin:org.jetbrains.kotlin.android:variant=${flavor};${resourcePath}")
             }
             extensionArgs.addAll(variantArgs)
-            extensionArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.android:package=${analyzeResult.rPackageName}"))
+            extensionArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.android:package=${options.rPackageName}"))
             extensionArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.android:experimental=true"))
 
             if (!kotlinCompile.isUseProjectCompiler) {
@@ -160,7 +128,7 @@ class KotlinCompiler(
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (kotlinCompile.isUseProjectCompiler && isEnableKapt && kaptDependencies.isNotEmpty()) {
+        if (kotlinCompile.isUseProjectCompiler && options.isEnableKapt && kaptDependencies.isNotEmpty()) {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             kaptArgs.addAll(listOf(
                 // normal kapt arguments
@@ -182,7 +150,7 @@ class KotlinCompiler(
             }
         }
 
-        val composeArgs = handleComposeArgs(analyzeResult, kotlinExtensions, kotlinPlugins)
+        val composeArgs = handleComposeArgs(options, kotlinExtensions, kotlinPlugins, logger)
 
         val javaSourceRoots = (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
             it.exists()
@@ -220,7 +188,7 @@ class KotlinCompiler(
         )).toMutableList()
         if (!kotlinCompile.isUseProjectCompiler) {
             // use embedded compiler, we need to set the language version
-            compileArgs.addAll(listOf("-language-version", guessKotlinVersion(module)))
+            compileArgs.addAll(listOf("-language-version", guessKotlinVersion(module, logger)))
         }
 
         var classPathArgs = listOf<String>()
@@ -234,7 +202,7 @@ class KotlinCompiler(
         val fileArgs = task.files.map { it.file.absolutePath }
 
         val command = pluginArgs + extensionArgs + kaptArgs + composeArgs + compileArgs + classPathArgs + fileArgs
-        logCompileCommand(command)
+        logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
         val merger = KmModuleMergerForCompilation(kotlinClassPath)
@@ -256,10 +224,10 @@ class KotlinCompiler(
         logger.debug("kotlin compile result code: $exitCode")
 
         // retry strategy
-        if (!hasRetryCompile && handleMetadataError(outputParser)) {
+        if (!hasRetryCompile && handleMetadataError(outputParser, logger)) {
             hasRetryCompile = true
             logger.info("Kotlin compile failed with metadata error, retry once.")
-            return doModuleCompile(task, module)
+            return compile(context, module, task, logger, options)
         }
 
         val errorResults = outputParser.results.sumOf {
@@ -333,7 +301,7 @@ class KotlinCompiler(
                 logger.warn("\n$retryReason, retry with recreating compiler once.\n")
                 hasRetryCompile = true
                 kotlinCompile = K2JVMCompilerIsolate()
-                return doModuleCompile(task, module)
+                return compile(context, module, task, logger, options)
             }
         }
 
@@ -376,11 +344,12 @@ class KotlinCompiler(
     }
 
     private fun handleComposeArgs(
-        analyzeResult: KotlinSourceAnalyzeResult,
+        options: Options,
         kotlinExtensions: List<File>,
         kotlinPlugins: List<File>,
+        logger: Logger,
     ): List<String> {
-        if (!analyzeResult.isNeedCompileCompose) {
+        if (!options.isNeedCompileCompose) {
             return emptyList()
         }
 
@@ -432,7 +401,7 @@ class KotlinCompiler(
         return emptyList()
     }
 
-    private fun handleMetadataError(outputParser: KotlinCompilerOutputParser): Boolean {
+    private fun handleMetadataError(outputParser: KotlinCompilerOutputParser, logger: Logger): Boolean {
         if (outputParser.metadataVersionErrors.isEmpty()) {
             return false
         }
@@ -453,9 +422,7 @@ class KotlinCompiler(
         return true
     }
 
-    private fun logCompileCommand(options: List<String>) {
-        val baseDir = context.projectDir
-
+    private fun logCompileCommand(options: List<String>, baseDir: File, logger: Logger) {
         var lastOption = ""
         val shortOptions = options.map {
             if (lastOption == "-cp") {
@@ -477,49 +444,10 @@ class KotlinCompiler(
         logger.debug("kotlin compile: kotlinc ${shortOptions.joinToString(" ")}")
     }
 
-    private fun analyzeSource(files: List<File>, module: ModuleInfo): KotlinSourceAnalyzeResult {
-        TimeLogger.start("analyzeSource")
-
-        var isNeedKotlinAndroidExtensions = false
-        var isNeedCompileCompose = false
-
-        // Check features by checking import. It's not 100% accurate, but whatever.
-        files.forEach root@{ file ->
-            file.readLines().forEach {
-                val line = it.trim()
-                if (!line.startsWith("import")) {
-                    return@forEach
-                }
-
-                val importContent = line.substringAfter("import").trim()
-                if (importContent.startsWith("kotlinx.android.synthetic.")) {
-                    if (!isNeedKotlinAndroidExtensions) {
-                        logger.debug("find kotlinx.android.synthetic import in $file")
-                        isNeedKotlinAndroidExtensions = true
-                    }
-                }
-                if (importContent.startsWith("androidx.compose.")) {
-                    if (!isNeedCompileCompose) {
-                        logger.debug("find androidx.compose import in $file")
-                        isNeedCompileCompose = true
-                    }
-                }
-            }
-        }
-
-        var rPackageName: String? = null
-        if (isNeedKotlinAndroidExtensions && module.buildPathInfo.mergedManifest.exists()) {
-            rPackageName = RPackageReader(module.buildPathInfo.mergedManifest, logger).readPackageName()
-        }
-
-        TimeLogger.end("analyzeSource", logger)
-        return KotlinSourceAnalyzeResult(isNeedKotlinAndroidExtensions, rPackageName, isNeedCompileCompose)
-    }
-
     private var guessKotlinVersionCache = mapOf<String, String>()
 
 
-    private fun guessKotlinVersion(module: ModuleInfo): String {
+    private fun guessKotlinVersion(module: ModuleInfo, logger: Logger): String {
         guessKotlinVersionCache[module.name]?.let {
             return it
         }
@@ -552,25 +480,49 @@ class KotlinCompiler(
         return kotlinVersion
     }
 
-    override fun warmUp() {
-        val startTime = System.currentTimeMillis()
-        val selectModule = context.modules.values
-            .filter { module ->
-                // don't run on java-only module, it will generate dirty .kotlin_module
-                val isKotlinModule = !module.kotlinPlugins.isNullOrEmpty() ||
-                        module.libraryDependencies.any { it.name.contains("kotlin-stdlib") }
-                return@filter isKotlinModule
-            }.maxByOrNull {
-                it.moduleDependencies.size + it.libraryDependencies.size
-            }
-        logger.debug("start KotlinCompiler warm up, selectModule: ${selectModule?.name}")
-        if (selectModule != null) {
-            doModuleCompile(CompileTask(emptyList(), context.tempCompileDir, CompileStatusHolder.DEFAULT), selectModule)
-        }
-        logger.debug("finish KotlinCompiler warm up, cost: ${System.currentTimeMillis() - startTime}ms")
-    }
-
     companion object {
+
+        var currentInstance = KotlinCompilerInvoker()
+            private set
+
+        fun reset() {
+            currentInstance = KotlinCompilerInvoker()
+        }
+
+        private fun initProjectKotlinCompilerClasspath(logger: Logger, context: ICompileContext): List<File>? {
+            logger.debug("projectKotlinCompilerClasspath start")
+            val classpathMap = mutableMapOf<String, MutableSet<File>>()
+            val voteMap = mutableMapOf<String, Int>()
+            context.modules.values.forEach { module ->
+                val kotlinCompilerClasspath = mutableListOf<File>()
+                kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
+                kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
+                kotlinCompilerClasspath.filter {
+                    val isExists = it.exists()
+                    if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
+                    isExists
+                }
+                val kotlinCompilerVersion = K2JVMCompilerIsolate.getKotlinCompilerVersion(kotlinCompilerClasspath) ?: "not_found"
+                classpathMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }
+                // collect all available kotlin compiler classpath, some plugins may not appear in all modules
+                classpathMap[kotlinCompilerVersion]!!.addAll(kotlinCompilerClasspath)
+
+                // records which is most common one(usually project should not have second compiler, but just for safety)
+                voteMap.getOrPut(kotlinCompilerVersion) { 0 }
+                voteMap[kotlinCompilerVersion] = voteMap[kotlinCompilerVersion]!! + 1
+            }
+
+            logger.debug("projectKotlinCompilerClasspath classpathMap: $classpathMap")
+            logger.debug("projectKotlinCompilerClasspath voteMap: $voteMap")
+            val chooseVersion = voteMap
+                .filter { it.key != "not_found" } // filter out not found
+                .maxByOrNull { it.value } // pick the most common one
+                ?.key
+            val chooseClasspath = classpathMap[chooseVersion]
+            logger.debug("projectKotlinCompilerClasspath chooseVersion: $chooseVersion, chooseClasspath: $chooseClasspath")
+
+            return chooseClasspath?.toList()
+        }
 
         private fun encodeList(options: Map<String, String>?): String? {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
@@ -590,6 +542,7 @@ class KotlinCompiler(
             return Base64.getEncoder().encodeToString(os.toByteArray())
         }
 
+        @Suppress("SameParameterValue")
         private fun getPluginPath(name: String): String? {
             val classLoader = this::class.java.classLoader
             return if (classLoader is UrlClassLoader) {
@@ -604,9 +557,3 @@ class KotlinCompiler(
         }
     }
 }
-
-private data class KotlinSourceAnalyzeResult(
-    val isNeedKotlinAndroidExtensions: Boolean,
-    val rPackageName: String?,
-    val isNeedCompileCompose: Boolean,
-)

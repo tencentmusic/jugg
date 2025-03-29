@@ -3,7 +3,7 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.source.PriorityURLClassLoader
+import com.sickworm.intellij.jugg.compiler.source.kotlin.PriorityURLClassLoader
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.nio.file.Files

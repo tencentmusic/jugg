@@ -7,7 +7,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.apk.ApkReader
-import com.sickworm.intellij.jugg.compiler.source.KmModuleMergerForCompilation
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*

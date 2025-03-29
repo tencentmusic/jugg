@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.compiler.source
+package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import java.net.URL
 import java.net.URLClassLoader

@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.compiler.source
+package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileError

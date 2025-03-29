@@ -97,7 +97,7 @@ object JuggSettings {
 
     var isIgnoreWontCompileModules: Boolean by propertiesComponent.delegate(defaultValue = false)
 
-    const val isEnableApt: Boolean = false
+    var isEnableApt: Boolean = false
 
     /**
      * Use this for Jugg run configuration arguments if first set.

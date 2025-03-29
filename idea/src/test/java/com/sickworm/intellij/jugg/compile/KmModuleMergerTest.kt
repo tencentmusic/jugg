@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.compile
 
-import com.sickworm.intellij.jugg.compiler.source.KmModuleMerger
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMerger
 import com.sickworm.intellij.jugg.mock.assetsKotlinDir
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.clearBuild

@@ -1,6 +1,6 @@
 @file:OptIn(UnstableMetadataApi::class)
 
-package com.sickworm.intellij.jugg.compiler.source
+package com.sickworm.intellij.jugg.compiler.source.kotlin
 
 import kotlinx.metadata.jvm.*
 import java.io.File
