@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.example.library1">
+
+    <application>
+        <activity
+            android:name="com.sickworm.jugg.demo.testcase.databinding.library1.DataBindingJavaDemoActivityLibrary1"
+            android:exported="true"
+        />
+        <activity
+            android:name="com.sickworm.jugg.demo.testcase.databinding.library1.DataBindingKotlinDemoActivityLibrary1"
+            android:exported="true"
+        />
+    </application>
+
+</manifest>

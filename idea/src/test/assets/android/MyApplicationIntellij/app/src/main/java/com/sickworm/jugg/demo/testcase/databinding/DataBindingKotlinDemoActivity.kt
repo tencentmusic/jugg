@@ -14,7 +14,6 @@ class DataBindingKotlinDemoActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_data_binding_kotlin_demo)
         
-        // 示例数据绑定操作
         binding.user = User("John", 44)
         binding.executePendingBindings()
     }

@@ -1,4 +1,4 @@
-apply plugin: 'com.android.application'
+apply plugin: 'com.android.library'
 
 apply plugin: 'kotlin-android'
 
@@ -10,7 +10,6 @@ android {
     compileSdkVersion 33
     buildToolsVersion "30.0.3"
     defaultConfig {
-        applicationId "com.example.myapplication"
         minSdkVersion 21
         targetSdkVersion 33
         versionCode 1
@@ -28,9 +27,6 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
-//        debug {
-//            minifyEnabled true
-//        }
     }
 
     sourceSets {
@@ -41,7 +37,6 @@ android {
     }
 
     compileOptions {
-        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
@@ -54,7 +49,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
-//        freeCompilerArgs = ["-Xexport-kdoc"]
     }
 
     composeOptions {
@@ -78,7 +72,7 @@ dependencies {
     implementation 'com.alibaba:fastjson:2.0.2.android'
 
     implementation 'com.alibaba:arouter-api:1.5.2'
-//    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
+    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
     kapt 'com.alibaba:arouter-compiler:1.5.2'
 
     // compose
@@ -88,7 +82,5 @@ dependencies {
     implementation 'androidx.activity:activity-compose:1.3.0'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.4.0'
     implementation 'androidx.compose.runtime:runtime-livedata:1.2.0'
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
 
-    implementation project(':library1')
 }
