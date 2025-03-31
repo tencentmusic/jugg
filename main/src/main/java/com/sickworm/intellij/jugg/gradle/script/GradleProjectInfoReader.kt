@@ -25,7 +25,7 @@ class GradleProjectInfoReader(
 
     private var modulesNames = setOf<String>()
 
-    private val isEnableJetifier: Boolean = rootProject.properties["android.enableJetifier"] == "true"
+    private val isEnableJetifier: Boolean = true
 
     fun getProjectInfo(): JuggProjectInfo {
         TraceLogger.clear()
