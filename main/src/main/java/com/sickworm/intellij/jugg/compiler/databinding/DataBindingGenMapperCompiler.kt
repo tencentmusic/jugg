@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.databinding
 import android.databinding.tool.DataBindingBuilder
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.*
@@ -38,6 +39,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             generateIncrementalMapperHolder()
             mergeLibraryBr()
             mergeAppBr()
+            return getOutput(task)
         } catch (e: Exception) {
             logger.debug("DataBindingGenMapperCompiler error ", e)
             logger.warn("Compile DataBinding failed: ${e.message}")
@@ -47,7 +49,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 emptyList())
         }
 
-        return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
     }
 
     /**
@@ -101,7 +102,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
      * and then replace the file under DataBinding_BR/merge.
      */
     private fun mergeLibraryBr() {
-        val lastLibraryBrFile = File(argsManager.dataBindingBrMergedDir, argsManager.libraryBrRelativePath)
+        val lastLibraryBrFile = File(argsManager.gradleDataBindingKaptOutputDir, argsManager.libraryBrRelativePath)
         val currentIncrementalLibraryBrFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.libraryBrRelativePath)
 
         if (!lastLibraryBrFile.exists()) {
@@ -161,7 +162,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     }
 
     private fun mergeAppBr() {
-        val lastLibraryBrFile = File(argsManager.dataBindingBrMergedDir, argsManager.appBrRelativePath)
+        val lastLibraryBrFile = File(argsManager.gradleDataBindingKaptOutputDir, argsManager.appBrRelativePath)
         val currentIncrementalLibraryBrFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.appBrRelativePath)
 
         if (!lastLibraryBrFile.exists()) {
@@ -223,79 +224,40 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
      * For this incremental build, delete the Mapper in the current source directory and generate a new Mapper proxy class.
      */
     private fun generateIncrementalMapperHolder() {
-        val currentDataBinderMapperImplFile = File(argsManager.dataBindingSourcesOutputDir,
-            "${argsManager.packageName.replace(".", File.separator)}${File.separator}DataBinderMapperImpl.java")
+        // 1. get mapper file created this time
+        val currentDataBinderMapperImplFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.dataBindingMapperRelativePath)
         if (!currentDataBinderMapperImplFile.exists()) {
-            return
+            throw RuntimeException("dataBinderMapper file not exist: $currentDataBinderMapperImplFile")
         }
-
         logger.debug("generateIncrementalMapperHolder currentDataBinderMapperImplFile = $currentDataBinderMapperImplFile")
 
+        // 2. create new inc mapper file by currentDataBinderMapperImplFile
         val incDir = argsManager.dataBindingMapperIncrementalDir
         var index = 1
         if (incDir.exists()) {
-            index = incDir.listFiles()?.size ?: 0
-            if (index == 0) {
-                index = 1
-            } else {
-                index += 1
-            }
+            val currentCount = incDir.listFiles()?.size ?: 0
+            index = currentCount + 1
         }
-
-        logger.debug("generateIncrementalMapperHolder currentDataBinderMapperImplFile = $currentDataBinderMapperImplFile")
 
         val newName = "DataBinderMapperImpl_Inc_$index"
         logger.debug("generateIncrementalMapperHolder newName = $newName")
-
-        val targetFile = File(incDir, "$newName.java")
+        val targetIncFile = File(incDir, "$newName.java")
+        if (targetIncFile.exists()) {
+            targetIncFile.delete()
+        }
+        if (!targetIncFile.parentFile.exists()) {
+            targetIncFile.parentFile.mkdirs()
+        }
         val content = currentDataBinderMapperImplFile.readText().replaceFirst("DataBinderMapperImpl", newName)
-        if (targetFile.exists()) {
-            targetFile.delete()
-        }
-
-        if (!targetFile.parentFile.exists()) {
-            targetFile.parentFile.mkdirs()
-        }
-
-        targetFile.writer().use {
+        targetIncFile.writer().use {
             it.write(content)
         }
-
-        val targetFile2 = File(currentDataBinderMapperImplFile.parentFile, targetFile.name)
-        targetFile.copyTo(targetFile2)
-
+        val targetFileCopyToOut = File(currentDataBinderMapperImplFile.parentFile, targetIncFile.name)
+        targetIncFile.copyTo(targetFileCopyToOut)
         currentDataBinderMapperImplFile.delete()
 
-        val holderTemplate = if (argsManager.isUseAndroidX) {
-            """
-                package _package_name_holder_;
-                
-                import androidx.databinding.DataBinderMapper;
-                
-                public class DataBinderMapper_IncrementalHolder {
-                    public static DataBinderMapper[] get() {
-                        return new DataBinderMapper[] {
-                            _inc_mapper_array_holder_
-                        };
-                    }
-                }
-            """
-        } else {
-            """
-                package _package_name_holder_;
-                
-                import android.databinding.DataBinderMapper;
-                
-                public class DataBinderMapper_IncrementalHolder {
-                    public static DataBinderMapper[] get() {
-                        return new DataBinderMapper[] {
-                            _inc_mapper_array_holder_
-                        };
-                    }
-                }
-            """
-        }
-
+        // 3. create DataBinderMapperIncrementalHolder
+        val templates = DataBindingTemplates(argsManager.isUseAndroidX)
         val allIncMapperFiles = incDir.listFiles()
         allIncMapperFiles?.sortWith { o1, o2 ->
             val index1 = o1.name.replace("DataBinderMapperImpl_Inc_", "").replace(".java", "").toInt()
@@ -307,8 +269,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         allIncMapperFiles?.forEach {
             incMapperArrays.append("\n                                new ${argsManager.packageName}.${it.name.replace(".java", "")}(),")
         }
-
-        val holderContent = holderTemplate
+        val holderContent = templates.holderTemplate
             .replace("_package_name_holder_", argsManager.packageName)
             .replace("_inc_mapper_array_holder_", incMapperArrays.toString())
 
@@ -316,205 +277,23 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         if (allIncMapperHolderJavaFile.exists()) {
             allIncMapperHolderJavaFile.delete()
         }
-
         allIncMapperHolderJavaFile.writer().use {
             it.write(holderContent)
         }
-
         if (!allIncMapperHolderJavaFile.exists()) {
             throw RuntimeException("error to create DataBinderMapperIncrementalHolder : $allIncMapperHolderJavaFile")
         }
 
+        // 4. create delegate file: mapper/DataBinderMapperImpl.java
         val delegateMapperFile = argsManager.dataBindingMapperDelegateFile
-        if (delegateMapperFile.exists()) {
-            logger.debug("delegate file already exist, skip")
-            return
-        }
-
-        val delegateMapperContentTemplateNormal = """
-            package _package_name_holder_;
-
-            import android.databinding.DataBinderMapper;
-            import android.databinding.DataBindingComponent;
-            import android.databinding.ViewDataBinding;
-            import android.view.View;
-            import java.lang.Override;
-            import java.lang.String;
-            import java.util.List;
-
-            public class DataBinderMapperImpl extends DataBinderMapper {
-                private final _package_name_holder_.DataBinderMapperImpl_Full origin = new _package_name_holder_.DataBinderMapperImpl_Full();
-                private final DataBinderMapper[] incDataBinderMapperArray = DataBinderMapper_IncrementalHolder.get();
-
-                @Override
-                public ViewDataBinding getDataBinder(DataBindingComponent component, View view, int layoutId) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            ViewDataBinding viewDataBinding = inc.getDataBinder(component, view, layoutId);
-                            if (viewDataBinding != null) {
-                                return viewDataBinding;
-                            }
-                        }
-                    }
-                    return origin.getDataBinder(component, view, layoutId);
-                }
-
-                @Override
-                public ViewDataBinding getDataBinder(DataBindingComponent component, View[] views, int layoutId) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            ViewDataBinding viewDataBinding = inc.getDataBinder(component, views, layoutId);
-                            if (viewDataBinding != null) {
-                                return viewDataBinding;
-                            }
-                        }
-                    }
-                    return origin.getDataBinder(component, views, layoutId);
-                }
-
-                @Override
-                public int getLayoutId(String tag) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            int layoutId = inc.getLayoutId(tag);
-                            if (layoutId != 0) {
-                                return layoutId;
-                            }
-                        }
-                    }
-                    return origin.getLayoutId(tag);
-                }
-
-                @Override
-                public String convertBrIdToString(int localId) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            String str = inc.convertBrIdToString(localId);
-                            if (str != null) {
-                                return str;
-                            }
-                        }
-                    }
-                    return origin.convertBrIdToString(localId);
-                }
-
-                @Override
-                public List<DataBinderMapper> collectDependencies() {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            List<DataBinderMapper> list = inc.collectDependencies();
-                            if (list != null) {
-                                return list;
-                            }
-                        }
-                    }
-                    return origin.collectDependencies();
-                }
-            }
-        """
-
-        val delegateMapperContentTemplateAndroidX = """
-            package _package_name_holder_;
-
-            import androidx.databinding.DataBinderMapper;
-            import androidx.databinding.DataBindingComponent;
-            import androidx.databinding.ViewDataBinding;
-            import android.view.View;
-            import java.lang.Override;
-            import java.lang.String;
-            import java.util.List;
-
-            public class DataBinderMapperImpl extends DataBinderMapper {
-                private final _package_name_holder_.DataBinderMapperImpl_Full origin = new _package_name_holder_.DataBinderMapperImpl_Full();
-                private final DataBinderMapper[] incDataBinderMapperArray = DataBinderMapper_IncrementalHolder.get();
-
-                @Override
-                public ViewDataBinding getDataBinder(DataBindingComponent component, View view, int layoutId) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            ViewDataBinding viewDataBinding = inc.getDataBinder(component, view, layoutId);
-                            if (viewDataBinding != null) {
-                                return viewDataBinding;
-                            }
-                        }
-                    }
-                    return origin.getDataBinder(component, view, layoutId);
-                }
-
-                @Override
-                public ViewDataBinding getDataBinder(DataBindingComponent component, View[] views, int layoutId) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            ViewDataBinding viewDataBinding = inc.getDataBinder(component, views, layoutId);
-                            if (viewDataBinding != null) {
-                                return viewDataBinding;
-                            }
-                        }
-                    }
-                    return origin.getDataBinder(component, views, layoutId);
-                }
-
-                @Override
-                public int getLayoutId(String tag) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            int layoutId = inc.getLayoutId(tag);
-                            if (layoutId != 0) {
-                                return layoutId;
-                            }
-                        }
-                    }
-                    return origin.getLayoutId(tag);
-                }
-
-                @Override
-                public String convertBrIdToString(int localId) {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            String str = inc.convertBrIdToString(localId);
-                            if (str != null) {
-                                return str;
-                            }
-                        }
-                    }
-                    return origin.convertBrIdToString(localId);
-                }
-
-                @Override
-                public List<DataBinderMapper> collectDependencies() {
-                    if (incDataBinderMapperArray.length > 0) {
-                        for (DataBinderMapper inc: incDataBinderMapperArray) {
-                            List<DataBinderMapper> list = inc.collectDependencies();
-                            if (list != null) {
-                                return list;
-                            }
-                        }
-                    }
-                    return origin.collectDependencies();
-                }
-            }
-        """
-
-        val delegateMapperContentTemplate = if (argsManager.isUseAndroidX) {
-            delegateMapperContentTemplateAndroidX
-        } else {
-            delegateMapperContentTemplateNormal
-        }
-
-        val delegateMapperContent = delegateMapperContentTemplate.replace("_package_name_holder_", argsManager.packageName)
-
-        if (delegateMapperFile.exists()) {
-            delegateMapperFile.delete()
-        }
-
-        delegateMapperFile.writer().use {
-            it.write(delegateMapperContent)
-        }
-
         if (!delegateMapperFile.exists()) {
-            throw RuntimeException("error to create DataBinderMapper Delegate : $delegateMapperFile")
+            val delegateMapperContent = templates.mapperContentTemplate.replace("_package_name_holder_", argsManager.packageName)
+            delegateMapperFile.writer().use {
+                it.write(delegateMapperContent)
+            }
         }
 
+        // 5. copy delegate file to the current source directory
         val targetDelegateMapperFile = File(currentDataBinderMapperImplFile.parentFile, delegateMapperFile.name)
         delegateMapperFile.copyTo(targetDelegateMapperFile)
 
@@ -524,50 +303,12 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
         val fullMapperFile = argsManager.dataBindingMapperFullFile
         if (!fullMapperFile.exists()) {
-            throw RuntimeException("Full mapper file not exist ! , which should be exist under : $fullMapperFile")
+            val originMapperFile = File(argsManager.gradleDataBindingKaptOutputDir, argsManager.dataBindingMapperRelativePath)
+            val originText = originMapperFile.readText().replace("DataBinderMapperImpl", "DataBinderMapperImpl_Full")
+            fullMapperFile.writeText(originText)
         }
-
         val targetFullMapperFile = File(currentDataBinderMapperImplFile.parentFile, fullMapperFile.name)
         fullMapperFile.copyTo(targetFullMapperFile)
-    }
-
-    /**
-     * Prepare annotation processor options.
-     */
-    private fun prepareAnnotationProcessorOptions(module: ModuleInfo): Array<String> {
-        val minSDkVersion = module.minSdkVersion
-
-        val classLogDir = argsManager.dataBindingArtifactFolder.path
-        val aarOutDir = argsManager.dataBindingAarOutDir.path
-        val enableDebugLogs = "1"
-        val dependencyArtifactsDir = argsManager.dataBindingDependencyArtifacts
-        val sdkDir = context.androidHome.path
-        val enableForTests = "0"
-        val enableV2 = "1"
-        val modulePackage = argsManager.packageName
-        val artifactType = "APPLICATION"
-        val isTestVariant = "0"
-        val baseFeatureInfoDir = argsManager.dataBindingBaseFeatureInfoDir
-        val printEncodedErrorLogs = "1"
-        val layoutInfoDir = argsManager.dataBindingLayoutXmlDir
-
-        return arrayOf(
-            "android.databinding.minApi=$minSDkVersion",
-            "android.databinding.classLogDir=$classLogDir",
-            "android.databinding.aarOutDir=$aarOutDir",
-            "android.databinding.enableDebugLogs=$enableDebugLogs",
-            "android.databinding.dependencyArtifactsDir=$dependencyArtifactsDir",
-            "android.databinding.sdkDir=$sdkDir",
-            "android.databinding.enableForTests=$enableForTests",
-            "android.databinding.enableV2=$enableV2",
-            "android.databinding.modulePackage=$modulePackage",
-            "android.databinding.artifactType=$artifactType",
-            "android.databinding.isTestVariant=$isTestVariant",
-            "android.databinding.baseFeatureInfoDir=$baseFeatureInfoDir",
-            "android.databinding.printEncodedErrorLogs=$printEncodedErrorLogs",
-            "android.databinding.layoutInfoDir=$layoutInfoDir",
-            "useAndroidX=true"
-        )
     }
 
     /**
@@ -576,50 +317,85 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     private fun runAnnotationProcessor(task: CompileTask, module: ModuleInfo) {
         logger.debug("launching annotation processor ...")
 
-        val kotlinAptPluginClassPath: String? = module.kotlinPlugins?.find {
-            it.path.contains("kotlin-annotation-processing-gradle")
-        }?.path
-        if (kotlinAptPluginClassPath == null) {
-            throw RuntimeException("Unable to find kotlin-annotation-processing-gradle.jar in project, please report to the admin.")
-        }
-        logger.debug("kotlinAptPluginClassPath: $kotlinAptPluginClassPath")
+        val source = mutableListOf<CompileFile>()
+        source.add(CompileFile(CompileFile.Type.Java, argsManager.dataBindingKaptProcessorTrigger, argsManager.dataBindingPreProcessorSources, module))
+        source.add(CompileFile(CompileFile.Type.Java, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, module))
+        source.addAll(task.files.filter { it.type == CompileFile.Type.Java }) // java files generated by DataBindingGenBaseClassesCompiler
 
-        val source = mutableListOf<File>()
-        source.add(argsManager.dataBindingKaptProcessorTrigger)
-        source.add(argsManager.dataBindingKaptSourceTrigger)
-        source.addAll(task.files.map { it.file})
-        // TODO need?
-//        argsManager.currentIncrementalRJavaDir.listFilesRecursively().forEach {
-//            if (it.isFile && it.name.endsWith(".java")) {
-//                source.add(it)
-//            }
-//        }
-        logger.debug("source : $source")
-
-        val classpath = context.getModuleDependencies(module, task)
-
-        val annotationProcessorsClassPaths = module.annotationProcessorDependencies
-
-        logger.debug("classpath each:")
-        classpath.forEach {
-            logger.debug("   -- $it")
-        }
-
-        logger.debug("annotationProcessorsClassPaths each:")
-        annotationProcessorsClassPaths.forEach {
-            logger.debug("   -- $it")
-        }
-
-        val apOptionArray = prepareAnnotationProcessorOptions(module)
-        logger.debug("apOptionArray each:")
-        apOptionArray.forEach {
-            logger.debug("   -- $it")
-        }
-
-        val apOptions = ArrayList(apOptionArray.toList())
+        val apOptions = prepareAnnotationProcessorOptions(module)
 
         // kapt compile
-        // TODO what to compile?
+        val kaptTask = CompileTask(
+            files = source,
+            outputDir = argsManager.dataBindingSourcesOutputDir,
+            parentTask = task,
+        )
+        val subContext = context.subContext(argsManager.dataBindingKaptTempDir)
+        val kaptResult = KotlinCompilerInvoker.currentInstance.compile(
+            subContext, module, kaptTask, logger,
+            KotlinCompilerInvoker.Options().copy(
+                isEnableKapt = true,
+                isCanAutoRetry = false,
+                kaptOptions = apOptions,
+                kaptDependencies = databindingAptDependencies,
+            )
+        )
+        if (!kaptResult.isAllSuccess) {
+            throw RuntimeException("Failed to compile annotation process task: $kaptResult")
+        }
+        if (kaptResult.outputs.isEmpty()) {
+            throw RuntimeException("No annotation process task output")
+        }
+        logger.debug("kapt output: ${kaptResult.outputs.joinToString(", ") { it.file.name }}")
     }
 
+    // embedded in plugin
+    private val databindingAptDependencies: List<File> by lazy {
+        listOf(
+            KotlinCompilerInvoker.getEmbeddedJarPath("databinding-compiler"),
+            KotlinCompilerInvoker.getEmbeddedJarPath("databinding-common"),
+            KotlinCompilerInvoker.getEmbeddedJarPath("databinding-compiler-common"),
+        ).mapNotNull {
+            it ?: return@mapNotNull null
+            File(it)
+        }
+    }
+
+    /**
+     * Prepare annotation processor options.
+     */
+    private fun prepareAnnotationProcessorOptions(module: ModuleInfo): Map<String, String> {
+        return mapOf(
+            "android.databinding.minApi" to module.minSdkVersion.toString(),
+            "android.databinding.classLogDir" to argsManager.dataBindingArtifactFolder.path,
+            "android.databinding.aarOutDir" to argsManager.dataBindingAarOutDir.path,
+            "android.databinding.enableDebugLogs" to "1",
+            "android.databinding.dependencyArtifactsDir" to argsManager.dataBindingDependencyArtifacts.path,
+            "android.databinding.sdkDir" to context.androidHome.path,
+            "android.databinding.enableForTests" to "0",
+            "android.databinding.enableV2" to "1",
+            "android.databinding.modulePackage" to argsManager.packageName,
+            "android.databinding.artifactType" to (if (module.moduleType == ModuleInfo.Type.Application) "APPLICATION" else "LIBRARY"),
+            "android.databinding.isTestVariant" to "0",
+            "android.databinding.baseFeatureInfoDir" to argsManager.dataBindingBaseFeatureInfoDir.path,
+            "android.databinding.printEncodedErrorLogs" to "1",
+            "android.databinding.layoutInfoDir" to argsManager.dataBindingLayoutXmlDir.path,
+            "useAndroidX" to argsManager.isUseAndroidX.toString(),
+        )
+    }
+
+    private fun getOutput(task: CompileTask): CompileResult {
+        val outputs = argsManager.dataBindingSourcesOutputDir.listFilesRecursively().map {
+            val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, task.outputDir)
+            outputFile.parentFile.mkdirs()
+            if (outputFile.exists()) {
+                if (!outputFile.delete()) {
+                    throw RuntimeException("Failed to delete temporary file ${outputFile.absolutePath}")
+                }
+            }
+            it.copyTo(outputFile)
+            CompileOutput(CompileOutput.Type.Java, outputFile, task.outputDir)
+        }
+        return CompileResult(task, task.files.map { Result.success(it) }, outputs)
+    }
 }

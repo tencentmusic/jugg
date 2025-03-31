@@ -84,6 +84,8 @@ class KotlinCompiler(
             isNeedKotlinAndroidExtensions,
             isNeedCompileCompose,
             rPackageName,
+            isCanAutoRetry = true,
+            kaptDependencies = module.kaptDependencies.map { it.file },
         )
     }
 

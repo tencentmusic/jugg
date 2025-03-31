@@ -100,7 +100,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         return CompileResult(
             task,
             task.files.map { Result.success(it) },
-            outputFiles.map { CompileOutput(CompileOutput.Type.Java, it, argsManager.dataBindingSourcesOutputDir) }
+            outputFiles.map { CompileOutput(CompileOutput.Type.Java, it, task.outputDir) }
         )
     }
 }

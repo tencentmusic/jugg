@@ -23,7 +23,7 @@ class KotlinCompilerInvoker {
     private var tryProperJvmTarget: String? = null
     private var properJvmTarget: String? = null
 
-    private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
+    private val kotlinAndroidExtensionsPath: String? by lazy { getEmbeddedJarPath("kotlin-android-extensions") }
 
     private var kotlinCompile = K2JVMCompilerIsolate()
 
@@ -34,6 +34,9 @@ class KotlinCompilerInvoker {
         val isNeedKotlinAndroidExtensions: Boolean = false,
         val isNeedCompileCompose: Boolean = false,
         val rPackageName: String? = null,
+        val isCanAutoRetry: Boolean = false,
+        val kaptOptions: Map<String, String> = emptyMap(),
+        val kaptDependencies: List<File> = emptyList(),
     )
 
     fun compile(
@@ -43,6 +46,8 @@ class KotlinCompilerInvoker {
         logger: Logger,
         options: Options,
     ): CompileResult {
+        logger.debug("compile options: $options")
+
         if (!::projectKotlinCompilerClasspath.isInitialized) {
             projectKotlinCompilerClasspath = initProjectKotlinCompilerClasspath(logger, context) ?: emptyList()
         }
@@ -52,7 +57,6 @@ class KotlinCompilerInvoker {
 
         // compat with kmm, which will save info in parent dependencies in IDE JuggProjectInfo
         val allRelativeModules = context.getParentModules(module, isAddSelfToResult = true)
-        val kaptDependencies = allRelativeModules.flatMap { it.kaptDependencies }
         val kotlinPlugins = allRelativeModules
             .flatMap { it.kotlinPlugins ?: emptyList() }
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
@@ -128,7 +132,10 @@ class KotlinCompilerInvoker {
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (kotlinCompile.isUseProjectCompiler && options.isEnableKapt && kaptDependencies.isNotEmpty()) {
+        val kaptOutputDir = kaptTmpDir.resolve("output")
+        if (options.isEnableKapt) {
+            kaptTmpDir.clearDir()
+
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             kaptArgs.addAll(listOf(
                 // normal kapt arguments
@@ -136,17 +143,20 @@ class KotlinCompilerInvoker {
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:classes=${kaptClassesDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:stubs=${kaptStubsDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:verbose=true",
-//                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubs",
+                // stubs, apt, stubsAndApt, compile
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubsAndApt",
             ))
 
-            kaptDependencies.forEach {
-                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apclasspath=${it.file.path}"))
+            options.kaptDependencies.forEach {
+                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apclasspath=${it.path}"))
             }
 
-            // TODO get kapt options
-            val kaptOptions = encodeList(module.javaAnnotationProcessorOptions)
-            if (kaptOptions != null) {
-                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apoptions=${kaptOptions}"))
+            val kaptOptions = (module.javaAnnotationProcessorOptions ?: emptyMap()) +
+                    (module.kaptArguments ?: emptyMap()) +
+                    options.kaptOptions
+            if (kaptOptions.isNotEmpty()) {
+                val encodedKaptOptions = encodeList(kaptOptions)
+                kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apoptions=${encodedKaptOptions}"))
             }
         }
 
@@ -167,6 +177,13 @@ class KotlinCompilerInvoker {
         }
 
         val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
+        val outputDir = if (options.isEnableKapt) {
+            kaptOutputDir
+        } else {
+            // we have to set output dir to kotlin compiled class path to resolve
+            // 'xxx' is a public API property declared in different module
+            kotlinClassPath
+        }
         val compileArgs = (module.kotlinFreeCompilerArgs + listOf(
             "-verbose",
             "-jvm-target", jvmTarget,
@@ -184,7 +201,7 @@ class KotlinCompilerInvoker {
             "-Xjava-source-roots=${javaSourceRoots.joinToString(",")}",
             // we have to set output dir to kotlin compiled class path to resolve
             // 'xxx' is a public API property declared in different module
-            "-d", kotlinClassPath.absolutePath,
+            "-d", outputDir.path,
         )).toMutableList()
         if (!kotlinCompile.isUseProjectCompiler) {
             // use embedded compiler, we need to set the language version
@@ -224,7 +241,7 @@ class KotlinCompilerInvoker {
         logger.debug("kotlin compile result code: $exitCode")
 
         // retry strategy
-        if (!hasRetryCompile && handleMetadataError(outputParser, logger)) {
+        if (options.isCanAutoRetry && !hasRetryCompile && handleMetadataError(outputParser, logger)) {
             hasRetryCompile = true
             logger.info("Kotlin compile failed with metadata error, retry once.")
             return compile(context, module, task, logger, options)
@@ -235,7 +252,7 @@ class KotlinCompilerInvoker {
         }
         var shouldRecreate = false
         var retryReason = ""
-        if (errorResults > JuggSettings.minErrorToRecreateCompiler) {
+        if (exitCode != ExitCode.OK && errorResults > JuggSettings.minErrorToRecreateCompiler) {
             // most likely kotlin compiler is not working, try to recreate once
             retryReason = "Kotlin compile failed with too many errors(> ${JuggSettings.minErrorToRecreateCompiler})"
             shouldRecreate = true
@@ -297,7 +314,7 @@ class KotlinCompilerInvoker {
 
         if (shouldRecreate) {
             logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRetryCompile")
-            if (!hasRetryCompile) {
+            if (options.isCanAutoRetry && !hasRetryCompile) {
                 logger.warn("\n$retryReason, retry with recreating compiler once.\n")
                 hasRetryCompile = true
                 kotlinCompile = K2JVMCompilerIsolate()
@@ -321,7 +338,7 @@ class KotlinCompilerInvoker {
         }
 
         // copy outputs to task.outputDir
-        val outputs = outputParser.outputs.mapNotNull {
+        val compileOutputs = outputParser.outputs.mapNotNull {
             if (it.extension == "kotlin_module") return@mapNotNull null
 
             val targetFile = if (it.isChild(kotlinClassPath)) {
@@ -337,10 +354,32 @@ class KotlinCompilerInvoker {
             CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
         }
 
+        // outputParser is unable to capture kapt outputs correctly, collect them manually here
+        val kaptOutputs = mutableListOf<CompileOutput>()
+        if (options.isEnableKapt) {
+            // collect kapt output
+            val kaptSourceOutputs = kaptSourceDir.listFilesRecursively()
+                .filter {
+                    it.extension == "java"
+                }.map {
+                    val targetFile = it.copyToBaseDir(kaptSourceDir, task.outputDir)
+                    CompileOutput(CompileOutput.Type.Java, targetFile, task.outputDir)
+                }
+            kaptOutputs.addAll(kaptSourceOutputs)
+            val kaptAptOutputs = outputDir.listFilesRecursively()
+                .filter {
+                    it.extension == "class"
+                }.map {
+                    val targetFile = it.copyToBaseDir(outputDir, task.outputDir)
+                    CompileOutput(CompileOutput.Type.Class, targetFile, task.outputDir)
+                }
+            kaptOutputs.addAll(kaptAptOutputs)
+        }
+
         hasRetryCompile = false
         disablePlugins = tryDisablePlugins
         properJvmTarget = tryProperJvmTarget
-        return CompileResult(task, task.files.map { Result.success(it) }, outputs)
+        return CompileResult(task, task.files.map { Result.success(it) }, compileOutputs + kaptOutputs)
     }
 
     private fun handleComposeArgs(
@@ -524,11 +563,8 @@ class KotlinCompilerInvoker {
             return chooseClasspath?.toList()
         }
 
-        private fun encodeList(options: Map<String, String>?): String? {
+        private fun encodeList(options: Map<String, String>): String {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
-            if (options == null) {
-                return null
-            }
             val os = ByteArrayOutputStream()
             val oos = ObjectOutputStream(os)
 
@@ -543,7 +579,7 @@ class KotlinCompilerInvoker {
         }
 
         @Suppress("SameParameterValue")
-        private fun getPluginPath(name: String): String? {
+        fun getEmbeddedJarPath(name: String): String? {
             val classLoader = this::class.java.classLoader
             return if (classLoader is UrlClassLoader) {
                 // running in IDE

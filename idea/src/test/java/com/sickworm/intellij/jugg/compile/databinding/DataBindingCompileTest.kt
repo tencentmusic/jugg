@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compile.databinding
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
@@ -23,21 +24,40 @@ class DataBindingCompileTest {
                 File(assetsAndroidDir, "app/src/main/res"),
                 context.modules.values.first()
             )),
-            buildDir,
+            File(buildDir, "output"),
             CompileStatusHolder.DEFAULT,
         )
 
         val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
-        assertEquals(result.outputs.size, 1)
-        assertEquals(
-            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java"),
-            result.outputs.first().file)
+        checkOutputFiles(result, listOf(
+            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java")
+        ))
 
         val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
         val result2 = mapperCompiler.compile(compileTask)
         assertTrue(result2.isAllSuccess)
+        checkOutputFiles(result2, listOf(
+            File(compileTask.outputDir, "androidx/databinding/DataBinderMapperImpl.java"),
+            File(compileTask.outputDir, "androidx/databinding/DataBindingComponent.java"),
+            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java"),
+            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.java"),
+            File(compileTask.outputDir, "com/example/myapplication/BR.java"),
+            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapper_IncrementalHolder.java"),
+            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapperImpl.java"),
+            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapperImpl_Full.java"),
+            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapperImpl_Inc_1.java"),
+        ))
     }
 
+    private fun checkOutputFiles(compileResult: CompileResult, expect: List<File>) {
+        expect.forEach { expectFile ->
+            val outputFile = compileResult.outputs.find { it.file == expectFile }
+            assertTrue(outputFile != null, "File $expectFile does not exist in output")
+            assertTrue(outputFile.file.exists(), "File $expectFile does not exist")
+            assertEquals(compileResult.task.outputDir, outputFile.baseDir)
+        }
+        assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
+    }
 }

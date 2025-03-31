@@ -29,15 +29,16 @@ class DataBindingArgsManager(context: ICompileContext, private val moduleInfo: M
     val dependencyClassesFolders get() = dir(tempCompileDir, "other/dependency_classes_folder")
 
     // generate DataBinding things e.g. DataBinderMapperImpl.java
-    val dataBindingPreProcessorSources get() = dir(tempCompileDir, "data_binding_trigger/${moduleInfo.buildVariant}")
     val dataBindingDependencyArtifacts get() = dir(tempCompileDir, "dependency_artifacts")
     val dataBindingArtifactFolder get() = dir(tempCompileDir, "base_class_log_artifact")
+    val dataBindingPreProcessorSources get() = dir(tempCompileDir, "data_binding_trigger/${moduleInfo.buildVariant}")
     val dataBindingKaptProcessorTrigger get() = file(dataBindingPreProcessorSources, packageName.replace(".", "/") + "/DataBindingInfo.java")
     val dataBindingKaptSourceTrigger get() = file(dataBindingPreProcessorSources, packageName.replace(".", "/") + "/DataBindingTrigger.kt")
     val dataBindingAarOutDir get() = dir(tempCompileDir, "bundle-bin")
     val dataBindingBaseFeatureInfoDir get() = dir(tempCompileDir, "base_feature_info")
+    val dataBindingKaptTempDir get() = "other/kapt_output"
 
-    val dataBindingBrMergedDir get() = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
+    val gradleDataBindingKaptOutputDir get() = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
     val libraryBrRelativePath get() = if (isUseAndroidX) {
         "androidx/databinding/library/baseAdapters/BR.java"
     } else {
@@ -49,6 +50,7 @@ class DataBindingArgsManager(context: ICompileContext, private val moduleInfo: M
     val dataBindingMapperIncrementalDir get() = dir(mapperDir, "inc")
     val dataBindingMapperDelegateFile get() = file(mapperDir, "DataBinderMapperImpl.java")
     val dataBindingMapperFullFile get() = file(mapperDir, "full/DataBinderMapperImpl_Full.java")
+    val dataBindingMapperRelativePath get() = packageName.replace(".", "/") + "/DataBinderMapperImpl.java"
 
     fun reset() {
         tempCompileDir.deleteRecursively()
