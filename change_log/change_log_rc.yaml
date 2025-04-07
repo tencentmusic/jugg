@@ -1,3 +1,8 @@
+- version: 2.2.0-rc21
+  date: 2025.04.07
+  updates:
+    - supports Intellij Idea 2024 / 2025
+
 - version: 2.2.0-rc19
   date: 2025.03.27
   updates:

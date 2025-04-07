@@ -1,32 +1,38 @@
 package com.sickworm.intellij.jugg.deploy.run
 
+import android.annotation.SuppressLint
 import com.android.ddmlib.IDevice
 import com.android.tools.idea.IdeInfo
 import com.android.tools.idea.run.ApkInfo
 import com.google.gson.Gson
-import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
-import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.JuggException
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.android.download.AndroidComponentDownloader
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -213,16 +219,17 @@ class JuggDeployerHelper(
     }
 
     @Suppress("KotlinConstantConditions")
-    fun deploy(device: IDevice,
-               isLastDevice: Boolean,
-               processHandler: IProcessHandler? = null,
-               indicator: ProgressIndicator? = null,
-               isInstall: Boolean = false,
-               isWarmUp: Boolean = false,
-               retryReason: String? = null,
-               isSkipExceptOverlayCheck: Boolean = false,
-               retryDeployData: JuggDeployData? = null,
-               startTime: Long = System.currentTimeMillis(),
+    fun deploy(
+        device: IDevice,
+        isLastDevice: Boolean,
+        processHandler: IProcessHandler? = null,
+        indicator: ProgressIndicator? = null,
+        isInstall: Boolean = false,
+        isWarmUp: Boolean = false,
+        retryReason: String? = null,
+        isSkipExceptOverlayCheck: Boolean = false,
+        retryDeployData: JuggDeployData? = null,
+        startTime: Long = System.currentTimeMillis(),
     ): DeployTaskResult {
 
         fun costTime(): Long { return System.currentTimeMillis() - startTime }
@@ -281,7 +288,8 @@ class JuggDeployerHelper(
                 var isRecoverWithReinstall = false
                 if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy) {
                     if (deployStateManager.getDeployState(device).isReadyIncCompile) {
-                        val (isSuccess, isReinstalled) = recoverDeployState(device, indicator,
+                        val (isSuccess, isReinstalled) = recoverDeployState(
+                            device, indicator,
                             isNeedTryDeyDeployFirst = !isNeedReinstallApk,
                             isInstallUpdateApk = isNeedReinstallApk,
                             isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
@@ -493,10 +501,11 @@ class JuggDeployerHelper(
      * Will check deploy state on device first. If matched, won't reinstall apk and redeploy compiled files.
      * @return <isSuccess, isReinstalled>
      */
-    private fun recoverDeployState(device: IDevice, indicator: ProgressIndicator?,
-                                   isNeedTryDeyDeployFirst: Boolean,
-                                   isSkipExceptOverlayCheck: Boolean,
-                                   isInstallUpdateApk: Boolean = false,
+    private fun recoverDeployState(
+        device: IDevice, indicator: ProgressIndicator?,
+        isNeedTryDeyDeployFirst: Boolean,
+        isSkipExceptOverlayCheck: Boolean,
+        isInstallUpdateApk: Boolean = false,
     ): Pair<Boolean, Boolean> {
         if (!isInstallUpdateApk) {
             logger.info("App not ready to deploy, recover deploy state from history.")
@@ -683,10 +692,20 @@ private class CopyEmbeddedDistributionPaths {
         ).absolutePath
     }
 
+    @SuppressLint("PrivateApi")
     private fun getOptionalIjPath(@Suppress("SameParameterValue") path: String): File? {
         // IJ does not bundle some large resources from android plugin, and downloads them on demand.
-        AndroidProfilerDownloader.getInstance().makeSureComponentIsInPlace()
-        return AndroidProfilerDownloader.getInstance().getHostDir(path)
+        try {
+            val instance = AndroidProfilerDownloader.getInstance()
+            instance.makeSureComponentIsInPlace()
+            return instance.getHostDir(path)
+        } catch (e: Throwable) { // NoClassDefFoundError | ClassNotFoundException
+            // compat with Build #IU-243.22562.218
+            val clazz = Class.forName("com.android.tools.idea.downloads.AndroidProfilerDownloader")
+            val instance = clazz.getMethod("getInstance").invoke(null)
+            clazz.getMethod("makeSureComponentIsInPlace").invoke(instance)
+            return clazz.getMethod("getHostDir", String::class.java).invoke(instance, path) as File?
+        }
     }
 }
 

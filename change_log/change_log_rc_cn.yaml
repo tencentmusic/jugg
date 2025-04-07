@@ -1,7 +1,12 @@
+- version: 2.2.0-rc21
+  date: 2025.04.07
+  updates:
+    - 支持 Intellij Idea 2024 / 2025 版本
+
 - version: 2.2.0-rc19
   date: 2025.03.27
   updates:
-    - 修复非必需的 Git 操作失败时，无法使用增量编译
+    - 修复内部 git 操作失败的情况下无法使用增量编译
 
 - version: 2.2.0-rc17
   date: 2025.03.22
