@@ -1,3 +1,8 @@
+- version: 2.2.0-rc22
+  date: 2025.04.15
+  updates:
+    - 优化自动降级参数，避免部署 >1000 class 导致运行卡顿的情况
+
 - version: 2.2.0-rc21
   date: 2025.04.07
   updates:
