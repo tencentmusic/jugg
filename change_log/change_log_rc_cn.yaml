@@ -1,7 +1,7 @@
-- version: 2.2.0-rc22
-  date: 2025.04.15
+- version: 2.2.0-rc23
+  date: 2025.04.18
   updates:
-    - 优化自动降级参数，避免部署 >1000 class 导致运行卡顿的情况
+    - 修复 macOS 升级到 15.4 后部分设备出现 findViewById 返回 null。原因是升级后老版本 rsync 无法正常使用 classpath 备份功能。解决方案：对不兼容的 rsync 版本自动屏蔽此可选功能
 
 - version: 2.2.0-rc21
   date: 2025.04.07

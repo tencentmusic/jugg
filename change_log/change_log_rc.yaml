@@ -1,3 +1,8 @@
+- version: 2.2.0-rc23
+  date: 2025.04.18
+  updates:
+    - fix findViewById null after macOS upgrade to 15.4 on some devices. Add rsync compatible check
+
 - version: 2.2.0-rc22
   date: 2025.04.15
   updates:

@@ -115,7 +115,7 @@ class MoreOptionsManager(
             }
         )
 
-        if (!isWindows) {
+        if (JuggSettings.isCanUseBackupClasspath) {
             createOption(
                 name = "Enable backup classpath",
                 onGet = { JuggSettings.isEnableBackupClasspath },

@@ -89,10 +89,9 @@ object JuggSettings {
      */
     const val overlayDeploySplitSizeFirstSlice = 10_000
 
+    var isEnableBackupClasspath: Boolean by propertiesComponent.delegate(defaultValue = !isWindows)
     // windows not support rsync, so disable backup classpath
-    // macOS below 10.13 may not work properly, default disabled too
-    private val macOsOld = isMac && ((System.getProperty("os.version")?.split(".")?.getOrNull(0)?.toIntOrNull() ?: 0) <= 12)
-    var isEnableBackupClasspath: Boolean by propertiesComponent.delegate(defaultValue = !isWindows && !macOsOld)
+    var isCanUseBackupClasspath: Boolean = !isWindows
 
     var deviceCompatRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 
