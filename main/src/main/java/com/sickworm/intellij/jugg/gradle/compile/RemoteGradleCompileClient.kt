@@ -359,12 +359,6 @@ class RemoteGradleCompileClient(
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
-        if (!JuggSettings.isEnableBackupClasspath) {
-            logger.info("isSupportsBackupClasspath is false, skip fetchClasspathResult")
-            val projectRootPath = File(project.basePath!!)
-            return projectRootPath
-        }
-
         val (channel, gradleCompileSettings) = checkLoginOnStart()
 
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
