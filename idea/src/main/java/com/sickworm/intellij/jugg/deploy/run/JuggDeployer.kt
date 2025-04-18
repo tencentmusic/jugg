@@ -142,7 +142,7 @@ class JuggDeployer(
 
         // On an on-host verification of the dump first.
         val dumper = ApplicationDumper(installer)
-        val verifyDump = verifyCache(speculativeDump, dumper)
+        val verifyDump = verifyCache(speculativeDump, dumper, logger)
 
         // covert to adt deploy data.
         val builder = OverlayUpdateBuilder()
@@ -184,7 +184,7 @@ class JuggDeployer(
 
         @Throws(DeployerException::class)
         private fun verifyCache(
-            entry: DeploymentCacheDatabase.Entry?, dumper: ApplicationDumper
+            entry: DeploymentCacheDatabase.Entry?, dumper: ApplicationDumper, logger: AdbLogWrapper
         ): DeploymentCacheDatabase.Entry {
             if (entry == null) {
                 throw DeployerException.remoteApkNotFound()
@@ -196,7 +196,19 @@ class JuggDeployer(
             // If we have an install without OID file, we are going to the classic dump to
             // verify that we are actually looking at the same APK cached in the database.
             val cachedResults = entry.apks
-            val actualResults = dumper.dump(entry.apks).apks
+            val actualResults = try {
+                dumper.dump(entry.apks).apks
+            } catch (e: Exception) {
+                // com.android.ddmlib.AdbCommandRejectedException: device offline
+                logger.info("dumping failed, retry later.", e)
+                if (e.message?.contains("device offline") == true) {
+                    // retry once after 2s
+                    Thread.sleep(2000)
+                    dumper.dump(entry.apks).apks
+                } else {
+                    throw e
+                }
+            }
             if (cachedResults.size != actualResults.size) {
                 throw DeployerException.overlayIdMismatch()
             }
