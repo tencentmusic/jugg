@@ -1,3 +1,8 @@
+- version: 2.2.0-rc24
+  date: 2025.04.21
+  updates:
+    - 优化 Gradle 编译需要等待 "Update project info from gradle" 结束才可以开始
+
 - version: 2.2.0-rc23
   date: 2025.04.18
   updates:

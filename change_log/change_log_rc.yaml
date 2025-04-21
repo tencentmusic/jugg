@@ -1,3 +1,8 @@
+- version: 2.2.0-rc24
+  date: 2025.04.21
+  updates:
+    - optimize gradle compile need to wait "Update project info from gradle" finish
+
 - version: 2.2.0-rc23
   date: 2025.04.18
   updates:

@@ -142,7 +142,6 @@ class GradleProjectInfoLocalFetchManager(
 
     private var hasWrote = false
 
-    @Synchronized
     fun writeInitGradleFile() {
         val initGradleFile = pathManager.initGradleFilePath
         if (hasWrote && initGradleFile.exists()) {
