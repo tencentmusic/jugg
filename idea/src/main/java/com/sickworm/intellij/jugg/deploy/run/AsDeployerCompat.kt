@@ -71,6 +71,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
+            IdeVersion("Android Studio Narwhal", "IA", "251.23774.16"),
+            lazy { NarwhalAsDeployerCompat() }
+        ),
+        CompatImpl(
             IdeVersion("Android Studio Meerkat", "IA", "243.22562.218"),
             lazy { MeerkatAsDeployerCompat() }
         ),

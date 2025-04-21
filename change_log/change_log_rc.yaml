@@ -1,3 +1,8 @@
+- version: 2.2.0-rc25
+  date: 2025.04.22
+  updates:
+    - supports Android Studio Narwhal
+
 - version: 2.2.0-rc24
   date: 2025.04.21
   updates:

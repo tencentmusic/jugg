@@ -103,6 +103,7 @@ dependencies {
     implementation project(':deploy_compat:v_hedgehog')
     implementation project(':deploy_compat:v_iguana')
     implementation project(':deploy_compat:v_meerkat')
+    implementation project(':deploy_compat:v_narwhal')
 
     // backend
     implementation "com.squareup.okhttp3:okhttp:4.9.1"

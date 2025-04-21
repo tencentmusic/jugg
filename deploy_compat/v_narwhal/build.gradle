@@ -1,0 +1,44 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'java'
+    id 'org.jetbrains.intellij'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+version getDirCommitId(rootDir.relativePath(projectDir))
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "11"
+}
+
+buildSearchableOptions {
+    enabled = false
+}
+
+intellij {
+    // it's ok to use a older version of the IDE plugin, because we don't use any new features
+    // use different versions of IDE plugin, will make code searching become too slow
+    version = ide_version
+}
+
+repositories {
+    google()
+    mavenCentral()
+
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation project(':deploy_compat:interface')
+    api project(':deploy_compat:v_meerkat')
+}
+
+test {
+    useJUnitPlatform()
+}
