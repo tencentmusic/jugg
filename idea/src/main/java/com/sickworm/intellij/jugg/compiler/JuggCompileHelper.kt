@@ -314,11 +314,11 @@ class JuggCompilerHelper(
         logger.debug("javaSourceSize: ${javaSourceFiles.size}, kotlinSourceFiles ${kotlinSourceFiles.size}, undeployedSourceFilesPoints: $undeployedSourceFilesPoints")
 
         if (undeployedSourceModules.size > JuggSettings.maxCompileSourceModules) {
-            logger.info("Compile modules too much(${undeployedSourceModules.size} modules), " +
+            logger.warn("Compile modules too much(${undeployedSourceModules.size} modules), " +
                     "will fallback to gradle compile for better performance.")
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         } else if (undeployedSourceFilesPoints > JuggSettings.maxCompileSourceFilePoints) {
-            logger.info("Compile files too much(${undeployedSourceFiles.size} files), " +
+            logger.warn("Compile files too much(${undeployedSourceFiles.size} files), " +
                     "will fallback to gradle compile for better performance.")
             return CompileTaskResult.incrementalFailed(true, "Too many changes")
         }
