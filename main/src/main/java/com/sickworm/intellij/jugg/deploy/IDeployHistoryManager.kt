@@ -45,7 +45,7 @@ interface IDeployHistoryManager {
     /**
      * @return False if [hasBeenFullCompiled] is false. Otherwise, return true.
      */
-    fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean): DeployContextRecoverInfo?
+    fun tryGetContextRecoverInfoFromDb(isOnInit: Boolean = true): DeployContextRecoverInfo?
 
     /**
      * Invoke this method to cache changed files

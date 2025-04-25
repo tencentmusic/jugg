@@ -1,3 +1,8 @@
+- version: 2.2.0-rc26
+  date: 2025.04.25
+  updates:
+    - 修复有 R 超限拆分的工程，在资源增量编译后，编译代码概率出现找不到 R.styleable 错误
+
 - version: 2.2.0-rc25
   date: 2025.04.22
   updates:

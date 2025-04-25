@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.org.objectweb.asm.tree.FieldNode
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.InputStream
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 class StyleableFileGenerator(
@@ -45,6 +46,9 @@ class StyleableFileGenerator(
         }
     }
 
+    // compat for R split, see: RJavaFixer
+    private val availableStyleableNames = listOf("R\$styleable.class", "R\$styleable0.class", "styleable0.class")
+
     @TestOnly
     fun generateStyleableFile(rFile: File, packageName: String, outputDir: File): File? {
         if (!rFile.exists()) {
@@ -52,18 +56,24 @@ class StyleableFileGenerator(
             return null
         }
 
-        val rStyleableEntryName = packageName.replace('.', '/') + "/R\$styleable.class"
-        logger.debug("generateStyleableFile, rFile: ${rFile.absolutePath}, rStyleableEntryName: $rStyleableEntryName")
+        logger.debug("generateStyleableFile, rFile: ${rFile.absolutePath}")
         ZipFile(rFile).use { jarFile ->
-            val rStyleableEntry = jarFile.getEntry(rStyleableEntryName)
-            if (rStyleableEntry == null) {
-                logger.debug("generateStyleableFile failed, $rStyleableEntryName not found in ${rFile.absolutePath}")
+            val rStyleableEntryList = mutableListOf<ZipEntry>()
+            availableStyleableNames.forEach { styleableName ->
+                val rStyleableEntryName = packageName.replace('.', '/') + "/$styleableName"
+                val rStyleableEntry = jarFile.getEntry(rStyleableEntryName)
+                if (rStyleableEntry != null) {
+                    logger.debug("$rStyleableEntryName found in ${rFile.absolutePath}")
+                    rStyleableEntryList.add(rStyleableEntry)
+                }
+            }
+            if (rStyleableEntryList.isEmpty()) {
+                logger.debug("generateStyleableFile failed, rStyleableEntryList not found in ${rFile.absolutePath}")
                 return null
             }
 
-            jarFile.getInputStream(rStyleableEntry).use { ins ->
-                return generateStyleableFile(ins, outputDir)
-            }
+            val providers = rStyleableEntryList.map { InputStreamProvider.of(jarFile, it) }
+            return generateStyleableFile(providers, outputDir)
         }
     }
 
@@ -73,29 +83,39 @@ class StyleableFileGenerator(
             return null
         }
 
-        val rStyleableFile = File(rFileDir, packageName.replace('.', '/') + "/R\$styleable.class")
-        logger.debug("generateStyleableFile, rFile: ${rFileDir.absolutePath}, rStyleableFile: $rStyleableFile")
-        if (!rStyleableFile.exists()) {
-            logger.debug("generateStyleableFile failed, $rStyleableFile not found in ${rFileDir.absolutePath}")
+        val rStyleableFileList = mutableListOf<File>()
+        availableStyleableNames.forEach { styleableName ->
+            val rStyleableFile = File(rFileDir, packageName.replace('.', '/') + "/$styleableName")
+            if (rStyleableFile.exists()) {
+                logger.debug("$rStyleableFile found in ${rFileDir.absolutePath}")
+                rStyleableFileList.add(rStyleableFile)
+            }
+        }
+        logger.debug("generateStyleableFile, rFile: ${rFileDir.absolutePath}, rStyleableFileList: $rStyleableFileList")
+        if (rStyleableFileList.isEmpty()) {
+            logger.debug("generateStyleableFile failed, rStyleableFileList not found in ${rFileDir.absolutePath}")
             return null
         }
 
-        rStyleableFile.inputStream().use { ins ->
-            return generateStyleableFile(ins, outputDir)
-        }
+        val providers = rStyleableFileList.map { InputStreamProvider.of(it) }
+        return generateStyleableFile(providers, outputDir)
     }
 
-    private fun generateStyleableFile(ins: InputStream, outputDir: File): File {
+    private fun generateStyleableFile(providers: List<InputStreamProvider>, outputDir: File): File {
         val styleablesMerger = StyleablesMerger(logger)
-        val classReader = ClassReader(ins)
-        val asmClassNode = ClassNode()
-        classReader.accept(asmClassNode, 0)
-        asmClassNode.fields.forEach {
-            if (it is FieldNode) {
-                styleablesMerger.acceptVariable(it.name, it.desc)
+        providers.forEach { provider ->
+            provider.use { ins ->
+                val classReader = ClassReader(ins)
+                val asmClassNode = ClassNode()
+                classReader.accept(asmClassNode, 0)
+                asmClassNode.fields.forEach {
+                    if (it is FieldNode) {
+                        styleablesMerger.acceptVariable(it.name, it.desc)
+                    }
+                }
             }
         }
-        logger.debug("generateStyleableFile success, load styleables: ${styleablesMerger.getResult().size}")
+        logger.debug("generateStyleableFile success, providers: ${providers.size}, load styleables: ${styleablesMerger.getResult().size}")
 
         val outputFile = File(outputDir, "styleables.txt")
         outputFile.parentFile?.mkdirs()
@@ -112,6 +132,30 @@ class StyleableFileGenerator(
     }
 }
 
+private interface InputStreamProvider {
+
+    fun use(runnable: (InputStream) -> Unit)
+
+    companion object {
+
+        fun of(zipFile: ZipFile, zipEntry: ZipEntry) = object : InputStreamProvider {
+            override fun use(runnable: (InputStream) -> Unit) {
+                zipFile.getInputStream(zipEntry).use {
+                    runnable(it)
+                }
+            }
+        }
+
+        fun of(file: File) = object : InputStreamProvider {
+            override fun use(runnable: (InputStream) -> Unit) {
+                file.inputStream().use {
+                    runnable(it)
+                }
+            }
+        }
+    }
+
+}
 
 private class Styleables(
     val name: String,
