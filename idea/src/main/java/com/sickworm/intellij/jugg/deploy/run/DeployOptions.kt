@@ -15,4 +15,5 @@ data class DeployOptions(
     val isSkipExceptOverlayCheck: Boolean = false,
     val retryDeployData: JuggDeployData? = null,
     val startTime: Long = System.currentTimeMillis(),
+    var timeOutRetryTimes: Int = 0,
 )

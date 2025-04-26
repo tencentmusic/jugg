@@ -426,6 +426,13 @@ class JuggDeployerHelper(
         // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
         val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
 
+        val reinstallWhenTimeout = deployOptions.timeOutRetryTimes == 2 // try to reinstall apk at the third time
+        val stopRetryWhenTimeout = deployOptions.timeOutRetryTimes >= 3
+        if (isDeployTimeout && stopRetryWhenTimeout) {
+            logger.warn("Deploy timeout, retry times: ${deployOptions.timeOutRetryTimes}, stop retry.")
+            return null
+        }
+
         if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
             var isNeedTryDeyDeployFirst = false
             var isRetryDirectly = false
@@ -437,9 +444,14 @@ class JuggDeployerHelper(
                         logger.warn("Got deploy timeout exception, reduce overlay and retry")
                         SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(deployOptions.device, logger))
                     } else {
-                        logger.warn("Got deploy timeout exception, retry after 5s.")
-                        Thread.sleep(5_000)
-                        isRetryDirectly = true
+                        if (reinstallWhenTimeout) {
+                            logger.warn("Got deploy timeout exception, retry the last time with reinstalling APK.")
+                            isRetryDirectly = false
+                        } else {
+                            logger.warn("Got deploy timeout exception, retry after 5s.")
+                            Thread.sleep(5_000)
+                            isRetryDirectly = true
+                        }
                     }
                 }
                 isOverlayIdNotCorrect -> {
@@ -464,7 +476,9 @@ class JuggDeployerHelper(
                     logger.info("Try recover deploy state success on retry.")
                 }
             }
-            val nextDeployOptions = deployOptions.copy(retryReason = reason, isSkipExceptOverlayCheck = true)
+            val nextDeployOptions = deployOptions.copy(retryReason = reason, isSkipExceptOverlayCheck = true,
+                timeOutRetryTimes = deployOptions.timeOutRetryTimes + if (isDeployTimeout) 1 else 0,
+            )
             return deploy(nextDeployOptions)
         }
 
