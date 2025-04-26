@@ -87,6 +87,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             }
 
             val parseStartTime = System.currentTimeMillis()
+            logger.debug("${it.applicationId} parse apk start.")
             val diffParsedApk = ApkParser().parse(it, includeEntries)
             logger.debug("${it.applicationId} parse apk finish, cost ${System.currentTimeMillis() - parseStartTime}ms.")
             logger.debug("diffParsedApk: $diffParsedApk")
