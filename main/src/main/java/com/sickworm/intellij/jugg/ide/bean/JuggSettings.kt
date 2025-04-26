@@ -66,8 +66,6 @@ object JuggSettings {
 
     /** Whether warm up compiler after init compilation. False for unit test. */
     var isEnableWarmUp: Boolean = true
-    /** whether deploy all res files to device after install apk */
-    var isEnableWarmUpDeploy: Boolean = false
 
     /**
      * Whether fallback all to hot fix if there is any hot fix files.

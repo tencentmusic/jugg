@@ -150,7 +150,7 @@ class JuggManager @TestOnly constructor(
         if (isUpdated) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
-            warmUpCompile(isNeedWarmUpDeploy = false)
+            warmUpCompile()
             launch {
                 // do it async to let warmUpCompile run
                 dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
@@ -259,7 +259,7 @@ class JuggManager @TestOnly constructor(
 
         // step 1: recover compile context
         initCompile(deployContextRecoverInfo.compileContextInfo, deployContextRecoverInfo.deployedFiles,
-            isNeedWarmUpDeploy = false, startCompileTime = null
+            startCompileTime = null
         )
         // step 2: recover deploy files
         logger.debug("Start recover deploy history...")
@@ -485,7 +485,6 @@ class JuggManager @TestOnly constructor(
             copyGeneratedSourceToLocal()
         }
         initCompile(compileContextInfo, emptyList(),
-            isNeedWarmUpDeploy = JuggSettings.isEnableWarmUpDeploy,
             startCompileTime = startCompileTime,
         )
 
@@ -587,7 +586,6 @@ class JuggManager @TestOnly constructor(
     private fun initCompile(
         compileContextInfo: CompileContextInfo,
         deployedFiles: List<CompileOutput>,
-        isNeedWarmUpDeploy: Boolean,
         startCompileTime: Long?,
     ) {
         logger.info("Init compile...")
@@ -616,39 +614,14 @@ class JuggManager @TestOnly constructor(
         logger.info("Jugg init complete, start listening file changes.")
 
         if (JuggSettings.isEnableWarmUp) {
-            warmUpCompile(isNeedWarmUpDeploy)
+            warmUpCompile()
         }
     }
 
-    private fun warmUpCompile(isNeedWarmUpDeploy: Boolean) {
+    private fun warmUpCompile() {
         runTaskSafe("Warm Up Compile", {
-            doWarmUpCompile(isNeedWarmUpDeploy)
+            juggCompilerHelper.warmUp()
         })
-    }
-
-    private fun doWarmUpCompile(isNeedWarmUpDeploy: Boolean) {
-        runBlocking {
-            launch(Dispatchers.IO) {
-                juggCompilerHelper.warmUp()
-            }
-            if (isNeedWarmUpDeploy) {
-                launch(Dispatchers.IO) {
-                    val devices = deployTargetManager.getSelectedDevices()
-                    devices.forEachIndexed { index, device ->
-                        val isLastDevice = index == devices.size - 1
-                        val result = juggDeployerHelper.deploy(device, isLastDevice, processHandler = null, isInstall = false, isWarmUp = true, retryReason = JuggDeployerHelper.DO_NOT_RETRY)
-                        juggServer.report {
-                            action = "warm_up_deploy"
-                            isSuccess = result.isSuccess
-                            costTime = result.costTime
-                            detail = result.failedReason
-                        }
-                    }
-                }
-            } else {
-                logger.debug("no need warm up deploy, skip.")
-            }
-        }
     }
 
     private fun runTaskSafe(jobName: String, action: Runnable, isNeedShowIndicator: Boolean = true) {
