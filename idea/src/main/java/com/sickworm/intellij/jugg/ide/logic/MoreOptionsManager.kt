@@ -93,6 +93,11 @@ class MoreOptionsManager(
             onSet = { checkUpdates() }
         )
 
+        createOption(
+            name = "Clean and Reset Jugg",
+            onSet = { cleanAndResetJugg() }
+        )
+
         createSplitLine("Function switches")
 
         createOption(
@@ -302,4 +307,23 @@ class MoreOptionsManager(
         dialog.show()
     }
 
+    private fun cleanAndResetJugg() {
+        logger.info("[options] cleanAndResetJugg")
+        val isConfirmed = CommonConfirmDialog.showAndGetResult(
+            "Confirm Clean and Reset Jugg",
+            "<html>This will delete all cache files and reopen project.<br>Are you sure to continue?</html>"
+        )
+        if (isConfirmed) {
+            logger.info("cleanAndResetJugg confirmed, start delete all files")
+            pathManager.juggRootDir.listFiles()?.forEach {
+                try {
+                    it.deleteRecursively()
+                } catch (e: Exception) {
+                    logger.warn("Cannot delete dir ${it.name}, skip", e)
+                }
+            }
+            logger.info("cleanAndResetJugg delete finished, start reopen all projects")
+            JuggInitializer.reopenAllProjectsAsync()
+        }
+    }
 }
