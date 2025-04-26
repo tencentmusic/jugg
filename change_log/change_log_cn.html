@@ -6,8 +6,10 @@
     <li>[feature] 优先使用工程的 Kotlin 编译器版本，以解决 Kotlin 1.4 以下和 2.0 以上 语法不兼容等问题</li>
     <li>[feature] 支持 Android Studio Meerkat / Narwhal</li>
     <li>[feature] 支持 Intellij Idea 2024 / 2025 版本</li>
+    <li>[feature] 增加 Clean and Reset Jugg 功能，可在 Jugg 无法正常降级时使用</li>
     <li>[optimize] 优化依赖库被 gradle 清理后的恢复策略</li>
     <li>[optimize] 优化自动降级参数，避免部署 >1000 class 导致运行卡顿的情况</li>
+    <li>[optimize] 第三次发生部署超时（Got deploy timeout）时，重装 APK；第四次超时降级</li>
     <li>[bugfix] 修复用 PackageManager.getResourcesForApplication 加载独立 APK 的资源时，找不到资源</li>
     <li>[bugfix] 修复 Android 8.0 启动空指针</li>
     <li>[bugfix] 修复 Android 15 在 Android Studio Meerkat 以下版本无法使用热重载</li>

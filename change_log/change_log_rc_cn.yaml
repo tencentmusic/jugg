@@ -1,3 +1,9 @@
+- version: 2.2.0-rc27
+  date: 2025.04.26
+  updates:
+    - 增加 Clean and Reset Jugg 功能，可在 Jugg 无法正常降级时使用
+    - 第三次发生部署超时（Got deploy timeout）时，重装 APK；第四次超时降级
+
 - version: 2.2.0-rc26
   date: 2025.04.25
   updates:

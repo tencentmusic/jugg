@@ -1,3 +1,9 @@
+- version: 2.2.0-rc27
+  date: 2025.04.26
+  updates:
+    - supports "Clean and Reset Jugg"，use it when Jugg unable to fallback
+    - reinstall APK at the third time deployment timout, fallback at the fourth time
+
 - version: 2.2.0-rc26
   date: 2025.04.25
   updates:
