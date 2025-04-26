@@ -53,7 +53,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         if (!isAgentBundlePushed) {
             logger.debug("going to push agent bundle")
             if (!pushAgentBundle()) {
-                logger.warn("Push JVMTI agent bundle failed, $WARN_REASON. Failed reason: $lastError")
+                logger.warn("[WARN ONLY] Push JVMTI agent bundle failed, $WARN_REASON. Failed reason: $lastError")
                 return false
             }
         }
@@ -62,7 +62,7 @@ class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJ
         if (!isAgentPushed) {
             logger.debug("going to setup agent")
             if (!setupAgent(packageName)) {
-                logger.warn("Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
+                logger.warn("[WARN ONLY] Push JVMTI agent to App failed, $WARN_REASON. Failed reason: $lastError")
                 return false
             }
         }
