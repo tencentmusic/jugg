@@ -99,6 +99,10 @@ class LocalGradleCompileClient(
         apkFile.copyTo(outputApkFile, overwrite = true)
         TimeLogger.end("copyLocalApkFile", logger)
 
+        if (apkFile.length() != outputApkFile.length()) {
+            logger.warn("Copy apk failed, length not match: ${apkFile.length()} != ${outputApkFile.length()}")
+            return GradleCompileResult.success(apkFile)
+        }
         return GradleCompileResult.success(outputApkFile)
     }
 
