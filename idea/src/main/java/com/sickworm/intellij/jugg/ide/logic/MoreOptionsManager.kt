@@ -84,11 +84,6 @@ class MoreOptionsManager(
         createSplitLine("Tools")
 
         createOption(
-            name = "Copy generated source to local",
-            onSet = { juggManager.copyGeneratedSourceToLocal() }
-        )
-
-        createOption(
             name = "Set custom server URL",
             onSet = { setCustomServerUrl() }
         )

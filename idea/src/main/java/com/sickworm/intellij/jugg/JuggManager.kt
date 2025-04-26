@@ -510,7 +510,7 @@ class JuggManager @TestOnly constructor(
         juggRunningTaskStatusManager.resetHasRun()
     }
 
-    fun copyGeneratedSourceToLocal() {
+    private fun copyGeneratedSourceToLocal() {
         logger.info("copyGeneratedSourceToLocal")
         taskRunnerManager.runTaskSafe("Copy Generated Source to local", {
             val modules = compileContextManager.compileContext.modules
