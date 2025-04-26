@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
+import com.sickworm.intellij.jugg.deploy.run.DeployOptions
 import com.sickworm.intellij.jugg.deploy.run.DeployTaskResult
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
@@ -253,7 +254,7 @@ class JuggRunningTask(
             indicator.text = "Deploying changes$suffix..."
         }
 
-        val deployTaskResult = juggDeployHelper.deploy(device, isLastDevice, processHandler, indicator, compileTaskResult.isGradleCompile)
+        val deployTaskResult = juggDeployHelper.deploy(DeployOptions(device, isLastDevice, processHandler, indicator, compileTaskResult.isGradleCompile))
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         detailMap["cost_time_except_check"] = deployTaskResult.costTimeExceptCheck.toString()

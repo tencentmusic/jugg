@@ -32,7 +32,6 @@ import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
-import org.jetbrains.android.download.AndroidComponentDownloader
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
 import kotlin.system.measureTimeMillis
@@ -218,28 +217,17 @@ class JuggDeployerHelper(
         }
     }
 
-    @Suppress("KotlinConstantConditions")
-    fun deploy(
-        device: IDevice,
-        isLastDevice: Boolean,
-        processHandler: IProcessHandler? = null,
-        indicator: ProgressIndicator? = null,
-        isInstall: Boolean = false,
-        isWarmUp: Boolean = false,
-        retryReason: String? = null,
-        isSkipExceptOverlayCheck: Boolean = false,
-        retryDeployData: JuggDeployData? = null,
-        startTime: Long = System.currentTimeMillis(),
-    ): DeployTaskResult {
+    fun deploy(deployOptions: DeployOptions): DeployTaskResult {
+        logger.debug("deploy start, deployOptions: $deployOptions")
+        val device = deployOptions.device
+        fun costTime(): Long { return System.currentTimeMillis() - deployOptions.startTime }
 
-        fun costTime(): Long { return System.currentTimeMillis() - startTime }
-
-        if (processHandler != null && (processHandler.isCanceled)) {
+        if (deployOptions.processHandler != null && (deployOptions.processHandler.isCanceled)) {
             logger.warn("Deploy canceled.")
             return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "deploy canceled")
         }
 
-        logger.debug("Deploying... isInstall: $isInstall, isWarmUp: $isWarmUp")
+        logger.debug("Deploying... isInstall: ${deployOptions.isInstall}, isWarmUp: ${deployOptions.isWarmUp}")
 
         val deployState = deployStateManager.updateDeployState()
         logger.debug("Jugg deploy state: $deployState")
@@ -247,12 +235,12 @@ class JuggDeployerHelper(
         var finalIsFallbackAllHotFix = false
         var deployData: JuggDeployData = JuggDeployData.forInstall(deployTargetManager.getApks())
         return try {
-            if (isInstall) {
+            if (deployOptions.isInstall) {
                 val apks = deployTargetManager.getApks()
                 logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
                 deployData = JuggDeployData.forInstall(apks)
-                val launchResult = runTask(device, deployData)
-                if (isLastDevice) {
+                val launchResult = runTask(deployOptions.device, deployData)
+                if (deployOptions.isLastDevice) {
                     logger.debug("Installing finished, update info after install.")
                     deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
                 }
@@ -263,15 +251,15 @@ class JuggDeployerHelper(
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "no device connected")
                 }
 
-                if (isWarmUp && !deployStateManager.getDeployState(device).isReadyDeploy) {
+                if (deployOptions.isWarmUp && !deployStateManager.getDeployState(device).isReadyDeploy) {
                     logger.info("Device not ready to warm up.")
                     return DeployTaskResult(isSuccess = false, costTime = costTime(), failedReason = "device not ready to warm up")
                 }
 
-                deployData = retryDeployData ?: deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk(device, deployData))
+                deployData = deployOptions.retryDeployData ?: deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, deployData))
 
                 var isNeedReinstallApk = false
-                val isRetry = retryReason != null // retry means we have already resigned the apk
+                val isRetry = deployOptions.retryReason != null // retry means we have already resigned the apk
                 if (deployData.isNeedUpdateApk && !isRetry) {
                     logger.info("Need resign APK to update files: ${deployData.updateApkFiles}.")
                     logger.info("Resigning APK...")
@@ -289,10 +277,10 @@ class JuggDeployerHelper(
                 if (isNeedReinstallApk || !deployStateManager.getDeployState(device).isReadyDeploy) {
                     if (deployStateManager.getDeployState(device).isReadyIncCompile) {
                         val (isSuccess, isReinstalled) = recoverDeployState(
-                            device, indicator,
+                            device, deployOptions.indicator,
                             isNeedTryDeyDeployFirst = !isNeedReinstallApk,
                             isInstallUpdateApk = isNeedReinstallApk,
-                            isSkipExceptOverlayCheck = isSkipExceptOverlayCheck,
+                            isSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck,
                         )
                         if (!isSuccess) {
                             logger.info("Try recover deploy state failed.")
@@ -309,7 +297,7 @@ class JuggDeployerHelper(
 
                 // get deploy data again after resigning apk (trigger full res deploy)
                 if (isRecoverWithReinstall) {
-                    deployData = deployFileManager.getDeployData(isWarmUp, isNeedPushResourceApk(device, deployData))
+                    deployData = deployFileManager.getDeployData(deployOptions.isWarmUp, isNeedPushResourceApk(device, deployData))
                 }
 
                 val isClassNeedHotFix = deployData.hotFixModifiedClasses.isNotEmpty() ||
@@ -324,10 +312,10 @@ class JuggDeployerHelper(
                 if (deployData.isFullRes && !deployData.isCompatDeploy) {
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
-                val finalIsSkipExceptOverlayCheck = isSkipExceptOverlayCheck || isRecoverWithReinstall
+                val finalIsSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck || isRecoverWithReinstall
                 val launchResult = runTask(device, deployData, finalIsSkipExceptOverlayCheck)
 
-                if (isLastDevice) {
+                if (deployOptions.isLastDevice) {
                     logger.debug("Deploying finished, update info after deploy.")
                     updateInfoAfterIncDeploy(launchResult, deployData)
                 }
@@ -336,125 +324,17 @@ class JuggDeployerHelper(
             }
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"
+            val retryReason = deployOptions.retryReason
             val canRetry = (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
-            if (canRetry && !isInstall) {
-                val isAppForeground = deployTargetManager.isAppForeground(device)
-                logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
-
-                juggServer.report {
-                    action = "incremental_deploy_retry_start"
-                    detail = reason
-                }
-
-                // e.g. change default method implementation of an interface class.
-                // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
-                val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
-                // something wrong with DeployDataGenerator... fall back too
-                val isRequiresAppRestart = reason.contains("app restart")
-                // seems like a bug of some devices e.g. OPPO Reno.
-                val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
-                // seems like a bug of deploy service, just retry
-                val isInstrumentationFailed = reason.contains("INSTRUMENTATION_FAILED") || reason.contains("IOException occurred")
-                // unknown reason, just fallback is enough to fix
-                val isInternalError = reason.contains("JVMTI_ERROR_INTERNAL")
-                // self exception, deploy with compat mode
-                val isRedeployWithCompatMode = reason.contains(REDEPLOY_WITH_COMPAT_MESSAGE)
-
-                if (isRedeployWithCompatMode) {
-                    logger.warn(REDEPLOY_WITH_COMPAT_MESSAGE)
-                    val nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
-                    return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
-                }
-
-                var nextRetryDeployData = deployData.toFallbackToHotFixData()
-
-                val isClassModifiedError = (!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError || isInternalError)
-                if (isClassModifiedError || isInstrumentationFailed) {
-                    if (isInstrumentationFailed) {
-                        logger.info("Deploy got INSTRUMENTATION_FAILED error, will retry again.")
-                    } else {
-                        logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
-                    }
-                    juggServer.report {
-                        action = "incremental_deploy_retry"
-                        detail = reason
-                    }
-                    return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
-                }
-
-                val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
-                // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
-                val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
-                if (isAgentNotResponses || isDeployTimeout) {
-                    logger.info("Deploy agent no response, going to detect JVMTI is available.")
-                    // try detect compat issues
-                    if (detectJvmtiCompatIssue(device, deployData)) {
-                        logger.warn("Detect JVMTI compat issue, fallback to compat deploy mode.")
-                        nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
-                        return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, retryDeployData = nextRetryDeployData, startTime = startTime, isSkipExceptOverlayCheck = true)
-                    } else {
-                        logger.debug("JVMTI is available.") // detectJvmtiCompatIssue will log info
-                    }
-                }
-
-                val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
-                val isClassNotFoundException = reason.contains("Class not found")
-                // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
-                val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
-
-                if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
-                    var isNeedRecover = true
-                    var isNeedTryDeyDeployFirst = false
-                    var isRetryDirectly = false
-                    when {
-                        isDeployTimeout -> {
-                            val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
-                            if (isNeedReduce) {
-                                logger.warn("Got deploy timeout exception, reduce overlay and retry")
-                                SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(device, logger))
-                            } else {
-                                logger.warn("Got deploy timeout exception, retry after 5s.")
-                                Thread.sleep(5_000)
-                                isRetryDirectly = true
-                            }
-                        }
-                        isOverlayIdNotCorrect -> {
-                            logger.info("Deploy history mismatch with the device, try recover deploy state.")
-                        }
-                        isClassNotFoundException -> {
-                            logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
-                            isNeedTryDeyDeployFirst = true
-                        }
-                        isOverlayIdNotMatch -> {
-                            logger.info("The device's deploy status mismatch with this project, try recover deploy state.")
-                            isNeedTryDeyDeployFirst = true
-                        }
-                        else -> {
-                            logger.warn("Got unknown exception. $reason")
-                            isNeedRecover = false
-                        }
-                    }
-                    if (isNeedRecover) {
-                        if (!isRetryDirectly) {
-                            val (isSuccess, _) = recoverDeployState(device, indicator, isNeedTryDeyDeployFirst, isSkipExceptOverlayCheck)
-                            if (!isSuccess) {
-                                logger.info("Try recover deploy state failed on retry.")
-                                DeployTaskResult(isSuccess = false, costTime = costTime(),
-                                    failedReason = "Try recover deploy state failed on retry.")
-                            } else {
-                                logger.info("Try recover deploy state success on retry.")
-                                juggServer.report {
-                                    action = "incremental_deploy_retry_after_recover"
-                                    detail = reason
-                                }
-                            }
-                        }
-                        return deploy(device, isLastDevice, processHandler, isInstall = false, isWarmUp = isWarmUp, retryReason = reason, startTime = startTime, isSkipExceptOverlayCheck = true)
-                    }
+            if (canRetry && !deployOptions.isInstall) {
+                logger.debug("try retry deploy...")
+                val retryResult = tryRetry(deployOptions, finalIsFallbackAllHotFix, deployData, reason)
+                if (retryResult != null) {
+                    return retryResult
                 }
             }
 
-            if (isInstall) {
+            if (deployOptions.isInstall) {
                 logger.warn("Install APK failed. Reason: $reason")
                 logger.debug(e)
             } else {
@@ -472,10 +352,123 @@ class JuggDeployerHelper(
             if (isNeedStopDeploy) {
                 logger.warn("\nDeploy Stopped.")
             }
-            val isCanFallback = !isInstall && !isNeedStopDeploy
+            val isCanFallback = !deployOptions.isInstall && !isNeedStopDeploy
 
             DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = isCanFallback, costTime = costTime(), failedReason = reason)
         }
+    }
+
+    private fun tryRetry(
+        deployOptions: DeployOptions,
+        finalIsFallbackAllHotFix: Boolean,
+        deployData: JuggDeployData,
+        reason: String,
+    ): DeployTaskResult? {
+        val isAppForeground = deployTargetManager.isAppForeground(deployOptions.device)
+        logger.debug("got exception: \"$reason\", isAppForeground: $isAppForeground")
+
+        // e.g. change default method implementation of an interface class.
+        // through we can detect it in some way, but it's more simple and good enough to fall back to HOT_FIX.
+        val isUnmodifiableClass = reason.contains("JVMTI_ERROR_UNMODIFIABLE_CLASS")
+        // something wrong with DeployDataGenerator... fall back too
+        val isRequiresAppRestart = reason.contains("app restart")
+        // seems like a bug of some devices e.g. OPPO Reno.
+        val isRedifinerError = reason.contains("R+ Device should have FULL debugger swap support")
+        // seems like a bug of deploy service, just retry
+        val isInstrumentationFailed = reason.contains("INSTRUMENTATION_FAILED") || reason.contains("IOException occurred")
+        // unknown reason, just fallback is enough to fix
+        val isInternalError = reason.contains("JVMTI_ERROR_INTERNAL")
+        // self exception, deploy with compat mode
+        val isRedeployWithCompatMode = reason.contains(REDEPLOY_WITH_COMPAT_MESSAGE)
+
+        if (isRedeployWithCompatMode) {
+            logger.warn(REDEPLOY_WITH_COMPAT_MESSAGE)
+            val nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
+            val nextDeployOptions = deployOptions.copy(retryReason = reason, retryDeployData = nextRetryDeployData, isSkipExceptOverlayCheck = true)
+            return deploy(nextDeployOptions)
+        }
+
+        var nextRetryDeployData = deployData.toFallbackToHotFixData()
+
+        val isClassModifiedError = (!finalIsFallbackAllHotFix) && (isUnmodifiableClass || isRequiresAppRestart || isRedifinerError || isInternalError)
+        if (isClassModifiedError || isInstrumentationFailed) {
+            if (isInstrumentationFailed) {
+                logger.info("Deploy got INSTRUMENTATION_FAILED error, will retry again.")
+            } else {
+                logger.info("Deploy got hot reload error, will fallback to HOT_FIX.")
+            }
+            juggServer.report {
+                action = "incremental_deploy_retry"
+                detail = reason
+            }
+            val nextDeployOptions = deployOptions.copy(retryReason = reason, retryDeployData = nextRetryDeployData, isSkipExceptOverlayCheck = true)
+            return deploy(nextDeployOptions)
+        }
+
+        val isAgentNotResponses = reason.contains("MISSING_AGENT_RESPONSES") || reason.contains("AGENT_ATTACH_FAILED")
+        // got: "MessagePipeWrapper read() timeout (5000ms)" and throw by JuggDeployer.optimisticSwap
+        val isDeployTimeout = reason.contains("MessagePipeWrapper read() timeout")
+        if (isAgentNotResponses || isDeployTimeout) {
+            logger.info("Deploy agent no response, going to detect JVMTI is available.")
+            // try detect compat issues
+            if (detectJvmtiCompatIssue(deployOptions.device, deployData)) {
+                logger.warn("Detect JVMTI compat issue, fallback to compat deploy mode.")
+                nextRetryDeployData = deployFileManager.appendCompatDeployFiles(deployData)
+                val nextDeployOptions = deployOptions.copy(retryReason = reason, retryDeployData = nextRetryDeployData, isSkipExceptOverlayCheck = true)
+                return deploy(nextDeployOptions)
+            } else {
+                logger.debug("JVMTI is available.") // detectJvmtiCompatIssue will log info
+            }
+        }
+
+        val isOverlayIdNotCorrect = reason.contains("OVERLAY_ID_MISMATCH") || reason.contains("unable to recognize the APK")
+        val isClassNotFoundException = reason.contains("Class not found")
+        // logical error in JuggDeployer, thrown by DeployerException.overlayIdMismatch()
+        val isOverlayIdNotMatch = reason.contains("The target app on the device is in a state unknown to Studio")
+
+        if (isOverlayIdNotCorrect || isClassNotFoundException || isOverlayIdNotMatch || isDeployTimeout) {
+            var isNeedTryDeyDeployFirst = false
+            var isRetryDirectly = false
+            @Suppress("KotlinConstantConditions")
+            when {
+                isDeployTimeout -> {
+                    val isNeedReduce = deployData.overlays.size >= JuggSettings.overlayDeploySplitSizeFirstSlice
+                    if (isNeedReduce) {
+                        logger.warn("Got deploy timeout exception, reduce overlay and retry")
+                        SliceDeployHelper(logger).onTimeout(IdeaDeviceAdb(deployOptions.device, logger))
+                    } else {
+                        logger.warn("Got deploy timeout exception, retry after 5s.")
+                        Thread.sleep(5_000)
+                        isRetryDirectly = true
+                    }
+                }
+                isOverlayIdNotCorrect -> {
+                    logger.info("Deploy history mismatch with the device, try recover deploy state.")
+                }
+                isClassNotFoundException -> {
+                    logger.info("Got class not found exception, which means the deploy history mismatch with the device. Try recover deploy state.")
+                    isNeedTryDeyDeployFirst = true
+                }
+                isOverlayIdNotMatch -> {
+                    logger.info("The device's deploy status mismatch with this project, try recover deploy state.")
+                    isNeedTryDeyDeployFirst = true
+                }
+            }
+            if (!isRetryDirectly) {
+                val (isSuccess, _) = recoverDeployState(deployOptions.device, deployOptions.indicator, isNeedTryDeyDeployFirst, deployOptions.isSkipExceptOverlayCheck)
+                if (!isSuccess) {
+                    logger.info("Try recover deploy state failed on retry.")
+                    return DeployTaskResult(isSuccess = false, costTime = System.currentTimeMillis() - deployOptions.startTime,
+                        failedReason = "Try recover deploy state failed on retry.")
+                } else {
+                    logger.info("Try recover deploy state success on retry.")
+                }
+            }
+            val nextDeployOptions = deployOptions.copy(retryReason = reason, isSkipExceptOverlayCheck = true)
+            return deploy(nextDeployOptions)
+        }
+
+        return null
     }
 
     private fun detectJvmtiCompatIssue(device: IDevice, deployData: JuggDeployData): Boolean {
@@ -717,3 +710,4 @@ data class DeployTaskResult(
     val failedReason: String? = null,
     val costTimeExceptCheck: Long = costTime,
 )
+
