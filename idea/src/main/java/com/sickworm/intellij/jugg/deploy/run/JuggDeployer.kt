@@ -52,10 +52,25 @@ class JuggDeployer(
                 installMode = InstallMode.DELTA_NO_SKIP
             }
             logger.info("going to install apks: $apks")
-            result.skippedInstall = !AsDeployerCompat.install(
-                adb, service, installer, logger,
-                packageName, apks, options, installMode,
-            )
+            try {
+                result.skippedInstall = !AsDeployerCompat.install(
+                    adb, service, installer, logger,
+                    packageName, apks, options, installMode,
+                )
+            } catch (e: Exception) {
+                if (e.message?.contains("not found") == true) {
+                    logger.info("got device not found, argInstallMode: $installMode")
+                    if (installMode != InstallMode.FULL) {
+                        installMode = InstallMode.FULL
+                        logger.warning("Got device not found error, retry with FULL install mode after 2s.")
+                        Thread.sleep(2000)
+                        result.skippedInstall = !AsDeployerCompat.install(
+                            adb, service, installer, logger,
+                            packageName, apks, options, installMode,
+                        )
+                    }
+                }
+            }
             val apkList = AsDeployerCompat.parseApks(apks)
             // Update the database
             splitter.cache(apkList)
