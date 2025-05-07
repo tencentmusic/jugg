@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -183,7 +184,7 @@ class GradleOutputParser(
             return line
         }
         val remoteRootPath = juggGradleCompileOptions.finalRemoteSyncPath
-        val localRootPath = juggGradleCompileOptions.localToRemoteSyncPath
+        val localRootPath = File(juggGradleCompileOptions.projectRootPath).parentFile.path
         return line.replace(remoteRootPath, localRootPath)
     }
 }
