@@ -12,7 +12,7 @@ abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathLi
 
     private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString(" ") { "-i $it" }
 
-    protected val sshArguments = "-e '${getSshPathArg(password)}ssh -p $remoteSshPort $keyPathArguments'"
+    protected val sshArguments = "-e '${getSshPathArg(password)}ssh -p $remoteSshPort -o StrictHostKeyChecking=accept-new $keyPathArguments'"
 
     override fun getInput(terminalOutputLine: String): String? {
         if (terminalOutputLine.contains("Are you sure you want to continue connecting")) {
