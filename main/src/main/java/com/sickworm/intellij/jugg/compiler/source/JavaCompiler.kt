@@ -30,6 +30,9 @@ class JavaCompiler(
 
     private val isEnableApt get() = JuggSettings.isEnableApt
 
+    private var isSourceTargetVersionNotSupport: Boolean = false
+
+    @Suppress("IfThenToElvis")
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val compileItems = task.files.map {
             val fileObject = fileManager.getJavaFileObjectsFromFiles(listOf(it.file)).first()
@@ -42,8 +45,22 @@ class JavaCompiler(
         options.add("-g") // generate debug info, e.g. local variable name
         options.addAll(listOf("-cp", dependencies.joinToString(File.pathSeparator)))
         // ensure class file version for later dex
-        options.addAll(listOf("-source", module.javaSourceCompatibility ?: "1.8"))
-        options.addAll(listOf("-target", module.javaTargetCompatibility ?: "1.8"))
+        val sourceVersion = if (isSourceTargetVersionNotSupport) {
+            "1.8" // at least 1.8
+        } else if (module.javaSourceCompatibility != null) {
+            module.javaSourceCompatibility
+        } else {
+            "1.8"
+        }
+        options.addAll(listOf("-source", sourceVersion))
+        val targetVersion = if (isSourceTargetVersionNotSupport) {
+            "1.8" // at least 1.8
+        } else if (module.javaTargetCompatibility != null) {
+            module.javaTargetCompatibility
+        } else {
+            "1.8"
+        }
+        options.addAll(listOf("-target", targetVersion))
         options.addAll(listOf("-encoding", "UTF-8"))
         module.javaAnnotationProcessorOptions?.forEach { (key, value) ->
             options.addAll(listOf("-A$key=\"$value\""))
@@ -68,14 +85,19 @@ class JavaCompiler(
         }
 
         // compile error listener
+        var isSourceTargetVersionNotSupport = false
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
+            val message = diagnostic.toString()
             if (diagnostic.kind != Diagnostic.Kind.ERROR || item == null) {
-                logger.debug(diagnostic.toString())
+                logger.debug("JavaCompiler output: [${diagnostic.kind}] $message")
+                if (!isSourceTargetVersionNotSupport) {
+                    isSourceTargetVersionNotSupport = message.contains("不再支持") || message.contains("is no longer supported")
+                }
                 return@DiagnosticListener
             }
-            logger.warn(diagnostic.toString())
-            item.errors.add(diagnostic.lineNumber to diagnostic.toString())
+            logger.warn(message)
+            item.errors.add(diagnostic.lineNumber to message)
         }
 
         // compile files
@@ -109,18 +131,22 @@ class JavaCompiler(
             CompileResult(task, compileItems.map { Result.success(it.file) }, outputs)
         } else {
             // print infos
+            logger.debug("Java compile failed, check classpath for : \n${module.buildPathInfo.buildDir}\n")
             context.printClasspathCheck(module)
 
             // retry strategy
             val errorCount = compileItems.sumOf { it.errors.size }
             var shouldRecreate = false
             var retryReason = ""
-            if (errorCount > JuggSettings.minErrorToRecreateCompiler) {
+            if (isSourceTargetVersionNotSupport && !this.isSourceTargetVersionNotSupport) {
+                retryReason = "Java compile failed with source or target version not support"
+                this.isSourceTargetVersionNotSupport = true
+                shouldRecreate = true
+            } else if (errorCount > JuggSettings.minErrorToRecreateCompiler) {
                 // most likely kotlin compiler is not working, try to recreate once
                 retryReason = "Java compile failed with too many errors(> ${JuggSettings.minErrorToRecreateCompiler})"
                 shouldRecreate = true
-            }
-            if (errorCount == 0) {
+            } else if (errorCount == 0) {
                 logger.warn("Java compile failed with no error!")
                 retryReason = "Java compile failed with no error"
                 shouldRecreate = true
@@ -188,7 +214,9 @@ class JavaCompiler(
             try {
                 @Suppress("DEPRECATION")
                 compiler = Class.forName("com.sun.tools.javac.api.JavacTool").newInstance() as JavaCompiler
-                logger.info("get JavaCompiler by JavacTool success")
+                logger.debug("get JavaCompiler by JavacTool success")
+                // sourceVersions is useless, it cannot to detect what source versions are supported by compiler
+                logger.debug("JavaCompiler name: ${compiler.name()}, sourceVersions: ${compiler.sourceVersions}")
                 return compiler
             } catch (e: Exception) {
                 logger.warn("get JavaCompiler by JavacTool failed", e)
