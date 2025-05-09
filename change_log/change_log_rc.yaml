@@ -1,3 +1,10 @@
+- version: 2.2.0-rc28
+  date: 2025.05.09
+  updates:
+    - fix Java compilation failed when Idea using JVM that not supports 1.7
+    - fix rsync failed if never login to the remote server
+    - fix remote file path replace incorrect when it's in subdirectory
+
 - version: 2.2.0-rc27
   date: 2025.04.26
   updates:
