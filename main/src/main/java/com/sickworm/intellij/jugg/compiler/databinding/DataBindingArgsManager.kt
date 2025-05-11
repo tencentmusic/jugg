@@ -11,8 +11,8 @@ import java.io.File
 class DataBindingArgsManager(context: ICompileContext, private val moduleInfo: ModuleInfo) {
 
     val isUseAndroidX = true // just leave it true
-    val isUseViewBinding = true // TODO read it
-    val isUseDataBinding = true // TODO read it
+    val isUseViewBinding = isUseViewBinding(moduleInfo)
+    val isUseDataBinding = isUseDataBinding(moduleInfo)
     val isIncremental = false // we do incremental by our own way
     val packageName = context.packageName!!
 
@@ -46,6 +46,7 @@ class DataBindingArgsManager(context: ICompileContext, private val moduleInfo: M
     }
     val appBrRelativePath = "${packageName.replace(".", "/")}/BR.java"
 
+    // custom incremental mapper things
     private val mapperDir get() = dir(tempCompileDir, "mapper")
     val dataBindingMapperIncrementalDir get() = dir(mapperDir, "inc")
     val dataBindingMapperDelegateFile get() = file(mapperDir, "DataBinderMapperImpl.java")
@@ -66,5 +67,37 @@ class DataBindingArgsManager(context: ICompileContext, private val moduleInfo: M
 
     private val String.camel: String get() {
         return this.replaceFirstChar { it.uppercaseChar() }
+    }
+
+    companion object {
+
+        fun isUseViewBinding(moduleInfo: ModuleInfo): Boolean {
+            if (moduleInfo.isUseViewBinding == true) return true
+            val gradleViewBindingOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/data_binding_base_class_source_out")
+            val isHasViewBinding = gradleViewBindingOutputDir.exists()
+            return isHasViewBinding
+        }
+
+        fun isUseDataBinding(moduleInfo: ModuleInfo, xmlFile: File? = null): Boolean {
+            if (moduleInfo.isUseDataBinding == true) return true
+
+            val gradleKaptOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
+            val gradleDataBindingOutputGuessDir = File(gradleKaptOutputDir, "androidx/databinding")
+            val isHasDataBindingOutput = gradleDataBindingOutputGuessDir.exists()
+            if (!isHasDataBindingOutput) return false
+
+            if (xmlFile == null) {
+                return true
+            }
+
+            return guessXmlFileHasDataBinding(xmlFile)
+        }
+
+        private fun guessXmlFileHasDataBinding(xmlFile: File): Boolean {
+            // just do a simple guess
+            if (xmlFile.exists()) return false
+            val hasLayoutTag = xmlFile.readText().contains("<layout") || xmlFile.readText().contains("<Layout")
+            return hasLayoutTag
+        }
     }
 }

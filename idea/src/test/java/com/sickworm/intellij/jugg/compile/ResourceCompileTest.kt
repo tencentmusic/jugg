@@ -336,7 +336,7 @@ class ResourceCompileTest {
         )
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 25, isRJavaChanged = false)
+        checkArscResult(task, result, 27, isRJavaChanged = false)
     }
 
     @Test
@@ -436,7 +436,7 @@ class ResourceCompileTest {
         assertEquals(task.files.size, result.details.size)
         assertTrue(result.isAllSuccess)
 
-        val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java }
+        val rFiles = result.outputs.filter { it.type == CompileOutput.Type.Java && it.file.name == "R.java" }
         if (isRJavaChanged) {
             assertEquals(1, rFiles.size)
         } else {

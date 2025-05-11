@@ -41,6 +41,9 @@ data class ModuleInfo(
     val kotlinPlugins: List<File>? = null,
     val kotlinExtensions: List<File>? = null,
     val coreLibraryDesugaring: List<LibraryDependency>? = null,
+    val isUseCompose: Boolean? = null,
+    val isUseViewBinding: Boolean? = null,
+    val isUseDataBinding: Boolean? = null,
 ) {
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")

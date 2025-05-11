@@ -94,6 +94,7 @@ class JuggCompiler(
             parentTask = task,
         )
         var rJavaResultOutputs: List<CompileOutput> = emptyList()
+        var dataBindingResultOutputs: List<CompileFile> = emptyList()
         if (resourceCompileTask.isNeedCompile) {
             // compile .arsc and R file
             val finalResult = run {
@@ -125,7 +126,9 @@ class JuggCompiler(
                     }
 
                 // compile R.java, it will only be one file
-                val rJavaFile = resourceResult.outputs.find { it.type == CompileOutput.Type.Java }
+                val rJavaFile = resourceResult.outputs.find {
+                    it.type == CompileOutput.Type.Java && it.file.name == "R.java"
+                }
                 if (rJavaFile != null) {
                     val rJavaTask = CompileTask(
                         files = listOf(CompileFile(CompileFile.Type.Java, rJavaFile.file, rJavaFile.baseDir, context.tempModule)),
@@ -145,6 +148,13 @@ class JuggCompiler(
                         rJavaResultOutputs = rJavaResult.outputs
                     }
                 }
+
+                dataBindingResultOutputs = resourceResult.outputs
+                    .filter {
+                        it.type == CompileOutput.Type.Java && it.file.name != "R.java"
+                    }.map {
+                        CompileFile(CompileFile.Type.Java, it.file, it.baseDir, it.relativeModule!!)
+                    }
 
                 // successfully compiled .arsc and R.dex
                 return@run CompileResult(
@@ -186,7 +196,7 @@ class JuggCompiler(
 
         // compile source
         val sourceCompileTask = CompileTask(
-            files = compileFiles.filter {
+            files = dataBindingResultOutputs + compileFiles.filter {
                 it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
             },
             outputDir = classesOutputDir,

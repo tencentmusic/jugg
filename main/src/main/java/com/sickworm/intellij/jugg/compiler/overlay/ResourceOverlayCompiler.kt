@@ -10,6 +10,7 @@ import java.io.File
 
 /**
  * Compile res file to deployable files.
+ * Supports ViewBinding / DataBinding.
  *
  * e.g.
  * input:
@@ -30,7 +31,7 @@ class ResourceOverlayCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
-    private val resourceCompiler = ResourceCompiler(context, this)
+    private val resourceCompiler = ResourceCompiler(context.subContext("flat_compile"), this)
 
     private val androidManifestCompiler = AndroidManifestCompiler(context, this)
 
@@ -48,7 +49,7 @@ class ResourceOverlayCompiler(
         )
         val resourceTask = CompileTask(
             task.files.filter { it.type == CompileFile.Type.Resource },
-            File(context.tempCompileDir, "flat"),
+            File(context.tempCompileDir, "flat_output"),
             task,
         )
 
@@ -82,15 +83,20 @@ class ResourceOverlayCompiler(
         }
 
         // build .flat .arsc and AndroidManifest.xml
-        val compileFiles = resourceResult.outputs.map {
-            CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
-        }.toMutableList()
+        val compileFiles = resourceResult.outputs
+            .filter {
+                it.type == CompileOutput.Type.Flat
+            }
+            .map {
+                CompileFile(CompileFile.Type.Flat, it.file, it.baseDir, context.tempModule)
+            }.toMutableList()
         val manifestFile = androidManifestResult.outputs.firstOrNull()?.file
         if (manifestFile != null) {
             compileFiles.add(CompileFile(CompileFile.Type.AndroidManifest,
                 manifestFile, manifestFile.parentFile, context.tempModule))
         }
         if (compileFiles.isEmpty()) {
+            // It seems no way to walk in for now, but just keep it for robust
             return CompileResult(task, task.files.map { Result.success(it) }, emptyList())
         }
 
@@ -111,11 +117,14 @@ class ResourceOverlayCompiler(
         }
 
         val finalOutputs = filterResources(arscResult.outputs, task.files, isNeedOutputManifest = manifestFile != null)
+        val databindingOutputs = resourceResult.outputs.filter {
+            it.type == CompileOutput.Type.Java
+        }
 
         return CompileResult(
             task,
             androidManifestResult.details + resourceResult.details,
-            finalOutputs
+            finalOutputs + databindingOutputs
         )
     }
 

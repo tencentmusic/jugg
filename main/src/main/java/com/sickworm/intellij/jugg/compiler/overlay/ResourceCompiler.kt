@@ -4,6 +4,9 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
+import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
+import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.security.MessageDigest
@@ -27,31 +30,11 @@ class ResourceCompiler(
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
-    override fun doCompile(task: CompileTask): CompileResult {
-        val filePathNames = mutableSetOf<String>()
-        var isNeedSplitModule = false
-        task.files.forEach {
-            val filePathName = it.file.flatFileName
-            if (filePathNames.contains(filePathName)) {
-                isNeedSplitModule = true
-                return@forEach
-            }
-            filePathNames.add(filePathName)
-        }
-
-        logger.debug("isNeedSplitModule: $isNeedSplitModule")
-        return if (isNeedSplitModule) {
-            super.doCompile(task)
-        } else {
-            aapt2Compile(task)
-        }
-    }
+    private val dataBindingGenBaseClassesCompiler = DataBindingGenBaseClassesCompiler(context.subContext("databinding"), this)
+    private val dataBindingGenMapperCompiler = DataBindingGenMapperCompiler(context.subContext("databinding"), this)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        return aapt2Compile(task, module.name)
-    }
-
-    private fun aapt2Compile(task: CompileTask, moduleName: String = ""): CompileResult {
+        val moduleName = module.name
         val subDir = if (moduleName.isEmpty()) "" else "$moduleName/"
         val outputDir = task.outputDir.resolve(subDir)
         outputDir.mkdirs()
@@ -76,10 +59,93 @@ class ResourceCompiler(
         }
         val compileFilesSet: List<ResCompileSet> = dirResCompileSet + listOf(singleResCompileSet)
         val compileResultSet = compileFilesSet.map {
-            aapt2Compile(it)
+            compileResSet(it, module)
         }
         val compileResult = compileResultSet.reduce { acc, compileResult -> acc + compileResult }.copy(task = task)
         return compileResult
+    }
+
+    private fun compileResSet(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
+        val dataBindingResult = processDataBinding(resCompileSet, module)
+        if (!dataBindingResult.isAllSuccess) {
+            return dataBindingResult
+        }
+        val splitLayoutFiles = dataBindingResult.outputs.filter { it.type == CompileOutput.Type.ResXml }
+        val javaFiles = dataBindingResult.outputs.filter { it.type == CompileOutput.Type.Java }
+        logger.debug("splitLayoutFiles output: ${splitLayoutFiles.map { it.relativeFile }}, " +
+                "javaFiles output: ${javaFiles.map { it.relativeFile }}")
+
+        val flatResult = if (splitLayoutFiles.isNotEmpty()) {
+            // replace xml file which split by data binding
+            val processedResCompileSet = updateResCompileSet(resCompileSet, splitLayoutFiles)
+            aapt2Compile(processedResCompileSet)
+        } else {
+            aapt2Compile(resCompileSet)
+        }
+
+        return flatResult.copy(outputs = flatResult.outputs + javaFiles)
+    }
+
+    private fun processDataBinding(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
+        val layoutFiles = resCompileSet.compileFileMap.flatMap { (compileFile, xmlFiles) ->
+            val baseDir = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
+            xmlFiles.filter {
+                it.parentFile.name.startsWith("layout")
+            }.map {
+                CompileFile(CompileFile.Type.Resource, it, baseDir, module)
+            }
+        }
+        val databindingTask = CompileTask(
+            layoutFiles,
+            resCompileSet.outputDir.resolve("databinding"),
+            resCompileSet.originTask,
+        )
+        if (databindingTask.files.isEmpty()) {
+            logger.debug("no layout file found, skip data binding processing")
+            return CompileResult(databindingTask, emptyList(), emptyList())
+        }
+
+        // process data binding if needed
+        if (DataBindingArgsManager.isUseViewBinding(module)) {
+            logger.info("Processing view binding...")
+        }
+        val viewBindingResult = dataBindingGenBaseClassesCompiler.compile(databindingTask)
+        if (!viewBindingResult.isAllSuccess) {
+            return databindingTask.allFailed("process view binding failed")
+        }
+
+        if (DataBindingArgsManager.isUseDataBinding(module)) {
+            logger.info("Processing data binding...")
+        }
+        val dataBindingResult = dataBindingGenMapperCompiler.compile(databindingTask)
+        if (!dataBindingResult.isAllSuccess) {
+            return databindingTask.allFailed("process data binding failed")
+        }
+
+        val isDataBindingWorking = dataBindingResult.outputs.isNotEmpty()
+        return if (isDataBindingWorking) {
+            dataBindingResult
+        } else {
+            viewBindingResult
+        }
+    }
+
+    private fun updateResCompileSet(resCompileSet: ResCompileSet, splitLayoutFiles: List<CompileOutput>): ResCompileSet {
+        // replace xml file which split by data binding
+        val replaceFile: (CompileFile, File) -> File = replaceFile@{ compileFile, xmlFile ->
+            val baseDir = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
+            val splitXmlFile = splitLayoutFiles.find { it.relativeFile == xmlFile.relativeTo(baseDir) }
+            if (splitXmlFile != null) {
+                logger.debug ("found and replace origin layout file $xmlFile")
+                return@replaceFile splitXmlFile.file
+            }
+            return@replaceFile xmlFile
+        }
+        val processedResCompileSet = resCompileSet.copy(
+            compileFileMap = resCompileSet.compileFileMap.mapValues { (compileFile, files) ->
+                files.map { replaceFile(compileFile, it) }
+            })
+        return processedResCompileSet
     }
 
     private fun aapt2Compile(resCompileSet: ResCompileSet): CompileResult {
@@ -160,7 +226,7 @@ class ResourceCompiler(
         aapt2Invoker.release()
     }
 
-    private class ResCompileSet(
+    private data class ResCompileSet(
         val originTask: CompileTask,
         val compileFileMap: Map<CompileFile, List<File>>,
         val outputDir: File,

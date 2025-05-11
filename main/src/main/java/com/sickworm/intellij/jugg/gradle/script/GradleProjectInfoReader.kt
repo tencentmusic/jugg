@@ -242,6 +242,9 @@ class GradleProjectInfoReader(
                     signingConfigs = signingConfigs,
                     kotlinPlugins = kotlinPlugins,
                     kotlinExtensions = kotlinExtensions,
+                    isUseCompose = androidExt["buildFeatures"]["compose"]?.value == true,
+                    isUseViewBinding = androidExt["buildFeatures"]["viewBinding"]?.value == true,
+                    isUseDataBinding = androidExt["buildFeatures"]["dataBinding"]?.value == true,
                 )
             } catch (e: Throwable) {
                 println("Jugg: get other info for ${project.standardModuleName} failed: $e")

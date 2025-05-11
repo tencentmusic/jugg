@@ -1,9 +1,6 @@
 package com.sickworm.intellij.jugg.compile.databinding
 
-import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.CompileResult
-import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
-import com.sickworm.intellij.jugg.compiler.CompileTask
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.mock.*
@@ -13,6 +10,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class DataBindingCompileTest {
+
+    private val outputDir = File(buildDir, "output")
+    private val javaOutputDir = File(outputDir, "java")
+    private val layoutOutputDir = File(outputDir, "res")
 
     @Test
     fun test() {
@@ -24,7 +25,7 @@ class DataBindingCompileTest {
                 File(assetsAndroidDir, "app/src/main/res"),
                 context.modules.values.first()
             )),
-            File(buildDir, "output"),
+            outputDir,
             CompileStatusHolder.DEFAULT,
         )
 
@@ -32,31 +33,38 @@ class DataBindingCompileTest {
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
-            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java")
+            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java",
+            "layout/activity_data_binding_java_demo.xml",
         ))
 
         val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
         val result2 = mapperCompiler.compile(compileTask)
         assertTrue(result2.isAllSuccess)
         checkOutputFiles(result2, listOf(
-            File(compileTask.outputDir, "androidx/databinding/DataBinderMapperImpl.java"),
-            File(compileTask.outputDir, "androidx/databinding/DataBindingComponent.java"),
-            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java"),
-            File(compileTask.outputDir, "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.java"),
-            File(compileTask.outputDir, "com/example/myapplication/BR.java"),
-            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapper_IncrementalHolder.java"),
-            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapperImpl.java"),
-            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapperImpl_Full.java"),
-            File(compileTask.outputDir, "com/example/myapplication/DataBinderMapperImpl_Inc_1.java"),
+            "androidx/databinding/DataBinderMapperImpl.java",
+            "androidx/databinding/DataBindingComponent.java",
+            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java",
+            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.java",
+            "com/example/myapplication/BR.java",
+            "com/example/myapplication/DataBinderMapper_IncrementalHolder.java",
+            "com/example/myapplication/DataBinderMapperImpl.java",
+            "com/example/myapplication/DataBinderMapperImpl_Full.java",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.java",
+            "layout/activity_data_binding_java_demo.xml",
         ))
     }
 
-    private fun checkOutputFiles(compileResult: CompileResult, expect: List<File>) {
-        expect.forEach { expectFile ->
+    private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
+        expect.forEach { expectFilePath ->
+            val isJava = expectFilePath.endsWith(".java")
+            val outputDir = if (isJava) javaOutputDir else layoutOutputDir
+            val outputType = if (isJava) CompileOutput.Type.Java else CompileOutput.Type.ResXml
+            val expectFile = File(outputDir, expectFilePath)
             val outputFile = compileResult.outputs.find { it.file == expectFile }
             assertTrue(outputFile != null, "File $expectFile does not exist in output")
             assertTrue(outputFile.file.exists(), "File $expectFile does not exist")
-            assertEquals(compileResult.task.outputDir, outputFile.baseDir)
+            assertEquals(outputDir, outputFile.baseDir, "File $expectFile is not in correct baseDir")
+            assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
         }
         assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
     }

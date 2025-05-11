@@ -34,11 +34,15 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         }
 
         val argsManager = DataBindingArgsManager(context, module)
+        if (!argsManager.isUseViewBinding && !argsManager.isUseDataBinding) {
+            logger.debug("skip for module ${module.name} because it's not use data binding or view binding")
+            return CompileResult(task, emptyList(), emptyList())
+        }
         argsManager.reset()
         try {
             splitLayoutXml(argsManager, task.files)
             generateBaseClasses(argsManager)
-            return getOutput(task, argsManager)
+            return getOutput(task, argsManager, module)
         } catch (e: Exception) {
             logger.debug("DataBindingGenBaseClassesCompiler error ", e)
             logger.warn("Compile DataBinding failed: ${e.message}")
@@ -90,17 +94,33 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         baseDataBinder.generateAll(gradleFileWriter)
     }
 
-    private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager): CompileResult {
-        val sourceFiles = argsManager.dataBindingSourcesOutputDir.listFilesRecursively()
-        val outputFiles = sourceFiles.map {
-            val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, task.outputDir)
-            outputFile.parentFile.mkdirs()
-            it.copyTo(outputFile)
+    private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, module: ModuleInfo): CompileResult {
+        val sourceFiles = argsManager.dataBindingSourcesOutputDir
+            .listFilesRecursively()
+            .map {
+                val outputDir = task.outputDir.resolve("java")
+                val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, outputDir)
+                outputFile.parentFile.mkdirs()
+                it.copyTo(outputFile)
+                CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
+            }
+        var xmlFiles = emptyList<CompileOutput>()
+        if (argsManager.isUseDataBinding) {
+            xmlFiles = argsManager.dataBindingStrippedXmlDir
+                .listFilesRecursively()
+                .map {
+                    val outputDir = task.outputDir.resolve("res")
+                    val outputFile = it.changeBaseDir(argsManager.dataBindingStrippedXmlDir, outputDir)
+                    outputFile.parentFile.mkdirs()
+                    it.copyTo(outputFile)
+                    CompileOutput(CompileOutput.Type.ResXml, outputFile, outputDir, relativeModule = module)
+                }
         }
+
         return CompileResult(
             task,
             task.files.map { Result.success(it) },
-            outputFiles.map { CompileOutput(CompileOutput.Type.Java, it, task.outputDir) }
+            sourceFiles + xmlFiles,
         )
     }
 }
