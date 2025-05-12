@@ -26,16 +26,16 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     private lateinit var argsManager: DataBindingArgsManager
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        if (context.packageName == null) {
-            logger.warn("Package name not found in project, skipping databinding process")
-            return CompileResult(task, emptyList(), emptyList())
-        }
-
         argsManager = DataBindingArgsManager(context, module)
         if (!argsManager.isUseDataBinding) {
             logger.debug("skip for module ${module.name} because it's not use data binding")
             return CompileResult(task, emptyList(), emptyList())
         }
+        if (argsManager.packageName.isEmpty()) {
+            logger.warn("Package name not found in module ${module.name}, skipping databinding process")
+            return CompileResult(task, emptyList(), emptyList())
+        }
+
         // DataBindingGenMapperCompiler depends on DataBindingGenBaseClassesCompiler output in argsManager's path
         // so cannot reset argsManager here.
         // better way to share DataBindingGenBaseClassesCompiler output?

@@ -463,6 +463,36 @@ class BaseCompileContext(
         }
     }
 
+    private val modulePackageNameCacheMap = mutableMapOf<String, String>()
+
+    override fun getModulePackageName(moduleInfo: ModuleInfo): String? {
+        modulePackageNameCacheMap[moduleInfo.name]?.let { return it }
+
+        logger.debug("getModulePackageName: ${moduleInfo.name}")
+        // namespace and package must exist one of them, and namespace has higher priority, or will get in gradle:
+        // Package Name not found in xxx/AndroidManifest.xml, and namespace not specified.
+        val namespaceInGradle = moduleInfo.namespace
+        if (namespaceInGradle != null) {
+            logger.debug("getModulePackageName select namespaceInGradle: $namespaceInGradle")
+            modulePackageNameCacheMap[moduleInfo.name] = namespaceInGradle
+            return namespaceInGradle
+        }
+
+        val manifestFile = moduleInfo.manifestFile
+        if (manifestFile == null || !manifestFile.exists()) {
+            logger.debug("manifest file not found in ${moduleInfo.name}")
+            return null
+        }
+
+        val xmlNode = XmlParser().parse(moduleInfo.manifestFile)
+        val packageNameInManifest = xmlNode.node["package"]
+        logger.debug("getModulePackageName select packageNameInManifest: $packageNameInManifest")
+        if (packageNameInManifest != null) {
+            modulePackageNameCacheMap[moduleInfo.name] = packageNameInManifest
+        }
+        return packageNameInManifest
+    }
+
     fun update(
         apkInfos: List<ApkInfo>? = null,
         modules: Map<String, ModuleInfo>? = null,
@@ -480,6 +510,7 @@ class BaseCompileContext(
             applicationModule = findApplicationModule()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
             moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)
+            modulePackageNameCacheMap.clear()
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {
             val oldLibraries = loadTempLibraries().toMutableList()

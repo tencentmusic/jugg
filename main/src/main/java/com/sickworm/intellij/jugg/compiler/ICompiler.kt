@@ -263,6 +263,8 @@ interface ICompileContext {
     fun listenUpdate(listener: OnContextUpdate)
 
     fun printClasspathCheck(moduleInfo: ModuleInfo)
+
+    fun getModulePackageName(moduleInfo: ModuleInfo): String?
 }
 
 data class DesugarInfo(

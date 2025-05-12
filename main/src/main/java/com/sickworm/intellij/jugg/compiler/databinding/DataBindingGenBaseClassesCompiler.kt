@@ -28,16 +28,16 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         if (task.files.isEmpty()) {
             return CompileResult(task, emptyList(), emptyList())
         }
-        if (context.packageName == null) {
-            logger.warn("Package name not found in project, skipping databinding process")
-            return CompileResult(task, emptyList(), emptyList())
-        }
-
         val argsManager = DataBindingArgsManager(context, module)
         if (!argsManager.isUseViewBinding && !argsManager.isUseDataBinding) {
             logger.debug("skip for module ${module.name} because it's not use data binding or view binding")
             return CompileResult(task, emptyList(), emptyList())
         }
+        if (argsManager.packageName.isEmpty()) {
+            logger.warn("Package name not found in module ${module.name}, skipping databinding process")
+            return CompileResult(task, emptyList(), emptyList())
+        }
+
         argsManager.reset()
         try {
             splitLayoutXml(argsManager, task.files)
@@ -54,13 +54,13 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
     }
 
     private fun splitLayoutXml(argsManager: DataBindingArgsManager, changedXmlFiles: List<CompileFile>) {
-        logger.info("split layout xml.")
+        logger.debug("split layout xml.")
 
 
         val gradleFileWriter = DataBindingBuilder.GradleFileWriter(argsManager.dataBindingSourcesOutputDir.path)
 
         val mergingFileLookupInstance = MergingFileLookup(argsManager.blameLogDir)
-        val layoutXmlProcessor = LayoutXmlProcessor(context.packageName, gradleFileWriter, mergingFileLookupInstance, argsManager.isUseAndroidX)
+        val layoutXmlProcessor = LayoutXmlProcessor(argsManager.packageName, gradleFileWriter, mergingFileLookupInstance, argsManager.isUseAndroidX)
 
         changedXmlFiles.forEach {
             val relativizableFile = RelativizableFile.fromAbsoluteFile(it.file, argsManager.dataBindingStrippedXmlDir)
@@ -71,7 +71,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
     }
 
     private fun generateBaseClasses(argsManager: DataBindingArgsManager) {
-        logger.info("generate base classes.")
+        logger.debug("generate base classes.")
 
         val args = LayoutInfoInput.Args(
             outOfDate = emptyList(),
@@ -101,7 +101,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
                 val outputDir = task.outputDir.resolve("java")
                 val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, outputDir)
                 outputFile.parentFile.mkdirs()
-                it.copyTo(outputFile)
+                it.copyTo(outputFile, overwrite = true)
                 CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
             }
         var xmlFiles = emptyList<CompileOutput>()
@@ -112,7 +112,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
                     val outputDir = task.outputDir.resolve("res")
                     val outputFile = it.changeBaseDir(argsManager.dataBindingStrippedXmlDir, outputDir)
                     outputFile.parentFile.mkdirs()
-                    it.copyTo(outputFile)
+                    it.copyTo(outputFile, overwrite = true)
                     CompileOutput(CompileOutput.Type.ResXml, outputFile, outputDir, relativeModule = module)
                 }
         }

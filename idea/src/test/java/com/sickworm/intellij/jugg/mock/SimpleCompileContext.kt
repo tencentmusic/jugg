@@ -189,4 +189,8 @@ data class SimpleCompileContext(
 
     override fun printClasspathCheck(moduleInfo: ModuleInfo) {
     }
+
+    override fun getModulePackageName(moduleInfo: ModuleInfo): String? {
+        return null
+    }
 }

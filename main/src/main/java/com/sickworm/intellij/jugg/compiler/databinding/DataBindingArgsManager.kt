@@ -8,13 +8,13 @@ import java.io.File
  * Manage argument for data binding.
  * Output structure is same as AGP 7.2.2.
  */
-class DataBindingArgsManager(context: ICompileContext, private val moduleInfo: ModuleInfo) {
+class DataBindingArgsManager(private val context: ICompileContext, private val moduleInfo: ModuleInfo) {
 
     val isUseAndroidX = true // just leave it true
     val isUseViewBinding = isUseViewBinding(moduleInfo)
     val isUseDataBinding = isUseDataBinding(moduleInfo)
     val isIncremental = false // we do incremental by our own way
-    val packageName = context.packageName!!
+    val packageName get() = context.getModulePackageName(moduleInfo) ?: ""
 
     private val tempCompileDir = context.tempCompileDir
 

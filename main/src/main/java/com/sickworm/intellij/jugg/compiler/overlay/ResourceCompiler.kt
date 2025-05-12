@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.security.MessageDigest
@@ -100,6 +101,7 @@ class ResourceCompiler(
             resCompileSet.outputDir.resolve("databinding"),
             resCompileSet.originTask,
         )
+        databindingTask.outputDir.clearDir()
         if (databindingTask.files.isEmpty()) {
             logger.debug("no layout file found, skip data binding processing")
             return CompileResult(databindingTask, emptyList(), emptyList())
@@ -109,7 +111,9 @@ class ResourceCompiler(
         if (DataBindingArgsManager.isUseViewBinding(module)) {
             logger.info("Processing view binding...")
         }
+        TimeLogger.start("view binding")
         val viewBindingResult = dataBindingGenBaseClassesCompiler.compile(databindingTask)
+        TimeLogger.end("view binding", logger)
         if (!viewBindingResult.isAllSuccess) {
             return databindingTask.allFailed("process view binding failed")
         }
@@ -117,7 +121,9 @@ class ResourceCompiler(
         if (DataBindingArgsManager.isUseDataBinding(module)) {
             logger.info("Processing data binding...")
         }
+        TimeLogger.start("data binding")
         val dataBindingResult = dataBindingGenMapperCompiler.compile(databindingTask)
+        TimeLogger.end("data binding", logger)
         if (!dataBindingResult.isAllSuccess) {
             return databindingTask.allFailed("process data binding failed")
         }
