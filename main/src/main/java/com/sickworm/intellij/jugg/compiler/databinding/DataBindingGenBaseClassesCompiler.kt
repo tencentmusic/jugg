@@ -102,6 +102,11 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
                 val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, outputDir)
                 outputFile.parentFile.mkdirs()
                 it.copyTo(outputFile, overwrite = true)
+
+                // necessary to let Kotlin java-source-roots works
+                val generatedOutputFile = it.changeBaseDir(argsManager.tempCompileDir, module.buildPathInfo.buildDir)
+                it.copyTo(generatedOutputFile, overwrite = true)
+
                 CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
             }
         var xmlFiles = emptyList<CompileOutput>()

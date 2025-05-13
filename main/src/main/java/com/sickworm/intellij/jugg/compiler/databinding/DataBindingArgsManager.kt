@@ -16,10 +16,10 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
     val isIncremental = false // we do incremental by our own way
     val packageName get() = context.getModulePackageName(moduleInfo) ?: ""
 
-    private val tempCompileDir = context.tempCompileDir
+    val tempCompileDir = context.tempCompileDir
 
     // generate ViewBinding things e.g. ActivityMainBinding.java
-    val dataBindingSourcesOutputDir get() = dir(tempCompileDir, "generated/data_binding_base_class_source_out/${moduleInfo.buildVariant}")
+    val dataBindingSourcesOutputDir get() = dir(tempCompileDir, "generated/data_binding_base_class_source_out/${moduleInfo.buildVariant}/out")
     val dataBindingLayoutXmlDir get() = dir(tempCompileDir, "intermediates/data_binding_layout_info_type_merge/${moduleInfo.buildVariant}/out")
     val dataBindingStrippedXmlDir get() = dir(tempCompileDir, "intermediates/incremental/${moduleInfo.buildVariant}/merge${moduleInfo.buildVariant.camel}/stripped.dir")
     val artifactFolder get() = dir(tempCompileDir, "intermediates/data_binding_base_class_log_artifact/${moduleInfo.buildVariant}/out/base_class_log_artifact")
