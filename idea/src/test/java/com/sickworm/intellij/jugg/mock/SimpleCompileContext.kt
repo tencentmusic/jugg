@@ -4,6 +4,8 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
+import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.data.SigningConfig
@@ -190,7 +192,34 @@ data class SimpleCompileContext(
     override fun printClasspathCheck(moduleInfo: ModuleInfo) {
     }
 
+    private val modulePackageNameCacheMap = mutableMapOf<String, String>()
+
     override fun getModulePackageName(moduleInfo: ModuleInfo): String? {
-        return null
+        modulePackageNameCacheMap[moduleInfo.name]?.let { return it }
+
+        logger.debug("getModulePackageName: ${moduleInfo.name}")
+        // namespace and package must exist one of them, and namespace has higher priority, or will get in gradle:
+        // Package Name not found in xxx/AndroidManifest.xml, and namespace not specified.
+        val namespaceInGradle = moduleInfo.namespace
+        if (namespaceInGradle != null) {
+            logger.debug("getModulePackageName select namespaceInGradle: $namespaceInGradle")
+            modulePackageNameCacheMap[moduleInfo.name] = namespaceInGradle
+            return namespaceInGradle
+        }
+
+        val manifestFile = moduleInfo.manifestFile
+        if (manifestFile == null || !manifestFile.exists()) {
+            logger.debug("manifest file not found in ${moduleInfo.name}")
+            return null
+        }
+
+        val xmlNode = XmlParser().parse(moduleInfo.manifestFile!!)
+        val packageNameInManifest = xmlNode.node["package"]
+        logger.debug("getModulePackageName select packageNameInManifest: $packageNameInManifest")
+        if (packageNameInManifest != null) {
+            modulePackageNameCacheMap[moduleInfo.name] = packageNameInManifest
+        }
+        return packageNameInManifest
     }
+
 }

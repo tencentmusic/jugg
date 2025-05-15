@@ -20,13 +20,17 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
 
     // generate ViewBinding things e.g. ActivityMainBinding.java
     val dataBindingSourcesOutputDir get() = dir(tempCompileDir, "generated/data_binding_base_class_source_out/${moduleInfo.buildVariant}/out")
-    val dataBindingLayoutXmlDir get() = dir(tempCompileDir, "intermediates/data_binding_layout_info_type_merge/${moduleInfo.buildVariant}/out")
+    val dataBindingLayoutXmlDir get() = dir(tempCompileDir, "intermediates/data_binding_layout_info_type_package/${moduleInfo.buildVariant}/out") // AGP 8.6 has both data_binding_layout_info_type_package and data_binding_layout_info_type_merge (seems the same)
     val dataBindingStrippedXmlDir get() = dir(tempCompileDir, "intermediates/incremental/${moduleInfo.buildVariant}/merge${moduleInfo.buildVariant.camel}/stripped.dir")
-    val artifactFolder get() = dir(tempCompileDir, "intermediates/data_binding_base_class_log_artifact/${moduleInfo.buildVariant}/out/base_class_log_artifact")
-    val v1ArtifactsFolder get() = artifactFolder
+    val artifactFolder get() = dir(tempCompileDir, "intermediates/data_binding_base_class_log_artifact/${moduleInfo.buildVariant}/out") // AGP 8.6 will get intermediates/data_binding_base_class_log_artifact/${moduleInfo.buildVariant}/dataBindingGenBaseClasses${moduleInfo.buildVariant.camel}/out
+    val v1ArtifactsFolder get() = dir(tempCompileDir, "intermediates/data_binding_dependency_artifacts/${moduleInfo.buildVariant}")
     val blameLogDir = File(tempCompileDir, "intermediates/merged_res_blame_folder/${moduleInfo.buildVariant}/out")
     val logFolder get() = dir(tempCompileDir, "intermediates/incremental/dataBindingGenBaseClasses${moduleInfo.buildVariant.camel}")
-    val dependencyClassesFolders get() = dir(tempCompileDir, "other/dependency_classes_folder")
+    val dependencyClassesFolders: List<File> = listOf(
+        moduleInfo.buildPathInfo.dataBindingInfoDir.resolve("out"),
+        moduleInfo.buildPathInfo.dataBindingInfoDir.resolve("dataBindingGenBaseClasses${moduleInfo.buildVariant.camel}/out"),
+        moduleInfo.buildPathInfo.dataBindingDependencyInfoDir,
+    ).filter { it.exists() }
 
     // generate DataBinding things e.g. DataBinderMapperImpl.java
     val dataBindingDependencyArtifacts get() = dir(tempCompileDir, "dependency_artifacts")

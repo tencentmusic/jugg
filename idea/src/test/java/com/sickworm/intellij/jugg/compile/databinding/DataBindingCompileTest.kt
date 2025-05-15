@@ -4,9 +4,11 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.mock.*
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class DataBindingCompileTest {
@@ -15,18 +17,15 @@ class DataBindingCompileTest {
     private val javaOutputDir = File(outputDir, "java")
     private val layoutOutputDir = File(outputDir, "res")
 
+    @Before
+    fun setUp() {
+        buildDir.deleteRecursively()
+    }
+
     @Test
     fun test() {
-        buildDir.deleteRecursively()
-        val compileTask = CompileTask(
-            listOf(CompileFile(
-                CompileFile.Type.Resource,
-                File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_java_demo.xml"),
-                File(assetsAndroidDir, "app/src/main/res"),
-                context.modules.values.first()
-            )),
-            outputDir,
-            CompileStatusHolder.DEFAULT,
+        val compileTask = makeTask(
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_java_demo.xml")
         )
 
         val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
@@ -54,6 +53,28 @@ class DataBindingCompileTest {
         ))
     }
 
+    @Test
+    fun testXmlIncludeNode() {
+        val compileTask = makeTask(
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_include.xml"),
+        )
+
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val result = baseClassCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        checkOutputFiles(result, listOf(
+            "com/example/myapplication/databinding/ActivityDataBindingIncludeBinding.java",
+            "layout/activity_data_binding_include.xml",
+        ))
+
+        val javaContent = javaOutputDir
+            .resolve("com/example/myapplication/databinding/ActivityDataBindingIncludeBinding.java")
+            .readLines()
+        val includeField = javaContent.find { it.contains("includeTestLayout;") }
+        assertNotNull(includeField)
+        assertTrue(includeField.contains("TestLayoutBinding includeTestLayout;"), "include field is not generated correct type, actual: \"$includeField\"")
+    }
+
     private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
         expect.forEach { expectFilePath ->
             val isJava = expectFilePath.endsWith(".java")
@@ -67,5 +88,20 @@ class DataBindingCompileTest {
             assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
         }
         assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
+    }
+
+    private fun makeTask(vararg files: File): CompileTask {
+        return CompileTask(
+            files.map {
+                CompileFile(
+                    CompileFile.Type.Resource,
+                    it,
+                    it.parentFile.parentFile,
+                    context.modules.values.first()
+                )
+            },
+            outputDir,
+            CompileStatusHolder.DEFAULT,
+        )
     }
 }

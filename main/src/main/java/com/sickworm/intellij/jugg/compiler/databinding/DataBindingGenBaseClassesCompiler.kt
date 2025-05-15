@@ -7,6 +7,7 @@ import android.databinding.tool.store.LayoutInfoInput
 import android.databinding.tool.util.RelativizableFile
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
@@ -54,8 +55,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
     }
 
     private fun splitLayoutXml(argsManager: DataBindingArgsManager, changedXmlFiles: List<CompileFile>) {
-        logger.debug("split layout xml.")
-
+        TimeLogger.start("splitLayoutXml")
 
         val gradleFileWriter = DataBindingBuilder.GradleFileWriter(argsManager.dataBindingSourcesOutputDir.path)
 
@@ -68,16 +68,18 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
             layoutXmlProcessor.processSingleFile(relativizableFile, out, argsManager.isUseViewBinding, argsManager.isUseDataBinding)
             layoutXmlProcessor.writeLayoutInfoFiles(argsManager.dataBindingLayoutXmlDir, gradleFileWriter)
         }
+
+        TimeLogger.end("splitLayoutXml", logger)
     }
 
     private fun generateBaseClasses(argsManager: DataBindingArgsManager) {
-        logger.debug("generate base classes.")
+        TimeLogger.start("generateBaseClasses")
 
         val args = LayoutInfoInput.Args(
-            outOfDate = emptyList(),
+            outOfDate = argsManager.dataBindingLayoutXmlDir.listFiles()?.toList() ?: emptyList(),
             removed = emptyList(),
             infoFolder = argsManager.dataBindingLayoutXmlDir,
-            dependencyClassesFolders = listOf(argsManager.dependencyClassesFolders),
+            dependencyClassesFolders = argsManager.dependencyClassesFolders,
             artifactFolder = argsManager.artifactFolder,
             logFolder = argsManager.logFolder,
             packageName = argsManager.packageName,
@@ -87,11 +89,14 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
             enableViewBinding = argsManager.isUseViewBinding,
             enableDataBinding = argsManager.isUseDataBinding,
         )
+        logger.debug("ViewBinding args: $args")
         val layoutInfoInput = LayoutInfoInput(args)
         val baseDataBinder = BaseDataBinder(layoutInfoInput, getRPackage = null)
 
         val gradleFileWriter = DataBindingBuilder.GradleFileWriter(argsManager.dataBindingSourcesOutputDir.path)
         baseDataBinder.generateAll(gradleFileWriter)
+
+        TimeLogger.end("generateBaseClasses", logger)
     }
 
     private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, module: ModuleInfo): CompileResult {
