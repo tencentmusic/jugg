@@ -21,14 +21,18 @@ class KotlinCompilerOutputParser(
     }
     val printStream = PrintStream(outputStream)
 
-
-    val line = StringBuilder()
+    private val myBuffer = ByteArray(100000) // 100KB
+    private var myPosition = 0
     private fun onInput(b: Int) {
         if (b == '\n'.code) {
-            onNewLine(line.toString())
-            line.clear()
+            val line = String(myBuffer, 0, myPosition)
+            onNewLine(line)
+            myPosition = 0
         } else {
-            line.append(b.toChar())
+            if (myPosition == myBuffer.size) {
+                return
+            }
+            myBuffer[myPosition++] = b.toByte()
         }
     }
 
