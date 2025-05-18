@@ -82,10 +82,6 @@ data class SimpleCompileContext(
         isSigningReady = true,
     )
 
-    init {
-        tempModule.buildPathInfo.moduleRootDir.clearDir()
-    }
-
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)
 

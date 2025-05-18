@@ -331,6 +331,12 @@ class BaseCompileContext(
     override fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File> {
         // e.g. ap_generated_sources, data_binding_base_class_source_out
         val dirs = mutableListOf<File>()
+        tempModule.buildPathInfo.generatedSourcePath.listFiles()?.forEach {
+            val baseDir = File(it, "${moduleInfo.buildVariant}/out")
+            if (baseDir.exists()) {
+                dirs.add(baseDir)
+            }
+        }
         moduleInfo.buildPathInfo.generatedSourcePath.listFiles()?.forEach {
             val baseDir = File(it, "${moduleInfo.buildVariant}/out")
             if (baseDir.exists()) {

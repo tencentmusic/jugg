@@ -100,6 +100,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
     }
 
     private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, module: ModuleInfo): CompileResult {
+        TimeLogger.start("getOutput")
         val sourceFiles = argsManager.dataBindingSourcesOutputDir
             .listFilesRecursively()
             .map {
@@ -108,8 +109,9 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
                 outputFile.parentFile.mkdirs()
                 it.copyTo(outputFile, overwrite = true)
 
-                // necessary to let Kotlin java-source-roots works
-                val generatedOutputFile = it.changeBaseDir(argsManager.tempCompileDir, module.buildPathInfo.buildDir)
+                // storage for incremental compile
+                // let Kotlin java-source-roots works
+                val generatedOutputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, argsManager.incrementalBaseClassOutDir)
                 it.copyTo(generatedOutputFile, overwrite = true)
 
                 CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
@@ -126,6 +128,14 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
                     CompileOutput(CompileOutput.Type.ResXml, outputFile, outputDir, relativeModule = module)
                 }
         }
+        // storage for incremental compile
+        // let new layout convert to binding instance when include by other layout
+        argsManager.artifactFolder.listFiles()?.forEach {
+            val outputFile = File(argsManager.incrementalDependencyClassesFolder, it.name)
+            it.copyTo(outputFile, overwrite = true)
+        }
+
+        TimeLogger.end("getOutput", logger)
 
         return CompileResult(
             task,

@@ -13,10 +13,6 @@ import kotlin.test.assertTrue
 
 class DataBindingCompileTest {
 
-    private val outputDir = File(buildDir, "output")
-    private val javaOutputDir = File(outputDir, "java")
-    private val layoutOutputDir = File(outputDir, "res")
-
     @Before
     fun setUp() {
         buildDir.deleteRecursively()
@@ -67,41 +63,140 @@ class DataBindingCompileTest {
             "layout/activity_data_binding_include.xml",
         ))
 
-        val javaContent = javaOutputDir
-            .resolve("com/example/myapplication/databinding/ActivityDataBindingIncludeBinding.java")
-            .readLines()
-        val includeField = javaContent.find { it.contains("includeTestLayout;") }
-        assertNotNull(includeField)
-        assertTrue(includeField.contains("TestLayoutBinding includeTestLayout;"), "include field is not generated correct type, actual: \"$includeField\"")
-    }
-
-    private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
-        expect.forEach { expectFilePath ->
-            val isJava = expectFilePath.endsWith(".java")
-            val outputDir = if (isJava) javaOutputDir else layoutOutputDir
-            val outputType = if (isJava) CompileOutput.Type.Java else CompileOutput.Type.ResXml
-            val expectFile = File(outputDir, expectFilePath)
-            val outputFile = compileResult.outputs.find { it.file == expectFile }
-            assertTrue(outputFile != null, "File $expectFile does not exist in output")
-            assertTrue(outputFile.file.exists(), "File $expectFile does not exist")
-            assertEquals(outputDir, outputFile.baseDir, "File $expectFile is not in correct baseDir")
-            assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
-        }
-        assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
-    }
-
-    private fun makeTask(vararg files: File): CompileTask {
-        return CompileTask(
-            files.map {
-                CompileFile(
-                    CompileFile.Type.Resource,
-                    it,
-                    it.parentFile.parentFile,
-                    context.modules.values.first()
-                )
-            },
-            outputDir,
-            CompileStatusHolder.DEFAULT,
+        checkInclude(
+            "com/example/myapplication/databinding/ActivityDataBindingIncludeBinding.java",
+            "TestLayoutBinding",
+            "includeTestLayout",
         )
+    }
+
+    @Test
+    fun testNewNode() {
+        compileNewXml()
+        compileXmlIncludeNewXml()
+    }
+
+    @Test
+    fun testMultipleNewXml() {
+        compileNewXml()
+        compileNewXml2()
+        compileXmlIncludeNewXml()
+    }
+
+    private fun compileXmlIncludeNewXml(isRunDataBinding: Boolean = false) {
+        val compileTask = makeTask(
+            File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new_include.xml"),
+        )
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val result = baseClassCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        checkOutputFiles(result, listOf(
+            "com/example/myapplication/databinding/ActivityViewBindingNewIncludeBinding.java",
+            "layout/activity_view_binding_new_include.xml",
+        ))
+        checkInclude(
+            "com/example/myapplication/databinding/ActivityViewBindingNewIncludeBinding.java",
+            "ActivityViewBindingNewBinding",
+            "includeTestLayoutNew",
+        )
+
+        if (isRunDataBinding) {
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(compileTask)
+            assertTrue(result2.isAllSuccess)
+            assertTrue(result2.outputs.isNotEmpty())
+        }
+    }
+
+    private fun compileNewXml(isRunDataBinding: Boolean = false) {
+        val compileTask = makeTask(
+            File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new.xml"),
+        )
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val result = baseClassCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        checkOutputFiles(result, listOf(
+            "com/example/myapplication/databinding/ActivityViewBindingNewBinding.java",
+            "layout/activity_view_binding_new.xml",
+        ))
+
+        if (isRunDataBinding) {
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(compileTask)
+            assertTrue(result2.isAllSuccess)
+            assertTrue(result2.outputs.isNotEmpty())
+        }
+    }
+
+    private fun compileNewXml2(isRunDataBinding: Boolean = false) {
+        val compileTask = makeTask(
+            File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new2.xml"),
+        )
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val result = baseClassCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        checkOutputFiles(result, listOf(
+            "com/example/myapplication/databinding/ActivityViewBindingNew2Binding.java",
+            "layout/activity_view_binding_new2.xml",
+        ))
+
+        if (isRunDataBinding) {
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(compileTask)
+            assertTrue(result2.isAllSuccess)
+            assertTrue(result2.outputs.isNotEmpty())
+        }
+    }
+
+
+    @Test
+    fun testMultipleNewXmlDataBinding() {
+        compileNewXml(isRunDataBinding = true)
+        compileNewXml2(isRunDataBinding = true)
+        compileXmlIncludeNewXml(isRunDataBinding = true)
+    }
+
+    companion object {
+
+        private val outputDir = File(buildDir, "output")
+        private val javaOutputDir = File(outputDir, "java")
+        private val layoutOutputDir = File(outputDir, "res")
+
+        private fun makeTask(vararg files: File): CompileTask {
+            return CompileTask(
+                files.map {
+                    CompileFile(
+                        CompileFile.Type.Resource,
+                        it,
+                        it.parentFile.parentFile,
+                        context.modules.values.first()
+                    )
+                },
+                outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+        }
+
+        private fun checkInclude(file: String, type: String, name: String) {
+            val javaContent = javaOutputDir.resolve(file).readLines()
+            val includeField = javaContent.find { it.contains("$name;") }
+            assertNotNull(includeField)
+            assertTrue(includeField.contains("$type $name;"), "include field is not generated correct type, actual: \"$includeField\"")
+        }
+
+        private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
+            expect.forEach { expectFilePath ->
+                val isJava = expectFilePath.endsWith(".java")
+                val outputDir = if (isJava) javaOutputDir else layoutOutputDir
+                val outputType = if (isJava) CompileOutput.Type.Java else CompileOutput.Type.ResXml
+                val expectFile = File(outputDir, expectFilePath)
+                val outputFile = compileResult.outputs.find { it.file == expectFile }
+                assertTrue(outputFile != null, "File $expectFile does not exist in output")
+                assertTrue(outputFile.file.exists(), "File $expectFile does not exist")
+                assertEquals(outputDir, outputFile.baseDir, "File $expectFile is not in correct baseDir")
+                assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
+            }
+            assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
+        }
     }
 }
