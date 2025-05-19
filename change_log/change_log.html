@@ -1,5 +1,5 @@
 <h1>Change Log</h1>
-<h2>2.2.0 (2025.05.09)</h2>
+<h2>2.2.0 (2025.05.20)</h2>
 <ol>
     <li>[feature] supports Kotlin compose</li>
     <li>[feature] supports Kotlin @Parcelize annotation</li>
@@ -10,6 +10,7 @@
     <li>[optimize] optimize the recover strategy of library dependency missing after cleaned by gradle</li>
     <li>[optimize] optimize auto downgrade condition, avoiding Android App stuck when deploying over 1000 classes</li>
     <li>[optimize] reinstall APK at the third time deployment timout, fallback at the fourth time</li>
+    <li>[optimize] restart ADB when ADB is not responding</li>
     <li>[bugfix] fix cannot found resource when loading standalone apk by PackageManager.getResourcesForApplication</li>
     <li>[bugfix] fix NullPointException on Android 8.0 when startup</li>
     <li>[bugfix] fix Android 15 cannot use hot reload under Android Studio Meerkat</li>

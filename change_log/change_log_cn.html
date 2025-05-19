@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>2.2.0 (2025.05.09)</h2>
+<h2>2.2.0 (2025.05.20)</h2>
 <ol>
     <li>[feature] 支持 Kotlin compose 编译</li>
     <li>[feature] 支持 Kotlin @Parcelize 注解</li>
@@ -10,6 +10,7 @@
     <li>[optimize] 优化依赖库被 gradle 清理后的恢复策略</li>
     <li>[optimize] 优化自动降级参数，避免部署 >1000 class 导致运行卡顿的情况</li>
     <li>[optimize] 第三次发生部署超时（Got deploy timeout）时，重装 APK；第四次超时降级</li>
+    <li>[optimize] ADB 不可用时尝试重启一次 ADB 服务</li>
     <li>[bugfix] 修复用 PackageManager.getResourcesForApplication 加载独立 APK 的资源时，找不到资源</li>
     <li>[bugfix] 修复 Android 8.0 启动空指针</li>
     <li>[bugfix] 修复 Android 15 在 Android Studio Meerkat 以下版本无法使用热重载</li>

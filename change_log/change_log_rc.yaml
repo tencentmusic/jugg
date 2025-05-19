@@ -1,3 +1,8 @@
+- version: 2.2.0-rc30
+  date: 2025.05.20
+  updates:
+    - restart ADB when ADB is not responding
+
 - version: 2.2.0-rc28
   date: 2025.05.09
   updates:
