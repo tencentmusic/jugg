@@ -37,6 +37,7 @@ class KotlinCompilerInvoker {
         val isCanAutoRetry: Boolean = false,
         val kaptOptions: Map<String, String> = emptyMap(),
         val kaptDependencies: List<File> = emptyList(),
+        val javaSourceDirs: List<File>? = null,
     )
 
     fun compile(
@@ -162,8 +163,13 @@ class KotlinCompilerInvoker {
 
         val composeArgs = handleComposeArgs(options, kotlinExtensions, kotlinPlugins, logger)
 
-        val javaSourceRoots = (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
-            it.exists()
+        @Suppress("IfThenToElvis")
+        val javaSourceRoots = if (options.javaSourceDirs != null) {
+            options.javaSourceDirs
+        } else {
+            (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
+                it.exists()
+            }
         }
 
         var jvmTarget = tryProperJvmTarget ?: properJvmTarget

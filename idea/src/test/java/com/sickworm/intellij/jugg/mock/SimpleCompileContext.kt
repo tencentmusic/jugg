@@ -165,7 +165,33 @@ data class SimpleCompileContext(
     }
 
     override fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File> {
-        return emptyList()
+        // e.g. ap_generated_sources, data_binding_base_class_source_out
+        val dirs = mutableListOf<File>()
+        tempModule.buildPathInfo.generatedSourcePath.listFiles()?.forEach {
+            val baseDir = File(it, "${moduleInfo.buildVariant}/out")
+            if (baseDir.exists()) {
+                dirs.add(baseDir)
+            }
+        }
+        moduleInfo.buildPathInfo.generatedSourcePath.listFiles()?.forEach {
+            val baseDir = File(it, "${moduleInfo.buildVariant}/out")
+            if (baseDir.exists()) {
+                dirs.add(baseDir)
+            }
+        }
+
+        // e.g. source/buildConfig source/kapt
+        val sourceSubDir = File(moduleInfo.buildPathInfo.generatedSourcePath, "source")
+        if (sourceSubDir.exists()) {
+            sourceSubDir.listFiles()?.forEach {
+                val baseDir = File(it, moduleInfo.buildVariant)
+                if (baseDir.exists()) {
+                    dirs.add(baseDir)
+                }
+            }
+        }
+
+        return dirs
     }
 
     var desugarInfo = DesugarInfo.EMPTY

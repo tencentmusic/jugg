@@ -109,10 +109,13 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
                 outputFile.parentFile.mkdirs()
                 it.copyTo(outputFile, overwrite = true)
 
-                // storage for incremental compile
-                // let Kotlin java-source-roots works
-                val generatedOutputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, argsManager.incrementalBaseClassOutDir)
-                it.copyTo(generatedOutputFile, overwrite = true)
+                // storage when only use view binding, or will storage them after data binding
+                if (!argsManager.isUseDataBinding) {
+                    // storage for incremental compile
+                    // let Kotlin java-source-roots works
+                    val generatedOutputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, argsManager.incrementalBaseClassOutDir)
+                    it.copyTo(generatedOutputFile, overwrite = true)
+                }
 
                 CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
             }

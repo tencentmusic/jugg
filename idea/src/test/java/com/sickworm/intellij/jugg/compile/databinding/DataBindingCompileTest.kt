@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compile.databinding
 
+import android.databinding.tool.ext.toCamelCase
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
@@ -35,18 +36,7 @@ class DataBindingCompileTest {
         val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
         val result2 = mapperCompiler.compile(compileTask)
         assertTrue(result2.isAllSuccess)
-        checkOutputFiles(result2, listOf(
-            "androidx/databinding/DataBinderMapperImpl.java",
-            "androidx/databinding/DataBindingComponent.java",
-            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java",
-            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.java",
-            "com/example/myapplication/BR.java",
-            "com/example/myapplication/DataBinderMapper_IncrementalHolder.java",
-            "com/example/myapplication/DataBinderMapperImpl.java",
-            "com/example/myapplication/DataBinderMapperImpl_Full.java",
-            "com/example/myapplication/DataBinderMapperImpl_Inc_1.java",
-            "layout/activity_data_binding_java_demo.xml",
-        ))
+        checkDataBindingOutputs(compileTask, result2, 1)
     }
 
     @Test
@@ -83,7 +73,7 @@ class DataBindingCompileTest {
         compileXmlIncludeNewXml()
     }
 
-    private fun compileXmlIncludeNewXml(isRunDataBinding: Boolean = false) {
+    private fun compileXmlIncludeNewXml() {
         val compileTask = makeTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new_include.xml"),
         )
@@ -100,15 +90,9 @@ class DataBindingCompileTest {
             "includeTestLayoutNew",
         )
 
-        if (isRunDataBinding) {
-            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-            val result2 = mapperCompiler.compile(compileTask)
-            assertTrue(result2.isAllSuccess)
-            assertTrue(result2.outputs.isNotEmpty())
-        }
     }
 
-    private fun compileNewXml(isRunDataBinding: Boolean = false) {
+    private fun compileNewXml() {
         val compileTask = makeTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new.xml"),
         )
@@ -119,16 +103,9 @@ class DataBindingCompileTest {
             "com/example/myapplication/databinding/ActivityViewBindingNewBinding.java",
             "layout/activity_view_binding_new.xml",
         ))
-
-        if (isRunDataBinding) {
-            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-            val result2 = mapperCompiler.compile(compileTask)
-            assertTrue(result2.isAllSuccess)
-            assertTrue(result2.outputs.isNotEmpty())
-        }
     }
 
-    private fun compileNewXml2(isRunDataBinding: Boolean = false) {
+    private fun compileNewXml2() {
         val compileTask = makeTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new2.xml"),
         )
@@ -139,21 +116,72 @@ class DataBindingCompileTest {
             "com/example/myapplication/databinding/ActivityViewBindingNew2Binding.java",
             "layout/activity_view_binding_new2.xml",
         ))
-
-        if (isRunDataBinding) {
-            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-            val result2 = mapperCompiler.compile(compileTask)
-            assertTrue(result2.isAllSuccess)
-            assertTrue(result2.outputs.isNotEmpty())
-        }
     }
-
 
     @Test
     fun testMultipleNewXmlDataBinding() {
-        compileNewXml(isRunDataBinding = true)
-        compileNewXml2(isRunDataBinding = true)
-        compileXmlIncludeNewXml(isRunDataBinding = true)
+        fun compileNewXml() {
+            val compileTask = makeTask(
+                File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new.xml"),
+            )
+            val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+            val result = baseClassCompiler.compile(compileTask)
+            assertTrue(result.isAllSuccess)
+            checkOutputFiles(result, listOf(
+                "com/example/myapplication/databinding/ActivityDataBindingNewBinding.java",
+                "layout/activity_data_binding_new.xml",
+            ))
+
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(compileTask)
+            assertTrue(result2.isAllSuccess)
+            checkDataBindingOutputs(compileTask, result2, 1)
+        }
+
+        fun compileNewXml2() {
+            val compileTask = makeTask(
+                File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new2.xml"),
+            )
+            val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+            val result = baseClassCompiler.compile(compileTask)
+            assertTrue(result.isAllSuccess)
+            checkOutputFiles(result, listOf(
+                "com/example/myapplication/databinding/ActivityDataBindingNew2Binding.java",
+                "layout/activity_data_binding_new2.xml",
+            ))
+
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(compileTask)
+            assertTrue(result2.isAllSuccess)
+            checkDataBindingOutputs(compileTask, result2, 2)
+        }
+
+        fun compileXmlIncludeNewXml() {
+            val compileTask = makeTask(
+                File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new_include.xml"),
+            )
+            val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+            val result = baseClassCompiler.compile(compileTask)
+            assertTrue(result.isAllSuccess)
+            checkOutputFiles(result, listOf(
+                "com/example/myapplication/databinding/ActivityDataBindingNewIncludeBinding.java",
+                "layout/activity_data_binding_new_include.xml",
+            ))
+            checkInclude(
+                "com/example/myapplication/databinding/ActivityDataBindingNewIncludeBinding.java",
+                "ActivityDataBindingNewBinding",
+                "includeTestLayout",
+            )
+
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(compileTask)
+            assertTrue(result2.isAllSuccess)
+            checkDataBindingOutputs(compileTask, result2, 3)
+        }
+
+        compileNewXml()
+        compileNewXml2()
+        compileXmlIncludeNewXml()
     }
 
     companion object {
@@ -197,6 +225,27 @@ class DataBindingCompileTest {
                 assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
             }
             assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
+        }
+
+        private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int) {
+            val outputFiles = compileTask.files.flatMap {
+                val file = it.file
+                listOf(
+                    "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}Binding.java",
+                    "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}BindingImpl.java",
+                    "layout/${file.name}",
+                )
+            }
+            val base = listOf(
+                "androidx/databinding/DataBinderMapperImpl.java",
+                "androidx/databinding/DataBindingComponent.java",
+                "com/example/myapplication/BR.java",
+                "com/example/myapplication/DataBinderMapper_IncrementalHolder.java",
+                "com/example/myapplication/DataBinderMapperImpl.java",
+                "com/example/myapplication/DataBinderMapperImpl_Full.java",
+                "com/example/myapplication/DataBinderMapperImpl_Inc_$incTimes.java",
+            )
+            checkOutputFiles(compileResult, base + outputFiles)
         }
     }
 }
