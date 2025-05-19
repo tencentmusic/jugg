@@ -6,8 +6,10 @@ import com.android.tools.idea.log.LogWrapper
 import com.google.common.base.Charsets
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkReader
+import com.sickworm.intellij.jugg.compiler.isWindows
+import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
+import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -30,8 +32,13 @@ class IdeaDeviceAdb(
     }
     private val adb = AdbClient(device, this.loggerWrapper)
 
-    @Synchronized
     override fun execAdbShellCmd(cmd: String): String {
+        synchronized(IdeaDeviceAdb::class.java) {
+            return execAdbShellCmd(cmd, retryCount = 0)
+        }
+    }
+
+    private fun execAdbShellCmd(cmd: String, retryCount: Int): String {
         try {
             val cmdList = cmd.splitIgnoringQuotes()
             logger.debug("adb in:  adb shell $cmd")
@@ -49,11 +56,49 @@ class IdeaDeviceAdb(
                 logger.debug("adb out: $logMsg")
                 return extraMsg
             }
+            logger.debug("adb out: (empty)")
             return ""
         } catch (e: Exception) {
-            logger.debug("invoke execAdbShellCmd failed", e)
+            logger.debug("invoke execAdbShellCmd failed, retry count $retryCount ", e)
+            // java.nio.channels.InterruptedByTimeoutException
+            // com.android.ddmlib.TimeoutException
+            val timeoutException = listOf("InterruptedByTimeoutException", "TimeoutException")
+            // java.net.ConnectException
+            // java.net.SocketException
+            val connectException = listOf("SocketException", "ConnectException")
+
+            val exceptionName = e::class.java.simpleName
+            if (exceptionName in timeoutException) {
+                if (retryCount == 0) {
+                    logger.warn("Got ADB timeout, retry after restart adb.")
+                    killAdbProcess()
+                    Thread.sleep(2000)
+                    return execAdbShellCmd(cmd, retryCount = 1)
+                }
+            } else if (exceptionName in connectException) {
+                logger.debug("ADB can not connect, try retry")
+                if (retryCount == 0) {
+                    killAdbProcess()
+                }
+                if (retryCount < 8) {
+                    Thread.sleep(2000)
+                    return execAdbShellCmd(cmd, retryCount = retryCount + 1)
+                }
+            }
             throw e
         }
+    }
+
+    private fun killAdbProcess() {
+        logger.debug("killAdbProcess in")
+        val cmdString = if (isWindows) {
+            "taskkill /F /IM adb.exe"
+        } else {
+            "killall adb"
+        }
+        val cmd = SimpleSshCommand(cmdString, logger.getInstance("IdeaDeviceAdb_CMD"), isAllDebug = true)
+        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
+        logger.debug("killAdbProcess exitCode: $exitCode")
     }
 
     @Synchronized

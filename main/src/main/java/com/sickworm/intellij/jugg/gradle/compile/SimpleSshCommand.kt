@@ -7,9 +7,16 @@ class SimpleSshCommand(
     val logger: Logger,
     private val outputFilter: ((String, Boolean) -> Boolean)? = null,
     private val isSecureCommand: Boolean = false,
+    private val isAllDebug: Boolean = false,
 ): BaseSshCommand() {
 
     override fun isCanOutput(line: String, isError: Boolean): Boolean {
+        if (isAllDebug) {
+            if (isError) {
+                logger.debug(line)
+                return false
+            }
+        }
         return outputFilter?.invoke(line, isError) ?: true
     }
 
