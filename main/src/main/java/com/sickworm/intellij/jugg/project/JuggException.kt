@@ -17,23 +17,11 @@ class JuggException(msg: String): Exception(msg) {
         fun applyChangesFailed(launchResult: LaunchResult) =
             JuggException("Apply changes failed, errorId: ${launchResult.errorId}, reason: ${launchResult.consoleError}")
 
-        fun buildToolsNotFound(details: String) =
-            JuggException("Can not found build tools, can not compile. details: $details")
-
         fun androidJarNotFound(details: String) =
             JuggException("Can not found android.jar, can not compile. details: $details")
 
         fun androidHomeNotFound() =
             JuggException("Can not found android sdk home, exit init.")
-
-        fun deviceNotFound() =
-            JuggException("Can not found any device to deploy.")
-
-        fun multipleDeviceFound() =
-            JuggException("More than one device found via adb, please make sure there is only one device to be deployed.")
-
-        fun invokeAdbFailed2(cmd: String, e: Exception) =
-            JuggException("Invoke cmd command \"$cmd\" failed, message: ${e.message}")
 
         fun loginToRemoteFailed(message: String) =
             JuggException("Login to remote ssh failed. $message")
@@ -59,9 +47,6 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun combineTaskFailed(reason: String) =
             JuggInternalException("Combining CompileTask failed: $reason")
-
-        fun compilerContextNotInit() =
-            JuggInternalException("Compiler context not init, which should not happened in logic.")
 
         fun apkNotFound(data: JuggDeployData) =
             JuggInternalException("Apk files not found in: $data.")
