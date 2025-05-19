@@ -84,7 +84,7 @@ val context get() = SimpleCompileContext(
     modules = AssembleAndroidProjectOnce.getProjectInfo().modules,
     apkInfos = projectInfo.apkInfos,
     projectDir = projectInfo.projectRoot,
-    deployedFiles = emptyList(),
+    deployedFiles = mutableListOf(),
 )
 
 val mockParentDisposable = Disposable { }

@@ -240,16 +240,10 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         logger.debug("generateIncrementalMapperHolder currentDataBinderMapperImplFile = $currentDataBinderMapperImplFile")
 
         // 2. create new inc mapper file by currentDataBinderMapperImplFile
-        val incDir = argsManager.dataBindingMapperIncrementalDir
-        var index = 1
-        if (incDir.exists()) {
-            val currentCount = incDir.listFiles()?.size ?: 0
-            index = currentCount + 1
-        }
-
+        val index = argsManager.databindingIncCount + 1
         val newName = "DataBinderMapperImpl_Inc_$index"
         logger.debug("generateIncrementalMapperHolder newName = $newName")
-        val targetIncFile = File(incDir, "$newName.java")
+        val targetIncFile = File(argsManager.mapperDir, "$newName.java")
         if (targetIncFile.exists()) {
             targetIncFile.delete()
         }
@@ -266,16 +260,10 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
         // 3. create DataBinderMapperIncrementalHolder
         val templates = DataBindingTemplates(argsManager.isUseAndroidX)
-        val allIncMapperFiles = incDir.listFiles()
-        allIncMapperFiles?.sortWith { o1, o2 ->
-            val index1 = o1.name.replace("DataBinderMapperImpl_Inc_", "").replace(".java", "").toInt()
-            val index2 = o2.name.replace("DataBinderMapperImpl_Inc_", "").replace(".java", "").toInt()
-            index2 - index1
-        }
-
+        val allIncMapper = (1 .. index).map { "DataBinderMapperImpl_Inc_$it" }
         val incMapperArrays = StringBuilder()
-        allIncMapperFiles?.forEach {
-            incMapperArrays.append("\n                                new ${argsManager.packageName}.${it.name.replace(".java", "")}(),")
+        allIncMapper.forEach {
+            incMapperArrays.append("\n                                new ${argsManager.packageName}.${it}(),")
         }
         val holderContent = templates.holderTemplate
             .replace("_package_name_holder_", argsManager.packageName)

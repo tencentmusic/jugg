@@ -120,6 +120,8 @@ class DataBindingCompileTest {
 
     @Test
     fun testMultipleNewXmlDataBinding() {
+        val context = context
+
         fun compileNewXml() {
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new.xml"),
@@ -136,6 +138,7 @@ class DataBindingCompileTest {
             val result2 = mapperCompiler.compile(compileTask)
             assertTrue(result2.isAllSuccess)
             checkDataBindingOutputs(compileTask, result2, 1)
+            context.deployedFiles.addAll(result2.outputs)
         }
 
         fun compileNewXml2() {
@@ -154,6 +157,7 @@ class DataBindingCompileTest {
             val result2 = mapperCompiler.compile(compileTask)
             assertTrue(result2.isAllSuccess)
             checkDataBindingOutputs(compileTask, result2, 2)
+            context.deployedFiles.addAll(result2.outputs)
         }
 
         fun compileXmlIncludeNewXml() {
@@ -177,6 +181,7 @@ class DataBindingCompileTest {
             val result2 = mapperCompiler.compile(compileTask)
             assertTrue(result2.isAllSuccess)
             checkDataBindingOutputs(compileTask, result2, 3)
+            context.deployedFiles.addAll(result2.outputs)
         }
 
         compileNewXml()

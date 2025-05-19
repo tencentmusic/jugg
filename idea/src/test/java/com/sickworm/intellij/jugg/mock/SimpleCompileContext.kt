@@ -21,7 +21,7 @@ data class SimpleCompileContext(
     override val modules: Map<String, ModuleInfo>,
     override val apkInfos: List<ApkInfo>,
     override val projectDir: File,
-    override val deployedFiles: List<CompileOutput>,
+    override val deployedFiles: MutableList<CompileOutput>,
 ) : ICompileContext {
 
     val apkFile: File get() = apkInfos.firstOrNull()?.files?.first()?.apkFile!!

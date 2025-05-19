@@ -15,6 +15,7 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
     val isUseDataBinding = isUseDataBinding(moduleInfo)
     val isIncremental = false // we do incremental by our own way
     val packageName get() = context.getModulePackageName(moduleInfo) ?: ""
+    private val packagePath get() = packageName.replace(".", "/")
 
     val tempCompileDir = context.tempCompileDir
 
@@ -44,8 +45,8 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
     val dataBindingDependencyArtifacts get() = dir(tempCompileDir, "dependency_artifacts")
     val dataBindingArtifactFolder get() = dir(tempCompileDir, "base_class_log_artifact")
     val dataBindingPreProcessorSources get() = dir(tempCompileDir, "data_binding_trigger/${moduleInfo.buildVariant}")
-    val dataBindingKaptProcessorTrigger get() = file(dataBindingPreProcessorSources, packageName.replace(".", "/") + "/DataBindingInfo.java")
-    val dataBindingKaptSourceTrigger get() = file(dataBindingPreProcessorSources, packageName.replace(".", "/") + "/DataBindingTrigger.kt")
+    val dataBindingKaptProcessorTrigger get() = file(dataBindingPreProcessorSources, "$packagePath/DataBindingInfo.java")
+    val dataBindingKaptSourceTrigger get() = file(dataBindingPreProcessorSources, "$packagePath/DataBindingTrigger.kt")
     val dataBindingAarOutDir get() = dir(tempCompileDir, "bundle-bin")
     val dataBindingBaseFeatureInfoDir get() = dir(tempCompileDir, "base_feature_info")
     val dataBindingKaptTempDir get() = "other/kapt_output"
@@ -59,11 +60,16 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
     val appBrRelativePath = "${packageName.replace(".", "/")}/BR.java"
 
     // custom incremental mapper things
-    private val mapperDir get() = dir(tempCompileDir, "mapper")
-    val dataBindingMapperIncrementalDir get() = dir(mapperDir, "inc")
+    val mapperDir get() = dir(tempCompileDir, "mapper")
     val dataBindingMapperDelegateFile get() = file(mapperDir, "DataBinderMapperImpl.java")
-    val dataBindingMapperFullFile get() = file(mapperDir, "full/DataBinderMapperImpl_Full.java")
-    val dataBindingMapperRelativePath get() = packageName.replace(".", "/") + "/DataBinderMapperImpl.java"
+    val dataBindingMapperFullFile get() = file(mapperDir, "DataBinderMapperImpl_Full.java")
+    val dataBindingMapperRelativePath get() = "$packagePath/DataBinderMapperImpl.java"
+    val databindingIncCount get() = context.deployedFiles.count {
+        val isIncMapper = it.file.nameWithoutExtension.startsWith("DataBinderMapperImpl_Inc_")
+        if (!isIncMapper) return@count false
+        val isMyPackage = it.relativeFile.parentFile.path.replace("\\", "/") == packagePath
+        return@count isMyPackage
+    }
 
     fun reset() {
         tempCompileDir.deleteRecursively()
