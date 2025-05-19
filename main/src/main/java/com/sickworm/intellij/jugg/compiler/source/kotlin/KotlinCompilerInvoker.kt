@@ -247,7 +247,9 @@ class KotlinCompilerInvoker {
             return compile(context, module, task, logger, options)
         }
 
-        val errorResults = outputParser.results.sumOf {
+        val isCompileSuccess = exitCode == ExitCode.OK
+        val compileResults = outputParser.getResult(isCompileSuccess)
+        val errorResults = compileResults.sumOf {
             if (it.isSuccess) 0 else it.getFailure().errors.size
         }
         var shouldRecreate = false
@@ -334,7 +336,7 @@ class KotlinCompilerInvoker {
             // print infos
             context.printClasspathCheck(module)
             hasRetryCompile = false
-            return CompileResult(task, outputParser.results, emptyList())
+            return CompileResult(task, compileResults, emptyList())
         }
 
         // copy outputs to task.outputDir

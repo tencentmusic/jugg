@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileError
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.Result
 import kotlinx.metadata.jvm.JvmMetadataVersion
 import java.io.File
@@ -38,19 +39,25 @@ class KotlinCompilerOutputParser(
 
     val outputs: List<File>
         get() = innerOutputs.flatMap { it.value }
-    val results: List<Result<CompileFile, CompileError>>
-        get() = files.map { file ->
+
+    fun getResult(isCompileSuccess: Boolean): List<Result<CompileFile, CompileError>> {
+        return files.map { file ->
             val errorDetails = innerErrors[file]
             if (errorDetails != null) {
                 Result.failure(CompileError(file, errorDetails))
-            } else if (innerOutputs.keys.any { it.absolutePath == file.file.absolutePath}){
+            } else if (innerOutputs.keys.any { it.absolutePath == file.file.absolutePath}) {
                 Result.success(file)
             } else {
                 logger.debug("File ${file.file.absolutePath} has no output, mark as success")
                 // compat for parse output, it's ok to just read result code of KotlinCompiler
-                Result.success(file)
+                if (isCompileSuccess) {
+                    Result.success(file)
+                } else {
+                    Result.failure(CompileError(file, listOf(-1L to "no output and compile failed")))
+                }
             }
         }
+    }
 
     var metadataVersionErrors = mutableListOf<MetadataVersionError>()
         private set
