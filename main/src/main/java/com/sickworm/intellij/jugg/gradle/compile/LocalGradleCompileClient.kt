@@ -278,7 +278,7 @@ class LocalGradleCompileClient(
             val androidHomePath = PlatformApi.getAndroidHomePath(logger)
             val envArray: MutableList<String> = System.getenv().entries
                 .filter {
-                    it.key != "JAVA_HOME" || it.key != "ANDROID_HOME"
+                    it.key != "JAVA_HOME" && it.key != "ANDROID_HOME"
                 }
                 .map {
                     "${it.key}=${it.value}"
