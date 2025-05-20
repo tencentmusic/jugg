@@ -216,6 +216,7 @@ class KotlinCompiler(
             "-module-name", moduleName,
             "-Xfriend-paths=${kotlinClassPath.absolutePath}",
             "-Xskip-prerelease-check", // class 'xxx' is compiled by a pre-release version of Kotlin and cannot be loaded by this version of the compiler
+            "-Xskip-metadata-version-check", // let skip-prerelease-check works for Kotlin 1.3
             "-Xallow-no-source-files",
             "-Xreport-output-files",
             // resolve "class is not abstract and does not implement abstract member"
