@@ -1,7 +1,12 @@
+- version: 2.3.0-rc1
+  date: 2025.05.26
+  updates:
+    - supports remote server application
+
 - version: 2.2.0-rc31
   date: 2025.05.21
   updates:
-    - 修复 Kotlin 1.3 工程偶现 "XXX is compiled by a pre-release version"
+    - fix "XXX is compiled by a pre-release version" with Kotlin 1.3 in some situations
 
 - version: 2.2.0-rc30
   date: 2025.05.20
