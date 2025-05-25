@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.google.gson.GsonBuilder
 import com.intellij.ide.DataManager
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
@@ -13,12 +14,18 @@ import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
 import com.sickworm.intellij.jugg.ide.IJuggRunSettingsComponent
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
-import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
+import com.sickworm.intellij.jugg.ide.ui.RemoteCompileApplierDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.awt.Dimension
 import java.awt.GridLayout
+import java.awt.Toolkit
+import java.awt.datatransfer.Clipboard
+import java.awt.datatransfer.StringSelection
+import java.io.File
 import javax.swing.*
 import kotlin.math.max
 
@@ -53,7 +60,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val reportIssueActionLink = ActionLink("Report issues")
 
     private val syncModeLabel = JLabel("Sync mode: ")
-    private val syncModeComboBox = ComboBox(SyncMode.values().map { it.modeName }.toTypedArray())
+    private val syncModeComboBox = ComboBox(SyncMode.entries.map { it.modeName }.toTypedArray())
     private val userLabel = JLabel("SSH user:")
     private val userTextField = JTextField()
     private val passwordLabel = JLabel("SSH password/key (optional):")
@@ -81,12 +88,14 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val httpProxyPortLabel = JLabel("HTTP proxy port:")
     private val httpProxyPortTextField = JTextField()
 
+    private val applyServerActionLink = ActionLink("Apply server")
+    private val copyRemoteConfigActionLink = ActionLink("Copy config")
+
     private val remoteCompilePanel = JPanel().also {
         it.border = IdeBorderFactory.createTitledBorder("Remote Compile Options")
         it.layout = GridLayout(0, 1, 5, 5)
     }
     private val remoteComponentList = listOf<Pair<JComponent, JComponent?>>(
-        Pair(createPairPanel(syncModeLabel, syncModeComboBox, isMaxRight = false, marginHorizontal = 0), null),
         Pair(enableSyncAllProjectsCheckBox, null),
         Pair(userLabel, userTextField),
         Pair(passwordLabel, passwordTextField),
@@ -175,7 +184,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         outputApkNameTextField.text = settings.outputApkName
         enableRemoteCompileCheckBox.isSelected = settings.isRemoteCompile
         updateRemoteUi(settings.isRemoteCompile, settings.syncMode)
-        syncModeComboBox.selectedItem = if (settings.syncMode in SyncMode.values().map { it.modeName }) {
+        syncModeComboBox.selectedItem = if (settings.syncMode in SyncMode.entries.map { it.modeName }) {
             settings.syncMode
         } else {
             SyncMode.IFT.modeName
@@ -211,6 +220,48 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             }
             moreOptionsButton = createMoreOptionsButton(project)
             updateTopButtons()
+        }
+
+        if (applyServerActionLink.actionListeners.isEmpty()) {
+            applyServerActionLink.addActionListener {
+                val logger =  JuggLogger.getInstance(project, "RemoteCompileApplierDialog")
+                val settings = RemoteCompileApplierDialog.showAndGetResult(getUsername(project), logger)
+                if (settings != null) {
+                    enableRemoteCompileCheckBox.isSelected = true
+                    updateRemoteUi(true, settings.syncMode)
+                    syncModeComboBox.selectedItem = if (settings.syncMode in SyncMode.entries.map { it.modeName }) {
+                        settings.syncMode
+                    } else {
+                        SyncMode.IFT.modeName
+                    }
+                    enableSyncAllProjectsCheckBox.isSelected = settings.isSyncAllProjects
+                    userTextField.text = settings.remoteSshUser
+                    passwordTextField.text = settings.remoteSshPassword
+                    ipTextField.text = settings.remoteSshIp
+                    portTextField.text = settings.remoteSshPort.toString()
+                    httpProxyIpTextField.text = settings.httpProxyIp ?: ""
+                    httpProxyPortTextField.text = settings.httpProxyPort.toString()
+                    remoteSyncPathTextField.text = settings.remoteSyncPath
+                }
+            }
+        }
+
+        if (copyRemoteConfigActionLink.actionListeners.isEmpty()) {
+            copyRemoteConfigActionLink.addActionListener {
+                val component = this
+                val data = linkedMapOf(
+                    "user" to component.userTextField.text,
+                    "password" to component.passwordTextField.password.joinToString(""),
+                    "ip" to component.ipTextField.text,
+                    "port" to component.portTextField.text,
+                )
+                data["ssh_login_cmd"] = "ssh ${data["user"]}@${data["ip"]} -p ${data["port"]}"
+                val text = GsonBuilder().setPrettyPrinting().create().toJson(data)
+                saveTextToClipboard(text)
+                JOptionPane.showMessageDialog(this,
+                    "Server config has copied to your clipboard.",
+                    "Copy successfully", JOptionPane.INFORMATION_MESSAGE)
+            }
         }
     }
 
@@ -252,6 +303,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                                 isAlignEnd: Boolean = false,
                                 isMaxRight: Boolean = true,
                                 marginHorizontal: Int = 4,
+                                marginBetween: Int = 0,
     ): JPanel {
         val jPanel = JPanel()
         jPanel.run {
@@ -280,6 +332,10 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                 } else {
                     right.maximumSize = Dimension(right.preferredSize.width, rightHeight)
                 }
+
+                if (marginBetween > 0) {
+                    right.border = JBUI.Borders.empty(0, marginBetween, 0, 0)
+                }
                 add(right)
             }
         }
@@ -294,6 +350,12 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         }
 
         remoteCompilePanel.removeAll()
+
+        val syncModePanel = createPairPanel(syncModeLabel, syncModeComboBox, isMaxRight = false, marginHorizontal = 0)
+        val actionLinkPanel = createPairPanel(applyServerActionLink, copyRemoteConfigActionLink, isMaxRight = false, marginBetween = 8, marginHorizontal = 0)
+        val topPanel = createPairPanel(syncModePanel, actionLinkPanel, isAlignEnd = true, marginHorizontal = 0)
+        remoteCompilePanel.add(topPanel)
+
         remoteComponentList.forEach {
             val isFilteredByRsync = when (syncMode) {
                 SyncMode.RSYNC_SIMPLE.modeName -> {
@@ -318,5 +380,17 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
 
         revalidate()
         repaint()
+    }
+
+    private fun saveTextToClipboard(text: String) {
+        val clipboard: Clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        val stringSelection = StringSelection(text)
+        clipboard.setContents(stringSelection, null)
+    }
+
+    private fun getUsername(project: Project): String {
+        val defaultName = System.getProperty("user.name") ?: "jugg_user_unknown"
+        val projectDir = project.basePath ?: return defaultName
+        return PlatformApi.createGitManagerAndTrySearchParent(File(projectDir)).userName ?: defaultName
     }
 }

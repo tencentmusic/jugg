@@ -133,6 +133,12 @@ class JuggRunningTask(
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
+        if (compileTaskResult.isGradleCompile) {
+            detailMap["isRemoteCompile"] = options.isRemoteCompile.toString()
+            if (options.isRemoteCompile) {
+                detailMap["remoteHost"] = options.remoteSshIp
+            }
+        }
         juggServer.report {
             action = "compile"
             isSuccess = compileTaskResult.isSuccess

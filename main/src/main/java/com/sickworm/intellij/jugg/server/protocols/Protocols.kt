@@ -79,3 +79,37 @@ data class CustomCompilerInfo(
     val md5: String,
 )
 
+data class InteractionProcessFlow(
+    val stepList: List<InteractionStepDesc>,
+    val firstStep: InteractionStep,
+    val token: String,
+    val quitUrl: String,
+)
+
+data class InteractionStepDesc(
+    val stepName: String,
+)
+
+data class InteractionStep(
+    val stepName: String,
+    val title: String,
+    val htmlText: String,
+    val nextStepUrl: String? = null,
+    val checkFinishUrl: String? = null,
+    val isSuccess: Boolean = true,
+    val inputTips: List<String> = emptyList(),
+    val isCanRetryWhenFailed: Boolean = false,
+    val remoteServerInfo: RemoteServerInfo? = null,
+)
+
+data class RemoteServerInfo(
+    val remoteSshUser: String?,
+    val remoteSshPassword: String?,
+    val remoteSshIp: String?,
+    val remoteSshPort: Int,
+    val httpProxyIp: String?,
+    val httpProxyPort: Int,
+    val isSyncAllProjects: Boolean,
+    val syncMode: String?,
+    val remoteSyncPath: String?,
+)
