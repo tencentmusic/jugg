@@ -7,8 +7,12 @@ class SimpleSshCommand(
     val logger: Logger,
     private val outputFilter: ((String, Boolean) -> Boolean)? = null,
     private val isSecureCommand: Boolean = false,
-    private val isAllDebug: Boolean = false,
+    var isAllDebug: Boolean = false,
 ): BaseSshCommand() {
+
+    // keep old constructor, avoid NoSuchMethodError for custom_compilers
+    constructor(baseCommand: String, logger: Logger, outputFilter: ((String, Boolean) -> Boolean)? = null, isSecureCommand: Boolean = false)
+       : this(baseCommand, logger, outputFilter, isSecureCommand, isAllDebug = false)
 
     override fun isCanOutput(line: String, isError: Boolean): Boolean {
         if (isAllDebug) {

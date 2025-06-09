@@ -1,3 +1,8 @@
+- version: 2.3.0-rc2
+  date: 2025.06.09
+  updates:
+    - fix NoSuchMethodError when using custom_compilers
+
 - version: 2.3.0-rc1
   date: 2025.05.26
   updates:
