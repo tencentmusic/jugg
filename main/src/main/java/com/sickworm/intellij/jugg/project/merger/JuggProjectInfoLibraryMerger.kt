@@ -52,8 +52,20 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
                     return@forEach
                 }
 
+                var isLocalContentChanged = false
+                val isLocalLibrary = (newDep.name.startsWith(":") && newDep.name.endsWith(":")) // no group and version
+                        || newDep.name.endsWith(".jar") || newDep.name.endsWith(".aar") // with local path
+                        || newDep.name.startsWith("__wrapped_") // import library
+                        || newDep.name.endsWith(":unspecified") // import library
+                if (isLocalLibrary && !isVersionChanged) {
+                    if (baseDep?.isExists == true) {
+                        isLocalContentChanged = newDep.file.lastModified() > baseDep.file.lastModified()
+                    }
+                }
+
                 // condition 1. version changed + new dep exist + need update
-                if (isVersionChanged) {
+                val isLibraryUpdate = isVersionChanged || isLocalContentChanged
+                if (isLibraryUpdate) {
                     if (baseDep?.isExists == true) {
                         // sometimes gradle project info will get a different name but same file as ide project info
                         if ((baseDep.file.path == newDep.file.path) || (baseDep.crc32 == newDep.crc32)) {
@@ -67,7 +79,9 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
                         result.add(newDep.library)
                         hasUpdate = true
                     }
-                    val suffix = if (!isNeedUpdateLibraryDependency) " (not update)" else ""
+                    val suffix = if (!isNeedUpdateLibraryDependency) " (not update)"
+                        else if (isLocalContentChanged) "(local update)"
+                        else ""
                     mergeResult.addMergeLibraryItem(moduleName, baseDep?.name, (newDep.name + suffix))
                 } else if (baseDep != null) {
                     // condition 2. version not changed

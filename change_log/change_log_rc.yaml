@@ -1,3 +1,8 @@
+- version: 2.3.0-rc3
+  date: 2025.06.15
+  updates:
+    - fix declaration not found after gradle compilation without IDE sync
+
 - version: 2.3.0-rc2
   date: 2025.06.09
   updates:

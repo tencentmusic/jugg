@@ -74,7 +74,8 @@ class JuggManager @TestOnly constructor(
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, coroutineScope),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
-    private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
+    private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
+    private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
     constructor(
@@ -170,6 +171,7 @@ class JuggManager @TestOnly constructor(
         try {
             when (syncEvent) {
                 SyncEvent.SUCCEEDED -> {
+                    ideSyncProblemResolver.onIdeSyncSucceeded()
                     tryCreateRunConfigurations(isSyncFinished = true)
                     runTaskSafe("Update project info", { updateProjectInfo(isAfterSync = true) })
                 }
@@ -489,7 +491,11 @@ class JuggManager @TestOnly constructor(
         )
 
         // checks whether project info is missing(cleaned by gradle)
-        updateProjectInfo(false)
+        if (ideSyncProblemResolver.isNeedSyncAfterBuild()) {
+            updateProjectInfo(true) // the IDE may not return Sync Success, so we read info here
+        } else {
+            updateProjectInfo(false)
+        }
     }
 
     override fun gradleCompile() {
