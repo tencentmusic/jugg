@@ -6,7 +6,7 @@
 - version: 2.3.0-rc3
   date: 2025.06.15
   updates:
-    - 修复更新本地 aar 场景，不执行 IDE Sync，降级降级编译后找不到依赖库声明
+    - 修复更新本地 aar 场景，不执行 IDE Sync，降级编译后找不到依赖库声明
 
 - version: 2.3.0-rc2
   date: 2025.06.09
