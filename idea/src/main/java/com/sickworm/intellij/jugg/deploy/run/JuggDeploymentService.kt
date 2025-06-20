@@ -24,15 +24,6 @@ object JuggDeploymentService {
 
     private val lock = Object()
 
-    val dexDatabase: SqlApkFileDatabase by lazy {
-        // absolute path e.g.
-        val dexDbPath = Paths.get(PathManager.getSystemPath(), ".dex_cache.db")
-        SqlApkFileDatabase(
-            dexDbPath.toFile(),
-            PathManager.getTempPath()
-        )
-    }
-
     private val deploymentCacheDatabase: DeploymentCacheDatabase by lazy {
         val deployDbPath = Paths.get(PathManager.getSystemPath(), ".deploy_cache.db")
         DeploymentCacheDatabase(
@@ -46,7 +37,6 @@ object JuggDeploymentService {
     fun preInit(logger: Logger) {
         postWithLock {
             val costTime = measureTimeMillis {
-                dexDatabase
                 deploymentCacheDatabase
             }
             logger.debug("JuggDeploymentService.preInit, cost ${costTime}ms")

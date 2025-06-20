@@ -46,7 +46,6 @@ class JuggDeployer(
     ): Result {
         val result = Result()
         try {
-            val splitter = CachedDexSplitter(deploymentService.dexDatabase, D8DexSplitter())
             var installMode = argInstallMode
             if (installMode == InstallMode.DELTA) {
                 installMode = InstallMode.DELTA_NO_SKIP
@@ -73,7 +72,6 @@ class JuggDeployer(
             }
             val apkList = AsDeployerCompat.parseApks(apks)
             // Update the database
-            splitter.cache(apkList)
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
             logger.info("after install, overlay id: ${oid.sha}, is base install: ${oid.isBaseInstall}")

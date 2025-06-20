@@ -1,3 +1,8 @@
+- version: 2.3.0-rc4
+  date: 2025.06.20
+  updates:
+    - fix "com.android.tools.r8.CompilationFailedException" after installing APK
+
 - version: 2.3.0-rc3
   date: 2025.06.15
   updates:

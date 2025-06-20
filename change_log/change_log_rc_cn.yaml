@@ -1,3 +1,8 @@
+- version: 2.3.0-rc4
+  date: 2025.06.20
+  updates:
+    - 修复安装完 APK 后部分工程出现 "com.android.tools.r8.CompilationFailedException" 报错
+
 - version: 2.3.0-rc3
   date: 2025.06.15
   updates:
