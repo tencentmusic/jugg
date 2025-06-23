@@ -13,6 +13,7 @@ class CmdExecutor(
     private val logger: Logger,
     /** only use to print to other place e.g. running terminal */
     var terminalOutputListener: IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.IDLE,
+    private val isLogAllDebug: Boolean = false,
     private val debugLogFilter: ((String) -> Boolean)? = null,
 ) {
 
@@ -64,7 +65,11 @@ class CmdExecutor(
                         if (line != null) {
                             if (line.isNotEmpty()) {
                                 if (command.isCanOutput(line, isError = true)) {
-                                    printToStreamError(line)
+                                    if (isLogAllDebug) {
+                                        printToStream(line)
+                                    } else {
+                                        printToStreamError(line)
+                                    }
                                 }
                             }
                         }

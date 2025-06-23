@@ -179,8 +179,8 @@ class ApkFileModifier(
         // see: https://developer.android.com/tools/zipalign
         val zipalign = File(buildToolsFolder, "zipalign").absolutePath
         val cmdString = "$zipalign -f 4 ${tmpUpdateApkFile.absolutePath} ${tmpAlignedApkFile.absolutePath}"
-        val cmd = SimpleSshCommand(cmdString, logger, outputFilter = { line, _ -> !line.endsWith("header mismatch") })
-        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
+        val cmd = SimpleSshCommand(cmdString, outputFilter = { line, _ -> !line.endsWith("header mismatch") })
+        val exitCode = CmdExecutor(logger).invoke(cmd)
         if (exitCode != 0) {
             throw IllegalStateException("zipalign failed, exit code: $exitCode")
         }
@@ -241,8 +241,8 @@ class ApkFileModifier(
             return@outputFilter true
         }
 
-        val cmd = SimpleSshCommand(cmdString, logger, isSecureCommand = true, outputFilter = outputFilter)
-        val exitCode = CmdExecutor(cmd.logger).invoke(cmd, envArray)
+        val cmd = SimpleSshCommand(cmdString, isSecureCommand = true, outputFilter = outputFilter)
+        val exitCode = CmdExecutor(logger).invoke(cmd, envArray)
         if (exitCode == 0) {
             logger.debug("doResign success")
             return
@@ -261,7 +261,7 @@ class ApkFileModifier(
                 }
                 isLastTry = index == availableJdksForSign.size - 1
                 val newEnvArray = replaceJavaHome(envArray, javaHome)
-                val newExitCode = CmdExecutor(cmd.logger).invoke(cmd, newEnvArray)
+                val newExitCode = CmdExecutor(logger).invoke(cmd, newEnvArray)
                 if (newExitCode == 0) {
                     logger.debug("doResign try success with JAVA_HOME: $javaHome")
                     return
@@ -309,7 +309,7 @@ class ApkFileModifier(
         val apksigner = File(buildToolsFolder, "apksigner").absolutePath
         val cmdString = "$apksigner verify ${apkFile.absolutePath}"
         val cmd = SimpleSshCommand(cmdString, logger)
-        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
+        val exitCode = CmdExecutor(logger).invoke(cmd)
         if (exitCode != 0) {
             throw IllegalStateException("verify APK failed, exit code: $exitCode")
         }

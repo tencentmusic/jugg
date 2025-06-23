@@ -96,8 +96,8 @@ class IdeaDeviceAdb(
         } else {
             "killall adb"
         }
-        val cmd = SimpleSshCommand(cmdString, logger.getInstance("IdeaDeviceAdb_CMD"), isAllDebug = true)
-        val exitCode = CmdExecutor(cmd.logger).invoke(cmd)
+        val cmd = SimpleSshCommand(cmdString, logger.getInstance("IdeaDeviceAdb_CMD"))
+        val exitCode = CmdExecutor(logger, isLogAllDebug = true).invoke(cmd)
         logger.debug("killAdbProcess exitCode: $exitCode")
     }
 
