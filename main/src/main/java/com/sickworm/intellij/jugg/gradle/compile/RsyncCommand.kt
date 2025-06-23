@@ -29,6 +29,10 @@ abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathLi
         return originCommand.replace(password, "******")
     }
 
+    fun isNeedEnterPassword(): Boolean {
+        return (password != null) && !isUseSshpass
+    }
+
     companion object {
 
         private val isArch64 = System.getProperty("os.arch") == "aarch64"

@@ -24,7 +24,7 @@ class CmdExecutor(
         logger.debug("CmdExecutor invoke command: $printSafeCommand")
 
         val commandString = command.getCommand(isNeedSetChineseLanguage = false, isWindows = isWindows)
-        val sshLoginPassword = if (command is RsyncCommand) command.password else null
+        val sshLoginPassword = if (command is RsyncCommand) command.isNeedEnterPassword() else null
         val commands = if (sshLoginPassword != null) {
             if (isWindows) {
                 throw JuggException.rSyncNotSupportsWindows()
