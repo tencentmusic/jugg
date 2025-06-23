@@ -142,6 +142,11 @@ class CmdExecutor(
                 return
             }
         }
+        if (line.startsWith("spawn /bin/bash")) {
+            // filter lines that contains password
+            logger.debug("spawn /bin/bash ********(secret)")
+            return
+        }
         if (debugLogFilter == null || debugLogFilter.invoke(line)) {
             logger.debug(line)
         }
