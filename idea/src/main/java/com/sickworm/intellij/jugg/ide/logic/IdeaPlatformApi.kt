@@ -146,6 +146,6 @@ class IdeaPlatformApi : IPlatformApi {
         logger.debug("isHasRelaunchActivityIssues $isHasRelaunchActivityIssues, " +
                 "isAndroid15: $isAndroid15, " +
                 "isBelowAndroidStudioMeerkat: $isBelowAndroidStudioMeerkat")
-        return isAndroid15
+        return isHasRelaunchActivityIssues
     }
 }
