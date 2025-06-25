@@ -1,3 +1,8 @@
+- version: 2.3.0-rc5
+  date: 2025.06.25
+  updates:
+    - 优化 Android 15 设备首次部署的重启策略
+
 - version: 2.3.0-rc4
   date: 2025.06.20
   updates:
