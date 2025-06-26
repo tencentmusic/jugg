@@ -12,7 +12,7 @@ class ReportConfirmDialog : DialogWrapper(true) {
 
     private val mainPanel: JPanel = JPanel(GridBagLayout())
     private val contentLabel: JLabel =
-        JLabel("Report will collect the logs in this project and upload, confirm report?")
+        JLabel("Report will upload your logs(build/jugg/log) and project infos(build/jugg/database/project_infos.db) in this project, confirm report?")
 
     init {
         title = "Confirm Report"
