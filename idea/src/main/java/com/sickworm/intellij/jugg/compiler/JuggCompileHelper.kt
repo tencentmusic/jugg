@@ -253,7 +253,7 @@ class JuggCompilerHelper(
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
         logger.debug("preprocessIncrementalCompile isForceInstall $isForceInstall, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
         if (isForceInstall) {
-            return CompileTaskResult.incrementalFailed(true, "force fallback")
+            return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
 
         checkDeviceFallback()?.let {
