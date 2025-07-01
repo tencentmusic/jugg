@@ -57,6 +57,10 @@ abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathLi
         private fun getSshPassPath(): String {
             return copyResource("/tools/darwin/sshpass-aarch64-15").path
         }
+
+        fun getRsyncPath(): String {
+            return copyResource("/tools/darwin/rsync-3.4.1").path
+        }
     }
 }
 
@@ -70,7 +74,7 @@ class RsyncSyncFileCommand(
 ) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
     private val rsyncArguments = getRsyncArguments(remoteProjectSyncRelativePath)
-    override val baseCommand: String = """rsync $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
+    override val baseCommand: String = """${RsyncCompatibleHelper.rsyncPath} $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
 }
 
 class RsyncFetchOutputCommand(
@@ -81,7 +85,7 @@ class RsyncFetchOutputCommand(
     remoteToLocalClasspathPath: String,
 ) : RsyncCommand(password, remoteSshPort, keyPathList) {
 
-    override val baseCommand: String = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $outputApkPath $remoteToLocalClasspathPath"""
+    override val baseCommand: String = """mkdir -p $remoteToLocalClasspathPath && ${RsyncCompatibleHelper.rsyncPath} $sshArguments $outputApkPath $remoteToLocalClasspathPath"""
 
 }
 
@@ -98,7 +102,7 @@ open class RsyncFetchClasspathCommand(
 
     private var rsyncArguments = ""
 
-    override val baseCommand: String get() = """mkdir -p $remoteToLocalClasspathPath && rsync $sshArguments $rsyncArguments $remoteProjectPath $remoteToLocalClasspathPath"""
+    override val baseCommand: String get() = """mkdir -p $remoteToLocalClasspathPath && ${RsyncCompatibleHelper.rsyncPath} $sshArguments $rsyncArguments $remoteProjectPath $remoteToLocalClasspathPath"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         rsyncArguments = FetchClasspathCommand.getRsyncArguments(modules, isWindows, additionalFetchPath, isNeedDeleteArg)

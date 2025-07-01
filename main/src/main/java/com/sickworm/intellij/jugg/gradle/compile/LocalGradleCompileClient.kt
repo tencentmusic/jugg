@@ -111,15 +111,8 @@ class LocalGradleCompileClient(
 
         val projectRootPath = File(project.basePath!!)
 
-        if (rsyncCompatible == null) {
-            TimeLogger.start("detectRsyncCompatible")
-            rsyncCompatible = detectRsyncCompatible(logger)
-            TimeLogger.end("detectRsyncCompatible", logger)
-            if (rsyncCompatible == false) {
-                logger.debug("rsync not compatible, skip fetchClasspathResult")
-                JuggSettings.isCanUseBackupClasspath = false
-            }
-        }
+        RsyncCompatibleHelper.init(logger)
+        JuggSettings.isCanUseBackupClasspath = RsyncCompatibleHelper.isCompatible
         if (!JuggSettings.isCanUseBackupClasspath) {
             logger.info("isCanUseBackupClasspath is false, skip fetchClasspathResult")
             return projectRootPath
@@ -293,39 +286,5 @@ class LocalGradleCompileClient(
             return envArray
         }
 
-        private var rsyncCompatible: Boolean? = null
-
-        private fun detectRsyncCompatible(logger: Logger): Boolean {
-            val cmd = SimpleSshCommand("rsync --version", logger)
-            val outputBuilder = StringBuilder()
-            val outputListener = object : IGradleCompileClient.TerminalOutputListener {
-                override fun onOutput(line: String, isNeedPrint: Boolean) {
-                    outputBuilder.appendLine(line)
-                }
-
-                override fun onOutputErr(line: String) {
-                    outputBuilder.appendLine(line)
-                }
-            }
-            val result = CmdExecutor(logger, outputListener).invoke(cmd)
-            if (result != 0) {
-                logger.debug("rsync not compatible for command not run successfully.")
-                return false
-            }
-
-            val output = outputBuilder.toString()
-            // requires protocol version 30 or higher, because I didn't test low version.
-            if (output.contains(Regex("protocol +version [12]\\d"))) {
-                logger.debug("rsync not compatible for protocol version not match.")
-                return false
-            }
-            // requires version 3.0 or higher, because I didn't test low version.
-            if (output.contains(Regex("rsync +version [12]\\."))) {
-                logger.debug("rsync not compatible for version is too low.")
-                return false
-            }
-            logger.debug("rsync compatible.")
-            return true
-        }
     }
 }

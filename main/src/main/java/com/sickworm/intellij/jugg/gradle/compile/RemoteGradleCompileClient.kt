@@ -236,6 +236,9 @@ class RemoteGradleCompileClient(
     override fun compileAndFetchResult(isOnlyFetchResult: Boolean): GradleCompileResult {
         val (channel, gradleCompileSettings) = checkLoginOnStart()
 
+        if (gradleCompileSettings.syncMode.isRsync) {
+            RsyncCompatibleHelper.init(logger)
+        }
         if (!isOnlyFetchResult) {
             // 1. sync source
             val syncFileResult = syncSourceFile(channel, gradleCompileSettings)
@@ -358,15 +361,11 @@ class RemoteGradleCompileClient(
         return GradleCompileResult.success(File(""))
     }
 
-    private var isPrintRsyncVersion: Boolean = false
-
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
         val (channel, gradleCompileSettings) = checkLoginOnStart()
 
-        if (gradleCompileSettings.syncMode.isRsync && !isPrintRsyncVersion) {
-            isPrintRsyncVersion = true
-            val cmd = SimpleSshCommand("rsync --version", logger)
-            CmdExecutor(logger).invoke(cmd)
+        if (gradleCompileSettings.syncMode.isRsync) {
+            RsyncCompatibleHelper.init(logger)
         }
 
         val fetchClasspathCommand = if (gradleCompileSettings.syncMode.isRsync) {
