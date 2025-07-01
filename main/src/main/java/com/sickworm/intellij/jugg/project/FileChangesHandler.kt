@@ -4,7 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import com.sickworm.intellij.jugg.compiler.relativePath
+import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -65,11 +65,11 @@ class FileChangesHandler(
         logger.debug("""
             |File changes scope:
             |    source dirs:
-            |        ${sourceDirs.relativePath(projectDir) }
+            |        ${sourceDirs.relativePathForPrintSafe(projectDir) }
             |    resource dirs:
-            |        ${resourceDirs.relativePath(projectDir) }
+            |        ${resourceDirs.relativePathForPrintSafe(projectDir) }
             |    asset dirs:
-            |        ${assetDirs.relativePath(projectDir) }
+            |        ${assetDirs.relativePathForPrintSafe(projectDir) }
             |    ignore modules(won't compile):
             |        ${ignoreModules.joinToString(", ") { "${it.moduleStdPath}(${it.name})" }}
             |""".trimMargin())

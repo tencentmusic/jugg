@@ -56,9 +56,15 @@ fun Process.readOutput(logger: Logger) {
     ins.close()
 }
 
-fun List<File>.relativePath(baseDirPath: String) = map { it.relativeTo(File(baseDirPath)) }
-
-fun List<File>.relativePath(baseDirPath: File) = map { it.relativeTo(baseDirPath) }
+fun List<File>.relativePathForPrintSafe(baseDirPath: File): List<File> {
+    return map {
+        try {
+            it.relativeTo(baseDirPath)
+        } catch (e: Exception) {
+            it
+        }
+    }
+}
 
 fun copyResource(resourcePath: String): File {
     val storeRootDir = File(PathManager.getSystemPath(), "jugg")
