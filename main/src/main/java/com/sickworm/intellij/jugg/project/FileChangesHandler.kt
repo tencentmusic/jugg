@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
@@ -48,16 +49,20 @@ class FileChangesHandler(
         logger.debug("init FileChangesHandler")
         allModules = compileContext.modules.values.toList()
 
-        val notCompiledModuleNames = findNotCompiledWithApplicationModules(compileContext)
-        val ignoreModules = allModules.filter { module ->
-            if (doNotIgnoreModulePaths.contains(module.moduleStdPath)) {
+        var ignoreModules = emptyList<ModuleInfo>()
+        if (JuggSettings.isIgnoreWontCompileModules) {
+            val notCompiledModuleNames = findNotCompiledWithApplicationModules(compileContext)
+            ignoreModules = allModules.filter { module ->
+                if (doNotIgnoreModulePaths.contains(module.moduleStdPath)) {
+                    return@filter false
+                }
+                if (notCompiledModuleNames.contains(module.name)) {
+                    return@filter true
+                }
                 return@filter false
             }
-            if (notCompiledModuleNames.contains(module.name)) {
-                return@filter true
-            }
-            return@filter false
         }
+
         compiledModules = allModules - ignoreModules
         val sourceDirs = compiledModules.flatMap { it.sourceDirs }
         val resourceDirs = compiledModules.flatMap { it.resourceDirs }

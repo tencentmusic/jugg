@@ -1,3 +1,8 @@
+- version: 2.3.0-rc6
+  date: 2025.07.02
+  updates:
+    - don't filter won't compile modules for better robust
+
 - version: 2.3.0-rc5
   date: 2025.06.25
   updates:

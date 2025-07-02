@@ -95,6 +95,8 @@ object JuggSettings {
 
     var sliceDeployRecordJson: String by propertiesComponent.delegate(defaultValue = "")
 
+    var isIgnoreWontCompileModules: Boolean by propertiesComponent.delegate(defaultValue = false)
+
     const val isEnableApt: Boolean = false
 
     /**

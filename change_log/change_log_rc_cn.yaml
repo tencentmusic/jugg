@@ -1,3 +1,8 @@
+- version: 2.3.0-rc6
+  date: 2025.07.02
+  updates:
+    - 不再过滤没有被 app 模块依赖的模块，以获得更好地鲁棒性
+
 - version: 2.3.0-rc5
   date: 2025.06.25
   updates:
