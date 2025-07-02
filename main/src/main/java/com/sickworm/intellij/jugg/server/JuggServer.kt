@@ -69,6 +69,9 @@ class JuggServer(
 
     init {
         logger.debug("init finished, version: $version, projectId: $projectId, userName: $username, requestToken: $requestToken, serverUrl: $serverUrl")
+        launch {
+            juggServerChooser.updateServerIfExpired(isForce = true)
+        }
     }
 
     fun afterFullCompile() {

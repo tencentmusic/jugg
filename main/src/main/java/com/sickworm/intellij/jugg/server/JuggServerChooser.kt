@@ -53,10 +53,19 @@ class JuggServerChooser(logger: Logger) {
     /**
      * Update server if expired. Check before report event.
      */
-    fun updateServerIfExpired() {
+    fun updateServerIfExpired(isForce: Boolean = false) {
         if (isSetCustomServer) {
+            if (isForce) {
+                logger.debug("isSetCustomServer=true, won't update server.")
+            }
             return
         }
+        if (isForce) {
+            logger.debug("isForce=true, update server.")
+            updateServer(serverRules)
+            return
+        }
+
         val isServerExpired = System.currentTimeMillis() > JuggSettings.serverExpireTimeMill
         if (isServerExpired) {
             logger.debug("Server expired, update server.")
