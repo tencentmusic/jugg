@@ -75,6 +75,7 @@ class JuggDeployer(
             val appId = ApplicationDumper.getPackageName(apkList)
             val oid = OverlayId(apkList)
             logger.info("after install, overlay id: ${oid.sha}, is base install: ${oid.isBaseInstall}")
+            logger.info("verifyCache.storeEntry: ${apkList.joinToString(", ") { "${it.name}:${it.checksum}" }}")
             deploymentService.storeEntry(adb.serial, appId, apkList, oid, logger)
             result.overlayId = oid.sha
             return result
@@ -140,9 +141,9 @@ class JuggDeployer(
 
         val exceptOverlayId = exceptOverlayIds[packageName]
         logger.info("before deploy, overlay id: ${speculativeDump?.overlayId?.sha}" +
+                ", base install: ${speculativeDump?.overlayId?.isBaseInstall}" +
                 ", except overlay id: $exceptOverlayId" +
-                ", as overlay id: ${speculativeDump?.overlayId?.sha}" +
-                ", base install: ${speculativeDump?.overlayId?.isBaseInstall}")
+                ", isSkipExceptOverlayCheck: $isSkipExceptOverlayCheck")
 
         if (!isSkipExceptOverlayCheck) {
             if (exceptOverlayId != speculativeDump?.overlayId?.sha) {
@@ -203,8 +204,11 @@ class JuggDeployer(
                 throw DeployerException.remoteApkNotFound()
             }
             if (!entry.overlayId.isBaseInstall) {
+                // not base install, verify on agent
+                logger.info("verifyCache on agent, skip")
                 return entry
             }
+            // base install, verify apk
 
             // If we have an install without OID file, we are going to the classic dump to
             // verify that we are actually looking at the same APK cached in the database.
@@ -223,6 +227,7 @@ class JuggDeployer(
                 }
             }
             if (cachedResults.size != actualResults.size) {
+                logger.info("throw overlayIdMismatch: cached size: ${cachedResults.size}, actual size: ${actualResults.size}")
                 throw DeployerException.overlayIdMismatch()
             }
             cachedResults.sortWith(Comparator.comparing { apk: Apk -> apk.name })
@@ -232,13 +237,17 @@ class JuggDeployer(
             while (i < len) {
                 val cached = cachedResults[i]
                 val actual = actualResults[i]
+                logger.info("verifyCache.verifyEntry: ${cached.name}:${cached.checksum}")
                 if (cached.name != actual.name) {
+                    logger.info("throw overlayIdMismatch: cached name: ${cached.name}, actual name: ${actual.name}")
                     throw DeployerException.overlayIdMismatch()
                 } else if (cached.checksum != actual.checksum) {
+                    logger.info("throw overlayIdMismatch: cached checksum: ${cached.checksum}, actual checksum: ${actual.checksum}")
                     throw DeployerException.overlayIdMismatch()
                 }
                 i++
             }
+            logger.info("verifyCache success")
             return entry
         }
     }
