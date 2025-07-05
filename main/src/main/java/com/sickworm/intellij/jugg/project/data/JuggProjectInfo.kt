@@ -234,10 +234,13 @@ data class LibraryDependency(
 
     val isJar get() = file.extension == "jar"
 
+    val isKlib get() = file.extension == "klib"
+
     val type get() = when {
         isRes -> "res"
         isAndroidManifest -> "manifest"
         isJar -> "jar"
+        isKlib -> "klib"
         else -> "unknown"
     }
 

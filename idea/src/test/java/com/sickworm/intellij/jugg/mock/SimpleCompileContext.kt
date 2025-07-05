@@ -107,21 +107,30 @@ data class SimpleCompileContext(
                 file.absolutePath
             }
         }
-        val libraryDependency = moduleInfo.libraryDependencies
-            .filter {
-                // filter unnecessary LibraryDependency for source file compilation
-                val isInBuildDir = it.file.isChild(moduleInfo.buildPathInfo.buildDir)
-                !isInBuildDir && it.isValid && !it.isAndroidManifest && !it.isRes
+        val libraryDependency = moduleInfo.getLibraryDependencyPaths()
+
+        // handles library1.commonMain only has .klib dependencies, read it in library1
+        val parentLibraryModuleDependency = mutableListOf<String>()
+        var parentModuleName = moduleInfo.name
+        while (parentModuleName.isNotEmpty()) {
+            if (!parentModuleName.contains('.')) {
+                break
             }
-            .map {
-                it.file.absolutePath
+            parentModuleName = parentModuleName.substringBeforeLast('.')
+            val parentModuleInfo = modules[parentModuleName] ?: break
+            if (parentModuleInfo.libraryDependencies.isEmpty()) {
+                continue
             }
+            logger.debug("${moduleInfo.name} found parent module $parentModuleName")
+            parentLibraryModuleDependency.addAll(parentModuleInfo.getLibraryDependencyPaths())
+        }
 
         val dependencies = mutableListOf(androidJar)
         dependencies.addAll(tempDependencies)
         dependencies.addAll(classpathDependencies)
         dependencies.addAll(moduleDependencies)
         dependencies.addAll(libraryDependency)
+        dependencies.addAll(parentLibraryModuleDependency)
         dependencies.addAll(finalRFiles) // place to the last, to let R file compiled into classpathDependencies go first
 
         task.files.forEach {
@@ -129,6 +138,25 @@ data class SimpleCompileContext(
         }
 
         return dependencies
+    }
+
+    private fun ModuleInfo.getLibraryDependencyPaths(): List<String> {
+        return libraryDependencies
+            .filter {
+                // filter unnecessary LibraryDependency for source file compilation
+                val isInBuildDir = it.file.isChild(this.buildPathInfo.buildDir)
+                if (isInBuildDir || it.isAndroidManifest || it.isRes || it.isKlib) {
+                    return@filter false
+                }
+                if (!it.isValid) {
+                    logger.debug("library dependency file ${it.file} not found")
+                    logger.warn("library dependency [${it.name}] not found, maybe sync again helps.")
+                    return@filter false
+                }
+                return@filter true
+            }.map {
+                it.file.absolutePath
+            }
     }
 
     override fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File> {
