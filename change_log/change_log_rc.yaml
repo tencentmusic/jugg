@@ -1,3 +1,9 @@
+- version: 2.3.0-rc7
+  date: 2025.07.06
+  updates:
+    - don't filter won't compile modules for better robust
+    - fix dependencies not found for kmm module in some projects
+
 - version: 2.3.0-rc6
   date: 2025.07.02
   updates:

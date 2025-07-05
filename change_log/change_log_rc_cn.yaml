@@ -1,3 +1,9 @@
+- version: 2.3.0-rc7
+  date: 2025.07.06
+  updates:
+    - 支持展示 Fetching classpath 进度
+    - 修复部分 kmm 模块无法获取正确依赖导致编译时报错找不到依赖
+
 - version: 2.3.0-rc6
   date: 2025.07.02
   updates:
