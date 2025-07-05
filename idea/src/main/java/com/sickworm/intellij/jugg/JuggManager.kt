@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -433,7 +434,25 @@ class JuggManager @TestOnly constructor(
             val currentIndicator = taskRunnerManager.currentIndicator
             val originText = currentIndicator?.text
             currentIndicator?.text = "Jugg: Fetching classpath..."
-            val result = juggCompilerHelper.fetchClasspathResult(isRemoteCompile, moduleBuildPathInfos)
+
+            var updateJob: Job? = null
+            var syncCount = 0
+            val terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
+                override fun onOutput(line: String, isNeedPrint: Boolean) {
+                    syncCount++
+                    if (updateJob?.isActive == true) {
+                        return
+                    }
+                    updateJob = launch {
+                        delay(16)
+                        currentIndicator?.text = "Jugg: Fetching classpath... (synced $syncCount)"
+                    }
+                }
+
+                override fun onOutputErr(line: String) {
+                }
+            }
+            val result = juggCompilerHelper.fetchClasspathResult(isRemoteCompile, moduleBuildPathInfos, terminalOutputListener)
             currentIndicator?.text = originText
             return@measureTimeMillisWithResult result
         }

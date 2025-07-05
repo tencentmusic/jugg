@@ -631,8 +631,12 @@ class JuggCompilerHelper(
      * Fetch classpath from gradle compile client.
      * @return classpath root dir
      */
-    fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>): File? {
-        return gradleCompileClientManager.getClient(isRemote, pathManager.localClasspathStoragePathManager.classpathDir).fetchClasspathResult(buildDirs)
+    fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>, terminalOutputListener: IGradleCompileClient.TerminalOutputListener): File? {
+        val client = gradleCompileClientManager.getClient(isRemote, pathManager.localClasspathStoragePathManager.classpathDir)
+        client.terminalOutputListener = terminalOutputListener
+        val result = client.fetchClasspathResult(buildDirs)
+        client.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
+        return result
     }
 
     override fun dispose() {
