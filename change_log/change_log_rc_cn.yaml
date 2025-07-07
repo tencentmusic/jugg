@@ -1,3 +1,8 @@
+- version: 2.3.0-rc8
+  date: 2025.07.07
+  updates:
+    - 内置 rsync 3.4.1，修复远程编译 macOS 使用 rsync 2.6.9 同步无法删除旧 class 文件，导致可能编译报错
+
 - version: 2.3.0-rc7
   date: 2025.07.06
   updates:

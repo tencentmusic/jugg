@@ -1,3 +1,8 @@
+- version: 2.3.0-rc8
+  date: 2025.07.07
+  updates:
+    - fix rsync not work properly, use embedded rsync(version 3.4.1)
+
 - version: 2.3.0-rc7
   date: 2025.07.06
   updates:
