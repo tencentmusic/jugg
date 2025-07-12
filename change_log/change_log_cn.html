@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>2.3.0 (2025.07.06)</h2>
+<h2>2.3.0 (2025.07.12)</h2>
 <ol>
     <li>[feature] 支持远程编译服务器申请流程（需有团队资源）</li>
     <li>[feature] 内置 rsync 3.4.1，修复远程编译 macOS 使用 rsync 2.6.9 同步无法删除旧 class 文件，导致可能编译报错</li>
@@ -8,6 +8,7 @@
     <li>[bugfix] 修复更新本地 aar 场景，不执行 IDE Sync，降级编译后找不到依赖库声明</li>
     <li>[bugfix] 修复安装完 APK 后部分工程出现 "com.android.tools.r8.CompilationFailedException" 报错</li>
     <li>[bugfix] 修复部分 kmm 模块无法获取正确依赖导致编译时报错找不到依赖</li>
+    <li>[bugfix] 修复修改资源时概率出现 "Compile files too much(xxx files), will fallback to gradle compile for better performance."</li>
 </ol>
 <h2>2.2.0 (2025.05.21)</h2>
 <ol>

@@ -1,7 +1,7 @@
 - version: 2.3.0-rc8
-  date: 2025.07.07
+  date: 2025.07.12
   updates:
-    - fix rsync not work properly, use embedded rsync(version 3.4.1)
+    - fix "Compile files too much(xxx files), will fallback to gradle compile for better performance." after compiling resources
 
 - version: 2.3.0-rc7
   date: 2025.07.06

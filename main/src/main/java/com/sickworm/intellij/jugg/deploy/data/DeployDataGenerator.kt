@@ -209,17 +209,8 @@ class DeployDataGenerator(
         return deployDataDatabase.isEnableDesugared()
     }
 
-    private val rClassList = listOf(
-        "R\$anim",  "R\$animator",  "R\$array",  "R\$attr",  "R\$bool",  "R\$color",  "R\$drawable",  "R\$fraction",  "R\$id",  "R\$interpolator",  "R\$layout",  "R\$mipmap",  "R\$raw",  "R\$string",  "R\$style","R\$styleable",  "R\$xml",
-    )
-
     private val ClassNode.isRSubClass: Boolean get() {
         val classSimpleName = className.substringAfterLast("/")
-        if (classSimpleName.startsWith("R$")) {
-            if (rClassList.any { classSimpleName.startsWith(it) }) {
-                return true
-            }
-        }
-        return false
+        return classSimpleName.startsWith("R$")
     }
 }

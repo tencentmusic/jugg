@@ -1,3 +1,8 @@
+- version: 2.3.0-rc9
+  date: 2025.07.12
+  updates:
+    - 修复修改资源时概率出现 "Compile files too much(xxx files), will fallback to gradle compile for better performance."
+
 - version: 2.3.0-rc8
   date: 2025.07.07
   updates:
