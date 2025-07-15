@@ -17,6 +17,13 @@ class CmdExecutor(
     private val debugLogFilter: ((String) -> Boolean)? = null,
 ) {
 
+    // for old custom compiler
+    constructor(
+        logger: Logger,
+        terminalOutputListener: IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.IDLE,
+        debugLogFilter: ((String) -> Boolean)? = null,
+    ) : this (logger, terminalOutputListener, false, debugLogFilter)
+
     @Volatile
     private var currentRunningProcess: Process? = null
 
