@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.util.zip.ZipFile
@@ -72,7 +73,9 @@ class ArscCompiler(
 
         var styleableFile: File? = null
         try {
+            TimeLogger.start("generateStyleableFile")
             styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
+            TimeLogger.end("generateStyleableFile", logger)
         } catch (e: Exception) {
             logger.debug("generateStyleableFile failed, may not be fatal problem", e)
         }

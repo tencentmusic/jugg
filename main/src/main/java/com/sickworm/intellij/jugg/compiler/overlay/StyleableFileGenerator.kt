@@ -24,24 +24,24 @@ class StyleableFileGenerator(
         }
         logger.debug("application module: ${selectedApplicationModule.name}")
 
-        val manifestFile = selectedApplicationModule.manifestFile
-        if (manifestFile == null || !manifestFile.exists()) {
-            logger.warn("generateStyleableFile failed, manifest file not found in ${selectedApplicationModule.name}")
-            return null
-        }
-        val packageName = RPackageReader(manifestFile, logger).readPackageName()
-        if (packageName == null) {
-            logger.warn("generateStyleableFile failed, read package name from manifest file ${manifestFile.absolutePath} failed")
-            return null
-        }
-
         val rFile = selectedApplicationModule.buildPathInfo.rFilePath
         return if (rFile.exists()) {
             logger.debug("generateStyleableFile by rFile: ${rFile.absolutePath}")
-            generateStyleableFile(rFile, packageName, outputDir)
+            generateStyleableFile(rFile, outputDir)
         } else {
-            logger.debug("generateStyleableFile by java classpath: ${selectedApplicationModule.buildPathInfo.javaClassPath}")
             // low AGP don't have R.jar, it stored in java classpath
+            logger.debug("generateStyleableFile by java classpath: ${selectedApplicationModule.buildPathInfo.javaClassPath}")
+
+            val manifestFile = selectedApplicationModule.manifestFile
+            if (manifestFile == null || !manifestFile.exists()) {
+                logger.warn("generateStyleableFile failed, manifest file not found in ${selectedApplicationModule.name}")
+                return null
+            }
+            val packageName = RPackageReader(manifestFile, logger).readPackageName()
+            if (packageName == null) {
+                logger.warn("generateStyleableFile failed, read package name from manifest file ${manifestFile.absolutePath} failed")
+                return null
+            }
             generateStyleableFile2(selectedApplicationModule.buildPathInfo.javaClassPath, packageName, outputDir)
         }
     }
@@ -50,7 +50,7 @@ class StyleableFileGenerator(
     private val availableStyleableNames = listOf("R\$styleable.class", "R\$styleable0.class", "styleable0.class")
 
     @TestOnly
-    fun generateStyleableFile(rFile: File, packageName: String, outputDir: File): File? {
+    fun generateStyleableFile(rFile: File, outputDir: File): File? {
         if (!rFile.exists()) {
             logger.warn("generateStyleableFile failed, rFile not exists: ${rFile.absolutePath}")
             return null
@@ -59,14 +59,15 @@ class StyleableFileGenerator(
         logger.debug("generateStyleableFile, rFile: ${rFile.absolutePath}")
         ZipFile(rFile).use { jarFile ->
             val rStyleableEntryList = mutableListOf<ZipEntry>()
-            availableStyleableNames.forEach { styleableName ->
-                val rStyleableEntryName = packageName.replace('.', '/') + "/$styleableName"
-                val rStyleableEntry = jarFile.getEntry(rStyleableEntryName)
-                if (rStyleableEntry != null) {
-                    logger.debug("$rStyleableEntryName found in ${rFile.absolutePath}")
-                    rStyleableEntryList.add(rStyleableEntry)
+            // loop entry
+            jarFile.entries().asSequence().forEach { entry ->
+                val isStyleableClass = availableStyleableNames.any { entry.name.endsWith(it) }
+                if (isStyleableClass) {
+                    rStyleableEntryList.add(entry)
                 }
             }
+            logger.debug("styleable class found: ${rStyleableEntryList.joinToString(", ") { it.name }}")
+
             if (rStyleableEntryList.isEmpty()) {
                 logger.debug("generateStyleableFile failed, rStyleableEntryList not found in ${rFile.absolutePath}")
                 return null
