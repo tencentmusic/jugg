@@ -1,7 +1,18 @@
-- version: 2.3.0-rc8
+- version: 2.3.0-rc11
+  date: 2025.07.19
+  updates:
+    - fix remote compile failed on macOS with intel chip
+    - fix R.styleable reference not found when using namespace or nonTransitiveRClass is enabled
+
+- version: 2.3.0-rc9
   date: 2025.07.12
   updates:
     - fix "Compile files too much(xxx files), will fallback to gradle compile for better performance." after compiling resources
+
+- version: 2.3.0-rc8
+  date: 2025.07.07
+  updates:
+    - fix rsync not work properly, use embedded rsync(version 3.4.1)
 
 - version: 2.3.0-rc7
   date: 2025.07.06
