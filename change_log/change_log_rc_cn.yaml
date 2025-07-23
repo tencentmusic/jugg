@@ -1,3 +1,8 @@
+- version: 2.3.0-rc12
+  date: 2025.07.23
+  updates:
+    - 修复 MacOS 本地编译 "unresolved reference" 错误，使用内置 rsync 3.4.1 版本进行同步
+
 - version: 2.3.0-rc11
   date: 2025.07.19
   updates:

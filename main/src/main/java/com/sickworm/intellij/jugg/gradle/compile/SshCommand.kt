@@ -221,7 +221,7 @@ class SyncLocalClasspathCommand(
 
     private var includeClasspathFilter = ""
 
-    override val baseCommand: String get() = """rsync ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
+    override val baseCommand: String get() = """${RsyncCompatibleHelper.rsyncPath} ${sourcePath.absolutePath} ${destPath.absolutePath} -av --delete --prune-empty-dirs --include='*/' --exclude='build/jugg/**' $includeClasspathFilter --exclude='*'"""
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         includeClasspathFilter = modules
