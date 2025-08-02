@@ -78,6 +78,7 @@ class DeployStateManager(
 
     private fun getNewDeployState(device: IDevice? = null): JuggDeployState {
         val ideDeployState = ideDeployStateHelper.getIdeDeployState(device, deployTargetManager.getPackageNameOrNull())
+        logger.debug("ide deploy state: $ideDeployState")
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
             return JuggDeployState(JuggDeployState.State.READY_FULL_COMPILE, "not gradle compile yet", ideDeployState)
