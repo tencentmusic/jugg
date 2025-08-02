@@ -27,4 +27,7 @@ open class NarwhalAsDeployerCompat: MeerkatAsDeployerCompat() {
         return apkInstaller.install(app, deployOptions, options, installMode, metrics.deployMetrics)
     }
 
+    fun test(): String {
+        return "NarwhalAsDeployerCompat test"
+    }
 }

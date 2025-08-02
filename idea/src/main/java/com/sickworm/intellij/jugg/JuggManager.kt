@@ -35,6 +35,7 @@ import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.ide.logic.RuntimeMockUtils
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
@@ -365,6 +366,10 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
+        if (RuntimeMockUtils.isNeedRunTest()) {
+            return RuntimeMockUtils.runTest(logger)
+        }
+
         if (ForceGradleCompileHelper.isForceReinstallNextTime) {
             forceReInstallNextTime()
         }
