@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.project
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import java.io.File
 import java.util.jar.Manifest
@@ -12,6 +13,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
     fun printInfo() {
         val startTime = System.currentTimeMillis()
         try {
+            logger.debug("IDE version: ${AsDeployerCompat.ideVersion}")
             logger.debug("plugin info: ${getPluginCompileInfo()}")
             logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")
             logger.debug("Idea JVM version: ${Runtime.version().version()}")

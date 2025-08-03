@@ -217,7 +217,7 @@ private class CompatImpl(
     val ideVersion: IdeVersion,
     val impl: Lazy<IAsDeployerCompat>,
 )
-class IdeVersion(
+data class IdeVersion(
     /**
      * e.g.
      * Android Studio Chipmunk | 2021.2.1 Patch 1
@@ -275,7 +275,4 @@ class IdeVersion(
         return mainVersion.hashCode()
     }
 
-    override fun toString(): String {
-        return "$name($mainVersion)"
-    }
 }
