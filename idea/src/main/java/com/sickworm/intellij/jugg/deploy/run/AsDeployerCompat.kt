@@ -71,6 +71,10 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
+            IdeVersion("Android Studio Narwhal Feature Drop", "IA", "251.26094.121"),
+            lazy { NarwhalAsDeployerFeatureCompat() }
+        ),
+        CompatImpl(
             IdeVersion("Android Studio Narwhal", "IA", "251.23774.16"),
             lazy { NarwhalAsDeployerCompat() }
         ),
