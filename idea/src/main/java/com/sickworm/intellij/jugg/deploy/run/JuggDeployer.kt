@@ -44,6 +44,11 @@ class JuggDeployer(
     fun install(
         packageName: String, apks: List<String>, options: InstallOptions, argInstallMode: InstallMode
     ): Result {
+//        if (RuntimeMockUtils.isNeedRunTest()) {
+//            val apks = listOf(
+//                "/Users/wormchen/IdeaProjects/jugg/idea/src/test/assets/android/MyApplicationIntellij/app/build/outputs/apk/debug/app-debug.apk"
+//            )
+//        }
         val result = Result()
         try {
             var installMode = argInstallMode
@@ -68,6 +73,8 @@ class JuggDeployer(
                             packageName, apks, options, installMode,
                         )
                     }
+                } else {
+                    throw e
                 }
             }
             val apkList = AsDeployerCompat.parseApks(apks)

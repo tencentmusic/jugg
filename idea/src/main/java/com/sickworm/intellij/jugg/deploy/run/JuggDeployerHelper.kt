@@ -323,7 +323,7 @@ class JuggDeployerHelper(
                 DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType, costTimeExceptCheck = costTime() - launchResult.checkJvmtiCostTime)
             }
         } catch (e: Exception) {
-            val reason = e.message ?: e.cause?.message ?: "null"
+            val reason = e.message ?: e.cause?.message ?: e.toString()
             val retryReason = deployOptions.retryReason
             val canRetry = (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
             if (canRetry && !deployOptions.isInstall) {
