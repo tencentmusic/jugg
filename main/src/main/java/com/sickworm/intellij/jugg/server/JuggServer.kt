@@ -171,7 +171,20 @@ class JuggServer(
                 }
 
                 zipTo(destFile, files)
-                val uploadResult = uploadFile(destFile)
+                var uploadResult: UploadResult
+                try {
+                    uploadResult = uploadFile(destFile)
+                } catch (e: Exception) {
+                    logger.warn("upload file error", e)
+                    uploadResult = UploadResult.fail(e.message ?: "Unknown exception")
+                }
+                if (!uploadResult.isSuccess) {
+                    logger.warn("upload file failed, update server, current: $serverUrl")
+                    juggServerChooser.updateServerIfExpired(isForce = true)
+                    logger.warn("update server end, current: $serverUrl")
+                    uploadResult = uploadFile(destFile)
+                }
+
                 if (!uploadResult.isSuccess) {
                     logger.warn("reportAndUploadLogs failed: ${uploadResult.errorMessage}")
                 } else {
