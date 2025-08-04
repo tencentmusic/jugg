@@ -53,7 +53,7 @@ dependencies {
     // for Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation "org.jetbrains.kotlin:kotlin-reflect"
-    compileOnly "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
     compileOnly "org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.1"
 
     // for K2JVMCompiler
