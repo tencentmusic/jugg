@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.platform
 
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
@@ -18,6 +19,8 @@ object RPCLocalServer {
     
     private var server: HttpServer? = null
     private val gson = Gson()
+
+    private val logger = JuggLogger.getGlobalLogger("RPCLocalServer")
     
     /**
      * Start the HTTP server
@@ -35,7 +38,7 @@ object RPCLocalServer {
                 httpServer.createContext(CONTEXT_PATH, JsonEchoHandler())
                 httpServer.executor = Executors.newFixedThreadPool(4)
                 httpServer.start()
-                println("RPC Local Server started on port $PORT")
+                logger.debug("RPC Local Server started on port $PORT")
             }
         } catch (e: IOException) {
             server = null
@@ -50,7 +53,7 @@ object RPCLocalServer {
         server?.let { httpServer ->
             httpServer.stop(0)
             server = null
-            println("RPC Local Server stopped")
+            logger.debug("RPC Local Server stopped")
         }
     }
     

@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import kotlinx.coroutines.delay
@@ -24,23 +25,12 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
     private val hotUpdateDataFile = File(JuggHotUpdateManager.hotUpdateDir, "hot_update_data.json")
     private val firstUpdateFlag = File(JuggHotUpdateManager.hotUpdateDir, "first_update_flag")
 
-    private val listener = object : HotUpdateListener {
-        override fun onEvent(msg: String, e: Throwable?) {
-            logger.debug(msg, e)
-        }
-    }
-
     fun init(project: Project) {
         start()
         notifyHotUpdateIfNeeded(project)
     }
 
-    fun release() {
-        hotUpdateListeners.remove(listener)
-    }
-
     private fun start() {
-        hotUpdateListeners.add(listener) // listen global hot update event
         lastRequestTime = 0L // refresh request frequency limit
 
         juggServer.launch {
@@ -182,11 +172,10 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
 
         private var lastRequestTime = 0L
 
-        private val hotUpdateListeners = CopyOnWriteArraySet<HotUpdateListener>()
+        private val globalLogger = JuggLogger.getGlobalLogger("JuggHotUpdateDownloader")
+
         private fun logEvent(msg: String, e: Throwable? = null) {
-            hotUpdateListeners.forEach {
-                it.onEvent(msg, e)
-            }
+            globalLogger.debug(msg, e)
         }
 
         private fun File.md5(): String {

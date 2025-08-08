@@ -6,7 +6,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * Dispatch log to [loggers].
  */
-class LogDispatcher(
+open class LogDispatcher(
     val instanceKey: String,
     loggersArg: List<Logger> = emptyList()
 ): Logger() {
@@ -25,6 +25,12 @@ class LogDispatcher(
         if (loggers.contains(logger)) {
             loggers.remove(logger)
         }
+    }
+
+    @Synchronized
+    fun resetLoggers(loggers: List<Logger>) {
+        this.loggers.clear()
+        this.loggers.addAll(loggers)
     }
 
     @Synchronized
