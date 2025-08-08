@@ -1,64 +1,63 @@
-package com.sickworm.intellij.jugg.platform
+package com.sickworm.intellij.jugg.rpc
 
+import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
-class RPCLocalServerTest {
+class RpcLocalServerTest {
     
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .build()
     
-    private val baseUrl = "http://localhost:${RPCLocalServer.getPort()}"
+    private val baseUrl = "http://localhost:${RpcLocalServer.getPort()}"
     
     @Before
     fun setUp() {
         // Ensure server is not running
-        if (RPCLocalServer.isRunning()) {
-            RPCLocalServer.stop()
+        if (RpcLocalServer.isRunning()) {
+            RpcLocalServer.stop()
         }
     }
     
     @After
     fun tearDown() {
         // Cleanup: stop server
-        if (RPCLocalServer.isRunning()) {
-            RPCLocalServer.stop()
+        if (RpcLocalServer.isRunning()) {
+            RpcLocalServer.stop()
         }
     }
     
     @Test
     fun testServerStartAndStop() {
         // Test server startup
-        assertFalse("Server should not be running initially", RPCLocalServer.isRunning())
+        assertFalse("Server should not be running initially", RpcLocalServer.isRunning())
         
-        RPCLocalServer.start()
-        assertTrue("Server should be running after start", RPCLocalServer.isRunning())
+        RpcLocalServer.start()
+        assertTrue("Server should be running after start", RpcLocalServer.isRunning())
         
         // Test server shutdown
-        RPCLocalServer.stop()
-        assertFalse("Server should not be running after stop", RPCLocalServer.isRunning())
+        RpcLocalServer.stop()
+        assertFalse("Server should not be running after stop", RpcLocalServer.isRunning())
     }
     
     @Test
     fun testDoubleStart() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         // Attempting to start again should throw an exception
         try {
-            RPCLocalServer.start()
+            RpcLocalServer.start()
             fail("Should throw IllegalStateException when starting already running server")
         } catch (e: IllegalStateException) {
             assertEquals("Server is already running", e.message)
@@ -67,7 +66,7 @@ class RPCLocalServerTest {
     
     @Test
     fun testGetRequest() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val request = Request.Builder()
             .url(baseUrl)
@@ -81,18 +80,20 @@ class RPCLocalServerTest {
             val responseBody = response.body?.string()
             assertNotNull("Response body should not be null", responseBody)
             
-            val jsonResponse = JSONObject(responseBody!!)
-            assertEquals("RPC Local Server is running", jsonResponse.getString("message"))
-            assertEquals(12304, jsonResponse.getInt("port"))
+            val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
+            assertEquals("OK", rpcResponse.status.name)
+            val detailJson = Gson().fromJson(rpcResponse.result, Map::class.java)
+            assertEquals("RPC Local Server is running", detailJson["message"])
+            assertEquals(12304.0, detailJson["port"])
         }
     }
     
     @Test
     fun testPostJsonEcho() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
-        val testJson = """{"name": "test", "value": 123, "nested": {"key": "value"}}"""
-        val requestBody = testJson.toRequestBody("application/json".toMediaType())
+        val rpcRequest = """{"cmd": "ECHO"}"""
+        val requestBody = rpcRequest.toRequestBody("application/json".toMediaType())
         
         val request = Request.Builder()
             .url(baseUrl)
@@ -104,13 +105,15 @@ class RPCLocalServerTest {
             assertEquals("Content type should be JSON", "application/json", response.header("Content-Type"))
             
             val responseBody = response.body?.string()
-            assertEquals("Response should echo the request JSON", testJson, responseBody)
+            val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
+            assertEquals("OK", rpcResponse.status.name)
+            assertEquals(rpcRequest, rpcResponse.result)
         }
     }
     
     @Test
     fun testPostInvalidJson() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val invalidJson = "{invalid json}"
         val requestBody = invalidJson.toRequestBody("application/json".toMediaType())
@@ -124,13 +127,15 @@ class RPCLocalServerTest {
             assertEquals("Invalid JSON should return 400", 400, response.code)
             
             val responseBody = response.body?.string()
-            assertEquals("Invalid JSON format", responseBody)
+            val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
+            assertEquals("ErrorInvalidJsonFormat", rpcResponse.status.name)
+            assertTrue("Detail should contain error message", rpcResponse.result.contains("Invalid JSON format"))
         }
     }
     
     @Test
     fun testPostEmptyBody() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val requestBody = "".toRequestBody("application/json".toMediaType())
         
@@ -143,13 +148,15 @@ class RPCLocalServerTest {
             assertEquals("Empty body should return 400", 400, response.code)
             
             val responseBody = response.body?.string()
-            assertEquals("Empty request body", responseBody)
+            val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
+            assertEquals("ErrorEmptyRequestBody", rpcResponse.status.name)
+            assertEquals("Empty request body", rpcResponse.result)
         }
     }
     
     @Test
     fun testUnsupportedMethod() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val request = Request.Builder()
             .url(baseUrl)
@@ -160,24 +167,26 @@ class RPCLocalServerTest {
             assertEquals("Unsupported method should return 405", 405, response.code)
             
             val responseBody = response.body?.string()
-            assertEquals("Method Not Allowed", responseBody)
+            val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
+            assertEquals("ErrorMethodNotAllowed", rpcResponse.status.name)
+            assertEquals("Method Not Allowed", rpcResponse.result)
         }
     }
     
     @Test
     fun testPortConfiguration() {
-        assertEquals("Port should be 12304", 12304, RPCLocalServer.getPort())
+        assertEquals("Port should be 12304", 12304, RpcLocalServer.getPort())
     }
     
     @Test
     fun testCurlGetRequest() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val process = ProcessBuilder(
             "curl", 
             "-s", 
             "-w", "%{http_code}", 
-            "http://localhost:${RPCLocalServer.getPort()}/"
+            "http://localhost:${RpcLocalServer.getPort()}/"
         ).start()
         
         val reader = BufferedReader(InputStreamReader(process.inputStream))
@@ -185,23 +194,23 @@ class RPCLocalServerTest {
         val exitCode = process.waitFor()
         
         assertEquals("Curl command should execute successfully", 0, exitCode)
-        assertTrue("Response should contain status code 200", output.contains("200"))
-        assertTrue("Response should contain server message", output.contains("RPC Local Server is running"))
+        assertTrue("Response should contain status code 200. Actual output: $output", output.contains("200"))
+        assertTrue("Response should contain server message. Actual output: $output", output.contains("RPC Local Server is running"))
     }
     
     @Test
     fun testCurlPostJsonEcho() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
-        val testJson = """{"message": "hello", "number": 42}"""
+        val rpcRequest = """{"cmd": "ECHO"}"""
         val process = ProcessBuilder(
             "curl", 
             "-s", 
             "-X", "POST", 
             "-H", "Content-Type: application/json", 
-            "-d", testJson,
+            "-d", rpcRequest,
             "-w", "%{http_code}", 
-            "http://localhost:${RPCLocalServer.getPort()}/"
+            "http://localhost:${RpcLocalServer.getPort()}/"
         ).start()
         
         val reader = BufferedReader(InputStreamReader(process.inputStream))
@@ -209,14 +218,16 @@ class RPCLocalServerTest {
         val exitCode = process.waitFor()
         
         assertEquals("Curl command should execute successfully", 0, exitCode)
-        assertTrue("Response should contain status code 200", output.contains("200"))
-        assertTrue("Response should echo the JSON", output.contains("\"message\": \"hello\""))
-        assertTrue("Response should echo the number", output.contains("\"number\": 42"))
+        assertTrue("Response should contain status code 200. Actual output: $output", output.contains("200"))
+        assertTrue("Response should contain OK status. Actual output: $output", output.contains("\"status\":\"OK\""))
+
+        val rpcResponse = Gson().fromJson(output.replace("200", ""), RpcResponse::class.java)
+        assertTrue("Response should echo the request. Actual output: $output", rpcResponse.result == rpcRequest)
     }
     
     @Test
     fun testCurlPostInvalidJson() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val invalidJson = "{invalid json}"
         val process = ProcessBuilder(
@@ -226,7 +237,7 @@ class RPCLocalServerTest {
             "-H", "Content-Type: application/json", 
             "-d", invalidJson,
             "-w", "%{http_code}", 
-            "http://localhost:${RPCLocalServer.getPort()}/"
+            "http://localhost:${RpcLocalServer.getPort()}/"
         ).start()
         
         val reader = BufferedReader(InputStreamReader(process.inputStream))
@@ -234,20 +245,21 @@ class RPCLocalServerTest {
         val exitCode = process.waitFor()
         
         assertEquals("Curl command should execute successfully", 0, exitCode)
-        assertTrue("Response should contain status code 400", output.contains("400"))
-        assertTrue("Response should contain error message", output.contains("Invalid JSON format"))
+        assertTrue("Response should contain status code 400. Actual output: $output", output.contains("400"))
+        assertTrue("Response should contain error status. Actual output: $output", output.contains("ErrorInvalidJsonFormat"))
+        assertTrue("Response should contain error message. Actual output: $output", output.contains("Invalid JSON format"))
     }
     
     @Test
     fun testCurlUnsupportedMethod() {
-        RPCLocalServer.start()
+        RpcLocalServer.start()
         
         val process = ProcessBuilder(
             "curl", 
             "-s", 
             "-X", "PUT", 
             "-w", "%{http_code}", 
-            "http://localhost:${RPCLocalServer.getPort()}/"
+            "http://localhost:${RpcLocalServer.getPort()}/"
         ).start()
         
         val reader = BufferedReader(InputStreamReader(process.inputStream))
@@ -255,7 +267,8 @@ class RPCLocalServerTest {
         val exitCode = process.waitFor()
         
         assertEquals("Curl command should execute successfully", 0, exitCode)
-        assertTrue("Response should contain status code 405", output.contains("405"))
-        assertTrue("Response should contain method not allowed message", output.contains("Method Not Allowed"))
+        assertTrue("Response should contain status code 405. Actual output: $output", output.contains("405"))
+        assertTrue("Response should contain error status. Actual output: $output", output.contains("ErrorMethodNotAllowed"))
+        assertTrue("Response should contain method not allowed message. Actual output: $output", output.contains("Method Not Allowed"))
     }
 }
