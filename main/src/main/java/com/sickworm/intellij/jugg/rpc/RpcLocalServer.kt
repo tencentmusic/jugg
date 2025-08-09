@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.rpc
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
@@ -78,7 +79,6 @@ object RpcLocalServer {
             try {
                 when (exchange.requestMethod) {
                     "POST" -> handlePostRequest(exchange)
-                    "GET" -> handleGetRequest(exchange)
                     else -> {
                         val errorResponse = RpcResponse(
                             status = RpcResult.ErrorMethodNotAllowed,
@@ -119,14 +119,7 @@ object RpcLocalServer {
                 val rpcRequest = gson.fromJson(requestBody, RpcRequest::class.java)
                 
                 // Process the request based on command
-                val rpcResponse = when (rpcRequest.cmd) {
-                    RpcCommand.ECHO -> {
-                        RpcResponse(
-                            status = RpcResult.OK,
-                            result = requestBody
-                        )
-                    }
-                }
+                val rpcResponse = PlatformApi.call(rpcRequest)
                 
                 sendJsonResponse(exchange, 200, rpcResponse)
             } catch (e: JsonSyntaxException) {

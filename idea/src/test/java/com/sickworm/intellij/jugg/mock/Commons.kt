@@ -195,6 +195,8 @@ val application = MockApplication {}
 
 @Suppress("unused", "UnstableApiUsage")
 val init = run {
+    PlatformApi.impl = IdeaPlatformApi()
+
     // avoid AsDeployerCompat init failed
     ApplicationManager.setApplication(application) {}
     application.registerService(ApplicationInfo::class.java, ApplicationInfoImpl.getShadowInstance())

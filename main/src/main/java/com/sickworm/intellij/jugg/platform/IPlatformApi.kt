@@ -8,6 +8,8 @@ import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.rpc.RpcRequest
+import com.sickworm.intellij.jugg.rpc.RpcResponse
 import java.io.File
 
 interface IPlatformApi {
@@ -53,4 +55,6 @@ interface IPlatformApi {
     fun getIdeVersion(): String
 
     fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean
+
+    fun call(rpcRequest: RpcRequest): RpcResponse
 }

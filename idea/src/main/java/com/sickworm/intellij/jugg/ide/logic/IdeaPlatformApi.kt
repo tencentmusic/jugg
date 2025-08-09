@@ -22,6 +22,9 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import com.sickworm.intellij.jugg.rpc.RpcCaller
+import com.sickworm.intellij.jugg.rpc.RpcRequest
+import com.sickworm.intellij.jugg.rpc.RpcResponse
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
@@ -147,5 +150,9 @@ class IdeaPlatformApi : IPlatformApi {
                 "isAndroid15: $isAndroid15, " +
                 "isBelowAndroidStudioMeerkat: $isBelowAndroidStudioMeerkat")
         return isHasRelaunchActivityIssues
+    }
+
+    override fun call(rpcRequest: RpcRequest): RpcResponse {
+        return RpcCaller.call(rpcRequest)
     }
 }
