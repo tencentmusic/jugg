@@ -29,7 +29,6 @@ class StyleableFileGeneratorTest {
         val generator = StyleableFileGenerator(logger)
         val outputFile = generator.generateStyleableFile(
             mockModule.buildPathInfo.rFilePath,
-            context.packageName!!,
             buildDir)
         assertTrue(outputFile != null)
         assertTrue(outputFile.exists())
