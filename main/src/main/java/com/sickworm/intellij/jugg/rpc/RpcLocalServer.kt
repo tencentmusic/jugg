@@ -15,7 +15,7 @@ import java.util.concurrent.Executors
  * RPC Local Server singleton that provides HTTP interface for processing RpcRequest and returning RpcResponse
  */
 object RpcLocalServer {
-    private const val PORT = 12304
+    private const val PORT = 12310
     private const val CONTEXT_PATH = "/"
 
     private var server: HttpServer? = null

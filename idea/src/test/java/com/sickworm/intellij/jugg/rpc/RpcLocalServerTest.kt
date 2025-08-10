@@ -159,7 +159,7 @@ class RpcLocalServerTest {
 
     @Test
     fun testPortConfiguration() {
-        Assert.assertEquals("Port should be 12304", 12304, RpcLocalServer.getPort())
+        Assert.assertEquals("Port should be 12310", 12310, RpcLocalServer.getPort())
     }
 
     @Test
