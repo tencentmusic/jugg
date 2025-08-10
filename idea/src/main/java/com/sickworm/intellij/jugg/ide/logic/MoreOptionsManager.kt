@@ -8,7 +8,6 @@ import com.intellij.openapi.progress.DumbProgressIndicator
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
-import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IAsDeployerCompat
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
@@ -248,10 +247,9 @@ class MoreOptionsManager(
             val result = juggCompilerHelper.gradleCompile(
                 compileOptions,
                 JuggCompileUiHandler(
-                    isForceInstall = true,
-                    compileOptions, SimpleProcessHandler(),
-                    taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
-                    logger,
+                    isForceGradleCompile = true, isRpcMode = false,
+                    compileOptions, logger,
+                    progressIndicator = taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
                 ),
                 isOnlyFetchResult = true,
             )

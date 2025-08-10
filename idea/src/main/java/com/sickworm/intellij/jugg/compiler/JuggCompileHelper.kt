@@ -123,7 +123,7 @@ class JuggCompilerHelper(
         }
 
         logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
-        if (!uiHandler.isForceInstall) {
+        if (!uiHandler.isForceGradleCompile) {
             JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
         }
 
@@ -239,8 +239,8 @@ class JuggCompilerHelper(
     ): CompileTaskResult? {
         val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
-        logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceInstall}, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
-        if (uiHandler.isForceInstall) {
+        logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceGradleCompile}, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
+        if (uiHandler.isForceGradleCompile) {
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
 

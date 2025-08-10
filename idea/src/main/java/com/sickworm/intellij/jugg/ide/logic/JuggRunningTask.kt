@@ -11,8 +11,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
-import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
@@ -43,13 +44,14 @@ class JuggRunningTask(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val statusManager: IJuggRunningTaskStatusManager,
     private val deployHistoryManager: IDeployHistoryManager,
-    private val processHandler: IProcessHandler,
     private val juggCompileHelper: JuggCompilerHelper,
     private val juggDeployHelper: JuggDeployerHelper,
     private val initIncrementalCompileTask: () -> Unit,
-    private val isForceGradleCompile: Boolean,
+    private val compileUiHandler: CompileUiHandler,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
 ) : Task.Backgroundable(project, "Running Jugg...") {
+
+    private val processHandler: IProcessHandler get() = compileUiHandler.processHandler
 
     private val indicatorListener = object : ProgressIndicatorListener {
         override fun cancelled() { processHandler.detachProcess() }
@@ -76,10 +78,10 @@ class JuggRunningTask(
             isRunning = true
             showGreenDotOnRunToolWindow()
             initIndicator(indicator)
-            if (isForceGradleCompile) {
+            if (compileUiHandler.isForceGradleCompile) {
                 notifyFallback(project, "force fallback")
             }
-            val runResult = doRun(options, indicator, isForceGradleCompile)
+            val runResult = doRun(options, compileUiHandler.isForceGradleCompile)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result
@@ -89,12 +91,14 @@ class JuggRunningTask(
             if (runResult.isGradleCompile && !isCanceled) {
                 deployHistoryManager.isLastFullCompileFailed = !runResult.isCompileSuccess
             }
+            compileUiHandler.onEnd(runResult)
         } catch (e: Throwable) {
             val sw = StringWriter()
             val pw = PrintWriter(sw)
             e.printStackTrace(pw)
             logger.warn("Run stop unexpected with ${e::class.java}:\n$sw\nRun stop unexpected.")
             dependencyChangeManager.onEndBuilding(isSuccess = false, isCancelled = false)
+            compileUiHandler.onEnd(RunResult.FAILED)
         } finally {
             isRunning = false
             val isCanceled = processHandler.isCanceled && !processHandler.isCanceledByNextTask
@@ -126,18 +130,17 @@ class JuggRunningTask(
 
     private fun initIndicator(indicator: ProgressIndicator) {
         logger.info("Jugg compile started.\n")
+        compileUiHandler.progressIndicator = indicator
         indicatorListener.installToProgressIfPossible(indicator)
         indicator.text = "Compiling by Jugg..."
         indicator.isIndeterminate = true
     }
 
-    private fun doRun(options: JuggGradleCompileOptions, indicator: ProgressIndicator, isForceGradleCompile: Boolean): RunResult {
+    private fun doRun(options: JuggGradleCompileOptions, isForceGradleCompile: Boolean): RunResult {
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
 
-        val compileTaskResult = juggCompileHelper.compile(options,
-            JuggCompileUiHandler(isForceInstall = isForceGradleCompile, options, processHandler, indicator, logger)
-        )
+        val compileTaskResult = juggCompileHelper.compile(options, compileUiHandler)
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
@@ -181,7 +184,7 @@ class JuggRunningTask(
         val isMultipleDevices = devices.size > 1
         devices.forEachIndexed { index, device ->
             val isLastDevice = index == devices.size - 1
-            val deployTaskResult = deployDevice(isMultipleDevices, isLastDevice, device, indicator, compileTaskResult, detailMap)
+            val deployTaskResult = deployDevice(isMultipleDevices, isLastDevice, device, compileUiHandler.progressIndicator, compileTaskResult, detailMap)
             deployTaskResultList.add(deployTaskResult)
             totalDeployTime += deployTaskResult.costTime
         }
@@ -226,7 +229,7 @@ class JuggRunningTask(
                     deployTaskResultList.joinToString(", ") { it.failedReason ?: "See log for details." }
                 }
                 notifyFallback(project, failedReason)
-                return doRun(options, indicator, true)
+                return doRun(options, true)
             }
         }
 
@@ -360,13 +363,6 @@ class JuggRunningTask(
         }
     }
 }
-
-private data class RunResult(
-    val isGradleCompile: Boolean,
-    val isCompileSuccess: Boolean,
-    val isDeploySuccess: Boolean,
-    val isNeedResetHasRun: Boolean = false,
-)
 
 private val IDevice.desc: String get() {
     // property name is gotten from IDevice

@@ -12,4 +12,15 @@ interface IProcessHandler {
     fun detachProcess()
     fun destroyProcess()
 
+
+    companion object {
+        val DEFAULT = object : IProcessHandler {
+            override var isCanceledByNextTask: Boolean = false
+            override val isCanceled: Boolean = false
+            override var cancelAction: (() -> Unit)? = null
+            override fun notifyTextAvailable(text: String, outputType: Key<*>) = Unit
+            override fun detachProcess() = Unit
+            override fun destroyProcess() = Unit
+        }
+    }
 }

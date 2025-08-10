@@ -71,5 +71,9 @@ object JuggInitializer {
         return instanceSet[project.bashPathOrDefault]?.juggManager
     }
 
+    fun getManager(projectDir: String): IJuggManagerCaller? {
+        return instanceSet[projectDir]?.juggManager
+    }
+
     private val Project.bashPathOrDefault get() = basePath ?: "null"
 }

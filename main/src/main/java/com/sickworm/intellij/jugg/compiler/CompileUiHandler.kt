@@ -1,9 +1,13 @@
 package com.sickworm.intellij.jugg.compiler
 
+import com.intellij.openapi.progress.DumbProgressIndicator
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
+import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
@@ -12,8 +16,10 @@ import java.io.File
  * Handle user interaction events
  */
 interface CompileUiHandler {
-    val isForceInstall: Boolean
+    val isForceGradleCompile: Boolean
     val isCanceled: Boolean
+    var processHandler: IProcessHandler // injected
+    var progressIndicator: ProgressIndicator // injected
 
     fun createCompileStatusHolder(): CompileStatusHolder
     fun createOutputParser(): IGradleCompileClient.TerminalOutputListener
@@ -25,12 +31,16 @@ interface CompileUiHandler {
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
 
+    fun onEnd(runResult: RunResult) = Unit
+
     fun cancel()
 
     companion object {
         val DEFAULT = object : CompileUiHandler {
-            override val isForceInstall: Boolean = false
+            override val isForceGradleCompile: Boolean = false
             override val isCanceled: Boolean = false
+            override var processHandler: IProcessHandler = IProcessHandler.DEFAULT
+            override var progressIndicator: ProgressIndicator = DumbProgressIndicator()
 
             override fun createCompileStatusHolder(): CompileStatusHolder = CompileStatusHolder.DEFAULT
             override fun createOutputParser(): IGradleCompileClient.TerminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT

@@ -9,6 +9,7 @@ import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -366,6 +367,16 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
+        val compileUiHandler = JuggCompileUiHandler(
+            isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
+            isRpcMode = false,
+            options.toCompileOptions(pathManager),
+            logger
+        )
+        return runTask(options, compileUiHandler)
+    }
+
+    fun runTask(options: JuggRunConfigurationOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
         if (ForceGradleCompileHelper.isForceReinstallNextTime) {
             forceReInstallNextTime()
         }
@@ -373,9 +384,10 @@ class JuggManager @TestOnly constructor(
         val processHandler = SimpleProcessHandler()
         consoleView.attachToProcess(processHandler)
         processHandler.startNotify()
+        compileUiHandler.processHandler = processHandler
 
         cancelCurrentTask(processHandler) {
-            val task = createRunningTask(options.toCompileOptions(pathManager), processHandler, ForceGradleCompileHelper.isForceGradleCompileNextTime)
+            val task = createRunningTask(options.toCompileOptions(pathManager), compileUiHandler)
             ProgressManager.getInstance().run(task)
         }
         ForceGradleCompileHelper.isForceReinstallNextTime = false
@@ -385,8 +397,7 @@ class JuggManager @TestOnly constructor(
 
     private fun createRunningTask(
         options: JuggGradleCompileOptions,
-        processHandler: IProcessHandler,
-        isForceGradleCompile: Boolean,
+        compileUiHandler: CompileUiHandler,
     ): JuggRunningTask {
         logger.debug("Create running task: ${options.toSafeString()}")
 
@@ -399,8 +410,8 @@ class JuggManager @TestOnly constructor(
             runTaskSafe("Init Incremental Compile", ::action)
         }
         val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
-            juggRunningTaskStatusManager, deployHistoryManager, processHandler, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-            isForceGradleCompile = isForceGradleCompile,
+            juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
+            compileUiHandler,
         )
         currentTask = task
 
