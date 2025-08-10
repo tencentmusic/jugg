@@ -6,7 +6,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.source.PriorityURLClassLoader
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
-import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.zip.ZipFile
@@ -15,8 +14,7 @@ import kotlin.io.path.createTempDirectory
 object RuntimeMockUtils {
 
     fun isNeedRunTest(): Boolean {
-        return System.getProperty("user.name") == "wormchen"
-                && File("${System.getProperty("user.home")}/.jugg_runtime_test").exists()
+        return File("${System.getProperty("user.home")}/.jugg_runtime_test").exists()
     }
 
     fun runTest(logger: Logger): ExecutionResult {

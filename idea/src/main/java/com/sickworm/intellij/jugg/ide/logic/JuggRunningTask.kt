@@ -63,6 +63,11 @@ class JuggRunningTask(
         val loggerListener = ProcessHandlerLoggerWrapper(processHandler)
         var isNeedResetHasRun = false
         try {
+            if (RuntimeMockUtils.isNeedRunTest()) {
+                RuntimeMockUtils.runTest(logger)
+                return
+            }
+
             dependencyChangeManager.onStartBuilding()
             JuggLogger.recreateLogFileIfDeleted(project)
             JuggLogger.listenProjectLog(project, loggerListener)

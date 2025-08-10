@@ -366,10 +366,6 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
-        if (RuntimeMockUtils.isNeedRunTest()) {
-            return RuntimeMockUtils.runTest(logger)
-        }
-
         if (ForceGradleCompileHelper.isForceReinstallNextTime) {
             forceReInstallNextTime()
         }
