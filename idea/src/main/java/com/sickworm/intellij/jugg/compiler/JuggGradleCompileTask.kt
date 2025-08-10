@@ -42,7 +42,8 @@ class JuggGradleCompileTask(
     }
 
     private fun doRun(): GradleCompileResult {
-        compileClient.terminalOutputListener = uiHandler.outputParser
+        val outputParser = uiHandler.createOutputParser()
+        compileClient.terminalOutputListener = outputParser
         uiHandler.listenCancelAction {
             try {
                 compileClient.cancelAction(isByUser = false)
@@ -57,7 +58,7 @@ class JuggGradleCompileTask(
         val updateTimeJob = launch {
             while (isActive) {
                 delay(10_000)
-                uiHandler.outputParser.updateIndicatorWithTime()
+                outputParser.updateIndicatorWithTime()
             }
         }
 
@@ -74,9 +75,9 @@ class JuggGradleCompileTask(
         } else if (isCanceled) {
             logger.warn("\nBUILD CANCELED in ${costTime / 1000}s.\n")
         } else {
-            if (uiHandler.outputParser.possibleErrorLog.isNotEmpty()) {
+            if (outputParser.possibleErrorLog.isNotEmpty()) {
                 logger.warn("\n[Jugg] Found error in logs:")
-                uiHandler.outputParser.possibleErrorLog.forEach { logger.warn(it) }
+                outputParser.possibleErrorLog.forEach { logger.warn(it) }
             }
             logger.warn("\nBUILD FAILED in ${costTime / 1000}s.\n")
         }

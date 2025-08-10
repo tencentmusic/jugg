@@ -7,13 +7,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.source.KmModuleMergerForCompilation
+import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.*
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
-import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
-import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
@@ -101,7 +100,7 @@ class JuggCompilerHelper(
         if (!isGradleCompile) {
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
-            incrementalResult = incrementalCompile(uiHandler.compileStatusHolder)
+            incrementalResult = incrementalCompile(uiHandler)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - startTime)
             juggServer.report {
                 action = "incremental_compile"
@@ -333,17 +332,17 @@ class JuggCompilerHelper(
         logger.debug("checkLibraryIncrementalCompile forceIncrementalCompile: $isIncrementalCompileLibrary")
         if (!isIncrementalCompileLibrary && !isFallback && JuggSettings.isEnableInjectGradleCompile && changedBuildFiles.isNotEmpty()) {
             val lastBuildFilesMap = deployHistoryManager.getLastBuildFiles(changedBuildFiles)
-            val step1Result = BuildChangesConfirmDialog.showAndGetResult(project, lastBuildFilesMap.map { it.first.file to it.second })
+            val step1Result = uiHandler.confirmBuildChanges(project, lastBuildFilesMap.map { it.first.file to it.second })
             var step2Result = ConfirmResult.INVALID
             logger.debug("isConfirmIncrementalCompile: result $step1Result")
-            if (step1Result == BuildChangesConfirmDialog.Result.FIND_CHANGE) {
+            if (step1Result == BuildChangesConfirmResult.FIND_CHANGE) {
                 logger.info("Jugg: Start reading dependencies from Gradle...\n")
                 JuggRunningTask.notifyByBalloon(project, "Start reading dependencies from Gradle...")
                 val startTime = System.currentTimeMillis()
-                val runResult = runGradleLibraryDiff(options, uiHandler.outputParser)
+                val runResult = runGradleLibraryDiff(options, uiHandler.createOutputParser())
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
                 logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
-                step2Result = dependencyChangeManager.tryShowChangeConfirmDialog(runResult)
+                step2Result = uiHandler.confirmDependencyChanges(dependencyChangeManager, runResult)
 
                 if (step2Result == ConfirmResult.POSITIVE) {
                     compileContextManager.updateTempLibraries(
@@ -351,7 +350,7 @@ class JuggCompilerHelper(
                         runResult?.diffResultWithFull?.oldLibraryDependencies,
                     )
                 }
-            } else if (step1Result == BuildChangesConfirmDialog.Result.IGNORE_CHANGE) {
+            } else if (step1Result == BuildChangesConfirmResult.IGNORE_CHANGE) {
                 dependencyChangeManager.onConfirmIncrementalCompile(true)
             } else {
                 dependencyChangeManager.onConfirmIncrementalCompile(false)
@@ -366,8 +365,8 @@ class JuggCompilerHelper(
                 ))
             }
 
-            if (step1Result == BuildChangesConfirmDialog.Result.CANCEL || step2Result == ConfirmResult.CANCEL) {
-                uiHandler.compileStatusHolder.cancel()
+            if (step1Result == BuildChangesConfirmResult.CANCEL || step2Result == ConfirmResult.CANCEL) {
+                uiHandler.cancel()
                 return
             }
         }
@@ -396,7 +395,7 @@ class JuggCompilerHelper(
     }
 
     @TestOnly
-    fun incrementalCompile(compileStatusHolder: CompileStatusHolder): CompileTaskResult {
+    fun incrementalCompile(uiHandler: CompileUiHandler): CompileTaskResult {
 
         val compiler = juggCompiler ?: run {
             logger.warn("Jugg compiler not init, may some error occurs. please see log for details")
@@ -420,13 +419,7 @@ class JuggCompilerHelper(
                     if (!JuggSettings.isConfirmFallbackWhenNoFileChanges) {
                         ConfirmResult.POSITIVE
                     } else {
-                        CommonConfirmDialog.showAndGetOrCancel(
-                            title = "Confirm Fallback to Gradle",
-                            content = "No file changes, do you want to fallback to gradle?",
-                            okButtonText = "Fallback to Gradle",
-                            negativeButtonText = "Don't fallback",
-                            leftButtonText = "Cancel",
-                        )
+                        uiHandler.confirmFallbackWhenNoFileChanges()
                     }
 
                 when (confirmResult) {
@@ -436,7 +429,7 @@ class JuggCompilerHelper(
                     }
                     ConfirmResult.CANCEL, ConfirmResult.LEFT -> {
                         // just stop compile
-                        compileStatusHolder.cancel()
+                        uiHandler.cancel()
                         return CompileTaskResult.incrementalFailed(false, "No file changes")
                     }
                     else -> {
@@ -465,7 +458,7 @@ class JuggCompilerHelper(
             }, emptyList())
         }
 
-        return doIncrementalCompile(compiler, undeployedFiles, compileStatusHolder)
+        return doIncrementalCompile(compiler, undeployedFiles, uiHandler.createCompileStatusHolder())
     }
 
     private fun doIncrementalCompile(

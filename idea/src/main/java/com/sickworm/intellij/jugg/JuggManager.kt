@@ -416,7 +416,7 @@ class JuggManager @TestOnly constructor(
 
     @TestOnly
     fun compileChanges() {
-        juggCompilerHelper.incrementalCompile(CompileStatusHolder.DEFAULT)
+        juggCompilerHelper.incrementalCompile(CompileUiHandler.DEFAULT)
     }
 
     @TestOnly

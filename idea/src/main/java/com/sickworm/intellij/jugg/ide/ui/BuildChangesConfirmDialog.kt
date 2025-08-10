@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.components.JBLabel
+import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
 import com.sickworm.intellij.jugg.deploy.diff.BuildDiffRequestPanel
 import com.sickworm.intellij.jugg.deploy.diff.BuildFileDiffRequest
 import com.sickworm.intellij.jugg.project.dependency.htmlModified
@@ -42,7 +43,7 @@ class BuildChangesConfirmDialog(
 
     private val findChangeButton = object : AbstractAction(findChangeButtonText) {
         override fun actionPerformed(e: ActionEvent?) {
-            result = Result.FIND_CHANGE
+            result = BuildChangesConfirmResult.FIND_CHANGE
             close(CLOSE_EXIT_CODE)
         }
     }
@@ -51,18 +52,18 @@ class BuildChangesConfirmDialog(
             putValue("DefaultAction", true)
         }
         override fun actionPerformed(e: ActionEvent?) {
-            result = Result.FALLBACK
+            result = BuildChangesConfirmResult.FALLBACK
             close(CLOSE_EXIT_CODE)
         }
     }
     private val ignoreButton = object : AbstractAction(ignoreButtonText) {
         override fun actionPerformed(e: ActionEvent?) {
-            result = Result.IGNORE_CHANGE
+            result = BuildChangesConfirmResult.IGNORE_CHANGE
             close(CLOSE_EXIT_CODE)
         }
     }
 
-    private var result: Result = Result.CANCEL
+    private var result: BuildChangesConfirmResult = BuildChangesConfirmResult.CANCEL
 
     private var confirmCountDown = 2
 
@@ -145,7 +146,7 @@ class BuildChangesConfirmDialog(
             fallbackButtonText: String = "Fallback to Gradle",
             findChangeButtonText: String = "Incremental Compile Changed Libraries",
             ignoreButtonText: String = "Ignore Gradle Changes",
-        ): Result {
+        ): BuildChangesConfirmResult {
             val sortedChangedBuildFiles = changedBuildFiles.sortedBy {
                 it.first.relativeTo(File(project.basePath!!)).path
             }
@@ -174,7 +175,4 @@ class BuildChangesConfirmDialog(
         }
     }
 
-    enum class Result {
-        FIND_CHANGE, IGNORE_CHANGE, CANCEL, FALLBACK
-    }
 }
