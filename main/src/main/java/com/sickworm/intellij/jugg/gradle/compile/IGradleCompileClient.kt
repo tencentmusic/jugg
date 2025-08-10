@@ -49,8 +49,12 @@ interface IGradleCompileClient : Disposable {
     fun cancelAction(isByUser: Boolean)
 
     interface TerminalOutputListener {
+
+        val possibleErrorLog: List<String> get() = emptyList()
+
         fun onOutput(line: String, isNeedPrint: Boolean = true)
         fun onOutputErr(line: String)
+        fun updateIndicatorWithTime(newText: String? = null) = Unit
 
         companion object {
             val DEFAULT: TerminalOutputListener = object : TerminalOutputListener {

@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
 import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.deploy.*
@@ -246,8 +247,12 @@ class MoreOptionsManager(
             val compileOptions = options.toCompileOptions(pathManager)
             val result = juggCompilerHelper.gradleCompile(
                 compileOptions,
-                SimpleProcessHandler(),
-                taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                JuggCompileUiHandler(
+                    isForceInstall = true,
+                    compileOptions, SimpleProcessHandler(),
+                    taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
+                    logger,
+                ),
                 isOnlyFetchResult = true,
             )
             dependencyChangeManager.onEndBuilding(result.isSuccess, result.isCanceled)

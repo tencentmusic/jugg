@@ -1,18 +1,14 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
-import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
-import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -21,8 +17,7 @@ class JuggGradleCompileTask(
     private val project: Project,
     private val compileClient: IGradleCompileClient,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
-    private val processHandler: IProcessHandler,
-    private val indicator: ProgressIndicator,
+    private val uiHandler: CompileUiHandler,
     private val isOnlyFetchResult: Boolean,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggGradleCompileTask"),
 ): CoroutineScope by CoroutineScope(Dispatchers.IO) {
@@ -47,13 +42,8 @@ class JuggGradleCompileTask(
     }
 
     private fun doRun(): GradleCompileResult {
-        val outputListener = GradleOutputParser(
-            juggGradleCompileOptions,
-            processHandler, indicator, logger,
-        )
-
-        compileClient.terminalOutputListener = outputListener
-        processHandler.cancelAction = {
+        compileClient.terminalOutputListener = uiHandler.outputParser
+        uiHandler.listenCancelAction {
             try {
                 compileClient.cancelAction(isByUser = false)
             } catch (e: Exception) {
@@ -62,12 +52,12 @@ class JuggGradleCompileTask(
         }
 
         logger.info("\nJugg gradle compile started.\n")
-        indicator.text = "Start gradle compiling..."
+        uiHandler.updateIndicatorText("Start gradle compiling...")
 
         val updateTimeJob = launch {
             while (isActive) {
                 delay(10_000)
-                outputListener.updateIndicatorWithTime()
+                uiHandler.outputParser.updateIndicatorWithTime()
             }
         }
 
@@ -78,113 +68,23 @@ class JuggGradleCompileTask(
         }
         updateTimeJob.cancel()
 
-        val isCanceled = indicator.isCanceled || processHandler.isCanceled
+        val isCanceled = uiHandler.isCanceled
         if (result.isSuccess) {
             logger.info("\nBUILD SUCCESSFUL in ${costTime / 1000}s.\n")
         } else if (isCanceled) {
             logger.warn("\nBUILD CANCELED in ${costTime / 1000}s.\n")
         } else {
-            if (outputListener.possibleErrorLog.isNotEmpty()) {
+            if (uiHandler.outputParser.possibleErrorLog.isNotEmpty()) {
                 logger.warn("\n[Jugg] Found error in logs:")
-                outputListener.possibleErrorLog.forEach { logger.warn(it) }
+                uiHandler.outputParser.possibleErrorLog.forEach { logger.warn(it) }
             }
             logger.warn("\nBUILD FAILED in ${costTime / 1000}s.\n")
         }
 
         compileClient.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
-        processHandler.cancelAction = null
+        uiHandler.listenCancelAction(null)
         return result
     }
 
 }
 
-class GradleOutputParser(
-    private val juggGradleCompileOptions: JuggGradleCompileOptions,
-    private val processHandler: IProcessHandler,
-    private val indicator: ProgressIndicator,
-    private val logger: Logger,
-) : IGradleCompileClient.TerminalOutputListener {
-
-    val possibleErrorLog = mutableListOf<String>()
-    private var isCollectingTaskErrorMsg = false
-    private var isCollectingExceptionErrorMsg = false
-
-    private var startCompileTime = System.currentTimeMillis()
-    private var currentIndicatorText = ""
-
-    override fun onOutput(line: String, isNeedPrint: Boolean) {
-
-        val parsedOutput = parseOutput(line)
-        if (isNeedPrint) {
-            processHandler.notifyTextAvailable(parsedOutput, ProcessOutputType.STDOUT)
-            processHandler.notifyTextAvailable("\n", ProcessOutputType.STDOUT)
-        }
-
-        if (parsedOutput.startsWith("[Jugg] SyncFileCommand exec start")) {
-            updateIndicatorWithTime("Syncing files to remote...")
-        } else if (parsedOutput.startsWith("[Jugg] CompileProjectCommand exec start")) {
-            updateIndicatorWithTime("Compiling project...")
-        } else if (parsedOutput.startsWith("[Jugg] FetchOutputCommand exec start")) {
-            updateIndicatorWithTime("Getting apk...")
-        } else if (parsedOutput.startsWith("> Configure project ")) {
-            val projectName = parsedOutput.substring("> Configure project ".length)
-            updateIndicatorWithTime("Configured $projectName...")
-        } else if (parsedOutput.startsWith("> Task ")) {
-            val taskName = parsedOutput.substring("> Task ".length).substringBefore(" ")
-            updateIndicatorWithTime("Executed $taskName...")
-        }
-
-        if (parsedOutput.startsWith("* What went wrong")) {
-            isCollectingExceptionErrorMsg = true
-            isCollectingTaskErrorMsg = false
-        }
-
-        if (isCollectingExceptionErrorMsg) {
-            if (parsedOutput.startsWith("* Try") || parsedOutput.startsWith("===")) {
-                isCollectingExceptionErrorMsg = false
-            } else {
-                possibleErrorLog.add(parsedOutput)
-            }
-        }
-
-        if (parsedOutput.startsWith("> Task")) {
-            isCollectingTaskErrorMsg = parsedOutput.contains("FAILED")
-        }
-        if (isCollectingTaskErrorMsg) {
-            possibleErrorLog.add(parsedOutput)
-        } else if (parsedOutput.startsWith("e:")) {
-            // Kotlin compile error, which may not output in order
-            possibleErrorLog.add(parsedOutput)
-        }
-    }
-
-    fun updateIndicatorWithTime(newText: String? = null) {
-        if (newText != null) {
-            currentIndicatorText = newText
-        }
-        val costTime = (System.currentTimeMillis() - startCompileTime) / 1000 / 60
-        var timeSuffix = ""
-        if (costTime >= 1) {
-            timeSuffix = "(run ${costTime}min)"
-        }
-        indicator.text = currentIndicatorText + timeSuffix
-    }
-
-    override fun onOutputErr(line: String) {
-        val parsedOutput = parseOutput(line)
-        logger.warn(parsedOutput)
-    }
-
-    private fun parseOutput(line: String): String {
-        return replacePathIfNeeded(line)
-    }
-
-    private fun replacePathIfNeeded(line: String): String {
-        if (!juggGradleCompileOptions.isRemoteCompile) {
-            return line
-        }
-        val remoteRootPath = juggGradleCompileOptions.finalRemoteSyncPath
-        val localRootPath = File(juggGradleCompileOptions.projectRootPath).parentFile.path
-        return line.replace(remoteRootPath, localRootPath)
-    }
-}

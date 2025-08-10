@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.compiler
 import com.google.gson.Gson
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkReader
@@ -12,11 +11,9 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.gradle.compile.*
-import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
@@ -65,13 +62,11 @@ class JuggCompilerHelper(
     @Synchronized
     fun compile(
         options: JuggGradleCompileOptions,
-        processHandler: IProcessHandler,
-        indicator: ProgressIndicator,
-        isForceInstall: Boolean,
+        uiHandler: CompileUiHandler,
     ): CompileTaskResult {
-        val result = doCompile(options, processHandler, indicator, isForceInstall)
+        val result = doCompile(options, uiHandler)
 
-        if (processHandler.isCanceled) {
+        if (uiHandler.isCanceled) {
             logger.warn("Compile canceled.")
             return result.copy(
                 isSuccess = false,
@@ -85,9 +80,7 @@ class JuggCompilerHelper(
     @Synchronized
     private fun doCompile(
         options: JuggGradleCompileOptions,
-        processHandler: IProcessHandler,
-        indicator: ProgressIndicator,
-        isForceInstall: Boolean,
+        uiHandler: CompileUiHandler,
     ): CompileTaskResult {
         if (deployStateManager.isInitializingIncrementalCompile) {
             logger.info("Waiting Jugg initializing finish...")
@@ -97,19 +90,18 @@ class JuggCompilerHelper(
         }
 
         // decide gradle compile or incremental compile
-        var incrementalResult: CompileTaskResult? = preprocessIncrementalCompile(options, processHandler, indicator, isForceInstall)
+        var incrementalResult: CompileTaskResult? = preprocessIncrementalCompile(options, uiHandler)
         val isGradleCompile = incrementalResult != null
 
         val startTime = System.currentTimeMillis()
-        if (processHandler.isCanceled) {
+        if (uiHandler.isCanceled) {
             return CompileTaskResult.incrementalCanceled(startTime)
         }
 
         if (!isGradleCompile) {
             deployHistoryManager.beforeIncrementalCompile(deployFileManager.getUndeployedFiles())
 
-            val compileStatusHolder = JuggCompileStatusHolder(processHandler, indicator, logger)
-            incrementalResult = incrementalCompile(compileStatusHolder)
+            incrementalResult = incrementalCompile(uiHandler.compileStatusHolder)
             incrementalResult = incrementalResult.copy(costTime = System.currentTimeMillis() - startTime)
             juggServer.report {
                 action = "incremental_compile"
@@ -118,13 +110,13 @@ class JuggCompilerHelper(
                 detail = incrementalResult.failedReason
             }
 
-            if (processHandler.isCanceled) {
+            if (uiHandler.isCanceled) {
                 return CompileTaskResult.incrementalCanceled(startTime)
             }
 
             if (incrementalResult.isSuccess) {
                 return incrementalResult
-            } else if (!incrementalResult.isCanFallback && !(processHandler.isCanceled)) {
+            } else if (!incrementalResult.isCanFallback && !(uiHandler.isCanceled)) {
                 logger.warn("\nFound incremental compile error. Please see logs for details.")
                 logger.warn("Run again directly will fall back to gradle compile.\n")
                 return incrementalResult
@@ -132,11 +124,11 @@ class JuggCompilerHelper(
         }
 
         logger.debug("incremental compile not proceed. Will fall back to gradle compile.")
-        if (!isForceInstall) {
+        if (!uiHandler.isForceInstall) {
             JuggRunningTask.notifyFallback(project, incrementalResult?.failedReason ?: "See log for details.")
         }
 
-        val result = gradleCompile(options, processHandler, indicator)
+        val result = gradleCompile(options, uiHandler)
         if (result.isSuccess) {
             JuggSettings.defaultCompileSettings = options.toRunConfigurationTemplate()
         }
@@ -151,8 +143,7 @@ class JuggCompilerHelper(
 
     fun gradleCompile(
         options: JuggGradleCompileOptions,
-        processHandler: IProcessHandler,
-        indicator: ProgressIndicator,
+        uiHandler: CompileUiHandler,
         isOnlyFetchResult: Boolean = false,
     ): GradleCompileResult {
         compileContextManager.ensureInitProjectInfo()
@@ -179,7 +170,7 @@ class JuggCompilerHelper(
 
         gradleProjectInfoLocalFetchManager.writeInitGradleFile()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
-        val task = JuggGradleCompileTask(project, client, options, processHandler, indicator, isOnlyFetchResult)
+        val task = JuggGradleCompileTask(project, client, options, uiHandler, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
             val apkFile = result.compileOutputFile
@@ -245,14 +236,12 @@ class JuggCompilerHelper(
 
     private fun preprocessIncrementalCompile(
         options: JuggGradleCompileOptions,
-        processHandler: IProcessHandler,
-        indicator: ProgressIndicator,
-        isForceInstall: Boolean,
+        uiHandler: CompileUiHandler,
     ): CompileTaskResult? {
         val isNoFileChangesSinceLastCompile = deployFileManager.isNoFileChanges()
         val isLastGradleCompileFailed = deployHistoryManager.isLastFullCompileFailed
-        logger.debug("preprocessIncrementalCompile isForceInstall $isForceInstall, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
-        if (isForceInstall) {
+        logger.debug("preprocessIncrementalCompile isForceInstall ${uiHandler.isForceInstall}, isNoFileChangesSinceLastCompile: $isNoFileChangesSinceLastCompile")
+        if (uiHandler.isForceInstall) {
             return CompileTaskResult.incrementalFailed(true, "Force fallback")
         }
 
@@ -267,7 +256,7 @@ class JuggCompilerHelper(
         }
 
         if (!isNoFileChangesSinceLastCompile && !isLastGradleCompileFailed) {
-            checkLibraryIncrementalCompile(options, processHandler, indicator) // user may cancel in this step
+            checkLibraryIncrementalCompile(options, uiHandler) // user may cancel in this step
         }
 
         val deployState = deployStateManager.updateDeployState()
@@ -335,10 +324,7 @@ class JuggCompilerHelper(
         return null
     }
 
-    private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions,
-                                               processHandler: IProcessHandler,
-                                               indicator: ProgressIndicator,
-    ) {
+    private fun checkLibraryIncrementalCompile(options: JuggGradleCompileOptions, uiHandler: CompileUiHandler) {
         val changedBuildFiles = deployFileManager.getUncompiledFiles().filter {
             it.type == CompileFile.Type.BuildFile
         }
@@ -354,8 +340,7 @@ class JuggCompilerHelper(
                 logger.info("Jugg: Start reading dependencies from Gradle...\n")
                 JuggRunningTask.notifyByBalloon(project, "Start reading dependencies from Gradle...")
                 val startTime = System.currentTimeMillis()
-                val outputListener = GradleOutputParser(options, processHandler, indicator, logger)
-                val runResult = runGradleLibraryDiff(options, outputListener)
+                val runResult = runGradleLibraryDiff(options, uiHandler.outputParser)
                 val costTime = (System.currentTimeMillis() - startTime) / 1000
                 logger.info("\nJugg: Finish reading dependencies from Gradle, cost ${costTime}s.\n")
                 step2Result = dependencyChangeManager.tryShowChangeConfirmDialog(runResult)
@@ -382,7 +367,7 @@ class JuggCompilerHelper(
             }
 
             if (step1Result == BuildChangesConfirmDialog.Result.CANCEL || step2Result == ConfirmResult.CANCEL) {
-                processHandler.destroyProcess()
+                uiHandler.compileStatusHolder.cancel()
                 return
             }
         }
@@ -398,7 +383,7 @@ class JuggCompilerHelper(
         }
     }
 
-    private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: GradleOutputParser): DependencyDiffResultSet? {
+    private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: IGradleCompileClient.TerminalOutputListener): DependencyDiffResultSet? {
         gradleProjectInfoLocalFetchManager.writeInitGradleFile()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         client.terminalOutputListener = outputListener

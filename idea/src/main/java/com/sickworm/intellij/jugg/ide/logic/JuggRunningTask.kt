@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.wm.ToolWindowManager
 import com.sickworm.intellij.jugg.compiler.CompileTaskResult
+import com.sickworm.intellij.jugg.compiler.JuggCompileUiHandler
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
@@ -129,7 +130,9 @@ class JuggRunningTask(
         val detailMap = mutableMapOf<String, String>()
         detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
 
-        val compileTaskResult = juggCompileHelper.compile(options, processHandler, indicator, isForceGradleCompile)
+        val compileTaskResult = juggCompileHelper.compile(options,
+            JuggCompileUiHandler(isForceInstall = isForceGradleCompile, options, processHandler, indicator, logger)
+        )
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
         detailMap["failed_reason"] = compileTaskResult.failedReason ?: "null"
         detailMap["inc_failed_reason"] = compileTaskResult.incrementalFailedReason ?: "null"
