@@ -10,10 +10,9 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
-import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
 
-object RpcCaller {
+class RpcCaller(private val juggManager: JuggManager) {
 
     fun call(rpcRequest: RpcRequest): RpcResponse {
         return when (rpcRequest.cmd) {
@@ -30,12 +29,8 @@ object RpcCaller {
         )
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun run(rpcRequest: RpcRequest): RpcResponse {
-        val (juggManager, error) = getJuggManager(rpcRequest)
-        if (juggManager == null) {
-            return error
-        }
-
         val currentRunConfigurationList = RunManager.getInstance(juggManager.project)
             .getConfigurationSettingsList(JuggConfigurationType::class.java)
         @Suppress("UNCHECKED_CAST")
@@ -77,21 +72,6 @@ object RpcCaller {
         )
         return RpcResponse(RpcResult.OK, Gson().toJson(result))
     }
-
-    private fun getJuggManager(rpcRequest: RpcRequest): Pair<JuggManager?, RpcResponse> {
-        val projectPath = rpcRequest.projectDir
-            ?: return null to RpcResponse(RpcResult.ErrorEmptyRequestBody, "Please specify projectDir in request body.")
-
-        val juggManager = JuggInitializer.getManager(projectPath)
-            ?: return null to RpcResponse(RpcResult.ErrorInvalidProjectDir, "Can not find opened project, projectDir: $projectPath")
-
-        @Suppress("SafeCastWithReturn")
-        juggManager as? JuggManager
-           ?: return null to RpcResponse(RpcResult.ErrorInternalServerError, "JuggManager not found, projectDir: $projectPath")
-
-        return juggManager to RpcResponse(RpcResult.OK, "")
-    }
-
 
     private fun notSupport(rpcRequest: RpcRequest): RpcResponse {
         return RpcResponse(RpcResult.ErrorMethodNotAllowed, "Command not supported: ${rpcRequest.cmd}.")

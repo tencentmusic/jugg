@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
+import com.sickworm.intellij.jugg.rpc.RpcLocalServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -40,6 +41,8 @@ object JuggInitializer {
         val instance = JuggLoader(project, File(projectDir))
         instanceSet[projectDir] = instance
         instance.init()
+
+        RpcLocalServer.start()
     }
 
     @Synchronized

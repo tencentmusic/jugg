@@ -36,7 +36,9 @@ import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
-import com.sickworm.intellij.jugg.ide.logic.RuntimeMockUtils
+import com.sickworm.intellij.jugg.rpc.RpcCaller
+import com.sickworm.intellij.jugg.rpc.RpcRequest
+import com.sickworm.intellij.jugg.rpc.RpcResponse
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
@@ -611,6 +613,10 @@ class JuggManager @TestOnly constructor(
             }
         }
         dialog.show()
+    }
+
+    override fun call(rpcRequest: RpcRequest): RpcResponse {
+        return RpcCaller(this).call(rpcRequest)
     }
 
     private fun reInitOnCompileContextUpdate() {

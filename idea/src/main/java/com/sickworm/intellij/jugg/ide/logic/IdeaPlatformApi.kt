@@ -17,14 +17,15 @@ import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.rpc.RpcCaller
 import com.sickworm.intellij.jugg.rpc.RpcRequest
 import com.sickworm.intellij.jugg.rpc.RpcResponse
+import com.sickworm.intellij.jugg.rpc.RpcResult
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
@@ -153,6 +154,11 @@ class IdeaPlatformApi : IPlatformApi {
     }
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {
-        return RpcCaller.call(rpcRequest)
+        val projectPath = rpcRequest.projectDir
+            ?: return RpcResponse(RpcResult.ErrorEmptyRequestBody, "Please specify projectDir in request body.")
+        val juggManager = JuggInitializer.getManager(projectPath)
+            ?: return RpcResponse(RpcResult.ErrorInvalidProjectDir, "Project not opened, projectDir: $projectPath")
+
+        return juggManager.call(rpcRequest)
     }
 }

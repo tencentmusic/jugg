@@ -29,7 +29,7 @@ object RpcLocalServer {
     fun start() {
         if (server != null) {
             logger.debug("start: Server is already running")
-            throw IllegalStateException("Server is already running")
+            return
         }
 
         try {
@@ -42,7 +42,8 @@ object RpcLocalServer {
             }
         } catch (e: IOException) {
             server = null
-            throw e
+            logger.debug("start: Failed to start RPC Local Server: ${e.message}")
+            return
         }
     }
 
@@ -117,10 +118,17 @@ object RpcLocalServer {
             try {
                 // Parse RpcRequest
                 val rpcRequest = gson.fromJson(requestBody, RpcRequest::class.java)
-                
-                // Process the request based on command
-                val rpcResponse = PlatformApi.call(rpcRequest)
-                
+                val rpcResponse: RpcResponse =
+                    if (rpcRequest.cmd == RpcCommand.ECHO) {
+                        RpcResponse(
+                            status = RpcResult.OK,
+                            result = requestBody
+                        )
+                    } else {
+                        // Process the request based on command
+                        PlatformApi.call(rpcRequest)
+                    }
+
                 sendJsonResponse(exchange, 200, rpcResponse)
             } catch (e: JsonSyntaxException) {
                 val errorResponse = RpcResponse(
@@ -135,14 +143,6 @@ object RpcLocalServer {
                 )
                 sendJsonResponse(exchange, 500, errorResponse)
             }
-        }
-
-        private fun handleGetRequest(exchange: HttpExchange) {
-            val response = RpcResponse(
-                status = RpcResult.OK,
-                result = """{"message": "RPC Local Server is running", "port": $PORT}"""
-            )
-            sendJsonResponse(exchange, 200, response)
         }
 
         private fun sendJsonResponse(exchange: HttpExchange, statusCode: Int, response: RpcResponse) {
