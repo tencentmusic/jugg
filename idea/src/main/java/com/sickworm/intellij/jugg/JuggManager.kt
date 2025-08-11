@@ -616,7 +616,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {
-        return RpcCaller(this).call(rpcRequest)
+        return RpcCaller(this, gitFileChangesDetector).call(rpcRequest)
     }
 
     private fun reInitOnCompileContextUpdate() {

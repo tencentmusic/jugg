@@ -11,8 +11,9 @@ import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.logic.toCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 
-class RpcCaller(private val juggManager: JuggManager) {
+class RpcCaller(private val juggManager: JuggManager, private val gitFileChangesDetector: GitFileChangesDetector) {
 
     fun call(rpcRequest: RpcRequest): RpcResponse {
         return when (rpcRequest.cmd) {
@@ -60,6 +61,7 @@ class RpcCaller(private val juggManager: JuggManager) {
         }
         val logCollector = LogCollector()
         JuggLogger.listenProjectLog(juggManager.project, logCollector)
+        gitFileChangesDetector.updateChangedFiles()
         juggManager.runTask(state, compileUiHandler)
         synchronized(waitLock) {
             waitLock.wait()
