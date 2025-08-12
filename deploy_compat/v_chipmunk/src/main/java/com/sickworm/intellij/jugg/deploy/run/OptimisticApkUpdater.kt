@@ -72,7 +72,9 @@ class OptimisticApkUpdater(
         request.setOverlayId(overlayId.sha)
         if (hasDebuggerAttached) {
             try {
-                val response = installer.verifyOverlayId(request.packageName, request.expectedOverlayId)
+                // Caused by: java.lang.IncompatibleClassChangeError: Found class com.android.tools.deployer.Installer, but interface was expected
+                val method = Installer::class.java.getMethod("verifyOverlayId", String::class.java, String::class.java)
+                val response = method.invoke(installer, request.packageName, request.expectedOverlayId) as Deploy.OverlayIdPushResponse
                 if (response.status != Deploy.OverlayIdPushResponse.Status.OK) {
                     throw DeployerException.overlayIdMismatch()
                 }
