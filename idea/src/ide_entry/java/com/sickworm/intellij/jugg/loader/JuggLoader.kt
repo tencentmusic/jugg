@@ -123,6 +123,7 @@ class JuggLoader(val project: Project, val projectDir: File) {
         val canNotHotUpdatePackage = setOf(
             "com.sickworm.intellij.jugg.loader",
             "com.sickworm.intellij.jugg.ide",
+            "com.sickworm.intellij.jugg.rpc",
             "com.intellij",
             )
         val canNotHotUpdateClass = setOf(

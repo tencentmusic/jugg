@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.ide.logic
 
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.DumbProgressIndicator
@@ -16,7 +17,6 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdatesProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.JuggMoreOptionsItem
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -24,6 +24,7 @@ import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
+import kotlinx.coroutines.*
 
 class MoreOptionsManager(
     private val juggManager: JuggManager,
@@ -295,14 +296,26 @@ class MoreOptionsManager(
             dialog.setHotUpdateData(hotUpdateData) {
                 taskRunnerManager.runBackgroundSafe("Download updates") {
                     try {
-                        juggHotUpdateDownloader.downloadHotUpdate(hotUpdateData!!)
-                        dialog.setResult(hotUpdateData.targetVersion, true, null) {
+                        juggHotUpdateDownloader.downloadAndInstallUpdate(hotUpdateData!!)
+                        dialog.setResult(hotUpdateData.targetVersion, true, hotUpdateData.isNeedReinstall, null) {
                             dialog.disposeIfNeeded()
-                            JuggInitializer.reopenAllProjectsAsync()
+                            if (hotUpdateData.isNeedReinstall) {
+                                // necessary to async, or restart will not work
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    ApplicationManager.getApplication().restart()
+                                }
+                            } else {
+                                JuggInitializer.reopenAllProjectsAsync()
+                            }
                         }
                     } catch (e: Exception) {
                         logger.warn("Download updates failed: ", e)
-                        dialog.setResult(hotUpdateData!!.targetVersion, false, e.toString(), null)
+                        dialog.setResult(hotUpdateData!!.targetVersion,
+                            isSuccess = false,
+                            isNeedReinstall = false,
+                            failedReason = e.toString(),
+                            onConfirmReopenProject = null
+                        )
                     }
                 }
             }

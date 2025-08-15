@@ -65,6 +65,7 @@ data class HotUpdateData(
     val targetVersion: String,
     val updateInfo: NotificationData?,
     val jarFileInfos: List<JarFileInfo>,
+    val isNeedReinstall: Boolean,
 )
 
 data class JarFileInfo(

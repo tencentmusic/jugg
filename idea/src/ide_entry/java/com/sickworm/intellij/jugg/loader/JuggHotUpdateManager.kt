@@ -13,7 +13,7 @@ object JuggHotUpdateManager {
     /** jar file list to be loaded */
     val loadListFile = File(hotUpdateDir, "load_list.txt")
 
-    private val firstUpdateFlag = File(hotUpdateDir, "first_update_flag")
+    private val hotUpdateFlag = File(hotUpdateDir, "first_update_flag")
 
     val isHotUpdateAvailable: Boolean get() = loadListFile.exists()
 
@@ -26,7 +26,7 @@ object JuggHotUpdateManager {
 
     fun clearHotUpdate() {
         loadListFile.delete()
-        firstUpdateFlag.delete()
+        hotUpdateFlag.delete()
         cacheEmbeddedBuildTime = embeddedBuildTime ?: ""
     }
 

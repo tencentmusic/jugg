@@ -78,13 +78,18 @@ class CheckUpdatesProgressDialog : DialogWrapper(true) {
         textLabel.text = "Downloading $targetVersion..."
     }
 
-    fun setResult(newVersion: String, isSuccess: Boolean, failedReason: String?, onConfirmReopenProject: (() -> Unit)?) {
+    fun setResult(newVersion: String, isSuccess: Boolean, isNeedReinstall: Boolean, failedReason: String?, onConfirmReopenProject: (() -> Unit)?) {
         setCancelButtonText("Close")
         SwingUtilities.invokeLater {
             progressBar.isVisible = false
             if (isSuccess) {
-                textLabel.text = "Update to $newVersion successful. Reopen your project to apply the update."
-                getButton(okAction)?.text = "Reopen projects"
+                if (isNeedReinstall) {
+                    textLabel.text = "Update to $newVersion successful. Reopen IDE to apply the update."
+                    getButton(okAction)?.text = "Reopen IDE"
+                } else {
+                    textLabel.text = "Update to $newVersion successful. Reopen projects to apply the update."
+                    getButton(okAction)?.text = "Reopen projects"
+                }
                 okAction.isEnabled = true
                 getButton(okAction)?.removeAll()
                 getButton(okAction)?.addActionListener {

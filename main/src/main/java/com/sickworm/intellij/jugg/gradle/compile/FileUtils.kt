@@ -4,6 +4,8 @@ import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isWindows
 import java.io.File
 import java.util.zip.CRC32
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 fun File.findFilesRecursively(fileNamePattern: String): File? {
         val fileNameRegex = Regex(
@@ -57,4 +59,21 @@ val File.crc32: Long get() {
         update(readBytes())
         value
     }
+}
+
+fun File.zipFiles(files: List<File>, parentPath: String = "") {
+    val zipFile = this
+    zipFile.parentFile?.mkdirs()
+    if (zipFile.exists()) {
+        zipFile.delete()
+    }
+    // zip using java.util.zip
+    val zipOutputStream = ZipOutputStream(zipFile.outputStream())
+    files.forEach {
+        val zipEntry = ZipEntry(parentPath + it.name)
+        zipOutputStream.putNextEntry(zipEntry)
+        zipOutputStream.write(it.readBytes())
+        zipOutputStream.closeEntry()
+    }
+    zipOutputStream.close()
 }
