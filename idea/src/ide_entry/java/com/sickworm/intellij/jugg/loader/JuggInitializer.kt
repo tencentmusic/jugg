@@ -49,6 +49,10 @@ object JuggInitializer {
     fun release(project: Project) {
         val instance = instanceSet.remove(project.bashPathOrDefault)
         instance?.release()
+
+        if (instanceSet.isEmpty()) {
+            RpcLocalServer.stop()
+        }
     }
 
     @Synchronized
