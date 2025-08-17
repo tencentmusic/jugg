@@ -1,3 +1,9 @@
+- version: 2.4.0-rc1
+  date: 2025.08.19
+  isNeedReinstall: true
+  updates:
+    - 支持命令行调用（见接入手册，重启 IDE 生效）
+
 - version: 2.3.0-rc14
   date: 2025.08.03
   updates:
