@@ -38,7 +38,7 @@ class FileLogger(
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
 
         private fun createPatternName(): String {
-            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date()) + ".log"
+            return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date()) + ".%g.log"
         }
 
         private fun createLogger(dir: File, patterName: String): Logger {
@@ -61,15 +61,16 @@ class FileLogger(
 
 
         private fun createFileHandler(dir: File, name: String): FileHandler {
+            val limit = 50 * 1024 * 1024 // 100MB
             val loggerHandler = FileHandler(
                 dir.absolutePath + "/" + name,
-                0, 1, false)
+                limit, 2, false)
             val formatter = object : SimpleFormatter() {
 
                 private val format: String = "[%1\$tF %1\$tT] [%2$-7s] %3\$s%n"
 
                 override fun format(lr: LogRecord): String {
-                    val string = String.format(format,
+                    val string = String.format(Locale.US, format,
                         Date(lr.millis),
                         lr.level.name,
                         lr.message
@@ -101,7 +102,7 @@ class FileLogger(
 
             try {
                 latestLogFile.delete()
-                val source = Path.of(dir.absolutePath, name)
+                val source = Path.of(dir.absolutePath, name.replace("%g", "0"))
                 val link = latestLogFile.toPath()
                 val relativePath = link.parent.relativize(source)
                 Files.createSymbolicLink(link, Path.of("./$relativePath")) // "./" is required for finder in macOS to recognize the link
