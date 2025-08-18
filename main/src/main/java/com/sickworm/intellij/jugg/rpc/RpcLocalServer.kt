@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import java.io.IOException
+import java.net.BindException
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 
@@ -15,10 +16,12 @@ import java.util.concurrent.Executors
  * RPC Local Server singleton that provides HTTP interface for processing RpcRequest and returning RpcResponse
  */
 object RpcLocalServer {
-    private const val PORT = 12310
+    private const val PORT_START = 12310
+    private const val PORT_END = 12319
     private const val CONTEXT_PATH = "/"
 
     private var server: HttpServer? = null
+    private var actualPort: Int = PORT_START
     private val gson = Gson()
 
     private val logger = JuggLogger.getGlobalLogger("RPCLocalServer")
@@ -32,19 +35,31 @@ object RpcLocalServer {
             return
         }
 
-        try {
-            server = HttpServer.create(InetSocketAddress(PORT), 0)
-            server?.let { httpServer ->
-                httpServer.createContext(CONTEXT_PATH, RpcRequestHandler())
-                httpServer.executor = Executors.newFixedThreadPool(4)
-                httpServer.start()
-                logger.debug("start: RPC Local Server started on port $PORT")
+        var lastException: IOException? = null
+        for (port in PORT_START..PORT_END) {
+            try {
+                server = HttpServer.create(InetSocketAddress(port), 0)
+                server?.let { httpServer ->
+                    httpServer.createContext(CONTEXT_PATH, RpcRequestHandler())
+                    httpServer.executor = Executors.newFixedThreadPool(4)
+                    httpServer.start()
+                    actualPort = port
+                    logger.debug("start: RPC Local Server started on port $port")
+                    return
+                }
+            } catch (e: BindException) {
+                logger.debug("start: Port $port is already in use, trying next port")
+                lastException = e
+                server = null
+            } catch (e: IOException) {
+                logger.debug("start: Failed to start RPC Local Server on port $port: ${e.message}")
+                lastException = e
+                server = null
             }
-        } catch (e: IOException) {
-            server = null
-            logger.debug("start: Failed to start RPC Local Server: ${e.message}")
-            return
         }
+        
+        // If we reach here, all ports in the range failed
+        logger.debug("start: Failed to start RPC Local Server on any port in range $PORT_START-$PORT_END. Last error: ${lastException?.message}")
     }
 
     /**
@@ -69,7 +84,7 @@ object RpcLocalServer {
      * Get the server port
      */
     fun getPort(): Int {
-        return PORT
+        return actualPort
     }
 
     /**

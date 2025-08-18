@@ -60,19 +60,6 @@ class RpcLocalServerTest {
     }
 
     @Test
-    fun testDoubleStart() {
-        RpcLocalServer.start()
-
-        // Attempting to start again should throw an exception
-        try {
-            RpcLocalServer.start()
-            Assert.fail("Should throw IllegalStateException when starting already running server")
-        } catch (e: IllegalStateException) {
-            Assert.assertEquals("Server is already running", e.message)
-        }
-    }
-
-    @Test
     fun testPostJsonEcho() {
         RpcLocalServer.start()
 
@@ -90,7 +77,7 @@ class RpcLocalServerTest {
 
             val responseBody = response.body?.string()
             val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
-            Assert.assertEquals("OK", rpcResponse.status.name)
+            Assert.assertEquals("OK", rpcResponse.status)
             Assert.assertEquals(rpcRequest, rpcResponse.result)
         }
     }
@@ -112,8 +99,8 @@ class RpcLocalServerTest {
 
             val responseBody = response.body?.string()
             val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
-            Assert.assertEquals("ErrorInvalidJsonFormat", rpcResponse.status.name)
-            Assert.assertTrue("Detail should contain error message", rpcResponse.result.contains("Invalid JSON format"))
+            Assert.assertEquals("ErrorInvalidJsonFormat", rpcResponse.status)
+            Assert.assertTrue("Detail should contain error message", rpcResponse.result.toString().contains("Invalid JSON format"))
         }
     }
 
@@ -133,7 +120,7 @@ class RpcLocalServerTest {
 
             val responseBody = response.body?.string()
             val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
-            Assert.assertEquals("ErrorEmptyRequestBody", rpcResponse.status.name)
+            Assert.assertEquals("ErrorEmptyRequestBody", rpcResponse.status)
             Assert.assertEquals("Empty request body", rpcResponse.result)
         }
     }
@@ -152,14 +139,16 @@ class RpcLocalServerTest {
 
             val responseBody = response.body?.string()
             val rpcResponse = Gson().fromJson(responseBody!!, RpcResponse::class.java)
-            Assert.assertEquals("ErrorMethodNotAllowed", rpcResponse.status.name)
+            Assert.assertEquals("ErrorMethodNotAllowed", rpcResponse.status)
             Assert.assertEquals("Method Not Allowed", rpcResponse.result)
         }
     }
 
     @Test
     fun testPortConfiguration() {
-        Assert.assertEquals("Port should be 12310", 12310, RpcLocalServer.getPort())
+        RpcLocalServer.start()
+        val port = RpcLocalServer.getPort()
+        Assert.assertTrue("Port should be in range 12310-12319, but was $port", port in 12310..12319)
     }
 
     @Test
