@@ -98,6 +98,7 @@ class JuggManager @TestOnly constructor(
             IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             deployHistoryManager.checkProjectDirChanged()
+            StartServerCompat.startRpcServerHereOnLowVersion(logger)
             logger.info("Start jugg finished.")
 
             // init project info async
