@@ -151,7 +151,7 @@ object RpcLocalServer {
                     result = "Invalid JSON format: ${e.message}"
                 )
                 sendJsonResponse(exchange, 400, errorResponse)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.warn("handlePostRequest error ", e)
                 val errorResponse = RpcResponse(
                     status = RpcResult.ErrorInternalServerError,

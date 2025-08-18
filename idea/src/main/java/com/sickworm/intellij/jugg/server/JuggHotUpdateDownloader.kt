@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.gradle.compile.zipFiles
+import com.sickworm.intellij.jugg.ide.logic.PluginVersionComparator
 import com.sickworm.intellij.jugg.ide.ui.JuggCommonNotification
 import com.sickworm.intellij.jugg.loader.JuggHotUpdateManager
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -18,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.security.MessageDigest
+import javax.swing.SwingUtilities
 
 /**
  * Download hot update jars from Jugg server.
@@ -65,6 +67,10 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         if (!isHotUpdate) {
             return
         }
+        if (installPluginForLowerVersion(project)) {
+            return
+        }
+
         try {
             val currentHotUpdateData = Gson().fromJson(hotUpdateDataFile.readText(), HotUpdateData::class.java)
             hotUpdateFlag.delete()
@@ -230,6 +236,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         logEvent("downloadHotUpdate success! version: ${hotUpdateData.targetVersion}")
     }
 
+    @Synchronized
     private fun installPlugin(expectJarFiles: List<File>): Boolean {
         logEvent("downloadHotUpdate install")
         val zipFile = File(JuggHotUpdateManager.hotUpdateDir, "jugg_plugin_${System.currentTimeMillis()}.zip")
@@ -255,6 +262,39 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
         }
     }
 
+    private fun installPluginForLowerVersion(project: Project): Boolean {
+        if (isUpdatedThisRuntime) {
+            return false
+        }
+        val installedVersion = ideaPluginDescriptor?.version
+        val isNeedInstallOneTime = installedVersion != null && PluginVersionComparator.compare(installedVersion, "3.4.0") < 0
+        logger.debug("installPluginForLowerVersion installedVersion $installedVersion, isNeedInstallOneTime $isNeedInstallOneTime")
+        if (!isNeedInstallOneTime) {
+            return false
+        }
+        val jarFileNames = JuggHotUpdateManager.loadListFile.readLines().filter { it.isNotEmpty() }.toSet()
+        val jarFiles = jarFileNames.map { jarFileName ->
+            val jarFile = JuggHotUpdateManager.storageDir.resolve(jarFileName)
+            if (!jarFile.exists()) {
+                logEvent("installPluginForLowerVersion hot update jar file not found: $jarFile, exit")
+                return false
+            }
+            return@map jarFile
+        }
+
+        juggServer.launch {
+            val isSuccess = installPlugin(jarFiles)
+            logEvent("installPluginForLowerVersion isSuccess $isSuccess")
+            if (isSuccess) {
+                isUpdatedThisRuntime = true
+                SwingUtilities.invokeLater {
+                    notifyHotUpdateIfNeeded(project)
+                }
+            }
+        }
+        return true
+    }
+
     private val HotUpdateData.uniqueNames get() = jarFileInfos.map { it.uniqueName }
 
     companion object {
@@ -278,6 +318,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
             return md.digest().joinToString("") { "%02x".format(it) }
         }
 
+        @Volatile
         private var isUpdatedThisRuntime: Boolean = false
     }
 

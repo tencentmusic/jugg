@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.ide.logic
 import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
@@ -154,11 +155,12 @@ class IdeaPlatformApi : IPlatformApi {
     }
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {
-        val projectPath = rpcRequest.projectDir
-            ?: return RpcResponse(RpcResult.ErrorEmptyRequestBody, "Please specify projectDir in request body.")
-        val juggManager = JuggInitializer.getManager(projectPath)
-            ?: return RpcResponse(RpcResult.ErrorInvalidProjectDir, "Project not opened, projectDir: $projectPath")
+        val projectDir = rpcRequest.projectDir ?:
+           return RpcResponse(RpcResult.ErrorInvalidProjectDir, "Argument projectDir not specific")
 
+        val juggManager = JuggInitializer.getManager(projectDir)
+            ?: return RpcResponse(RpcResult.ErrorInvalidProjectDir, "Project not initialized with Jugg, please wait for a while.")
         return juggManager.call(rpcRequest)
     }
+
 }
