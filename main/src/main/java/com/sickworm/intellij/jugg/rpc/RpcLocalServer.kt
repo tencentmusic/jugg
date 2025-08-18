@@ -137,9 +137,10 @@ object RpcLocalServer {
                 )
                 sendJsonResponse(exchange, 400, errorResponse)
             } catch (e: Exception) {
+                logger.warn("handlePostRequest error ", e)
                 val errorResponse = RpcResponse(
                     status = RpcResult.ErrorInternalServerError,
-                    result = "Error processing request: ${e.message}"
+                    result = "Error processing request: $e"
                 )
                 sendJsonResponse(exchange, 500, errorResponse)
             }

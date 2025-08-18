@@ -1,29 +1,29 @@
 package com.sickworm.intellij.jugg.rpc
 
 
-enum class RpcCommand {
+object RpcCommand {
     // curl -s -X POST -H "Content-Type: application/json" -d '{"cmd": "ECHO"}' http://localhost:12310/
-    ECHO, // just echo back the request body
-    RUN,
-    ;
+    const val ECHO = "ECHO" // just echo back the request body
+    const val RUN = "RUN"
 }
 
-enum class RpcResult {
-    OK,
-    ErrorInvalidJsonFormat,
-    ErrorEmptyRequestBody,
-    ErrorMethodNotAllowed,
-    ErrorInternalServerError,
-    ErrorInvalidProjectDir,
-    ;
+@Suppress("ConstPropertyName")
+object RpcResult {
+    const val OK = "OK"
+    const val ErrorInvalidJsonFormat = "ErrorInvalidJsonFormat"
+    const val ErrorEmptyRequestBody = "ErrorEmptyRequestBody"
+    const val ErrorMethodNotAllowed = "ErrorMethodNotAllowed"
+    const val ErrorInternalServerError = "ErrorInternalServerError"
+    const val ErrorInvalidProjectDir = "ErrorInvalidProjectDir"
 }
 
-data class RpcRequest(
-    val cmd: RpcCommand,
+open class RpcRequest(
+    val cmd: String,
     val projectDir: String? = null,
+    val args: Map<String, Any>? = null,
 )
 
-data class RpcResponse(
-    val status: RpcResult,
+open class RpcResponse(
+    val status: String,
     val result: Any?,
 )
