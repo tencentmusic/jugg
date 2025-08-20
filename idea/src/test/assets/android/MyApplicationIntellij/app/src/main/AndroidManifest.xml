@@ -18,15 +18,19 @@
             android:name=".MainActivity"
             android:exported="true"
             >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
         </activity>
         <activity
             android:name="com.sickworm.jugg.demo.testcase.compose.MainComposeActivity"
             android:exported="true"
             >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.MAIN"/>-->
+<!--                <category android:name="android.intent.category.LAUNCHER"/>-->
+<!--            </intent-filter>-->
         </activity>
             <activity
             android:name="com.sickworm.jugg.demo.testcase.databinding.DataBindingJavaDemoActivity"
@@ -34,6 +38,10 @@
         />
         <activity
             android:name="com.sickworm.jugg.demo.testcase.databinding.DataBindingKotlinDemoActivity"
+            android:exported="true"
+        />
+        <activity
+            android:name="com.sickworm.jugg.demo.testcase.ksp.MoshiDemoActivity"
             android:exported="true"
         />
     </application>

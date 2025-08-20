@@ -4,6 +4,7 @@ buildscript {
     ext.kotlin_version = '1.7.21'
     repositories {
         google()
+        mavenCentral()
         jcenter()
         
     }
@@ -15,9 +16,14 @@ buildscript {
     }
 }
 
+plugins {
+    id 'com.google.devtools.ksp' version '1.7.21-1.0.8' apply false
+}
+
 allprojects {
     repositories {
         google()
+        mavenCentral()
         jcenter()
         
     }

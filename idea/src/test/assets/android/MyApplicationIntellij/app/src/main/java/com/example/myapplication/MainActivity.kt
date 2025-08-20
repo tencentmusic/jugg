@@ -5,7 +5,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
 
-import com.alibaba.android.arouter.facade.annotation.Route
+import com.sickworm.jugg.demo.testcase.ksp.MoshiDemoActivity
 
 class MainActivity : AppCompatActivity() {
 
@@ -15,6 +15,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.button).setOnClickListener {
             startActivity(Intent(this, MainActivity2::class.java))
+        }
+
+        findViewById<View>(R.id.btn_moshi_demo).setOnClickListener {
+            startActivity(Intent(this, MoshiDemoActivity::class.java))
         }
     }
 }

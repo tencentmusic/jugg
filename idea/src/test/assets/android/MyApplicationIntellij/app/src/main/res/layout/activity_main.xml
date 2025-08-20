@@ -8,18 +8,34 @@
         tools:context=".MainActivity">
 
     <TextView
+            android:id="@+id/textView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Hello World7!"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+            app:layout_constraintTop_toTopOf="parent"
+            android:layout_marginTop="32dp"/>
 
     <Button
             android:id="@+id/button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="MainActivity2"
+            app:layout_constraintTop_toBottomOf="@+id/textView"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            android:layout_marginTop="16dp"
+    />
+
+    <Button
+            android:id="@+id/btn_moshi_demo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Moshi KSP Demo"
+            app:layout_constraintTop_toBottomOf="@+id/button"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            android:layout_marginTop="16dp"
     />
 </androidx.constraintlayout.widget.ConstraintLayout>
