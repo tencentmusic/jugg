@@ -44,6 +44,7 @@ data class ModuleInfo(
     val isUseCompose: Boolean? = null,
     val isUseViewBinding: Boolean? = null,
     val isUseDataBinding: Boolean? = null,
+    val kspDependencies: List<LibraryDependency>? = null,
 ) {
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")

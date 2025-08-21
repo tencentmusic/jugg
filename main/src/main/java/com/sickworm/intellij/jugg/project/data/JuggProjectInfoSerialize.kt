@@ -20,8 +20,8 @@ class JuggProjectInfoSerialize(
             val dependencyList = mutableListOf<LibraryDependency>()
             val dependencyIndexMap = mutableMapOf<String, Int>()
 
-            fun convertLibraryToIndexList(libraryDependencies: List<LibraryDependency>): List<Int>? {
-                if (libraryDependencies.isEmpty()) return null
+            fun convertLibraryToIndexList(libraryDependencies: List<LibraryDependency>?): List<Int>? {
+                if (libraryDependencies.isNullOrEmpty()) return null
                 return libraryDependencies.map { dependency ->
                     val oldIndex = dependencyIndexMap[dependency.file.absolutePath]
                     if (oldIndex != null) return@map oldIndex
@@ -51,6 +51,7 @@ class JuggProjectInfoSerialize(
                         libraryDependencies = emptyList(), runtimeLibraryDependencies = emptyList(),
                         annotationProcessorDependencies = emptyList(), kaptDependencies = emptyList(),
                         kotlinPlugins = emptyList(), kotlinExtensions = emptyList(),
+                        kspDependencies = emptyList(),
                     ),
                     libraryDependencies = convertLibraryToIndexList(it.value.libraryDependencies),
                     runtimeLibraryDependencies = convertLibraryToIndexList(it.value.runtimeLibraryDependencies),
@@ -58,6 +59,7 @@ class JuggProjectInfoSerialize(
                     kaptDependencies = convertLibraryToIndexList(it.value.kaptDependencies),
                     kotlinPlugins = null,
                     kotlinExtensions = null,
+                    kspDependencies = convertLibraryToIndexList(it.value.kspDependencies),
                 )
 
                 // covert kotlinPlugins and kotlinExtensions at last, because it has no dependency name
@@ -106,6 +108,7 @@ class ModuleInfoSerialize(
     val kaptDependencies: List<Int>?,
     val kotlinPlugins: List<Int>?,
     val kotlinExtensions: List<Int>?,
+    val kspDependencies: List<Int>?,
 ) {
 
     fun update(kotlinPlugins: List<Int>?, kotlinExtensions: List<Int>?): ModuleInfoSerialize {
@@ -113,7 +116,7 @@ class ModuleInfoSerialize(
             moduleInfoExceptLibraries,
             libraryDependencies, runtimeLibraryDependencies,
             annotationProcessorDependencies, kaptDependencies,
-            kotlinPlugins, kotlinExtensions
+            kotlinPlugins, kotlinExtensions, kspDependencies
         )
     }
 }

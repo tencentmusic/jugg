@@ -280,6 +280,10 @@ class GradleProjectInfoReader(
 
             val coreLibraryDesugaring = getDependenciesByConfig(project, "coreLibraryDesugaring", isAndroidDepend = false, isGetByNewWay = true)
 
+            TraceLogger.start("getKsp")
+            val kspDependencies = getDependenciesByConfig(project, "ksp", isAndroidDepend = false)
+            TraceLogger.end("getKsp")
+
             moduleInfo = moduleInfo.copy(
                 moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
                 libraryDependencies = dependencies.filterIsInstance<LibraryDependency>(),
@@ -287,6 +291,7 @@ class GradleProjectInfoReader(
                 annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
                 kaptDependencies = kaptDependencies.filterIsInstance<LibraryDependency>(),
                 coreLibraryDesugaring = coreLibraryDesugaring.filterIsInstance<LibraryDependency>(),
+                kspDependencies = kspDependencies.filterIsInstance<LibraryDependency>(),
             )
         } catch (e: Throwable) {
             println("Jugg: get dependency info for ${project.standardModuleName} failed: $e")
