@@ -206,6 +206,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 kotlinExtensions = gradleModuleInfo.kotlinExtensions,
                 kotlinPlugins = gradleModuleInfo.kotlinPlugins,
                 coreLibraryDesugaring = gradleModuleInfo.coreLibraryDesugaring,
+                kspDependencies = gradleModuleInfo.kspDependencies,
             )
             mergedModules[name] = mergedModuleInfo
         }

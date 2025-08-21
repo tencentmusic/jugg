@@ -90,6 +90,7 @@ class JuggProjectInfoSerialize(
                     kaptDependencies = serialize.kaptDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                     kotlinPlugins = serialize.kotlinPlugins?.map { dependencyMap[it]!!.file } ?: emptyList(),
                     kotlinExtensions = serialize.kotlinExtensions?.map { dependencyMap[it]!!.file } ?: emptyList(),
+                    kspDependencies = serialize.kspDependencies?.map { dependencyMap[it]!! } ?: emptyList(),
                 )
                 return@associate moduleInfo.name to moduleInfo
             }
