@@ -18,18 +18,27 @@ class StyleableFileGenerator(
 
     fun generateStyleableFile(context: ICompileContext, outputDir: File): File? {
         val selectedApplicationModule = context.applicationModule
+        val dynamicFeatureModules = context.dynamicFeatureModules
         if (selectedApplicationModule == null) {
             logger.warn("generateStyleableFile failed, no application module found")
             return null
         }
-        logger.debug("application module: ${selectedApplicationModule.name}")
+        logger.debug("selectedApplicationModule: ${selectedApplicationModule.name}, " +
+                "dynamicFeatureModules: ${dynamicFeatureModules.map { it.name }}")
 
-        val rFile = selectedApplicationModule.buildPathInfo.rFilePath
-        return if (rFile.exists()) {
-            logger.debug("generateStyleableFile by rFile: ${rFile.absolutePath}")
-            generateStyleableFile(rFile, outputDir)
+        val rFiles = (dynamicFeatureModules + selectedApplicationModule).mapNotNull {
+            val rFile = it.buildPathInfo.rFilePath
+            if (rFile.exists()) {
+                logger.debug("generateStyleableFile by rFile: ${rFile.absolutePath}")
+                return@mapNotNull rFile
+            }
+            null
+        }
+        return if (rFiles.isNotEmpty()) {
+            generateStyleableFile(rFiles, outputDir)
         } else {
             // low AGP don't have R.jar, it stored in java classpath
+            // won't handle dynamicFeatureModules because I'm lazy to test :)
             logger.debug("generateStyleableFile by java classpath: ${selectedApplicationModule.buildPathInfo.javaClassPath}")
 
             val manifestFile = selectedApplicationModule.manifestFile
@@ -37,7 +46,7 @@ class StyleableFileGenerator(
                 logger.warn("generateStyleableFile failed, manifest file not found in ${selectedApplicationModule.name}")
                 return null
             }
-            val packageName = RPackageReader(manifestFile, logger).readPackageName()
+            val packageName = RPackageReader(manifestFile, logger).readPackageName() // we find R package name(namespace) not app package name
             if (packageName == null) {
                 logger.warn("generateStyleableFile failed, read package name from manifest file ${manifestFile.absolutePath} failed")
                 return null
@@ -50,31 +59,42 @@ class StyleableFileGenerator(
     private val availableStyleableNames = listOf("R\$styleable.class", "R\$styleable0.class", "styleable0.class")
 
     @TestOnly
-    fun generateStyleableFile(rFile: File, outputDir: File): File? {
-        if (!rFile.exists()) {
-            logger.warn("generateStyleableFile failed, rFile not exists: ${rFile.absolutePath}")
-            return null
+    fun generateStyleableFile(rFileList: List<File>, outputDir: File): File? {
+        val openedJarFile = mutableListOf<ZipFile>()
+        rFileList.forEach { rFile ->
+            if (!rFile.exists()) {
+                logger.warn("generateStyleableFile failed, rFile not exists: ${rFile.absolutePath}")
+                return@forEach
+            }
+
+            logger.debug("generateStyleableFile, rFile: ${rFile.absolutePath}")
+
+            openedJarFile.add(ZipFile(rFile))
         }
 
-        logger.debug("generateStyleableFile, rFile: ${rFile.absolutePath}")
-        ZipFile(rFile).use { jarFile ->
-            val rStyleableEntryList = mutableListOf<ZipEntry>()
-            // loop entry
-            jarFile.entries().asSequence().forEach { entry ->
-                val isStyleableClass = availableStyleableNames.any { entry.name.endsWith(it) }
-                if (isStyleableClass) {
-                    rStyleableEntryList.add(entry)
+        try {
+            val providers = mutableListOf<InputStreamProvider>()
+            openedJarFile.forEach { jarFile ->
+                val rStyleableEntryList = mutableListOf<ZipEntry>()
+                // loop entry
+                jarFile.entries().asSequence().forEach { entry ->
+                    val isStyleableClass = availableStyleableNames.any { entry.name.endsWith(it) }
+                    if (isStyleableClass) {
+                        rStyleableEntryList.add(entry)
+                    }
                 }
-            }
-            logger.debug("styleable class found: ${rStyleableEntryList.joinToString(", ") { it.name }}")
+                logger.debug("generateStyleableFile found ${rStyleableEntryList.size} styleable class " +
+                        "in ${jarFile.name}, detail: ${rStyleableEntryList.joinToString(", ") { it.name }}")
 
-            if (rStyleableEntryList.isEmpty()) {
-                logger.debug("generateStyleableFile failed, rStyleableEntryList not found in ${rFile.absolutePath}")
-                return null
+                if (rStyleableEntryList.isEmpty()) {
+                    logger.debug("generateStyleableFile rStyleableEntryList not found in ${jarFile.name}")
+                    return@forEach
+                }
+                providers.addAll(rStyleableEntryList.map { InputStreamProvider.of(jarFile, it) })
             }
-
-            val providers = rStyleableEntryList.map { InputStreamProvider.of(jarFile, it) }
-            return generateStyleableFile(providers, outputDir)
+            return doGenerateStyleableFile(providers, outputDir)
+        } finally {
+            openedJarFile.forEach { it.close() }
         }
     }
 
@@ -99,10 +119,10 @@ class StyleableFileGenerator(
         }
 
         val providers = rStyleableFileList.map { InputStreamProvider.of(it) }
-        return generateStyleableFile(providers, outputDir)
+        return doGenerateStyleableFile(providers, outputDir)
     }
 
-    private fun generateStyleableFile(providers: List<InputStreamProvider>, outputDir: File): File {
+    private fun doGenerateStyleableFile(providers: List<InputStreamProvider>, outputDir: File): File {
         val styleablesMerger = StyleablesMerger(logger)
         providers.forEach { provider ->
             provider.use { ins ->
