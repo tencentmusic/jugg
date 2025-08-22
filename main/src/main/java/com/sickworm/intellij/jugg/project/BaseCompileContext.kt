@@ -66,11 +66,22 @@ class BaseCompileContext(
 
     override var applicationModule: ModuleInfo? = findApplicationModule()
 
+    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules()
+
     private fun findApplicationModule(): ModuleInfo? {
         var applicationModules = modules.values.filter { module ->
-            val rFile = module.buildPathInfo.rFilePath
-            return@filter rFile.exists()
+            module.moduleType == ModuleInfo.Type.Application
         }
+
+        if (applicationModules.isEmpty()) {
+            logger.debug("get application module failed, no module type is Application")
+            applicationModules = modules.values.filter { module ->
+                // dynamic feature module also has this rFilePath!
+                val rFile = module.buildPathInfo.rFilePath
+                return@filter rFile.exists()
+            }
+        }
+
         if (applicationModules.isEmpty()) {
             logger.debug("get application module failed, no module has R.jar")
 
@@ -94,6 +105,11 @@ class BaseCompileContext(
         logger.debug("get application module has multiple modules has R.jar, ${applicationModules.joinToString { it.name }}")
 
         applicationModules.forEach {
+            if (it in dynamicFeatureModules) {
+                logger.debug("get application module failed, ${it.name} is a dynamic feature module, ignore")
+                return@forEach
+            }
+
             val mergedManifest = it.buildPathInfo.mergedManifest
             if (!mergedManifest.exists()) {
                 logger.debug("get application module failed, ${it.name}'s merged manifest not found, ignore")
@@ -112,6 +128,25 @@ class BaseCompileContext(
 
         logger.debug("get application module auto match failed, use first module as application module.")
         return applicationModules.first()
+    }
+
+    private fun findDynamicFeatureModules(): List<ModuleInfo> {
+        return modules.values.filter { module ->
+            if (module.moduleType == ModuleInfo.Type.DynamicFeature) {
+                return@filter true
+            }
+            if (module.moduleType == ModuleInfo.Type.Unknown) {
+                val mergedManifest = module.buildPathInfo.mergedManifest
+                if (!mergedManifest.exists()) {
+                    logger.debug("get dynamic feature module failed, ${module.name}'s merged manifest not found, ignore")
+                    return@filter false
+                }
+                val mergedManifestXmlNode = XmlParser().parse(mergedManifest)
+                val featureSplit = mergedManifestXmlNode.node["featureSplit"]
+                return@filter featureSplit != null
+            }
+            return@filter false
+        }
     }
 
     override val signingConfig: SigningConfig? get() {
@@ -353,6 +388,7 @@ class BaseCompileContext(
             this.modules = HashMap(it)
             finalRFiles = getRFiles()
             applicationModule = findApplicationModule()
+            dynamicFeatureModules = findDynamicFeatureModules()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {

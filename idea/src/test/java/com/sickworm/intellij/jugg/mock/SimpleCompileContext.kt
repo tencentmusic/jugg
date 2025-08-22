@@ -30,6 +30,8 @@ data class SimpleCompileContext(
 
     override val applicationModule: ModuleInfo = modules.values.first()
 
+    override val dynamicFeatureModules: List<ModuleInfo> = emptyList()
+
     override val isEnableDesugared: Boolean = true
 
     override val modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)

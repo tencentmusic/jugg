@@ -225,6 +225,8 @@ interface ICompileContext {
 
     val applicationModule: ModuleInfo?
 
+    val dynamicFeatureModules: List<ModuleInfo>
+
     val isEnableDesugared: Boolean
 
     val modulesWithOrder: List<ModuleInfo>
