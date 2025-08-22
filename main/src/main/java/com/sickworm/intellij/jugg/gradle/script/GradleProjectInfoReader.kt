@@ -63,6 +63,7 @@ class GradleProjectInfoReader(
             project.plugins.hasPlugin("com.android.application") -> ModuleInfo.Type.Application
             project.plugins.hasPlugin("com.android.library") -> ModuleInfo.Type.Library
             project.plugins.hasPlugin("java-library") -> ModuleInfo.Type.JavaLibrary
+            project.plugins.hasPlugin("com.android.dynamic-feature") -> ModuleInfo.Type.DynamicFeature
             else -> ModuleInfo.Type.Unknown
         }
 

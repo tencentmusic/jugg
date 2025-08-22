@@ -48,6 +48,7 @@ data class ModuleInfo(
         Application,
         Library,
         JavaLibrary,
+        DynamicFeature,
         Unknown,
         ;
 
