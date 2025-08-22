@@ -22,6 +22,65 @@ class KotlinCompiler(
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val options = analyzeSource(task.files.map { it.file }, module)
         logger.debug("analyzeSource result: $options")
+
+        // ksp compile
+        return if (options.isEnableKsp && !options.isKspWithCompilation) {
+            // won't into here for now
+            kspAndCompile(task, module, options)
+        } else {
+            // normal compile or compile with ksp in one step
+            compile(task, module, options)
+        }
+    }
+
+    private fun kspAndCompile(task: CompileTask, module: ModuleInfo, options: KotlinCompilerInvoker.Options): CompileResult {
+        val kspOptions = KotlinCompilerInvoker.Options(
+            kaptDependencies = options.kaptDependencies,
+            kspDependencies = options.kspDependencies,
+            kotlinPlugins = options.kotlinPlugins,
+            javaSourceDirs = options.javaSourceDirs,
+        )
+        TimeLogger.start("kspCompile")
+        val kspOutput = KotlinCompilerInvoker.currentInstance.compile(context, module, task, logger, kspOptions)
+        TimeLogger.end("kspCompile", logger)
+        logger.debug("kspOutput: $kspOutput")
+        if (!kspOutput.isAllSuccess) {
+            logger.warn("\nKSP compile failed, compile result may not correct.\n")
+        }
+
+        val kspKotlinOutput = kspOutput.outputs
+            .filter { it.type == CompileOutput.Type.Kotlin }
+            .map { CompileFile(CompileFile.Type.Kotlin, it.file, it.baseDir, module) }
+        val kspOtherOutput = kspOutput.outputs.filter { it.type != CompileOutput.Type.Kotlin }
+
+
+        val finalTask = CompileTask(
+            files = task.files + kspKotlinOutput,
+            outputDir = task.outputDir,
+            task,
+        )
+        val kotlinOutput = KotlinCompilerInvoker.currentInstance.compile(context, module, finalTask, logger, options)
+
+        if (kspOutput.outputs.isEmpty()) {
+            // no ksp output, just return kotlinOutput
+            return kotlinOutput
+        }
+
+        // has ksp output
+        return if (kotlinOutput.isAllSuccess) {
+            // all success, filter ksp details
+            CompileResult(task,
+                kotlinOutput.details.filter { it.get() in task.files },
+                kotlinOutput.outputs + kspOtherOutput,
+            )
+        } else {
+            // some failed, filter ksp details and mark all kotlin output as failed
+            // because we don't know which Kotlin file is success with ksp output
+            task.allFailed("compile failed with ksp")
+        }
+    }
+
+    private fun compile(task: CompileTask, module: ModuleInfo, options: KotlinCompilerInvoker.Options): CompileResult {
         return KotlinCompilerInvoker.currentInstance.compile(context, module, task, logger, options)
     }
 
@@ -78,14 +137,28 @@ class KotlinCompiler(
             rPackageName = RPackageReader(module.buildPathInfo.mergedManifest, logger).readPackageName()
         }
 
+        // compat with kmm, which will save info in parent dependencies in IDE JuggProjectInfo
+        val allRelativeModules = context.getParentModules(module, isAddSelfToResult = true)
+        val kotlinPlugins = allRelativeModules
+            .flatMap { it.kotlinPlugins ?: emptyList() }
+        val kotlinExtensions = allRelativeModules
+            .flatMap { it.kotlinExtensions ?: emptyList() }
+        val kspDependencies = allRelativeModules
+           .flatMap { it.kspDependencies ?: emptyList() }
+           .map { it.file }
+
         TimeLogger.end("analyzeSource", logger)
         return KotlinCompilerInvoker.Options(
             JuggSettings.isEnableApt,
             isNeedKotlinAndroidExtensions,
             isNeedCompileCompose,
             rPackageName,
+            isEnableKsp = kspDependencies.isNotEmpty(),
             isCanAutoRetry = true,
             kaptDependencies = module.kaptDependencies.map { it.file },
+            kotlinPlugins = kotlinPlugins,
+            kotlinExtensions = kotlinExtensions,
+            kspDependencies = kspDependencies,
         )
     }
 

@@ -5,10 +5,12 @@ import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerOutputParser
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -61,6 +63,20 @@ class KotlinCompileTest {
         val task = activityTask
         val result = kotlinCompiler.compile(task)
         assertCompileResultKotlin(task, result)
+    }
+
+    @Test
+    fun kotlinProjectCompileBenchmark() {
+        val task = activityTask
+        TimeLogger.start("kotlinCompile_cost1")
+        kotlinCompiler.compile(task)
+        val time1 = TimeLogger.end("kotlinCompile_cost1", logger)
+        TimeLogger.start("kotlinCompile_cost2")
+        repeat(20) {
+            kotlinCompiler.compile(task)
+        }
+        val time2 = TimeLogger.end("kotlinCompile_cost2", logger)
+        println("kotlinCompile_cost1 $time1 ms, kotlinCompile_cost2 $time2 ms")
     }
 
     @Test
@@ -172,6 +188,18 @@ class KotlinCompileTest {
             metadataVersionError.metadataFile.path)
         assertEquals("1.7.0", metadataVersionError.actualVersion)
         assertEquals("1.1.16", metadataVersionError.expectVersion)
+    }
+
+    @Test
+    fun testKspCompile() {
+        val task = createTask("com/sickworm/jugg/demo/testcase/ksp/User.kt")
+        val result = kotlinCompiler.compile(task)
+        println("testKspCompile_output ${result.outputs.map { it.file.name }}")
+        assertCompileResult(task, result, mapper)
+        assertContentEquals(
+            listOf("User.class", "UserProfile.class", "UserListResponse.class", "UserJsonAdapter.class", "UserListResponseJsonAdapter.class", "UserProfileJsonAdapter.class"),
+            result.outputs.map { it.file.name }
+        )
     }
 
     private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult, vararg subclassList: String) {

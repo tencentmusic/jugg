@@ -34,10 +34,17 @@ class KotlinCompilerInvoker {
         val isNeedKotlinAndroidExtensions: Boolean = false,
         val isNeedCompileCompose: Boolean = false,
         val rPackageName: String? = null,
-        val isCanAutoRetry: Boolean = false,
+        val isCanAutoRetry: Boolean = true,
         val kaptOptions: Map<String, String> = emptyMap(),
         val kaptDependencies: List<File> = emptyList(),
         val javaSourceDirs: List<File>? = null,
+        val isEnableKsp: Boolean = false,
+        // kotlin compiler will compile file to class if ksp didn't process this file
+        // so we only use isKspWithCompilation=true for now
+        val isKspWithCompilation: Boolean = true,
+        val kspDependencies: List<File> = emptyList(),
+        val kotlinPlugins: List<File> = emptyList(),
+        val kotlinExtensions: List<File> = emptyList(),
     )
 
     fun compile(
@@ -56,13 +63,9 @@ class KotlinCompilerInvoker {
         // Jugg will check it again in [initIfNeeded] before use it
         kotlinCompile.initIfNeeded(projectKotlinCompilerClasspath, logger)
 
-        // compat with kmm, which will save info in parent dependencies in IDE JuggProjectInfo
-        val allRelativeModules = context.getParentModules(module, isAddSelfToResult = true)
-        val kotlinPlugins = allRelativeModules
-            .flatMap { it.kotlinPlugins ?: emptyList() }
+        val kotlinPlugins = options.kotlinPlugins
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
-        val kotlinExtensions = allRelativeModules
-            .flatMap { it.kotlinExtensions ?: emptyList() }
+        val kotlinExtensions = options.kotlinExtensions
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
         val pluginArgs = mutableListOf<String>()
@@ -161,6 +164,8 @@ class KotlinCompilerInvoker {
             }
         }
 
+        val kspArgsManager = KspArgsManager(module, context, options)
+        val kspArgs = kspArgsManager.handleKspArgs()
         val composeArgs = handleComposeArgs(options, kotlinExtensions, kotlinPlugins, logger)
 
         @Suppress("IfThenToElvis")
@@ -224,7 +229,7 @@ class KotlinCompilerInvoker {
 
         val fileArgs = task.files.map { it.file.absolutePath }
 
-        val command = pluginArgs + extensionArgs + kaptArgs + composeArgs + compileArgs + classPathArgs + fileArgs
+        val command = pluginArgs + extensionArgs + kaptArgs + kspArgs + composeArgs + compileArgs + classPathArgs + fileArgs
         logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
@@ -276,7 +281,7 @@ class KotlinCompilerInvoker {
         // Plugin "kuikly" usage:
         //  statisticsPath string      statistics path to save build data (required)
         val noOptionPlugins = mutableListOf<File>()
-        outputParser.results.forEach { result ->
+        compileResults.forEach { result ->
             if (!result.isFailed) {
                 return@forEach
             }
@@ -303,7 +308,7 @@ class KotlinCompilerInvoker {
         // handles -jvm-target not proper:
         // cannot inline bytecode built with JVM target 21 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option.
         var properJvmTargetInError: String? = null
-        outputParser.results.forEach { result ->
+        compileResults.forEach { result ->
             if (!result.isFailed) {
                 return@forEach
             }
@@ -353,8 +358,6 @@ class KotlinCompilerInvoker {
                 it.copyToBaseDir(kotlinClassPath, task.outputDir)
             } else if (it.isChild(kaptSourceDir)) {
                 it.copyToBaseDir(kaptSourceDir, task.outputDir)
-            } else if (it.isChild(kaptClassesDir)) {
-                it.copyToBaseDir(kaptClassesDir, task.outputDir)
             } else {
                 logger.debug("unknown output file, ignore: $it")
                 return@mapNotNull null
@@ -387,7 +390,11 @@ class KotlinCompilerInvoker {
         hasRetryCompile = false
         disablePlugins = tryDisablePlugins
         properJvmTarget = tryProperJvmTarget
-        return CompileResult(task, task.files.map { Result.success(it) }, compileOutputs + kaptOutputs)
+        return CompileResult(
+            task,
+            task.files.map { Result.success(it) },
+            outputs = compileOutputs + kaptOutputs + kspArgsManager.getOutput(task),
+        )
     }
 
     private fun handleComposeArgs(
@@ -544,6 +551,7 @@ class KotlinCompilerInvoker {
                 val kotlinCompilerClasspath = mutableListOf<File>()
                 kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
                 kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
+                kotlinCompilerClasspath.addAll(module.kspDependencies?.map { it.file } ?: emptyList())
                 kotlinCompilerClasspath.filter {
                     val isExists = it.exists()
                     if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")

@@ -129,9 +129,9 @@ fun assertCompileResult(task: CompileTask,
 ) {
     result.printCompileErrors()
 
-    assertEquals(result.task, task)
+    assertEquals(task, result.task)
     assertTrue(result.isAllSuccess)
-    assertEquals(result.details.size, task.files.size)
+    assertEquals(task.files.size, result.details.size)
 
     val exceptsOutput = mutableSetOf<CompileOutput>()
     result.details.forEach { detail ->
