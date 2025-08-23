@@ -172,10 +172,11 @@ class JuggCompilerHelper(
         val task = JuggGradleCompileTask(project, client, options, uiHandler, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
-            val apkFile = result.compileOutputFile
-            val apkReader = ApkReader(apkFile, logger)
-            val apkInfo = apkReader.getApkInfo()
-            deployTargetManager.setApks(listOf(apkInfo))
+            val apkInfos = result.compileOutputFile.map { apkFile ->
+                val apkReader = ApkReader(apkFile, logger)
+                apkReader.getApkInfo()
+            }
+            deployTargetManager.setApks(apkInfos)
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()
         }

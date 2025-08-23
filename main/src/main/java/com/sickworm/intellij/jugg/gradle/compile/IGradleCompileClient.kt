@@ -11,18 +11,18 @@ import kotlin.jvm.Throws
 data class GradleCompileResult(
     val isSuccess: Boolean,
     val isCanceled: Boolean,
-    val compileOutputFile: File,
+    val compileOutputFile: List<File>,
     val failedReason: String? = null,
 ) {
     companion object {
         fun failed(isCanceled: Boolean, failedReason: String) = GradleCompileResult(
             isSuccess = false,
             isCanceled = isCanceled,
-            compileOutputFile = File(""),
+            compileOutputFile = listOf(File("")),
             failedReason = failedReason,
         )
 
-        fun success(outputFile: File) = GradleCompileResult(
+        fun success(outputFile: List<File>) = GradleCompileResult(
             isSuccess = true,
             isCanceled = false,
             compileOutputFile = outputFile,

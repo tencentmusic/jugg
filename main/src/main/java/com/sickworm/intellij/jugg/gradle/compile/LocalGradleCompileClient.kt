@@ -51,7 +51,32 @@ class LocalGradleCompileClient(
             }
         }
 
-        val outputApkNameOrPath = juggGradleCompileOptions.outputApkName
+        val lookingApkPaths = juggGradleCompileOptions.outputApkName.split(";")
+        val findApks = mutableListOf<File>()
+        val failedApkPaths = mutableListOf<String>()
+        val isSingleApk = lookingApkPaths.size == 1
+        lookingApkPaths.forEachIndexed { index, it ->
+            val apkFile = findApk(it, juggGradleCompileOptions, if (isSingleApk) null else index)
+            if (apkFile != null) {
+                findApks.add(apkFile)
+            } else {
+                failedApkPaths.add(it)
+            }
+        }
+
+        if (failedApkPaths.isNotEmpty() || findApks.isEmpty()) {
+            printToStreamError("Can't find apks in $failedApkPaths in ${project.basePath}, " +
+                    "total: \"${juggGradleCompileOptions.outputApkName}\"" +
+                    ", please make sure your run configuration is right.")
+            return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
+        } else {
+            logger.debug("Find apk: $findApks")
+        }
+
+        return GradleCompileResult.success(findApks)
+    }
+
+    private fun findApk(outputApkNameOrPath: String, juggGradleCompileOptions: JuggGradleCompileOptions, index: Int?): File? {
         val findOutputCommand = FindOutputCommand(project.basePath!!, outputApkNameOrPath)
 
         var apkFile: File? = null
@@ -87,23 +112,25 @@ class LocalGradleCompileClient(
         if (apkFile == null) {
             printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
                     "in ${project.basePath}, please make sure your run configuration is right.")
-            return GradleCompileResult.failed(isCanceled, "Can't find apk")
+            return null
         } else {
             logger.debug("Find apk: ${apkFile.absolutePath}")
         }
 
         // copy out for avoiding deleted by gradle
-        TimeLogger.start("copyLocalApkFile")
         val juggPathManager = JuggPathManager(File(juggGradleCompileOptions.projectRootPath))
-        val outputApkFile = File(juggPathManager.localClasspathStoragePathManager.apkDir, apkFile.name)
+        val outputApkFile = if (index != null) {
+            File(juggPathManager.localClasspathStoragePathManager.apkDir, "${index}_${apkFile.name}")
+        } else {
+            File(juggPathManager.localClasspathStoragePathManager.apkDir, apkFile.name)
+        }
         apkFile.copyTo(outputApkFile, overwrite = true)
-        TimeLogger.end("copyLocalApkFile", logger)
 
         if (apkFile.length() != outputApkFile.length()) {
             logger.warn("Copy apk failed, length not match: ${apkFile.length()} != ${outputApkFile.length()}")
-            return GradleCompileResult.success(apkFile)
+            return apkFile
         }
-        return GradleCompileResult.success(outputApkFile)
+        return outputApkFile
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File {

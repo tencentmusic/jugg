@@ -29,6 +29,7 @@ data class JuggGradleCompileOptions(
     val compileCommand: String,
     /**
      * e.g. app/build/outputs/apk/debug/\*.apk
+     * e.g2. app/build/outputs/apk/debug/\*.apk; dynamic_feature/build/outputs/apk/debug/\*.apk
      */
     val outputApkName: String,
     /**

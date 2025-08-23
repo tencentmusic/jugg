@@ -259,23 +259,48 @@ class RemoteGradleCompileClient(
             }
         }
 
-        // 3. find apk
-        val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, gradleCompileSettings.outputApkName)
+        // 3. find and fetch apk
+        val lookingApkPaths = gradleCompileSettings.outputApkName.split(";")
+        val findApks = mutableListOf<File>()
+        val failedApkPaths = mutableListOf<String>()
+        lookingApkPaths.forEachIndexed { index, apkPath ->
+            val apkFile = findApk(index, apkPath, channel, gradleCompileSettings)
+            if (apkFile != null) {
+                findApks.add(apkFile)
+            } else {
+                failedApkPaths.add(apkPath)
+            }
+        }
+
+        if (failedApkPaths.isNotEmpty()) {
+            printToStreamError("Can't find apks in $failedApkPaths in ${project.basePath}, " +
+                    "total: \"${gradleCompileSettings.outputApkName}\"")
+            return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
+        } else {
+            logger.debug("Find apk: $findApks")
+        }
+
+        return GradleCompileResult.success(findApks)
+    }
+
+    private fun findApk(index: Int, outputApkName: String, channel: Channel, gradleCompileSettings: JuggGradleCompileOptions): File? {
+        // find apk path
+        val findOutputCommand = FindOutputCommand(gradleCompileSettings.remoteProjectPath, outputApkName)
         val findOutputResult = invoke(channel, findOutputCommand)
         if (findOutputResult != 0) {
             printToStreamErrorIfCanceled("Find APK failed, please check your sync client is opened.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "Find output failed")
+            return null
         }
         val apkPath = findOutputCommand.apkPath
         if (apkPath == null) {
             printToStreamErrorIfCanceled("Find APK failed, please check your apk name is correct.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "Find output failed")
+            return null
         }
 
-        // 4. fetch apk
+        // fetch apk
         val remoteSeparator = if (isRemoteWindows) '\\' else '/'
         val fetchOutputCommand = if (gradleCompileSettings.syncMode.isRsync) {
-            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
+            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + "${index}_${apkPath}"
             RsyncFetchOutputCommand(
                 finalPasswordOrKey,
                 gradleCompileSettings.remoteSshPort,
@@ -293,7 +318,7 @@ class RemoteGradleCompileClient(
         val fetchOutputResult = invoke(channel, fetchOutputCommand)
         if (fetchOutputResult != 0) {
             printToStreamErrorIfCanceled("Fetch output from remote to local failed, please check your sync client is opened.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "Fetch output from remote to local failed")
+            return null
         }
 
         val apkFileName = apkPath.lastIndexOf(remoteSeparator).let {
@@ -309,9 +334,10 @@ class RemoteGradleCompileClient(
             printToStreamErrorIfCanceled("find apk name with pattern '${gradleCompileSettings.outputApkName}' " +
                     "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
-            return GradleCompileResult.failed(isCanceled, failedReason = "find apk name")
+            return null
         }
-        return GradleCompileResult.success(apkFile)
+
+        return apkFile
     }
 
     private fun checkLoginOnStart(): Pair<Channel, JuggGradleCompileOptions> {
@@ -358,7 +384,7 @@ class RemoteGradleCompileClient(
             return GradleCompileResult.failed(isCanceled, failedReason = "Sync file from local to remote failed")
         }
 
-        return GradleCompileResult.success(File(""))
+        return GradleCompileResult.success(listOf(File("")))
     }
 
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
