@@ -51,13 +51,15 @@ data class JuggDeployData(
             hotReloadModifiedClasses.isEmpty() &&
             overlays.isEmpty()
 
+    private val isNeedRestartActivityInner get() = !isWarmUp && !isEmpty
+
+    // for now, we always restart activity excepts warm up and restart app
+    val isNeedRestartActivity get() = isNeedRestartActivityInner && !isNeedRestartApp
+
     /** is restart app after deployment */
     val isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty()
             || (isPushOverlayOnly && !isEmpty)
-            || (isNeedRestartActivity && isHasRelaunchActivityIssues)
-
-    // for now, we always restart activity excepts warm up and restart app
-    val isNeedRestartActivity get() = !isWarmUp && !isNeedRestartApp && !isEmpty
+            || (isNeedRestartActivityInner && isHasRelaunchActivityIssues)
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
