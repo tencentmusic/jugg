@@ -108,9 +108,8 @@ class DeployTargetManager(
         if (apks.isEmpty()) {
             throw JuggInternalException.getPackageNameFailedApkNotFound()
         }
-        if (apks.size > 1) {
-            throw JuggException.notSupportMultiApk()
-        }
+        // Dynamic feature module will have same applicationId,
+        // other cases just select first apk applicationId by use specific in "Output APK name/path"
         return apks.first().applicationId
     }
 

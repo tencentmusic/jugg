@@ -52,12 +52,6 @@ class JuggDeployTask(
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployTask")
 ) {
 
-    val packages = data.apks.associate {
-        // Add packages to the deployment, filtering out any dynamic features that are disabled.
-        val disabledFeatures = emptyList<String>()
-        it.applicationId to getFilteredFeatures(it, disabledFeatures)
-    }
-
     fun run(launchContext: LaunchContext): LaunchResult {
         val stopwatch = Stopwatch.createStarted()
         val device = launchContext.device
@@ -78,9 +72,13 @@ class JuggDeployTask(
         )
         val idsSkippedInstall: MutableList<String> = ArrayList()
         val overlayIds = mutableMapOf<String, String>()
-        for ((applicationId, apkFiles) in packages) {
+
+        val packages: Map<String, List<ApkInfo>> = data.apks.groupBy { it.applicationId }
+
+        for ((applicationId, apkInfos) in packages) {
             try {
                 launchContext.launchApp = shouldTaskLaunchApp()
+                val apkFiles = apkInfos.flatMap { it.files }.map { it.apkFile }
                 val result = perform(device, deployer, applicationId, apkFiles)
                 if (result.skippedInstall) {
                     idsSkippedInstall.add(applicationId)
@@ -177,22 +175,6 @@ class JuggDeployTask(
 
         private fun getPathsToInstall(apkFiles: List<File>): List<String> {
             return ContainerUtil.map(apkFiles) { obj: File -> obj.path }
-        }
-
-        private fun getFilteredFeatures(apkInfo: ApkInfo, disabledFeatures: List<String>): List<File> {
-            return if (apkInfo.files.size > 1) {
-                apkInfo.files.stream()
-                    .filter { feature: ApkFileUnit? ->
-                        DynamicAppUtils.isFeatureEnabled(
-                            disabledFeatures,
-                            feature!!
-                        )
-                    }
-                    .map { file: ApkFileUnit -> file.apkFile }
-                    .collect(Collectors.toList())
-            } else {
-                ImmutableList.of(apkInfo.files.first().apkFile)
-            }
         }
     }
 

@@ -238,7 +238,12 @@ class JuggDeployerHelper(
         return try {
             if (deployOptions.isInstall) {
                 val apks = deployTargetManager.getApks()
-                logger.info("Installing APK... ${apks.firstOrNull()?.files?.first()?.apkFile}")
+                val apkFiles = apks.flatMap { it.files.map { it.apkFile } }
+                if (apkFiles.size <= 1) {
+                    logger.info("Installing APK... ${apkFiles.first()}")
+                } else {
+                    logger.info("Installing APK...\n${apkFiles.joinToString("\n")}")
+                }
                 deployData = JuggDeployData.forInstall(apks)
                 val launchResult = runTask(deployOptions.device, deployData)
                 if (deployOptions.isLastDevice) {
@@ -637,15 +642,22 @@ class JuggDeployerHelper(
     /**
      * @return <isSuccess, failedReason>
      */
+    private fun insertFileAndResignApk(apkInfos: List<ApkInfo>,
+                                       compileContext: ICompileContext,
+                                       files: List<DeployItem>): Pair<Boolean, String> {
+        apkInfos.forEach { apkInfo ->
+            apkInfo.files.forEach { apkFileUnit ->
+                val (isSuccess, failedReason) = insertFileAndResignApk(apkFileUnit.apkFile, compileContext, files)
+                if (!isSuccess) {
+                    return false to failedReason
+                }
+            }
+        }
+        return true to ""
+    }
+
     @Suppress("LiftReturnOrAssignment")
-    private fun insertFileAndResignApk(apkInfos: List<ApkInfo>, compileContext: ICompileContext, files: List<DeployItem>): Pair<Boolean, String> {
-        if (apkInfos.size > 1) {
-            throw JuggException.notSupportMultiApk()
-        }
-        if (apkInfos.first().files.size > 1) {
-            throw JuggException.notSupportMultiApk()
-        }
-        val apkFile = apkInfos.first().files.first().apkFile
+    private fun insertFileAndResignApk(apkFile: File, compileContext: ICompileContext, files: List<DeployItem>): Pair<Boolean, String> {
         val signingConfig = compileContext.signingConfig
         if (signingConfig == null || signingConfig.isInvalid) {
             logger.warn("Unable to update APK, signing config not found.")

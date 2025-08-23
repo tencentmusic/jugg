@@ -264,7 +264,8 @@ class RemoteGradleCompileClient(
         val findApks = mutableListOf<File>()
         val failedApkPaths = mutableListOf<String>()
         lookingApkPaths.forEachIndexed { index, apkPath ->
-            val apkFile = findApk(index, apkPath, channel, gradleCompileSettings)
+            val finalIndex = if (lookingApkPaths.size > 1) index else -1
+            val apkFile = findApk(finalIndex, apkPath, channel, gradleCompileSettings)
             if (apkFile != null) {
                 findApks.add(apkFile)
             } else {
@@ -300,7 +301,7 @@ class RemoteGradleCompileClient(
         // fetch apk
         val remoteSeparator = if (isRemoteWindows) '\\' else '/'
         val fetchOutputCommand = if (gradleCompileSettings.syncMode.isRsync) {
-            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + "${index}_${apkPath}"
+            val absoluteApkPath = gradleCompileSettings.remoteProjectRsyncPath + remoteSeparator + apkPath
             RsyncFetchOutputCommand(
                 finalPasswordOrKey,
                 gradleCompileSettings.remoteSshPort,
@@ -335,6 +336,11 @@ class RemoteGradleCompileClient(
                     "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
             return null
+        }
+        if (index >= 0) {
+            val indexApkFile = apkFile.parentFile.resolve("${index}_${apkFileName}")
+            apkFile.renameTo(indexApkFile)
+            return indexApkFile
         }
 
         return apkFile

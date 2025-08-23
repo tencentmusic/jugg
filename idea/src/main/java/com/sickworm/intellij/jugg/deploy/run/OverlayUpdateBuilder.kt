@@ -8,9 +8,6 @@ import com.sickworm.intellij.jugg.project.JuggException
 class OverlayUpdateBuilder {
 
     fun build(cacheEntry: DeploymentCacheDatabase.Entry?, data: JuggDeployData): JuggOverlayUpdate {
-        if (data.apks.size > 1 && data.overlays.isNotEmpty()) {
-            throw JuggException.notSupportMultiApk()
-        }
 
         if (cacheEntry == null) {
             throw DeployerException.remoteApkNotFound()

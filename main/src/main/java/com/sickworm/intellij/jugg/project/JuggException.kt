@@ -11,9 +11,6 @@ class JuggException(msg: String): Exception(msg) {
 
     companion object {
 
-        fun notSupportMultiApk() =
-            JuggException("Detected multiple apks in project. Currently Jugg don't support multi-apk")
-
         fun applyChangesFailed(launchResult: LaunchResult) =
             JuggException("Apply changes failed, errorId: ${launchResult.errorId}, reason: ${launchResult.consoleError}")
 
