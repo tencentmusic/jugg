@@ -29,7 +29,6 @@ class StyleableFileGenerator(
         val rFiles = (dynamicFeatureModules + selectedApplicationModule).mapNotNull {
             val rFile = it.buildPathInfo.rFilePath
             if (rFile.exists()) {
-                logger.debug("generateStyleableFile by rFile: ${rFile.absolutePath}")
                 return@mapNotNull rFile
             }
             null

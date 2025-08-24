@@ -16,6 +16,7 @@
 package com.sickworm.intellij.jugg.apk.manifest;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,8 +27,9 @@ public class ManifestActivityInfo {
 
   private List<NodeActivity> myActivities;
   private String myPackageName;
+  private String myFeatureSplit;
 
-  private ManifestActivityInfo() {
+  public ManifestActivityInfo() {
     myActivities = new ArrayList<>();
     myPackageName = "";
   }
@@ -42,19 +44,19 @@ public class ManifestActivityInfo {
     return myActivities;
   }
 
-  @NotNull
-  public static ManifestActivityInfo parseBinaryFromStream(@NotNull InputStream inputStream) throws IOException {
-    XmlNode node = BinaryXmlParser.parse(inputStream);
-    ManifestActivityInfo manifest = new ManifestActivityInfo();
-    manifest.parseNode(node);
-    return manifest;
+  @Nullable
+  public String featureSplit() {
+    return myFeatureSplit;
   }
 
-  private void parseNode(@NotNull XmlNode node) {
+  public void parseNode(@NotNull XmlNode node) {
     for (String attribute : node.attributes().keySet()) {
       String value = node.attributes().get(attribute);
       if ("package".equals(attribute)) {
         myPackageName = value;
+      }
+      if ("split".equals(attribute)) {
+        myFeatureSplit = value;
       }
     }
 

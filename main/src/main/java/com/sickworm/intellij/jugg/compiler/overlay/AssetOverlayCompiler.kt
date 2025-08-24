@@ -19,6 +19,10 @@ class AssetOverlayCompiler(
     override val supportedTypes = listOf(CompileFile.Type.Asset, CompileFile.Type.NativeLib)
 
     override fun doCompile(task: CompileTask): CompileResult {
+        return splitApkAndCompile(task)
+    }
+
+    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
         // just copy
         val outputs = mutableListOf<CompileOutput>()
         val details = mutableListOf<Result<CompileFile, CompileError>>()
@@ -48,11 +52,11 @@ class AssetOverlayCompiler(
                     val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)
                     dirToFilesMap.values.firstOrNull()?.forEach { subFile ->
                         val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
-                        outputs.add(CompileOutput(outputType, outputFile, task.outputDir))
+                        outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFile.path))
                     }
                 } else {
                     val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
-                    outputs.add(CompileOutput(outputType, outputFile, task.outputDir))
+                    outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFile.path))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {

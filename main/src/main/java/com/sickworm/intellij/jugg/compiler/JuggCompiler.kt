@@ -120,7 +120,7 @@ class JuggCompiler(
                             outputFile.delete()
                         }
                         it.file.renameTo(outputFile)
-                        CompileOutput(CompileOutput.Type.Res, outputFile, overlayOutputDir)
+                        CompileOutput(CompileOutput.Type.Res, outputFile, overlayOutputDir, it.apkPath)
                     }
 
                 // compile R.java, it will only be one file
@@ -202,7 +202,7 @@ class JuggCompiler(
                         destFile.delete()
                     }
                     it.file.renameTo(destFile)
-                    CompileOutput(it.type, destFile, overlayOutputDir)
+                    CompileOutput(it.type, destFile, overlayOutputDir, it.apkPath)
                 } else {
                     it
                 }

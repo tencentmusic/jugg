@@ -1,10 +1,9 @@
 package com.sickworm.intellij.jugg.compiler.manifest
 
 import com.sickworm.intellij.jugg.apk.ApkReader
-import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
+import com.sickworm.intellij.jugg.apk.manifest.BinaryXmlParser
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.overlay.ResourceOverlayCompiler
-import com.sickworm.intellij.jugg.compiler.withDependencyName
 import com.sickworm.intellij.jugg.compiler.withOldManifest
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
@@ -46,7 +45,7 @@ class AndroidManifestCompilerTest {
         val outputFile = compileResult.outputs.find { it.file.name == "AndroidManifest.xml" }!!
         assertTrue(outputFile.file.exists())
 
-        val manifest = ManifestActivityInfo.parseBinaryFromStream(outputFile.file.inputStream())
+        val manifest = BinaryXmlParser.parseBinaryFromStream(outputFile.file.inputStream())
         val packageName = manifest.packageName()
         assertEquals(context.packageName, packageName)
         val activities = manifest.activities()
@@ -90,8 +89,8 @@ class AndroidManifestCompilerTest {
         assertTrue(outputFile.file.exists())
 
 
-        val oldManifest = ApkReader(context.apkFile!!, logger).getManifest()
-        val manifest = ManifestActivityInfo.parseBinaryFromStream(outputFile.file.inputStream())
+        val oldManifest = ApkReader(context.apkFiles.first(), logger).getManifest()
+        val manifest = BinaryXmlParser.parseBinaryFromStream(outputFile.file.inputStream())
         val packageName = manifest.packageName()
         assertEquals(context.packageName, packageName)
         val activities = manifest.activities()
@@ -160,7 +159,7 @@ class AndroidManifestCompilerTest {
 
 
         val oldManifest = ApkReader(context.apkFile!!, logger).getManifest()
-        val manifest = ManifestActivityInfo.parseBinaryFromStream(outputFile.file.inputStream())
+        val manifest = BinaryXmlParser.parseBinaryFromStream(outputFile.file.inputStream())
         val packageName = manifest.packageName()
         assertEquals(context.packageName, packageName)
         val activities = manifest.activities()

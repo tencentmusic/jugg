@@ -64,7 +64,7 @@ class ResourceCompileTest {
         assertTrue(result.isAllSuccess)
         assertEquals(result.outputs.size, files.size)
         result.outputs.forEach {
-            assertEquals(it.type, CompileOutput.Type.Res)
+            assertEquals(it.type, CompileOutput.Type.Flat)
             assertTrue(it.file.exists())
             assertTrue(it.file.length() > 0)
         }

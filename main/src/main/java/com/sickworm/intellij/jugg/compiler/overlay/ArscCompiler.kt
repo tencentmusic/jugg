@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.util.zip.ZipFile
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -34,34 +35,36 @@ class ArscCompiler(
 
     override val isNeedOutputDirEmpty = true
 
-    private val aapt2Invoker = Aapt2DaemonInvoker(logger)
     private val rJavaFixer = RJavaFixer(logger)
 
-    private var hasLoaded = false
+    private val aapt2InvokerMap: ConcurrentHashMap<String, Aapt2DaemonInvoker> = ConcurrentHashMap()
 
     private val canCompile: Boolean get() {
         return context.androidJar.exists()
     }
 
-    private fun loadTable(): Boolean {
+    private fun loadTable(loadApkFile: File): Boolean {
         if (!canCompile) {
             logger.warn("loadTable failed, context can not compile now")
             return false
         }
 
-        logger.debug("aapt2 loadTable start")
+        logger.debug("aapt2 loadTable start for $loadApkFile")
         val startTime = System.currentTimeMillis()
 
         val deployedArsc = context.deployedFiles.find { it.relativeFile.path == ARSC_FILE_NAME }
         val isNeedLoadLatestResApk = deployedArsc != null
         logger.debug("isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedArsc: $deployedArsc")
 
-        var resApkFile: File = context.apkFile!!
+        var resApkFile: File = loadApkFile
         if (isNeedLoadLatestResApk) {
-            var manifestFile = context.deployedFiles.find { it.relativeFile.path == "AndroidManifest.xml" }?.file
+            var manifestFile = context.deployedFiles.find {
+                it.apkPath == resApkFile.path && it.relativeFile.path == "AndroidManifest.xml"
+            }?.file
             if (manifestFile == null) {
                 manifestFile = File(context.tempCompileDir, "AndroidManifest.xml")
-                context.apkFile!!.extractFile("AndroidManifest.xml", manifestFile)
+                manifestFile.delete()
+                resApkFile.extractFile("AndroidManifest.xml", manifestFile)
             }
 
             val latestResApkFile = File(context.tempCompileDir, "res.apk")
@@ -82,6 +85,7 @@ class ArscCompiler(
             logger.debug("generateStyleableFile failed, start aapt2 with no styleableFile")
         }
 
+        val aapt2Invoker = Aapt2DaemonInvoker(logger)
         val command = """
             |inclink
             |--load
@@ -103,29 +107,40 @@ class ArscCompiler(
         }
 
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("aapt2 loadTable end, cost ${costTime}ms")
-        hasLoaded = true
+        logger.debug("aapt2 loadTable end for $loadApkFile, cost ${costTime}ms")
+        aapt2InvokerMap[resApkFile.path] = aapt2Invoker
         return true
     }
 
     override fun doCompile(task: CompileTask): CompileResult {
+        return splitApkAndCompile(task)
+    }
+
+    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
         if (!canCompile) {
             throw JuggInternalException.contextInvalidToCompileArsc()
         }
-        if (!hasLoaded || !aapt2Invoker.isAlive()) {
-            logger.debug("aapt2 not loaded or dead, loadTable again. hasLoaded: $hasLoaded, isAlive: ${aapt2Invoker.isAlive()}")
-            loadTable()
+        var aapt2Invoker = aapt2InvokerMap[apkFile.path]
+        if (aapt2Invoker == null || !aapt2Invoker.isAlive()) {
+            logger.debug("aapt2 not loaded or dead for ${apkFile.path}, run loadTable. " +
+                    "hasLoaded: ${aapt2Invoker != null}, isAlive: ${aapt2Invoker?.isAlive()}")
+            if (!loadTable(apkFile)) {
+                return CompileResult(task, task.files.map {
+                    val error = CompileError(it, listOf(0L to "loadTable failed"))
+                    Result.failure(error)
+                }, emptyList())
+            }
+            aapt2Invoker = aapt2InvokerMap[apkFile.path]!!
         }
 
         val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }
         val androidManifestFile = task.files.find { it.type == CompileFile.Type.AndroidManifest }?.file
-        val result = incLinkCompile(flatFiles, androidManifestFile, task.outputDir)
+        val result = incLinkCompile(apkFile, aapt2Invoker, flatFiles, androidManifestFile, task.outputDir)
 
         if (result.isEmpty()) {
             // reload
             logger.debug("incLink failed, may effects later compilation. release and reinit next time call.")
             aapt2Invoker.release()
-            hasLoaded = false
 
             return CompileResult(task, task.files.map {
                 val error = CompileError(it, listOf(0L to "makeResApk failed"))
@@ -150,7 +165,7 @@ class ArscCompiler(
         return CompileResult(task, emptyList(), emptyList())
     }
 
-    private fun incLinkCompile(flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
+    private fun incLinkCompile(apkFile: File, aapt2Invoker: Aapt2DaemonInvoker, flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
         val rFileDir = File(outputDir, "rjava")
         val overlayDir = File(outputDir, "overlays")
         rFileDir.mkdirs()
@@ -178,7 +193,7 @@ class ArscCompiler(
             CompileOutput(CompileOutput.Type.Java, it, rFileDir)
         }
         val overlays = overlayDir.listFilesRecursively().map {
-            CompileOutput(CompileOutput.Type.Res, it, overlayDir)
+            CompileOutput(CompileOutput.Type.Res, it, overlayDir, apkFile.path)
         }
 
         // check whether resources has more config created. e.g. layout-v22
@@ -186,13 +201,20 @@ class ArscCompiler(
     }
 
     override fun warmUp() {
-        if (!hasLoaded) {
-            loadTable()
+        if (aapt2InvokerMap.isEmpty()) {
+            // only preload the biggest apk
+            val loadFirstApk = context.apkFiles.maxByOrNull { it.length() }
+            if (loadFirstApk != null) {
+                loadTable(loadFirstApk)
+            }
         }
     }
 
     override fun dispose() {
-        aapt2Invoker.release()
+        aapt2InvokerMap.values.toList().forEach {
+            it.release()
+        }
+        aapt2InvokerMap.clear()
     }
 
     private fun zipFiles(files: List<File>, zipFile: File) {

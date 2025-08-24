@@ -90,5 +90,7 @@ class JuggInternalException private constructor(msg: String): Exception(msg) {
         fun outputDidNotSpecificApkPath(output: String) =
             JuggInternalException("Output did not specific apk path: $output")
 
+        fun methodNotImplemented(method: String) =
+            JuggInternalException("Method not implemented: $method")
     }
 }

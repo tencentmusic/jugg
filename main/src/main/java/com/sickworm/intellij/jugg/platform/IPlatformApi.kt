@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.platform
 import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
@@ -57,4 +58,6 @@ interface IPlatformApi {
     fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean
 
     fun call(rpcRequest: RpcRequest): RpcResponse
+
+    fun readApkManifest(apkFile: File, logger: Logger): ManifestActivityInfo
 }

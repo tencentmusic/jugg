@@ -5,6 +5,7 @@ import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import java.io.File
 
 abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): ICompiler {
 
@@ -78,8 +79,29 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     }
 
     private fun splitModuleAndCompile(task: CompileTask): CompileResult {
-        val modulesWithOrder = context.modulesWithOrder
+        val (moduleCompileOrder, fileGroups) = getModuleCompileOrder(task)
+        if (moduleCompileOrder.size > 1) {
+            logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
+        }
 
+        var results = CompileResult(task, emptyList(), emptyList())
+        moduleCompileOrder.forEach { moduleInfo ->
+            val files = fileGroups[moduleInfo.moduleRootDir.absolutePath] ?: emptyList()
+            if (task.isShouldCancel) {
+                return task.toCancelResult()
+            }
+            val result = doModuleCompile(CompileTask(files, task.outputDir, task), moduleInfo)
+            results += result
+
+            if (!results.isAllSuccess) {
+                return results.quickFailedOthers(task)
+            }
+        }
+        return results
+    }
+
+    private fun getModuleCompileOrder(task: CompileTask): Pair<List<ModuleInfo>,Map<String, List<CompileFile>>> {
+        val modulesWithOrder = context.modulesWithOrder
         // split by module
         // the module info in ChangedFile maybe not the latest for compilation
         // we should only use moduleRootDir to detect
@@ -97,17 +119,40 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             throw JuggInternalException.findModuleCompileOrderFailed()
         }
 
-        if (moduleCompileOrder.size > 1) {
-            logger.debug("going to compile modules with order: ${moduleCompileOrder.map { it.name }}")
+        return moduleCompileOrder to fileGroups
+    }
+
+    abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
+
+    fun splitApkAndCompile(task: CompileTask): CompileResult {
+        if (context.apkFiles.size == 1) {
+            return doApkCompile(task, context.apkFiles.first())
+        }
+
+        val (moduleCompileOrder, fileGroups) = getModuleCompileOrder(task)
+        val apkGroups = mutableMapOf<File, MutableList<CompileFile>>()
+        val apkCompileOrder = mutableListOf<File>()
+        moduleCompileOrder.forEach {
+            val files = fileGroups[it.moduleRootDir.absolutePath] ?: emptyList()
+            val apkFile = context.moduleBelongsApkMap[it]!!
+            if (apkFile !in apkCompileOrder) {
+                apkCompileOrder.add(apkFile)
+                apkGroups[apkFile] = files.toMutableList()
+            } else {
+                apkGroups[apkFile]!!.addAll(files)
+            }
+        }
+        if (apkCompileOrder.size > 1) {
+            logger.debug("going to compile apks with order: ${apkCompileOrder.map { it.name }}")
         }
 
         var results = CompileResult(task, emptyList(), emptyList())
-        moduleCompileOrder.forEach {
-            val files = fileGroups[it.moduleRootDir.absolutePath] ?: emptyList()
+        apkCompileOrder.forEach { apkFile ->
+            val files = apkGroups[apkFile] ?: emptyList()
             if (task.isShouldCancel) {
                 return task.toCancelResult()
             }
-            val result = doModuleCompile(CompileTask(files, task.outputDir, task), it)
+            val result = doApkCompile(CompileTask(files, task.outputDir, task), apkFile)
             results += result
 
             if (!results.isAllSuccess) {
@@ -117,7 +162,9 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         return results
     }
 
-    abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
+    open fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
+        throw JuggInternalException.methodNotImplemented("doApkCompile")
+    }
 
     override fun dispose() = Unit
 

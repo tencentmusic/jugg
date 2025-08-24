@@ -141,7 +141,7 @@ class ResourceCompiler(
         val outputs = resCompileSet.compileFiles.map {
             val fileName = it.flatFileName
             val outputFile = File(resCompileSet.outputDir, fileName)
-            return@map CompileOutput(CompileOutput.Type.Res, outputFile, resCompileSet.outputDir)
+            return@map CompileOutput(CompileOutput.Type.Flat, outputFile, resCompileSet.outputDir)
         }
 
         return CompileResult(resCompileSet.originTask, details, outputs)

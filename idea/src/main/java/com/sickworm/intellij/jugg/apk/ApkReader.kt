@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.apk
 import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.aapt2.*
+import com.sickworm.intellij.jugg.apk.manifest.BinaryXmlParser
 import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import java.io.File
 import java.util.zip.ZipFile
@@ -11,8 +12,6 @@ class ApkReader(
     private val apkFile: File,
     private val logger: Logger
 ) {
-
-    private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     private var manifestCache : ManifestActivityInfo? = null
 
@@ -31,7 +30,7 @@ class ApkReader(
         ZipFile(apkFile).use { zipApkFile ->
             val androidManifestEntry = zipApkFile.getEntry("AndroidManifest.xml")
             val androidManifestInput = zipApkFile.getInputStream(androidManifestEntry)
-            val manifest = ManifestActivityInfo.parseBinaryFromStream(androidManifestInput)
+            val manifest = BinaryXmlParser.parseBinaryFromStream(androidManifestInput)
             manifestCache = manifest
             return manifest
         }
@@ -73,6 +72,7 @@ class ApkReader(
     }
 
     fun parse(): ApkResInfo? {
+        val aapt2Invoker = Aapt2DaemonInvoker(logger)
         val result = aapt2Invoker.invoke("dump resources ${apkFile.absolutePath}")
         if (!result.isSuccess) {
             logger.warn(result.errorOutput)

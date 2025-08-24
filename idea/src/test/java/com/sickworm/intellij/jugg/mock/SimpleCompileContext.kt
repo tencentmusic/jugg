@@ -21,6 +21,8 @@ data class SimpleCompileContext(
     override val deployedFiles: List<CompileOutput>,
 ) : ICompileContext {
 
+    val apkFile: File? get() = apkInfos.firstOrNull()?.files?.first()?.apkFile
+
     override val tempModule: ModuleInfo = ModuleInfo.virtualModule.copy(
         name = "temp_module",
         projectRootDir = projectDir,
@@ -35,6 +37,8 @@ data class SimpleCompileContext(
     override val isEnableDesugared: Boolean = true
 
     override val modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
+
+    override val moduleBelongsApkMap: Map<ModuleInfo, File> = (modules.values + tempModule).associateWith { apkFile!! }
 
     override val cmdCompileEnv: List<String> = emptyList()
 

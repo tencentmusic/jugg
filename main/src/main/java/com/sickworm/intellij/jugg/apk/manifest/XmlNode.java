@@ -15,9 +15,6 @@
  */
 package com.sickworm.intellij.jugg.apk.manifest;
 
-import com.google.devrel.gmscore.tools.apk.arsc.BinaryResourceValue;
-import com.google.devrel.gmscore.tools.apk.arsc.XmlAttribute;
-import com.google.devrel.gmscore.tools.apk.arsc.XmlStartElementChunk;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -39,19 +36,10 @@ public class XmlNode {
     myName = "";
   }
 
-  public XmlNode(XmlStartElementChunk chunk, String chunkName) {
-    myName = chunkName;
-    for (XmlAttribute attribute : chunk.getAttributes()) {
-      String name = attribute.name();
-      String value;
-      BinaryResourceValue typeValue = attribute.typedValue();
-      if (typeValue.type() == BinaryResourceValue.Type.INT_BOOLEAN) {
-         value = typeValue.data() == 0 ? "false" : "true";
-      } else{
-        value = attribute.rawValue();
-      }
-      myAttributes.put(name, value);
-    }
+  public XmlNode(String name, List<XmlNode> childs, Map<String, String> attributes) {
+    myName = name;
+    myChilds.addAll(childs);
+    myAttributes.putAll(attributes);
   }
 
   @NotNull

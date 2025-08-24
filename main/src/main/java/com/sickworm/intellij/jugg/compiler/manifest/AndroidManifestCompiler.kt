@@ -22,6 +22,10 @@ class AndroidManifestCompiler(
     override val supportedTypes = listOf(CompileFile.Type.AndroidManifest)
 
     override fun doCompile(task: CompileTask): CompileResult {
+        return splitApkAndCompile(task)
+    }
+
+    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
         val applicationModule = context.applicationModule
             ?: return createErrorCompileResult(task, "application module not found")
 
@@ -111,6 +115,7 @@ class AndroidManifestCompiler(
             CompileOutput.Type.Res,
             outputManifestFile,
             outputManifestFile.parentFile,
+            apkFile.path,
         )
         return CompileResult(task, task.files.map { Result.success(it) }, listOf(compileOutput))
     }

@@ -36,6 +36,10 @@ class ResourceOverlayCompiler(
     private val arscCompiler = ArscCompiler(context, this)
 
     override fun doCompile(task: CompileTask): CompileResult {
+        return splitApkAndCompile(task)
+    }
+
+    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
         val androidManifestTask = CompileTask(
             task.files.filter { it.type == CompileFile.Type.AndroidManifest },
             File(context.tempCompileDir, "merged_manifests"),
@@ -50,7 +54,7 @@ class ResourceOverlayCompiler(
         // merge AndroidManifest.xml
         var androidManifestResult = CompileResult(androidManifestTask, emptyList(), emptyList())
         if (androidManifestTask.files.isNotEmpty()) {
-            androidManifestResult = androidManifestCompiler.compile(androidManifestTask)
+            androidManifestResult = androidManifestCompiler.doApkCompile(androidManifestTask, apkFile)
             if (!androidManifestResult.isAllSuccess) {
                 val resourceDetails: List<Result<CompileFile, CompileError>> = resourceTask.files.map {
                     Result.failure(CompileError(it, listOf(-1L to "Failed to compile AndroidManifest.xml")))
@@ -94,7 +98,7 @@ class ResourceOverlayCompiler(
             task.outputDir,
             task,
         )
-        val arscResult = arscCompiler.compile(arscTask)
+        val arscResult = arscCompiler.doApkCompile(arscTask, apkFile)
         if (!arscResult.isAllSuccess) {
             return CompileResult(
                 task,

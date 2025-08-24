@@ -20,8 +20,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Stack;
+import java.util.*;
 
 public class BinaryXmlParser {
 
@@ -48,7 +47,7 @@ public class BinaryXmlParser {
     for (Chunk chunk : xmlChunk.getChunks().values()) {
       if (chunk instanceof XmlStartElementChunk) {
         XmlStartElementChunk c = (XmlStartElementChunk)chunk;
-        XmlNode child = new XmlNode(c, c.getName());
+        XmlNode child = createXmlNode(c, c.getName());
         node.childs().add(child);
         nodes.push(node);
         node = child;
@@ -62,5 +61,32 @@ public class BinaryXmlParser {
     }
     return node.childs().get(0);
   }
+
+  private static XmlNode createXmlNode(XmlStartElementChunk chunk, String chunkName) {
+    String myName = chunkName;
+    List<XmlNode> myChilds = new ArrayList<>();
+    Map<String, String> myAttributes = new HashMap<>();
+    for (XmlAttribute attribute : chunk.getAttributes()) {
+      String name = attribute.name();
+      String value;
+      BinaryResourceValue typeValue = attribute.typedValue();
+      if (typeValue.type() == BinaryResourceValue.Type.INT_BOOLEAN) {
+        value = typeValue.data() == 0 ? "false" : "true";
+      } else{
+        value = attribute.rawValue();
+      }
+      myAttributes.put(name, value);
+    }
+    return new XmlNode(myName, myChilds, myAttributes);
+  }
+
+  @NotNull
+  public static ManifestActivityInfo parseBinaryFromStream(@NotNull InputStream inputStream) throws IOException {
+    XmlNode node = BinaryXmlParser.parse(inputStream);
+    ManifestActivityInfo manifest = new ManifestActivityInfo();
+    manifest.parseNode(node);
+    return manifest;
+  }
+
 }
 

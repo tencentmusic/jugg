@@ -8,6 +8,8 @@ import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
+import com.sickworm.intellij.jugg.apk.ApkReader
+import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
@@ -163,4 +165,7 @@ class IdeaPlatformApi : IPlatformApi {
         return juggManager.call(rpcRequest)
     }
 
+    override fun readApkManifest(apkFile: File, logger: Logger): ManifestActivityInfo {
+        return ApkReader(apkFile, logger).getManifest()
+    }
 }
