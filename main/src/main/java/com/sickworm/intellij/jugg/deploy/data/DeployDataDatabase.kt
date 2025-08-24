@@ -135,22 +135,25 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val overlayInfos = database.values.flatMap { it.getResInfos(isNeedRes, isNeedAsset) }
         logger.debug("addFullRes, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
 
-        val apk = apks.first().files.first().apkFile
-        ZipFile(apk).use { zipFile ->
-            overlayInfos.forEach {
-                if (nameSet.contains(it.name)) return@forEach
-                val path = it.name
-                val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
-                val content = zipFile.getInputStream(entry).use { inputStream ->
-                    inputStream.readAllBytes()
+        val apkFiles = apks.flatMap { it.files }.map { it.apkFile }
+        apkFiles.forEach out@{ apk ->
+            ZipFile(apk).use { zipFile ->
+                overlayInfos.forEach {
+                    if (nameSet.contains(it.name)) return@forEach
+                    val path = it.name
+                    val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
+                    val content = zipFile.getInputStream(entry).use { inputStream ->
+                        inputStream.readAllBytes()
+                    }
+                    val deployItem = DeployItem(
+                        name = it.name,
+                        type = if (it.isRes) CompileOutput.Type.Res else CompileOutput.Type.Asset,
+                        checksum = it.checksum,
+                        content = content,
+                        apkPath = apk.path,
+                    )
+                    overlays.add(deployItem)
                 }
-                val deployItem = DeployItem(
-                    name = it.name,
-                    type = if (it.isRes) CompileOutput.Type.Res else CompileOutput.Type.Asset,
-                    checksum = it.checksum,
-                    content = content
-                )
-                overlays.add(deployItem)
             }
         }
         TimeLogger.end("addFullRes", logger)

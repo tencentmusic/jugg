@@ -40,8 +40,7 @@ class ArscCompiler(
     private var hasLoaded = false
 
     private val canCompile: Boolean get() {
-        val apks = context.apkInfos
-        return apks.size == 1 && (context.apkFile?.exists() == true) && context.androidJar.exists()
+        return context.androidJar.exists()
     }
 
     private fun loadTable(): Boolean {

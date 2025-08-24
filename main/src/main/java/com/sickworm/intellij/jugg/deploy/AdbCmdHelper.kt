@@ -20,13 +20,20 @@ class AdbCmdHelper(
 
     fun startDefaultApp(packageName: String, apks: List<ApkInfo>, isRestart: Boolean = true) {
         logger.debug("startDefaultApp: $packageName, apks: $apks, isRestart: $isRestart")
-        val apkFile = apks.first().files.first().apkFile
-        val launchedActivity = adb.getDefaultLaunchActivity(apkFile)
+        val apkFiles = apks.flatMap { it.files }.map { it.apkFile }
+        var launchedActivity: String? = null
+        apkFiles.find { apkFile ->
+            launchedActivity = adb.getDefaultLaunchActivity(apkFile)
+            if (launchedActivity != null) {
+                logger.debug("found default launch activity: $launchedActivity in ${apkFile.path}")
+            }
+            return@find launchedActivity != null
+        }
         if (launchedActivity == null) {
             logger.warn("No default launch activity found for $packageName, won't start App.")
             return
         }
-        startApp(packageName, launchedActivity, isRestart)
+        startApp(packageName, launchedActivity!!, isRestart)
     }
 
     fun stopApp(packageName: String) {
