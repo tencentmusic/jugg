@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.annotations.TestOnly
@@ -58,7 +59,11 @@ class DeployFileManager(
      */
     private val deployDataGenerator = DeployDataGenerator(logger.getInstance("DeployDataGenerator"), databaseDir)
 
-    private val resourceApkGenerator = ResourceApkGenerator(deployDataGenerator.deployDataDatabase, databaseDir, logger)
+    private val resourceApkGenerator = ResourceApkGenerator(
+        deployDataGenerator.deployDataDatabase,
+        databaseDir.resolve("resource_apks"),
+        logger,
+    )
 
     /**
      * get source file by source file name in dex file
@@ -220,7 +225,8 @@ class DeployFileManager(
                     it.update(ByteArray(0))
                     it.value
                 },
-                content = ByteArray(0)
+                content = ByteArray(0),
+                apkPath = DeployItem.FLAG_BASE_APK,
             )
             compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays + enableFlag)
         }
@@ -540,7 +546,20 @@ fun CompileOutput.toDeployItem(): DeployItem {
         update(bytes)
         value
     }
-    return DeployItem(deployItemName, type, crc, bytes)
+    when (type) {
+        CompileOutput.Type.Dex -> {
+            return DeployItem(deployItemName, type, crc, bytes, DeployItem.FLAG_CLASS)
+        }
+        CompileOutput.Type.Res, CompileOutput.Type.Asset, CompileOutput.Type.NativeLib -> {
+            if (apkPath == null) {
+                throw JuggInternalException.outputDidNotSpecificApkPath(this.toString())
+            }
+            return DeployItem(deployItemName, type, crc, bytes, apkPath)
+        }
+        else -> {
+            return DeployItem(deployItemName, type, crc, bytes, DeployItem.FLAG_BASE_APK) // will not apply to device
+        }
+    }
 }
 
 val CompileOutput.deployItemName: String get() {

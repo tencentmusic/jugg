@@ -13,6 +13,7 @@ import java.util.zip.ZipOutputStream
 
 
 class ResourceApkModifier(
+    private val originApkPath: String,
     private val resourceApkFile: File,
     logger: Logger,
 ) {
@@ -53,7 +54,8 @@ class ResourceApkModifier(
             BuildConfig.RESOURCE_APK_NAME,
             CompileOutput.Type.Asset,
             crc32,
-            content
+            content,
+            originApkPath,
         )
         return listOf(deployItem)
     }

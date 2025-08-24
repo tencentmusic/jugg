@@ -99,6 +99,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 CompileOutput.Type.Dex,
                 crc,
                 content,
+                DeployItem.FLAG_CLASS,
             )
         }
         return parseDex(deployItems)

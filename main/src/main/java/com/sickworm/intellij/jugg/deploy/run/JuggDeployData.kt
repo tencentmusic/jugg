@@ -10,7 +10,6 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.outerClassName
-import kotlin.math.min
 
 /**
  * Final data that going to deploy to the device.
@@ -204,6 +203,7 @@ open class DeployItem(
     val type: CompileOutput.Type,
     val checksum: Long, // crc
     val content: ByteArray,
+    val apkPath: String, // resource belongs to which apk
 ) {
 
     fun toIncompleteOverlay(apk: Apk): Pair<ApkEntry, ByteString> {
@@ -214,6 +214,11 @@ open class DeployItem(
 
     override fun toString(): String {
         return "$type:$name"
+    }
+
+    companion object {
+        const val FLAG_CLASS = "jugg_class_flag"
+        const val FLAG_BASE_APK = "jugg_all_apk_flag"
     }
 }
 

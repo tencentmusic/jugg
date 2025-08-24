@@ -38,7 +38,7 @@ class JuggException(msg: String): Exception(msg) {
 }
 
 /** Exception for plugin internal error, which should not happened */
-class JuggInternalException(msg: String): Exception(msg) {
+class JuggInternalException private constructor(msg: String): Exception(msg) {
 
     companion object {
 
@@ -83,6 +83,12 @@ class JuggInternalException(msg: String): Exception(msg) {
 
         fun unrecognizedType(type: String) =
             JuggInternalException("Unrecognized type: $type")
+
+        fun flagApkPathNotAllowed(items: String) =
+            JuggInternalException("Flag apk path not allowed for items: $items")
+
+        fun outputDidNotSpecificApkPath(output: String) =
+            JuggInternalException("Output did not specific apk path: $output")
 
     }
 }

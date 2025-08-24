@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.tools.deployer.DeployerException
 import com.android.tools.deployer.DeploymentCacheDatabase
 import com.android.tools.deployer.DexComparator.ChangedClasses
-import com.sickworm.intellij.jugg.project.JuggException
 
 class OverlayUpdateBuilder {
 
@@ -21,8 +20,15 @@ class OverlayUpdateBuilder {
         }
         val dexOverlays = ChangedClasses(newClasses, modifiedClasses)
 
+        val baseApk = cacheEntry.apks.find { it.name == "base.apk" } ?: cacheEntry.apks.first()
+        val cacheEntryMap = cacheEntry.apks.associateBy { it.path }
         val overlayFiles = data.overlays.associate {
-            it.toIncompleteOverlay(cacheEntry.apks.first())
+            val apk = if (it.apkPath == DeployItem.FLAG_CLASS || it.apkPath == DeployItem.FLAG_BASE_APK) {
+                baseApk
+            } else {
+                cacheEntryMap[it.apkPath] ?: baseApk
+            }
+            it.toIncompleteOverlay(apk)
         }
 
         return JuggOverlayUpdate(cacheEntry, dexOverlays, overlayFiles)

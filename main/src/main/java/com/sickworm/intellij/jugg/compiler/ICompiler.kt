@@ -102,6 +102,7 @@ data class CompileOutput(
     val type: Type,
     val file: File,
     val baseDir: File,
+    val apkPath: String? = null,
 ) {
 
     val relativeFile get() = file.absoluteFile.relativeTo(baseDir)

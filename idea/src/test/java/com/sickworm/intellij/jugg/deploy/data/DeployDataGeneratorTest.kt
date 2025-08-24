@@ -433,7 +433,7 @@ class DeployDataGeneratorTest {
         return ParsedDex(
             parsedApk.classes.filter { it.key == classSigName }.map {
                 ClassDeployItem(
-                    DeployItem(it.key, CompileOutput.Type.Dex, 0, byteArrayOf()),
+                    DeployItem(it.key, CompileOutput.Type.Dex, 0, byteArrayOf(), DeployItem.FLAG_CLASS),
                     listOf(it.value),
                 )
             },
@@ -507,7 +507,7 @@ class DeployDataGeneratorTest {
             return ParsedDex(
                 classDeployItems = this.classes.values.map {
                     ClassDeployItem(
-                        DeployItem(it.className, CompileOutput.Type.Dex, 0, byteArrayOf()),
+                        DeployItem(it.className, CompileOutput.Type.Dex, 0, byteArrayOf(), DeployItem.FLAG_CLASS),
                         listOf(it),
                     )
                 },

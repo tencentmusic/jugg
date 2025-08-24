@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 
 /**
@@ -16,19 +17,34 @@ import java.io.File
  */
 class ResourceApkGenerator(
     private val deployDataDatabase: IDeployDataDatabase,
-    databaseDir: File,
+    private val resourceApkDir: File,
     logger: Logger,
 ) {
     private val logger = logger.getInstance("ResourceApkGenerator")
 
-    private var resourceApkFile = File(databaseDir, BuildConfig.RESOURCE_APK_NAME)
-
     fun getResourceApkDeployItem(changedOverlays: List<DeployItem>, deployedFiles: Map<String, CompileOutput>): List<DeployItem> {
+        resourceApkDir.mkdirs()
+        val changedOverlaysMap = changedOverlays.groupBy { it.apkPath }
+        return changedOverlaysMap.flatMap { (apkPath, deployItems) ->
+            if (apkPath == DeployItem.FLAG_BASE_APK || apkPath == DeployItem.FLAG_CLASS) {
+                throw JuggInternalException.flagApkPathNotAllowed(deployItems.joinToString { it.name })
+            }
+            val resourceApkName = resourceApkDir.resolve(File(apkPath).name).resolve(BuildConfig.RESOURCE_APK_NAME)
+            getResourceApkDeployItem(apkPath, resourceApkName, deployItems, deployedFiles)
+        }
+    }
+
+    private fun getResourceApkDeployItem(
+        originApkPath: String,
+        resourceApkFile: File,
+        changedOverlays: List<DeployItem>,
+        deployedFiles: Map<String, CompileOutput>,
+    ): List<DeployItem> {
         val isApkExists = resourceApkFile.exists()
-        logger.debug("getResourceApkDeployItem, isApkExists: $isApkExists")
+        logger.debug("getResourceApkDeployItem, resourceApkFile: ${resourceApkFile}, isApkExists: $isApkExists")
         TimeLogger.start("getResourceApkDeployItem")
 
-        val resourceModifier = ResourceApkModifier(resourceApkFile, logger)
+        val resourceModifier = ResourceApkModifier(originApkPath, resourceApkFile, logger)
         if (!isApkExists) {
             val nameSet = mutableSetOf<String>()
             val deployedItems = mutableListOf<DeployItem>()
@@ -61,6 +77,6 @@ class ResourceApkGenerator(
     }
 
     fun deleteResourceApk() {
-        resourceApkFile.delete()
+        resourceApkDir.deleteRecursively()
     }
 }
