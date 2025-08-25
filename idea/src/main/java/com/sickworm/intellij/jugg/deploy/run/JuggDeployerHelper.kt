@@ -2,7 +2,9 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import android.annotation.SuppressLint
 import com.android.ddmlib.IDevice
+import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.IdeInfo
+import com.android.tools.idea.log.LogWrapper
 import com.android.tools.idea.run.ApkInfo
 import com.google.gson.Gson
 import com.intellij.openapi.application.PathManager
@@ -475,10 +477,27 @@ class JuggDeployerHelper(
                     logger.info("Try recover deploy state success on retry.")
                 }
             }
-            val nextDeployOptions = deployOptions.copy(retryReason = reason, isSkipExceptOverlayCheck = true,
+            val nextDeployOptions = deployOptions.copy(
+                retryReason = reason, isSkipExceptOverlayCheck = true,
                 timeOutRetryTimes = deployOptions.timeOutRetryTimes + if (isDeployTimeout) 1 else 0,
             )
             return deploy(nextDeployOptions)
+        }
+
+        val isNeedUninstall = reason.contains("INSTALL_FAILED_INVALID_APK")
+        if (isNeedUninstall) {
+            val applicationIds = deployData.apks.map { it.applicationId }.toSet()
+            logger.info("Got INSTALL_FAILED_INVALID_APK error, try uninstall apks. applicationIds: $applicationIds")
+            val adbClient = AdbClient(deployOptions.device, LogWrapper(logger).also {
+                it.alwaysLogAsDebug(true)
+                it.allowVerbose(true)
+            })
+            applicationIds.forEach {
+                logger.debug("Uninstalling $it...")
+                adbClient.uninstall(it)
+                logger.debug("Uninstalling $it finished.")
+            }
+            return deploy(deployOptions)
         }
 
         return null
