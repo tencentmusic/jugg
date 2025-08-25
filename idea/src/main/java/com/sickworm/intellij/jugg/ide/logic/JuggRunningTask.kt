@@ -81,7 +81,7 @@ class JuggRunningTask(
             if (compileUiHandler.isForceGradleCompile) {
                 notifyFallback(project, "force fallback")
             }
-            val runResult = doRun(options, compileUiHandler.isForceGradleCompile)
+            val runResult = doRun(options)
             isNeedResetHasRun = runResult.isNeedResetHasRun
             // for gradle compilation, compile success is ok to stage compile result
             // for incremental compilation, we need to deploy success to stage compile result
@@ -136,9 +136,9 @@ class JuggRunningTask(
         indicator.isIndeterminate = true
     }
 
-    private fun doRun(options: JuggGradleCompileOptions, isForceGradleCompile: Boolean): RunResult {
+    private fun doRun(options: JuggGradleCompileOptions): RunResult {
         val detailMap = mutableMapOf<String, String>()
-        detailMap["isForceGradleCompile"] = isForceGradleCompile.toString()
+        detailMap["isForceGradleCompile"] = compileUiHandler.isForceGradleCompile.toString()
 
         val compileTaskResult = juggCompileHelper.compile(options, compileUiHandler)
         detailMap["isGradleCompile"] = compileTaskResult.isGradleCompile.toString()
@@ -229,7 +229,8 @@ class JuggRunningTask(
                     deployTaskResultList.joinToString(", ") { it.failedReason ?: "See log for details." }
                 }
                 notifyFallback(project, failedReason)
-                return doRun(options, true)
+                compileUiHandler.isForceGradleCompile = true
+                return doRun(options)
             }
         }
 

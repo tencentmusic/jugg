@@ -16,7 +16,7 @@ import java.io.File
  * Handle user interaction events
  */
 interface CompileUiHandler {
-    val isForceGradleCompile: Boolean
+    var isForceGradleCompile: Boolean
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected
@@ -37,7 +37,7 @@ interface CompileUiHandler {
 
     companion object {
         val DEFAULT = object : CompileUiHandler {
-            override val isForceGradleCompile: Boolean = false
+            override var isForceGradleCompile: Boolean = false
             override val isCanceled: Boolean = false
             override var processHandler: IProcessHandler = IProcessHandler.DEFAULT
             override var progressIndicator: ProgressIndicator = DumbProgressIndicator()
