@@ -1,3 +1,11 @@
+- version: 2.4.0-rc2
+  date: 2025.08.25
+  inNeedReinstall: true
+  updates:
+    - supports RPC invocation
+    - limit logger size to 100MB
+    - fix styleable compile failed when having dynamic feature modules
+
 - version: 2.4.0-rc1
   date: 2025.08.19
   inNeedReinstall: true
