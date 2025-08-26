@@ -17,12 +17,14 @@ object RpcResult {
     const val ErrorInvalidProjectDir = "ErrorInvalidProjectDir"
 }
 
+// do not modify, it can not hot update
 open class RpcRequest(
     val cmd: String,
     val projectDir: String? = null,
     val args: Map<String, Any>? = null,
 )
 
+// do not modify, it can not hot update
 open class RpcResponse(
     val status: String,
     val result: Any?,

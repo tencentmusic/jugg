@@ -1,6 +1,12 @@
+- version: 2.4.0-rc3
+  date: 2025.08.26
+  isNeedReinstall: true
+  updates:
+    - fix create log file everytime when incremental compilation
+    - fix plugin hot update failed
+
 - version: 2.4.0-rc2
   date: 2025.08.25
-  inNeedReinstall: true
   updates:
     - supports RPC invocation
     - limit logger size to 100MB
@@ -8,7 +14,7 @@
 
 - version: 2.4.0-rc1
   date: 2025.08.19
-  inNeedReinstall: true
+  isNeedReinstall: true
   updates:
     - supports RPC invocation
 

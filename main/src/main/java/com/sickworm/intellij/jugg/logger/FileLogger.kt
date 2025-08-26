@@ -25,8 +25,7 @@ class FileLogger(
             resetLatestCompileLog()
             return
         }
-        // assume that the log file is single
-        val logFile = File(dir, patternName)
+        val logFile = File(dir, patternName.replace("%g", "0"))
         if (!logFile.exists()) {
             resetLatestCompileLog()
         }
