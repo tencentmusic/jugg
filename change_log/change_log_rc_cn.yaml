@@ -1,3 +1,8 @@
+- version: 2.4.0-rc4
+  date: 2025.08.27
+  updates:
+    - 修复 Android Studio Narwhal Feature Drop 无法自动创建运行配置
+
 - version: 2.4.0-rc3
   date: 2025.08.26
   isNeedReinstall: true
