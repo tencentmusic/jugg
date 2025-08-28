@@ -156,10 +156,12 @@ class JuggManager @TestOnly constructor(
         if (isUpdated) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
-            warmUpCompile()
-            launch {
-                // do it async to let warmUpCompile run
-                dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
+            if (!isCompiling) {
+                warmUpCompile()
+                launch {
+                    // do it async to let warmUpCompile run
+                    dependencyChangeManager.tryShowChangeConfirmDialog(isRunCompileLater = true)
+                }
             }
         }
 
@@ -350,6 +352,7 @@ class JuggManager @TestOnly constructor(
 
     @Volatile
     private var currentTask: JuggRunningTask? = null
+    private val isCompiling: Boolean get() = currentTask?.isRunning == true
 
     private fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit) {
         val currentTask = currentTask
