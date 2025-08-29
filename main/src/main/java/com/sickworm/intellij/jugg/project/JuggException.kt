@@ -34,6 +34,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun rSyncNotSupportsWindows() =
             JuggException("rSync not supports Windows, please use Linux or Mac.")
+
+        fun databaseNotFound(apkFile: File, databaseName: String) =
+            JuggException("Can not found database $databaseName for apk: ${apkFile.path}. Is file deleted in build/jugg/database/apk?")
     }
 }
 

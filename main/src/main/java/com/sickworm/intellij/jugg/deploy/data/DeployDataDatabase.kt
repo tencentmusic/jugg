@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.io.File
 import java.util.zip.ZipFile
@@ -69,7 +70,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         apks.forEach { apk ->
             apk.files.forEach { apkFileUnit ->
                 val helper = createDbHelper(apkFileUnit.apkFile, updateResults)
-                database[helper.dbFile.path] = helper
+                database[helper.dbFile.name] = helper
             }
         }
         incDeployedDatabase.init(deployedItems)
@@ -147,19 +148,26 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     override fun addFullRes(changedOverlays: List<DeployItem>, isNeedRes: Boolean, isNeedAsset: Boolean): List<DeployItem> {
         TimeLogger.start("addFullRes")
 
-        val nameSet = changedOverlays.map { it.name }.toSet()
         val overlays = mutableListOf<DeployItem>()
         overlays.addAll(changedOverlays)
-        val overlayInfos = database.values.flatMap { it.getResInfos(isNeedRes, isNeedAsset) }
-        logger.debug("addFullRes, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
 
+        // Deploy all Apks' overlay resources, just like Apply Changes.
         val apkFiles = apks.flatMap { it.files }.map { it.apkFile }
-        apkFiles.forEach out@{ apk ->
-            ZipFile(apk).use { zipFile ->
+        apkFiles.forEach out@{ apkFile ->
+            ZipFile(apkFile).use { zipFile ->
+                val databaseName = DeployDataDatabaseSqLiteHelper.getApkFileDbName(apkFile)
+                val overlayInfos = database[databaseName]?.getResInfos(isNeedRes, isNeedAsset)
+                    ?: throw JuggException.databaseNotFound(apkFile, databaseName)
+                logger.debug("addFullRes, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, " +
+                        "isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
+                val nameSet = changedOverlays
+                    .filter { it.apkPath == apkFile.path }
+                    .map { it.name }
+                    .toSet()
                 overlayInfos.forEach {
                     if (nameSet.contains(it.name)) return@forEach
                     val path = it.name
-                    val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apk, path)
+                    val entry = zipFile.getEntry(path) ?: throw JuggInternalException.apkEntryNotFound(apkFile, path)
                     val content = zipFile.getInputStream(entry).use { inputStream ->
                         inputStream.readAllBytes()
                     }
@@ -168,7 +176,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
                         type = if (it.isRes) CompileOutput.Type.Res else CompileOutput.Type.Asset,
                         checksum = it.checksum,
                         content = content,
-                        apkPath = apk.path,
+                        apkPath = apkFile.path,
                     )
                     overlays.add(deployItem)
                 }

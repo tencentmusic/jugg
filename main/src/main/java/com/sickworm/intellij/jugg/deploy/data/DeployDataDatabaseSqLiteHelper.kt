@@ -27,6 +27,9 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         private const val ENTRY_TYPE_RES = 2
         private const val ENTRY_TYPE_ASSETS = 3
 
+        /**
+         * Generate db name by APK absolute path.
+         */
         fun getApkFileDbName(apkFile: File): String {
             return "${apkFile.name}.${apkFile.path.md5().substring(0, 8)}.db"
         }
