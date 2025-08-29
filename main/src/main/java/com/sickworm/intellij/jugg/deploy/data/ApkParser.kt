@@ -22,36 +22,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
     )
 ) {
 
-    fun parse(apkInfo: ApkInfo, includeEntries: ApkEntries? = null): ParsedApk {
-        val parsedApks = apkInfo.files.map {
-            val apkFile = it.apkFile
-            parse(apkInfo, apkFile, includeEntries)
-        }
-        if (parsedApks.isEmpty()) {
-            return ParsedApk(apkInfo, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
-        }
-        if (parsedApks.size == 1) {
-            return parsedApks[0]
-        }
-        val dexFiles = mutableMapOf<String, JuggFileInfo>()
-        val overlayFiles = mutableMapOf<String, JuggFileInfo>()
-        val classes = mutableMapOf<String, ClassNode>()
-        val methodRefs = mutableMapOf<MethodNode, List<String>>()
-        val fieldRefs = mutableMapOf<FieldNode, List<String>>()
-        val subclassRefs = mutableMapOf<String, List<String>>()
-        parsedApks.forEach {
-            classes.putAll(it.classes)
-            dexFiles.putAll(it.dexFiles)
-            overlayFiles.putAll(it.overlayFiles)
-            methodRefs.putAll(it.methodRefs)
-            fieldRefs.putAll(it.fieldRefs)
-            subclassRefs.putAll(it.subclassRefs)
-        }
-        return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
-
-    }
-
-    private fun parse(apkInfo: ApkInfo, apkFile: File, includeEntries: ApkEntries?): ParsedApk {
+    fun parse(apkFile: File, includeEntries: ApkEntries? = null): ParsedApk {
         val classes = ConcurrentHashMap<String, ClassNode>()
         val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
         val fieldRefs = ConcurrentHashMap<FieldNode, MutableList<String>>()
@@ -59,8 +30,8 @@ class ApkParser: CoroutineScope by CoroutineScope(
         val defaultMethodInvokeRefs = ConcurrentHashMap<String, MutableList<String>>()
         parseDex(apkFile, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs, includeEntries)
 
-        val apkOverlays = includeEntries ?: parseEntries(apkInfo)
-        return ParsedApk(apkInfo, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs)
+        val apkOverlays = includeEntries ?: parseEntries(apkFile)
+        return ParsedApk(apkFile, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs)
     }
 
     fun parseDex(deployItems: List<DeployItem>): ParsedDex {
@@ -160,13 +131,11 @@ class ApkParser: CoroutineScope by CoroutineScope(
         reader.accept(visitor, flag)
     }
 
-    fun parseEntries(apkInfo: ApkInfo): ApkEntries {
+    fun parseEntries(apkFile: File): ApkEntries {
         val dexFiles = mutableMapOf<String, JuggFileInfo>()
         val overlayFiles = mutableMapOf<String, JuggFileInfo>()
-        apkInfo.files.forEach {
-            parseEntries(it.apkFile, dexFiles, overlayFiles)
-        }
-        return ApkEntries(apkInfo, dexFiles, overlayFiles)
+        parseEntries(apkFile, dexFiles, overlayFiles)
+        return ApkEntries(apkFile, dexFiles, overlayFiles)
     }
 
     private fun parseEntries(apkFile: File,
@@ -199,7 +168,7 @@ val String.isResEntry get() = this.startsWith("res/") || this == "resources.arsc
 val String.isAssetEntry get() = this.startsWith("assets/") // use '/' for it's the path in zip
 
 data class ApkEntries(
-    val apkInfo: ApkInfo,
+    val apkFile: File,
     val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
 )

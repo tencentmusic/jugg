@@ -32,7 +32,7 @@ class DeployDataGeneratorTest {
     @Before
     fun assemble() {
         clearBuild()
-        parsedApk = ApkParser().parse(projectInfo.apkInfo)
+        parsedApk = ApkParser().parse(projectInfo.apkFile)
         generator = DeployDataGenerator(logger, buildDir)
         generator.init(projectInfo.apkInfos, emptyList())
     }

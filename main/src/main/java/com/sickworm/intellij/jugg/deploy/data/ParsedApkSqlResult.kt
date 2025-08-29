@@ -1,11 +1,10 @@
 package com.sickworm.intellij.jugg.deploy.data
 
-import com.android.tools.idea.run.ApkInfo
-import com.sickworm.intellij.jugg.compiler.apkInfoKey
+import java.io.File
 
 
 data class ParsedApkDiffResult(
-    val apkInfo: ApkInfo,
+    val apkFile: File,
 
     val updatedApkInfos: Int = 0,
 
@@ -21,7 +20,7 @@ data class ParsedApkDiffResult(
 ) {
 
     constructor(apkEntries: ApkEntries) : this(
-        apkInfo = apkEntries.apkInfo,
+        apkFile = apkEntries.apkFile,
         updatedApkInfos = 1,
         addedOverlayFiles = apkEntries.overlayFiles,
         removedOverlayFiles = emptyMap(),
@@ -33,7 +32,7 @@ data class ParsedApkDiffResult(
     )
 
     override fun toString(): String {
-        return "ParsedApkDiffResult(apkInfo=${apkInfo.apkInfoKey}, updatedApkInfos=$updatedApkInfos, " +
+        return "ParsedApkDiffResult(apkFile=$apkFile, updatedApkInfos=$updatedApkInfos, " +
                 "addedOverlayFiles=${addedOverlayFiles.size}, removedOverlayFiles=${removedOverlayFiles.size}, " +
                 "updatedOverlayFiles=${updatedOverlayFiles.size}, addedDexFiles=${addedDexFiles.size}, " +
                 "removedDexFiles=${removedDexFiles.size}, updatedDexFiles=${updatedDexFiles.size}" +
@@ -42,7 +41,7 @@ data class ParsedApkDiffResult(
 
     val includeEntries: ApkEntries get() {
         return ApkEntries(
-            apkInfo,
+            apkFile,
             (addedDexFiles + updatedDexFiles),
             (addedOverlayFiles + updatedOverlayFiles)
         )

@@ -1,16 +1,16 @@
 package com.sickworm.intellij.jugg.deploy.data
 
-import com.android.tools.idea.run.ApkInfo
 import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.compiler.FieldNode
 import com.sickworm.intellij.jugg.compiler.MethodNode
+import java.io.File
 
 /**
  * Apk parsed result.
  * Notice: class name in here is in the form of "Lcom/example/MainActivity;".
  */
 class ParsedApk(
-    val apkInfo: ApkInfo,
+    val apkFile: File,
     val classes: Map<String, ClassNode>,
     val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
@@ -19,7 +19,7 @@ class ParsedApk(
     val subclassRefs: Map<String, List<String>>,
 ) {
     override fun toString(): String {
-        return "ParsedApk(apkInfo=${apkInfo.applicationId}, " +
+        return "ParsedApk(apkFile=${apkFile}, " +
                 "classes=${classes.size}, " +
                 "dexFiles=${dexFiles.size}, " +
                 "overlayFiles=${overlayFiles.size}, " +

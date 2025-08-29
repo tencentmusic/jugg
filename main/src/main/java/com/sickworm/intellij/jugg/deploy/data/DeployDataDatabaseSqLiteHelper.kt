@@ -2,12 +2,12 @@
 
 package com.sickworm.intellij.jugg.deploy.data
 
-import com.android.tools.idea.run.ApkInfo
 import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import java.io.File
+import java.security.MessageDigest
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
@@ -15,7 +15,7 @@ import java.sql.Statement
 import kotlin.math.max
 
 
-class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logger: Logger) {
+class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
@@ -26,6 +26,18 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
         private const val ENTRY_TYPE_DEX = 1
         private const val ENTRY_TYPE_RES = 2
         private const val ENTRY_TYPE_ASSETS = 3
+
+        fun getApkFileDbName(apkFile: File): String {
+            return "${apkFile.name}.${apkFile.path.md5().substring(0, 8)}.db"
+        }
+
+        private val File.apkFileKey get() = getApkFileDbName(this) + "_" + this.lastModified()
+
+        private fun String.md5(): String {
+            val md = MessageDigest.getInstance("MD5")
+            md.update(this.toByteArray(Charsets.UTF_8))
+            return md.digest().joinToString("") { "%02x".format(it) }
+        }
     }
 
     @Synchronized
@@ -171,7 +183,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
 
             val sql = "INSERT INTO apk_info(key, next_class_id, is_enable_desugar) VALUES(?, ?, ?);"
             connection.prepareStatement(sql).use { preparedStatement ->
-                preparedStatement.setString(1, parsedApk.apkInfo.apkInfoKey)
+                preparedStatement.setString(1, parsedApk.apkFile.apkFileKey)
                 preparedStatement.setInt(2, nextClassId)
                 preparedStatement.setBoolean(3, newIsEnableDesugar)
                 preparedStatement.executeUpdate()
@@ -431,8 +443,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            if (apkInfoKeys.contains(apkEntries.apkInfo.apkInfoKey)) {
-                return ParsedApkDiffResult(apkEntries.apkInfo, updatedApkInfos = 0)
+            if (apkInfoKeys.contains(apkEntries.apkFile.apkFileKey)) {
+                return ParsedApkDiffResult(apkEntries.apkFile, updatedApkInfos = 0)
             }
 
             val selectEntrySQL = "SELECT name, checksum, type FROM entry_info;"
@@ -485,7 +497,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
 
             return ParsedApkDiffResult(
-                apkEntries.apkInfo,
+                apkEntries.apkFile,
                 updatedApkInfos = 1,
                 addedOverlayFiles = addedOverlayFiles,
                 removedOverlayFiles = removedOverlayFiles,
@@ -499,8 +511,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
     }
 
     @Synchronized
-    fun getParsedApk(apkInfo: ApkInfo): ParsedApk? {
-        logger.debug("getParsedApk ${apkInfo.apkInfoKey}")
+    fun getParsedApk(apkFile: File): ParsedApk? {
+        logger.debug("getParsedApk $apkFile")
 
         val apkInfoKeys = getApkInfoKeys()
         if (apkInfoKeys.size != 1) {
@@ -508,8 +520,8 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             return null
         }
         val apkInfoKey = apkInfoKeys[0]
-        if (apkInfoKey != apkInfo.apkInfoKey) {
-            logger.warn("Apk info key is not match. expect: ${apkInfo.apkInfoKey}, actual: $apkInfoKey")
+        if (apkFile.apkFileKey != apkInfoKey) {
+            logger.warn("Apk info key is not match. expect: ${apkFile.apkFileKey}, actual: $apkInfoKey")
             return null
         }
 
@@ -598,7 +610,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 }
             }
 
-            return ParsedApk(apkInfo, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
+            return ParsedApk(apkFile, classes, dexFiles, overlayFiles, methodRefs, fieldRefs, subclassRefs)
         }
     }
 

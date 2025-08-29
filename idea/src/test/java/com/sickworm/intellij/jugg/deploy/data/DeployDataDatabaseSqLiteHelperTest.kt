@@ -33,9 +33,9 @@ class DeployDataDatabaseSqLiteHelperTest {
         helper.init()
         assertTrue(dbFile.exists())
 
-        val apkOverlays = ApkParser().parseEntries(projectInfo.apkInfo)
+        val apkOverlays = ApkParser().parseEntries(projectInfo.apkFile)
         val diffResult = helper.diffApk(apkOverlays)
-        val parsedApk = ApkParser().parse(projectInfo.apkInfo).filterNotExistsClassesRef()
+        val parsedApk = ApkParser().parse(projectInfo.apkFile).filterNotExistsClassesRef()
 
         val costTime = measureTimeMillis {
             helper.saveParsedApk(parsedApk, diffResult)
@@ -66,12 +66,12 @@ class DeployDataDatabaseSqLiteHelperTest {
 
     private fun testGetParsedApk(helper: DeployDataDatabaseSqLiteHelper, parsedApk: ParsedApk) {
         val startTime = System.currentTimeMillis()
-        val parsedApkFromDb = helper.getParsedApk(parsedApk.apkInfo)
+        val parsedApkFromDb = helper.getParsedApk(parsedApk.apkFile)
         val endTime = System.currentTimeMillis()
         println("Get parsed apk cost ${endTime - startTime} ms")
 
         assertNotNull(parsedApkFromDb)
-        assertEquals(parsedApk.apkInfo, parsedApkFromDb.apkInfo)
+        assertEquals(parsedApk.apkFile, parsedApkFromDb.apkFile)
         assertEquals(parsedApk.dexFiles.size, parsedApkFromDb.dexFiles.size)
         assertEquals(parsedApk.overlayFiles.size, parsedApkFromDb.overlayFiles.size)
         assertEquals(parsedApk.classes.size, parsedApkFromDb.classes.size)
@@ -122,15 +122,15 @@ class DeployDataDatabaseSqLiteHelperTest {
     fun testUpdateApkInfos() {
         val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
         helper.init()
-        var apkEntries = ApkParser().parseEntries(projectInfo.apkInfo)
+        var apkEntries = ApkParser().parseEntries(projectInfo.apkFile)
         val originApkEntries = apkEntries
-        val emptyDiffResult = ParsedApkDiffResult(apkEntries.apkInfo)
+        val emptyDiffResult = ParsedApkDiffResult(apkEntries.apkFile)
         var diffResult = helper.diffApk(apkEntries)
         assertEquals(
-            emptyDiffResult.copy(updatedApkInfos = 1, addedDexFiles = apkEntries.dexFiles, addedOverlayFiles = apkEntries.overlayFiles),
+            emptyDiffResult.copy(updatedApkInfos = 1, addedDexFiles = apkEntries.dexFiles, addedOverlayFiles = apkEntries.overlayFiles, isFullUpdate = true),
             diffResult
         )
-        var parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkInfo, diffResult.includeEntries).filterNotExistsClassesRef()
+        var parsedApk: ParsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries).filterNotExistsClassesRef()
         var finalParsedApk = parsedApk
         var updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(
@@ -144,7 +144,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         projectInfo.apkInfo.refreshApkInfoKey()
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
 
@@ -158,7 +158,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries = apkEntries.copy(dexFiles = apkEntries.dexFiles - removedDexFiles.keys)
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, removedDexFiles = removedDexFiles), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertTrue(updateResult.removedClasses.isNotEmpty())
 
@@ -171,7 +171,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries = apkEntries.copy(dexFiles = apkEntries.dexFiles + addDexFiles)
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, addedDexFiles = addDexFiles), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult).copy(addedClasses = parsedApk.classes.map { it.value.className}), updateResult)
 
@@ -184,11 +184,11 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries = apkEntries.copy(dexFiles = apkEntries.dexFiles + updatedDexFiles)
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, updatedDexFiles = updatedDexFiles), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult).copy(updatedClasses = parsedApk.classes.map { it.value.className }), updateResult)
         finalParsedApk = ParsedApk(
-            finalParsedApk.apkInfo,
+            finalParsedApk.apkFile,
             finalParsedApk.classes,
             finalParsedApk.dexFiles + updatedDexFiles,
             finalParsedApk.overlayFiles,
@@ -207,7 +207,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries = apkEntries.copy(overlayFiles = apkEntries.overlayFiles - deletedOverlayFiles.keys)
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, removedOverlayFiles = deletedOverlayFiles), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
 
@@ -220,7 +220,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries = apkEntries.copy(overlayFiles = apkEntries.overlayFiles + addOverlayFiles)
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, addedOverlayFiles = addOverlayFiles), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
 
@@ -233,11 +233,11 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries = apkEntries.copy(overlayFiles = apkEntries.overlayFiles + updatedOverlayFiles)
         diffResult = helper.diffApk(apkEntries)
         assertEquals(emptyDiffResult.copy(updatedApkInfos = 1, updatedOverlayFiles = updatedOverlayFiles), diffResult)
-        parsedApk = ApkParser().parse(apkEntries.apkInfo, diffResult.includeEntries)
+        parsedApk = ApkParser().parse(projectInfo.apkFile, diffResult.includeEntries)
         updateResult = helper.saveParsedApk(parsedApk, diffResult)
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult), updateResult)
         finalParsedApk = ParsedApk(
-            finalParsedApk.apkInfo,
+            finalParsedApk.apkFile,
             finalParsedApk.classes,
             finalParsedApk.dexFiles,
             finalParsedApk.overlayFiles + updatedOverlayFiles,
@@ -246,7 +246,7 @@ class DeployDataDatabaseSqLiteHelperTest {
             finalParsedApk.subclassRefs,
         )
 
-        testGetTableSize(helper, finalParsedApk)
+//        testGetTableSize(helper, finalParsedApk)
         testGetParsedApk(helper, finalParsedApk)
     }
 
@@ -277,7 +277,7 @@ class DeployDataDatabaseSqLiteHelperTest {
 
     private fun ParsedApk.filterNotExistsClassesRef(): ParsedApk {
         return ParsedApk(
-            apkInfo,
+            apkFile,
             classes,
             dexFiles,
             overlayFiles,

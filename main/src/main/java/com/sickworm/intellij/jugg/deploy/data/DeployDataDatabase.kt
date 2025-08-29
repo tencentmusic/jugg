@@ -66,48 +66,66 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val startTime = System.currentTimeMillis()
         database.clear()
         val updateResults = mutableListOf<ParsedApkUpdateResult>()
-        apks.forEach {
-            val dbFile = File(dbDir, it.applicationId + ".db")
-            val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger.getInstance("DeployDataDatabaseSqLiteHelper"))
-            helper.init()
-            val apkEntries = ApkParser().parseEntries(it)
-            logger.debug("${it.applicationId} apkEntries, dexFiles: ${apkEntries.dexFiles.size}, overlayFiles: ${apkEntries.overlayFiles.size}")
-            var diffResult = helper.diffApk(apkEntries)
-            var includeEntries = diffResult.includeEntries
-            val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
-            logger.debug("${it.applicationId} diffResult $diffResult")
-            if (allChangedDexFileSize > 3 || allChangedDexFileSize >= apkEntries.dexFiles.size * 0.2) {
-                // If removed dex files is more than 20%, it's better to full update the apk for better database update performance.
-                logger.info("${it.applicationId} database dex files changed too much (${allChangedDexFileSize}/${apkEntries.dexFiles.size}), re-parse the apk.")
-                includeEntries = apkEntries
-                diffResult = ParsedApkDiffResult(apkEntries)
-                helper.recreateDatabase()
-            } else {
-                logger.debug("${it.applicationId} database dex files changed $allChangedDexFileSize, incremental update database.")
+        apks.forEach { apk ->
+            apk.files.forEach { apkFileUnit ->
+                val helper = createDbHelper(apkFileUnit.apkFile, updateResults)
+                database[helper.dbFile.path] = helper
             }
-
-            val parseStartTime = System.currentTimeMillis()
-            logger.debug("${it.applicationId} parse apk start.")
-            val diffParsedApk = ApkParser().parse(it, includeEntries)
-            logger.debug("${it.applicationId} parse apk finish, cost ${System.currentTimeMillis() - parseStartTime}ms.")
-            logger.debug("diffParsedApk: $diffParsedApk")
-
-            val updateResult = helper.saveParsedApk(diffParsedApk, diffResult)
-            updateResults.add(updateResult)
-            if (updateResult.isSuccess) {
-                logger.debug("${it.applicationId} database init finish: $updateResult")
-            } else {
-                logger.warn("${it.applicationId} database init failed: $updateResult")
-            }
-
-            database[it.applicationId] = helper
         }
         incDeployedDatabase.init(deployedItems)
+
+        // clear deprecated databases
+        val newDbFiles = database.values.map { it.dbFile.path }
+        val existsDbFiles = dbDir.listFiles()?.filter { it.name.endsWith(".db") }?.toList() ?: emptyList()
+        existsDbFiles.forEach { dbFile ->
+            if (dbFile.path !in newDbFiles) {
+                val isSuccess = dbFile.delete()
+                logger.debug("delete deprecated database $dbFile, isSuccess: $isSuccess")
+            }
+        }
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("database all init finish, cost ${costTime}ms.")
 
         return updateResults
+    }
+
+    private fun createDbHelper(apkFile: File, updateResults: MutableList<ParsedApkUpdateResult>): DeployDataDatabaseSqLiteHelper {
+        val dbName = DeployDataDatabaseSqLiteHelper.getApkFileDbName(apkFile)
+        val dbFile = File(dbDir, dbName)
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger.getInstance("DeployDataDatabaseSqLiteHelper"))
+        helper.init()
+        val apkEntries = ApkParser().parseEntries(apkFile)
+        logger.debug("$dbName apkEntries, dexFiles: ${apkEntries.dexFiles.size}, overlayFiles: ${apkEntries.overlayFiles.size}")
+        var diffResult = helper.diffApk(apkEntries)
+        var includeEntries = diffResult.includeEntries
+        val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
+        logger.debug("$dbName diffResult $diffResult")
+        if (allChangedDexFileSize > 3 || allChangedDexFileSize >= apkEntries.dexFiles.size * 0.2) {
+            // If removed dex files is more than 20%, it's better to full update the apk for better database update performance.
+            logger.info("$dbName database dex files changed too much (${allChangedDexFileSize}/${apkEntries.dexFiles.size}), re-parse the apk.")
+            includeEntries = apkEntries
+            diffResult = ParsedApkDiffResult(apkEntries)
+            helper.recreateDatabase()
+        } else {
+            logger.debug("$dbName database dex files changed $allChangedDexFileSize, incremental update database.")
+        }
+
+        val parseStartTime = System.currentTimeMillis()
+        logger.debug("$dbName parse apk start.")
+        val diffParsedApk = ApkParser().parse(apkFile, includeEntries)
+        logger.debug("$dbName parse apk finish, cost ${System.currentTimeMillis() - parseStartTime}ms.")
+        logger.debug("diffParsedApk: $diffParsedApk")
+
+        val updateResult = helper.saveParsedApk(diffParsedApk, diffResult)
+        updateResults.add(updateResult)
+        if (updateResult.isSuccess) {
+            logger.debug("$dbName database init finish: $updateResult")
+        } else {
+            logger.warn("$dbName database init failed: $updateResult")
+        }
+
+        return helper
     }
 
     override fun clearDeployedData() {
