@@ -18,7 +18,7 @@ import java.util.zip.ZipFile
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApkParser: CoroutineScope by CoroutineScope(
     Dispatchers.IO.limitedParallelism(
-        Runtime.getRuntime().availableProcessors() / 2
+        (Runtime.getRuntime().availableProcessors() / 3).coerceAtLeast(2)
     )
 ) {
 
