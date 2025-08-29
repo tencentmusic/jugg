@@ -73,7 +73,9 @@ fun copyResource(resourcePath: String): File {
     // location in AS: ~/Library/Caches/Google/AndroidStudio2024.1/jugg
     val storePath = File(storeRootDir, resourcePath)
     val isTestEnv = storeRootDir.path.contains("build") && storeRootDir.path.contains("idea-sandbox")
-    val isAlwaysUpdate = isTestEnv && !isWindows // Windows not allowed to delete it when it's running
+    // isAlwaysUpdate will cause aapt2 daemon failed to start on My new MacBook :(
+//    val isAlwaysUpdate = isTestEnv && !isWindows // Windows not allowed to delete it when it's running
+    val isAlwaysUpdate = false
     if (storePath.exists() && !isAlwaysUpdate) {
         return storePath
     }
