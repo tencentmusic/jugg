@@ -39,10 +39,6 @@ class ApkReader(
         return DefaultApkActivityLocator(logger).computeDefaultActivityFromApks(getManifest())
     }
 
-    fun getApkInfo(): ApkInfo {
-        return ApkInfo(apkFile, getPackageName())
-    }
-
     fun parse(): ApkResInfo? {
         val aapt2Invoker = Aapt2DaemonInvoker(logger)
         val result = aapt2Invoker.invoke("dump resources ${apkFile.absolutePath}")

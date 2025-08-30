@@ -10,8 +10,8 @@ class ApkInfo(
     constructor(
         file: File,
         applicationId: String,
-    ) : this(listOf(ApkFileUnit("", file)), applicationId)
+    ) : this(listOf(ApkFileUnit(applicationId, "", file)), applicationId)
 }
 
-class ApkFileUnit(val moduleName: String, val apkFile: File)
+class ApkFileUnit(val applicationId: String, val moduleName: String, val apkFile: File)
 

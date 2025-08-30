@@ -134,7 +134,7 @@ class JuggDeployer(
         if (arch == Deploy.Arch.ARCH_UNKNOWN) {
             // if arch is unknown, installer will use 32-bit agent, which may apply failed.
             try {
-                val archInApks = ApkInfoReader(newFiles) { logger.info(it) }.getArch()
+                val archInApks = ApkInfoReader(logger.logger).getArch(newFiles)
                 arch = Deploy.Arch.valueOf(archInApks)
                 logger.info("set arch from unknown to $arch")
             } catch (e: IllegalArgumentException) {

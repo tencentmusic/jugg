@@ -27,7 +27,7 @@ class ApkInfoSerializer {
     ) {
 
         fun toApkInfo(): ApkInfo {
-            return ApkInfo(files.map { ApkFileUnit(it.moduleName, File(it.apkFilePath)) }, applicationId)
+            return ApkInfo(files.map { ApkFileUnit(applicationId, it.moduleName, File(it.apkFilePath)) }, applicationId)
         }
 
         companion object {

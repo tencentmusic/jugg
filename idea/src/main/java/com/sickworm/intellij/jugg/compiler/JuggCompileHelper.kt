@@ -5,6 +5,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.apk.ApkReader
 import com.sickworm.intellij.jugg.compiler.source.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.compiler.ui.BuildChangesConfirmResult
@@ -172,10 +173,7 @@ class JuggCompilerHelper(
         val task = JuggGradleCompileTask(project, client, options, uiHandler, isOnlyFetchResult)
         val result = task.run()
         if (result.isSuccess) {
-            val apkInfos = result.compileOutputFile.map { apkFile ->
-                val apkReader = ApkReader(apkFile, logger)
-                apkReader.getApkInfo()
-            }
+            val apkInfos = ApkInfoReader(logger).createApkInfo(result.compileOutputFile)
             deployTargetManager.setApks(apkInfos)
             // reset expect overlay ids after gradle compilation, to avoid using old status if install failed
             deployHistoryManager.lastDeployOverlayIds = emptyMap()

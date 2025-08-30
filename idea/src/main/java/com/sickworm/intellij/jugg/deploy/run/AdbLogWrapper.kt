@@ -6,7 +6,7 @@ import com.intellij.openapi.diagnostic.Logger
 /**
  * only print warning and error
  */
-class AdbLogWrapper(private val logger: Logger) : LogWrapper(logger) {
+class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
 
     var realErrorMessage: String? = null
         private set
