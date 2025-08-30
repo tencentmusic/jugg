@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.Disposable
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.manifest.AndroidManifestCompiler
@@ -39,7 +40,7 @@ class ResourceOverlayCompiler(
         return splitApkAndCompile(task)
     }
 
-    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
+    override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         val androidManifestTask = CompileTask(
             task.files.filter { it.type == CompileFile.Type.AndroidManifest },
             File(context.tempCompileDir, "merged_manifests"),
@@ -54,7 +55,7 @@ class ResourceOverlayCompiler(
         // merge AndroidManifest.xml
         var androidManifestResult = CompileResult(androidManifestTask, emptyList(), emptyList())
         if (androidManifestTask.files.isNotEmpty()) {
-            androidManifestResult = androidManifestCompiler.doApkCompile(androidManifestTask, apkFile)
+            androidManifestResult = androidManifestCompiler.doApkCompile(androidManifestTask, apkFileUnit)
             if (!androidManifestResult.isAllSuccess) {
                 val resourceDetails: List<Result<CompileFile, CompileError>> = resourceTask.files.map {
                     Result.failure(CompileError(it, listOf(-1L to "Failed to compile AndroidManifest.xml")))
@@ -98,7 +99,7 @@ class ResourceOverlayCompiler(
             task.outputDir,
             task,
         )
-        val arscResult = arscCompiler.doApkCompile(arscTask, apkFile)
+        val arscResult = arscCompiler.doApkCompile(arscTask, apkFileUnit)
         if (!arscResult.isAllSuccess) {
             return CompileResult(
                 task,

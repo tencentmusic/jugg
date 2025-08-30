@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.aapt2.Aapt2DaemonInvoker
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -116,26 +117,26 @@ class ArscCompiler(
         return splitApkAndCompile(task)
     }
 
-    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
+    override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         if (!canCompile) {
             throw JuggInternalException.contextInvalidToCompileArsc()
         }
-        var aapt2Invoker = aapt2InvokerMap[apkFile.path]
+        var aapt2Invoker = aapt2InvokerMap[apkFileUnit.apkFile.path]
         if (aapt2Invoker == null || !aapt2Invoker.isAlive()) {
-            logger.debug("aapt2 not loaded or dead for ${apkFile.path}, run loadTable. " +
+            logger.debug("aapt2 not loaded or dead for ${apkFileUnit.apkFile.path}, run loadTable. " +
                     "hasLoaded: ${aapt2Invoker != null}, isAlive: ${aapt2Invoker?.isAlive()}")
-            if (!loadTable(apkFile)) {
+            if (!loadTable(apkFileUnit.apkFile)) {
                 return CompileResult(task, task.files.map {
                     val error = CompileError(it, listOf(0L to "loadTable failed"))
                     Result.failure(error)
                 }, emptyList())
             }
-            aapt2Invoker = aapt2InvokerMap[apkFile.path]!!
+            aapt2Invoker = aapt2InvokerMap[apkFileUnit.apkFile.path]!!
         }
 
         val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }
         val androidManifestFile = task.files.find { it.type == CompileFile.Type.AndroidManifest }?.file
-        val result = incLinkCompile(apkFile, aapt2Invoker, flatFiles, androidManifestFile, task.outputDir)
+        val result = incLinkCompile(apkFileUnit.apkFile, aapt2Invoker, flatFiles, androidManifestFile, task.outputDir)
 
         if (result.isEmpty()) {
             // reload
@@ -203,7 +204,7 @@ class ArscCompiler(
     override fun warmUp() {
         if (aapt2InvokerMap.isEmpty()) {
             // only preload the biggest apk
-            val loadFirstApk = context.apkFiles.maxByOrNull { it.length() }
+            val loadFirstApk = context.apkInfos.firstOrNull()?.baseApkFile
             if (loadFirstApk != null) {
                 loadTable(loadFirstApk)
             }

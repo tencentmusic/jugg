@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.Disposable
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -22,7 +23,7 @@ class AssetOverlayCompiler(
         return splitApkAndCompile(task)
     }
 
-    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
+    override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         // just copy
         val outputs = mutableListOf<CompileOutput>()
         val details = mutableListOf<Result<CompileFile, CompileError>>()
@@ -52,11 +53,11 @@ class AssetOverlayCompiler(
                     val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)
                     dirToFilesMap.values.firstOrNull()?.forEach { subFile ->
                         val outputFile = subFile.copyToBaseDir(it.baseDir, outputDir)
-                        outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFile.path))
+                        outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFileUnit.apkFile.path))
                     }
                 } else {
                     val outputFile = it.file.copyToBaseDir(it.baseDir, outputDir)
-                    outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFile.path))
+                    outputs.add(CompileOutput(outputType, outputFile, task.outputDir, apkFileUnit.apkFile.path))
                 }
                 details.add(Result.success(it))
             } catch (e: Exception) {

@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ModuleApkBelongsUtils
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
@@ -98,7 +99,7 @@ class BaseCompileContext(
             }
         }
         if (applicationModules.size == 1) {
-            logger.debug("get application module returns ${applicationModules.first().name}, with only one has R.jar")
+            logger.debug("get application module returns ${applicationModules.first().name}, with only one module")
             return applicationModules.first()
         }
 
@@ -188,7 +189,7 @@ class BaseCompileContext(
 
     override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
-    override var moduleBelongsApkMap: Map<ModuleInfo, File> = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkFiles, modules, tempModule, logger)
+    override var moduleBelongsApkMap: Map<ModuleInfo, ApkFileUnit> = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkInfos, modules, tempModule, logger)
 
     override val cmdCompileEnv: List<String>
         get() = LocalGradleCompileClient.buildCompileEnv(project, logger)
@@ -386,7 +387,7 @@ class BaseCompileContext(
     ) {
         apkInfos?.let {
             this.apkInfos = it
-            moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkFiles, this.modules, tempModule, logger)
+            moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)
         }
         modules?.let {
             this.modules = HashMap(it)
@@ -394,7 +395,7 @@ class BaseCompileContext(
             applicationModule = findApplicationModule()
             dynamicFeatureModules = findDynamicFeatureModules()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
-            moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkFiles, this.modules, tempModule, logger)
+            moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {
             val oldLibraries = loadTempLibraries().toMutableList()
@@ -410,7 +411,7 @@ class BaseCompileContext(
             val finalTempLibraries = saveTempLibraries(addedTempLibraries ?: emptyList(), oldLibraries)
             this.tempModule = tempModule.copy(libraryDependencies = finalTempLibraries)
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
-            moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkFiles, this.modules, tempModule, logger)
+            moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)
         }
         dispatch()
     }

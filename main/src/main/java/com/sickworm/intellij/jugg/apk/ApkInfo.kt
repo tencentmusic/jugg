@@ -2,10 +2,12 @@ package com.sickworm.intellij.jugg.apk
 
 import java.io.File
 
-class ApkInfo(
+data class ApkInfo(
     val files: List<ApkFileUnit>,
     val applicationId: String
 ) {
+
+    val baseApkFile: File? get() = files.find { it.isBaseApk }?.apkFile
 
     constructor(
         file: File,
@@ -13,5 +15,9 @@ class ApkInfo(
     ) : this(listOf(ApkFileUnit(applicationId, "", file)), applicationId)
 }
 
-class ApkFileUnit(val applicationId: String, val moduleName: String, val apkFile: File)
+data class ApkFileUnit(val applicationId: String, val moduleName: String, val apkFile: File) {
+
+    val isBaseApk get() = moduleName.isEmpty()
+    val isFeatureApk get() = moduleName.isNotEmpty()
+}
 

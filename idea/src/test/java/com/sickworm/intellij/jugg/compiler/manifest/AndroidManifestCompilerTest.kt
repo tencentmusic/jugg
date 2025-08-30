@@ -89,7 +89,7 @@ class AndroidManifestCompilerTest {
         assertTrue(outputFile.file.exists())
 
 
-        val oldManifest = ApkReader(context.apkFiles.first(), logger).getManifest()
+        val oldManifest = ApkReader(context.apkFile!!, logger).getManifest()
         val manifest = BinaryXmlParser.parseBinaryFromStream(outputFile.file.inputStream())
         val packageName = manifest.packageName()
         assertEquals(context.packageName, packageName)

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.manifest
 
 import com.intellij.openapi.Disposable
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -25,7 +26,7 @@ class AndroidManifestCompiler(
         return splitApkAndCompile(task)
     }
 
-    override fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
+    override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         val applicationModule = context.applicationModule
             ?: return createErrorCompileResult(task, "application module not found")
 
@@ -115,7 +116,7 @@ class AndroidManifestCompiler(
             CompileOutput.Type.Res,
             outputManifestFile,
             outputManifestFile.parentFile,
-            apkFile.path,
+            apkFileUnit.apkFile.path,
         )
         return CompileResult(task, task.files.map { Result.success(it) }, listOf(compileOutput))
     }

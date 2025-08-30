@@ -2,10 +2,10 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
-import java.io.File
 
 abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): ICompiler {
 
@@ -125,13 +125,13 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
     abstract fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult
 
     fun splitApkAndCompile(task: CompileTask): CompileResult {
-        if (context.apkFiles.size == 1) {
-            return doApkCompile(task, context.apkFiles.first())
+        if (context.isSingleApk) {
+            return doApkCompile(task, context.apkInfos.first().files.first())
         }
 
         val (moduleCompileOrder, fileGroups) = getModuleCompileOrder(task)
-        val apkGroups = mutableMapOf<File, MutableList<CompileFile>>()
-        val apkCompileOrder = mutableListOf<File>()
+        val apkGroups = mutableMapOf<ApkFileUnit, MutableList<CompileFile>>()
+        val apkCompileOrder = mutableListOf<ApkFileUnit>()
         moduleCompileOrder.forEach {
             val files = fileGroups[it.moduleRootDir.absolutePath] ?: emptyList()
             val apkFile = context.moduleBelongsApkMap[it]!!
@@ -143,7 +143,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             }
         }
         if (apkCompileOrder.size > 1) {
-            logger.debug("going to compile apks with order: ${apkCompileOrder.map { it.name }}")
+            logger.debug("going to compile apks with order: ${apkCompileOrder.map { it.apkFile.name }}")
         }
 
         var results = CompileResult(task, emptyList(), emptyList())
@@ -162,7 +162,7 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         return results
     }
 
-    open fun doApkCompile(task: CompileTask, apkFile: File): CompileResult {
+    open fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         throw JuggInternalException.methodNotImplemented("doApkCompile")
     }
 

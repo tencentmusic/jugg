@@ -117,7 +117,7 @@ class JavaCompiler(
                     CompileOutput(CompileOutput.Type.Java, it, task.outputDir)
                 } else {
                     // e.g. META-INF/service/xxx
-                    CompileOutput(CompileOutput.Type.Res, it, task.outputDir, context.moduleBelongsApkMap[module]!!.path)
+                    CompileOutput(CompileOutput.Type.Res, it, task.outputDir, context.moduleBelongsApkMap[module]!!.apkFile.path)
                 }
             }
 
