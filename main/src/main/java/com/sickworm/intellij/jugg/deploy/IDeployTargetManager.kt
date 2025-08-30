@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.*
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 
 /**
  * Manage device and operation of application on device.

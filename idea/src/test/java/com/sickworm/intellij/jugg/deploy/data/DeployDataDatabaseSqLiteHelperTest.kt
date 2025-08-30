@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.data
 
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger

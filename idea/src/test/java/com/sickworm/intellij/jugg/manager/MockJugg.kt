@@ -5,7 +5,7 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.log.LogWrapper
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.manager
 
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.googlecode.d2j.node.*
 import com.googlecode.d2j.reader.BaseDexFileReader
 import com.googlecode.d2j.reader.MultiDexFileReader

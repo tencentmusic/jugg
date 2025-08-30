@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.apk
 
-import com.android.tools.idea.run.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.aapt2.*
 import com.sickworm.intellij.jugg.apk.manifest.BinaryXmlParser

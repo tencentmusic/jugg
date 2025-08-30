@@ -195,18 +195,6 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         return swapResult.overlayId
     }
 
-    override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
-        return object : ApkProvider {
-            override fun getApks(device: IDevice): MutableCollection<ApkInfo> {
-                return apkInfos.toMutableList()
-            }
-
-            override fun validate(): MutableList<ValidationError> {
-                return mutableListOf()
-            }
-        }
-    }
-
     override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {
         if (device == null) {
             return IdeDeployState.deviceNotConnected

@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.android.tools.idea.run.ApkFileUnit
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import java.io.File
 import java.lang.reflect.Type
 

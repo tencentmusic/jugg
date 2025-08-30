@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.compiler
 
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 

@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.mock
 
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import java.io.File
 

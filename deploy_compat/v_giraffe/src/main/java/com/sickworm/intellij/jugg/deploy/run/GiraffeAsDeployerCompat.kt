@@ -3,8 +3,6 @@ package com.sickworm.intellij.jugg.deploy.run
 import com.android.ddmlib.IDevice
 import com.android.tools.deployer.*
 import com.android.tools.idea.execution.common.applychanges.BaseAction
-import com.android.tools.idea.run.ApkInfo
-import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.editor.DeployTargetContext
 import com.android.utils.ILogger
 import com.intellij.execution.configurations.RunConfiguration
@@ -42,10 +40,6 @@ open class GiraffeAsDeployerCompat : ChipmunkAsDeployerCompat() {
     ): Boolean {
         val apkInstaller = ApkInstaller(adb, service, installer, logger)
         return apkInstaller.install(packageName, apks, options, installMode, metrics.deployMetrics)
-    }
-
-    override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
-        return ApkProvider { apkInfos.toMutableList() }
     }
 
     private fun isApplyChangesRelevant(runConfiguration: RunConfiguration): Boolean {

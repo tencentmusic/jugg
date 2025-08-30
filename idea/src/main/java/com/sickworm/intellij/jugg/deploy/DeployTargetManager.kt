@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.deploy
 
 import com.android.ddmlib.IDevice
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.logger.JuggLogger

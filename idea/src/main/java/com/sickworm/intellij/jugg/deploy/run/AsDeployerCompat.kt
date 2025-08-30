@@ -5,7 +5,6 @@ import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.*
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.run.AndroidRunConfiguration
-import com.android.tools.idea.run.ApkInfo
 import com.android.tools.idea.run.ApkProvider
 import com.android.tools.idea.run.DeploymentService
 import com.android.utils.ILogger
@@ -178,10 +177,6 @@ object AsDeployerCompat : IAsDeployerCompat {
         isPushOverlayOnly: Boolean,
     ): OverlayId {
         return impl.optimisticSwap(installer, redefiners, packageName, argRestart, pids, arch, overlayUpdate, adb, logger, isPushOverlayOnly)
-    }
-
-    override fun toApkProvider(apkInfos: List<ApkInfo>): ApkProvider {
-        return impl.toApkProvider(apkInfos)
     }
 
     override fun getIdeDeployStateResult(project: Project, device: IDevice?, packageName: String?): IdeDeployState {

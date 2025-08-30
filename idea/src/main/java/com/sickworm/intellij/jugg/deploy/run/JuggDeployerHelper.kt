@@ -5,7 +5,7 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.IdeInfo
 import com.android.tools.idea.log.LogWrapper
-import com.android.tools.idea.run.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
