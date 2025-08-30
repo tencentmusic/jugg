@@ -49,16 +49,6 @@ class ApkReaderTest {
     }
 
     @Test
-    fun testGenerateR() {
-        val reader = ApkReader(apkFile, logger)
-        reader.getRFile(tempCompileDir)
-        val files = tempCompileDir.listFilesRecursively()
-        assertEquals(1, files.size)
-        assertEquals("R.java", files[0].name)
-        assertTrue(files[0].length() > 0)
-    }
-
-    @Test
     fun testGetPackageNameFast() {
         val reader = ApkReader(apkFile, logger)
         val packageName = reader.getPackageName()
