@@ -78,7 +78,7 @@ class ArscCompiler(
         var styleableFile: File? = null
         try {
             TimeLogger.start("generateStyleableFile")
-            styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir)
+            styleableFile = StyleableFileGenerator(logger).generateStyleableFile(context, context.tempCompileDir, apkFileUnit)
             TimeLogger.end("generateStyleableFile", logger)
         } catch (e: Exception) {
             logger.debug("generateStyleableFile failed, may not be fatal problem", e)

@@ -1,11 +1,13 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import org.jetbrains.annotations.TestOnly
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.ClassNode
 import com.sickworm.intellij.jugg.org.objectweb.asm.tree.FieldNode
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.InputStream
@@ -16,17 +18,26 @@ class StyleableFileGenerator(
     private val logger: Logger,
 ) {
 
-    fun generateStyleableFile(context: ICompileContext, outputDir: File): File? {
+    fun generateStyleableFile(context: ICompileContext, outputDir: File, apkFileUnit: ApkFileUnit): File? {
         val selectedApplicationModule = context.applicationModule
-        val dynamicFeatureModules = context.dynamicFeatureModules
         if (selectedApplicationModule == null) {
             logger.warn("generateStyleableFile failed, no application module found")
             return null
         }
-        logger.debug("selectedApplicationModule: ${selectedApplicationModule.name}, " +
-                "dynamicFeatureModules: ${dynamicFeatureModules.map { it.name }}")
+        val modules: List<ModuleInfo> = if (context.isSingleApk || apkFileUnit.isBaseApk) {
+            listOf(selectedApplicationModule)
+        } else {
+            context.moduleBelongsApkMap.entries
+                .filter { it.value.apkFile.path == apkFileUnit.apkFile.path }
+                .map { it.key }
+        }
+        if (modules.isEmpty()) {
+            logger.warn("generateStyleableFile failed, no application module found")
+            return null
+        }
+        logger.debug("generateStyleableFile modules: ${modules.map { it.name } }, apk: $apkFileUnit")
 
-        val rFiles = (dynamicFeatureModules + selectedApplicationModule).mapNotNull {
+        val rFiles = modules.mapNotNull {
             val rFile = it.buildPathInfo.rFilePath
             if (rFile.exists()) {
                 return@mapNotNull rFile
