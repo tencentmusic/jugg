@@ -23,7 +23,13 @@ data class ApkFileUnit(val applicationId: String, val moduleName: String, val ap
 
     val resourcePackage get() = if (isBaseApk) applicationId else "$applicationId.$moduleName"
 
-    val uniqueKey: String get() = getUniqueKey(apkFile.path)
+    fun getUniquePath(basePath: String): String {
+        return if (isBaseApk) {
+            basePath
+        } else {
+            "${basePath}_${getUniqueKey(apkFile.path)}"
+        }
+    }
 
     companion object {
         fun getUniqueKey(apkPath: String): String {

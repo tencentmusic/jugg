@@ -47,7 +47,7 @@ class AssetOverlayCompiler(
                 else -> throw JuggInternalException.unrecognizedType(it.type.toString())
             }
 
-            val outputDir = File(task.outputDir, outputSubDir)
+            val outputDir = File(task.outputDir, apkFileUnit.getUniquePath(outputSubDir))
             try {
                 if (it.file.isDirectory) {
                     val dirToFilesMap: Map<File, List<File>> = DirToFileMapHelper.createDirToResFileMap(listOf(it), logger)

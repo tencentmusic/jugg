@@ -133,7 +133,7 @@ class ArscCompiler(
                 resApkFile.extractFile("AndroidManifest.xml", manifestFile)
             }
 
-            val latestResApkFile = File(context.tempCompileDir, "res_${apkFileUnit.uniqueKey}.apk")
+            val latestResApkFile = File(context.tempCompileDir, "${apkFileUnit.getUniquePath("res")}.apk")
             if (latestResApkFile.exists()) {
                 latestResApkFile.delete()
             }
@@ -148,6 +148,9 @@ class ArscCompiler(
     override fun doCompile(task: CompileTask): CompileResult {
         return splitApkAndCompile(task)
     }
+
+    private var isBaseApkArscUpdate = false
+    private var baseApkUpdateFlatFiles = listOf<File>()
 
     override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         if (!canCompile) {
@@ -166,7 +169,13 @@ class ArscCompiler(
             aapt2Invoker = aapt2InvokerMap[apkFileUnit.apkFile.path]!!
         }
 
-        val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }
+        val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }.toMutableList()
+        if (apkFileUnit.isFeatureApk && isBaseApkArscUpdate) {
+            // base apk res.arsc updated, need join compiled
+            logger.debug("base apk res.arsc updated, join compiled for ${apkFileUnit.apkFile.path}, files: $baseApkUpdateFlatFiles")
+            flatFiles.addAll(baseApkUpdateFlatFiles)
+        }
+
         val androidManifestFile = task.files.find { it.type == CompileFile.Type.AndroidManifest }?.file
         val result = incLinkCompile(apkFileUnit, aapt2Invoker, flatFiles, androidManifestFile, task.outputDir)
 
@@ -186,6 +195,16 @@ class ArscCompiler(
             rJavaFixer.fixIfNeeded(javaFile)
         }
 
+        if (apkFileUnit.isBaseApk) {
+            // base apk will always run first, because dynamic feature module depends on base apk
+            isBaseApkArscUpdate = javaFile?.exists() == true
+            baseApkUpdateFlatFiles = flatFiles
+            if (isBaseApkArscUpdate) {
+                logger.debug("base apk res.arsc updated, will update all dynamic feature modules ids")
+            }
+        }
+
+
         return CompileResult(
             task,
             task.files.map { Result.success(it) },
@@ -199,8 +218,8 @@ class ArscCompiler(
     }
 
     private fun incLinkCompile(apkFileUnit: ApkFileUnit, aapt2Invoker: Aapt2DaemonInvoker, flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
-        val rFileDir = File(outputDir, "rjava")
-        val overlayDir = File(outputDir, "overlays")
+        val rFileDir = File(outputDir, apkFileUnit.getUniquePath("rjava"))
+        val overlayDir = File(outputDir, apkFileUnit.getUniquePath("overlays"))
         rFileDir.mkdirs()
         overlayDir.mkdirs()
 

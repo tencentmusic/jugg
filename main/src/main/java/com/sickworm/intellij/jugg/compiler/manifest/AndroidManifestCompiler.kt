@@ -42,7 +42,7 @@ class AndroidManifestCompiler(
         }
         logger.debug("merge AndroidManifest.xml to ${finalMergedManifest.path}")
 
-        val outputManifestFile = File(task.outputDir, "AndroidManifest.xml")
+        val outputManifestFile = File(task.outputDir, apkFileUnit.getUniquePath("manifest")).resolve("AndroidManifest.xml")
         outputManifestFile.mkdirs()
         outputManifestFile.delete()
 
