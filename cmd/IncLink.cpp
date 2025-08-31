@@ -167,40 +167,6 @@ class IncLinker: private Linker {
     // init compile context
     manifest_xml_ = apk_->GetManifest()->Clone();
 
-    ResourceTable* apk_table = apk_->GetResourceTable();
-    for (const auto& pkg : apk_table->packages) {
-      ResourceTablePackage* new_pkg = final_table_.CreatePackage(pkg->name, pkg->id);
-      for (const auto& type : pkg->types) {
-        ResourceTableType* new_type = new_pkg->FindOrCreateType(type->type);
-        new_type->id = type->id;
-        new_type->visibility_level = type->visibility_level;
-
-        for (const auto& entry : type->entries) {
-          ResourceEntry* new_entry = new_type->FindOrCreateEntry(entry->name);
-          new_entry->id = entry->id;
-          new_entry->visibility = entry->visibility;
-          new_entry->allow_new = entry->allow_new;
-          new_entry->overlayable_item = entry->overlayable_item;
-
-          for (const auto& config_value : entry->values) {
-            ResourceConfigValue* new_value =
-                new_entry->FindOrCreateValue(config_value->config, config_value->product);
-            new_value->value.reset(config_value->value->Clone(&final_table_.string_pool));
-          }
-        }
-      }
-    }
-
-
-
-    // import styleable
-    if (!LoadSymbolsFromIncludePathsApk()) {
-      return 1;
-    }
-    if (options_.styleable_path) {
-      processStyleableFile(options_.styleable_path.value());
-    }
-
     // origin Link process with out MergePath and LinkReference
 
     // First extract the Package name without modifying it (via --rename-manifest-package).
@@ -260,6 +226,57 @@ class IncLinker: private Linker {
                                        << StringPrintf("linking package '%s' using package ID %02x",
                                                        context_->GetCompilationPackage().data(),
                                                        context_->GetPackageId()));
+    }
+
+    // revert package name to main package name
+    // see package_to_rewrite in Link.app
+    std::string app_rewrited_package;
+    if (app_info_.split_name) {
+      app_rewrited_package = app_info_.package + "." + app_info_.split_name.value();
+      context_->GetDiagnostics()->Note(DiagMessage() << "linking feature split package " << app_rewrited_package);
+    }
+    context_->SetPackageId(kAppPackageId);
+
+    // load table from APK
+    ResourceTable* apk_table = apk_->GetResourceTable();
+    for (const auto& pkg : apk_table->packages) {
+      std::string package_name = pkg->name;
+      if (package_name == app_rewrited_package) {
+        package_name = app_info_.package;
+        context_->SetPackageId(pkg->id.value());
+        context_->GetDiagnostics()->Note(DiagMessage()
+                                          << "linking feature split package " << app_rewrited_package
+                                          << ", replace to " << package_name
+                                          << StringPrintf(", package ID: 0x%02x", pkg->id.value()));
+      }
+      ResourceTablePackage* new_pkg = final_table_.CreatePackage(package_name, pkg->id);
+      for (const auto& type : pkg->types) {
+        ResourceTableType* new_type = new_pkg->FindOrCreateType(type->type);
+        new_type->id = type->id;
+        new_type->visibility_level = type->visibility_level;
+
+        for (const auto& entry : type->entries) {
+          ResourceEntry* new_entry = new_type->FindOrCreateEntry(entry->name);
+          new_entry->id = entry->id;
+          new_entry->visibility = entry->visibility;
+          new_entry->allow_new = entry->allow_new;
+          new_entry->overlayable_item = entry->overlayable_item;
+
+          for (const auto& config_value : entry->values) {
+            ResourceConfigValue* new_value =
+                new_entry->FindOrCreateValue(config_value->config, config_value->product);
+            new_value->value.reset(config_value->value->Clone(&final_table_.string_pool));
+          }
+        }
+      }
+    }
+
+    if (!LoadSymbolsFromIncludePathsApk()) {
+      return 1;
+    }
+    // import styleable
+    if (options_.styleable_path) {
+      processStyleableFile(options_.styleable_path.value());
     }
 
     // Extract symbols from AndroidManifest.xml, since this isn't merged like the other XML files
@@ -582,7 +599,7 @@ int IncLinkCommand::Action(const std::vector<std::string>& args) {
 
   // The default build type.
   context->SetPackageType(PackageType::kApp);
-  context->SetPackageId(kAppPackageId);
+  // context->SetPackageId(kAppPackageId);
 
   if (shared_lib_) {
     context->SetPackageType(PackageType::kSharedLib);
