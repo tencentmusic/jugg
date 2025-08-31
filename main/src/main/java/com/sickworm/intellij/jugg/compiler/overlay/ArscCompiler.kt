@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.JuggException
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.util.zip.ZipFile
@@ -44,23 +45,23 @@ class ArscCompiler(
         return context.androidJar.exists()
     }
 
-    private fun loadTable(loadApkFile: File): Boolean {
+    private fun loadTable(apkFileUnit: ApkFileUnit): Boolean {
         if (!canCompile) {
             logger.warn("loadTable failed, context can not compile now")
             return false
         }
 
-        logger.debug("aapt2 loadTable start for $loadApkFile")
+        logger.debug("aapt2 loadTable start for $apkFileUnit")
         val startTime = System.currentTimeMillis()
 
         val deployedArsc = context.deployedFiles.find { it.relativeFile.path == ARSC_FILE_NAME }
         val isNeedLoadLatestResApk = deployedArsc != null
         logger.debug("isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedArsc: $deployedArsc")
 
-        var resApkFile: File = loadApkFile
+        var resApkFile: File = apkFileUnit.apkFile
         if (isNeedLoadLatestResApk) {
             var manifestFile = context.deployedFiles.find {
-                it.apkPath == resApkFile.path && it.relativeFile.path == "AndroidManifest.xml"
+                it.apkPath == apkFileUnit.apkFile.path && it.relativeFile.path == "AndroidManifest.xml"
             }?.file
             if (manifestFile == null) {
                 manifestFile = File(context.tempCompileDir, "AndroidManifest.xml")
@@ -87,17 +88,39 @@ class ArscCompiler(
         }
 
         val aapt2Invoker = Aapt2DaemonInvoker(logger)
-        val command = """
-            |inclink
-            |--load
-            |--warn-manifest-validation
-            |--styleables
-            |${styleableFile?.absolutePath ?: "no_styleables_file"}
-            |-o no_need_output_path_on_load
-            |-I ${context.androidJar}
-            |--manifest no_need_manifest_on_load
-            |${resApkFile}
-        """.trimMargin().replace("\n", " ")
+        val command: String
+        if (context.isSingleApk || apkFileUnit.isBaseApk) {
+            command = """
+                |inclink
+                |--load
+                |--warn-manifest-validation
+                |--styleables
+                |${styleableFile?.absolutePath ?: "no_styleables_file"}
+                |-o no_need_output_path_on_load
+                |-I ${context.androidJar}
+                |--manifest no_need_manifest_on_load
+                |${resApkFile}
+            """.trimMargin().replace("\n", " ")
+        } else {
+            val baseApk = context.apkInfos
+                .find { it.applicationId == context.packageName }
+                ?.files?.find { it.isBaseApk }
+            if (baseApk == null) {
+                throw JuggException.baseApkNotFound(context.packageName, context.apkInfos)
+            }
+            command = """
+                |inclink
+                |--load
+                |--warn-manifest-validation
+                |--styleables
+                |${styleableFile?.absolutePath ?: "no_styleables_file"}
+                |-o no_need_output_path_on_load
+                |-I ${context.androidJar}
+                |-I ${baseApk.apkFile.absolutePath}
+                |--manifest no_need_manifest_on_load
+                |${resApkFile}
+            """.trimMargin().replace("\n", " ")
+        }
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
@@ -108,8 +131,8 @@ class ArscCompiler(
         }
 
         val costTime = System.currentTimeMillis() - startTime
-        logger.debug("aapt2 loadTable end for $loadApkFile, cost ${costTime}ms")
-        aapt2InvokerMap[resApkFile.path] = aapt2Invoker
+        logger.debug("aapt2 loadTable end for $apkFileUnit, cost ${costTime}ms")
+        aapt2InvokerMap[apkFileUnit.apkFile.path] = aapt2Invoker
         return true
     }
 
@@ -125,7 +148,7 @@ class ArscCompiler(
         if (aapt2Invoker == null || !aapt2Invoker.isAlive()) {
             logger.debug("aapt2 not loaded or dead for ${apkFileUnit.apkFile.path}, run loadTable. " +
                     "hasLoaded: ${aapt2Invoker != null}, isAlive: ${aapt2Invoker?.isAlive()}")
-            if (!loadTable(apkFileUnit.apkFile)) {
+            if (!loadTable(apkFileUnit)) {
                 return CompileResult(task, task.files.map {
                     val error = CompileError(it, listOf(0L to "loadTable failed"))
                     Result.failure(error)
@@ -136,7 +159,7 @@ class ArscCompiler(
 
         val flatFiles = task.files.filter { it.type == CompileFile.Type.Flat }.map { it.file }
         val androidManifestFile = task.files.find { it.type == CompileFile.Type.AndroidManifest }?.file
-        val result = incLinkCompile(apkFileUnit.apkFile, aapt2Invoker, flatFiles, androidManifestFile, task.outputDir)
+        val result = incLinkCompile(apkFileUnit, aapt2Invoker, flatFiles, androidManifestFile, task.outputDir)
 
         if (result.isEmpty()) {
             // reload
@@ -166,7 +189,7 @@ class ArscCompiler(
         return CompileResult(task, emptyList(), emptyList())
     }
 
-    private fun incLinkCompile(apkFile: File, aapt2Invoker: Aapt2DaemonInvoker, flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
+    private fun incLinkCompile(apkFileUnit: ApkFileUnit, aapt2Invoker: Aapt2DaemonInvoker, flatFiles: List<File>, androidManifest: File?, outputDir: File): List<CompileOutput> {
         val rFileDir = File(outputDir, "rjava")
         val overlayDir = File(outputDir, "overlays")
         rFileDir.mkdirs()
@@ -175,14 +198,29 @@ class ArscCompiler(
         val manifestName = androidManifest?.absolutePath ?: "no_need_compile_manifest"
 
         val flatFilesArg = flatFiles.joinToString(separator = "\n") { it.absolutePath }
-        val commandArg = """
-            |inclink
-            |-o $overlayDir
-            |--output-to-dir
-            |--java $rFileDir
-            |--manifest $manifestName
-        """.trimMargin().replace("\n", " ")
-        val command = "$commandArg $flatFilesArg"
+        val command: String
+        if (context.isSingleApk || apkFileUnit.isBaseApk) {
+            val commandArg = """
+                |inclink
+                |-o $overlayDir
+                |--output-to-dir
+                |--java $rFileDir
+                |--manifest $manifestName
+            """.trimMargin().replace("\n", " ")
+            command = "$commandArg $flatFilesArg"
+        } else {
+            // -R: Compilation unit to link, using `overlay` semantics. The last conflicting resource given takes precedence
+            val commandArg = """
+                |inclink
+                |-o $overlayDir
+                |--output-to-dir
+                |--java $rFileDir
+                |--manifest $manifestName
+                |--custom-package ${apkFileUnit.resourcePackage}
+                |--allow-reserved-package-id
+            """.trimMargin().replace("\n", " ")
+            command = "$commandArg $flatFilesArg"
+        }
 
         val result = aapt2Invoker.invoke(command)
         if (!result.isSuccess) {
@@ -194,7 +232,7 @@ class ArscCompiler(
             CompileOutput(CompileOutput.Type.Java, it, rFileDir)
         }
         val overlays = overlayDir.listFilesRecursively().map {
-            CompileOutput(CompileOutput.Type.Res, it, overlayDir, apkFile.path)
+            CompileOutput(CompileOutput.Type.Res, it, overlayDir, apkFileUnit.apkFile.path)
         }
 
         // check whether resources has more config created. e.g. layout-v22
@@ -204,7 +242,7 @@ class ArscCompiler(
     override fun warmUp() {
         if (aapt2InvokerMap.isEmpty()) {
             // only preload the biggest apk
-            val loadFirstApk = context.apkInfos.firstOrNull()?.baseApkFile
+            val loadFirstApk = context.apkInfos.firstOrNull()?.baseApk
             if (loadFirstApk != null) {
                 loadTable(loadFirstApk)
             }

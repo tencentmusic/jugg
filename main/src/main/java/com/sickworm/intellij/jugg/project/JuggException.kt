@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.project
 
+import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompiler
@@ -37,6 +38,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun databaseNotFound(apkFile: File, databaseName: String) =
             JuggException("Can not found database $databaseName for apk: ${apkFile.path}. Is file deleted in build/jugg/database/apk?")
+
+        fun baseApkNotFound(packageName: String?, apkInfos: List<ApkInfo>) =
+            JuggException("Can not found apk for package name: $packageName, apkInfos: $apkInfos")
     }
 }
 

@@ -7,7 +7,7 @@ data class ApkInfo(
     val applicationId: String
 ) {
 
-    val baseApkFile: File? get() = files.find { it.isBaseApk }?.apkFile
+    val baseApk: ApkFileUnit? get() = files.find { it.isBaseApk }
 
     constructor(
         file: File,
@@ -19,5 +19,7 @@ data class ApkFileUnit(val applicationId: String, val moduleName: String, val ap
 
     val isBaseApk get() = moduleName.isEmpty()
     val isFeatureApk get() = moduleName.isNotEmpty()
+
+    val resourcePackage get() = if (isBaseApk) applicationId else "$applicationId.$moduleName"
 }
 
