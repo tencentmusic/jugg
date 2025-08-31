@@ -125,12 +125,16 @@ class JuggDeployerHelper(
         launchResult.pushingAgentCostTime = TimeLogger.end("push_agent", logger)
 
         var isNeedRestartApp = data.isNeedRestartApp
-        if (isNeedPushAgentAfterDeploy && !isNeedRestartApp) {
+        if ((isNeedPushAgentAfterDeploy && !isNeedRestartApp) || (data.isFullRes && !isNeedRestartApp)) {
             val adb = IdeaDeviceAdb(device, logger)
             if (PlatformApi.isHasRelaunchActivityIssues(adb, logger)) {
                 // fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat
                 // restart app to let fix works
-                logger.info("Fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat at first time, restart app.")
+                if (data.isFullRes) {
+                    logger.info("Fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat at first time deploy res, restart app.")
+                } else {
+                    logger.info("Fix JVMTI compatibility issue for Android >=15 below Android Studio Meerkat at first time deploy, restart app.")
+                }
                 isNeedRestartApp = true
             }
         }
