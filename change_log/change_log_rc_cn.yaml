@@ -1,3 +1,8 @@
+- version: 2.5.0-rc1
+  date: 2025.08.31
+  updates:
+    - 支持 dynamic feature 模块(AAB)
+
 - version: 2.4.0-rc4
   date: 2025.08.27
   updates:
