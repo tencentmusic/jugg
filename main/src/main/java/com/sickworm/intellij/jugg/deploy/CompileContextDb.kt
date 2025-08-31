@@ -2,10 +2,10 @@ package com.sickworm.intellij.jugg.deploy
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
-import java.security.MessageDigest
 
 /**
  * Manage compile context build files, e.g. apk, classpath, etc.
@@ -179,9 +179,6 @@ class CompileContextDb(
         if (isBaseApk == true) {
             return baseDirName
         }
-        return baseDirName + "_" + File(apkPath).name + "_" + apkPath.md5.substring(0, 8)
+        return baseDirName + "_" + ApkFileUnit.getUniqueKey(apkPath)
     }
-
-    private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
-    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 }

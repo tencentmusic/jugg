@@ -54,27 +54,7 @@ class ArscCompiler(
         logger.debug("aapt2 loadTable start for $apkFileUnit")
         val startTime = System.currentTimeMillis()
 
-        val deployedArsc = context.deployedFiles.find { it.relativeFile.path == ARSC_FILE_NAME }
-        val isNeedLoadLatestResApk = deployedArsc != null
-        logger.debug("isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedArsc: $deployedArsc")
-
-        var resApkFile: File = apkFileUnit.apkFile
-        if (isNeedLoadLatestResApk) {
-            var manifestFile = context.deployedFiles.find {
-                it.apkPath == apkFileUnit.apkFile.path && it.relativeFile.path == "AndroidManifest.xml"
-            }?.file
-            if (manifestFile == null) {
-                manifestFile = File(context.tempCompileDir, "AndroidManifest.xml")
-                manifestFile.delete()
-                resApkFile.extractFile("AndroidManifest.xml", manifestFile)
-            }
-
-            val latestResApkFile = File(context.tempCompileDir, "res.apk")
-            // zip deployedManifestFile and deployedArsc to res.apk
-            zipFiles(listOf(manifestFile, deployedArsc!!.file), latestResApkFile)
-            resApkFile = latestResApkFile
-        }
-
+        val resApkFile: File = getResApk(apkFileUnit)
         var styleableFile: File? = null
         try {
             TimeLogger.start("generateStyleableFile")
@@ -108,6 +88,7 @@ class ArscCompiler(
             if (baseApk == null) {
                 throw JuggException.baseApkNotFound(context.packageName, context.apkInfos)
             }
+            val baseResApk = getResApk(baseApk)
             command = """
                 |inclink
                 |--load
@@ -116,7 +97,7 @@ class ArscCompiler(
                 |${styleableFile?.absolutePath ?: "no_styleables_file"}
                 |-o no_need_output_path_on_load
                 |-I ${context.androidJar}
-                |-I ${baseApk.apkFile.absolutePath}
+                |-I ${baseResApk.absolutePath}
                 |--manifest no_need_manifest_on_load
                 |${resApkFile}
             """.trimMargin().replace("\n", " ")
@@ -126,14 +107,42 @@ class ArscCompiler(
         if (!result.isSuccess) {
             logger.info("loadTable error msg (may not be fatal problem): ${result.errorOutput}")
         }
-        if (isNeedLoadLatestResApk) {
-            resApkFile.delete()
-        }
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("aapt2 loadTable end for $apkFileUnit, cost ${costTime}ms")
         aapt2InvokerMap[apkFileUnit.apkFile.path] = aapt2Invoker
         return true
+    }
+
+    private fun getResApk(apkFileUnit: ApkFileUnit): File {
+        val deployedArsc = context.deployedFiles.find {
+            it.apkPath == apkFileUnit.apkFile.path && it.relativeFile.path == ARSC_FILE_NAME
+        }
+        val isNeedLoadLatestResApk = deployedArsc != null
+        logger.debug("${apkFileUnit.apkFile.name} isNeedLoadLatestResApk: $isNeedLoadLatestResApk, deployedArsc: $deployedArsc")
+
+        var resApkFile: File = apkFileUnit.apkFile
+        if (isNeedLoadLatestResApk) {
+            // apk is deployed before, needs load latest res
+            var manifestFile = context.deployedFiles.find {
+                it.apkPath == apkFileUnit.apkFile.path && it.relativeFile.path == "AndroidManifest.xml"
+            }?.file
+            if (manifestFile == null) {
+                manifestFile = File(context.tempCompileDir, "AndroidManifest.xml")
+                manifestFile.delete()
+                resApkFile.extractFile("AndroidManifest.xml", manifestFile)
+            }
+
+            val latestResApkFile = File(context.tempCompileDir, "res_${apkFileUnit.uniqueKey}.apk")
+            if (latestResApkFile.exists()) {
+                latestResApkFile.delete()
+            }
+            // zip deployedManifestFile and deployedArsc to res.apk
+            zipFiles(listOf(manifestFile, deployedArsc!!.file), latestResApkFile)
+            resApkFile = latestResApkFile
+        }
+
+        return resApkFile
     }
 
     override fun doCompile(task: CompileTask): CompileResult {
