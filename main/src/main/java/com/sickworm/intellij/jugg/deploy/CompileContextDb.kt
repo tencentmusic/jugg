@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Manage compile context build files, e.g. apk, classpath, etc.
@@ -19,10 +20,9 @@ class CompileContextDb(
     private val apkDirFile = File(dbDir, "apks")
     private val apkInfoFile = File(apkDirFile, "apks.json")
     private val moduleBuildPathDatFile = File(dbDir, "module_builds.json")
+
     private val deployedDir = File(dbDir, "deployed")
     private val dexDeployedDir = File(deployedDir, "classes")
-    private val resDeployedDir = File(deployedDir, "res")
-    private val assetDeployedDir = File(deployedDir, "asset")
 
     val hasBeenFullCompiled: Boolean get() = completeFlagFile.exists()
 
@@ -37,6 +37,12 @@ class CompileContextDb(
             }
         }
 
+    private var apkInfosCache: List<ApkInfo>? = if (apkInfoFile.exists()) {
+        ApkInfoSerializer().deserialize(apkInfoFile.readText())
+    } else {
+        null
+    }
+
     fun saveCompileContext(
         apkInfos: List<ApkInfo>,
         modules: Map<String, ModuleInfo>
@@ -47,6 +53,7 @@ class CompileContextDb(
         // save apk info
         apkInfoFile.parentFile?.mkdirs()
         apkInfoFile.writeText(ApkInfoSerializer().serialize(apkInfos), Charsets.UTF_8)
+        apkInfosCache = apkInfos
 
         // save module info
         BuildPathInfoSerializer(moduleBuildPathDatFile, logger).save(modules)
@@ -103,9 +110,11 @@ class CompileContextDb(
                     it.file.copyToBaseDir(it.baseDir, dexDeployedDir)
                 }
                 CompileOutput.Type.Res -> {
+                    val resDeployedDir = getDeployStorageDir(it.apkPath, CompileOutput.Type.Res)
                     it.file.copyToBaseDir(it.baseDir, resDeployedDir)
                 }
                 CompileOutput.Type.Asset -> {
+                    val assetDeployedDir = getDeployStorageDir(it.apkPath, CompileOutput.Type.Asset)
                     it.file.copyToBaseDir(it.baseDir, assetDeployedDir)
                 }
                 CompileOutput.Type.NativeLib -> {
@@ -129,12 +138,50 @@ class CompileContextDb(
             }
             CompileOutput(CompileOutput.Type.Dex, it, dexDeployedDir)
         }
-        val overlayFiles = resDeployedDir.listFilesRecursively().map {
-            CompileOutput(CompileOutput.Type.Res, it, resDeployedDir)
-        }
-        val assetFiles = assetDeployedDir.listFilesRecursively().map {
-            CompileOutput(CompileOutput.Type.Asset, it, assetDeployedDir)
+
+        val overlayFiles = mutableListOf<CompileOutput>()
+        val assetFiles = mutableListOf<CompileOutput>()
+
+        val apkFileUnits = apkInfosCache?.flatMap { it.files }
+        apkFileUnits?.forEach { apkFileUnit ->
+            val apkPath = apkFileUnit.apkFile.path
+            val resDir = getDeployStorageDir(apkPath, CompileOutput.Type.Res)
+            val subOverlayFiles = resDir.listFilesRecursively().map {
+                CompileOutput(CompileOutput.Type.Res, it, resDir, apkPath)
+            }
+            overlayFiles.addAll(subOverlayFiles)
+            val assetsDir = getDeployStorageDir(apkPath, CompileOutput.Type.Asset)
+            val subAssetFiles = assetsDir.listFilesRecursively().map {
+                CompileOutput(CompileOutput.Type.Asset, it, assetsDir, apkPath)
+            }
+            assetFiles.addAll(subAssetFiles)
         }
         return dexFiles + overlayFiles + assetFiles
     }
+
+    private fun getDeployStorageDir(apkPath: String?, type: CompileOutput.Type): File {
+        val baseDirName = if (type == CompileOutput.Type.Asset) {
+            "asset"
+        } else {
+            "res"
+        }
+        return File(deployedDir, getDeployResDirName(apkPath, baseDirName))
+    }
+
+    private fun getDeployResDirName(apkPath: String?, baseDirName: String): String {
+        if (apkPath == null) {
+            return baseDirName
+        }
+        val isBaseApk = apkInfosCache
+            ?.flatMap { it.files }
+            ?.find { it.apkFile.path == apkPath }
+            ?.isBaseApk
+        if (isBaseApk == true) {
+            return baseDirName
+        }
+        return baseDirName + "_" + File(apkPath).name + "_" + apkPath.md5.substring(0, 8)
+    }
+
+    private val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 }
