@@ -18,7 +18,7 @@ class StyleableFileGeneratorTest {
     @Test
     fun test() {
         val generator = StyleableFileGenerator(logger)
-        val outputFile = generator.generateStyleableFile(context, buildDir)
+        val outputFile = generator.generateStyleableFile(context, buildDir, context.apkInfos.first().files.first())
         assertTrue(outputFile != null)
         assertTrue(outputFile.exists())
         assertTrue(outputFile.length() > 0)
