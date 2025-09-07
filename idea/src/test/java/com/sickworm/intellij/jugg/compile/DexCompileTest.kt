@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.compile
 
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
+import com.sickworm.intellij.jugg.compiler.source.JavaCompiler
+import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.deploy.data.ApkParser
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.Before
@@ -119,6 +121,39 @@ class DexCompileTest {
         assertTrue(result.isAllSuccess)
         assertEquals(0, result.outputs.size)
     }
+
+    @Test
+    fun dexCoreLibraryDesugar() {
+        val javaCompiler = JavaCompiler(context, mockParentDisposable)
+        val javaTask = CompileTask.singleJavaFile(File(projectInfo.projectRoot,
+            "app/src/main/java/com/sickworm/jugg/demo/testcase/desugar/JavaInvoker.java"), stagingDir)
+        val result = javaCompiler.compile(javaTask)
+        assert(result.isAllSuccess)
+
+        val context = context
+        val dexCompiler = DexCompiler(context, mockParentDisposable)
+        context.desugarInfo = DesugarInfo(
+            emptyList(), mapOf(
+                "java.util.concurrent.ConcurrentHashMap".classSigName to "j$.util.concurrent.ConcurrentHashMap".classSigName,
+                "java.util.Base64".classSigName to "j$.util.Base64".classSigName,
+                "java.util.Base64\$Encoder".classSigName to "j$.util.Base64\$Encoder".classSigName,
+                "java.util.Base64\$Decoder".classSigName to "j$.util.Base64\$Decoder".classSigName,
+                "java.util.Optional".classSigName to "j$.util.Optional".classSigName,
+                "java.lang.Deprecated".classSigName to "j$.lang.Deprecated".classSigName,
+            ),
+            true,
+        )
+
+        val dexTask = CompileTask(
+            result.outputs.map {
+                CompileFile(CompileFile.Type.Class, it.file, it.baseDir, context.tempModule)
+            },
+            stagingDir,
+        )
+        val dexResult = dexCompiler.compile(dexTask)
+        assertCompileResult(dexTask, dexResult)
+    }
+
 
     private fun assertCompileResult(task: CompileTask, result: CompileResult) {
         val mapper: OutputFileMapper = { compileFile ->

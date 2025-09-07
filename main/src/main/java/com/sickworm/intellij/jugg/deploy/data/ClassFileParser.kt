@@ -18,6 +18,7 @@ class ClassFileParser(
     val classes: MutableSet<String> = mutableSetOf()
     val interfaces: MutableSet<String> = mutableSetOf()
     val staticInvocationRefs: MutableSet<String> = mutableSetOf()
+    val allRefs: MutableSet<String> = mutableSetOf()
 
     fun parse() {
         for (classFile in classFiles) {
@@ -60,9 +61,11 @@ class ClassFileParser(
             val classSignName = name.classSigName
             classes.add(classSignName)
             if (this@ClassFileParser.interfaces.contains(classSignName)) {
+                // which means it will compile together, so no need to add it to interfaces
                 this@ClassFileParser.interfaces.remove(classSignName)
             }
             if (this@ClassFileParser.staticInvocationRefs.contains(classSignName)) {
+                // which means it will compile together, so no need to add it to staticInvocationRefs
                 this@ClassFileParser.staticInvocationRefs.remove(classSignName)
             }
 
@@ -90,8 +93,11 @@ class ClassFileParser(
                     descriptor: String?,
                     isInterface: Boolean
                 ) {
-                    if (opcode == Opcodes.INVOKESTATIC && owner != null) {
-                        val ownerSigName = owner.classSigName
+                    owner ?: return
+                    val ownerSigName = owner.classSigName
+                    allRefs.add(ownerSigName)
+
+                    if (opcode == Opcodes.INVOKESTATIC) {
                         if (!this@ClassFileParser.classes.contains(ownerSigName)) {
                             staticInvocationRefs.add(ownerSigName)
                         }
@@ -108,6 +114,14 @@ class ClassFileParser(
                     val originInterface = descriptor.substringAfter(')')
                     if (!this@ClassFileParser.classes.contains(originInterface)) {
                         interfaces.add(originInterface)
+                    }
+                    allRefs.add(originInterface)
+                }
+
+                override fun visitFieldInsn(opcode: Int, owner: String?, name: String?, descriptor: String?) {
+                    if (owner != null) {
+                        val ownerSigName = owner.classSigName
+                        allRefs.add(ownerSigName)
                     }
                 }
             }

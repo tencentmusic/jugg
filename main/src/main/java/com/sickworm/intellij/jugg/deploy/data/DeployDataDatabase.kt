@@ -2,10 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.FieldNode
-import com.sickworm.intellij.jugg.compiler.MethodNode
+import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName2
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
@@ -48,6 +45,8 @@ interface IDeployDataDatabase {
                                   ): List<EffectedClassNode>
 
     fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
+
+    fun getCoreLibraryRewriteClassMap(apkFile: File): Map<String, String>
 
     fun isEnableDesugared(): Boolean
 }
@@ -287,6 +286,22 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
             }
         }
         return result.toList()
+    }
+
+    private val desugarInfoCache = mutableMapOf<String, Map<String, String>>()
+
+    override fun getCoreLibraryRewriteClassMap(apkFile: File): Map<String, String> {
+        desugarInfoCache[apkFile.path]?.let { return it }
+
+        val databaseName = DeployDataDatabaseSqLiteHelper.getApkFileDbName(apkFile)
+        val apkDatabase = database[databaseName] ?: run {
+            logger.warn("$apkFile not found in database, desugar may not work correctly.")
+            logger.warn("Fallback again may helps.")
+            return emptyMap()
+        }
+        val result = apkDatabase.getCoreLibraryRewriteClassMap()
+        desugarInfoCache[apkFile.path] = result
+        return result
     }
 
     override fun isEnableDesugared(): Boolean {

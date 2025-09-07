@@ -361,9 +361,10 @@ class BaseCompileContext(
         return dirs
     }
 
-    override fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
+    override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
         // moduleInfo is used for searching classpath, but deployFileManager search globally for now
-        deployFileManager.getAllDesugarClasspath(compileFiles, moduleInfo, toDir)
+        val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
+        return deployFileManager.getDesugarInfo(compileFiles, moduleInfo, toDir, apkFile)
     }
 
     override fun getLastBuildAndroidManifest(file: CompileFile): File? {

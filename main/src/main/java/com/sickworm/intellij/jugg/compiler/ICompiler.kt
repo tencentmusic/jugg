@@ -245,7 +245,7 @@ interface ICompileContext {
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
 
-    fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File)
+    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo
 
     fun getLastBuildAndroidManifest(file: CompileFile): File?
 
@@ -253,6 +253,32 @@ interface ICompileContext {
 
     fun printClasspathCheck(moduleInfo: ModuleInfo)
 }
+
+data class DesugarInfo(
+    val allInterfacesWithDefaultMethod: List<String>,
+
+    /**
+     * Map<origin class name, rewritten class name>
+     *
+     * see https://stackoverflow.com/questions/66556819/android-corelibrarydesugaring-which-java-11-apis-can-i-expect-to-work
+     * see https://r8.googlesource.com/r8/+/314402df87d70a4ad2b6a075c4af0849b33c5830/src/library_desugar/desugar_jdk_libs.json
+     */
+    val coreLibraryRewriteClassMap: Map<String, String>,
+
+    val isNeedRewriteCoreLibrary: Boolean
+) {
+
+    override fun toString(): String {
+        return "isNeedRewriteCoreLibrary=$isNeedRewriteCoreLibrary, " +
+                "coreLibraryRewriteClassMap=${coreLibraryRewriteClassMap.size}, " +
+                "allInterfacesWithDefaultMethod=${allInterfacesWithDefaultMethod.size}"
+    }
+
+    companion object {
+        val EMPTY = DesugarInfo(emptyList(), emptyMap(), false)
+    }
+}
+
 
 fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
     val origin = this

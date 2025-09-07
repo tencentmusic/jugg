@@ -170,14 +170,25 @@ class DeployDataGenerator(
         return juggDeployData
     }
 
-    fun getAllInterfacesWithDefaultMethod(classFiles: List<CompileFile>): List<String> {
-        TimeLogger.start("getAllInterfacesWithDefaultMethod")
+    fun getDesugarInfo(classFiles: List<CompileFile>, apkFile: File): DesugarInfo {
+        TimeLogger.start("getDesugarInfo")
         val files = classFiles.map { it.file }
         val parser = ClassFileParser(files)
         parser.parse()
-        TimeLogger.end("getAllInterfacesWithDefaultMethod", logger)
-        return getAllInterfacesWithDefaultMethod(
+
+        val allInterfacesWithDefaultMethod =  deployDataDatabase.getAllInterfacesWithDefaultMethod(
             parser.interfaces.toList(), parser.staticInvocationRefs.toList()
+        )
+        val coreLibraryRewriteClassMap = deployDataDatabase.getCoreLibraryRewriteClassMap(apkFile)
+        val isNeedRewriteCoreLibrary = parser.allRefs.any {
+            coreLibraryRewriteClassMap.containsKey(it)
+        }
+        TimeLogger.end("getDesugarInfo", logger)
+
+        return DesugarInfo(
+            allInterfacesWithDefaultMethod,
+            coreLibraryRewriteClassMap,
+            isNeedRewriteCoreLibrary,
         )
     }
 

@@ -968,6 +968,30 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     }
 
     @Synchronized
+    fun getCoreLibraryRewriteClassMap(): Map<String, String> {
+        val coreLibraryRewriteClassMap = mutableMapOf<String, String>()
+
+        // see https://stackoverflow.com/questions/66556819/android-corelibrarydesugaring-which-java-11-apis-can-i-expect-to-work
+        // see https://r8.googlesource.com/r8/+/314402df87d70a4ad2b6a075c4af0849b33c5830/src/library_desugar/desugar_jdk_libs.json
+        val javaPrefix = "Lj$/"
+        DriverManager.getConnection(url).use { connection ->
+            runWithTimeCost("coreLibraryRewriteClassMap") {
+                val sql = "SELECT name FROM class_info WHERE name like '$javaPrefix%';"
+                connection.createStatement().use { statement ->
+                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                    while (resultSet.next()) {
+                        val name = resultSet.getString(1)
+                        val desugaredName = name.replace(javaPrefix, "Ljava/")
+                        coreLibraryRewriteClassMap[desugaredName] = name
+                    }
+                }
+            }
+
+            return coreLibraryRewriteClassMap
+        }
+    }
+
+    @Synchronized
     fun filterDefaultInterfaces(suspectInterfaceNames: Collection<String>): Set<String> {
         logger.debug("filterDefaultInterfaces suspectInterfacesName $suspectInterfaceNames")
 

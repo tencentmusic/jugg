@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
@@ -338,10 +339,11 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
-        TimeLogger.start("getAllDesugarClasspath")
+    fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File, apkFile: File): DesugarInfo {
+        TimeLogger.start("getDesugarInfo")
         val filteredClassFiles = compileFiles.filter { it.type == CompileFile.Type.Class }
-        val defaultInterfaces = deployDataGenerator.getAllInterfacesWithDefaultMethod(filteredClassFiles)
+        val desugarInfo = deployDataGenerator.getDesugarInfo(filteredClassFiles, apkFile)
+        val defaultInterfaces = desugarInfo.allInterfacesWithDefaultMethod
         logger.debug("getAllDesugarClasspath all defaultInterfaces: $defaultInterfaces")
         val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces, moduleInfo)
         logger.debug("getAllDesugarClasspath all files: ${files.map { it.file.path }}")
@@ -350,7 +352,9 @@ class DeployFileManager(
             val destFile = File(toDir, relativePath)
             it.file.copyTo(destFile, overwrite = true)
         }
-        TimeLogger.end("getAllDesugarClasspath", logger)
+        TimeLogger.end("getDesugarInfo", logger)
+
+        return desugarInfo
     }
 
     /**

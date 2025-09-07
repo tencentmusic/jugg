@@ -22,7 +22,7 @@ data class SimpleCompileContext(
     override val deployedFiles: List<CompileOutput>,
 ) : ICompileContext {
 
-    val apkFile: File? get() = apkInfos.firstOrNull()?.files?.first()?.apkFile
+    val apkFile: File get() = apkInfos.firstOrNull()?.files?.first()?.apkFile!!
 
     override val tempModule: ModuleInfo = ModuleInfo.virtualModule.copy(
         name = "temp_module",
@@ -170,8 +170,10 @@ data class SimpleCompileContext(
         return emptyList()
     }
 
-    override fun getAllDesugarClasspath(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File) {
+    var desugarInfo = DesugarInfo.EMPTY
 
+    override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
+        return desugarInfo
     }
 
     override fun getLastBuildAndroidManifest(file: CompileFile): File? {
