@@ -67,9 +67,9 @@ class BaseCompileContext(
         }
     }
 
-    override var applicationModule: ModuleInfo? = findApplicationModule()
+    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // run before findApplicationModule
 
-    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules()
+    override var applicationModule: ModuleInfo? = findApplicationModule()
 
     private fun findApplicationModule(): ModuleInfo? {
         var applicationModules = modules.values.filter { module ->
@@ -467,8 +467,8 @@ class BaseCompileContext(
         modules?.let {
             this.modules = HashMap(it)
             finalRFiles = getRFiles()
-            applicationModule = findApplicationModule()
             dynamicFeatureModules = findDynamicFeatureModules()
+            applicationModule = findApplicationModule()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
             moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)
         }
