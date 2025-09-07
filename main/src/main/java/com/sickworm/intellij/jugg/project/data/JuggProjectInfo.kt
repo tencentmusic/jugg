@@ -40,6 +40,7 @@ data class ModuleInfo(
     val gradleModuleName: String? = null, // module name in gradle which will be used in kotlin -module-name
     val kotlinPlugins: List<File>? = null,
     val kotlinExtensions: List<File>? = null,
+    val coreLibraryDesugaring: List<LibraryDependency>? = null,
 ) {
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")

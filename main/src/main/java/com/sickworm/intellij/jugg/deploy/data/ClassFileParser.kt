@@ -3,8 +3,6 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import java.io.File
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
 /**
@@ -18,7 +16,6 @@ class ClassFileParser(
     val classes: MutableSet<String> = mutableSetOf()
     val interfaces: MutableSet<String> = mutableSetOf()
     val staticInvocationRefs: MutableSet<String> = mutableSetOf()
-    val allRefs: MutableSet<String> = mutableSetOf()
 
     fun parse() {
         for (classFile in classFiles) {
@@ -30,7 +27,7 @@ class ClassFileParser(
                         if (entry.name.endsWith(".class")) {
                             jarFile.getInputStream(entry).use { ins ->
                                 val classReader = ClassReader(ins)
-                                val classVisitor = StaticInvocationCollector()
+                                val classVisitor = InvocationCollector()
                                 classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
                             }
                         }
@@ -39,7 +36,7 @@ class ClassFileParser(
             } else {
                 classFile.inputStream().use { ins ->
                     val classReader = ClassReader(ins)
-                    val classVisitor = StaticInvocationCollector()
+                    val classVisitor = InvocationCollector()
                     classReader.accept(classVisitor, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
                 }
             }
@@ -48,7 +45,7 @@ class ClassFileParser(
     }
 
 
-    inner class StaticInvocationCollector: ClassVisitor(Opcodes.ASM9) {
+    inner class InvocationCollector: ClassVisitor(Opcodes.ASM9) {
 
         override fun visit(
             version: Int,
@@ -95,7 +92,6 @@ class ClassFileParser(
                 ) {
                     owner ?: return
                     val ownerSigName = owner.classSigName
-                    allRefs.add(ownerSigName)
 
                     if (opcode == Opcodes.INVOKESTATIC) {
                         if (!this@ClassFileParser.classes.contains(ownerSigName)) {
@@ -115,15 +111,8 @@ class ClassFileParser(
                     if (!this@ClassFileParser.classes.contains(originInterface)) {
                         interfaces.add(originInterface)
                     }
-                    allRefs.add(originInterface)
                 }
 
-                override fun visitFieldInsn(opcode: Int, owner: String?, name: String?, descriptor: String?) {
-                    if (owner != null) {
-                        val ownerSigName = owner.classSigName
-                        allRefs.add(ownerSigName)
-                    }
-                }
             }
         }
     }

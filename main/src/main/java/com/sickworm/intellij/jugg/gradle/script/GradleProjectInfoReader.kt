@@ -270,12 +270,15 @@ class GradleProjectInfoReader(
             val kaptDependencies = getDependenciesByConfig(project, "kapt", isAndroidDepend = false)
             TraceLogger.end("getKapt")
 
+            val coreLibraryDesugaring = getDependenciesByConfig(project, "coreLibraryDesugaring", isAndroidDepend = false, isGetByNewWay = true)
+
             moduleInfo = moduleInfo.copy(
                 moduleDependencies = dependencies.filterIsInstance<ModuleDependency>(),
                 libraryDependencies = dependencies.filterIsInstance<LibraryDependency>(),
                 runtimeLibraryDependencies = runtimeDependencies.filterIsInstance<LibraryDependency>(),
                 annotationProcessorDependencies = annotationProcessorDependencies.filterIsInstance<LibraryDependency>(),
                 kaptDependencies = kaptDependencies.filterIsInstance<LibraryDependency>(),
+                coreLibraryDesugaring = coreLibraryDesugaring.filterIsInstance<LibraryDependency>(),
             )
         } catch (e: Throwable) {
             println("Jugg: get dependency info for ${project.standardModuleName} failed: $e")
@@ -307,7 +310,7 @@ class GradleProjectInfoReader(
         return fixedModulePathMap[relativePath]?.buildVariant ?: defaultVariant
     }
 
-    private fun getDependenciesByConfig(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true): List<Dependency> {
+    private fun getDependenciesByConfig(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true, isGetByNewWay: Boolean = false): List<Dependency> {
         val result = mutableMapOf<String, Dependency>()
         val allNames = project.configurations.names
         val names = allNames.filter { filterConfigs(it, filterName) }
@@ -315,7 +318,11 @@ class GradleProjectInfoReader(
         names.forEach nameForEach@{ name ->
             val configuration = project.configurations.findByName(name) ?: return@nameForEach
             if (configuration.isCanBeResolved) {
-                val subResult = doGetDependencies(configuration, isAndroidDepend)
+                val subResult = if (isGetByNewWay) {
+                    doGetDependenciesNew(configuration)
+                } else {
+                    doGetDependencies(configuration, isAndroidDepend)
+                }
                 totalReadArtifacts += subResult.size
                 resolveArtifacts += configuration.allDependencies.size
                 result.addToResult(subResult)
@@ -455,6 +462,7 @@ class GradleProjectInfoReader(
             // "processed-jar" returns empty list if jetifier not enabled
             val jarArtifactType = if (isEnableJetifier) "processed-jar" else "jar"
             val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter(jarArtifactType))
+            resolvedConfiguration.dependencies
             resolvedArtifacts.addAll(jarView.artifacts.artifacts)
         }
 
@@ -496,6 +504,22 @@ class GradleProjectInfoReader(
         return result.toList()
     }
 
+    private fun doGetDependenciesNew(resolvedConfiguration: Configuration): List<LibraryDependency> {
+        val result = mutableSetOf<LibraryDependency>()
+        resolvedConfiguration.resolvedConfiguration.firstLevelModuleDependencies.forEach {
+            doGetDependenciesNew(it, result)
+        }
+        return result.toList()
+    }
+
+    private fun doGetDependenciesNew(resolvedDependency: ResolvedDependency, result: MutableSet<LibraryDependency>) {
+        resolvedDependency.allModuleArtifacts.forEach {
+            result.add(LibraryDependency(resolvedDependency.moduleVersion, it.file))
+        }
+        resolvedDependency.children.forEach {
+            doGetDependenciesNew(it, result)
+        }
+    }
 
     private fun getProjectDependencies(result: MutableSet<Dependency>, dependencies: Set<ResolvedDependency>) {
         dependencies.forEach { dependency ->

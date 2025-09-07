@@ -144,7 +144,7 @@ class DexCompiler(
         logger.debug("desugarInfo = $desugarInfo")
 
         dexFileMaker.dex(tempOutput, files.map { it.file }, listOf(classpathDir.absolutePath),
-            context.androidJar, minApi, isFilePerClass)
+            context.androidJar, minApi, isFilePerClass, desugarInfo.desugaredLibraryConfiguration)
         val dexFiles: List<File>
         if (isFilePerClass) {
             dexFiles = tempOutput.listFilesRecursively()
@@ -167,18 +167,6 @@ class DexCompiler(
         }
         val outputs: List<CompileOutput> = dexFiles.map {
             CompileOutput(CompileOutput.Type.Dex, it, tempOutput)
-        }
-
-        if (desugarInfo.isNeedRewriteCoreLibrary) {
-            TimeLogger.start("rewrite_core_library")
-            outputs.forEach { output ->
-                val rewriter = DexPackageRefRewriter(output.file) converter@{
-                    it ?: return@converter null
-                    return@converter desugarInfo.coreLibraryRewriteClassMap[it] ?: it
-                }
-                rewriter.rewrite()
-            }
-            TimeLogger.end("rewrite_core_library", logger)
         }
 
         val finalOutputs = outputs.map {

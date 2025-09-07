@@ -18,6 +18,7 @@ import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.SigningConfig
 import java.io.File
+import java.util.zip.ZipFile
 
 class BaseCompileContext(
     private val project: Project,
@@ -361,10 +362,83 @@ class BaseCompileContext(
         return dirs
     }
 
+    private var desugaredLibraryConfigurationCache: MutableMap<String, String?> = mutableMapOf()
+
     override fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo {
-        // moduleInfo is used for searching classpath, but deployFileManager search globally for now
         val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
-        return deployFileManager.getDesugarInfo(compileFiles, moduleInfo, toDir, apkFile)
+        val incompleteInfo = deployFileManager.getDesugarInfo(compileFiles, moduleInfo, toDir, apkFile)
+
+        return if (incompleteInfo.isNeedRewriteCoreLibrary) {
+            incompleteInfo.copy(desugaredLibraryConfiguration = findDesugaredLibraryConfigurationWithCache(moduleInfo))
+        } else {
+            incompleteInfo
+        }
+    }
+
+    private fun findDesugaredLibraryConfigurationWithCache(moduleInfo: ModuleInfo): String? {
+        val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
+        desugaredLibraryConfigurationCache[apkFile.path]?.let { return it }
+
+        val targetModule = findRelativeApkModule(moduleInfo) ?: moduleInfo
+        desugaredLibraryConfigurationCache[apkFile.path] = findDesugaredLibraryConfigurationTarget(targetModule)
+        return desugaredLibraryConfigurationCache[apkFile.path]
+    }
+
+    private fun findRelativeApkModule(moduleInfo: ModuleInfo): ModuleInfo {
+        val apkFile = moduleBelongsApkMap[moduleInfo]!!.apkFile // should not be null
+        val applicationModule = applicationModule
+        if (applicationModule != null && moduleBelongsApkMap[applicationModule]?.apkFile == apkFile) {
+            return applicationModule
+        }
+        dynamicFeatureModules.forEach {
+            if (moduleBelongsApkMap[it]?.apkFile == apkFile) {
+                return it
+            }
+        }
+
+        val fallback = applicationModule ?: moduleInfo
+        logger.debug("findRelativeApkModule failed, cannot find ${moduleInfo.name} relative apk module, " +
+                "use ${fallback.name} for fallback.")
+        return fallback
+    }
+
+    private fun findDesugaredLibraryConfigurationTarget(targetModule: ModuleInfo): String? {
+        var result = findDesugaredLibraryConfiguration(targetModule)
+        if (result != null) {
+            logger.debug("coreLibraryDesugaring found in targetModule: ${applicationModule?.name}")
+            return result
+        }
+        modules.values.forEach { moduleInfo ->
+            result = findDesugaredLibraryConfiguration(moduleInfo)
+            if (result != null) {
+                logger.debug("coreLibraryDesugaring found in module: ${moduleInfo.name}")
+                return result
+            }
+        }
+
+        logger.warn("coreLibraryDesugaring not found, desugaring may not work correctly, sync gradle again helps.")
+        return null
+    }
+
+    private fun findDesugaredLibraryConfiguration(moduleInfo: ModuleInfo?): String? {
+        moduleInfo?.coreLibraryDesugaring?.forEach { dependency ->
+            val targetConfigJar = dependency.file
+            ZipFile(targetConfigJar).use { zipFile ->
+                val entry = zipFile.getEntry("META-INF/desugar/d8/desugar.json")
+                if (entry == null) {
+                    logger.debug("coreLibraryDesugaring desugar.json not found in $targetConfigJar")
+                    return@use
+                }
+                logger.debug("coreLibraryDesugaring desugar.json found in $targetConfigJar")
+                zipFile.getInputStream(entry).use { inputStream ->
+                    val result = inputStream.reader().readText()
+                    logger.debug("coreLibraryDesugaring get desugaredLibraryConfiguration from desugar.json done in $targetConfigJar, " +
+                            "part of content: ${result.substring(0, 200)?.replace("\n", "")}")
+                    return result
+                }
+            }
+        }
+        return null
     }
 
     override fun getLastBuildAndroidManifest(file: CompileFile): File? {

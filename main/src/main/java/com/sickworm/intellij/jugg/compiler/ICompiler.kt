@@ -265,17 +265,20 @@ data class DesugarInfo(
      */
     val coreLibraryRewriteClassMap: Map<String, String>,
 
-    val isNeedRewriteCoreLibrary: Boolean
+    val isNeedRewriteCoreLibrary: Boolean,
+
+    val desugaredLibraryConfiguration: String?,
 ) {
 
     override fun toString(): String {
         return "isNeedRewriteCoreLibrary=$isNeedRewriteCoreLibrary, " +
                 "coreLibraryRewriteClassMap=${coreLibraryRewriteClassMap.size}, " +
-                "allInterfacesWithDefaultMethod=${allInterfacesWithDefaultMethod.size}"
+                "allInterfacesWithDefaultMethod=${allInterfacesWithDefaultMethod.size}, " +
+                "desugaredLibraryConfiguration=${desugaredLibraryConfiguration?.length}"
     }
 
     companion object {
-        val EMPTY = DesugarInfo(emptyList(), emptyMap(), false)
+        val EMPTY = DesugarInfo(emptyList(), emptyMap(), false, null)
     }
 }
 

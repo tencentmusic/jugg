@@ -133,15 +133,7 @@ class DexCompileTest {
         val context = context
         val dexCompiler = DexCompiler(context, mockParentDisposable)
         context.desugarInfo = DesugarInfo(
-            emptyList(), mapOf(
-                "java.util.concurrent.ConcurrentHashMap".classSigName to "j$.util.concurrent.ConcurrentHashMap".classSigName,
-                "java.util.Base64".classSigName to "j$.util.Base64".classSigName,
-                "java.util.Base64\$Encoder".classSigName to "j$.util.Base64\$Encoder".classSigName,
-                "java.util.Base64\$Decoder".classSigName to "j$.util.Base64\$Decoder".classSigName,
-                "java.util.Optional".classSigName to "j$.util.Optional".classSigName,
-                "java.lang.Deprecated".classSigName to "j$.lang.Deprecated".classSigName,
-            ),
-            true,
+            emptyList(), emptyMap(), true, File(assetsAssetsDir, "desugar.json").readText()
         )
 
         val dexTask = CompileTask(

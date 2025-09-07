@@ -180,15 +180,15 @@ class DeployDataGenerator(
             parser.interfaces.toList(), parser.staticInvocationRefs.toList()
         )
         val coreLibraryRewriteClassMap = deployDataDatabase.getCoreLibraryRewriteClassMap(apkFile)
-        val isNeedRewriteCoreLibrary = parser.allRefs.any {
-            coreLibraryRewriteClassMap.containsKey(it)
-        }
+
+        val isNeedRewriteCoreLibrary = coreLibraryRewriteClassMap.isNotEmpty()
         TimeLogger.end("getDesugarInfo", logger)
 
         return DesugarInfo(
             allInterfacesWithDefaultMethod,
             coreLibraryRewriteClassMap,
             isNeedRewriteCoreLibrary,
+            null
         )
     }
 

@@ -10,11 +10,11 @@ class DexFileMaker(private val logger: Logger) {
 
     fun dex(outputDir: File,
             classFilesOrDir: List<File>,
-            @Suppress("UNUSED_PARAMETER")
             classpath: Collection<String>,
             androidJar: File,
             minApi: Int,
             isFilePerClass: Boolean = true,
+            desugaredLibraryConfiguration: String? = null,
     ) {
         outputDir.mkdirs()
 
@@ -46,8 +46,11 @@ class DexFileMaker(private val logger: Logger) {
         val filesPath = classFilesOrDir.map { it.absolutePath }
         args.addAll(filesPath)
 
-        val command = D8Command.parse(args.toTypedArray(), Origin.root())
-            .build()
+        val builder = D8Command.parse(args.toTypedArray(), Origin.root())
+        if (desugaredLibraryConfiguration != null) {
+            builder.addDesugaredLibraryConfiguration(desugaredLibraryConfiguration)
+        }
+        val command = builder.build()
         logger.debug("D8Command: d8 ${args.joinToString(" ")}")
         com.android.tools.r8.D8.run(command) // throws exceptions
     }
