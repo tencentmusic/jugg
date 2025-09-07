@@ -1,3 +1,8 @@
+- version: 2.5.0-rc2
+  date: 2025.09.07
+  updates:
+    - 支持 coreLibraryDesugaringEnabled 脱糖
+
 - version: 2.5.0-rc1
   date: 2025.08.31
   updates:
