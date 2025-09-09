@@ -17,6 +17,7 @@ import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.io.File
+import java.nio.file.Path
 import java.security.MessageDigest
 import javax.swing.SwingUtilities
 
@@ -252,8 +253,18 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
             }
             logEvent("install from $zipFile to ${ideaPluginDescriptor.pluginPath}")
             @Suppress("UnstableApiUsage")
-            PluginInstaller.installAfterRestart(ideaPluginDescriptor, zipFile.toPath(),
-                ideaPluginDescriptor.pluginPath, true)
+            try {
+                PluginInstaller.installAfterRestart(ideaPluginDescriptor, zipFile.toPath(),
+                    ideaPluginDescriptor.pluginPath, true)
+            } catch (e: Throwable) {
+                logEvent("downloadHotUpdate install failed, try old api. error: $e")
+                val clazz = PluginInstaller::class.java
+                val method = clazz.getMethod("installAfterRestart",
+                    Path::class.java, Boolean::class.java, Path::class.java, IdeaPluginDescriptor::class.java
+                )
+                method.invoke(null, zipFile.toPath(), true, ideaPluginDescriptor.pluginPath, ideaPluginDescriptor)
+            }
+            logEvent("downloadHotUpdate install success")
             return true
         } catch (e: Throwable) {
             logEvent("downloadHotUpdate install failed: $e")
