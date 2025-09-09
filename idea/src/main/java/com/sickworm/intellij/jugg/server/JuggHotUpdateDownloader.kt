@@ -16,7 +16,6 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import java.io.File
 import java.security.MessageDigest
 import javax.swing.SwingUtilities
@@ -44,7 +43,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
     private fun start() {
         lastRequestTime = 0L // refresh request frequency limit
 
-        juggServer.launch {
+        juggServer.launchSafe {
             delay(START_DELAY_MILL) // delay for first request
             while (juggServer.isActive) {
                 try {
@@ -256,7 +255,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
             PluginInstaller.installAfterRestart(ideaPluginDescriptor, zipFile.toPath(),
                 ideaPluginDescriptor.pluginPath, true)
             return true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             logEvent("downloadHotUpdate install failed: $e")
             return false
         }
@@ -282,7 +281,7 @@ class JuggHotUpdateDownloader(private val juggServer: JuggServer, loggerArg: Log
             return@map jarFile
         }
 
-        juggServer.launch {
+        juggServer.launchSafe {
             val isSuccess = installPlugin(jarFiles)
             logEvent("installPluginForLowerVersion isSuccess $isSuccess")
             if (isSuccess) {
