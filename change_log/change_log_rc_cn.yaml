@@ -1,3 +1,9 @@
+- version: 2.4.0-rc5
+  date: 2025.09.09
+  updates:
+    - 修复安装 APK 时报错："Parent job is Cancelling"
+    - 修复 Android Studio Electric Eel 以下版本无法自动更新插件
+
 - version: 2.4.0-rc4
   date: 2025.08.27
   updates:
