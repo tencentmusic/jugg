@@ -64,9 +64,9 @@ class BaseCompileContext(
         }
     }
 
-    override var applicationModule: ModuleInfo? = findApplicationModule()
+    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // must run before findApplicationModule()
 
-    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules()
+    override var applicationModule: ModuleInfo? = findApplicationModule()
 
     private fun findApplicationModule(): ModuleInfo? {
         var applicationModules = modules.values.filter { module ->
@@ -387,8 +387,8 @@ class BaseCompileContext(
         modules?.let {
             this.modules = HashMap(it)
             finalRFiles = getRFiles()
+            dynamicFeatureModules = findDynamicFeatureModules() // must run before findApplicationModule
             applicationModule = findApplicationModule()
-            dynamicFeatureModules = findDynamicFeatureModules()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
         }
         if (addedTempLibraries != null || removedTempLibraries != null) {
