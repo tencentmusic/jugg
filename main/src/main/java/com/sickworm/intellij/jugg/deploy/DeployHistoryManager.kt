@@ -82,7 +82,12 @@ class DeployHistoryManager(
         logger.debug("tryGetContextRecoverInfoFromDb recover feature is available")
 
         val startTime = System.currentTimeMillis()
-        val changedFiles = deployHistoryDb.getChangedFilesSinceLastFullCompiled(isOnInit)?.filter { it.isFile }
+        val changedFiles = try {
+            deployHistoryDb.getChangedFilesSinceLastFullCompiled(isOnInit)?.filter { it.isFile }
+        } catch (e: Exception) {
+            logger.warn("getChangedFilesSinceLastFullCompiled failed ", e)
+            null
+        }
         val changedFilesTime = System.currentTimeMillis()
 
         val compileContextInfo = compileContextDb.getCompileBuildPathInfoFromDb()
