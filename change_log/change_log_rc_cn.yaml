@@ -1,3 +1,8 @@
+- version: 2.4.0-rc6
+  date: 2025.09.10
+  updates:
+    - 修复 Gradle 编译失败：java.io.FileNotFoundException (Operation not supported on socket)
+
 - version: 2.4.0-rc5
   date: 2025.09.09
   updates:
