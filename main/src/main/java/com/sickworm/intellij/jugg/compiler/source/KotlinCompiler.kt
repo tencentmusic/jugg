@@ -27,6 +27,8 @@ class KotlinCompiler(
     override val isNeedPrintProgress: Boolean = true
 
     private var hasRetryCompile = false
+    private var tryDisablePlugins: List<File> = emptyList()
+    private var disablePlugins: List<File> = emptyList()
 
     private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
 
@@ -77,8 +79,12 @@ class KotlinCompiler(
         // compat with kmm, which will save info in parent dependencies in IDE JuggProjectInfo
         val allRelativeModules = context.getParentModules(module, isAddSelfToResult = true)
         val kaptDependencies = allRelativeModules.flatMap { it.kaptDependencies }
-        val kotlinPlugins = allRelativeModules.flatMap { it.kotlinPlugins ?: emptyList() }
-        val kotlinExtensions = allRelativeModules.flatMap { it.kotlinExtensions ?: emptyList() }
+        val kotlinPlugins = allRelativeModules
+            .flatMap { it.kotlinPlugins ?: emptyList() }
+            .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
+        val kotlinExtensions = allRelativeModules
+            .flatMap { it.kotlinExtensions ?: emptyList() }
+            .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
         val pluginArgs = mutableListOf<String>()
         if (kotlinCompile.isUseProjectCompiler) {
@@ -262,6 +268,36 @@ class KotlinCompiler(
             retryReason = "Kotlin compile failed with INTERNAL_ERROR"
             shouldRecreate = true
         }
+
+        // handles plugin arguments
+        // error: required plugin option not present: kuikly:statisticsPath
+        // Plugin "kuikly" usage:
+        //  statisticsPath string      statistics path to save build data (required)
+        val noOptionPlugins = mutableListOf<File>()
+        outputParser.results.forEach { result ->
+            if (!result.isFailed) {
+                return@forEach
+            }
+            val regex = Regex("Plugin \"(.*)\" usage")
+            for (error in result.getFailure().errors) {
+                val message = error.second
+                // Plugin "(.*)" usage
+                val pluginName = regex.find(message)?.groupValues?.get(1)
+                if (pluginName != null) {
+                    val relativePlugins = (kotlinPlugins + kotlinExtensions).filter {
+                        it.path.contains(pluginName, ignoreCase = true)
+                    }
+                    noOptionPlugins.addAll(relativePlugins)
+                }
+            }
+        }
+        if (noOptionPlugins.isNotEmpty()) {
+            logger.debug("Plugin option not set, try to recreate compiler once. noOptionPlugins: $noOptionPlugins")
+            retryReason = "Plugin option not set"
+            shouldRecreate = true
+            tryDisablePlugins = noOptionPlugins
+        }
+
         if (shouldRecreate) {
             logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRetryCompile")
             if (!hasRetryCompile) {
@@ -305,6 +341,7 @@ class KotlinCompiler(
         }
 
         hasRetryCompile = false
+        disablePlugins = tryDisablePlugins
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
     }
 
