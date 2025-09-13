@@ -533,7 +533,7 @@ class JuggManager @TestOnly constructor(
 
     override fun gradleCompile() {
         logger.debug("[action] gradleCompile")
-        ForceGradleCompileHelper.executeGradleCompile(project)
+        ForceGradleCompileHelper.executeGradleCompile(this)
     }
 
     override fun restartApp() {
