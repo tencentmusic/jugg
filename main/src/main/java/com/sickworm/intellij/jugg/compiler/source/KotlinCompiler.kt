@@ -186,11 +186,11 @@ class KotlinCompiler(
         }
         if (!kotlinCompile.isUseProjectCompiler) {
             if (analyzeResult.isNeedCompileCompose) {
-                logger.warn("It seems you're compiling compose, but the feature is not enabled.")
-                if (JuggSettings.isUseProjectKotlinCompiler) {
+                logger.warn("It seems you're compiling compose, but compose plugin is not enabled.")
+                if (!JuggSettings.isUseProjectKotlinCompiler) {
                     logger.warn("Please enable \"Enable use project Kotlin compiler\" in Jugg run configurations to avoid runtime crash.")
                 } else {
-                    logger.warn("Please try fallback once, if it's still not working, please report to the admin.")
+                    logger.warn("Please try sync and fallback once, if it's still not working, please report to the admin.")
                 }
             }
         }
@@ -386,23 +386,22 @@ class KotlinCompiler(
         files.forEach root@{ file ->
             file.readLines().forEach {
                 val line = it.trim()
-                if (line.isEmpty()) {
+                if (!line.startsWith("import")) {
                     return@forEach
-                }
-                if (!line.startsWith("import") && !line.startsWith("package")) {
-                    // imports are only allowed in the beginning of file
-                    // check import finished
-                    return@root
                 }
 
                 val importContent = line.substringAfter("import").trim()
                 if (importContent.startsWith("kotlinx.android.synthetic.")) {
-                    logger.debug("find kotlinx.android.synthetic import in $file")
-                    isNeedKotlinAndroidExtensions = true
+                    if (!isNeedKotlinAndroidExtensions) {
+                        logger.debug("find kotlinx.android.synthetic import in $file")
+                        isNeedKotlinAndroidExtensions = true
+                    }
                 }
                 if (importContent.startsWith("androidx.compose.")) {
-                    logger.debug("find androidx.compose import in $file")
-                    isNeedCompileCompose = true
+                    if (!isNeedCompileCompose) {
+                        logger.debug("find androidx.compose import in $file")
+                        isNeedCompileCompose = true
+                    }
                 }
             }
         }
