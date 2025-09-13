@@ -1,13 +1,17 @@
 <h1>Change Log</h1>
-<h2>2.4.0 (2025.09.10)</h2>
+<h2>2.4.0 (2025.09.13)</h2>
 <ol>
     <li>[feature] supports RPC invocation</li>
+    <li>[feature] supports KMM compose (Kuikly compose)</li>
+    <li>[feature] fallback button supports fallback without selecting jugg run configuration</li>
     <li>[optimize] limit logger size to 100MB</li>
+    <li>[optimize] compat with Kotlin plugin that requires options, and we haven't provided, which will cause compilation error</li>
     <li>[bugfix] fix styleable compile failed when having dynamic feature modules</li>
     <li>[bugfix] fix Narwhal Feature Drop cannot create run configuration</li>
     <li>[bugfix] "Parent job is Cancelling" when installing APK</li>
     <li>[bugfix] fix install plugin failed below Android Studio Electric Eel</li>
     <li>[bugfix] fix gradle compilation failed by java.io.FileNotFoundException: (Operation not supported on socket)</li>
+    <li>[bugfix] fix some compose file cannot compile</li>
 </ol>
 <h2>2.3.0 (2025.08.03)</h2>
 <ol>

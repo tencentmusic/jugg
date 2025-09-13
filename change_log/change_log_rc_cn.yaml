@@ -1,3 +1,11 @@
+- version: 2.4.0-rc7
+  date: 2025.09.13
+  updates:
+    - 支持 KMM compose（Kuikly compose）
+    - 降级按钮使用无需选择 jugg 配置（自动选择第一个）
+    - 支持当出现某些 Kotlin 编译插件没有提供必须参数时，自动屏蔽该插件
+    - 修复部分 compose 源码无法编译
+
 - version: 2.4.0-rc6
   date: 2025.09.10
   updates:

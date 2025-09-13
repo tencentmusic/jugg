@@ -1,3 +1,11 @@
+- version: 2.4.0-rc7
+  date: 2025.09.13
+  updates:
+    - supports KMM compose (Kuikly compose)
+    - fallback button supports fallback without selecting jugg run configuration
+    - compat with Kotlin plugin that requires options, and we haven't provided, which will cause compilation error
+    - fix some compose file cannot compile
+
 - version: 2.4.0-rc6
   date: 2025.09.10
   updates:
