@@ -92,6 +92,9 @@ class KotlinCompiler(
             kotlinPlugins.forEach {
                 pluginArgs.add("-Xplugin=${it.path}")
             }
+            // compat with kuikly
+            pluginArgs.addAll(listOf("-P", "plugin:kuikly:statisticsPath=" +
+                    "${context.tempCompileDir.resolve("kuikly")}"))
         } else {
             // we are using embedded compiler, which may conflict with the plugin version in project
         }
