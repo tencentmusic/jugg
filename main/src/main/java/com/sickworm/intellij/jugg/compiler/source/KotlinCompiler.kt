@@ -74,10 +74,16 @@ class KotlinCompiler(
         // Jugg will check it again in [initIfNeeded] before use it
         kotlinCompile.initIfNeeded(projectKotlinCompilerClasspath, logger)
 
+        // compat with kmm, which will save info in parent dependencies in IDE JuggProjectInfo
+        val allRelativeModules = context.getParentModules(module, isAddSelfToResult = true)
+        val kaptDependencies = allRelativeModules.flatMap { it.kaptDependencies }
+        val kotlinPlugins = allRelativeModules.flatMap { it.kotlinPlugins ?: emptyList() }
+        val kotlinExtensions = allRelativeModules.flatMap { it.kotlinExtensions ?: emptyList() }
+
         val pluginArgs = mutableListOf<String>()
         if (kotlinCompile.isUseProjectCompiler) {
             // if we use project compiler, we can use project plugins
-            module.kotlinPlugins?.forEach {
+            kotlinPlugins.forEach {
                 pluginArgs.add("-Xplugin=${it.path}")
             }
         } else {
@@ -142,7 +148,7 @@ class KotlinCompiler(
         val kaptSourceDir = kaptTmpDir.resolve("sources")
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
-        if (kotlinCompile.isUseProjectCompiler && isEnableKapt && module.kaptDependencies.isNotEmpty()) {
+        if (kotlinCompile.isUseProjectCompiler && isEnableKapt && kaptDependencies.isNotEmpty()) {
             // see https://kotlinlang.org/docs/kapt.html#use-in-cli
             kaptArgs.addAll(listOf(
                 // normal kapt arguments
@@ -153,7 +159,7 @@ class KotlinCompiler(
 //                "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubs",
             ))
 
-            module.kaptDependencies.forEach {
+            kaptDependencies.forEach {
                 kaptArgs.addAll(listOf("-P", "plugin:org.jetbrains.kotlin.kapt3:apclasspath=${it.file.path}"))
             }
 
@@ -164,36 +170,7 @@ class KotlinCompiler(
             }
         }
 
-        val composeArgs = mutableListOf<String>()
-        if (kotlinCompile.isUseProjectCompiler && analyzeResult.isNeedCompileCompose) {
-            var composeExtension = module.kotlinExtensions?.find {
-                it.path.contains("androidx.compose")
-            }
-            if (composeExtension == null) {
-                // kotlin 2.0
-                composeExtension = module.kotlinPlugins?.find {
-                    it.path.contains("kotlin-compose-compiler")
-                }
-            }
-            if (composeExtension == null) {
-                logger.warn("Compose extension not found in classpath, compile result may be incorrect.")
-            } else {
-                composeArgs.add("-Xplugin=${composeExtension.path}")
-                composeArgs.addAll(listOf("-P", "plugin:androidx.compose.plugins.idea:enabled=true"))
-                composeArgs.addAll(listOf("-P", "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true"))
-                composeArgs.add("-Xallow-unstable-dependencies")
-            }
-        }
-        if (!kotlinCompile.isUseProjectCompiler) {
-            if (analyzeResult.isNeedCompileCompose) {
-                logger.warn("It seems you're compiling compose, but compose plugin is not enabled.")
-                if (!JuggSettings.isUseProjectKotlinCompiler) {
-                    logger.warn("Please enable \"Enable use project Kotlin compiler\" in Jugg run configurations to avoid runtime crash.")
-                } else {
-                    logger.warn("Please try sync and fallback once, if it's still not working, please report to the admin.")
-                }
-            }
-        }
+        val composeArgs = handleComposeArgs(analyzeResult, kotlinExtensions, kotlinPlugins)
 
         val javaSourceRoots = (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
             it.exists()
@@ -329,6 +306,63 @@ class KotlinCompiler(
 
         hasRetryCompile = false
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
+    }
+
+    private fun handleComposeArgs(
+        analyzeResult: KotlinSourceAnalyzeResult,
+        kotlinExtensions: List<File>,
+        kotlinPlugins: List<File>,
+    ): List<String> {
+        if (!analyzeResult.isNeedCompileCompose) {
+            return emptyList()
+        }
+
+        // need compile compose
+        if (!kotlinCompile.isUseProjectCompiler) {
+            logger.warn("It seems you're compiling compose, but compose plugin is not enabled.")
+            if (!JuggSettings.isUseProjectKotlinCompiler) {
+                logger.warn("Please enable \"Enable use project Kotlin compiler\" in Jugg run configurations to avoid runtime crash.")
+            } else {
+                logger.warn("Please try sync and fallback once, if it's still not working, please report to the admin.")
+            }
+            return emptyList()
+        }
+
+        // collect compose arguments
+        val composeArgs = mutableListOf<String>()
+
+        // android compose
+        var composeExtension = kotlinExtensions.find {
+            it.path.contains("androidx.compose")
+        }
+
+        // kmm compose
+        if (composeExtension == null) {
+            composeExtension = kotlinPlugins.find {
+                it.path.contains("org.jetbrains.compose")
+            }
+        }
+        // kotlin 2.0
+        if (composeExtension == null) {
+            composeExtension = kotlinPlugins.find {
+                it.path.contains("kotlin-compose-compiler")
+            }
+        }
+
+        if (composeExtension != null) {
+            composeArgs.add("-Xplugin=${composeExtension.path}")
+            // no idea whether it's working
+            composeArgs.addAll(listOf("-P", "plugin:androidx.compose.plugins.idea:enabled=true"))
+            composeArgs.addAll(listOf("-P", "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true"))
+            composeArgs.add("-Xallow-unstable-dependencies")
+            return composeArgs
+        }
+
+
+        logger.debug("Compose extension not found in classpath, " +
+                "kotlinPlugins: ${kotlinPlugins}, kotlinExtensions: $kotlinExtensions")
+        logger.warn("Compose extension not found in classpath, compile result may be incorrect.")
+        return emptyList()
     }
 
     private fun handleMetadataError(outputParser: KotlinCompilerOutputParser): Boolean {

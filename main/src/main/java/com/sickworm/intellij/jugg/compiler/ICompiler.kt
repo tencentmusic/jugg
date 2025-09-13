@@ -241,6 +241,8 @@ interface ICompileContext {
 
     fun getLastBuildAndroidManifest(file: CompileFile): File?
 
+    fun getParentModules(moduleInfo: ModuleInfo, isAddSelfToResult: Boolean): List<ModuleInfo>
+
     fun listenUpdate(listener: OnContextUpdate)
 
     fun printClasspathCheck(moduleInfo: ModuleInfo)

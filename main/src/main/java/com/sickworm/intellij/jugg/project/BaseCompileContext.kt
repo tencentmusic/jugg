@@ -224,18 +224,8 @@ class BaseCompileContext(
 
         // handles library1.commonMain only has .klib dependencies, read it in library1
         val parentLibraryModuleDependency = mutableListOf<String>()
-        var parentModuleName = moduleInfo.name
-        while (parentModuleName.isNotEmpty()) {
-            if (!parentModuleName.contains('.')) {
-                break
-            }
-            parentModuleName = parentModuleName.substringBeforeLast('.')
-            val parentModuleInfo = modules[parentModuleName] ?: break
-            if (parentModuleInfo.libraryDependencies.isEmpty()) {
-                continue
-            }
-            logger.debug("${moduleInfo.name} found parent module $parentModuleName")
-            parentLibraryModuleDependency.addAll(parentModuleInfo.getLibraryDependencyPaths())
+        getParentModules(moduleInfo, isAddSelfToResult = false).forEach {
+            parentLibraryModuleDependency.addAll(it.getLibraryDependencyPaths())
         }
 
         if (finalRFiles.isEmpty()) {
@@ -365,6 +355,25 @@ class BaseCompileContext(
     override fun getLastBuildAndroidManifest(file: CompileFile): File? {
         val changedFile = ChangedFile(file.type, file.file, file.baseDir, file.module, file.extraInfo)
         return deployHistoryManager.getLastBuildFiles(listOf(changedFile)).firstOrNull()?.second
+    }
+
+    override fun getParentModules(moduleInfo: ModuleInfo, isAddSelfToResult: Boolean): List<ModuleInfo> {
+        val result = mutableListOf<ModuleInfo>()
+        if (isAddSelfToResult) {
+            result.add(moduleInfo)
+        }
+
+        var parentModuleName = moduleInfo.name
+        while (parentModuleName.isNotEmpty()) {
+            if (!parentModuleName.contains('.')) {
+                break
+            }
+            parentModuleName = parentModuleName.substringBeforeLast('.')
+            val parentModuleInfo = modules[parentModuleName] ?: break
+            result.add(parentModuleInfo)
+            logger.debug("${moduleInfo.name} found parent module $parentModuleName")
+        }
+        return result
     }
 
     override fun listenUpdate(listener: OnContextUpdate) {
