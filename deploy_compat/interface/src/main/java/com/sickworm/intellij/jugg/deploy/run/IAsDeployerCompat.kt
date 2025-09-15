@@ -90,7 +90,7 @@ interface IAsDeployerCompat {
         }
     }
 
-    fun getIdeModuleInfo(project: Project, module: Module, logger: Logger): IdeModuleInfo?
+    fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo?
 
     companion object {
         const val ANDROID_11_API = 30
@@ -121,4 +121,5 @@ data class IdeModuleInfo(
     val minifyEnabled: String?,
     val buildVariant: String,
     val manifestRelativePath: String?,
+    val brokenFields: List<String>,
 )

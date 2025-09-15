@@ -2,25 +2,32 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
 import com.android.tools.idea.gradle.dsl.api.ext.ResolvedPropertyModel
-import com.intellij.openapi.diagnostic.Logger
 
-class GradleVariableHelper(private val logger: Logger) {
+class GradleVariableHelper(private val isSafeMode: Boolean) {
 
-    fun readVariable(model: GradleBuildModel, propertyGetter: () -> ResolvedPropertyModel, isValid: String.() -> Boolean): String? {
+    val brokenFields = mutableListOf<String>()
+
+    fun readVariable(propertyName: String, model: GradleBuildModel, propertyGetter: () -> ResolvedPropertyModel, isValid: String.() -> Boolean): String? {
         try {
             val property = propertyGetter()
             return readVariable(model, property, isValid)
         } catch (e: Throwable) {
-            logger.warn("readVariable get failed: $e")
+            if (!isSafeMode) {
+                throw e
+            }
+            brokenFields.add(propertyName)
             return null
         }
     }
 
-    fun <T> readVariable(propertyGetter: () -> T): T? {
+    fun <T> readVariable(propertyName: String, propertyGetter: () -> T): T? {
         try {
             return propertyGetter()
         } catch (e: Throwable) {
-            logger.warn("readVariable2 get failed: $e")
+            if (!isSafeMode) {
+                throw e
+            }
+            brokenFields.add(propertyName)
             return null
         }
     }

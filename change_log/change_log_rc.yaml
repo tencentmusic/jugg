@@ -1,3 +1,8 @@
+- version: 2.4.0-rc8
+  date: 2025.09.15
+  updates:
+    - supports Android Studio Narwhal 4 Feature Drop
+
 - version: 2.4.0-rc7
   date: 2025.09.13
   updates:

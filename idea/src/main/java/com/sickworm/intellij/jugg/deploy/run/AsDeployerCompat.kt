@@ -72,7 +72,7 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
-            IdeVersion("Android Studio Narwhal Feature Drop", "IA", "251.26094.121"),
+            IdeVersion("Android Studio Narwhal Feature Drop", "IA", "251.27812.49"),
             lazy { NarwhalAsDeployerFeatureCompat() }
         ),
         CompatImpl(
@@ -213,8 +213,8 @@ object AsDeployerCompat : IAsDeployerCompat {
         return impl.getSuggestRunConfigurations(existsRunConfigNames, project, logger, isNeedDefaultRunConfig)
     }
 
-    override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger): IdeModuleInfo? {
-        return impl.getIdeModuleInfo(project, module, logger)
+    override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
+        return impl.getIdeModuleInfo(project, module, logger, isSafeMode)
     }
 }
 

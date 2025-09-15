@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.ide.logic.RuntimeMockUtils
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.*
@@ -288,7 +289,14 @@ class CompileContextManager(
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
-            var ideModuleInfo = AsDeployerCompat.getIdeModuleInfo(project, module, logger)
+            var ideModuleInfo = try {
+                AsDeployerCompat.getIdeModuleInfo(project, module, logger, false)
+            } catch (e: Throwable) {
+                if (RuntimeMockUtils.isTestMode) {
+                    throw e
+                }
+                AsDeployerCompat.getIdeModuleInfo(project, module, logger, true)
+            }
             if (ideModuleInfo == null) {
                 notGradleModules.add(module.name)
                 return@forEach
@@ -450,8 +458,7 @@ class CompileContextManager(
             )
 
             modules[moduleInfo.name] = moduleInfo
-            addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo")
-
+            addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo, brokenFields: ${info.brokenFields}")
         }
 
         if (directoryNotFoundModules.isNotEmpty()) {
