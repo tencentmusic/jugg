@@ -11,6 +11,8 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.module.Module
+import java.io.File
 
 /**
  * Compat for Android Studio Deployer API
@@ -88,6 +90,8 @@ interface IAsDeployerCompat {
         }
     }
 
+    fun getIdeModuleInfo(project: Project, module: Module, logger: Logger): IdeModuleInfo?
+
     companion object {
         const val ANDROID_11_API = 30
         @Suppress("MemberVisibilityCanBePrivate")
@@ -105,3 +109,16 @@ interface IAsDeployerCompat {
     }
 }
 
+data class IdeModuleInfo(
+    val baseDir: File?,
+    val buildToolsVersion: String?,
+    val compileVersion: String?,
+    val minSdkVersion: String?,
+    val kotlinJvmTarget: String?,
+    val kotlinFreeCompilerArgs: List<String>?,
+    val javaSourceCompatibility: String?,
+    val javaTargetCompatibility: String?,
+    val minifyEnabled: String?,
+    val buildVariant: String,
+    val manifestRelativePath: String?,
+)

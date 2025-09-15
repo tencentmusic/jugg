@@ -8,6 +8,8 @@ import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.model.Apk
 import com.android.tools.idea.adb.AdbService
 import com.android.tools.idea.flags.StudioFlags
+import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
+import com.android.tools.idea.gradle.dsl.api.java.LanguageLevelPropertyModel
 import com.android.tools.idea.gradle.model.IdeAndroidArtifact
 import com.android.tools.idea.gradle.model.IdeAndroidProject
 import com.android.tools.idea.gradle.model.IdeSigningConfig
@@ -26,7 +28,10 @@ import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.rootManager
+import com.intellij.openapi.vfs.VfsUtil
 import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkUtils
 import java.io.File
@@ -411,5 +416,78 @@ open class ChipmunkAsDeployerCompat: IAsDeployerCompat {
         val method = GradleAndroidModel::class.java.getDeclaredMethod("getVariants")
         @Suppress("UNCHECKED_CAST")
         return method.invoke(this) as List<IdeVariant>
+    }
+
+    override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger): IdeModuleInfo? {
+        val projectBuildModel = ProjectBuildModel.get(project)
+        val buildModel = projectBuildModel.getModuleBuildModel(module) ?: return null
+        val gradleVariableHelper = GradleVariableHelper(logger)
+
+        val androidFacet = AndroidFacet.getInstance(module)
+        var buildVariant = androidFacet?.properties?.SELECTED_BUILD_VARIANT
+        if (buildVariant.isNullOrEmpty()) {
+            buildVariant = "debug"
+        }
+
+        return IdeModuleInfo(
+            baseDir = module.guessModuleDirAdv(projectBuildModel),
+            buildToolsVersion = gradleVariableHelper.readVariable(
+                buildModel,
+                { buildModel.android().buildToolsVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            compileVersion = gradleVariableHelper.readVariable(
+                buildModel,
+                { buildModel.android().compileSdkVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            minSdkVersion = gradleVariableHelper.readVariable(
+                buildModel,
+                { buildModel.android().defaultConfig().minSdkVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            kotlinJvmTarget = gradleVariableHelper.readVariable {
+                buildModel.android().kotlinOptions().jvmTarget().toJavaVersion()
+            },
+            kotlinFreeCompilerArgs = gradleVariableHelper.readVariable {
+                buildModel.android().kotlinOptions().freeCompilerArgs()
+                    .toList()?.map { it.toString() } ?: emptyList()
+            },
+            javaSourceCompatibility = gradleVariableHelper.readVariable {
+                buildModel.android().compileOptions().sourceCompatibility().toJavaVersion()
+            },
+            javaTargetCompatibility = gradleVariableHelper.readVariable {
+                buildModel.android().compileOptions().targetCompatibility().toJavaVersion()
+            },
+            minifyEnabled = gradleVariableHelper.readVariable {
+                buildModel.android().buildTypes()
+                    .find { it.name() == buildVariant }
+                    ?.minifyEnabled()?.toString()
+            },
+            buildVariant = buildVariant,
+            manifestRelativePath = gradleVariableHelper.readVariable {
+                androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
+            },
+        )
+    }
+
+    private fun LanguageLevelPropertyModel.toJavaVersion(): String? {
+        val languageLevel = this::class.java.getMethod("toLanguageLevel").invoke(this) ?: return null
+        val javaVersion = languageLevel::class.java.getMethod("toJavaVersion").invoke(languageLevel) ?: return null
+        return javaVersion.toString()
+    }
+
+    private fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File? {
+        val gradleRootDir = projectBuildModel.getModuleBuildModel(this)?.moduleRootDirectory
+        if (gradleRootDir != null) {
+            return gradleRootDir
+        }
+
+        val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
+        val virtualFile = contentRoots.find { name.endsWith(it.name) }
+            ?: contentRoots.firstOrNull()
+            ?: moduleFile?.parent
+            ?: return null
+        return VfsUtil.virtualToIoFile(virtualFile)
     }
 }
