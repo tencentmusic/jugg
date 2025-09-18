@@ -42,7 +42,7 @@ class TaskRunnerManager(
                     action.run()
                 }
                 logger.debug("background job <$jobName> finished, cost ${costTime}ms")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.error("background job <$jobName> failed", e)
             }
         }

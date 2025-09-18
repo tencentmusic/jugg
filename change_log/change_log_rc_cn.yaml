@@ -8,6 +8,30 @@
   updates:
     - 支持 dynamic feature 模块(AAB)
 
+- version: 2.4.0-rc8
+  date: 2025.09.15
+  updates:
+    - 支持 Android Studio Narwhal 4 Feature Drop
+
+- version: 2.4.0-rc7
+  date: 2025.09.13
+  updates:
+    - 支持 KMM compose（Kuikly compose）
+    - 降级按钮使用无需选择 jugg 配置（自动选择第一个）
+    - 支持当出现某些 Kotlin 编译插件没有提供必须参数时，自动屏蔽该插件
+    - 修复部分 compose 源码无法编译
+
+- version: 2.4.0-rc6
+  date: 2025.09.10
+  updates:
+    - 修复 Gradle 编译失败：java.io.FileNotFoundException (Operation not supported on socket)
+
+- version: 2.4.0-rc5
+  date: 2025.09.09
+  updates:
+    - 修复安装 APK 时报错："Parent job is Cancelling"
+    - 修复 Android Studio Electric Eel 以下版本无法自动更新插件
+
 - version: 2.4.0-rc4
   date: 2025.08.27
   updates:

@@ -211,11 +211,20 @@ class JuggManager @TestOnly constructor(
             return
         }
 
-        val suggestRunConfiguration = AsDeployerCompat.getSuggestRunConfigurations(
-            currentListNames, project,
-            logger.getInstance("GetSuggestRunConfigurations"),
-            isNeedDefaultRunConfig = maxRetryCount <= 0,
-        )
+        val suggestRunConfiguration =
+            try {
+                AsDeployerCompat.getSuggestRunConfigurations(
+                    currentListNames, project,
+                    logger.getInstance("GetSuggestRunConfigurations"),
+                    isNeedDefaultRunConfig = maxRetryCount <= 0,
+                )
+            } catch (e: Throwable) {
+                logger.warn("Get suggest run configuration failed ", e)
+                if (RuntimeMockUtils.isTestMode) {
+                    throw e
+                }
+                emptyList()
+            }
         logger.debug("Suggest run configurations: $suggestRunConfiguration")
         if (suggestRunConfiguration.isEmpty()) {
             logger.debug("No suggest run configuration")
@@ -536,7 +545,7 @@ class JuggManager @TestOnly constructor(
 
     override fun gradleCompile() {
         logger.debug("[action] gradleCompile")
-        ForceGradleCompileHelper.executeGradleCompile(project)
+        ForceGradleCompileHelper.executeGradleCompile(this)
     }
 
     override fun restartApp() {

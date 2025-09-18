@@ -391,6 +391,16 @@ class JuggServer(
             throw e
         }
     }
+
+    fun launchSafe(block: suspend CoroutineScope.() -> Unit) {
+        launch {
+            try {
+                block()
+            } catch (e: Throwable) {
+                logger.warn("launchSafe error", e)
+            }
+        }
+    }
 }
 
 

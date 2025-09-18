@@ -67,7 +67,7 @@ class BaseCompileContext(
         }
     }
 
-    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // run before findApplicationModule
+    override var dynamicFeatureModules: List<ModuleInfo> = findDynamicFeatureModules() // must run before findApplicationModule()
 
     override var applicationModule: ModuleInfo? = findApplicationModule()
 
@@ -229,18 +229,8 @@ class BaseCompileContext(
 
         // handles library1.commonMain only has .klib dependencies, read it in library1
         val parentLibraryModuleDependency = mutableListOf<String>()
-        var parentModuleName = moduleInfo.name
-        while (parentModuleName.isNotEmpty()) {
-            if (!parentModuleName.contains('.')) {
-                break
-            }
-            parentModuleName = parentModuleName.substringBeforeLast('.')
-            val parentModuleInfo = modules[parentModuleName] ?: break
-            if (parentModuleInfo.libraryDependencies.isEmpty()) {
-                continue
-            }
-            logger.debug("${moduleInfo.name} found parent module $parentModuleName")
-            parentLibraryModuleDependency.addAll(parentModuleInfo.getLibraryDependencyPaths())
+        getParentModules(moduleInfo, isAddSelfToResult = false).forEach {
+            parentLibraryModuleDependency.addAll(it.getLibraryDependencyPaths())
         }
 
         if (finalRFiles.isEmpty()) {
@@ -446,6 +436,25 @@ class BaseCompileContext(
         return deployHistoryManager.getLastBuildFiles(listOf(changedFile)).firstOrNull()?.second
     }
 
+    override fun getParentModules(moduleInfo: ModuleInfo, isAddSelfToResult: Boolean): List<ModuleInfo> {
+        val result = mutableListOf<ModuleInfo>()
+        if (isAddSelfToResult) {
+            result.add(moduleInfo)
+        }
+
+        var parentModuleName = moduleInfo.name
+        while (parentModuleName.isNotEmpty()) {
+            if (!parentModuleName.contains('.')) {
+                break
+            }
+            parentModuleName = parentModuleName.substringBeforeLast('.')
+            val parentModuleInfo = modules[parentModuleName] ?: break
+            result.add(parentModuleInfo)
+            logger.debug("${moduleInfo.name} found parent module $parentModuleName")
+        }
+        return result
+    }
+
     override fun listenUpdate(listener: OnContextUpdate) {
         synchronized(listeners) {
             if (!listeners.contains(listener)) {
@@ -467,7 +476,7 @@ class BaseCompileContext(
         modules?.let {
             this.modules = HashMap(it)
             finalRFiles = getRFiles()
-            dynamicFeatureModules = findDynamicFeatureModules()
+            dynamicFeatureModules = findDynamicFeatureModules() // must run before findApplicationModule
             applicationModule = findApplicationModule()
             modulesWithOrder = ModuleCompileOrderUtils.getModuleCompileOrders(this.modules, tempModule, logger)
             moduleBelongsApkMap = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, this.apkInfos, this.modules, tempModule, logger)

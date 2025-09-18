@@ -43,7 +43,7 @@ class CustomCompilerManager(
         logger.debug("updateCustomCompilers finished, compilers: $customCompilerJars")
 
         // download compilers if not downloaded
-        juggServer.launch {
+        juggServer.launchSafe {
             downloadCompilers(customCompilers)
         }
     }

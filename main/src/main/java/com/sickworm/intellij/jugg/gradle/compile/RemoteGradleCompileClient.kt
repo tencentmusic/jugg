@@ -198,17 +198,21 @@ class RemoteGradleCompileClient(
         }
 
         val filteredAvailableKeys = availableKeys.filter {
-            if (!File(it).exists()) {
-                logger.debug("ignore key $it, file not exists")
-                return@filter false
-            }
-            if (!File(it).canRead()) {
-                logger.debug("ignore key $it, file can't read")
-                return@filter false
-            }
-            if (!File(it).readText().startsWith("-")) {
-                logger.debug("ignore key $it, file not starts with -")
-                return@filter false
+            try {
+                if (!File(it).exists()) {
+                    logger.debug("ignore key $it, file not exists")
+                    return@filter false
+                }
+                if (!File(it).canRead()) {
+                    logger.debug("ignore key $it, file can't read")
+                    return@filter false
+                }
+                if (!File(it).readText().startsWith("-")) {
+                    logger.debug("ignore key $it, file not starts with -")
+                    return@filter false
+                }
+            } catch (e: Exception) {
+                logger.debug("ignore key $it, error: ${e.message}")
             }
             return@filter true
         }

@@ -31,6 +31,7 @@ class FileChangesHandler(
             *.aidl
             local.properties
             gradle.properties
+            libs.versions.toml
         """.trimIndent().split("\n").toList()
     }
 

@@ -8,6 +8,30 @@
   updates:
     - supports dynamic feature modules(AAB)
 
+- version: 2.4.0-rc8
+  date: 2025.09.15
+  updates:
+    - supports Android Studio Narwhal 4 Feature Drop
+
+- version: 2.4.0-rc7
+  date: 2025.09.13
+  updates:
+    - supports KMM compose (Kuikly compose)
+    - fallback button supports fallback without selecting jugg run configuration
+    - compat with Kotlin plugin that requires options, and we haven't provided, which will cause compilation error
+    - fix some compose file cannot compile
+
+- version: 2.4.0-rc6
+  date: 2025.09.10
+  updates:
+    - fix gradle compilation failed by java.io.FileNotFoundException (Operation not supported on socket)
+
+- version: 2.4.0-rc5
+  date: 2025.09.09
+  updates:
+    - fix "Parent job is Cancelling" when installing APK
+    - fix install plugin failed below Android Studio Electric Eel
+
 - version: 2.4.0-rc4
   date: 2025.08.27
   updates:

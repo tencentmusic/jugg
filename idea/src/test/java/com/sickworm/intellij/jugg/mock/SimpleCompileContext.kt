@@ -180,6 +180,10 @@ data class SimpleCompileContext(
         return null
     }
 
+    override fun getParentModules(moduleInfo: ModuleInfo, isAddSelfToResult: Boolean): List<ModuleInfo> {
+        return emptyList()
+    }
+
     override fun listenUpdate(listener: OnContextUpdate) {
     }
 

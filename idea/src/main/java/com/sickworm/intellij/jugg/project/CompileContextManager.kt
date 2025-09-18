@@ -1,12 +1,8 @@
 package com.sickworm.intellij.jugg.project
 
-import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
-import com.android.tools.idea.util.toIoFile
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.module.Module
-import com.intellij.openapi.project.rootManager
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.vfs.VfsUtil
@@ -16,13 +12,13 @@ import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.ide.logic.RuntimeMockUtils
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.*
 import com.sickworm.intellij.jugg.project.merger.IJuggProjectInfoMerger
 import com.sickworm.intellij.jugg.project.merger.JuggProjectInfoMerger
 import com.sickworm.intellij.jugg.server.protocols.ModuleCustomConfig
-import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.android.sdk.AndroidSdkAdditionalData
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
@@ -37,7 +33,6 @@ class CompileContextManager(
     private val deployFileManager: DeployFileManager,
     private val deployHisManager: IDeployHistoryManager,
     private val moduleManager: ModuleManager = AsDeployerCompat.getModuleManager(project), // mock
-    private val projectBuildModel: ProjectBuildModel = ProjectBuildModel.get(project), // mock,
     private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
 ) {
 
@@ -258,15 +253,12 @@ class CompileContextManager(
             }
         }
 
-        val gradleVariableHelper = GradleVariableHelper(logger)
-        gradleVariableHelper.init(project)
-        val juggProjectInfo = doGetAllModulesByModuleManager(gradleVariableHelper)
-        gradleVariableHelper.release()
+        val juggProjectInfo = doGetAllModulesByModuleManager()
         projectInfoSerializer.save(juggProjectInfo)
         return juggProjectInfo
     }
 
-    private fun doGetAllModulesByModuleManager(gradleVariableHelper: GradleVariableHelper): JuggProjectInfo {
+    private fun doGetAllModulesByModuleManager(): JuggProjectInfo {
         TimeLogger.start("initModuleRoots")
         logger.debug("Start init module roots")
 
@@ -297,7 +289,20 @@ class CompileContextManager(
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
-            val baseDir = module.guessModuleDirAdv(projectBuildModel)
+            var ideModuleInfo = try {
+                AsDeployerCompat.getIdeModuleInfo(project, module, logger, false)
+            } catch (e: Throwable) {
+                if (RuntimeMockUtils.isTestMode) {
+                    throw e
+                }
+                AsDeployerCompat.getIdeModuleInfo(project, module, logger, true)
+            }
+            if (ideModuleInfo == null) {
+                notGradleModules.add(module.name)
+                return@forEach
+            }
+
+            val baseDir = ideModuleInfo.baseDir
             if (baseDir == null) {
                 directoryNotFoundModules.add(module.name)
                 return@forEach
@@ -323,59 +328,16 @@ class CompileContextManager(
                 return@forEach
             }
 
-            // 2. read attributes
-            val buildModel = projectBuildModel.getModuleBuildModel(module)
-            if (buildModel == null) {
-                notGradleModules.add(module.name)
-                return@forEach
-            }
-
-            val buildToolsVersion: String? = gradleVariableHelper.readVariable(
-                buildModel.android().buildToolsVersion(), buildModel) {
-                this.all { it.isDigit() || it == '.' }
-            }
-            var compileVersion: String? = gradleVariableHelper.readVariable(
-                buildModel.android().compileSdkVersion(), buildModel) {
-                this.all { it.isDigit() }
-            }
-            val minSdkVersion: String? = gradleVariableHelper.readVariable(
-                buildModel.android().defaultConfig().minSdkVersion(), buildModel) {
-                this.all { it.isDigit() }
-            }
-            val kotlinJvmTarget: String? = buildModel.android().kotlinOptions().jvmTarget()
-                .toLanguageLevel()?.toJavaVersion()?.toString()
-            val kotlinFreeCompilerArgs: List<String> = try {
-                buildModel.android().kotlinOptions().freeCompilerArgs()
-                    .toList()?.map { it.toString() } ?: emptyList()
-            } catch (e: Throwable) {
-                // low AS version, ignore
-                emptyList()
-            }
-            val javaSourceCompatibility: String? = buildModel.android().compileOptions().sourceCompatibility()
-                .toLanguageLevel()?.toJavaVersion()?.toString()
-            val javaTargetCompatibility: String? = buildModel.android().compileOptions().targetCompatibility()
-                .toLanguageLevel()?.toJavaVersion()?.toString()
-
-            val androidFacet = AndroidFacet.getInstance(module)
-            var buildVariant = androidFacet?.properties?.SELECTED_BUILD_VARIANT
-            if (buildVariant.isNullOrEmpty()) {
-                buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT
-            }
-
-            val minifyEnabled = buildModel.android().buildTypes()
-                .find { it.name() == buildVariant }?.minifyEnabled()
-            @Suppress("SENSELESS_COMPARISON")
-            if (minifyEnabled.toString() != null && minifyEnabled.toString() != "null") {
+            if (ideModuleInfo.minifyEnabled != null && ideModuleInfo.toString() != "null") {
                 // just log it
-                logger.debug("module ${module.name} find minifyEnabled: $buildVariant -> $minifyEnabled")
+                logger.debug("module ${module.name} find minifyEnabled: ${ideModuleInfo.buildVariant} -> ${ideModuleInfo.minifyEnabled}")
             }
 
             var manifestFile: File? = null
-            val manifestProperties = androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
-            if (manifestProperties != null) {
-                manifestFile = File(baseDir, manifestProperties)
+            ideModuleInfo.manifestRelativePath?.let {
+                manifestFile = File(baseDir, it)
             }
-            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, baseDir, buildVariant)
+            val moduleBuildPathInfo = ModuleBuildPathInfo(pathManager.projectDir, baseDir, ideModuleInfo.buildVariant)
 
             // 3. find source roots
             val sourceDirs = mutableSetOf<File>()
@@ -393,7 +355,7 @@ class CompileContextManager(
                     moduleRootManager.excludeRoots.all { !file.path.startsWith(it.path) }
                 }
                 .map {
-                    it.toIoFile()
+                    VfsUtil.virtualToIoFile(it)
                 }
                 .filter {
                     return@filter !it.isChild(moduleBuildPathInfo.buildDir) // exclude generated source
@@ -406,7 +368,7 @@ class CompileContextManager(
                     org.jetbrains.kotlin.config.ResourceKotlinRootType
                 ))
             subResourceRoots.map {
-                it.toIoFile()
+                VfsUtil.virtualToIoFile(it)
             }.filter {
                 return@filter !it.isChild(moduleBuildPathInfo.buildDir) // exclude generated source
             }.forEach { file ->
@@ -436,7 +398,7 @@ class CompileContextManager(
                     }
                     is LibraryOrderEntry -> {
                         it.getRootFiles(OrderRootType.CLASSES).forEach getRootFiles@{ file ->
-                            val ioFile = file.toIoFile()
+                            val ioFile = VfsUtil.virtualToIoFile(file)
                             val key = "${ioFile.absolutePath}:${ioFile.lastModified()}"
                             if (ioFile.name == "kaptGeneratedClasses" && (!ioFile.exists() || ioFile.isDirectory)) {
                                 // ignore kaptGeneratedClasses
@@ -465,9 +427,10 @@ class CompileContextManager(
                             val additionalData = it.jdk?.sdkAdditionalData as? AndroidSdkAdditionalData
                             val buildTarget = additionalData?.buildTargetHashString
                             if (buildTarget != null && buildTarget.startsWith("android-")) {
-                                compileVersion = buildTarget
+                                val compileVersion = buildTarget
                                     .substringAfter("android-")
                                     .substringBefore("-ext")
+                                ideModuleInfo = ideModuleInfo!!.copy(compileVersion = compileVersion)
                             }
                         }
                     }
@@ -479,13 +442,15 @@ class CompileContextManager(
                 return@forEach
             }
 
+            // Smart cast to 'IdeModuleInfo' is impossible, because 'ideModuleInfo' is a local variable that is captured by a changing closure
+            val info = ideModuleInfo!!
             val moduleInfo = ModuleInfo(
                 module.name.moduleSimpleName, ModuleInfo.Type.Unknown, baseDir, pathManager.projectDir,
                 sourceDirs.toList(), resourceDirs.toList(), assetDirs.toList(),
                 manifestFile, null,
-                buildVariant, compileVersion, minSdkVersion, buildToolsVersion,
-                kotlinJvmTarget, kotlinFreeCompilerArgs,
-                javaSourceCompatibility, javaTargetCompatibility,
+                info.buildVariant, info.compileVersion, info.minSdkVersion, info.buildToolsVersion,
+                info.kotlinJvmTarget, info.kotlinFreeCompilerArgs ?: emptyList(),
+                info.javaSourceCompatibility, info.javaTargetCompatibility,
                 moduleBuildPathInfo,
                 moduleDependencies,
                 libraryDependencies,
@@ -493,8 +458,7 @@ class CompileContextManager(
             )
 
             modules[moduleInfo.name] = moduleInfo
-            addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo")
-
+            addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo, brokenFields: ${info.brokenFields}")
         }
 
         if (directoryNotFoundModules.isNotEmpty()) {
@@ -542,7 +506,7 @@ class CompileContextManager(
             val androidJdks = allJdks.filter { sdk ->
                 val homeDirectory = sdk.homeDirectory ?: return@filter false
                 if (!homeDirectory.exists()) return@filter false
-                val subDirs = homeDirectory.toIoFile().listFiles() ?: return@filter false
+                val subDirs = VfsUtil.virtualToIoFile(homeDirectory).listFiles() ?: return@filter false
                 val platformsDir = subDirs.firstOrNull { it.name == "platforms" } ?: return@filter false
                 if (platformsDir.listFiles().isNullOrEmpty()) return@filter false
                 val buildToolsDir = subDirs.firstOrNull { it.name == "build-tools" } ?: return@filter false
@@ -551,7 +515,8 @@ class CompileContextManager(
             }
             logger.debug("All available android jdks: $androidJdks")
 
-            return androidJdks.firstOrNull()?.homeDirectory?.toIoFile()
+            val homeDirectory = androidJdks.firstOrNull()?.homeDirectory ?: return null
+            return VfsUtil.virtualToIoFile(homeDirectory)
         }
 
         // e.g. name = example.lib_common
@@ -580,20 +545,6 @@ class CompileContextManager(
             }
         }
     }
-}
-
-private fun Module.guessModuleDirAdv(projectBuildModel: ProjectBuildModel): File? {
-    val gradleRootDir = projectBuildModel.getModuleBuildModel(this)?.moduleRootDirectory
-    if (gradleRootDir != null) {
-        return gradleRootDir
-    }
-
-    val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
-    val virtualFile = contentRoots.find { name.endsWith(it.name) }
-        ?: contentRoots.firstOrNull()
-        ?: moduleFile?.parent
-        ?: return null
-    return VfsUtil.virtualToIoFile(virtualFile)
 }
 
 private fun JuggProjectInfo.checkMissing(name: String, logger: Logger): Boolean {

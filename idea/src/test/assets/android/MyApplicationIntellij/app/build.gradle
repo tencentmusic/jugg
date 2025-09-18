@@ -28,6 +28,9 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+//        debug {
+//            minifyEnabled true
+//        }
     }
 
     sourceSets {
@@ -49,6 +52,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+//        freeCompilerArgs = ["-Xexport-kdoc"]
     }
 
     composeOptions {

@@ -4,6 +4,7 @@ import com.android.tools.deployer.*
 import com.android.tools.deployer.model.App
 import com.android.utils.ILogger
 import com.android.tools.deployer.model.DeploymentPlan
+import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.gradle.project.model.GradleAndroidModel
 import com.android.tools.idea.run.AndroidRunConfiguration
 import com.android.tools.idea.run.AndroidRunConfigurationType
@@ -14,6 +15,8 @@ import com.intellij.openapi.project.Project
 import com.android.tools.idea.gradle.model.IdeAndroidArtifactCore
 import com.android.tools.idea.gradle.model.IdeAndroidProject
 import com.android.tools.idea.gradle.model.IdeSigningConfig
+import com.intellij.openapi.module.Module
+import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
 import java.nio.file.Path
 
@@ -130,7 +133,7 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
             logger.debug("getSuggestRunConfiguration use apk output path: $apkPath")
 
             return SuggestRunConfiguration(moduleName, compileCommand, apkPath)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             logger.debug("getSuggestRunConfiguration for ${settings.name} error, ignore", e)
             return null
         }
@@ -183,6 +186,64 @@ open class NarwhalAsDeployerFeatureCompat: MeerkatAsDeployerCompat() {
                 "storePassword=${if (storePassword == null) "null" else "not null"}, " +
                 "keyAlias=${if (keyAlias == null) "null" else "not null"}"
     }
+
+    override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
+        val projectBuildModel = ProjectBuildModel.get(project)
+        val buildModel = projectBuildModel.getModuleBuildModel(module) ?: return null
+        val gradleVariableHelper = GradleVariableHelper(isSafeMode)
+
+        val androidFacet = AndroidFacet.getInstance(module)
+        var buildVariant = androidFacet?.properties?.SELECTED_BUILD_VARIANT
+        if (buildVariant.isNullOrEmpty()) {
+            buildVariant = "debug"
+        }
+
+        return IdeModuleInfo(
+            baseDir = module.guessModuleDirAdv(projectBuildModel),
+            buildToolsVersion = gradleVariableHelper.readVariable(
+                "buildToolsVersion",
+                buildModel,
+                { buildModel.android().buildToolsVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            compileVersion = gradleVariableHelper.readVariable(
+                "compileVersion",
+                buildModel,
+                { buildModel.android().compileSdkVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            minSdkVersion = gradleVariableHelper.readVariable(
+                "minSdkVersion",
+                buildModel,
+                { buildModel.android().defaultConfig().minSdkVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            kotlinJvmTarget = gradleVariableHelper.readVariable("kotlinJvmTarget") {
+                buildModel.android().kotlinOptions().jvmTarget().toJavaVersion()
+            },
+            kotlinFreeCompilerArgs = gradleVariableHelper.readVariable("kotlinFreeCompilerArgs") {
+                buildModel.android().kotlinOptions().freeCompilerArgs()
+                    .toList()?.map { it.toString() } ?: emptyList()
+            },
+            javaSourceCompatibility = gradleVariableHelper.readVariable("javaSourceCompatibility") {
+                buildModel.android().compileOptions().sourceCompatibility().toJavaVersion()
+            },
+            javaTargetCompatibility = gradleVariableHelper.readVariable("javaTargetCompatibility") {
+                buildModel.android().compileOptions().targetCompatibility().toJavaVersion()
+            },
+            minifyEnabled = gradleVariableHelper.readVariable("minifyEnabled") {
+                buildModel.android().buildTypes()
+                    .find { it.name() == buildVariant }
+                    ?.minifyEnabled()?.toString()
+            },
+            buildVariant = buildVariant,
+            manifestRelativePath = gradleVariableHelper.readVariable("manifestRelativePath") {
+                androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
+            },
+            gradleVariableHelper.brokenFields,
+        )
+    }
+
 
     fun test(): String {
         return "NarwhalAsDeployerCompat test"

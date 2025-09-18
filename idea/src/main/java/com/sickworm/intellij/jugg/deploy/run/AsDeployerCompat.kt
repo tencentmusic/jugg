@@ -11,6 +11,7 @@ import com.android.utils.ILogger
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import java.lang.ref.WeakReference
 import java.lang.reflect.InvocationHandler
@@ -70,7 +71,7 @@ object AsDeployerCompat : IAsDeployerCompat {
      */
     private val compatImplList = listOf(
         CompatImpl(
-            IdeVersion("Android Studio Narwhal Feature Drop", "IA", "251.26094.121"),
+            IdeVersion("Android Studio Narwhal Feature Drop", "IA", "251.27812.49"),
             lazy { NarwhalAsDeployerFeatureCompat() }
         ),
         CompatImpl(
@@ -205,6 +206,10 @@ object AsDeployerCompat : IAsDeployerCompat {
 
     override fun getSuggestRunConfigurations(existsRunConfigNames: List<String>, project: Project, logger: Logger, isNeedDefaultRunConfig: Boolean): List<SuggestRunConfiguration> {
         return impl.getSuggestRunConfigurations(existsRunConfigNames, project, logger, isNeedDefaultRunConfig)
+    }
+
+    override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
+        return impl.getIdeModuleInfo(project, module, logger, isSafeMode)
     }
 }
 

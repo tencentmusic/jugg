@@ -194,7 +194,12 @@ class GradleProjectInfoReader(
                 @Suppress("DEPRECATION")
                 val buildVariantCapital = buildVariant[0].toUpperCase() + buildVariant.substring(1)
                 val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
-                val kotlinTask = project.tasks.findByName(kotlinTaskName)
+                var kotlinTask = project.tasks.findByName(kotlinTaskName)
+                if (kotlinTask == null) {
+                    // compat with kmm
+                    val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
+                    kotlinTask = project.tasks.findByName(kotlinTaskNameKmm)
+                }
                 if (kotlinTask != null) {
                     // before 2.0, kotlin classpath is in pluginClasspath
                     kotlinPlugins = (Reflector(kotlinTask)["pluginClasspath"]?.value as? FileCollection)?.toList()

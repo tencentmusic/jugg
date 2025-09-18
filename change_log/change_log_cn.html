@@ -1,15 +1,23 @@
 <h1>更新日志</h1>
-<h2>2.5.0 (2025.09.12)</h2>
+<h2>2.5.0 (2025.09.18)</h2>
 <ol>
     <li>[feature] 支持 dynamic feature 模块(AAB)</li>
     <li>[feature] 支持 coreLibraryDesugaringEnabled 脱糖</li>
 </ol>
-<h2>2.4.0 (2025.08.27)</h2>
+<h2>2.4.0 (2025.09.15)</h2>
 <ol>
+    <li>[feature] 支持 Android Studio Narwhal 4 Feature Drop</li>
     <li>[feature] 支持命令行调用（见接入手册）</li>
+    <li>[feature] 支持 KMM compose（Kuikly compose）</li>
+    <li>[feature] 降级按钮使用无需选择 jugg 配置（自动选择第一个）</li>
     <li>[optimize] 优化单个日志文件大小，限制为 100MB</li>
+    <li>[optimize] 支持当出现某些 Kotlin 编译插件没有提供必须参数时，自动屏蔽该插件</li>
     <li>[bugfix] 修复工程存在 dynamic feature module 时，可能出现找不到 styleable 变量的运行时错误</li>
     <li>[bugfix] 修复 Android Studio Narwhal Feature Drop 无法自动创建运行配置</li>
+    <li>[bugfix] 修复安装 APK 时报错："Parent job is Cancelling"</li>
+    <li>[bugfix] 修复 Android Studio Electric Eel 以下版本无法自动更新插件</li>
+    <li>[bugfix] 修复 Gradle 编译失败：java.io.FileNotFoundException: (Operation not supported on socket)</li>
+    <li>[bugfix] 修复部分 compose 源码无法编译</li>
 </ol>
 <h2>2.3.0 (2025.08.03)</h2>
 <ol>
