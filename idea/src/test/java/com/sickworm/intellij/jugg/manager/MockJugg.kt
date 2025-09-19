@@ -225,7 +225,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             val moduleManager = mock(ModuleManager::class.java)
             val projectBuildModel = mock(ProjectBuildModel::class.java)
             compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
-                moduleManager = moduleManager, projectBuildModel = projectBuildModel)
+                moduleManager = moduleManager)
         }
 
         val juggServer = JuggServer(project, JuggPathManager(File(project.basePath!!)), CoroutineScope(Dispatchers.IO))
