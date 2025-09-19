@@ -229,8 +229,9 @@ class SyncLocalClasspathCommand(
                 pathInfo.allBuildPathRelative.map {
                     var path = it.path
                     if (sourcePath.absolutePath != pathInfo.projectRootDir.absolutePath) {
-                        // multiple projects sync
-                        val rootPath = pathInfo.projectRootDir.relativeTo(sourcePath).parentFile?.path ?: ""
+                        // multiple projects sync or modules outside project root
+                        val rootPath = pathInfo.moduleRootDir.relativeTo(sourcePath).parentFile?.path
+                            ?.substringBefore(File.separatorChar) ?: ""
                         if (rootPath.isNotEmpty()) {
                             path = "$rootPath/**/$path"
                         }
