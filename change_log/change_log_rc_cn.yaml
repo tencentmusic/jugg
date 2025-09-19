@@ -1,3 +1,12 @@
+- version: 2.4.0-rc10
+  date: 2025.09.19
+  updates:
+    - 默认关闭 "Enable Backup Classpath" 选项，优化 clean 工程时的初始化速度
+    - 尝试优化编译初始化卡顿问题（通过主动阶段性 GC）
+    - 修复偶现编译外接源码工程找不到引用
+    - 修复 KMM compose 偶现编译失败，原因：没有正确处理父子模块关系
+    - 修复偶现日志上传失败
+
 - version: 2.4.0-rc9
   date: 2025.09.19
   updates:
