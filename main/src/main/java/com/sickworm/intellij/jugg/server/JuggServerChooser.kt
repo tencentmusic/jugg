@@ -7,7 +7,10 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
+import java.io.IOException
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 
 
 /**
@@ -97,16 +100,19 @@ class JuggServerChooser(logger: Logger) {
         return null
     }
 
-    private fun isReachable(host: String): Boolean {
+    private fun isReachable(hostWithPort: String): Boolean {
         try {
+            val (host, port) = hostWithPort.split(":")
             val address = InetAddress.getByName(host)
-            val reachable = address.isReachable(5000) // 5000毫秒超时时间
-
-            if (reachable) {
-                logger.debug("$host is reachable")
-                return true
-            } else {
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(address, port.toInt()), 5000)
+                    logger.debug("$host is reachable")
+                    return true
+                }
+            } catch (e: IOException) {
                 logger.debug("$host is not reachable")
+                return false
             }
         } catch (e: Exception) {
             logger.debug("Error occurred: ${e.message}")
