@@ -410,6 +410,7 @@ class DeployDataDatabaseSqLiteHelper(private val dbFile: File, private val logge
             }
         }
 
+        System.gc()
         return ParsedApkUpdateResult.success(apkDiffResult).copy(
             addedClasses = addedClasses,
             removedClasses = removedClasses.keys.toList(),
