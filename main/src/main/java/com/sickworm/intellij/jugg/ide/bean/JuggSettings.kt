@@ -87,7 +87,7 @@ object JuggSettings {
      */
     const val overlayDeploySplitSizeFirstSlice = 10_000
 
-    var isEnableBackupClasspath: Boolean by propertiesComponent.delegate(defaultValue = !isWindows)
+    var isEnableBackupClasspath: Boolean by propertiesComponent.delegate(keyName = "isEnableBackupClasspath_v2", defaultValue = false)
     // windows not support rsync, so disable backup classpath
     var isCanUseBackupClasspath: Boolean = !isWindows
 
