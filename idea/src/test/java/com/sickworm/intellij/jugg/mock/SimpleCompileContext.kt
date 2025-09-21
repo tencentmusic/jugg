@@ -205,7 +205,11 @@ data class SimpleCompileContext(
     }
 
     override fun getParentModules(moduleInfo: ModuleInfo, isAddSelfToResult: Boolean): List<ModuleInfo> {
-        return emptyList()
+        return if (isAddSelfToResult) {
+            listOf(moduleInfo)
+        } else {
+            emptyList()
+        }
     }
 
     override fun listenUpdate(listener: OnContextUpdate) {
