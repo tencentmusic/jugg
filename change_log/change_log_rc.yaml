@@ -8,6 +8,20 @@
   updates:
     - supports dynamic feature modules(AAB)
 
+- version: 2.4.0-rc10
+  date: 2025.09.19
+  updates:
+    - default close "Enable Backup Classpath" for better speed when clean projec
+    - avoid big GC by actively calling (no idea whether it helps)
+    - fix cannot sync project classpath outside project root
+    - fix get compose plugin failed by parent gradle module not found
+    - fix server report failed
+
+- version: 2.4.0-rc9
+  date: 2025.09.19
+  updates:
+    - compat with "cannot inline bytecode built with JVM target 21 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option."
+
 - version: 2.4.0-rc8
   date: 2025.09.15
   updates:

@@ -30,6 +30,9 @@ class KotlinCompiler(
     private var tryDisablePlugins: List<File> = emptyList()
     private var disablePlugins: List<File> = emptyList()
 
+    private var tryProperJvmTarget: String? = null
+    private var properJvmTarget: String? = null
+
     private val kotlinAndroidExtensionsPath: String? by lazy { getPluginPath("kotlin-android-extensions") }
 
     private val isEnableKapt get() = JuggSettings.isEnableApt
@@ -185,11 +188,14 @@ class KotlinCompiler(
             it.exists()
         }
 
-        var jvmTarget = module.kotlinJvmTarget ?: "1.8"
-        if (!kotlinCompile.isUseProjectCompiler && (jvmTarget == "1.6" || jvmTarget == "1.7")) {
-            logger.debug("jvm target is $jvmTarget, force to 1.8 to avoid error: " +
-                    "error: JVM target 1.6 is no longer supported. Please migrate to JVM target 1.8 or above")
-            jvmTarget = "1.8"
+        var jvmTarget = tryProperJvmTarget ?: properJvmTarget
+        if (jvmTarget == null) {
+            jvmTarget = module.kotlinJvmTarget ?: "1.8"
+            if (!kotlinCompile.isUseProjectCompiler && (jvmTarget == "1.6" || jvmTarget == "1.7")) {
+                logger.debug("jvm target is $jvmTarget, force to 1.8 to avoid error: " +
+                        "error: JVM target 1.6 is no longer supported. Please migrate to JVM target 1.8 or above")
+                jvmTarget = "1.8"
+            }
         }
 
         val moduleName = "${module.gradleModuleName ?: module.name}_${module.buildVariant}"
@@ -301,6 +307,26 @@ class KotlinCompiler(
             tryDisablePlugins = noOptionPlugins
         }
 
+        // handles -jvm-target not proper:
+        // cannot inline bytecode built with JVM target 21 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option.
+        var properJvmTargetInError: String? = null
+        outputParser.results.forEach { result ->
+            if (!result.isFailed) {
+                return@forEach
+            }
+            val regex = Regex("cannot inline bytecode built with JVM target (.*) into bytecode that is being built with JVM target (.*)")
+            for (error in result.getFailure().errors) {
+                val message = error.second
+                properJvmTargetInError = regex.find(message)?.groupValues?.get(1)
+            }
+        }
+        if (properJvmTargetInError != null) {
+            logger.debug("Jvm target not proper, try to recreate compiler once. properJvmTarget: $properJvmTargetInError")
+            retryReason = "Jvm target not proper"
+            shouldRecreate = true
+            tryProperJvmTarget = properJvmTargetInError
+        }
+
         if (shouldRecreate) {
             logger.debug("try recreate compiler once, hasRecreateAfterInternalError: $hasRetryCompile")
             if (!hasRetryCompile) {
@@ -345,6 +371,7 @@ class KotlinCompiler(
 
         hasRetryCompile = false
         disablePlugins = tryDisablePlugins
+        properJvmTarget = tryProperJvmTarget
         return CompileResult(task, task.files.map { Result.success(it) }, outputs)
     }
 

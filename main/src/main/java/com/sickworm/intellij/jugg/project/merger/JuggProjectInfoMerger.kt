@@ -119,13 +119,14 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         // sometimes, module in ide will have a wired name e.g. library1.MyApplication.library1.main
         // then Jugg will wrongly parse the module name as MyApplication.library1 (activity it's library1)
         // here we update name in gradle project info to match ide
-        val idePathNameMap = ideProjectInfo.modules.map { it.value.moduleRootDir.absolutePath to it.value.name }.toMap()
         val nameUpdateMap = mutableMapOf<String, String>()
         val updateModules = gradleProjectInfo.modules.toMutableMap()
-        gradleProjectInfo.modules.values.forEach {
-            val path = it.moduleRootDir.absolutePath
-            val ideModuleName = idePathNameMap[path]
-            val gradleModuleName = it.name
+        gradleProjectInfo.modules.values.forEach { module ->
+            val path = module.moduleRootDir.absolutePath
+            val ideModuleName =
+                ideProjectInfo.modules.values.find { it.moduleRootDir.absolutePath == path && it.name == module.name }?.name
+                ?: ideProjectInfo.modules.values.find { it.moduleRootDir.absolutePath == path }?.name
+            val gradleModuleName = module.name
             if (ideModuleName != null && ideModuleName != gradleModuleName) {
                 logger.debug("gradle module $gradleModuleName will update name to $ideModuleName")
                 nameUpdateMap[gradleModuleName] = ideModuleName

@@ -216,5 +216,6 @@ object ClassStringPool {
 
     fun clear() {
         stringPool = ConcurrentHashMap()
+        System.gc()
     }
 }

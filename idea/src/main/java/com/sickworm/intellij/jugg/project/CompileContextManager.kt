@@ -285,7 +285,6 @@ class CompileContextManager(
         val ideaFolderModules = mutableSetOf<String>()
         val notGradleModules = mutableSetOf<String>()
         val testModules = mutableSetOf<String>()
-        val noSourceModules = mutableSetOf<String>()
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
@@ -437,11 +436,6 @@ class CompileContextManager(
                 }
             }
 
-            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {
-                noSourceModules.add(module.name)
-                return@forEach
-            }
-
             // Smart cast to 'IdeModuleInfo' is impossible, because 'ideModuleInfo' is a local variable that is captured by a changing closure
             val info = ideModuleInfo!!
             val moduleInfo = ModuleInfo(
@@ -469,9 +463,6 @@ class CompileContextManager(
         }
         if (notGradleModules.isNotEmpty()) {
             logger.debug("ignore modules (not gradle module): ${notGradleModules.joinToString(", ")}")
-        }
-        if (noSourceModules.isNotEmpty()) {
-            logger.debug("ignore modules (no source module): ${noSourceModules.joinToString(", ")}")
         }
         if (testModules.isNotEmpty()) {
             logger.debug("ignore modules (test module): ${testModules.joinToString(", ")}")
