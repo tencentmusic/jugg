@@ -11,7 +11,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
 
     @Synchronized
     fun save(projectInfo: JuggProjectInfo) {
-        val startTime = System.currentTimeMillis()
+//        val startTime = System.currentTimeMillis()
 
         dataFile.parentFile?.mkdirs()
         val juggProjectInfoSerialize = JuggProjectInfoSerialize.serialize(projectInfo)
@@ -20,8 +20,8 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
         val result = builder.toString()
         dataFile.writeText(result)
 
-        val costTime = System.currentTimeMillis() - startTime
-        println("Jugg: Save project info to ${dataFile.absolutePath} cost $costTime ms")
+//        val costTime = System.currentTimeMillis() - startTime
+//        println("Jugg: Save project info to ${dataFile.absolutePath} cost $costTime ms")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -31,7 +31,7 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
             return null
         }
         try {
-            val startTime = System.currentTimeMillis()
+//            val startTime = System.currentTimeMillis()
             val jsonSlurper = JsonSlurper()
             var juggProjectInfoSerialize: JuggProjectInfoSerialize? = null
             dataFile.inputStream().use { inputStream ->
@@ -72,8 +72,8 @@ class ProjectInfoSerializerInGradle(private val dataFile: File) {
                     modules = modules,
                     dependencyList = dependencyList)
             }
-            val costTime = System.currentTimeMillis() - startTime
-            println("Jugg: Load project info to ${dataFile.absolutePath} cost $costTime ms")
+//            val costTime = System.currentTimeMillis() - startTime
+//            println("Jugg: Load project info to ${dataFile.absolutePath} cost $costTime ms")
             return juggProjectInfoSerialize
         } catch (e: Exception) {
             println("Jugg: Failed to load project info from ${dataFile.absolutePath}, $e")

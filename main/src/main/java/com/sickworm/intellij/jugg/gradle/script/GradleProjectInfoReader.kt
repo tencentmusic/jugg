@@ -194,7 +194,21 @@ class GradleProjectInfoReader(
                 @Suppress("DEPRECATION")
                 val buildVariantCapital = buildVariant[0].toUpperCase() + buildVariant.substring(1)
                 val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
-                var kotlinTask = project.tasks.findByName(kotlinTaskName)
+                var kotlinTask: Any? = null
+                try {
+                    kotlinTask = project.tasks.findByName(kotlinTaskName)
+                } catch (e: Throwable) {
+                    try {
+                        // occurs on application module with includeBuild
+                        // retry will be ok
+                        // see: https://docs.gradle.org/current/samples/sample_composite_builds_declared_substitutions.html
+                        // see: https://docs.gradle.org/current/userguide/composite_builds.html
+                        kotlinTask = project.tasks.findByName(kotlinTaskName)
+                        println("Jugg: ${project.name}.findByName(\"$kotlinTaskName\") failed and success with retry")
+                    } catch (e: Throwable) {
+                        println("Jugg: ${project.name}.findByName(\"$kotlinTaskName\") failed with retry")
+                    }
+                }
                 if (kotlinTask == null) {
                     // compat with kmm
                     val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
