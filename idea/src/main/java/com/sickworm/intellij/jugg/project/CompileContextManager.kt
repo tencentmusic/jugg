@@ -37,7 +37,7 @@ class CompileContextManager(
 ) {
 
     private val projectInfoSerializer = ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger)
-    private val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
+    private var allGradleProjectInfoSerializerList = listOf<ProjectInfoSerializer>()
     private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
 
     private val compileContextInside: BaseCompileContext by lazy { createCompileContext() }
@@ -79,10 +79,17 @@ class CompileContextManager(
             }
         }
 
-        if (gradleProjectInfoSerializer.load()?.checkMissing("gradle", logger) == true) {
-            logger.debug("updateCompileContext gradle checkMissing true, reload gradle project info")
+        var isFixGradleProjectInfo = false
+        allGradleProjectInfoSerializerList.forEach { gradleProjectInfoSerializer ->
+            if (gradleProjectInfoSerializer.load()?.checkMissing("gradle", logger) == true) {
+                logger.debug("updateCompileContext gradle checkMissing true, reload gradle project info")
+                isFixGradleProjectInfo = true
+            }
+        }
+        if (isFixGradleProjectInfo) {
             updateGradleAsync()
         }
+
         val isFixIdeProjectInfo = !isAfterSync && isNeedReloadProjectInfo
         if (isFixIdeProjectInfo) {
             val isMissing = projectInfoSerializer.load()?.checkMissing("ide", logger)
@@ -115,8 +122,19 @@ class CompileContextManager(
     fun updateCompileContextAfterLocalFetch() {
         logger.debug("updateCompileContextAfterLocalFetch")
         ensureInitProjectInfo()
-        gradleProjectInfoSerializer.clearMemoryCache() // file is updated, clear memory cache
-        juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
+
+        val newGradleInfos = mutableListOf<ProjectInfoSerializer>()
+        val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
+        newGradleInfos.add(gradleProjectInfoSerializer)
+        if (pathManager.gradleIncludeBuildsFile.exists()) {
+            val newIncludeGradleInfos = pathManager.gradleIncludeBuildsFile.readLines().map {
+                ProjectInfoSerializer(File(it), logger)
+            }
+            newGradleInfos.addAll(newIncludeGradleInfos)
+        }
+        this.allGradleProjectInfoSerializerList = newGradleInfos
+
+        juggProjectInfoMerger.afterLocalFetch(newGradleInfos)
         compileContextInside.update(modules = getProjectInfo().modules)
         compileContextInfo?.let {
             updateCompileContextByFullBuildInfo(it)
@@ -166,7 +184,7 @@ class CompileContextManager(
     private fun initProjectInfo(): JuggProjectInfo {
         val ideJuggProjectInfo = updateProjectInfoFromIde(isNeedReloadProjectInfo = false)
         juggProjectInfoMerger.afterSync(projectInfoSerializer)
-        juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
+        juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList)
         return juggProjectInfoMerger.juggProjectInfo ?: run {
             logger.warn("JuggProjectInfoMerger returns null, which should not happened.")
             return@run ideJuggProjectInfo

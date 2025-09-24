@@ -96,7 +96,7 @@ gradle.buildFinished(object : Action<BuildResult> {
     override fun execute(buildResult: BuildResult) {
         println("Jugg: build finished for \${rootProject.projectDir}, isSuccess \${buildResult.failure == null}")
         if (buildResult.failure == null) {
-            GradleProjectInfoReaderManager(rootProject).readAndSave()
+            GradleProjectInfoReaderManager(rootProject, gradle.includedBuilds).readAndSave()
         }
     }
 })

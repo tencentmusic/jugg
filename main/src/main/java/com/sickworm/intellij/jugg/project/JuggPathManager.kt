@@ -28,6 +28,7 @@ class JuggPathManager(val projectDir: File) {
     val projectInfosDir = File(databaseDir, "project_infos.db")
     val ideProjectInfoFile = File(projectInfosDir, "project_infos.json")
     val gradleProjectInfoFile = File(projectInfosDir, "gradle_project_infos.json")
+    val gradleIncludeBuildsFile = File(projectInfosDir, "gradle_include_builds.txt")
     val markProjectInfoNeedUpdateFlagFile = File(projectInfosDir, "is_dirty")
     val historyProjectDirFile = File(projectInfosDir, "history_project_dir.txt")
 
