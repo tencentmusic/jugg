@@ -18,6 +18,8 @@ class JuggServerChooser(logger: Logger) {
     private val logger: Logger = logger.getInstance("JuggServerChooser")
     private var serverRules: List<ServerRule>? = null
 
+    private val forbidUrls = mutableSetOf<String>()
+
     private var isSetCustomServer
         get() = JuggSettings.serverExpireTimeMill == SERVER_WILL_NOT_EXPIRE
         set(value) {
@@ -73,6 +75,35 @@ class JuggServerChooser(logger: Logger) {
         }
     }
 
+    /**
+     * Update server with forbid url.
+     */
+    fun updateServerWithForbidCurrentUrl(): Boolean {
+        val forbidUrl = JuggSettings.serverUrl
+        if (forbidUrl == null) {
+            logger.debug("No server url found.")
+            return false
+        }
+        if (forbidUrl in forbidUrls) {
+            logger.debug("updateServerWithForbidUrl $forbidUrl already in forbid list, skip.")
+            return false
+        }
+        val serverRules = serverRules
+        if (serverRules == null)  {
+            logger.debug("No server rule found.")
+            return false
+        }
+        if (forbidUrl !in serverRules.map { it.url }) {
+            logger.debug("$forbidUrl not in server rules, skip.")
+            return false
+        }
+
+        forbidUrls.add(forbidUrl)
+        logger.debug("Update server with forbid url: $forbidUrl")
+        updateServer(serverRules)
+        return JuggSettings.serverUrl != forbidUrl // update success
+    }
+
     private fun selectServer(serverRules: List<ServerRule>?): ServerRule? {
         logger.debug("Update server rules: $serverRules")
         if (serverRules.isNullOrEmpty()) {
@@ -81,6 +112,10 @@ class JuggServerChooser(logger: Logger) {
         }
 
         serverRules.forEach { serverRule ->
+            if (serverRule.url in forbidUrls) {
+                logger.debug("${serverRule.url} in forbid list, ignore")
+                return@forEach
+            }
             logger.debug("Check server rule: $serverRule")
             if (serverRule.checkReachableHost != null) {
                 if (isReachable(serverRule.checkReachableHost)) {

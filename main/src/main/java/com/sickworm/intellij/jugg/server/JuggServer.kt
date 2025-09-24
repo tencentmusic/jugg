@@ -84,7 +84,7 @@ class JuggServer(
 
     private var reportLock = Mutex() // report only one event in the same time
 
-    fun checkUpdate(onComplete: (VersionData) -> Unit) = launch {
+    fun checkUpdate(onComplete: (VersionData) -> Unit): Job = launch {
         if (serverUrl == null) {
             logger.debug("checkUpdate skip: serverUrl is null")
             return@launch
@@ -104,6 +104,10 @@ class JuggServer(
             onComplete.invoke(result)
         } catch (e: Exception) {
             logger.debug("check update error: ${e.message}")
+            if (juggServerChooser.updateServerWithForbidCurrentUrl()) {
+                logger.debug("check update error, update server, current: $serverUrl")
+                checkUpdate(onComplete)
+            }
         }
     }
 
