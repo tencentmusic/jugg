@@ -138,7 +138,8 @@ class BaseCompileContext(
             if (module.moduleType == ModuleInfo.Type.Unknown) {
                 val mergedManifest = module.buildPathInfo.mergedManifest
                 if (!mergedManifest.exists()) {
-                    logger.debug("get dynamic feature module failed, ${module.name}'s merged manifest not found, ignore")
+                    // many modules have no merged manifest in kmm project like app.jsMain
+//                    logger.debug("get dynamic feature module failed, ${module.name}'s merged manifest not found, ignore")
                     return@filter false
                 }
                 val mergedManifestXmlNode = XmlParser().parse(mergedManifest)
