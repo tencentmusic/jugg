@@ -39,10 +39,18 @@ class KotlinCompiler(
 
     private var kotlinCompile = K2JVMCompilerIsolate()
 
-    private val projectKotlinCompilerClasspath: List<File>? by lazy {
+    private val projectKotlinCompilerClasspathMap: MutableMap<String, List<File>> = mutableMapOf()
+    private var defaultProjectKotlinCompilerClasspath: List<File>? = null
+
+    init {
+        initProjectKotlinCompilerClasspath()
+    }
+
+    private fun initProjectKotlinCompilerClasspath() {
         logger.debug("projectKotlinCompilerClasspath start")
         val classpathMap = mutableMapOf<String, MutableSet<File>>()
-        val voteMap = mutableMapOf<String, Int>()
+        val versionMap = mutableMapOf<String, String>()
+        val voteMap = mutableMapOf<String, MutableSet<String>>()
         context.modules.values.forEach { module ->
             val kotlinCompilerClasspath = mutableListOf<File>()
             kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
@@ -58,26 +66,38 @@ class KotlinCompiler(
             classpathMap[kotlinCompilerVersion]!!.addAll(kotlinCompilerClasspath)
 
             // records which is most common one(usually project should not have second compiler, but just for safety)
-            voteMap.getOrPut(kotlinCompilerVersion) { 0 }
-            voteMap[kotlinCompilerVersion] = voteMap[kotlinCompilerVersion]!! + 1
+            voteMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }.add(module.name)
+            versionMap[module.name] = kotlinCompilerVersion
         }
 
         logger.debug("projectKotlinCompilerClasspath classpathMap: $classpathMap")
         logger.debug("projectKotlinCompilerClasspath voteMap: $voteMap")
         val chooseVersion = voteMap
             .filter { it.key != "not_found" } // filter out not found
-            .maxByOrNull { it.value } // pick the most common one
+            .maxByOrNull { it.value.size } // pick the most common one
             ?.key
         val chooseClasspath = classpathMap[chooseVersion]
-        logger.debug("projectKotlinCompilerClasspath chooseVersion: $chooseVersion, chooseClasspath: $chooseClasspath")
+        logger.debug("projectKotlinCompilerClasspath default chooseVersion: $chooseVersion, chooseClasspath: $chooseClasspath")
 
-        return@lazy chooseClasspath?.toList()
+        defaultProjectKotlinCompilerClasspath = chooseClasspath?.toList()
+        context.modules.values.forEach { module ->
+            val version = versionMap[module.name]!!
+            projectKotlinCompilerClasspathMap[module.name] = classpathMap[version]!!.toList()
+        }
     }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
         // Jugg will check it again in [initIfNeeded] before use it
-        kotlinCompile.initIfNeeded(projectKotlinCompilerClasspath, logger)
+        val classpath =
+            context.getParentModules(module, true)
+                .firstNotNullOfOrNull {
+                    val result = projectKotlinCompilerClasspathMap[it.name]
+                    if (result.isNullOrEmpty()) return@firstNotNullOfOrNull null
+                    result
+                }
+            ?: defaultProjectKotlinCompilerClasspath
+        kotlinCompile.initIfNeeded(classpath, logger)
 
         // compat with kmm, which will save info in parent dependencies in IDE JuggProjectInfo
         val allRelativeModules = context.getParentModules(module, isAddSelfToResult = true)
