@@ -303,6 +303,7 @@ class CompileContextManager(
         val ideaFolderModules = mutableSetOf<String>()
         val notGradleModules = mutableSetOf<String>()
         val testModules = mutableSetOf<String>()
+        val noSourceModules = mutableMapOf<String, ModuleInfo>()
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
@@ -469,8 +470,29 @@ class CompileContextManager(
                 emptyList(), emptyList(), emptyList(), // read it in gradle
             )
 
+            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {
+                noSourceModules[module.name] = moduleInfo
+                return@forEach
+            }
+
             modules[moduleInfo.name] = moduleInfo
             addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo, brokenFields: ${info.brokenFields}")
+        }
+
+        if (noSourceModules.isNotEmpty()) {
+            val finalNoSourceModules = mutableSetOf<String>()
+            val addNoSourceModules = mutableSetOf<String>()
+            noSourceModules.forEach { (originName, moduleInfo) ->
+                if (modules[moduleInfo.name] == null) {
+                    addNoSourceModules.add(originName)
+                    modules[moduleInfo.name] = moduleInfo
+                    addedModules.add("add ${moduleInfo.name}(origin: $originName) -> $moduleInfo")
+                } else {
+                    finalNoSourceModules.add(originName)
+                }
+            }
+            logger.debug("add ignore modules (no source module): ${addNoSourceModules.joinToString(", ")}")
+            logger.debug("ignore modules (no source module): ${finalNoSourceModules.joinToString(", ")}")
         }
 
         if (directoryNotFoundModules.isNotEmpty()) {
