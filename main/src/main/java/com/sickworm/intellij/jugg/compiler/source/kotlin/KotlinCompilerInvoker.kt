@@ -39,6 +39,7 @@ class KotlinCompilerInvoker {
             val kotlinCompilerClasspath = mutableListOf<File>()
             kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
             kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
+            kotlinCompilerClasspath.addAll(module.kspDependencies?.map { it.file } ?: emptyList())
             kotlinCompilerClasspath.filter {
                 val isExists = it.exists()
                 if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
