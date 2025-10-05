@@ -1,3 +1,8 @@
+- version: 2.4.0-rc14
+  date: 2025.10.05
+  updates:
+    - 优化 gradle includeBuild 源码编译兼容性
+
 - version: 2.4.0-rc10
   date: 2025.09.19
   updates:
