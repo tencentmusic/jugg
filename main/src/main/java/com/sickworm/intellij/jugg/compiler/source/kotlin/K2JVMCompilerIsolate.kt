@@ -51,17 +51,13 @@ class K2JVMCompilerIsolate {
             return
         }
 
-        if (::classLoader.isInitialized) {
-            logger.debug("kotlin compiler initialized, isUseProjectCompiler $isUseProjectCompiler")
-            return
-        }
-
         try {
             val projectCompilerClasspathUrls = projectCompilerClasspath?.map { it.toURI().toURL() } ?: emptyList()
             val currentCompiler = if (isUseProjectCompiler) currentCompiler else null
             val expectCompiler = getCompilerName(projectCompilerClasspathUrls)
             if (currentCompiler != null && currentCompiler == expectCompiler) {
                 // no need to renew classLoader
+                logger.debug("kotlin compiler reuse, isUseProjectCompiler $isUseProjectCompiler, compiler: $currentCompiler")
                 return
             }
 

@@ -1,10 +1,10 @@
 <h1>更新日志</h1>
-<h2>2.5.0 (2025.09.18)</h2>
+<h2>2.5.0 (2025.10.05)</h2>
 <ol>
     <li>[feature] 支持 dynamic feature 模块(AAB)</li>
     <li>[feature] 支持 coreLibraryDesugaringEnabled 脱糖</li>
 </ol>
-<h2>2.4.0 (2025.09.15)</h2>
+<h2>2.4.0 (2025.10.05)</h2>
 <ol>
     <li>[feature] 支持 Android Studio Narwhal 4 Feature Drop</li>
     <li>[feature] 支持命令行调用（见接入手册）</li>
@@ -14,6 +14,7 @@
     <li>[optimize] 支持当出现某些 Kotlin 编译插件没有提供必须参数时，自动屏蔽该插件</li>
     <li>[optimize] 默认关闭 "Enable Backup Classpath" 选项，优化 clean 工程时的初始化速度</li>
     <li>[optimize] 尝试优化编译初始化卡顿问题（通过主动阶段性 GC）</li>
+    <li>[optimize] 优化 gradle includeBuild 源码编译兼容性</li>
     <li>[bugfix] 修复工程存在 dynamic feature module 时，可能出现找不到 styleable 变量的运行时错误</li>
     <li>[bugfix] 修复 Android Studio Narwhal Feature Drop 无法自动创建运行配置</li>
     <li>[bugfix] 修复安装 APK 时报错："Parent job is Cancelling"</li>
@@ -179,6 +180,7 @@
     <li>[bugfix] 修复 Chipmunk 版本处理 DEX 文件时的 IllegalArgumentException 异常</li>
     <li>[bugfix] 修复全量编译后数据库损坏时无法重新初始化问题</li>
     <li>[bugfix] 修复同步项目后自定义构建文件变更丢失问题</li>
+    <li>[bugfix] 修复偶现日志上传失败</li>
 </ol>
 <h2>1.1.13 (2024.01.13)</h2>
 <ol>

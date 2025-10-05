@@ -37,7 +37,7 @@ class CompileContextManager(
 ) {
 
     private val projectInfoSerializer = ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger)
-    private val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
+    private var allGradleProjectInfoSerializerList = emptyList<ProjectInfoSerializer>()
     private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
 
     private val compileContextInside: BaseCompileContext by lazy { createCompileContext() }
@@ -79,10 +79,17 @@ class CompileContextManager(
             }
         }
 
-        if (gradleProjectInfoSerializer.load()?.checkMissing("gradle", logger) == true) {
-            logger.debug("updateCompileContext gradle checkMissing true, reload gradle project info")
+        var isFixGradleProjectInfo = false
+        allGradleProjectInfoSerializerList.forEach { gradleProjectInfoSerializer ->
+            if (gradleProjectInfoSerializer.load()?.checkMissing("gradle", logger) == true) {
+                logger.debug("updateCompileContext gradle checkMissing true, reload gradle project info")
+                isFixGradleProjectInfo = true
+            }
+        }
+        if (isFixGradleProjectInfo) {
             updateGradleAsync()
         }
+
         val isFixIdeProjectInfo = !isAfterSync && isNeedReloadProjectInfo
         if (isFixIdeProjectInfo) {
             val isMissing = projectInfoSerializer.load()?.checkMissing("ide", logger)
@@ -115,12 +122,26 @@ class CompileContextManager(
     fun updateCompileContextAfterLocalFetch() {
         logger.debug("updateCompileContextAfterLocalFetch")
         ensureInitProjectInfo()
-        gradleProjectInfoSerializer.clearMemoryCache() // file is updated, clear memory cache
-        juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
+
+        allGradleProjectInfoSerializerList = getAllGradleProjectInfo()
+        juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList)
         compileContextInside.update(modules = getProjectInfo().modules)
         compileContextInfo?.let {
             updateCompileContextByFullBuildInfo(it)
         }
+    }
+
+    private fun getAllGradleProjectInfo(): List<ProjectInfoSerializer> {
+        val newGradleInfos = mutableListOf<ProjectInfoSerializer>()
+        val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
+        newGradleInfos.add(gradleProjectInfoSerializer)
+        if (pathManager.gradleIncludeBuildsFile.exists()) {
+            val newIncludeGradleInfos = pathManager.gradleIncludeBuildsFile.readLines().map {
+                ProjectInfoSerializer(File(it), logger)
+            }
+            newGradleInfos.addAll(newIncludeGradleInfos)
+        }
+        return newGradleInfos
     }
 
     fun getProjectInfo(): JuggProjectInfo {
@@ -166,7 +187,8 @@ class CompileContextManager(
     private fun initProjectInfo(): JuggProjectInfo {
         val ideJuggProjectInfo = updateProjectInfoFromIde(isNeedReloadProjectInfo = false)
         juggProjectInfoMerger.afterSync(projectInfoSerializer)
-        juggProjectInfoMerger.afterLocalFetch(gradleProjectInfoSerializer)
+        allGradleProjectInfoSerializerList = getAllGradleProjectInfo()
+        juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList)
         return juggProjectInfoMerger.juggProjectInfo ?: run {
             logger.warn("JuggProjectInfoMerger returns null, which should not happened.")
             return@run ideJuggProjectInfo
@@ -285,6 +307,7 @@ class CompileContextManager(
         val ideaFolderModules = mutableSetOf<String>()
         val notGradleModules = mutableSetOf<String>()
         val testModules = mutableSetOf<String>()
+        val noSourceModules = mutableMapOf<String, ModuleInfo>()
         moduleManager.modules.forEach { module ->
 
             // 1. guess base directory
@@ -451,8 +474,29 @@ class CompileContextManager(
                 emptyList(), emptyList(), emptyList(), // read it in gradle
             )
 
+            if (sourceDirs.isEmpty() && resourceDirs.isEmpty() && assetDirs.isEmpty() && moduleDependencies.isEmpty()) {
+                noSourceModules[module.name] = moduleInfo
+                return@forEach
+            }
+
             modules[moduleInfo.name] = moduleInfo
             addedModules.add("add ${moduleInfo.name}(origin: ${module.name}) -> $moduleInfo, brokenFields: ${info.brokenFields}")
+        }
+
+        if (noSourceModules.isNotEmpty()) {
+            val finalNoSourceModules = mutableSetOf<String>()
+            val addNoSourceModules = mutableSetOf<String>()
+            noSourceModules.forEach { (originName, moduleInfo) ->
+                if (modules[moduleInfo.name] == null) {
+                    addNoSourceModules.add(originName)
+                    modules[moduleInfo.name] = moduleInfo
+                    addedModules.add("add ${moduleInfo.name}(origin: $originName) -> $moduleInfo")
+                } else {
+                    finalNoSourceModules.add(originName)
+                }
+            }
+            logger.debug("add ignore modules (no source module): ${addNoSourceModules.joinToString(", ")}")
+            logger.debug("ignore modules (no source module): ${finalNoSourceModules.joinToString(", ")}")
         }
 
         if (directoryNotFoundModules.isNotEmpty()) {

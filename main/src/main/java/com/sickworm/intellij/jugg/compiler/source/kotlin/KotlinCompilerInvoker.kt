@@ -27,7 +27,48 @@ class KotlinCompilerInvoker {
 
     private var kotlinCompile = K2JVMCompilerIsolate()
 
-    private lateinit var projectKotlinCompilerClasspath: List<File>
+    private val projectKotlinCompilerClasspathMap: MutableMap<String, List<File>> = mutableMapOf()
+    private lateinit var defaultProjectKotlinCompilerClasspath: List<File>
+
+    private fun initProjectKotlinCompilerClasspath(logger: Logger, context: ICompileContext) {
+        logger.debug("projectKotlinCompilerClasspath start")
+        val classpathMap = mutableMapOf<String, MutableSet<File>>()
+        val versionMap = mutableMapOf<String, String>()
+        val voteMap = mutableMapOf<String, MutableSet<String>>()
+        context.modules.values.forEach { module ->
+            val kotlinCompilerClasspath = mutableListOf<File>()
+            kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
+            kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
+            kotlinCompilerClasspath.filter {
+                val isExists = it.exists()
+                if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
+                isExists
+            }
+            val kotlinCompilerVersion = K2JVMCompilerIsolate.getKotlinCompilerVersion(kotlinCompilerClasspath) ?: "not_found"
+            classpathMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }
+            // collect all available kotlin compiler classpath, some plugins may not appear in all modules
+            classpathMap[kotlinCompilerVersion]!!.addAll(kotlinCompilerClasspath)
+
+            // records which is most common one(usually project should not have second compiler, but just for safety)
+            voteMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }.add(module.name)
+            versionMap[module.name] = kotlinCompilerVersion
+        }
+
+        logger.debug("projectKotlinCompilerClasspath classpathMap: $classpathMap")
+        logger.debug("projectKotlinCompilerClasspath voteMap: $voteMap")
+        val chooseVersion = voteMap
+            .filter { it.key != "not_found" } // filter out not found
+            .maxByOrNull { it.value.size } // pick the most common one
+            ?.key
+        val chooseClasspath = classpathMap[chooseVersion]
+        logger.debug("projectKotlinCompilerClasspath default chooseVersion: $chooseVersion, chooseClasspath: $chooseClasspath")
+
+        defaultProjectKotlinCompilerClasspath = chooseClasspath?.toList() ?: emptyList()
+        context.modules.values.forEach { module ->
+            val version = versionMap[module.name]!!
+            projectKotlinCompilerClasspathMap[module.name] = classpathMap[version]!!.toList()
+        }
+    }
 
     data class Options(
         val isEnableKapt: Boolean = false,
@@ -56,12 +97,19 @@ class KotlinCompilerInvoker {
     ): CompileResult {
         logger.debug("compile options: $options")
 
-        if (!::projectKotlinCompilerClasspath.isInitialized) {
-            projectKotlinCompilerClasspath = initProjectKotlinCompilerClasspath(logger, context) ?: emptyList()
+        if (!::defaultProjectKotlinCompilerClasspath.isInitialized) {
+            initProjectKotlinCompilerClasspath(logger, context)
         }
-        // KotlinCompiler.pluginClasspath in gradle contains all kotlin compiler classpath
         // Jugg will check it again in [initIfNeeded] before use it
-        kotlinCompile.initIfNeeded(projectKotlinCompilerClasspath, logger)
+        val classpath =
+            context.getParentModules(module, true)
+                .firstNotNullOfOrNull {
+                    val result = projectKotlinCompilerClasspathMap[it.name]
+                    if (result.isNullOrEmpty()) return@firstNotNullOfOrNull null
+                    result
+                }
+            ?: defaultProjectKotlinCompilerClasspath
+        kotlinCompile.initIfNeeded(classpath, logger)
 
         val kotlinPlugins = options.kotlinPlugins
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
@@ -541,42 +589,6 @@ class KotlinCompilerInvoker {
 
         fun reset() {
             currentInstance = KotlinCompilerInvoker()
-        }
-
-        private fun initProjectKotlinCompilerClasspath(logger: Logger, context: ICompileContext): List<File>? {
-            logger.debug("projectKotlinCompilerClasspath start")
-            val classpathMap = mutableMapOf<String, MutableSet<File>>()
-            val voteMap = mutableMapOf<String, Int>()
-            context.modules.values.forEach { module ->
-                val kotlinCompilerClasspath = mutableListOf<File>()
-                kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
-                kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
-                kotlinCompilerClasspath.addAll(module.kspDependencies?.map { it.file } ?: emptyList())
-                kotlinCompilerClasspath.filter {
-                    val isExists = it.exists()
-                    if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
-                    isExists
-                }
-                val kotlinCompilerVersion = K2JVMCompilerIsolate.getKotlinCompilerVersion(kotlinCompilerClasspath) ?: "not_found"
-                classpathMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }
-                // collect all available kotlin compiler classpath, some plugins may not appear in all modules
-                classpathMap[kotlinCompilerVersion]!!.addAll(kotlinCompilerClasspath)
-
-                // records which is most common one(usually project should not have second compiler, but just for safety)
-                voteMap.getOrPut(kotlinCompilerVersion) { 0 }
-                voteMap[kotlinCompilerVersion] = voteMap[kotlinCompilerVersion]!! + 1
-            }
-
-            logger.debug("projectKotlinCompilerClasspath classpathMap: $classpathMap")
-            logger.debug("projectKotlinCompilerClasspath voteMap: $voteMap")
-            val chooseVersion = voteMap
-                .filter { it.key != "not_found" } // filter out not found
-                .maxByOrNull { it.value } // pick the most common one
-                ?.key
-            val chooseClasspath = classpathMap[chooseVersion]
-            logger.debug("projectKotlinCompilerClasspath chooseVersion: $chooseVersion, chooseClasspath: $chooseClasspath")
-
-            return chooseClasspath?.toList()
         }
 
         private fun encodeList(options: Map<String, String>): String {

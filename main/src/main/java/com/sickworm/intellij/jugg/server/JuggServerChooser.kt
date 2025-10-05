@@ -7,10 +7,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
-import java.io.IOException
 import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.Socket
 
 
 /**
@@ -20,6 +17,8 @@ class JuggServerChooser(logger: Logger) {
 
     private val logger: Logger = logger.getInstance("JuggServerChooser")
     private var serverRules: List<ServerRule>? = null
+
+    private val forbidUrls = mutableSetOf<String>()
 
     private var isSetCustomServer
         get() = JuggSettings.serverExpireTimeMill == SERVER_WILL_NOT_EXPIRE
@@ -76,6 +75,35 @@ class JuggServerChooser(logger: Logger) {
         }
     }
 
+    /**
+     * Update server with forbid url.
+     */
+    fun updateServerWithForbidCurrentUrl(): Boolean {
+        val forbidUrl = JuggSettings.serverUrl
+        if (forbidUrl == null) {
+            logger.debug("No server url found.")
+            return false
+        }
+        if (forbidUrl in forbidUrls) {
+            logger.debug("updateServerWithForbidUrl $forbidUrl already in forbid list, skip.")
+            return false
+        }
+        val serverRules = serverRules
+        if (serverRules == null)  {
+            logger.debug("No server rule found.")
+            return false
+        }
+        if (forbidUrl !in serverRules.map { it.url }) {
+            logger.debug("$forbidUrl not in server rules, skip.")
+            return false
+        }
+
+        forbidUrls.add(forbidUrl)
+        logger.debug("Update server with forbid url: $forbidUrl")
+        updateServer(serverRules)
+        return JuggSettings.serverUrl != forbidUrl // update success
+    }
+
     private fun selectServer(serverRules: List<ServerRule>?): ServerRule? {
         logger.debug("Update server rules: $serverRules")
         if (serverRules.isNullOrEmpty()) {
@@ -84,6 +112,10 @@ class JuggServerChooser(logger: Logger) {
         }
 
         serverRules.forEach { serverRule ->
+            if (serverRule.url in forbidUrls) {
+                logger.debug("${serverRule.url} in forbid list, ignore")
+                return@forEach
+            }
             logger.debug("Check server rule: $serverRule")
             if (serverRule.checkReachableHost != null) {
                 if (isReachable(serverRule.checkReachableHost)) {
@@ -100,19 +132,16 @@ class JuggServerChooser(logger: Logger) {
         return null
     }
 
-    private fun isReachable(hostWithPort: String): Boolean {
+    private fun isReachable(host: String): Boolean {
         try {
-            val (host, port) = hostWithPort.split(":")
             val address = InetAddress.getByName(host)
-            try {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(address, port.toInt()), 5000)
-                    logger.debug("$host is reachable")
-                    return true
-                }
-            } catch (e: IOException) {
+            val reachable = address.isReachable(5000) // 5000毫秒超时时间
+
+            if (reachable) {
+                logger.debug("$host is reachable")
+                return true
+            } else {
                 logger.debug("$host is not reachable")
-                return false
             }
         } catch (e: Exception) {
             logger.debug("Error occurred: ${e.message}")

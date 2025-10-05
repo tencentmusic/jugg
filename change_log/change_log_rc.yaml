@@ -8,6 +8,11 @@
   updates:
     - supports dynamic feature modules(AAB)
 
+- version: 2.4.0-rc14
+  date: 2025.10.05
+  updates:
+    - optimize gradle includeBuild compatibility
+
 - version: 2.4.0-rc10
   date: 2025.09.19
   updates:

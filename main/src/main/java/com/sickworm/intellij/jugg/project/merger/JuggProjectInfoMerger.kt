@@ -33,7 +33,7 @@ interface IJuggProjectInfoMerger {
     /**
      * e.g. ./gradlew --dry-run -I readProjectInfo.gradle.kts
      */
-    fun afterLocalFetch(projectInfoSerialize: ProjectInfoSerializer): JuggProjectInfoMergeResult
+    fun afterLocalFetch(projectInfoSerialize: List<ProjectInfoSerializer>): JuggProjectInfoMergeResult
 }
 
 class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
@@ -41,8 +41,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
     private val logger = loggerArg.getInstance("JuggProjectInfoMerger")
 
     private var ide: ProjectInfoSerializer? = null
-    private var build: ProjectInfoSerializer? = null
-    private var localFetch: ProjectInfoSerializer? = null
+    private var localFetch: List<ProjectInfoSerializer> = emptyList()
 
     override var juggProjectInfo: JuggProjectInfo? = null
 
@@ -53,7 +52,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         return result
     }
 
-    override fun afterLocalFetch(projectInfoSerialize: ProjectInfoSerializer): JuggProjectInfoMergeResult {
+    override fun afterLocalFetch(projectInfoSerialize: List<ProjectInfoSerializer>): JuggProjectInfoMergeResult {
         localFetch = projectInfoSerialize
         val result = merge()
         juggProjectInfo = result.mergedInfo
@@ -75,27 +74,31 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             return JuggProjectInfoMergeResult.createSingle(ideProjectInfo)
         }
 
-        val buildUpdateTime = build?.dataFile?.lastModified() ?: -1L
-        val localFetchUpdateTime = localFetch?.dataFile?.lastModified() ?: -1L
+        val localFetchUpdateTime = localFetch.firstOrNull()?.dataFile?.lastModified() ?: -1L
         val ideUpdateTime = ide?.dataFile?.lastModified() ?: -1L
-        logger.debug("buildUpdateTime ${buildUpdateTime.timeStampToTime()}, " +
-                "localFetchUpdateTime ${localFetchUpdateTime.timeStampToTime()}, " +
+        logger.debug("localFetchUpdateTime ${localFetchUpdateTime.timeStampToTime()}, " +
                 "ideUpdateTime ${ideUpdateTime.timeStampToTime()}")
-        val gradle = if (buildUpdateTime > localFetchUpdateTime) {
-            logger.debug("use build as gradle project info")
-            build
-        } else {
-            logger.debug("use local fetch as gradle project info")
-            localFetch
+
+        val gradleProjectInfoModules = mutableMapOf<String, ModuleInfo>()
+        localFetch.forEach { projectInfoSerializer ->
+            val gradleProjectInfo = projectInfoSerializer.load()
+            logger.debug("localFetch file: ${projectInfoSerializer.dataFile.path }, " +
+                    "modules: ${gradleProjectInfo?.modules?.map { it.key }}")
+            gradleProjectInfo?.modules?.forEach { moduleInfo ->
+                if (!gradleProjectInfoModules.containsKey(moduleInfo.key)) {
+                    gradleProjectInfoModules[moduleInfo.key] = moduleInfo.value
+                }
+            }
         }
-        val gradleProjectInfo = gradle?.load()
-        if (gradleProjectInfo == null) {
+        val gradleProjectInfo = JuggProjectInfo(gradleProjectInfoModules)
+
+        if (gradleProjectInfo.modules.isEmpty()) {
             logger.debug("gradleProjectInfo is null, exit merge and use ideProjectInfo directly")
             return JuggProjectInfoMergeResult.createSingle(ideProjectInfo)
         }
 
         var isNeedUpdateLibraryDependency = true
-        val gradleUpdateTime = gradle.dataFile.lastModified()
+        val gradleUpdateTime = localFetch.firstOrNull()?.dataFile?.lastModified() ?: 0L
         if (ideUpdateTime > gradleUpdateTime) {
             logger.debug("ide project info is newer than gradle project info, isNeedUpdateLibraryDependency=false")
             isNeedUpdateLibraryDependency = false
