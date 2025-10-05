@@ -230,6 +230,7 @@ class BaseCompileContext(
         // handles library1.commonMain only has .klib dependencies, read it in library1
         val parentLibraryModuleDependency = mutableListOf<String>()
         getParentModules(moduleInfo, isAddSelfToResult = false).forEach {
+            logger.debug("${moduleInfo.name} found parent module ${it.name}")
             parentLibraryModuleDependency.addAll(it.getLibraryDependencyPaths())
         }
 
@@ -456,7 +457,6 @@ class BaseCompileContext(
             parentModuleName = parentModuleName.substringBeforeLast('.')
             val parentModuleInfo = modules[parentModuleName] ?: break
             result.add(parentModuleInfo)
-            logger.debug("${moduleInfo.name} found parent module $parentModuleName")
         }
         return result
     }
