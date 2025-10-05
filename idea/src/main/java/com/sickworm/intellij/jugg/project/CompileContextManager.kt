@@ -37,7 +37,7 @@ class CompileContextManager(
 ) {
 
     private val projectInfoSerializer = ProjectInfoSerializer(pathManager.ideProjectInfoFile, logger)
-    private var allGradleProjectInfoSerializerList = listOf<ProjectInfoSerializer>()
+    private var allGradleProjectInfoSerializerList = emptyList<ProjectInfoSerializer>()
     private val juggProjectInfoMerger: IJuggProjectInfoMerger = JuggProjectInfoMerger(logger)
 
     private val compileContextInside: BaseCompileContext by lazy { createCompileContext() }
@@ -123,6 +123,15 @@ class CompileContextManager(
         logger.debug("updateCompileContextAfterLocalFetch")
         ensureInitProjectInfo()
 
+        allGradleProjectInfoSerializerList = getAllGradleProjectInfo()
+        juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList)
+        compileContextInside.update(modules = getProjectInfo().modules)
+        compileContextInfo?.let {
+            updateCompileContextByFullBuildInfo(it)
+        }
+    }
+
+    private fun getAllGradleProjectInfo(): List<ProjectInfoSerializer> {
         val newGradleInfos = mutableListOf<ProjectInfoSerializer>()
         val gradleProjectInfoSerializer = ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger)
         newGradleInfos.add(gradleProjectInfoSerializer)
@@ -132,13 +141,7 @@ class CompileContextManager(
             }
             newGradleInfos.addAll(newIncludeGradleInfos)
         }
-        this.allGradleProjectInfoSerializerList = newGradleInfos
-
-        juggProjectInfoMerger.afterLocalFetch(newGradleInfos)
-        compileContextInside.update(modules = getProjectInfo().modules)
-        compileContextInfo?.let {
-            updateCompileContextByFullBuildInfo(it)
-        }
+        return newGradleInfos
     }
 
     fun getProjectInfo(): JuggProjectInfo {
@@ -184,6 +187,7 @@ class CompileContextManager(
     private fun initProjectInfo(): JuggProjectInfo {
         val ideJuggProjectInfo = updateProjectInfoFromIde(isNeedReloadProjectInfo = false)
         juggProjectInfoMerger.afterSync(projectInfoSerializer)
+        allGradleProjectInfoSerializerList = getAllGradleProjectInfo()
         juggProjectInfoMerger.afterLocalFetch(allGradleProjectInfoSerializerList)
         return juggProjectInfoMerger.juggProjectInfo ?: run {
             logger.warn("JuggProjectInfoMerger returns null, which should not happened.")
