@@ -119,4 +119,6 @@ dependencies {
 
     // uncomment it when we need to debug apt
 //    compileOnly 'com.alibaba:arouter-compiler:1.5.2'
+    // jetified-core-ksp-jvm-2.4.0-2.0.21
+//    compileOnly fileTree(dir: '/Users/wormchen/.gradle/caches/8.9/transforms/1e293b78b8d2d971f356ac2d72f7f24a/transformed/', include: ['jetified-core-ksp-jvm-2.4.0-2.0.21.jar'])
 }

@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
+import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -66,6 +67,29 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         init {
             MockitoFixer.tryFix()
         }
+
+        fun compileFile(projectDir: String, file: String): List<CompileOutput> {
+            val jugg = MockJugg(File(projectDir))
+            jugg.loadFromHistory()
+            jugg.deployStateManager.updateDeployState()
+            if (!jugg.deployStateManager.deployState.isReadyIncCompile) {
+                throw IllegalStateException("no history, exit")
+            }
+            jugg.notifyFileChanges(listOf(File(file)))
+            jugg.compileChangedFiles()
+
+            checkCompileStatus(jugg)
+            return jugg.deployFileManager.getStagingFiles()
+        }
+
+        private fun checkCompileStatus(jugg: MockJugg) {
+            val uncompiledFiles = jugg.deployFileManager.getUncompiledFiles()
+            assertEquals(0, uncompiledFiles.size, "not all files are compiled")
+
+            val stagingFiles = jugg.deployFileManager.getStagingFiles()
+            assertTrue(stagingFiles.isNotEmpty(), "no staging files")
+        }
+
     }
 
     init {
