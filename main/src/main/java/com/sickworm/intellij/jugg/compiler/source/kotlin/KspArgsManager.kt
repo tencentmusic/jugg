@@ -34,6 +34,7 @@ data class KspArgsManager(
         // source code: https://android.googlesource.com/platform/external/ksp/+/e8ea2ac285fc2d1ab8726b0f46d5a827cf5bf9d1/common-util/src/main/kotlin/com/google/devtools/ksp/KspOptions.kt
         // arguments in gradle: symbol-processing-gradle-plugin-1.7.21-1.0.8.jar -> com.google.devtools.ksp.gradle.KspTaskJvm.setupCompilerArgs
         // build directory: build/generated/ksp/debug, build/kspCaches/debug
+        // load processor: com.google.devtools.ksp.KotlinSymbolProcessingExtension.loadProviders
 
         val kspArgs = mutableListOf<String>()
         kspArgs.addAll(listOf(
