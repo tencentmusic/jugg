@@ -147,10 +147,11 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         val finalGradleProjectInfo = JuggProjectInfo(finalUpdateModules)
 
         val libraryMerger = JuggProjectInfoLibraryMerger(logger)
+        val noMergeModules = mutableListOf<String>()
         ideProjectInfo.modules.forEach { (name, moduleInfo) ->
             val gradleModuleInfo = finalGradleProjectInfo.modules[name]
             if (gradleModuleInfo == null) {
-                logger.debug("module $name not found in gradleModuleInfo, won't merge")
+                noMergeModules.add(name)
                 mergedModules[name] = moduleInfo
                 return@forEach
             }
@@ -222,6 +223,8 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 mergedModules[gradleModuleInfo.name] = gradleModuleInfo
             }
         }
+
+        logger.debug("modules not found in gradleModuleInfo, won't merge: $noMergeModules")
 
         return mergeResult.copy(mergedInfo = JuggProjectInfo(mergedModules))
     }
