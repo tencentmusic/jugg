@@ -245,6 +245,7 @@ class KotlinCompilerInvoker {
             kotlinClassPath
         }
         val compileArgs = (module.kotlinFreeCompilerArgs + listOf(
+//            "-X", // Display information about the advanced options and exit.
             "-verbose",
             "-jvm-target", jvmTarget,
             "-nowarn",

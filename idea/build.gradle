@@ -126,6 +126,7 @@ dependencies {
 //    compileOnly 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
 
     // uncomment it when we need to debug ksp 2.0.21
+    // source code: https://github.com/google/ksp/archive/refs/tags/2.0.21-1.0.27.zip
 //    compileOnly "com.google.devtools.ksp:symbol-processing-api:2.0.21-1.0.27"
 //    compileOnly "com.google.devtools.ksp:symbol-processing:2.0.21-1.0.27"
 //    compileOnly fileTree(include: ['jetified-core-ksp-jvm-2.4.0-2.0.21.jar'], dir: "${System.getProperty("user.home")}/.gradle/caches/8.9/transforms/1e293b78b8d2d971f356ac2d72f7f24a/transformed/")

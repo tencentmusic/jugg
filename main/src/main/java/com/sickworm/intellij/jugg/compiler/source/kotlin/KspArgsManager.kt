@@ -35,6 +35,7 @@ data class KspArgsManager(
         // arguments in gradle: symbol-processing-gradle-plugin-1.7.21-1.0.8.jar -> com.google.devtools.ksp.gradle.KspTaskJvm.setupCompilerArgs
         // build directory: build/generated/ksp/debug, build/kspCaches/debug
         // load processor: com.google.devtools.ksp.KotlinSymbolProcessingExtension.loadProviders
+        // FIXME ksp won't work for Kotlin 2.1 with k2 enabled. unless use -language-version=1.9
 
         val kspArgs = mutableListOf<String>()
         kspArgs.addAll(listOf(

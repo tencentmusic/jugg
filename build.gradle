@@ -3,6 +3,7 @@ import org.gradle.internal.jvm.Jvm
 plugins {
     id 'org.jetbrains.intellij' version '1.10.1' apply false
     id 'org.jetbrains.kotlin.jvm' version '1.9.23' apply false
+//    id 'org.jetbrains.kotlin.jvm' version '2.1.21' apply false
 }
 
 def versionName = '2.5.0-rc5'
