@@ -8,8 +8,8 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:7.2.2"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.21"
+        classpath "com.android.tools.build:gradle:8.7.3"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21"
     }
 }
 
@@ -18,18 +18,21 @@ apply plugin: 'kotlin-kapt'
 
 repositories {
     google()
+    mavenCentral()
     jcenter()
 }
 
 
 dependencies {
     compileOnly gradleApi()
-    compileOnly "com.android.tools.build:gradle:7.2.2"
-    compileOnly "com.google.devtools.ksp:symbol-processing-gradle-plugin:1.7.21-1.0.8"
-    compileOnly "com.google.devtools.ksp:symbol-processing-api:1.7.21-1.0.8"
+    compileOnly "com.android.tools.build:gradle:8.7.3"
+    compileOnly "com.google.devtools.ksp:symbol-processing-gradle-plugin:2.0.21-1.0.27"
+    compileOnly "com.google.devtools.ksp:symbol-processing-api:2.0.21-1.0.27"
     compileOnly "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.21"
     compileOnly "org.jetbrains.kotlin:kotlin-compiler-embeddable:1.7.21"
     compileOnly 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
+    compileOnly 'androidx.databinding:databinding-compiler:8.7.3'
+    compileOnly 'androidx.databinding:databinding-compiler-common:8.7.3'
 }
 
 

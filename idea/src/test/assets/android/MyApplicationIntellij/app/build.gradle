@@ -4,6 +4,7 @@ plugins {
     id 'kotlin-kapt'
     id 'kotlin-parcelize'
     id 'com.google.devtools.ksp'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 //apply plugin: 'kotlin-android-extensions'
@@ -12,6 +13,7 @@ plugins {
 android {
     compileSdkVersion 33
     buildToolsVersion "30.0.3"
+    namespace 'com.example.myapplication'
     defaultConfig {
         applicationId "com.example.myapplication"
         minSdkVersion 21
