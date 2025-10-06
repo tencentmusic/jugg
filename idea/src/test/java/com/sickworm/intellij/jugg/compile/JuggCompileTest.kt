@@ -7,6 +7,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.lang.IllegalStateException
+import kotlin.test.assertTrue
 
 class JuggCompileTest {
 
@@ -118,6 +119,28 @@ class JuggCompileTest {
             result.outputs
         )
         assertCompileResultJugg(remainTask, remainResult)
+    }
+
+    @Test
+    fun compileDataBinding() {
+        val compileTask = CompileHelper.makeTask(
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_java_demo.xml")
+        )
+
+        val result = juggCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        CompileHelper.checkOutputFiles(result, listOf(
+            "androidx/databinding/DataBinderMapperImpl.dex",
+            "androidx/databinding/DataBindingComponent.dex",
+            "com/example/myapplication/BR.dex",
+            "com/example/myapplication/DataBinderMapperImpl.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Full.dex",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.dex",
+            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.dex",
+            "res/layout/activity_data_binding_java_demo.xml",
+            "resources.arsc",
+        ))
     }
 
     private fun assertCompileResultJugg(task: CompileTask, result: CompileResult, isRFileChanged: Boolean = false) {

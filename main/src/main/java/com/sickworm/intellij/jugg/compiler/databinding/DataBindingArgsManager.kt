@@ -33,6 +33,7 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
         moduleInfo.buildPathInfo.dataBindingInfoDir.resolve("dataBindingGenBaseClasses${moduleInfo.buildVariant.camel}/out"), // AGP 8.4
         moduleInfo.buildPathInfo.dataBindingDependencyInfoDir,
     ).filter { it.exists() }
+    val currentIncrementalLibraryBrFile = File(dataBindingSourcesOutputDir, libraryBrRelativePath)
 
     val incrementalDependencyClassesFolder get() = dir(context.tempModule.buildPathInfo.buildDir,
         moduleInfo.buildPathInfo.dataBindingInfoDir.resolve("out").relativeTo(moduleInfo.buildPathInfo.buildDir).path,
@@ -51,13 +52,15 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
     val dataBindingBaseFeatureInfoDir get() = dir(tempCompileDir, "base_feature_info")
     val dataBindingKaptTempDir get() = "other/kapt_output"
 
-    val gradleDataBindingKaptOutputDir get() = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
-    val libraryBrRelativePath get() = if (isUseAndroidX) {
+    private val gradleDataBindingKaptOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
+    private val libraryBrRelativePath get() = if (isUseAndroidX) {
         "androidx/databinding/library/baseAdapters/BR.java"
     } else {
         "com/android/databinding/library/baseAdapters/BR.java"
     }
     val appBrRelativePath = "${packageName.replace(".", "/")}/BR.java"
+    val lastLibraryBrFile = File(gradleDataBindingKaptOutputDir, libraryBrRelativePath)
+    val originMapperFile = File(gradleDataBindingKaptOutputDir, dataBindingMapperRelativePath)
 
     // custom incremental mapper things
     val mapperDir get() = dir(tempCompileDir, "mapper")

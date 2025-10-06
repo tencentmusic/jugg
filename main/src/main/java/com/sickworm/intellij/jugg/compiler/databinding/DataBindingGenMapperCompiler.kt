@@ -110,8 +110,8 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
      * and then replace the file under DataBinding_BR/merge.
      */
     private fun mergeLibraryBr() {
-        val lastLibraryBrFile = File(argsManager.gradleDataBindingKaptOutputDir, argsManager.libraryBrRelativePath)
-        val currentIncrementalLibraryBrFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.libraryBrRelativePath)
+        val lastLibraryBrFile = argsManager.lastLibraryBrFile
+        val currentIncrementalLibraryBrFile = argsManager.currentIncrementalLibraryBrFile
 
         if (!lastLibraryBrFile.exists()) {
             throw RuntimeException("library br file not exist: $lastLibraryBrFile")
@@ -170,7 +170,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     }
 
     private fun mergeAppBr() {
-        val lastLibraryBrFile = File(argsManager.gradleDataBindingKaptOutputDir, argsManager.appBrRelativePath)
+        val lastLibraryBrFile = argsManager.lastLibraryBrFile
         val currentIncrementalLibraryBrFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.appBrRelativePath)
 
         if (!lastLibraryBrFile.exists()) {
@@ -300,9 +300,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
         val fullMapperFile = argsManager.dataBindingMapperFullFile
         if (!fullMapperFile.exists()) {
-            val originMapperFile = File(argsManager.gradleDataBindingKaptOutputDir, argsManager.dataBindingMapperRelativePath)
-            val originText = originMapperFile.readText().replace("DataBinderMapperImpl", "DataBinderMapperImpl_Full")
-            fullMapperFile.writeText(originText)
+            DataBindingTemplates(argsManager.isUseAndroidX).generateFullMapperFile(argsManager.originMapperFile, fullMapperFile)
         }
         val targetFullMapperFile = File(currentDataBinderMapperImplFile.parentFile, fullMapperFile.name)
         fullMapperFile.copyTo(targetFullMapperFile)

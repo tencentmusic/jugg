@@ -85,6 +85,7 @@ dependencies {
     implementation('androidx.databinding:databinding-compiler-common:8.7.3') {
         exclude group: 'com.google.guava', module: 'guava'
     }
+//    implementation('androidx.databinding:databinding-adapters:8.7.3') // it's an aar, should extra and put the jar in libs
 
 
     // backend

@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compile.databinding
 
 import android.databinding.tool.ext.toCamelCase
+import com.sickworm.intellij.jugg.compile.CompileHelper
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
@@ -191,27 +192,12 @@ class DataBindingCompileTest {
 
     companion object {
 
-        private val outputDir = File(buildDir, "output")
-        private val javaOutputDir = File(outputDir, "java")
-        private val layoutOutputDir = File(outputDir, "res")
-
         private fun makeTask(vararg files: File): CompileTask {
-            return CompileTask(
-                files.map {
-                    CompileFile(
-                        CompileFile.Type.Resource,
-                        it,
-                        it.parentFile.parentFile,
-                        context.modules.values.first()
-                    )
-                },
-                outputDir,
-                CompileStatusHolder.DEFAULT,
-            )
+            return CompileHelper.makeTask(*files)
         }
 
         private fun checkInclude(file: String, type: String, name: String) {
-            val javaContent = javaOutputDir.resolve(file).readLines()
+            val javaContent = CompileHelper.javaOutputDir.resolve(file).readLines()
             val includeField = javaContent.find { it.contains("$name;") }
             assertNotNull(includeField)
             assertTrue(includeField.contains("$type $name;"), "include field is not generated correct type, actual: \"$includeField\"")
@@ -220,7 +206,7 @@ class DataBindingCompileTest {
         private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
             expect.forEach { expectFilePath ->
                 val isJava = expectFilePath.endsWith(".java")
-                val outputDir = if (isJava) javaOutputDir else layoutOutputDir
+                val outputDir = if (isJava) CompileHelper.javaOutputDir else CompileHelper.xmlOutputDir
                 val outputType = if (isJava) CompileOutput.Type.Java else CompileOutput.Type.ResXml
                 val expectFile = File(outputDir, expectFilePath)
                 val outputFile = compileResult.outputs.find { it.file == expectFile }

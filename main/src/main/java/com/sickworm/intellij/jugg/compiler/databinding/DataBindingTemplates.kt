@@ -1,6 +1,13 @@
 package com.sickworm.intellij.jugg.compiler.databinding
 
+import java.io.File
+
 class DataBindingTemplates(isUseAndroidX: Boolean) {
+
+    fun generateFullMapperFile(originMapperFile: File, fullMapperFile: File) {
+        val originText = originMapperFile.readText().replace("class DataBinderMapperImpl", "class DataBinderMapperImpl_Full")
+        fullMapperFile.writeText(originText)
+    }
 
     val holderTemplate = if (isUseAndroidX) {
         """

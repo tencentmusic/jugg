@@ -163,20 +163,37 @@ data class CompileResult(
     val compiledFailedFiles get() = details.filter { it.isFailed && it.getFailure().errors != quickFailedErrors }
     val notCompiledFiles get() = details.filter { it.isFailed && it.getFailure().errors == quickFailedErrors }
 
-    fun quickFailedOthers(parentTask: CompileTask, isClearOutput: Boolean = false): CompileResult {
+    fun quickFailedOthers(parentTask: CompileTask,
+                          isClearOutput: Boolean = false,
+                          otherFailedFiles: List<CompileFile> = emptyList(),
+    ): CompileResult {
         val details: List<Result<CompileFile, CompileError>> = parentTask.files.map { file ->
-            val compiledDetails = details.find { it.file == file }
-            if (compiledDetails != null) {
-                return@map compiledDetails
+            val compiledDetail = details.find { it.file == file }
+            if (compiledDetail != null) {
+                if (otherFailedFiles.any { it.file.path == compiledDetail.file.file.path }) {
+                    return@map Result.failure(CompileError(file, quickFailedErrors))
+                } else {
+                    return@map compiledDetail
+                }
             } else {
                 return@map Result.failure(CompileError(file, quickFailedErrors))
             }
         }
-        return CompileResult(
+        val result = CompileResult(
             parentTask,
             details,
             if (isClearOutput) emptyList() else outputs
         )
+        return if (result.isAllSuccess) {
+            // which means failed files is middle generated files. mark all failed to make sure result is right.
+            parentTask.allFailed("quickFailedOthers_all_failed")
+        } else {
+            CompileResult(
+                parentTask,
+                details,
+                if (isClearOutput) emptyList() else outputs
+            )
+        }
     }
 
     companion object {
