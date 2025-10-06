@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.manager
 import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
-import com.android.tools.idea.gradle.dsl.api.ProjectBuildModel
 import com.android.tools.idea.log.LogWrapper
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.module.ModuleManager
@@ -158,6 +157,8 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
      * Just simply mark changes as full compiled. Use this we don't need an android device to run tests.
      */
     fun dryFullCompile() {
+        renewComponents(isMockCompileContextManager = false)
+        renewManager()
         juggManager.initIncrementalCompileAfterFullBuild(System.currentTimeMillis())
         juggManager.updateDeployState()
     }
@@ -247,7 +248,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
         } else {
             val moduleManager = mock(ModuleManager::class.java)
-            val projectBuildModel = mock(ProjectBuildModel::class.java)
+            doReturn(emptyArray<com.intellij.openapi.module.Module>()).`when`(moduleManager).modules
             compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
                 moduleManager = moduleManager)
         }

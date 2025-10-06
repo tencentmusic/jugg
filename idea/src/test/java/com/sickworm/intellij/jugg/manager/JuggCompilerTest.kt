@@ -18,7 +18,6 @@ class JuggCompilerTest {
 
     @Before
     fun resetAllState() {
-        jugg.resetAllState()
         jugg.dryFullCompile()
         assertTrue(jugg.deployStateManager.deployState.isReadyIncCompile)
     }

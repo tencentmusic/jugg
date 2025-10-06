@@ -9,6 +9,7 @@ import com.intellij.debugger.impl.DebuggerManagerImpl
 import com.intellij.execution.RunManager
 import com.intellij.execution.RunnerAndConfigurationSettings
 import com.intellij.execution.configurations.ConfigurationFactory
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockProject
 import com.intellij.mock.MockRunManager
 import com.intellij.openapi.application.PathManager
@@ -52,6 +53,8 @@ class JuggMockProject(private val basePath: File): MockProject(null, {}) {
             )
         }
         `when`(deploymentService.deploymentCacheDatabase).thenReturn(deploymentCacheDatabase.value)
+
+        registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
 
         return@run deploymentService
     }
