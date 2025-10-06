@@ -235,7 +235,8 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         // 1. get mapper file created this time
         val currentDataBinderMapperImplFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.dataBindingMapperRelativePath)
         if (!currentDataBinderMapperImplFile.exists()) {
-            throw RuntimeException("dataBinderMapper file not exist: $currentDataBinderMapperImplFile")
+            throw RuntimeException("dataBinderMapper file not exist: $currentDataBinderMapperImplFile, " +
+                    "kapt may not proceed. see \"runAnnotationProcessor kapt output\" for more details")
         }
         logger.debug("generateIncrementalMapperHolder currentDataBinderMapperImplFile = $currentDataBinderMapperImplFile")
 
@@ -326,15 +327,16 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             parentTask = task,
         )
         val subContext = context.subContext(argsManager.dataBindingKaptTempDir)
+        val options = KotlinCompilerInvoker.Options(
+            isEnableKapt = true,
+            isCanAutoRetry = false,
+            kaptOptions = apOptions,
+            kaptDependencies = databindingAptDependencies,
+            kotlinPlugins = context.getParentModules(module, true).flatMap { it.kotlinPlugins ?: emptyList() },
+            javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
+        )
         val kaptResult = KotlinCompilerInvoker.currentInstance.compile(
-            subContext, module, kaptTask, logger,
-            KotlinCompilerInvoker.Options().copy(
-                isEnableKapt = true,
-                isCanAutoRetry = false,
-                kaptOptions = apOptions,
-                kaptDependencies = databindingAptDependencies,
-                javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
-            )
+            subContext, module, kaptTask, logger, options
         )
         if (!kaptResult.isAllSuccess) {
             throw RuntimeException("Failed to compile annotation process task: $kaptResult")
@@ -342,7 +344,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         if (kaptResult.outputs.isEmpty()) {
             throw RuntimeException("No annotation process task output")
         }
-        logger.debug("kapt output: ${kaptResult.outputs.joinToString(", ") { it.file.name }}")
+        logger.debug("runAnnotationProcessor kapt output: ${kaptResult.outputs.joinToString(", ") { it.file.name }}")
     }
 
     // embedded in plugin
