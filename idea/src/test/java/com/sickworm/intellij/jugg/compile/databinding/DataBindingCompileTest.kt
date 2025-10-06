@@ -20,7 +20,7 @@ class DataBindingCompileTest {
     }
 
     @Test
-    fun test() {
+    fun testDataBinding() {
         val compileTask = makeTask(
             File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_java_demo.xml")
         )
@@ -40,7 +40,7 @@ class DataBindingCompileTest {
     }
 
     @Test
-    fun testXmlIncludeNode() {
+    fun testXmlIncludeNodeViewBinding() {
         val compileTask = makeTask(
             File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_include.xml"),
         )
@@ -61,19 +61,19 @@ class DataBindingCompileTest {
     }
 
     @Test
-    fun testNewNode() {
-        compileNewXml()
-        compileXmlIncludeNewXml()
+    fun testNewNodeViewBinding() {
+        compileNewXmlViewBinding()
+        compileXmlIncludeNewXmlViewBinding()
     }
 
     @Test
-    fun testMultipleNewXml() {
-        compileNewXml()
-        compileNewXml2()
-        compileXmlIncludeNewXml()
+    fun testMultipleNewXmlViewBinding() {
+        compileNewXmlViewBinding()
+        compileNewXml2ViewBinding()
+        compileXmlIncludeNewXmlViewBinding()
     }
 
-    private fun compileXmlIncludeNewXml() {
+    private fun compileXmlIncludeNewXmlViewBinding() {
         val compileTask = makeTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new_include.xml"),
         )
@@ -92,7 +92,7 @@ class DataBindingCompileTest {
 
     }
 
-    private fun compileNewXml() {
+    private fun compileNewXmlViewBinding() {
         val compileTask = makeTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new.xml"),
         )
@@ -105,7 +105,7 @@ class DataBindingCompileTest {
         ))
     }
 
-    private fun compileNewXml2() {
+    private fun compileNewXml2ViewBinding() {
         val compileTask = makeTask(
             File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_view_binding_new2.xml"),
         )
@@ -122,7 +122,7 @@ class DataBindingCompileTest {
     fun testMultipleNewXmlDataBinding() {
         val context = context
 
-        fun compileNewXml() {
+        fun compileNewXmlDataBinding() {
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new.xml"),
             )
@@ -141,7 +141,7 @@ class DataBindingCompileTest {
             context.deployedFiles.addAll(result2.outputs)
         }
 
-        fun compileNewXml2() {
+        fun compileNewXml2DataBinding() {
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new2.xml"),
             )
@@ -160,7 +160,7 @@ class DataBindingCompileTest {
             context.deployedFiles.addAll(result2.outputs)
         }
 
-        fun compileXmlIncludeNewXml() {
+        fun compileXmlIncludeNewXmlDataBinding() {
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new_include.xml"),
             )
@@ -184,9 +184,9 @@ class DataBindingCompileTest {
             context.deployedFiles.addAll(result2.outputs)
         }
 
-        compileNewXml()
-        compileNewXml2()
-        compileXmlIncludeNewXml()
+        compileNewXmlDataBinding()
+        compileNewXml2DataBinding()
+        compileXmlIncludeNewXmlDataBinding()
     }
 
     companion object {
