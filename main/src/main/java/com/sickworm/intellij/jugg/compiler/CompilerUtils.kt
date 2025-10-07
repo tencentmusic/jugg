@@ -7,6 +7,18 @@ import java.io.File
 import java.io.InputStreamReader
 import java.util.*
 
+object CompilerUtils {
+
+    fun matchGradleDir(dirSelectInOrder: List<File>,
+                       default: File = dirSelectInOrder.last(),
+                       condition: (File) -> Boolean = File::exists,
+    ): File {
+        return dirSelectInOrder
+            .firstOrNull { condition(it) }
+            ?: default
+    }
+}
+
 fun File.listFilesRecursively(): List<File> {
     if (!exists()) {
         return emptyList()

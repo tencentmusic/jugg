@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.databinding
 
+import com.sickworm.intellij.jugg.compiler.CompilerUtils
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
@@ -21,7 +22,6 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
 
     // generate ViewBinding things e.g. ActivityMainBinding.java
     val dataBindingSourcesOutputDir get() = dir(tempCompileDir, "generated/data_binding_base_class_source_out/${moduleInfo.buildVariant}/out")
-    val dataBindingLayoutXmlDir get() = dir(tempCompileDir, "intermediates/data_binding_layout_info_type_package/${moduleInfo.buildVariant}/out") // AGP 8.4 has both data_binding_layout_info_type_package and data_binding_layout_info_type_merge (seems the same)
     val dataBindingStrippedXmlDir get() = dir(tempCompileDir, "intermediates/incremental/${moduleInfo.buildVariant}/merge${moduleInfo.buildVariant.camel}/stripped.dir")
     val artifactFolder get() = dir(tempCompileDir, "intermediates/data_binding_base_class_log_artifact/${moduleInfo.buildVariant}/out") // AGP 8.4 will get intermediates/data_binding_base_class_log_artifact/${moduleInfo.buildVariant}/dataBindingGenBaseClasses${moduleInfo.buildVariant.camel}/out
     val v1ArtifactsFolder get() = dir(tempCompileDir, "intermediates/data_binding_dependency_artifacts/${moduleInfo.buildVariant}")
@@ -73,6 +73,15 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
         val isMyPackage = it.relativeFile.parentFile.path.replace("\\", "/") == packagePath
         return@count isMyPackage
     }
+
+    // gradle intermediates dir
+    // need to reuse this dir to compat with <include> in data binding
+    val dataBindingLayoutXmlDir: File = CompilerUtils.matchGradleDir(listOf(
+        File(moduleInfo.buildPathInfo.dataBindingIntoTypeDir, "out"), // AGP 7.2.2,
+        File(moduleInfo.buildPathInfo.dataBindingIntoTypeDir, "package${moduleInfo.buildVariant.camel}Resources/out"), // AGP 8.4 has both data_binding_layout_info_type_package and data_binding_layout_info_type_merge
+        dir(tempCompileDir, "intermediates/data_binding_layout_info_type_package/${moduleInfo.buildVariant}/out"),
+    ))
+
 
     fun reset() {
         tempCompileDir.deleteRecursively()

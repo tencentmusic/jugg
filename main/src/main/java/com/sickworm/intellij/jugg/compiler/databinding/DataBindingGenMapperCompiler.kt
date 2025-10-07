@@ -317,6 +317,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         source.add(CompileFile(CompileFile.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, module))
 
         val apOptions = prepareAnnotationProcessorOptions(module)
+        logger.debug("annotation processor apOptions: $apOptions")
 
         // kapt compile
         val kaptTask = CompileTask(
@@ -361,6 +362,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             else -> "LIBRARY"
         }
         return mapOf(
+            "android.databinding.incremental" to "1", // not figure out how to let it work for now
             "android.databinding.minApi" to module.minSdkVersion.toString(),
             "android.databinding.classLogDir" to argsManager.dataBindingArtifactFolder.path,
             "android.databinding.aarOutDir" to argsManager.dataBindingAarOutDir.path,

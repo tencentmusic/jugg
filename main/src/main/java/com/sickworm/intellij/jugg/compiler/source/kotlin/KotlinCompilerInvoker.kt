@@ -186,6 +186,7 @@ class KotlinCompilerInvoker {
         val kaptClassesDir = kaptTmpDir.resolve("classes")
         val kaptStubsDir = kaptTmpDir.resolve("stubs")
         val kaptOutputDir = kaptTmpDir.resolve("output")
+        val kaptIncrementalDataDir = kaptTmpDir.resolve("incrementalData")
         if (options.isEnableKapt) {
             kaptTmpDir.clearDir()
 
@@ -195,7 +196,9 @@ class KotlinCompilerInvoker {
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:sources=${kaptSourceDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:classes=${kaptClassesDir}",
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:stubs=${kaptStubsDir}",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:incrementalData=${kaptIncrementalDataDir}", // no use for now, clear everytime
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:verbose=true",
+                "-P", "plugin:org.jetbrains.kotlin.kapt3:correctErrorTypes=true", // recommend, just add it
                 // stubs, apt, stubsAndApt, compile
                 "-P", "plugin:org.jetbrains.kotlin.kapt3:aptMode=stubsAndApt",
             ))

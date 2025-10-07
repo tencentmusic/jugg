@@ -4,7 +4,6 @@ package com.sickworm.intellij.jugg.mock
 
 import com.android.tools.idea.gradle.dsl.api.GradleModelProvider
 import com.android.tools.idea.gradle.dsl.model.GradleModelSource
-import com.google.gson.JsonSyntaxException
 import com.intellij.execution.configurations.ConfigurationType
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mock.MockApplication
@@ -49,18 +48,7 @@ val assetsLibDir = File(assetsDir, "libs")
 val assetsFlatDir = File(assetsDir, "android/flatDir")
 val assetsAssetsDir = File(assetsDir, "assets")
 
-var projectInfo = try {
-    PlatformApi.impl = IdeaPlatformApi()
-    val projectInfoFromEnv = System.getenv("JUGG_PROJECT_INFO_PATH")
-    val json = if (projectInfoFromEnv != null) {
-        File(projectInfoFromEnv).readText()
-    } else {
-        ProjectInfo.DEMO_JSON
-    }
-    ProjectInfo.parseJson(json)
-} catch (e: JsonSyntaxException) {
-    throw IllegalArgumentException("parse project info failed", e)
-}
+var projectInfo = TestGlobal.projectInfo
 
 val assetsAndroidDir get() = projectInfo.projectRoot
 val assetsAndroidModifySourceDir get() = projectInfo.modifiedSource
