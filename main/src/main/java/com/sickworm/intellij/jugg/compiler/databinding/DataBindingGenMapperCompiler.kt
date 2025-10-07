@@ -16,7 +16,7 @@ import java.util.*
  * 3. merge BR(incremental)
  *
  * References:
- * Lightning
+ * - Lightning
  * - https://android.googlesource.com/platform/frameworks/data-binding/+/refs/tags/gradle_3.4.0
  * - https://android.googlesource.com/platform/tools/base/+/refs/tags/gradle_3.4.0/build-system
  *
@@ -325,12 +325,18 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             parentTask = task,
         )
         val subContext = context.subContext(argsManager.dataBindingKaptTempDir)
+        val classpath = DataBindingClasspathHelper.getClasspath(context, module, logger)
+        classpath.adapterJson.forEach {
+            logger.debug("classpath adapterJson: $it")
+            val targetFile = File(argsManager.dataBindingDependencyArtifacts, it.name)
+            it.copyTo(targetFile, overwrite = true)
+        }
         val options = KotlinCompilerInvoker.Options(
             isEnableKapt = true,
             isCanAutoRetry = false,
             kaptOptions = apOptions,
-            kaptDependencies = databindingAptDependencies,
-            kotlinPlugins = context.getParentModules(module, true).flatMap { it.kotlinPlugins ?: emptyList() },
+            kaptDependencies = classpath.kaptDependencies,
+            kotlinPlugins = classpath.kotlinPlugins,
             javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
         )
         val kaptResult = KotlinCompilerInvoker.currentInstance.compile(
@@ -343,18 +349,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             throw RuntimeException("No annotation process task output")
         }
         logger.debug("runAnnotationProcessor kapt output: ${kaptResult.outputs.joinToString(", ") { it.file.name }}")
-    }
-
-    // embedded in plugin
-    private val databindingAptDependencies: List<File> by lazy {
-        listOf(
-            KotlinCompilerInvoker.getEmbeddedJarPath("databinding-compiler"),
-            KotlinCompilerInvoker.getEmbeddedJarPath("databinding-common"),
-            KotlinCompilerInvoker.getEmbeddedJarPath("databinding-compiler-common"),
-        ).mapNotNull {
-            it ?: return@mapNotNull null
-            File(it)
-        }
     }
 
     /**

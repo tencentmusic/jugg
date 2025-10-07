@@ -73,8 +73,8 @@ dependencies {
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'
 
-    // databinding, using kotlin 1.9.20
-    //noinspection AnnotationProcessorOnCompilePath
+    // databinding 8.7.3, which use kotlin 1.9.20
+    // only for jugg parsing, kapt will use project classpath
     implementation('androidx.databinding:databinding-compiler:8.7.3') {
         // com.intellij.diagnostic.PluginException: Cannot load class com.google.common.util.concurrent.ListenableFuture (
         //  error: loader constraint violation: loader com.intellij.ide.plugins.cl.PluginClassLoader @286323ab wants to load interface com.google.common.util.concurrent.ListenableFuture. A different interface with the same name was previously loaded by com.intellij.util.lang.PathClassLoader @3941a79c. (com.google.common.util.concurrent.ListenableFuture is in unnamed module of loader com.intellij.util.lang.PathClassLoader @3941a79c),
