@@ -215,7 +215,8 @@ class DataBindingCompileTest {
                 assertEquals(outputDir, outputFile.baseDir, "File $expectFile is not in correct baseDir")
                 assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
             }
-            assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, but got ${compileResult.outputs.size}")
+            assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, " +
+                    "but got ${compileResult.outputs.size}: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
         }
 
         private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int) {

@@ -166,7 +166,7 @@ data class ModuleBuildPathInfo(
 
     val dataBindingInfoDir get() = File(buildDir, "intermediates/data_binding_base_class_log_artifact/$buildVariant")
     val dataBindingDependencyInfoDir get() = File(buildDir, "intermediates/data_binding_base_class_logs_dependency_artifacts/$buildVariant")
-    val dataBindingIntoTypeDir get() = File(buildDir, "intermediates/data_binding_layout_info_type_package/$buildVariant")
+    val dataBindingIntoTypeDir get() = File(buildDir, "intermediates/data_binding_layout_info_type_merge/$buildVariant")
 
     private val customClasspathFiles get() = customClasspath?.map { File(moduleRootDir, it) } ?: emptyList()
     private val customSyncFiles get() = customSyncFilePath?.map { File(moduleRootDir, it) } ?: emptyList()

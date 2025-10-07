@@ -13,9 +13,21 @@ object CompilerUtils {
                        default: File = dirSelectInOrder.last(),
                        condition: (File) -> Boolean = File::exists,
     ): File {
-        return dirSelectInOrder
-            .firstOrNull { condition(it) }
-            ?: default
+        // 1. filter dir
+        val filteredDir = dirSelectInOrder.filter {
+            condition.invoke(it)
+        }
+        if (filteredDir.isEmpty()) {
+            return default
+        }
+        if (filteredDir.size == 1) {
+            return filteredDir.first()
+        }
+
+        // 2. choose latest create files
+        return filteredDir.maxByOrNull { dir ->
+            return@maxByOrNull dir.lastModified()
+        }!!
     }
 }
 

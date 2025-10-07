@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compiler.databinding
 
-import android.databinding.tool.DataBindingBuilder
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
@@ -65,31 +64,29 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     private fun generateAnnotationProcessorTrigger() {
         logger.debug("generateAnnotationProcessorTrigger trigger.")
 
-        val triggerFile = argsManager.dataBindingKaptProcessorTrigger
-        triggerFile.parentFile.mkdirs()
-        val gradleFileWriter = DataBindingBuilder.GradleFileWriter(argsManager.dataBindingPreProcessorSources.absolutePath)
-        val annotation = if (argsManager.isUseAndroidX) "androidx.databinding.BindingBuildInfo" else "android.databinding.BindingBuildInfo"
-        val classString = StringBuilder()
-            .appendLine("package ${argsManager.packageName};")
-            .appendLine("@$annotation")
-            .appendLine("public class DataBindingInfo {}")
-        gradleFileWriter.writeToFile(argsManager.packageName + ".DataBindingInfo", classString.toString())
-        if (!triggerFile.exists()) {
-            throw RuntimeException("trigger file not exist: $triggerFile")
+        if (argsManager.isJava) {
+            val triggerFile = argsManager.dataBindingKaptProcessorTrigger
+            triggerFile.parentFile.mkdirs()
+            val annotation = if (argsManager.isUseAndroidX) "androidx.databinding.BindingBuildInfo" else "android.databinding.BindingBuildInfo"
+            val classString = StringBuilder()
+                .appendLine("package ${argsManager.packageName};")
+                .appendLine("@$annotation")
+                .appendLine("public class DataBindingInfo {}")
+            triggerFile.writeText(classString.toString())
+            if (!triggerFile.exists()) {
+                throw RuntimeException("trigger file not exist: $triggerFile")
+            }
+        } else {
+            val ktSourceTriggerFile = argsManager.dataBindingKaptSourceTrigger
+            ktSourceTriggerFile.parentFile.mkdirs()
+            val content = StringBuilder()
+                .appendLine("package ${argsManager.packageName}")
+                .appendLine("class DataBindingIncTrigger {}")
+            ktSourceTriggerFile.writeText(content.toString())
+            if (!ktSourceTriggerFile.exists()) {
+                throw RuntimeException("ktSourceTriggerFile file not exist: $ktSourceTriggerFile")
+            }
         }
-
-        // it seems unnecessary, but just keep it.
-        val ktSourceTriggerFile = argsManager.dataBindingKaptSourceTrigger
-        ktSourceTriggerFile.parentFile.mkdirs()
-        val content = StringBuilder()
-            .appendLine("package ${argsManager.packageName}")
-            .appendLine("class DataBindingIncTrigger {}")
-        ktSourceTriggerFile.writeText(content.toString())
-        if (!ktSourceTriggerFile.exists()) {
-            throw RuntimeException("ktSourceTriggerFile file not exist: $ktSourceTriggerFile")
-        }
-
-        logger.debug("generateAnnotationProcessorTrigger end. triggerFile: $triggerFile, ktSourceTriggerFile: $ktSourceTriggerFile")
     }
 
     private fun createFieldsMapFromBrFile(brFile: File): MutableMap<String, String> {
@@ -110,7 +107,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
      * and then replace the file under DataBinding_BR/merge.
      */
     private fun mergeLibraryBr() {
-        val lastLibraryBrFile = argsManager.lastLibraryBrFile
+        val lastLibraryBrFile = argsManager.gradleLibraryBrFile
         val currentIncrementalLibraryBrFile = argsManager.currentIncrementalLibraryBrFile
 
         if (!lastLibraryBrFile.exists()) {
@@ -170,8 +167,8 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     }
 
     private fun mergeAppBr() {
-        val lastLibraryBrFile = argsManager.lastLibraryBrFile
-        val currentIncrementalLibraryBrFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.appBrRelativePath)
+        val lastLibraryBrFile = argsManager.gradleAppBrFile
+        val currentIncrementalLibraryBrFile = argsManager.currentIncrementalAppBrFile
 
         if (!lastLibraryBrFile.exists()) {
             throw RuntimeException("library br file not exist: $lastLibraryBrFile")
@@ -300,7 +297,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
         val fullMapperFile = argsManager.dataBindingMapperFullFile
         if (!fullMapperFile.exists()) {
-            DataBindingTemplates(argsManager.isUseAndroidX).generateFullMapperFile(argsManager.originMapperFile, fullMapperFile)
+            DataBindingTemplates(argsManager.isUseAndroidX).generateFullMapperFile(argsManager.gradleMapperFile, fullMapperFile)
         }
         val targetFullMapperFile = File(currentDataBinderMapperImplFile.parentFile, fullMapperFile.name)
         fullMapperFile.copyTo(targetFullMapperFile)
@@ -313,8 +310,11 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         logger.debug("launching annotation processor ...")
 
         val source = mutableListOf<CompileFile>()
-        source.add(CompileFile(CompileFile.Type.Java, argsManager.dataBindingKaptProcessorTrigger, argsManager.dataBindingPreProcessorSources, module))
-        source.add(CompileFile(CompileFile.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, module))
+        if (argsManager.isJava) {
+            source.add(CompileFile(CompileFile.Type.Java, argsManager.dataBindingKaptProcessorTrigger, argsManager.dataBindingPreProcessorSources, module))
+        } else {
+            source.add(CompileFile(CompileFile.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, module))
+        }
 
         val apOptions = prepareAnnotationProcessorOptions(module)
         logger.debug("annotation processor apOptions: $apOptions")
@@ -325,7 +325,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             outputDir = argsManager.dataBindingSourcesOutputDir,
             parentTask = task,
         )
-        val subContext = context.subContext(argsManager.dataBindingKaptTempDir)
+        val subContext = context.subContext(argsManager.dataBindingKaptOutputDir)
         val classpath = DataBindingClasspathHelper.getClasspath(context, module, logger)
         classpath.adapterJson.forEach {
             logger.debug("classpath adapterJson: $it")
@@ -376,7 +376,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.isTestVariant" to "0",
             "android.databinding.baseFeatureInfoDir" to argsManager.dataBindingBaseFeatureInfoDir.path,
             "android.databinding.printEncodedErrorLogs" to "1",
-            "android.databinding.layoutInfoDir" to argsManager.dataBindingLayoutXmlDir.path,
+            "android.databinding.layoutInfoDir" to argsManager.tempDataBindingLayoutXmlDir.path,
             "useAndroidX" to argsManager.isUseAndroidX.toString(),
         )
     }

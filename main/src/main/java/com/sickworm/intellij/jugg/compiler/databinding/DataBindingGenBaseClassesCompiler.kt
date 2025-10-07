@@ -41,8 +41,9 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
         argsManager.reset()
         try {
-            splitLayoutXml(argsManager, task.files)
-            generateBaseClasses(argsManager)
+            val splitFiles = splitLayoutXml(argsManager, task.files)
+            generateBaseClasses(argsManager, splitFiles)
+//            copyToGradleDir(argsManager)
             return getOutput(task, argsManager, module)
         } catch (e: Exception) {
             logger.debug("DataBindingGenBaseClassesCompiler error ", e)
@@ -54,7 +55,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         }
     }
 
-    private fun splitLayoutXml(argsManager: DataBindingArgsManager, changedXmlFiles: List<CompileFile>) {
+    private fun splitLayoutXml(argsManager: DataBindingArgsManager, changedXmlFiles: List<CompileFile>): List<File> {
         TimeLogger.start("splitLayoutXml")
 
         val gradleFileWriter = DataBindingBuilder.GradleFileWriter(argsManager.dataBindingSourcesOutputDir.path)
@@ -66,19 +67,22 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
             val relativizableFile = RelativizableFile.fromAbsoluteFile(it.file, argsManager.dataBindingStrippedXmlDir)
             val out = File(argsManager.dataBindingStrippedXmlDir, it.relativeFile.path)
             layoutXmlProcessor.processSingleFile(relativizableFile, out, argsManager.isUseViewBinding, argsManager.isUseDataBinding)
-            layoutXmlProcessor.writeLayoutInfoFiles(argsManager.dataBindingLayoutXmlDir, gradleFileWriter)
+            layoutXmlProcessor.writeLayoutInfoFiles(argsManager.tempDataBindingLayoutXmlDir, gradleFileWriter)
         }
+        val splitFiles = argsManager.tempDataBindingLayoutXmlDir.listFiles()?.toList()
+            ?: throw IllegalStateException("Layout info files not generated in ${argsManager.tempDataBindingLayoutXmlDir}")
 
         TimeLogger.end("splitLayoutXml", logger)
+        return splitFiles
     }
 
-    private fun generateBaseClasses(argsManager: DataBindingArgsManager) {
+    private fun generateBaseClasses(argsManager: DataBindingArgsManager, splitFiles: List<File>) {
         TimeLogger.start("generateBaseClasses")
 
         val args = LayoutInfoInput.Args(
-            outOfDate = argsManager.dataBindingLayoutXmlDir.listFiles()?.toList() ?: emptyList(),
+            outOfDate = splitFiles,
             removed = emptyList(),
-            infoFolder = argsManager.dataBindingLayoutXmlDir,
+            infoFolder = argsManager.tempDataBindingLayoutXmlDir,
             dependencyClassesFolders = argsManager.dependencyClassesFolders,
             artifactFolder = argsManager.artifactFolder,
             logFolder = argsManager.logFolder,
@@ -98,6 +102,15 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
         TimeLogger.end("generateBaseClasses", logger)
     }
+
+//    private fun copyToGradleDir(argsManager: DataBindingArgsManager) {
+//        argsManager.tempDataBindingLayoutXmlDir.listFiles()?.forEach {
+//            val targetFile = File(argsManager.gradleDataBindingLayoutXmlDir, it.name)
+//            if (targetFile != it) {
+//                it.copyTo(targetFile, overwrite = true)
+//            }
+//        }
+//    }
 
     private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, module: ModuleInfo): CompileResult {
         TimeLogger.start("getOutput")
