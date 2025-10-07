@@ -355,6 +355,11 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
      * Prepare annotation processor options.
      */
     private fun prepareAnnotationProcessorOptions(module: ModuleInfo): Map<String, String> {
+        val artifactType = when (module.moduleType) {
+            ModuleInfo.Type.Application -> "APPLICATION"
+            ModuleInfo.Type.DynamicFeature -> "FEATURE"
+            else -> "LIBRARY"
+        }
         return mapOf(
             "android.databinding.minApi" to module.minSdkVersion.toString(),
             "android.databinding.classLogDir" to argsManager.dataBindingArtifactFolder.path,
@@ -365,7 +370,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.enableForTests" to "0",
             "android.databinding.enableV2" to "1",
             "android.databinding.modulePackage" to argsManager.packageName,
-            "android.databinding.artifactType" to (if (module.moduleType == ModuleInfo.Type.Application) "APPLICATION" else "LIBRARY"),
+            "android.databinding.artifactType" to artifactType,
             "android.databinding.isTestVariant" to "0",
             "android.databinding.baseFeatureInfoDir" to argsManager.dataBindingBaseFeatureInfoDir.path,
             "android.databinding.printEncodedErrorLogs" to "1",
