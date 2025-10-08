@@ -125,7 +125,7 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
             return isHasViewBinding
         }
 
-        fun isUseDataBinding(moduleInfo: ModuleInfo, xmlFile: File? = null): Boolean {
+        fun isUseDataBinding(moduleInfo: ModuleInfo, xmlFile: List<File>? = null): Boolean {
             if (moduleInfo.isUseDataBinding == true) return true
 
             val gradleKaptOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
@@ -133,18 +133,17 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
             val isHasDataBindingOutput = gradleDataBindingOutputGuessDir.exists()
             if (!isHasDataBindingOutput) return false
 
-            if (xmlFile == null) {
+            if (xmlFile.isNullOrEmpty()) {
                 return true
             }
 
-            return guessXmlFileHasDataBinding(xmlFile)
+            return xmlFile.any(::guessXmlFileHasDataBinding)
         }
 
         private fun guessXmlFileHasDataBinding(xmlFile: File): Boolean {
-            // just do a simple guess
-            if (xmlFile.exists()) return false
-            val hasLayoutTag = xmlFile.readText().contains("<layout") || xmlFile.readText().contains("<Layout")
-            return hasLayoutTag
+            // simple guess
+            if (!xmlFile.exists()) return false
+            return xmlFile.readText().contains("<layout")
         }
     }
 }

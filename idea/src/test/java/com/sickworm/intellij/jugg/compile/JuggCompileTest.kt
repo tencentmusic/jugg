@@ -111,14 +111,6 @@ class JuggCompileTest {
             emptyList()
         )
         assertCompileResultFailed(sourceTask, sourceResult, mapOf(JavaCompileTest().errorTask.files[0] to 2))
-
-        val remainTask = assetTask + resourceTask
-        val remainResult = CompileResult(
-            remainTask,
-            result.details.filter { !sourceTask.files.contains(it.file) },
-            result.outputs
-        )
-        assertCompileResultJugg(remainTask, remainResult)
     }
 
     @Test
@@ -230,18 +222,19 @@ class JuggCompileTest {
             } else if (it.type == CompileFile.Type.Asset) {
                 val outputBaseDir = File(task.outputDir, "overlays")
                 val outputFile = it.file.changeBaseDir(it.baseDir, File(outputBaseDir, "assets"))
-                listOf(CompileOutput(CompileOutput.Type.Asset, outputFile, outputBaseDir))
+                listOf(CompileOutput(CompileOutput.Type.Asset, outputFile, outputBaseDir, apkPath = TestGlobal.projectInfo.apkFile.path))
             } else if (it.type == CompileFile.Type.Resource) {
                 val outputBaseDir = File(task.outputDir, "overlays")
                 val outputFile = it.file.changeBaseDir(it.baseDir, File(outputBaseDir, "res"))
                 val flatOutput = CompileOutput(
                     CompileOutput.Type.Res,
                     outputFile,
-                    outputBaseDir
+                    outputBaseDir,
+                    apkPath = TestGlobal.projectInfo.apkFile.path
                 )
 
                 // R*.dex
-                var dexOutputs = listOf<CompileOutput>()
+                var dexOutputs = mutableListOf<CompileOutput>()
                 if (isRFileChanged) {
                     val sourceBaseDir = File(task.outputDir, "classes")
                     val rOutDir = File(sourceBaseDir, androidApkPackage.replace(".", "/"))
@@ -250,14 +243,22 @@ class JuggCompileTest {
                             "R\$string.dex, R\$style.dex, R.dex").split(", ")
                     dexOutputs = rDexList.map { name ->
                         CompileOutput(CompileOutput.Type.Dex, File(rOutDir, name), sourceBaseDir)
-                    }
+                    }.toMutableList()
                 }
 
                 // resources.arsc
                 val overlayBaseDir = File(task.outputDir, "overlays")
                 val arscFile = File(overlayBaseDir, ARSC_FILE_NAME)
-                val arscOutput = CompileOutput(CompileOutput.Type.Res, arscFile, overlayBaseDir)
+                val arscOutput = CompileOutput(CompileOutput.Type.Res, arscFile, overlayBaseDir, apkPath = TestGlobal.projectInfo.apkFile.path)
 
+                // view binding
+                if (it.file.name.endsWith(".xml") && it.file.parentFile.name.contains("layout")) {
+                    val classesOutputBaseDir = File(task.outputDir, "classes")
+                    val bindingFileName = toBindingClass(it.file)
+                    val bindingFile = File(classesOutputBaseDir, TestGlobal.projectInfo.packageName.replace(".", "/") + "/databinding/" + bindingFileName)
+                    val bindingOutput = CompileOutput(CompileOutput.Type.Dex, bindingFile, classesOutputBaseDir)
+                    dexOutputs += bindingOutput
+                }
 
                 listOf<CompileOutput>() + flatOutput + arscOutput + dexOutputs
             } else {
@@ -266,5 +267,21 @@ class JuggCompileTest {
         }
 
         assertCompileResult(task, result, mapper)
+    }
+
+    private fun toBindingClass(xmlFile: File): String {
+        var isNeedCamelCase = true
+        val javaFileNameArray: List<String> = xmlFile.nameWithoutExtension.map { c ->
+            return@map if (c == '_') {
+                isNeedCamelCase = true
+                ""
+            } else if (isNeedCamelCase) {
+                isNeedCamelCase = false
+                c.uppercase()
+            } else {
+                c.toString()
+            }
+        }
+        return javaFileNameArray.joinToString("") + "Binding.dex"
     }
 }

@@ -104,7 +104,7 @@ class ResourceCompiler(
         databindingTask.outputDir.clearDir()
         if (databindingTask.files.isEmpty()) {
             logger.debug("no layout file found, skip data binding processing")
-            return CompileResult(databindingTask, emptyList(), emptyList())
+            return CompileResult(resCompileSet.originTask, emptyList(), emptyList())
         }
 
         // process data binding if needed
@@ -115,19 +115,21 @@ class ResourceCompiler(
         val viewBindingResult = dataBindingGenBaseClassesCompiler.compile(databindingTask)
         TimeLogger.end("view binding", logger)
         if (!viewBindingResult.isAllSuccess) {
-            return databindingTask.allFailed("process view binding failed")
+            return resCompileSet.originTask.allFailed("process view binding failed")
         }
 
-        if (DataBindingArgsManager.isUseDataBinding(module)) {
-            logger.info("Processing data binding...")
+        val isRunDataBinding = DataBindingArgsManager.isUseDataBinding(module, resCompileSet.taskFiles.map { it.file })
+        if (!isRunDataBinding) {
+            return viewBindingResult
         }
-        TimeLogger.start("data binding")
+
+        logger.info("Processing data binding...")
+        TimeLogger.start("data_binding")
         val dataBindingResult = dataBindingGenMapperCompiler.compile(databindingTask)
-        TimeLogger.end("data binding", logger)
+        TimeLogger.end("data_binding", logger)
         if (!dataBindingResult.isAllSuccess) {
-            return databindingTask.allFailed("process data binding failed")
+            return resCompileSet.originTask.allFailed("process data binding failed")
         }
-
         val isDataBindingWorking = dataBindingResult.outputs.isNotEmpty()
         return if (isDataBindingWorking) {
             dataBindingResult

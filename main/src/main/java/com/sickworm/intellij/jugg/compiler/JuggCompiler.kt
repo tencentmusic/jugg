@@ -218,8 +218,12 @@ class JuggCompiler(
                     it
                 }
             }
-            compileResult += sourceCompileResult.copy(outputs = movedOutputs)
-            if (!compileResult.isAllSuccess) {
+            compileResult += sourceCompileResult.copy(
+                task = task,
+                details = sourceCompileResult.details.filter { it.file !in dataBindingResultOutputs },
+                outputs = movedOutputs,
+            )
+            if (!sourceCompileResult.isAllSuccess) {
                 return if (dataBindingResultOutputs.isNotEmpty()) {
                     // mark res files as failed too
                     compileResult.quickFailedOthers(task, otherFailedFiles = resourceCompileTask.files)
