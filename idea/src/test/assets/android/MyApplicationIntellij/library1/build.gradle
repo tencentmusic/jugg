@@ -5,12 +5,10 @@ apply plugin: 'kotlin-android'
 //apply plugin: 'kotlin-android-extensions'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'kotlin-parcelize'
-apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 android {
     compileSdkVersion 33
     buildToolsVersion "30.0.3"
-    namespace 'com.example.library1'
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 33
