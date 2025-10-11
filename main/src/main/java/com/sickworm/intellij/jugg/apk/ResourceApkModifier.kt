@@ -22,6 +22,7 @@ class ResourceApkModifier(
 
     fun createResourceApk(overlays: List<DeployItem>) {
         resourceApkFile.delete()
+        resourceApkFile.parentFile.mkdirs()
         resourceApkFile.createNewFile()
         ZipOutputStream(resourceApkFile.outputStream()).use { os ->
             val overlay = overlays.first() // must include one entry to create a normal ZIP file
