@@ -194,7 +194,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 javaSourceCompatibility = chooseValue(gradleModuleInfo.javaSourceCompatibility, moduleInfo.javaSourceCompatibility),
                 javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
                 buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
-                moduleDependencies = justLog(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
+                moduleDependencies = setIfEmpty(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 libraryDependencies = libraryMerger.mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
                 // below fields is only gradle has
@@ -251,12 +251,19 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
     }
 
     @Suppress("SameParameterValue")
-    private fun <T, K> justLog(moduleName: String, type: String,
-                               base: List<T>, new: List<T>,
-                               mergeResult: JuggProjectInfoMergeResult,
-                               selector: (T) -> K,
+    private fun <T, K> setIfEmpty(moduleName: String, type: String,
+                                  base: List<T>, new: List<T>,
+                                  mergeResult: JuggProjectInfoMergeResult,
+                                  selector: (T) -> K,
                                   ): List<T> {
         if (mergeResult.isNeedUpdateDependency) {
+            if (base.isEmpty() && new.isNotEmpty()) {
+                new.forEach {
+                    mergeResult.addMergedItem(moduleName, type, "+$it")
+                }
+                return new
+            }
+
             val newKeys = new.map { selector(it) }.toSet()
             val baseKeys = base.map { selector(it) }.toSet()
             val addList = newKeys.filter { !baseKeys.contains(it) }
