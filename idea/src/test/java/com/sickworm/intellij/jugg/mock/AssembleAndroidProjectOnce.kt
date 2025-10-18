@@ -22,7 +22,7 @@ object AssembleAndroidProjectOnce {
     fun ensure() {
         logger.debug("ensure assemble, hasAssemble: $hasAssemble")
         if (!hasAssemble) {
-//            GradleBuildHelper.clean()
+            GradleBuildHelper.clean()
             GradleBuildHelper.appAssembleDebug(scriptFile.absolutePath)
         }
         hasAssemble = true

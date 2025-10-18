@@ -166,7 +166,8 @@ data class ModuleBuildPathInfo(
 
     val dataBindingInfoDir get() = File(buildDir, "intermediates/data_binding_base_class_log_artifact/$buildVariant")
     val dataBindingDependencyInfoDir get() = File(buildDir, "intermediates/data_binding_base_class_logs_dependency_artifacts/$buildVariant")
-    val dataBindingIntoTypeDir get() = File(buildDir, "intermediates/data_binding_layout_info_type_merge/$buildVariant")
+    val applicationDataBindingIntoTypeDir get() = File(buildDir, "intermediates/data_binding_layout_info_type_merge/$buildVariant")
+    val libraryDataBindingIntoTypeDir get() = File(buildDir, "intermediates/data_binding_layout_info_type_package/$buildVariant")
 
     private val customClasspathFiles get() = customClasspath?.map { File(moduleRootDir, it) } ?: emptyList()
     private val customSyncFiles get() = customSyncFilePath?.map { File(moduleRootDir, it) } ?: emptyList()
@@ -179,7 +180,7 @@ data class ModuleBuildPathInfo(
     val allBuildPathRelative get() = (listOf(kotlinClassPath, javaClassPathNew, javaClassPathOld, rFilePathDir,
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
-        dataBindingInfoDir, dataBindingDependencyInfoDir, dataBindingIntoTypeDir,
+        dataBindingInfoDir, dataBindingDependencyInfoDir, applicationDataBindingIntoTypeDir, libraryDataBindingIntoTypeDir,
     ) + customClasspathFiles + customSyncFiles).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)

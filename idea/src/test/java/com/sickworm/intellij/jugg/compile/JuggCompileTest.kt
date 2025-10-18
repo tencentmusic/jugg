@@ -139,6 +139,7 @@ class JuggCompileTest {
     fun compileDataBindingIncludes() {
 
         fun compileNewXmlDataBinding() {
+            CompileHelper.outputDir.clearDir()
             val compileTask = CompileHelper.makeTask(
                 File(TestGlobal.projectInfo.modifiedSource, "app/src/main/res/layout/activity_data_binding_new.xml"),
             )
@@ -162,6 +163,7 @@ class JuggCompileTest {
         }
 
         fun compileNewXml2DataBinding() {
+            CompileHelper.outputDir.clearDir()
             val compileTask = CompileHelper.makeTask(
                 File(TestGlobal.projectInfo.modifiedSource, "app/src/main/res/layout/activity_data_binding_new2.xml"),
             )
@@ -185,6 +187,7 @@ class JuggCompileTest {
         }
 
         fun compileXmlIncludeNewXmlDataBinding() {
+            CompileHelper.outputDir.clearDir()
             val compileTask = CompileHelper.makeTask(
                 File(TestGlobal.projectInfo.modifiedSource, "app/src/main/res/layout/activity_data_binding_new_include.xml"),
             )
@@ -198,7 +201,7 @@ class JuggCompileTest {
                 "com/example/myapplication/DataBinderMapperImpl.dex",
                 "com/example/myapplication/DataBinderMapperImpl_Full.dex",
                 "com/example/myapplication/DataBinderMapperImpl_Inc_3.dex",
-                "com/example/myapplication/databinding/ActivityDataBindingNewIncludeNBinding.dex",
+                "com/example/myapplication/databinding/ActivityDataBindingNewIncludeBinding.dex",
                 "com/example/myapplication/databinding/ActivityDataBindingNewIncludeBindingImpl.dex",
                 "res/layout/activity_data_binding_new_include.xml",
                 "resources.arsc",
@@ -207,9 +210,34 @@ class JuggCompileTest {
             (juggCompiler.context as SimpleCompileContext).deployedFiles.addAll(result.outputs)
         }
 
+        fun compileXmlIncludeOldXmlDataBinding() {
+            CompileHelper.outputDir.clearDir()
+            val compileTask = CompileHelper.makeTask(
+                File(TestGlobal.projectInfo.modifiedSource, "app/src/main/res/layout/activity_data_binding_old_include.xml"),
+            )
+            val result = juggCompiler.compile(compileTask)
+            assertTrue(result.isAllSuccess)
+
+            CompileHelper.checkOutputFiles(result, listOf(
+                "androidx/databinding/DataBinderMapperImpl.dex",
+                "androidx/databinding/DataBindingComponent.dex",
+                "com/example/myapplication/BR.dex",
+                "com/example/myapplication/DataBinderMapperImpl.dex",
+                "com/example/myapplication/DataBinderMapperImpl_Full.dex",
+                "com/example/myapplication/DataBinderMapperImpl_Inc_4.dex",
+                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.dex",
+                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBindingImpl.dex",
+                "res/layout/activity_data_binding_old_include.xml",
+                "resources.arsc",
+            ))
+
+            (juggCompiler.context as SimpleCompileContext).deployedFiles.addAll(result.outputs)
+        }
+
         compileNewXmlDataBinding()
-//        compileNewXml2DataBinding()
-//        compileXmlIncludeNewXmlDataBinding()
+        compileNewXml2DataBinding()
+        compileXmlIncludeNewXmlDataBinding()
+        compileXmlIncludeOldXmlDataBinding()
     }
 
 

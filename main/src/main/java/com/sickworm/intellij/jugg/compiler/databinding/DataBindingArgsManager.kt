@@ -9,7 +9,7 @@ import java.io.File
  * Manage argument for data binding.
  * Output structure is same as AGP 7.2.2.
  */
-class DataBindingArgsManager(private val context: ICompileContext, private val moduleInfo: ModuleInfo) {
+class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: ModuleInfo) {
 
     val isJava = false
     val isUseAndroidX = true // just leave it true
@@ -35,7 +35,7 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
         moduleInfo.buildPathInfo.dataBindingInfoDir.resolve("dataBindingGenBaseClasses${moduleInfo.buildVariant.camel}/out"), // AGP 8.4
         moduleInfo.buildPathInfo.dataBindingDependencyInfoDir,
     ).filter { it.exists() }
-    val tempDataBindingLayoutXmlDir: File = dir(tempCompileDir, "intermediates/data_binding_layout_info_type_merge/${moduleInfo.buildVariant}/out")
+    val tempDataBindingLayoutXmlDir: File get() = dir(tempCompileDir, "intermediates/data_binding_layout_info_type_merge/${moduleInfo.buildVariant}/out")
 
     val incrementalDependencyClassesFolder get() = dir(context.tempModule.buildPathInfo.buildDir,
         moduleInfo.buildPathInfo.dataBindingInfoDir.resolve("out").relativeTo(moduleInfo.buildPathInfo.buildDir).path,
@@ -71,11 +71,13 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
 
     // mapper
     val dataBindingMapperRelativePath = "$packagePath/DataBinderMapperImpl.java"
-    val mapperDir = dir(tempCompileDir, "other/mapper")
+    val mapperDir get() = dir(tempCompileDir, "other/mapper")
     val dataBindingMapperDelegateFile get() = file(mapperDir, "DataBinderMapperImpl.java")
     val dataBindingMapperFullFile get() = file(mapperDir, "DataBinderMapperImpl_Full.java")
     val databindingIncCount get() = context.deployedFiles.count {
         val isIncMapper = it.file.nameWithoutExtension.startsWith("DataBinderMapperImpl_Inc_")
+                && it.file.extension == "dex"
+                && !it.file.nameWithoutExtension.contains("$") // not inner class
         if (!isIncMapper) return@count false
         val isMyPackage = it.relativeFile.parentFile.path.replace("\\", "/") == packagePath
         return@count isMyPackage
@@ -88,10 +90,14 @@ class DataBindingArgsManager(private val context: ICompileContext, private val m
     // need to reuse this dir to compat with <include> in data binding
     private val gradleKaptOutputDir = File(moduleInfo.buildPathInfo.buildDir, "generated/source/kapt/${moduleInfo.buildVariant}")
     val gradleDataBindingLayoutXmlDir: File = CompilerUtils.matchGradleDir(listOf(
-        // AGP 7.2.2
-        File(moduleInfo.buildPathInfo.dataBindingIntoTypeDir, "out"),
-        // AGP 8.4 has both data_binding_layout_info_type_package and data_binding_layout_info_type_merge, seems the same
-        File(moduleInfo.buildPathInfo.dataBindingIntoTypeDir, "package${moduleInfo.buildVariant.camel}Resources/out"),
+        // AGP 7.2.2 application module
+        File(moduleInfo.buildPathInfo.applicationDataBindingIntoTypeDir, "out"),
+        // AGP 8.4 application module, has both data_binding_layout_info_type_package and data_binding_layout_info_type_merge, seems the same
+        File(moduleInfo.buildPathInfo.applicationDataBindingIntoTypeDir, "package${moduleInfo.buildVariant.camel}Resources/out"),
+        // AGP 7.2.2 library module
+        File(moduleInfo.buildPathInfo.libraryDataBindingIntoTypeDir, "out"),
+        // AGP 8.4 library module
+        File(moduleInfo.buildPathInfo.libraryDataBindingIntoTypeDir, "package${moduleInfo.buildVariant.camel}Resources/out"),
     ),
         default = tempDataBindingLayoutXmlDir,
     )

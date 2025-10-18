@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.databinding
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.*
@@ -240,7 +241,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         // 2. create new inc mapper file by currentDataBinderMapperImplFile
         val index = argsManager.databindingIncCount + 1
         val newName = "DataBinderMapperImpl_Inc_$index"
-        logger.debug("generateIncrementalMapperHolder newName = $newName")
+        logger.debug("generateIncrementalMapperHolder newName = $newName, index=$index")
         val targetIncFile = File(argsManager.mapperDir, "$newName.java")
         if (targetIncFile.exists()) {
             targetIncFile.delete()
@@ -307,7 +308,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
      * Run kapt，generate DataBindingImpl.java、BR.java、DataMapping.
      */
     private fun runAnnotationProcessor(task: CompileTask, module: ModuleInfo) {
-        logger.debug("launching annotation processor ...")
+        logger.debug("runAnnotationProcessor in")
 
         val source = mutableListOf<CompileFile>()
         if (argsManager.isJava) {
@@ -316,8 +317,18 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             source.add(CompileFile(CompileFile.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, module))
         }
 
+        TimeLogger.start("runAnnotationProcessor_findAllIncludePath")
+        val includeLayoutInfoFiles = LayoutIncludeAnalyzer(argsManager, logger).findAllIncludePath(task.files)
+        logger.debug("runAnnotationProcessor includeLayoutInfoFiles: $includeLayoutInfoFiles")
+        includeLayoutInfoFiles.forEach {
+            val targetFile = it.changeBaseDir(it.parentFile, argsManager.tempDataBindingLayoutXmlDir)
+            targetFile.parentFile.mkdirs()
+            it.copyTo(targetFile, overwrite = true)
+        }
+        TimeLogger.end("runAnnotationProcessor_findAllIncludePath", logger)
+
         val apOptions = prepareAnnotationProcessorOptions(module)
-        logger.debug("annotation processor apOptions: $apOptions")
+        logger.debug("runAnnotationProcessor apOptions: $apOptions")
 
         // kapt compile
         val kaptTask = CompileTask(
@@ -376,6 +387,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.isTestVariant" to "0",
             "android.databinding.baseFeatureInfoDir" to argsManager.dataBindingBaseFeatureInfoDir.path,
             "android.databinding.printEncodedErrorLogs" to "1",
+            "android.databinding.layoutInfoDir" to argsManager.gradleDataBindingLayoutXmlDir.path,
             "android.databinding.layoutInfoDir" to argsManager.tempDataBindingLayoutXmlDir.path,
             "useAndroidX" to argsManager.isUseAndroidX.toString(),
         )

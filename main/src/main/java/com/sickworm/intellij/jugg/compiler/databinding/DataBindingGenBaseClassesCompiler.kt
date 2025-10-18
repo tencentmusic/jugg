@@ -43,7 +43,9 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         try {
             val splitFiles = splitLayoutXml(argsManager, task.files)
             generateBaseClasses(argsManager, splitFiles)
-//            copyToGradleDir(argsManager)
+            // copy will cause gradle compile failed if new file is deleted
+            // copy and use full data_binding_layout_info_type_merge will let incremental compile not correct
+            copyToGradleDir(argsManager)
             return getOutput(task, argsManager, module)
         } catch (e: Exception) {
             logger.debug("DataBindingGenBaseClassesCompiler error ", e)
@@ -103,14 +105,14 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         TimeLogger.end("generateBaseClasses", logger)
     }
 
-//    private fun copyToGradleDir(argsManager: DataBindingArgsManager) {
-//        argsManager.tempDataBindingLayoutXmlDir.listFiles()?.forEach {
-//            val targetFile = File(argsManager.gradleDataBindingLayoutXmlDir, it.name)
-//            if (targetFile != it) {
-//                it.copyTo(targetFile, overwrite = true)
-//            }
-//        }
-//    }
+    private fun copyToGradleDir(argsManager: DataBindingArgsManager) {
+        argsManager.tempDataBindingLayoutXmlDir.listFiles()?.forEach {
+            val targetFile = File(argsManager.gradleDataBindingLayoutXmlDir, it.name)
+            if (targetFile != it) {
+                it.copyTo(targetFile, overwrite = true)
+            }
+        }
+    }
 
     private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, module: ModuleInfo): CompileResult {
         TimeLogger.start("getOutput")
