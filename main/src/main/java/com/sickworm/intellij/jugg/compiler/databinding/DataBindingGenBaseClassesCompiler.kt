@@ -107,7 +107,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
     private fun copyToGradleDir(argsManager: DataBindingArgsManager) {
         argsManager.tempDataBindingLayoutXmlDir.listFiles()?.forEach {
-            val targetFile = File(argsManager.gradleDataBindingLayoutXmlDir, it.name)
+            val targetFile = File(argsManager.backupDataBindingLayoutXmlDir, it.name)
             if (targetFile != it) {
                 it.copyTo(targetFile, overwrite = true)
             }

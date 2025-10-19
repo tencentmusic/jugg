@@ -10,7 +10,7 @@ import org.w3c.dom.Element
 import java.io.File
 
 /**
- * Find out all the includes xml files in [DataBindingArgsManager.gradleDataBindingLayoutXmlDir] recursively
+ * Find out all the includes xml files in [DataBindingArgsManager.backupDataBindingLayoutXmlDir] recursively
  * to fix compilation error with DataBindingImpl.java
  */
 class LayoutIncludeAnalyzer(
@@ -93,12 +93,12 @@ class LayoutIncludeAnalyzer(
     }
 
     /**
-     * find the layout info file by layout name in [DataBindingArgsManager.gradleDataBindingLayoutXmlDir] and
+     * find the layout info file by layout name in [DataBindingArgsManager.backupDataBindingLayoutXmlDir] and
      */
     private fun findLayoutInfoFileByLayoutName(layoutName: String, parentFileName: String? = null): List<File> {
         // find in moduleInfo
         val finalLayoutName = layoutName + if (parentFileName != null) "-$parentFileName.xml" else "-"
-        val layoutInfoFiles = argsManager.gradleDataBindingLayoutXmlDir.listFiles()?.filter {
+        val layoutInfoFiles = argsManager.backupDataBindingLayoutXmlDir.listFiles()?.filter {
             it.name.startsWith(finalLayoutName)
         }
         if (!layoutInfoFiles.isNullOrEmpty()) {
@@ -114,7 +114,12 @@ class LayoutIncludeAnalyzer(
                 return@forEach
             }
             val subArgsManager = DataBindingArgsManager(argsManager.context, subModuleInfo)
-            val subLayoutInfoFile = subArgsManager.gradleDataBindingLayoutXmlDir.listFiles()?.filter {
+            val layoutXmlDir = if (subArgsManager.backupDataBindingLayoutXmlDir.exists()) {
+                subArgsManager.backupDataBindingLayoutXmlDir
+            } else {
+                subArgsManager.gradleDataBindingLayoutXmlDir
+            }
+            val subLayoutInfoFile = layoutXmlDir.listFiles()?.filter {
                 it.name.startsWith(finalLayoutName)
             }
             if (!subLayoutInfoFile.isNullOrEmpty()) {

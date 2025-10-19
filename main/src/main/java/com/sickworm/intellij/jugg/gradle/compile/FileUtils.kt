@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isWindows
 import java.io.File
+import java.security.MessageDigest
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -77,3 +78,6 @@ fun File.zipFiles(files: List<File>, parentPath: String = "") {
     }
     zipOutputStream.close()
 }
+
+val String.md5: String get() = MessageDigest.getInstance("MD5").digest(this.toByteArray()).toHex()
+private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }

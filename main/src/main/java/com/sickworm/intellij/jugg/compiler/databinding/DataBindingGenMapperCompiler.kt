@@ -387,7 +387,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.isTestVariant" to "0",
             "android.databinding.baseFeatureInfoDir" to argsManager.dataBindingBaseFeatureInfoDir.path,
             "android.databinding.printEncodedErrorLogs" to "1",
-            "android.databinding.layoutInfoDir" to argsManager.gradleDataBindingLayoutXmlDir.path,
             "android.databinding.layoutInfoDir" to argsManager.tempDataBindingLayoutXmlDir.path,
             "useAndroidX" to argsManager.isUseAndroidX.toString(),
         )

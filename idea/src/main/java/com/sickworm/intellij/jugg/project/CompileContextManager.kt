@@ -260,6 +260,7 @@ class CompileContextManager(
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHisManager,
+            incrementalDataDir = File(pathManager.compileRootDir, "incremental")
         )
         TimeLogger.end("createCompileContext", logger)
         return context

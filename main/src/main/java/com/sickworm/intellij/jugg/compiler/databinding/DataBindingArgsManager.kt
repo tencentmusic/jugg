@@ -104,10 +104,13 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     val gradleMapperFile = File(gradleKaptOutputDir, dataBindingMapperRelativePath)
     val gradleLibraryBrFile = File(gradleKaptOutputDir, libraryBrRelativePath)
     val gradleAppBrFile = File(gradleKaptOutputDir, appBrRelativePath)
+    // backup dir to avoid gradle compilation failed if file create and delete
+    val backupDataBindingLayoutXmlDir = context.backupGradleDir(gradleDataBindingLayoutXmlDir, dryRun = true)
     /** gradle intermediates dir end */
 
     fun reset() {
         tempCompileDir.deleteRecursively()
+        context.backupGradleDir(gradleDataBindingLayoutXmlDir) // to backupDataBindingLayoutXmlDir
     }
 
     companion object {

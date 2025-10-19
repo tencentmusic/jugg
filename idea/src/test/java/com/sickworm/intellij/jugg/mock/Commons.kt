@@ -72,6 +72,7 @@ val context get() = SimpleCompileContext(
     modules = AssembleAndroidProjectOnce.getProjectInfo().modules,
     apkInfos = projectInfo.apkInfos,
     projectDir = projectInfo.projectRoot,
+    incrementalDataDir = File(buildDir, "incremental"),
     deployedFiles = mutableListOf(),
 )
 

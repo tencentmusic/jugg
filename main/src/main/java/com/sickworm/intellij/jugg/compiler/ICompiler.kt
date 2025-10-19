@@ -254,7 +254,11 @@ interface ICompileContext {
     /** APK singing config */
     val signingConfig: SigningConfig?
 
-    val packageName get() = apkInfos.firstOrNull()?.applicationId
+    /** compile temporary incremental storage directory */
+    val incrementalDataDir: File
+
+    // use the shortest package name to filter dynamic feature package
+    val packageName get() = apkInfos.minByOrNull { it.applicationId.length }?.applicationId
 
     val isSingleApk get() = apkInfos.flatMap { it.files }.map { it.apkFile }.size == 1
 
@@ -287,6 +291,8 @@ interface ICompileContext {
     fun printClasspathCheck(moduleInfo: ModuleInfo)
 
     fun getModulePackageName(moduleInfo: ModuleInfo): String?
+
+    fun backupGradleDir(sourceDir: File, overrideOnExists: Boolean = false, dryRun: Boolean = false): File
 }
 
 data class DesugarInfo(

@@ -29,6 +29,7 @@ class BaseCompileContext(
     override var modules: Map<String, ModuleInfo> = emptyMap(),
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
+    override val incrementalDataDir: File,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
 ): ICompileContext {
@@ -498,6 +499,26 @@ class BaseCompileContext(
             modulePackageNameCacheMap[moduleInfo.name] = packageNameInManifest
         }
         return packageNameInManifest
+    }
+
+    override fun backupGradleDir(sourceDir: File, overrideOnExists: Boolean, dryRun: Boolean): File {
+        val projectRootDir = modules.values.first().projectRootDir
+        val relativePath = sourceDir.relativeTo(projectRootDir).path.replace("..", "__")
+        val targetDir = File(projectRootDir, relativePath)
+        logger.debug("backupGradleDir from $sourceDir(exists: ${sourceDir.exists()}) to " +
+                "$targetDir(exists: ${targetDir.exists()}), overrideOnExists: $overrideOnExists, dryRun: $dryRun")
+        if (dryRun) {
+            return targetDir
+        }
+        if (targetDir.exists() || overrideOnExists) {
+            targetDir.deleteRecursively()
+            if (sourceDir.exists()) {
+                sourceDir.copyRecursively(targetDir, overwrite = true)
+            } else {
+                targetDir.mkdirs()
+            }
+        }
+        return targetDir
     }
 
     fun update(

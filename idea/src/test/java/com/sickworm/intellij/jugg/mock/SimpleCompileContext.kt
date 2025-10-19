@@ -22,6 +22,7 @@ data class SimpleCompileContext(
     override val apkInfos: List<ApkInfo>,
     override val projectDir: File,
     override val deployedFiles: MutableList<CompileOutput>,
+    override val incrementalDataDir: File,
 ) : ICompileContext {
 
     val apkFile: File get() = apkInfos.firstOrNull()?.files?.first()?.apkFile!!
@@ -248,4 +249,23 @@ data class SimpleCompileContext(
         return packageNameInManifest
     }
 
+    override fun backupGradleDir(sourceDir: File, overrideOnExists: Boolean, dryRun: Boolean): File {
+        val projectRootDir = modules.values.first().projectRootDir
+        val relativePath = sourceDir.relativeTo(projectRootDir).path.replace("..", "__")
+        val targetDir = File(incrementalDataDir, relativePath)
+        if (dryRun) {
+            return targetDir
+        }
+        logger.debug("backupGradleDir from $sourceDir(exists: ${sourceDir.exists()}) to " +
+                "$targetDir(exists: ${targetDir.exists()}), overrideOnExists: $overrideOnExists")
+        if (!targetDir.exists() || overrideOnExists) {
+            targetDir.deleteRecursively()
+            if (sourceDir.exists()) {
+                sourceDir.copyRecursively(targetDir, overwrite = true)
+            } else {
+                targetDir.mkdirs()
+            }
+        }
+        return targetDir
+    }
 }
