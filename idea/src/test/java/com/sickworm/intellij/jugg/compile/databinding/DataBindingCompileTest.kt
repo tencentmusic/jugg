@@ -124,6 +124,7 @@ class DataBindingCompileTest {
         val context = context
 
         fun compileNewXmlDataBinding() {
+            CompileHelper.outputDir.clearDir()
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new.xml"),
             )
@@ -143,6 +144,7 @@ class DataBindingCompileTest {
         }
 
         fun compileNewXml2DataBinding() {
+            CompileHelper.outputDir.clearDir()
             val compileTask = makeTask(
                 File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new2.xml"),
             )
@@ -157,31 +159,34 @@ class DataBindingCompileTest {
             val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
             val result2 = mapperCompiler.compile(compileTask)
             assertTrue(result2.isAllSuccess)
-            checkDataBindingOutputs(compileTask, result2, 2)
+            checkDataBindingOutputs(compileTask, result2, 1)
             context.deployedFiles.addAll(result2.outputs)
         }
 
         fun compileXmlIncludeNewXmlDataBinding() {
+            CompileHelper.outputDir.clearDir()
             val compileTask = makeTask(
-                File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_new_include.xml"),
+                File(assetsAndroidModifySourceDir, "app/src/main/res/layout/activity_data_binding_old_include.xml"),
             )
             val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
             val result = baseClassCompiler.compile(compileTask)
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
-                "com/example/myapplication/databinding/ActivityDataBindingNewIncludeBinding.java",
-                "layout/activity_data_binding_new_include.xml",
+                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.java",
+                "layout/activity_data_binding_old_include.xml",
             ))
             checkInclude(
-                "com/example/myapplication/databinding/ActivityDataBindingNewIncludeBinding.java",
-                "ActivityDataBindingNewBinding",
+                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.java",
+                "ActivityDataBindingIncludeBinding",
                 "includeTestLayout",
             )
 
             val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
             val result2 = mapperCompiler.compile(compileTask)
             assertTrue(result2.isAllSuccess)
-            checkDataBindingOutputs(compileTask, result2, 3)
+            checkDataBindingOutputs(compileTask, result2, 1, listOf(
+                "com/example/myapplication/databinding/ActivityDataBindingIncludeBindingImpl.java" // include node
+            ))
             context.deployedFiles.addAll(result2.outputs)
         }
 
@@ -219,7 +224,7 @@ class DataBindingCompileTest {
                     "but got ${compileResult.outputs.size}: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
         }
 
-        private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int) {
+        private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int, additionalOutput: List<String> = listOf()) {
             val outputFiles = compileTask.files.flatMap {
                 val file = it.file
                 listOf(
@@ -237,7 +242,7 @@ class DataBindingCompileTest {
                 "com/example/myapplication/DataBinderMapperImpl_Full.java",
                 "com/example/myapplication/DataBinderMapperImpl_Inc_$incTimes.java",
             )
-            checkOutputFiles(compileResult, base + outputFiles)
+            checkOutputFiles(compileResult, base + outputFiles + additionalOutput)
         }
     }
 }
