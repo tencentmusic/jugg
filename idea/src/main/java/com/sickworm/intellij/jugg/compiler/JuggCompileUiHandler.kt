@@ -17,7 +17,7 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
 
 open class JuggCompileUiHandler(
-    override val isForceGradleCompile: Boolean,
+    override var isForceGradleCompile: Boolean,
     private val isRpcMode: Boolean,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
     logger: Logger,
