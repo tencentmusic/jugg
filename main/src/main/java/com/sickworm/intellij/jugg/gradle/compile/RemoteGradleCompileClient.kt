@@ -307,14 +307,22 @@ class RemoteGradleCompileClient(
                 apkPath.substring(it + 1)
             }
         }
-        val apkFile = File(gradleCompileSettings.remoteToLocalProjectSyncPath)
+        val apkFiles = File(gradleCompileSettings.remoteToLocalProjectSyncPath)
             .findFilesRecursively(apkFileName)
-        if (apkFile == null) {
+
+        if (apkFiles.isNullOrEmpty()) {
             printToStreamErrorIfCanceled("find apk name with pattern '${gradleCompileSettings.outputApkName}' " +
                     "in ${gradleCompileSettings.remoteToLocalProjectSyncPath} failed, " +
                     "please check your 'Remote to local sync path' in configuration is correct.")
             return GradleCompileResult.failed(isCanceled, failedReason = "find apk name")
         }
+
+        // find arm64-v8a -> find universal -> get first
+        val apkFile = apkFiles.find { it.name.contains("-arm64-v8a-") }
+            ?: apkFiles.find { it.name.contains("-universal-") }
+            ?: apkFiles[0]
+        logger.debug("Find apks ${apkFiles.size}: ${apkFiles.map { it.absolutePath }}, result: $apkFile")
+
         return GradleCompileResult.success(apkFile)
     }
 

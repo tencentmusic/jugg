@@ -7,7 +7,7 @@ import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-fun File.findFilesRecursively(fileNamePattern: String): File? {
+fun File.findFilesRecursively(fileNamePattern: String): List<File>? {
         val fileNameRegex = Regex(
             fileNamePattern
                 .replace(".", "\\.")
@@ -16,17 +16,19 @@ fun File.findFilesRecursively(fileNamePattern: String): File? {
         return findFilesRecursively(fileNameRegex)
     }
 
-fun File.findFilesRecursively(fileNameRegex: Regex): File? {
-    listFiles()?.forEach {
+fun File.findFilesRecursively(fileNameRegex: Regex): List<File>? {
+    val resultList = mutableListOf<File>()
+    val files = listFiles() ?: return null
+    files.forEach {
         if (it.isFile && it.name.matches(fileNameRegex)) {
-            return it
+            resultList.add(it)
         } else if (it.isDirectory) {
-            it.findFilesRecursively(fileNameRegex)?.let { foundFile ->
-                return foundFile
+            it.findFilesRecursively(fileNameRegex)?.forEach { foundFile ->
+                resultList.add(foundFile)
             }
         }
     }
-    return null
+    return resultList
 }
 
 fun File.isChild(parent: File): Boolean {

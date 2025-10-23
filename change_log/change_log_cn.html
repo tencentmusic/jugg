@@ -1,5 +1,5 @@
 <h1>更新日志</h1>
-<h2>2.4.0 (2025.10.05)</h2>
+<h2>2.4.0 (2025.10.23)</h2>
 <ol>
     <li>[feature] 支持 Android Studio Narwhal 4 Feature Drop</li>
     <li>[feature] 支持命令行调用（见接入手册）</li>
@@ -20,6 +20,7 @@
     <li>[bugfix] 修复偶现编译外接源码工程找不到引用</li>
     <li>[bugfix] 修复 KMM compose 偶现编译失败，原因：没有正确处理父子模块关系</li>
     <li>[bugfix] 修复偶现日志上传失败</li>
+    <li>[bugfix] 修复输出目录有多个 apk 时，可能选择了 32 位 apk 导致意料之外的结果。优先选择 arm64-v8a -> universal -> 第一个</li>
 </ol>
 <h2>2.3.0 (2025.08.03)</h2>
 <ol>
