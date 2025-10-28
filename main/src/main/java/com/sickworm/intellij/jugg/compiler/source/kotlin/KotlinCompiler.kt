@@ -153,7 +153,7 @@ class KotlinCompiler(
             isNeedKotlinAndroidExtensions,
             isNeedCompileCompose,
             rPackageName,
-            isEnableKsp = kspDependencies.isNotEmpty(),
+            isEnableKsp = JuggSettings.isEnableKsp && kspDependencies.isNotEmpty(),
             isCanAutoRetry = true,
             kaptDependencies = module.kaptDependencies.map { it.file },
             kotlinPlugins = kotlinPlugins,
