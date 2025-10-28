@@ -1,12 +1,12 @@
 <h1>Change Log</h1>
-<h2>2.5.0 (2025.10.12)</h2>
+<h2>2.5.0 (2025.10.28)</h2>
 <ol>
     <li>[feature] supports view binding/data binding</li>
     <li>[feature] supports dynamic feature modules(AAB)</li>
     <li>[feature] supports coreLibraryDesugaringEnabled</li>
     <li>[feature] supports target api 35, e.g. android:windowOptOutEdgeToEdgeEnforcement</li>
 </ol>
-<h2>2.4.0 (2025.10.05)</h2>
+<h2>2.4.0 (2025.10.23)</h2>
 <ol>
     <li>[feature] supports Android Studio Narwhal 4 Feature Drop</li>
     <li>[feature] supports RPC invocation</li>
@@ -27,6 +27,7 @@
     <li>[bugfix] fix cannot sync project classpath outside project root</li>
     <li>[bugfix] fix get compose plugin failed by parent gradle module not found</li>
     <li>[bugfix] fix server report failed</li>
+    <li>[bugfix] fix jugg may choose armeabi-v7a.apk and cause unexpect result, priority use arm64-v8a -> universal -> first</li>
 </ol>
 <h2>2.3.0 (2025.08.03)</h2>
 <ol>

@@ -79,7 +79,7 @@ class LocalGradleCompileClient(
     private fun findApk(outputApkNameOrPath: String, juggGradleCompileOptions: JuggGradleCompileOptions, index: Int?): File? {
         val findOutputCommand = FindOutputCommand(project.basePath!!, outputApkNameOrPath)
 
-        var apkFile: File? = null
+        var apkFiles: List<File>? = null
         if (findOutputCommand.findPath.isEmpty()) {
             // old logic, find apk by name
 
@@ -91,31 +91,37 @@ class LocalGradleCompileClient(
             // run directly in android studio will only put apk in subDir2. this dir used for test mock event
             val subDir2 = File(project.basePath!!, "$subDirName/intermediates/apk")
             if (subDir1.exists()) {
-                apkFile = subDir1.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+                apkFiles = subDir1.findFilesRecursively(juggGradleCompileOptions.outputApkName)
             } else if (subDir2.exists()) {
-                apkFile = subDir2.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+                apkFiles = subDir2.findFilesRecursively(juggGradleCompileOptions.outputApkName)
             }
 
-            if (apkFile == null) {
+            if (apkFiles == null) {
                 // find in root dir
                 val rootDir = File(project.basePath!!)
-                apkFile = rootDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
+                apkFiles = rootDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
             }
         } else {
             // new logic, find apk by path, faster
             val subDir = File(project.basePath!!, findOutputCommand.findPath)
             if (subDir.exists()) {
-                apkFile = subDir.findFilesRecursively(findOutputCommand.findName)
+                apkFiles = subDir.findFilesRecursively(findOutputCommand.findName)
             }
         }
 
-        if (apkFile == null) {
-            printToStreamError("Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
-                    "in ${project.basePath}, please make sure your run configuration is right.")
+        if (apkFiles.isNullOrEmpty()) {
+            printToStreamError(
+                "Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
+                        "in ${project.basePath}, please make sure your run configuration is right."
+            )
             return null
-        } else {
-            logger.debug("Find apk: ${apkFile.absolutePath}")
         }
+
+        // find arm64-v8a -> find universal -> get first
+        val apkFile = apkFiles.find { it.name.contains("-arm64-v8a-") }
+            ?: apkFiles.find { it.name.contains("-universal-") }
+                    ?: apkFiles[0]
+        logger.debug("Find apks ${apkFiles.size}: ${apkFiles.map { it.absolutePath }}, result: $apkFile")
 
         // copy out for avoiding deleted by gradle
         val juggPathManager = JuggPathManager(File(juggGradleCompileOptions.projectRootPath))

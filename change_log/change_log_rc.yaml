@@ -8,6 +8,11 @@
   updates:
     - supports dynamic feature modules(AAB)
 
+- version: 2.4.0-rc15
+  date: 2025.10.23
+  updates:
+    - fix jugg may choose armeabi-v7a.apk and cause unexpect result, priority use arm64-v8a -> universal -> first
+
 - version: 2.4.0-rc14
   date: 2025.10.05
   updates:
