@@ -5,8 +5,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
@@ -18,10 +17,13 @@ import java.io.File
 
 
 class LocalGradleCompileClient(
-    private val project: Project,
+    private val projectDir: File,
     private val localClasspathStorageDir: File,
-    private val logger: Logger = JuggLogger.getInstance(project, "LocalGradleCompileClient"),
+    private val envArray: List<String>?,
+    loggerArg: Logger,
 ) : IGradleCompileClient {
+
+    private val logger: Logger = loggerArg.getInstance("LocalGradleCompileClient")
 
     private var juggGradleCompileOptions: JuggGradleCompileOptions? = null
 
@@ -41,7 +43,7 @@ class LocalGradleCompileClient(
         if (!isOnlyFetchResult) {
             val compileProjectCommand = CompileProjectCommand(
                 juggGradleCompileOptions.compileCommand,
-                project.basePath!!,
+                projectDir.path,
                 juggGradleCompileOptions.initGradleFileRelativePath,
             )
             val compileProjectResult = invoke(compileProjectCommand)
@@ -65,7 +67,7 @@ class LocalGradleCompileClient(
         }
 
         if (failedApkPaths.isNotEmpty() || findApks.isEmpty()) {
-            printToStreamError("Can't find apks in $failedApkPaths in ${project.basePath}, " +
+            printToStreamError("Can't find apks in $failedApkPaths in $projectDir, " +
                     "total: \"${juggGradleCompileOptions.outputApkName}\"" +
                     ", please make sure your run configuration is right.")
             return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
@@ -77,7 +79,7 @@ class LocalGradleCompileClient(
     }
 
     private fun findApk(outputApkNameOrPath: String, juggGradleCompileOptions: JuggGradleCompileOptions, index: Int?): File? {
-        val findOutputCommand = FindOutputCommand(project.basePath!!, outputApkNameOrPath)
+        val findOutputCommand = FindOutputCommand(projectDir.path, outputApkNameOrPath)
 
         var apkFiles: List<File>? = null
         if (findOutputCommand.findPath.isEmpty()) {
@@ -87,9 +89,9 @@ class LocalGradleCompileClient(
             // currently only supports module located at root dir
             val subDirName = juggGradleCompileOptions.compileCommand.split(":").getOrNull(1) ?: "app"
             // run gradle command will put apk in subDir1
-            val subDir1 = File(project.basePath!!, "$subDirName/build/outputs")
+            val subDir1 = File(projectDir, "$subDirName/build/outputs")
             // run directly in android studio will only put apk in subDir2. this dir used for test mock event
-            val subDir2 = File(project.basePath!!, "$subDirName/intermediates/apk")
+            val subDir2 = File(projectDir, "$subDirName/intermediates/apk")
             if (subDir1.exists()) {
                 apkFiles = subDir1.findFilesRecursively(juggGradleCompileOptions.outputApkName)
             } else if (subDir2.exists()) {
@@ -98,12 +100,12 @@ class LocalGradleCompileClient(
 
             if (apkFiles == null) {
                 // find in root dir
-                val rootDir = File(project.basePath!!)
+                val rootDir = File(projectDir.path)
                 apkFiles = rootDir.findFilesRecursively(juggGradleCompileOptions.outputApkName)
             }
         } else {
             // new logic, find apk by path, faster
-            val subDir = File(project.basePath!!, findOutputCommand.findPath)
+            val subDir = File(projectDir, findOutputCommand.findPath)
             if (subDir.exists()) {
                 apkFiles = subDir.findFilesRecursively(findOutputCommand.findName)
             }
@@ -112,7 +114,7 @@ class LocalGradleCompileClient(
         if (apkFiles.isNullOrEmpty()) {
             printToStreamError(
                 "Can't find apk \"${juggGradleCompileOptions.outputApkName}\" " +
-                        "in ${project.basePath}, please make sure your run configuration is right."
+                        "in $projectDir, please make sure your run configuration is right."
             )
             return null
         }
@@ -142,7 +144,7 @@ class LocalGradleCompileClient(
     override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File {
         isCanceled = false
 
-        val projectRootPath = File(project.basePath!!)
+        val projectRootPath = File(projectDir.path)
 
         RsyncCompatibleHelper.init(logger)
         JuggSettings.isCanUseBackupClasspath = RsyncCompatibleHelper.isCompatible
@@ -232,7 +234,6 @@ class LocalGradleCompileClient(
 
     private fun invoke(command: ISshCommand): Int {
         printToStreamInfo("[Jugg] ${command::class.simpleName} exec start")
-        val envArray = buildCompileEnv(project, logger)
         logger.debug("input env: $envArray")
 
         cmdExecutor.terminalOutputListener = terminalOutputListener

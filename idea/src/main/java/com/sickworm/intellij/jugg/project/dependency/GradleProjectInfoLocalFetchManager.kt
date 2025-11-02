@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
+import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
@@ -106,7 +107,7 @@ class GradleProjectInfoLocalFetchManager(
     private fun update(isKeepDaemon: Boolean = false): Boolean {
         try {
             isUpdating = true
-            writeInitGradleFile()
+            GradleScriptWriter(pathManager, logger).writeInitGradleFile()
             compileContextManager.ensureInitProjectInfo()
 
             val daemonArg = if (isKeepDaemon) "" else "--no-daemon"
@@ -139,29 +140,6 @@ class GradleProjectInfoLocalFetchManager(
             isUpdating = false
         }
     }
-
-    private var hasWrote = false
-
-    fun writeInitGradleFile() {
-        val initGradleFile = pathManager.initGradleFilePath
-        if (hasWrote && initGradleFile.exists()) {
-            return
-        }
-        TimeLogger.start("writeInitGradleFile")
-        initGradleFile.parentFile.mkdirs()
-        JuggCompilerHelper::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!.openStream().use { ins ->
-            val text = ins.reader().readText()
-            initGradleFile.writeText(text)
-        }
-
-        JuggCompilerHelper::class.java.getResource(BuildConfig.RUNTIME_JAR_PATH)!!.openStream().use { ins ->
-            pathManager.runtimeJarFilePath.writeBytes(ins.readAllBytes())
-        }
-
-        hasWrote = true
-        TimeLogger.end("writeInitGradleFile", logger)
-    }
-
 
     private fun Long.timeStampToTime(): String {
         return SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(Date(this))

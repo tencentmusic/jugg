@@ -7,6 +7,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
@@ -40,12 +41,16 @@ import java.util.zip.ZipOutputStream
  * 6. get project custom config
  */
 class JuggServer(
-    private val project: Project,
+    private val projectName: String,
     private val pathManager: JuggPathManager,
     private val coroutineScope: CoroutineScope,
+    loggerArg: Logger,
 ): CoroutineScope by coroutineScope {
 
-    private var logger: Logger = JuggLogger.getInstance(project, "JuggServer")
+    constructor(project: Project, pathManager: JuggPathManager, coroutineScope: CoroutineScope)
+            : this(project.name, pathManager, coroutineScope, JuggLogger.getInstance(project, "JuggServer"))
+
+    private var logger: Logger = loggerArg.getInstance("JuggServer")
 
     private val juggServerChooser = JuggServerChooser(logger)
     private val serverUrl: String? get() = JuggSettings.serverUrl
@@ -59,8 +64,8 @@ class JuggServer(
 
     val version: String = PlatformApi.pluginVersion
 
-    private val projectId: String by lazy { getName(project.name) }
-    private val requestToken = (project.basePath + "_" + username).md5.substring(0, 8)
+    private val projectId: String by lazy { getName(projectName) }
+    private val requestToken = (pathManager.projectDir.path + "_" + username).md5.substring(0, 8)
 
     private var sessionId: Int = 1
     private var sessionSubId: Int = 0

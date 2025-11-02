@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.logic.RuntimeMockUtils
 import com.sickworm.intellij.jugg.logger.JuggLogger
@@ -251,7 +252,6 @@ class CompileContextManager(
         }
 
         val context = BaseCompileContext(
-            project,
             logger = JuggLogger.getInstance(project, "BaseCompileContext"),
             androidHome = androidHome,
             tempCompileDir = File(pathManager.compileRootDir, "compiled"),
@@ -260,7 +260,9 @@ class CompileContextManager(
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHisManager,
-            incrementalDataDir = File(pathManager.compileRootDir, "incremental")
+            incrementalDataDir = File(pathManager.compileRootDir, "incremental"),
+            cmdCompileEnv = LocalGradleCompileClient.buildCompileEnv(project, logger),
+            scene = ICompileContext.Scene.IDE,
         )
         TimeLogger.end("createCompileContext", logger)
         return context

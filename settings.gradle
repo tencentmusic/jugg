@@ -2,6 +2,7 @@ rootProject.name = 'jugg'
 
 include ':main'
 include ':idea'
+include ':cmd_line'
 include ':jvmti_agent'
 include ':aapt2-inclink'
 include ':custom_compilers'

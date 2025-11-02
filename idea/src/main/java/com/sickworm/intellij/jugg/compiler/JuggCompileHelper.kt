@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -168,7 +169,7 @@ class JuggCompilerHelper(
             }
         }
 
-        gradleProjectInfoLocalFetchManager.writeInitGradleFile()
+        GradleScriptWriter(pathManager, logger).writeInitGradleFile()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         val task = JuggGradleCompileTask(project, client, options, uiHandler, isOnlyFetchResult)
         val result = task.run()
@@ -382,7 +383,7 @@ class JuggCompilerHelper(
     }
 
     private fun runGradleLibraryDiff(options: JuggGradleCompileOptions, outputListener: IGradleCompileClient.TerminalOutputListener): DependencyDiffResultSet? {
-        gradleProjectInfoLocalFetchManager.writeInitGradleFile()
+        GradleScriptWriter(pathManager, logger).writeInitGradleFile()
         val client = gradleCompileClientManager.getClient(options.isRemoteCompile, pathManager.localClasspathStoragePathManager.classpathDir)
         client.terminalOutputListener = outputListener
         client.login(options)
@@ -624,6 +625,8 @@ class JuggCompilerHelper(
 
 private class GradleCompileClientManager(private val project: Project): Disposable {
 
+    private val logger = JuggLogger.getInstance(project, "GradleCompileClientManager")
+
     private var isCacheRemoteClient: Boolean? = null
     private var cacheClient: IGradleCompileClient? = null
 
@@ -635,7 +638,15 @@ private class GradleCompileClientManager(private val project: Project): Disposab
             cacheClient
         } else {
             cacheClient?.dispose()
-            val newClient = if (isRemote) RemoteGradleCompileClient(project) else LocalGradleCompileClient(project, localClasspathStorageDir)
+            val newClient = if (isRemote)
+                RemoteGradleCompileClient(project)
+            else
+                LocalGradleCompileClient(
+                    File(project.basePath!!),
+                    localClasspathStorageDir,
+                    LocalGradleCompileClient.buildCompileEnv(project, logger),
+                    logger,
+                )
             Disposer.register(this, newClient)
             this.cacheClient = newClient
             this.isCacheRemoteClient = isRemote

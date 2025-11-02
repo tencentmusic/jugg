@@ -276,6 +276,8 @@ interface ICompileContext {
 
     val cmdCompileEnv: List<String>
 
+    val scene: Scene
+
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
     fun getGeneratedSourcePaths(moduleInfo: ModuleInfo): List<File>
@@ -293,6 +295,11 @@ interface ICompileContext {
     fun getModulePackageName(moduleInfo: ModuleInfo): String?
 
     fun backupGradleDir(sourceDir: File, overrideOnExists: Boolean = false, dryRun: Boolean = false): File
+
+    enum class Scene {
+        IDE,
+        INCREMENTAL_APK,
+    }
 }
 
 data class DesugarInfo(

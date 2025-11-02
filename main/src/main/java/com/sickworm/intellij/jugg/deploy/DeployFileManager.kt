@@ -543,25 +543,26 @@ private val crc32 = CRC32()
 
 private val File.stdPath get() = path.replace(File.separatorChar, '/')
 
-fun CompileOutput.toDeployItem(): DeployItem {
+fun CompileOutput.toDeployItem(prefix: String? = null): DeployItem {
     val bytes = file.readBytes()
     val crc = crc32.run {
         reset()
         update(bytes)
         value
     }
+    val deployName = if (prefix == null) deployItemName else prefix + deployItemName
     when (type) {
         CompileOutput.Type.Dex -> {
-            return DeployItem(deployItemName, type, crc, bytes, DeployItem.FLAG_CLASS)
+            return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_CLASS)
         }
         CompileOutput.Type.Res, CompileOutput.Type.Asset, CompileOutput.Type.NativeLib -> {
             if (apkPath == null) {
                 throw JuggInternalException.outputDidNotSpecificApkPath(this.toString())
             }
-            return DeployItem(deployItemName, type, crc, bytes, apkPath)
+            return DeployItem(deployName, type, crc, bytes, apkPath)
         }
         else -> {
-            return DeployItem(deployItemName, type, crc, bytes, DeployItem.FLAG_BASE_APK) // will not apply to device
+            return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_BASE_APK) // will not apply to device
         }
     }
 }

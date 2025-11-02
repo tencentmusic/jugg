@@ -49,7 +49,12 @@ class DexCompiler(
             val classFiles = task.files.filter { it.file.extension == "class" }
             var classResult = CompileResult(task, emptyList(), emptyList())
             if (classFiles.isNotEmpty()) {
-                classResult = doDex(task, classFiles, classFiles, minApi, true, "", module)
+                if (context.scene == ICompileContext.Scene.IDE) {
+                    classResult = doDex(task, classFiles, classFiles, minApi, true, "", module)
+                } else if (context.scene == ICompileContext.Scene.INCREMENTAL_APK) {
+                    val dexName = module.name + ".dex"
+                    classResult = doDex(task, classFiles, classFiles, minApi, false, dexName, module)
+                }
             }
 
             val jarFiles = task.files.filter { it.file.extension != "class" }

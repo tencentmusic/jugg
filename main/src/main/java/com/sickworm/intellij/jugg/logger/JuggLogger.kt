@@ -52,24 +52,39 @@ object JuggLogger {
 
     @Synchronized
     fun listenProjectLog(project: Project, logger: Logger) {
-        val logHolder = ensure(project)
+        listenProjectLog(project.instanceKey, logger)
+    }
+
+    @Synchronized
+    fun listenProjectLog(instanceKey: String, logger: Logger) {
+        val logHolder = ensureKey(instanceKey)
         logHolder.logDispatcher.listenProjectLog(logger)
     }
 
     @Synchronized
     fun stopListenProjectLog(project: Project, logger: Logger) {
-        val logHolder = ensure(project)
+        stopListenProjectLog(project.instanceKey, logger)
+    }
+
+    @Synchronized
+    fun stopListenProjectLog(instanceKey: String, logger: Logger) {
+        val logHolder = ensureKey(instanceKey)
         logHolder.logDispatcher.stopListenProjectLog(logger)
     }
 
     @Synchronized
     fun register(project: Project, logDir: File) {
-        map.remove(project.instanceKey)
+        register(project.instanceKey, logDir)
+    }
+
+    @Synchronized
+    fun register(instanceKey: String, logDir: File) {
+        map.remove(instanceKey)
         val projectLogHolder = ProjectLogHolder(
             FileLogger(logDir),
-            LogDispatcher(project.instanceKey),
+            LogDispatcher(instanceKey),
         )
-        map[project.instanceKey] = projectLogHolder
+        map[instanceKey] = projectLogHolder
         globalLoggers.forEach { (tag, globalLogger) ->
             globalLogger.resetLoggers(getAllProjectLoggers(tag))
         }
@@ -77,8 +92,13 @@ object JuggLogger {
 
     @Synchronized
     fun unregister(project: Project) {
-        map[project.instanceKey]?.dispose()
-        map.remove(project.instanceKey)
+        unregister(project.instanceKey)
+    }
+
+    @Synchronized
+    fun unregister(instanceKey: String) {
+        map[instanceKey]?.dispose()
+        map.remove(instanceKey)
         globalLoggers.forEach { (tag, globalLogger) ->
             globalLogger.resetLoggers(getAllProjectLoggers(tag))
         }

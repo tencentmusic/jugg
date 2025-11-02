@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.project
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.ModuleApkBelongsUtils
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
@@ -12,7 +11,6 @@ import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
@@ -21,7 +19,6 @@ import java.io.File
 import java.util.zip.ZipFile
 
 class BaseCompileContext(
-    private val project: Project,
     override val logger: Logger,
     override var tempCompileDir: File,
     override var tempModuleDir: File,
@@ -30,6 +27,8 @@ class BaseCompileContext(
     override var apkInfos: List<ApkInfo> = emptyList(),
     override val projectDir: File,
     override val incrementalDataDir: File,
+    override val cmdCompileEnv: List<String>,
+    override val scene: ICompileContext.Scene,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
 ): ICompileContext {
@@ -193,9 +192,6 @@ class BaseCompileContext(
     override var modulesWithOrder: List<ModuleInfo> = ModuleCompileOrderUtils.getModuleCompileOrders(modules, tempModule, logger)
 
     override var moduleBelongsApkMap: Map<ModuleInfo, ApkFileUnit> = ModuleApkBelongsUtils.getModuleApkBelongs(applicationModule, apkInfos, modules, tempModule, logger)
-
-    override val cmdCompileEnv: List<String>
-        get() = LocalGradleCompileClient.buildCompileEnv(project, logger)
 
     override fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String> {
         val androidJar = getAndroidJarPath(moduleInfo)

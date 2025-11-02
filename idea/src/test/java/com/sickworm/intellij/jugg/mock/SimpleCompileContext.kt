@@ -25,6 +25,8 @@ data class SimpleCompileContext(
     override val incrementalDataDir: File,
 ) : ICompileContext {
 
+    override val scene: ICompileContext.Scene = ICompileContext.Scene.IDE
+
     val apkFile: File get() = apkInfos.firstOrNull()?.files?.first()?.apkFile!!
 
     override val tempModule: ModuleInfo = ModuleInfo.virtualModule.copy(
