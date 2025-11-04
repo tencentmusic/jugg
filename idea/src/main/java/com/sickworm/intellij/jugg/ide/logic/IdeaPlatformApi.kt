@@ -1,15 +1,11 @@
 package com.sickworm.intellij.jugg.ide.logic
 
-import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.projectRoots.JavaSdk
 import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
-import com.sickworm.intellij.jugg.apk.ApkReader
-import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
@@ -23,7 +19,6 @@ import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.ProjectInfoReader
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.rpc.RpcRequest
@@ -32,10 +27,6 @@ import com.sickworm.intellij.jugg.rpc.RpcResult
 import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
-
-    override val pluginVersion: String by lazy {
-        ProjectInfoReader.juggPluginInfoManifest?.mainAttributes?.getValue("Version") ?: "unknown"
-    }
 
     override fun showDialog(
         title: String,
@@ -53,10 +44,6 @@ class IdeaPlatformApi : IPlatformApi {
 
     override fun showUserAndPasswordInputDialog(content: String, subTitle: String?, isPassword: Boolean, defaultInputText: String?, title: String?): String? {
         return UserAndPasswordInputDialog.showAndGetResult(content, subTitle, isPassword, defaultInputText, title)
-    }
-
-    override fun parseApks(apkFiles: List<String>): List<Apk> {
-        return AsDeployerCompat.parseApks(apkFiles)
     }
 
     override fun allAvailableJavaHomes(): List<String> {
@@ -165,7 +152,4 @@ class IdeaPlatformApi : IPlatformApi {
         return juggManager.call(rpcRequest)
     }
 
-    override fun readApkManifest(apkFile: File, logger: Logger): ManifestActivityInfo {
-        return ApkReader(apkFile, logger).getManifest()
-    }
 }

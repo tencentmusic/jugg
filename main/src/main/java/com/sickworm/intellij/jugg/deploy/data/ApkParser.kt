@@ -141,12 +141,13 @@ class ApkParser: CoroutineScope by CoroutineScope(
     private fun parseEntries(apkFile: File,
                              dexFiles: MutableMap<String, JuggFileInfo>,
                              overlayFiles: MutableMap<String, JuggFileInfo>) {
-        val apk = PlatformApi.parseApks(listOf(apkFile.absolutePath)).first()
-        for (entry in apk.apkEntries.values) {
-            if (entry.name.isDexEntry) {
-                dexFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
-            } else if (entry.name.isResEntry || entry.name.isAssetEntry) {
-                overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.checksum)
+        ZipFile(apkFile).use { zipFile ->
+            zipFile.entries().asIterator().forEach { entry ->
+                if (entry.name.isDexEntry) {
+                    dexFiles[entry.name] = JuggFileInfo(entry.name, entry.crc)
+                } else if (entry.name.isResEntry || entry.name.isAssetEntry) {
+                    overlayFiles[entry.name] = JuggFileInfo(entry.name, entry.crc)
+                }
             }
         }
     }

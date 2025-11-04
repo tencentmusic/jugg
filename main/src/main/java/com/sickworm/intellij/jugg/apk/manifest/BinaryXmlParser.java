@@ -15,7 +15,7 @@
  */
 package com.sickworm.intellij.jugg.apk.manifest;
 
-import com.google.devrel.gmscore.tools.apk.arsc.*;
+import arsc.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

@@ -12,7 +12,7 @@ data class Params(
     /**
      * Gradle compile command, e.g. assembleDebug
      */
-    val compileCommand: String,
+    val gradleCompileTask: String,
 
     /**
      * Output apk relative path, supports match, e.g. app/build/outputs/debug/a*.apk
@@ -21,6 +21,7 @@ data class Params(
 
     /**
      * Log level.
+     * ALL / DEBUG / INFO / WARN / ERROR / FATAL / OFF
      */
-    val logLevel: Level = Level.INFO,
+    val logLevel: Level,
 )

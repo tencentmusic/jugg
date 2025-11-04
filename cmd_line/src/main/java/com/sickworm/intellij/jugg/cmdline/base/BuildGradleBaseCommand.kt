@@ -65,11 +65,13 @@ class BuildGradleBaseCommand(private val params: Params) {
             null,
             logger,
         )
+        val compileCommand = "./gradlew ${params.gradleCompileTask}"
+
         val compileOptions = JuggGradleCompileOptions(
             projectRootPath = pathManager.projectDir.absolutePath,
             localClasspathStoragePath = pathManager.localClasspathStoragePathManager,
             initGradleFileRelativePath = pathManager.initGradleFileRelativePath,
-            params.compileCommand,
+            compileCommand,
             params.outputApkPath,
             isRemoteCompile = false,
             isSyncAllProjects = false,
@@ -133,12 +135,18 @@ class BuildGradleBaseCommand(private val params: Params) {
 
     companion object {
         fun run(args: Array<String>): Boolean {
-            val params = ParamsParser().parse(args)
-            if (params == null) {
+            try {
+                val params = ParamsParser().parse(args)
+                return BuildGradleBaseCommand(params).run()
+            } catch (e: BaseBuildException) {
+                CmdLineLogger.stdLogger.warn("Parse params invalid, reason: ${e.message}")
                 CmdLineLogger.stdLogger.warn("Parse params invalid, exit.")
                 return false
+            } catch (e : Throwable) {
+                CmdLineLogger.stdLogger.warn("Parse params failed unexpected", e)
+                CmdLineLogger.stdLogger.warn("Parse params got unexpected error: $e")
+                return false
             }
-            return BuildGradleBaseCommand(params).run()
         }
     }
 }

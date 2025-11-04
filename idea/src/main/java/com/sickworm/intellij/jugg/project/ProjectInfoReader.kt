@@ -14,7 +14,7 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         val startTime = System.currentTimeMillis()
         try {
             logger.debug("IDE version: ${AsDeployerCompat.ideVersion}")
-            logger.debug("plugin info: ${getPluginCompileInfo()}")
+            logger.debug("plugin info: ${PluginInfoReader.getPluginCompileInfo()}")
             logger.debug("os.name: ${System.getProperty("os.name")}, os.version: ${System.getProperty("os.version")}")
             logger.debug("Idea JVM version: ${Runtime.version().version()}")
             logger.debug("gradleDistributionUrl: ${getGradleDistributionUrl()}")
@@ -40,26 +40,4 @@ class ProjectInfoReader(private val project: Project, private val logger: Logger
         return gradleDistributionUrl
     }
 
-    private fun getPluginCompileInfo(): String {
-        val stringBuilder = StringBuilder()
-        if (juggPluginInfoManifest == null) {
-            stringBuilder.append("juggPluginInfoManifest not found")
-        } else if (juggPluginInfoManifest?.mainAttributes.isNullOrEmpty()) {
-            stringBuilder.append("juggPluginInfoManifest.mainAttributes not found")
-        }
-        juggPluginInfoManifest?.mainAttributes?.forEach {
-            stringBuilder.append("${it.key}: ${it.value}, ")
-        }
-        return stringBuilder.toString()
-    }
-
-    companion object {
-        val juggPluginInfoManifest: Manifest? by lazy {
-            val cl = ProjectInfoReader::class.java.classLoader
-            cl.getResourceAsStream("META-INF/JUGG_PLUGIN_INFO.MF")?.use {
-                return@lazy Manifest(it)
-            }
-            null
-        }
-    }
 }

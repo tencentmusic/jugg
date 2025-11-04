@@ -15,8 +15,6 @@ import java.io.File
 
 interface IPlatformApi {
 
-    val pluginVersion: String
-
     fun showDialog(
         title: String,
         content: String,
@@ -39,8 +37,6 @@ interface IPlatformApi {
         title: String? = null,
     ): String?
 
-    fun parseApks(apkFiles: List<String>): List<Apk>
-
     fun allAvailableJavaHomes(): List<String>
 
     fun getGradleJdkPath(project: Project, logger: Logger): String?
@@ -59,5 +55,4 @@ interface IPlatformApi {
 
     fun call(rpcRequest: RpcRequest): RpcResponse
 
-    fun readApkManifest(apkFile: File, logger: Logger): ManifestActivityInfo
 }

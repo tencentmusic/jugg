@@ -42,40 +42,6 @@ class BuildDemoApkTest {
         testBuildApk()
     }
 
-    fun buildApkIfNeeded() {
-        if (projectInfo.apkFile.exists()) {
-            try {
-                checkApkEntryInfo()
-                println("apk structure is correct, no need to rebuild")
-                return
-            } catch (e: AssertionError) {
-                println("apk structure not correct, rebuild")
-            }
-        } else {
-            println("apk not exists, rebuild")
-        }
-
-        testBuildApk()
-        try {
-            checkApkEntryInfo()
-        } catch (e: AssertionError) {
-            println("apk structure not correct, clean and rebuild")
-            testCleanAndBuildApk()
-            checkApkEntryInfo()
-        }
-    }
-
-    private fun checkApkEntryInfo() {
-        if (!projectInfo.apkEntryInfo.isNeedCheck) {
-            println("testApkStructure no need to check")
-            return
-        }
-        println("testApkStructure start")
-        val parsedApk = ApkParser().parse(projectInfo.apkFile)
-        checkApkEntryInfo(parsedApk)
-        println("testApkStructure end")
-    }
-
     private fun checkApkEntryInfo(parsedApk: ParsedApk) {
         if (projectInfo.apkEntryInfo.classCount > 0) {
             assertEquals(projectInfo.apkEntryInfo.classCount,

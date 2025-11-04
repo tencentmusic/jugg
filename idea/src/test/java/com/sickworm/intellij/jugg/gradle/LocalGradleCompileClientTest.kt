@@ -63,12 +63,12 @@ open class LocalGradleCompileClientTest {
     }
 
     open fun getClient(): IGradleCompileClient {
-        return LocalGradleCompileClient(project, buildDir, logger)
+        return LocalGradleCompileClient(TestGlobal.projectInfo.projectRoot, buildDir, null, logger)
     }
 
     @Test
     open fun testCompile() {
-        val localClient = LocalGradleCompileClient(project, buildDir, logger)
+        val localClient = getClient()
         localClient.login(juggGradleCompileOptions)
         val remoteCompileResult = localClient.compileAndFetchResult()
         assertTrue(remoteCompileResult.isSuccess)
@@ -76,7 +76,7 @@ open class LocalGradleCompileClientTest {
 
     @Test
     open fun testCancel() {
-        val localClient = LocalGradleCompileClient(project, buildDir, logger)
+        val localClient = getClient()
         localClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
 
             override fun onOutput(line: String, isNeedPrint: Boolean) {

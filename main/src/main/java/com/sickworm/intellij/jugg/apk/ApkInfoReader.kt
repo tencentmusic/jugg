@@ -2,7 +2,6 @@ package com.sickworm.intellij.jugg.apk
 
 import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
 class ApkInfoReader(
@@ -30,7 +29,7 @@ class ApkInfoReader(
     fun createApkInfo(apks: List<File>): List<ApkInfo> {
         val apkFileUnits = mutableListOf<ApkFileUnit>()
         apks.forEach { apkFile ->
-            val manifestInfo = PlatformApi.readApkManifest(apkFile, logger)
+            val manifestInfo = ApkReader(apkFile, logger).getManifest()
             val apkFileUnit = ApkFileUnit(
                 applicationId = manifestInfo.packageName(),
                 moduleName = manifestInfo.featureSplit() ?: "",

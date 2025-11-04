@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.project.PluginInfoReader
 import com.sickworm.intellij.jugg.server.protocols.HotUpdateData
 import com.sickworm.intellij.jugg.server.protocols.ServerRule
 import com.sickworm.intellij.jugg.server.protocols.VersionData
@@ -62,7 +63,7 @@ class JuggServer(
 
     private val username: String = getUserName()
 
-    val version: String = PlatformApi.pluginVersion
+    val version: String = PluginInfoReader.getPluginVersion()
 
     private val projectId: String by lazy { getName(projectName) }
     private val requestToken = (pathManager.projectDir.path + "_" + username).md5.substring(0, 8)
