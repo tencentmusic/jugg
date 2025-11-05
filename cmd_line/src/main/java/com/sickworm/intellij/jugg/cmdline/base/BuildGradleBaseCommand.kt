@@ -14,7 +14,13 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 class BuildGradleBaseCommand(private val params: Params) {
 
@@ -106,18 +112,46 @@ class BuildGradleBaseCommand(private val params: Params) {
 
     private fun initAfterGradleCompile(apkInfos: List<ApkInfo>) {
         logger.info("Start init after gradle compile.")
+        val startTime = System.currentTimeMillis()
 
+        // backup library dependencies
+        val gradleProjectInfo = getProjectInfo()
+        val backupJob = CoroutineScope(Dispatchers.IO).launch {
+            logger.info("Backup library dependencies start.")
+            val costTime = measureTimeMillis {
+                try {
+                    val backupGradleProjectInfo = LibrariesBackupHelper(pathManager, gradleProjectInfo, logger).backup()
+                    ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).save(backupGradleProjectInfo)
+                } catch (e: Exception) {
+                    logger.warn("Backup library dependencies failed", e)
+                    pathManager.localClasspathStoragePathManager.librariesBackupDir.deleteRecursively()
+                }
+            }
+            logger.info("Backup library dependencies finish. cost: ${costTime}ms")
+        }
+
+        // init deploy data database
         val databaseDir = pathManager.databaseDir
         val deployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
         deployDataDatabase.init(apkInfos, emptyList())
 
 
+        // init source file manager
         val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)
-        val gradleProjectInfo = getProjectInfo()
         val sourceDirs = gradleProjectInfo.modules.flatMap {
             it.value.sourceDirs
         }
         sourceFileManager.init(sourceDirs)
+
+        runBlocking {
+            backupJob.join()
+            if (!pathManager.localClasspathStoragePathManager.librariesBackupDir.exists()) {
+                throw BaseBuildException("Backup library dependencies failed.")
+            }
+        }
+
+        val costTime = System.currentTimeMillis() - startTime
+        logger.info("Init after gradle compile finish. cost: ${costTime}ms")
     }
 
     private fun getProjectInfo(): JuggProjectInfo {

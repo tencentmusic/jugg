@@ -57,6 +57,7 @@ class LocalClasspathStoragePathManager(
 ) {
     val classpathDir: File = File(rootDir, "root")
     val apkDir: File = File(rootDir, "apk")
+    val librariesBackupDir: File = File(rootDir, "libraries")
 
     override fun toString(): String {
         return "LocalClasspathStoragePathManager(rootDir=$rootDir)"
