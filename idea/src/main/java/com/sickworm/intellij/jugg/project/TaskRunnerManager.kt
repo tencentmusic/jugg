@@ -7,9 +7,8 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.DeployStateManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.ReportEventData
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import java.lang.Runnable
 import kotlin.system.measureTimeMillis
 
 /**
@@ -27,12 +26,12 @@ class TaskRunnerManager(
         private set
     private var retryInitDelayMill = 3_000L
 
-    fun runBackgroundSafe(jobName: String, action: Runnable) {
-        runBackgroundSafe(jobName, 0L, action)
+    fun runBackgroundSafe(jobName: String, action: Runnable): Job {
+        return runBackgroundSafe(jobName, 0L, action)
     }
 
-    fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable) {
-        launch {
+    fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job {
+        return launch {
             try {
                 if (delayMs > 0) {
                     delay(delayMs)
@@ -43,7 +42,19 @@ class TaskRunnerManager(
                 }
                 logger.debug("background job <$jobName> finished, cost ${costTime}ms")
             } catch (e: Throwable) {
-                logger.error("background job <$jobName> failed", e)
+                logger.warn("background job <$jobName> failed", e)
+            }
+        }
+    }
+
+    fun <T> runAsyncSafe(jobName: String, action: CoroutineScope.() -> T): Deferred<T?> {
+        return async {
+            try {
+                logger.debug("async job <$jobName> start")
+                return@async action()
+            } catch (e: Exception) {
+                logger.warn("async job <$jobName> failed", e)
+                return@async null
             }
         }
     }
@@ -70,7 +81,7 @@ class TaskRunnerManager(
                         val costTime = System.currentTimeMillis() - startTime
                         logger.debug("job <$jobName> finished, cost ${costTime}ms")
                     } catch (e: Throwable) {
-                        logger.error("job <$jobName> failed", e)
+                        logger.warn("job <$jobName> failed", e)
                         reportEventData.detail = e.message ?: e.cause?.message ?: ""
                         reportEventData.isSuccess = false
                     } finally {

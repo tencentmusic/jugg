@@ -24,14 +24,9 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggException
-import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.android.download.AndroidProfilerDownloader
 import java.io.File
@@ -52,7 +47,7 @@ class JuggDeployerHelper(
     private val dependencyChangeManager: IDependencyChangeManager,
     private val compileContextManager: CompileContextManager,
     private val juggServer: JuggServer,
-    private val coroutineScope: CoroutineScope,
+    private val taskRunnerManager: TaskRunnerManager,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggDeployerHelper"),
     private var installPathProvider: Computable<String> = Computable<String> {
         CopyEmbeddedDistributionPaths().get()
@@ -81,7 +76,7 @@ class JuggDeployerHelper(
             deployTargetManager.stopApp(device)
         }
 
-        val detectJob = coroutineScope.async {
+        val detectJob = taskRunnerManager.runAsyncSafe("isNeedPushAgentAfterDeploy") {
             val adb = IdeaDeviceAdb(device, logger)
             JuggJvmtiAgentManagerHelper(logger).isNeedPushAgentAfterDeploy(adb, data)
         }
@@ -115,7 +110,7 @@ class JuggDeployerHelper(
         TimeLogger.start("push_agent")
         var isNeedPushAgentAfterDeploy: Boolean
         runBlocking {
-            isNeedPushAgentAfterDeploy = detectJob.await()
+            isNeedPushAgentAfterDeploy = detectJob.await() ?: false
             logger.debug("isNeedPushAgentAfterDeploy: $isNeedPushAgentAfterDeploy")
             if (isNeedPushAgentAfterDeploy) {
                 val adb = IdeaDeviceAdb(device, logger)

@@ -19,7 +19,6 @@ import java.io.File
 class GitFileChangesDetector(
     private val deployHistoryManager: IDeployHistoryManager,
     private val taskRunnerManager: TaskRunnerManager,
-    private val coroutineScope: CoroutineScope,
     loggerArg: Logger,
 ): IFileChangesDetector {
 
@@ -60,8 +59,7 @@ class GitFileChangesDetector(
         // files may keep changing util git checkout finished, so we wait a while to delay update changed files
         if (isWaitingFileChangesEnd) {
             checkDelayJob?.cancel()
-            checkDelayJob = coroutineScope.launch {
-                delay(waitingFileChangesEndDuration)
+            checkDelayJob = taskRunnerManager.runBackgroundSafe("checkGitFileChanges", waitingFileChangesEndDuration) {
                 isWaitingFileChangesEnd = false
                 taskRunnerManager.runTaskSafe("Checking changed files", ::updateChangedFiles)
             }

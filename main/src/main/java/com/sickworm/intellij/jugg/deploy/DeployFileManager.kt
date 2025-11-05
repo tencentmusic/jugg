@@ -33,8 +33,8 @@ class DeployFileManager(
     private val logger: Logger,
     private val tmpDir: File,
     databaseDir: File,
-    coroutineScope: CoroutineScope,
-): CoroutineScope by coroutineScope {
+    private val coroutineScope: CoroutineScope,
+) {
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -99,7 +99,7 @@ class DeployFileManager(
             compiledFiles.remove(it.file.stdPath)
         }
 
-        launch {
+        coroutineScope.launch {
             sourceFileManager.updateFiles(newFiles, emptyList())
         }
     }
@@ -131,7 +131,7 @@ class DeployFileManager(
             }
         }
 
-        launch {
+        coroutineScope.launch {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
     }
