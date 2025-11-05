@@ -1,3 +1,8 @@
+- version: 2.5.0-rc9
+  date: 2025.11.05
+  updates:
+    - 修复安装 APK 时报错 "Parent job is Cancelling"
+
 - version: 2.5.0-rc2
   date: 2025.09.07
   updates:

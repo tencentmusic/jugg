@@ -1,3 +1,8 @@
+- version: 2.5.0-rc9
+  date: 2025.11.05
+  updates:
+    - fix 'Parent job is Cancelling' when installing
+
 - version: 2.5.0-rc2
   date: 2025.09.07
   updates:
