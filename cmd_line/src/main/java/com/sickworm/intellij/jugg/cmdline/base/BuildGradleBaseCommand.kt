@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.cmdline.base
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
+import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.data.DeployDataDatabase
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
@@ -10,7 +12,10 @@ import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
+import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -130,11 +135,27 @@ class BuildGradleBaseCommand(private val params: Params) {
             logger.info("Backup library dependencies finish. cost: ${costTime}ms")
         }
 
+        // init deploy history
+        val deployHistoryManager = DeployHistoryManager(
+            pathManager,
+            object : IFileChangesHandler {
+                override fun init(compileContext: ICompileContext) = Unit
+                override fun filter(file: List<File>): List<ChangedFile> = emptyList()
+                override fun updateBuildFileRules(rules: List<String>, doNotIgnoreModulePaths: List<String>) = Unit
+            },
+            logger.getInstance("DeployHistoryManager")
+        )
+        val startCompileTime = System.currentTimeMillis()
+        deployHistoryManager.reInitAfterFullCompiled(
+            apkInfos,
+            gradleProjectInfo.modules,
+            startCompileTime,
+        )
+
         // init deploy data database
         val databaseDir = pathManager.databaseDir
         val deployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
         deployDataDatabase.init(apkInfos, emptyList())
-
 
         // init source file manager
         val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)

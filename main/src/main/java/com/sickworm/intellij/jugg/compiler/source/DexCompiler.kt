@@ -72,7 +72,7 @@ class DexCompiler(
                 classResult.outputs + jarResults.flatMap { it.outputs },
             )
         } catch (e: Exception) {
-            logger.error(e)
+            logger.debug("got unexpected error", e)
             val details:List<Result<CompileFile, CompileError>> = task.files.map {
                 Result.failure(CompileError(it, listOf(-1L to (e.message?: ""))))
             }

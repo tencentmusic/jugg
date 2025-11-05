@@ -5,6 +5,7 @@ import com.google.gson.annotations.SerializedName
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -322,7 +323,7 @@ class JuggServer(
     }
 
     private fun getName(defaultName: String): String {
-        val gitManager = PlatformApi.createGitManagerAndTrySearchParent(pathManager.projectDir)
+        val gitManager = GitManager.createGitManagerAndTrySearchParent(pathManager.projectDir)
         if (!gitManager.hasInitGit) {
             return defaultName
         }
@@ -332,7 +333,7 @@ class JuggServer(
     private fun getUserName(): String {
         val defaultName = System.getProperty("user.name") ?: "jugg_user_unknown"
         val projectDir = pathManager.projectDir
-        return PlatformApi.createGitManagerAndTrySearchParent(projectDir).userName ?: defaultName
+        return GitManager.createGitManagerAndTrySearchParent(projectDir).userName ?: defaultName
     }
 
     fun updateServer(servers: List<ServerRule>?) {

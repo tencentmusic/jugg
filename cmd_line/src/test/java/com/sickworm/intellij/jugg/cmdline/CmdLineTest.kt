@@ -16,4 +16,19 @@ class CmdLineTest {
         val result = CmdLine().run(args)
         assertTrue(result)
     }
+
+    @Test
+    fun buildIncrementalApk() {
+        buildBase()
+
+        val args = arrayOf(
+            "cmd=${CmdLine.Command.BUILD_INCREMENTAL_APK.value}",
+            "baseBuildProjectDir=${Global.projectRootDir}",
+            "sourceProjectDir=${Global.projectRootDir}",
+            "outputApkDir=${Global.outputDir}",
+            "changedFiles=${Global.projectRootDir}/app/src/main/java/com/example/myapplication/MainActivity.kt",
+        )
+        val result = CmdLine().run(args)
+        assertTrue(result)
+    }
 }

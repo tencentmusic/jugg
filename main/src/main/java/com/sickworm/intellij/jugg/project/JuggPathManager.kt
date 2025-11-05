@@ -5,7 +5,8 @@ import java.io.File
 /**
  * Declaration of path usage for Jugg.
  */
-class JuggPathManager(val projectDir: File) {
+class JuggPathManager(projectDirArg: File) {
+    val projectDir = projectDirArg.normalize()
 
     val juggRootDir = File("$projectDir/build/jugg")
 

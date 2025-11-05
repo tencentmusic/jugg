@@ -67,6 +67,7 @@ class ContextConverter(
         incrementalDataDir = File(sourcePathManager.compileRootDir, "incremental"),
         cmdCompileEnv = baseContext.cmdCompileEnv,
         scene = baseContext.scene,
+        apkInfos = baseContext.apkInfos,
     )
 
     init {

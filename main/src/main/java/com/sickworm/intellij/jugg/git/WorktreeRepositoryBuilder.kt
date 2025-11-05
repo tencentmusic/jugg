@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.git
 
-import org.gradle.internal.impldep.org.eclipse.jgit.errors.RepositoryNotFoundException
-import org.gradle.internal.impldep.org.eclipse.jgit.lib.BaseRepositoryBuilder
+import org.eclipse.jgit.errors.RepositoryNotFoundException
+import org.eclipse.jgit.lib.BaseRepositoryBuilder
 import java.io.File
 
 class WorktreeRepositoryBuilder : BaseRepositoryBuilder<WorktreeRepositoryBuilder, WorktreeFileRepository>() {

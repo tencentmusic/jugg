@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.compiler.relativePathForPrintSafe
+import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -35,7 +36,7 @@ class FileChangesHandler(
         """.trimIndent().split("\n").toList()
     }
 
-    private var buildFileMatcher: IFileMatcher = PlatformApi.createFileMatcher().also {
+    private var buildFileMatcher: IFileMatcher = FileMatcher().also {
         it.init(projectDir, defaultMatchRule)
     }
 
@@ -195,6 +196,7 @@ class FileChangesHandler(
     private fun checkSource(file: File): ChangedFile? {
         getModules().forEach { module ->
             val baseSourceDir = module.sourceDirs.find {
+                file.normalize()
                 file.path.startsWith(it.path)
             }
             if (baseSourceDir != null) {

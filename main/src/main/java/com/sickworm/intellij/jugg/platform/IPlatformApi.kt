@@ -43,12 +43,6 @@ interface IPlatformApi {
 
     fun getAndroidHomePath(logger: Logger): String?
 
-    fun createGitManager(gitRoot: File): IGitManager
-
-    fun createGitManagerAndTrySearchParent(dir: File): IGitManager
-
-    fun createFileMatcher(): IFileMatcher
-
     fun getIdeVersion(): String
 
     fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean

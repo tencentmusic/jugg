@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.git
 
-import org.gradle.internal.impldep.org.eclipse.jgit.internal.storage.file.FileRepository
-import org.gradle.internal.impldep.org.eclipse.jgit.lib.*
+import org.eclipse.jgit.internal.storage.file.FileRepository
+import org.eclipse.jgit.lib.*
 import java.io.File
 
 class WorktreeFileRepository(

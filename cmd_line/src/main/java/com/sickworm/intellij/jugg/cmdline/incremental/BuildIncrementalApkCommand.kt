@@ -157,14 +157,14 @@ class BuildIncrementalApkCommand(private val params: Params) {
                 throw IncrementalException("Argument 'changedFiles' file not exists: ${it.path}")
             }
             if (!it.isChild(params.sourceProjectDir)) {
-                throw IncrementalException("Argument 'changedFiles' file is not in source project dir: ${it.path}")
+                throw IncrementalException("Argument 'changedFiles' file is not in source project dir: ${it.path}, 'sourceProjectDir': ${params.sourceProjectDir}")
             }
         }
 
         // build source dir FileChangesHandler
         val changedCompileFiles = fileChangesHandler.filter(changedFiles)
         if (changedCompileFiles.size != changedFiles.size) {
-            throw IncrementalException("Files check failed, not all files are compilable." +
+            throw IncrementalException("Files check failed, not all files are compilable. " +
                     "changedFiles:\n${changedFiles.joinToString("\n", prefix = "    ") { it.path }}" +
                     "compileFiles:\n${changedCompileFiles.joinToString("\n", prefix = "    ") { it.file.path }}"
             )

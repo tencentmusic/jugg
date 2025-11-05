@@ -115,18 +115,6 @@ class IdeaPlatformApi : IPlatformApi {
         return androidHomePath
     }
 
-    override fun createGitManager(gitRoot: File): IGitManager {
-        return GitManager(gitRoot)
-    }
-
-    override fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
-        return GitManager.createGitManagerAndTrySearchParent(dir)
-    }
-
-    override fun createFileMatcher(): IFileMatcher {
-        return FileMatcher()
-    }
-
     override fun getIdeVersion(): String {
         return AsDeployerCompat.ideVersion.toString()
     }

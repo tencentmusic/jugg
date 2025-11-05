@@ -7,4 +7,6 @@ object Global {
     private val rootDir = File("../").absoluteFile
 
     val projectRootDir: File = File(rootDir, "idea/src/test/assets/android/MyApplicationIntellij").absoluteFile
+
+    val outputDir = File(rootDir, "cmd_line/src/test/build")
 }

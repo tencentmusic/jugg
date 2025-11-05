@@ -21,7 +21,7 @@ class CmdPlatformApi : IPlatformApi {
         cancelButtonText: String?,
         isShowCancelButton: Boolean
     ): Boolean {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 
     override fun showChangeConfirmDialog(
@@ -29,7 +29,7 @@ class CmdPlatformApi : IPlatformApi {
         isRunLater: Boolean,
         logger: Logger
     ): ConfirmResult {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 
     override fun showUserAndPasswordInputDialog(
@@ -39,42 +39,39 @@ class CmdPlatformApi : IPlatformApi {
         defaultInputText: String?,
         title: String?
     ): String? {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 
     override fun allAvailableJavaHomes(): List<String> {
-        TODO("Not yet implemented")
+        val javaHomeProp = System.getProperty("java.home")
+        val javaHomeEnv = System.getenv("JAVA_HOME")
+        val result = mutableListOf<String>()
+        if (javaHomeProp != null) {
+            result.add(javaHomeProp)
+        }
+        if (javaHomeEnv != null) {
+            result.add(javaHomeEnv)
+        }
+        return result.distinct()
     }
 
     override fun getGradleJdkPath(project: Project, logger: Logger): String? {
-        TODO("Not yet implemented")
+        return allAvailableJavaHomes().firstOrNull()
     }
 
     override fun getAndroidHomePath(logger: Logger): String? {
-        TODO("Not yet implemented")
-    }
-
-    override fun createGitManager(gitRoot: File): IGitManager {
-        TODO("Not yet implemented")
-    }
-
-    override fun createGitManagerAndTrySearchParent(dir: File): IGitManager {
-        TODO("Not yet implemented")
-    }
-
-    override fun createFileMatcher(): IFileMatcher {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 
     override fun getIdeVersion(): String {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 
     override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {
-        TODO("Not yet implemented")
+        TODO("Cmd line not support")
     }
 }

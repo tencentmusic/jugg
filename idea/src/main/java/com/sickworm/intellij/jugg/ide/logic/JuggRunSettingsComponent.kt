@@ -11,13 +11,13 @@ import com.intellij.ui.IdeBorderFactory
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.sickworm.intellij.jugg.deploy.run.SuggestRunConfiguration
+import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.ide.IJuggRunSettingsComponent
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.ide.ui.RemoteCompileApplierDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.dependency.htmlWarning
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import java.awt.Dimension
@@ -391,6 +391,6 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private fun getUsername(project: Project): String {
         val defaultName = System.getProperty("user.name") ?: "jugg_user_unknown"
         val projectDir = project.basePath ?: return defaultName
-        return PlatformApi.createGitManagerAndTrySearchParent(File(projectDir)).userName ?: defaultName
+        return GitManager.createGitManagerAndTrySearchParent(File(projectDir)).userName ?: defaultName
     }
 }

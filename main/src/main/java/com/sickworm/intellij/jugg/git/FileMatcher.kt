@@ -1,7 +1,7 @@
 package com.sickworm.intellij.jugg.git
 
-import org.gradle.internal.impldep.org.eclipse.jgit.ignore.FastIgnoreRule
-import org.gradle.internal.impldep.org.eclipse.jgit.ignore.IgnoreNode
+import org.eclipse.jgit.ignore.FastIgnoreRule
+import org.eclipse.jgit.ignore.IgnoreNode
 import java.io.File
 
 class FileMatcher : IFileMatcher {

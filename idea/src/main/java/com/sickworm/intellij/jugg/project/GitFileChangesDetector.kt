@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.project
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
+import com.sickworm.intellij.jugg.git.GitManager
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -113,7 +114,7 @@ class GitFileChangesDetector(
     private fun getAllGits(dirs: List<File>): Map<String, IGitManager> {
         val gitManagerMap = mutableMapOf<String, IGitManager>()
         dirs.forEach {
-            val subModuleGitManager = PlatformApi.createGitManagerAndTrySearchParent(it)
+            val subModuleGitManager = GitManager.createGitManagerAndTrySearchParent(it)
             if (!subModuleGitManager.hasInitGit) {
                 return@forEach
             }

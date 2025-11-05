@@ -31,5 +31,5 @@ data class Params(
      * Log level.
      * ALL / DEBUG / INFO / WARN / ERROR / FATAL / OFF
      */
-    val logLevel: Level = Level.INFO,
+    val logLevel: Level,
 )
