@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.instrument.DexPathListFixer;
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
 import java.io.File;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,9 +19,14 @@ public class HotfixLoader {
     public static void init(final Context base) {
         codeCacheDir = base.getCodeCacheDir();
         overlayFilesDir = new File(codeCacheDir, ".overlay");
+        IncrementalApkLoader.init(base);
     }
 
     public static boolean isNeedEnableHotfix() {
+        if (IncrementalApkLoader.isIncrementalApk()) {
+            return true;
+        }
+
         boolean isEnableHotfix = false;
         if (HotfixLoader.overlayFilesDir.exists()) {
             File[] files = HotfixLoader.overlayFilesDir.listFiles();

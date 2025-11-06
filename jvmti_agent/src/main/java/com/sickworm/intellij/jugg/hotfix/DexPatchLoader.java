@@ -14,7 +14,7 @@ import java.util.List;
 class DexPatchLoader {
 
     private static final String TAG = HotfixLoader.TAG + "#DexPatchLoader";
-    private static final String DEX_FILE_SUFFIX = ".dex";
+    public static final String DEX_FILE_SUFFIX = ".dex";
 
     private final Context baseContext;
     private final BaseDexClassLoader originClassLoader;

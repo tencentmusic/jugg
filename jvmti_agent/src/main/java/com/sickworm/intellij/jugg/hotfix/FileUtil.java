@@ -141,4 +141,25 @@ public class FileUtil {
             return true;
         }
     }
+
+    static void copyFromAssetsToFile(Context context, String fileName, File cacheTo) throws IOException {
+        try (InputStream inputStream = context.getAssets().open(fileName)) {
+            cacheTo.deleteOnExit();
+            if (cacheTo.exists()) {
+                if (!cacheTo.delete()) {
+                    throw new IOException("Could not delete file " + cacheTo.getAbsolutePath());
+                }
+            }
+            if (!cacheTo.createNewFile()) {
+                throw new IOException("Could not create file " + cacheTo.getAbsolutePath());
+            }
+            try (FileOutputStream outputStream = new FileOutputStream(cacheTo)) {
+                byte[] buf = new byte[1024];
+                int len;
+                while ((len = inputStream.read(buf)) > 0) {
+                    outputStream.write(buf, 0, len);
+                }
+            }
+        }
+    }
 }

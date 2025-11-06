@@ -5,11 +5,8 @@ import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
-import com.sickworm.intellij.jugg.deploy.CompileContextDb
-import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
-import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.BaseCompileContext
@@ -25,11 +22,17 @@ import java.io.File
 class BuildIncrementalApkCommand(private val params: Params) {
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
-    private val baseBuildPathManager = JuggPathManager(params.baseBuildProjectDir)
     private val logger = run {
         CmdLineLogger.init(JuggPathManager(params.sourceProjectDir).logDir, params.logLevel)
         CmdLineLogger.logger
     }
+
+    private val baseBuildPathManager = JuggPathManager(params.baseBuildProjectDir)
+    private val fileChangesHandler = FileChangesHandler(
+        baseBuildPathManager.projectDir,
+        baseBuildPathManager.juggRootDir,
+        logger,
+    )
 
     private val dirtyFlag = File(baseBuildPathManager.juggRootDir, ".dirty")
 
@@ -38,9 +41,9 @@ class BuildIncrementalApkCommand(private val params: Params) {
             logger.info("Init compile context...")
             TimeLogger.start("Init compile context")
             checkDirty()
-            val contextConverter = getContextConverter()
-            val compiler = getCompiler(contextConverter.sourceContext)
-            val compileTask = getCompileTask(contextConverter.fileChangesHandler)
+            val context = getCompileContext()
+            val compiler = getCompiler(context)
+            val compileTask = getCompileTask(context)
             TimeLogger.end("Init compile context", logger)
 
             val compileResult = compiler.compile(compileTask)
@@ -49,8 +52,8 @@ class BuildIncrementalApkCommand(private val params: Params) {
                 return false
             }
             logger.info("Compile success.")
-            updateApk(contextConverter.sourceContext, compileResult)
-            logger.info("Compile apk success.")
+            updateApk(context, compileResult)
+            logger.info("Update apk success.")
             return true
         } catch (e: IncrementalException) {
             logger.warn("Compile failed", e)
@@ -71,7 +74,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
         dirtyFlag.createNewFile()
     }
 
-    private fun getContextConverter(): ContextConverter {
+    private fun getCompileContext(): ICompileContext {
         val envValue = System.getenv("ANDROID_HOME")
             ?: throw IncrementalException("Environment variable ANDROID_HOME is not set.")
         val androidHome = File(envValue)
@@ -122,7 +125,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
             apkInfos = compileContextInfo.apkInfos,
             scene = ICompileContext.Scene.INCREMENTAL_APK
         )
-        return ContextConverter(baseContext, params.baseBuildProjectDir, params.sourceProjectDir, coroutineScope, logger)
+        return baseContext
     }
 
     private fun getProjectInfo(): JuggProjectInfo {
@@ -147,7 +150,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
         return JuggCompiler(context, idleDisposer, customCompilerManager::getCustomCompilers)
     }
 
-    private fun getCompileTask(fileChangesHandler: FileChangesHandler): CompileTask {
+    private fun getCompileTask(context: ICompileContext): CompileTask {
         val changedFiles = params.changedFiles // changed files comes from source project dir
         if (changedFiles.isEmpty()) {
             throw IncrementalException("Argument 'changedFiles' is empty.")
@@ -161,12 +164,23 @@ class BuildIncrementalApkCommand(private val params: Params) {
             }
         }
 
+        // copy to base build dir
+        val baseChangedFiles = changedFiles.map {
+            if (params.baseBuildProjectDir == params.sourceProjectDir) {
+                return@map it
+            }
+            val baseChangedFile = it.changeBaseDir(params.sourceProjectDir, params.baseBuildProjectDir)
+            it.copyTo(baseChangedFile, overwrite = true)
+            return@map baseChangedFile
+        }
+
         // build source dir FileChangesHandler
-        val changedCompileFiles = fileChangesHandler.filter(changedFiles)
-        if (changedCompileFiles.size != changedFiles.size) {
-            throw IncrementalException("Files check failed, not all files are compilable. " +
-                    "changedFiles:\n${changedFiles.joinToString("\n", prefix = "    ") { it.path }}" +
-                    "compileFiles:\n${changedCompileFiles.joinToString("\n", prefix = "    ") { it.file.path }}"
+        fileChangesHandler.init(context)
+        val changedCompileFiles = fileChangesHandler.filter(baseChangedFiles)
+        if (changedCompileFiles.size != baseChangedFiles.size) {
+            throw IncrementalException("Files check failed, not all files are compilable." +
+                    "\nchangedFiles:\n${changedFiles.joinToString("\n", prefix = "    ") { it.path }}" +
+                    "\ncompileFiles:\n${changedCompileFiles.joinToString("\n", prefix = "    ") { it.file.path }}"
             )
         }
         changedCompileFiles.forEach {
@@ -203,8 +217,15 @@ class BuildIncrementalApkCommand(private val params: Params) {
             compileResult.outputs.forEach {
                 val isBaseOutput = it.apkPath == null || it.apkPath == DeployItem.FLAG_CLASS || it.apkPath == DeployItem.FLAG_BASE_APK
                 if ((isBaseApk && isBaseOutput) || (it.apkPath == apkFile.path)) {
-                    val deployItem = it.toDeployItem(prefix = ".jugg/")
-                    deployItems.add(deployItem)
+                    if (it.type == CompileOutput.Type.Dex) {
+                        // put in INCREMENTAL_DATA_PATH
+                        val deployItem = it.toDeployItem(deployName = INCREMENTAL_DATA_PATH + it.deployItemName + ".dex")
+                        deployItems.add(deployItem)
+                    } else {
+                        // override
+                        val deployItem = it.toDeployItem()
+                        deployItems.add(deployItem)
+                    }
                 }
             }
             logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n", "    ") { it.name }}\n")
@@ -228,13 +249,17 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     companion object {
+
+        private const val INCREMENTAL_DATA_PATH = "assets/_jugg/"
+
         fun run(args: Array<String>): Boolean {
-            val params = ParamsParser().parse(args)
-            if (params == null) {
+            try {
+                val params = ParamsParser().parse(args)
+                return BuildIncrementalApkCommand(params).run()
+            } catch (e: Exception) {
                 CmdLineLogger.stdLogger.warn("Parse params invalid, exit.")
                 return false
             }
-            return BuildIncrementalApkCommand(params).run()
         }
     }
 }

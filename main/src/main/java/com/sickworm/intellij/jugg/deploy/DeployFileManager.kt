@@ -543,14 +543,13 @@ private val crc32 = CRC32()
 
 private val File.stdPath get() = path.replace(File.separatorChar, '/')
 
-fun CompileOutput.toDeployItem(prefix: String? = null): DeployItem {
+fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem {
     val bytes = file.readBytes()
     val crc = crc32.run {
         reset()
         update(bytes)
         value
     }
-    val deployName = if (prefix == null) deployItemName else prefix + deployItemName
     when (type) {
         CompileOutput.Type.Dex -> {
             return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_CLASS)

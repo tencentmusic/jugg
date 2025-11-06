@@ -58,6 +58,9 @@ class ResourcesPatchLoader {
 
     void install() {
         LogUtils.i(TAG, "install resources, size = " + internalResFiles.size());
+        if (internalResFiles.isEmpty()) {
+            return;
+        }
 
         try {
             prepare();
