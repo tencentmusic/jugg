@@ -9,7 +9,7 @@ class CmdLineTest {
     fun buildBase() {
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
-            "baseBuildProjectDir=${Global.projectRootDir}",
+            "baseBuildProjectDir=../idea/src/test/assets/android/MyApplicationIntellij",
             "gradleCompileTask=assembleDebug",
             "outputApkPath=app/build/outputs/apk/debug/*.apk",
         )
@@ -26,7 +26,7 @@ class CmdLineTest {
             "baseBuildProjectDir=${Global.projectRootDir}",
             "sourceProjectDir=${Global.projectRootDir}",
             "outputApkDir=${Global.outputDir}",
-            "changedFiles=${Global.projectRootDir}/app/src/main/java/com/example/myapplication/MainActivity.kt",
+            "changedFiles=../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt:../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity2.java",
         )
         val result = CmdLine().run(args)
         assertTrue(result)

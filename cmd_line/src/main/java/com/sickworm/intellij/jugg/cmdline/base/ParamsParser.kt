@@ -21,9 +21,12 @@ class ParamsParser {
         if (baseBuildProjectDirValue.isEmpty()) {
             throw BaseBuildException("Param 'baseBuildProjectDir' not found.")
         }
-        val baseBuildProjectDir = File(baseBuildProjectDirValue)
+        var baseBuildProjectDir = File(baseBuildProjectDirValue)
         if (!baseBuildProjectDir.exists()) {
             throw BaseBuildException("Param 'baseBuildProjectDir' invalid, not exists: $baseBuildProjectDirValue")
+        }
+        if (!baseBuildProjectDir.isAbsolute) {
+            baseBuildProjectDir = baseBuildProjectDir.absoluteFile
         }
 
         val gradleCompileTask = keyValueMap["gradleCompileTask"] ?: ""

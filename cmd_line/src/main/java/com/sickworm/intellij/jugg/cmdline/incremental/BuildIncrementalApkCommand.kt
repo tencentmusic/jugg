@@ -257,7 +257,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
                 val params = ParamsParser().parse(args)
                 return BuildIncrementalApkCommand(params).run()
             } catch (e: Exception) {
-                CmdLineLogger.stdLogger.warn("Parse params invalid, exit.")
+                CmdLineLogger.stdLogger.warn("Parse params got unexpected error:", e)
                 return false
             }
         }

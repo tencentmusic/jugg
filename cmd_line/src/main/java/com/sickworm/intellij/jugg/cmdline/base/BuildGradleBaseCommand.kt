@@ -198,8 +198,7 @@ class BuildGradleBaseCommand(private val params: Params) {
                 CmdLineLogger.stdLogger.warn("Parse params invalid, exit.")
                 return false
             } catch (e : Throwable) {
-                CmdLineLogger.stdLogger.warn("Parse params failed unexpected", e)
-                CmdLineLogger.stdLogger.warn("Parse params got unexpected error: $e")
+                CmdLineLogger.stdLogger.warn("Parse params got unexpected error:", e)
                 return false
             }
         }

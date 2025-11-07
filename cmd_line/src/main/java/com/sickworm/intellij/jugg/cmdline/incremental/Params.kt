@@ -11,8 +11,8 @@ data class Params(
     val baseBuildProjectDir: File,
 
     /**
+     * Optional, default: [baseBuildProjectDir]
      * Source project dir that contains latest source code.
-     * [baseBuildProjectDir] and [sourceProjectDir] can be the same.
      */
     val sourceProjectDir: File,
 

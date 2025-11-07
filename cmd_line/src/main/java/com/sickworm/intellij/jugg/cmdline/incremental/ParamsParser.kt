@@ -21,18 +21,21 @@ class ParamsParser {
         if (baseBuildProjectDirValue.isEmpty()) {
             throw IncrementalException("Param 'baseBuildProjectDir' not found.")
         }
-        val baseBuildProjectDir = File(baseBuildProjectDirValue).normalize()
+        var baseBuildProjectDir = File(baseBuildProjectDirValue).normalize()
         if (!baseBuildProjectDir.exists()) {
             throw IncrementalException("Param 'baseBuildProjectDir' invalid, not exists: $baseBuildProjectDirValue")
         }
-
-        val sourceProjectDirValue = keyValueMap["sourceProjectDir"] ?: ""
-        if (sourceProjectDirValue.isEmpty()) {
-            throw IncrementalException("Param 'sourceProjectDir' not found.")
+        if (!baseBuildProjectDir.isAbsolute) {
+            baseBuildProjectDir = baseBuildProjectDir.absoluteFile
         }
-        val sourceProjectDir = File(sourceProjectDirValue).normalize()
+
+        val sourceProjectDirValue = keyValueMap["sourceProjectDir"] ?: baseBuildProjectDirValue
+        var sourceProjectDir = File(sourceProjectDirValue).normalize()
         if (!sourceProjectDir.exists()) {
             throw IncrementalException("Param 'sourceProjectDir' invalid, not exists: $sourceProjectDirValue")
+        }
+        if (!sourceProjectDir.isAbsolute) {
+            sourceProjectDir = sourceProjectDir.absoluteFile
         }
 
         val outputApkDirValue = keyValueMap["outputApkDir"] ?: ""
@@ -47,7 +50,9 @@ class ParamsParser {
         }
         val changedFiles = changedFilesValue.split(File.pathSeparator)
             .filter { it.isNotEmpty() }
-            .map { File(it).normalize() }
+            .map { File(it) }
+            .map { if(it.isAbsolute) it else it.absoluteFile }
+            .map { it.normalize() }
         if (changedFiles.isEmpty()) {
             throw IncrementalException("Param 'changedFiles' is empty.")
         }

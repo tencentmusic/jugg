@@ -67,8 +67,8 @@ class LocalGradleCompileClient(
         }
 
         if (failedApkPaths.isNotEmpty() || findApks.isEmpty()) {
-            printToStreamError("Can't find apks in $failedApkPaths in $projectDir, " +
-                    "total: \"${juggGradleCompileOptions.outputApkName}\"" +
+            printToStreamError("Can't find apks in $failedApkPaths in $projectDir " +
+                    "by argument: \"${juggGradleCompileOptions.outputApkName}\"" +
                     ", please make sure your run configuration is right.")
             return GradleCompileResult.failed(isCanceled, "Can't find apk in $failedApkPaths")
         } else {
