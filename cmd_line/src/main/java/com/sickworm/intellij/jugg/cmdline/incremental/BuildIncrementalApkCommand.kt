@@ -250,7 +250,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
 
     companion object {
 
-        private const val INCREMENTAL_DATA_PATH = "assets/_jugg/"
+        private const val INCREMENTAL_DATA_PATH = "assets/jugg_/"
 
         fun run(args: Array<String>): Boolean {
             try {

@@ -135,7 +135,16 @@ class AndroidNClassLoader extends PathClassLoader {
 
         Object drawableInflater = ReflectUtil.findField(res, "mDrawableInflater").get(res);
         if (drawableInflater != null) {
-            ReflectUtil.findField(drawableInflater, "mClassLoader").set(drawableInflater, reflectClassLoader);
+            try {
+                ReflectUtil.findField(drawableInflater, "mClassLoader").set(drawableInflater, reflectClassLoader);
+            } catch (Exception e) {
+                if (IncrementalApkLoader.isIncrementalApk()) {
+                    // no idea why it will crash
+                    LogUtils.i(TAG, "reflectPackageInfoClassloader isIncrementalApk, ignore exception while reflect drawableInflater : " + e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         Thread.currentThread().setContextClassLoader(reflectClassLoader);

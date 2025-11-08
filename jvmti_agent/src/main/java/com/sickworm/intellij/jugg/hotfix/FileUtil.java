@@ -162,4 +162,19 @@ public class FileUtil {
             }
         }
     }
+
+    static void deleteRecursively(File dir) {
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            if (children == null) {
+                return;
+            }
+            for (String child : children) {
+                deleteRecursively(new File(dir, child));
+            }
+        }
+        if (!dir.delete()) {
+            throw new RuntimeException("deleteRecursively failed: " + dir);
+        }
+    }
 }

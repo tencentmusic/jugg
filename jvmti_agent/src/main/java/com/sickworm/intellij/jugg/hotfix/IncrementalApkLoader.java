@@ -8,7 +8,7 @@ public class IncrementalApkLoader {
 
     public static final String TAG = "jugg-agent";
 
-    private static final String INCREMENTAL_DATA_ASSETS_PATH = "_jugg/";
+    private static final String INCREMENTAL_DATA_ASSETS_PATH = "jugg_/";
 
     private static Boolean isIncrementalApk = false;
 
@@ -20,6 +20,12 @@ public class IncrementalApkLoader {
             }
 
             LogUtils.i(TAG, "initIncrementalApk is incremental apk");
+            if (HotfixLoader.overlayFilesDir.exists()) {
+                FileUtil.deleteRecursively(HotfixLoader.overlayFilesDir);
+            }
+            if (!HotfixLoader.overlayFilesDir.mkdirs()) {
+                throw new RuntimeException("initIncrementalApk mkdirs failed: " + HotfixLoader.overlayFilesDir);
+            }
             for (String fileName : files) {
                 File targetFile = new File(HotfixLoader.overlayFilesDir, fileName);
                 FileUtil.copyFromAssetsToFile(base, INCREMENTAL_DATA_ASSETS_PATH + fileName, targetFile);
