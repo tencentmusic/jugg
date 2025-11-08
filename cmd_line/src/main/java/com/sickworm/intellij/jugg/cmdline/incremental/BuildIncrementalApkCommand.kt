@@ -22,12 +22,11 @@ import java.io.File
 class BuildIncrementalApkCommand(private val params: Params) {
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
-    private val logger = run {
-        CmdLineLogger.init(JuggPathManager(params.sourceProjectDir).logDir, params.logLevel)
-        CmdLineLogger.logger
-    }
 
     private val baseBuildPathManager = JuggPathManager(params.baseBuildProjectDir)
+
+    private val logger = CmdLineLogger.init("BuildIncrementalApkCommand", baseBuildPathManager.logDir, params.logLevel)
+
     private val fileChangesHandler = FileChangesHandler(
         baseBuildPathManager.projectDir,
         baseBuildPathManager.juggRootDir,

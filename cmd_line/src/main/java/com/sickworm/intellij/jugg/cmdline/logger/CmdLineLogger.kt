@@ -9,61 +9,61 @@ import java.io.File
 
 object CmdLineLogger {
 
-    lateinit var logger: Logger
-
     val stdLogger = object : DefaultLogger("cmd") {
         var logLevel = Level.INFO
 
         override fun debug(message: String?) {
-            if (logLevel.isGreaterOrEqual(Level.DEBUG)) {
+            if (Level.DEBUG.isGreaterOrEqual(logLevel)) {
                 println("[D] $message")
             }
         }
 
         override fun debug(t: Throwable?) {
-            if (logLevel.isGreaterOrEqual(Level.DEBUG)) {
+            if (Level.DEBUG.isGreaterOrEqual(logLevel)) {
                 dumpExceptionsToStderr("[D] ", t)
             }
         }
 
         override fun debug(@NonNls message: String?, t: Throwable?) {
-            if (logLevel.isGreaterOrEqual(Level.DEBUG)) {
+            if (Level.DEBUG.isGreaterOrEqual(logLevel)) {
                 dumpExceptionsToStderr("[D] $message", t)
             }
         }
 
         override fun info(message: String?) {
-            if (logLevel.isGreaterOrEqual(Level.INFO)) {
+            if (Level.INFO.isGreaterOrEqual(logLevel)) {
                 println("[I] $message")
             }
         }
 
         override fun info(message: String?, t: Throwable?) {
-            if (logLevel.isGreaterOrEqual(Level.INFO)) {
+            if (Level.INFO.isGreaterOrEqual(logLevel)) {
                 dumpExceptionsToStderr("[I] $message", t)
             }
         }
 
         override fun warn(message: String?, t: Throwable?) {
-            if (logLevel.isGreaterOrEqual(Level.WARN)) {
+            if (Level.WARN.isGreaterOrEqual(logLevel)) {
                 System.err.println("[W] $message")
                 t?.printStackTrace(System.err)
             }
         }
 
         override fun error(message: String?, t: Throwable?, vararg details: String?) {
-            if (logLevel.isGreaterOrEqual(Level.ERROR)) {
+            if (Level.ERROR.isGreaterOrEqual(logLevel)) {
                 System.err.println("[E] $message")
                 t?.printStackTrace(System.err)
             }
         }
     }
 
-    fun init(logDir: File, level: Level) {
-        val instanceKey = "cmd"
+    @Suppress("UnnecessaryVariable")
+    fun init(name: String, logDir: File, level: Level): Logger {
+        stdLogger.setLevel(level)
+
+        val instanceKey = name
         JuggLogger.register(instanceKey, logDir)
         JuggLogger.listenProjectLog(instanceKey, stdLogger)
-        logger = JuggLogger.getInstance(instanceKey, "cmd")
-        stdLogger.setLevel(level)
+        return JuggLogger.getInstance(instanceKey, name)
     }
 }

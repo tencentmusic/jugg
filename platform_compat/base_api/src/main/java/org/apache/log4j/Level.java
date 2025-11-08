@@ -17,6 +17,7 @@ public class Level extends Priority {
     public static final Level ALL = new Level(Integer.MIN_VALUE, "ALL", 7);
 
     protected Level(int level, String levelStr, int syslogEquivalent) {
+        super(level, levelStr, syslogEquivalent);
     }
 
     public static Level toLevel(String sArg) {

@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.base
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
@@ -12,14 +13,12 @@ import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
-import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,10 +29,7 @@ import kotlin.system.measureTimeMillis
 class BuildGradleBaseCommand(private val params: Params) {
 
     private val pathManager = JuggPathManager(params.baseBuildProjectDir)
-    private val logger = run {
-        CmdLineLogger.init(pathManager.logDir, params.logLevel)
-        CmdLineLogger.logger
-    }
+    private lateinit var logger: Logger
 
     fun run(): Boolean {
         try {
@@ -55,6 +51,7 @@ class BuildGradleBaseCommand(private val params: Params) {
 
     private fun prepare() {
         pathManager.juggRootDir.deleteRecursively()
+        logger = CmdLineLogger.init("BuildGradleBaseCommand", pathManager.logDir, params.logLevel)
         GradleScriptWriter(pathManager, logger).writeInitGradleFile()
     }
 

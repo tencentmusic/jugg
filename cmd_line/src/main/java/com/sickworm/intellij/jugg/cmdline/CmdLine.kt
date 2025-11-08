@@ -7,9 +7,7 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
-    println("Welcome to Jugg cmdline! args:${args.toList()}")
     val result = CmdLine().run(args)
-    println("Jugg cmdline exit. result: $result")
     if (!result) {
         exitProcess(-1)
     }
@@ -24,9 +22,10 @@ class CmdLine {
     }
 
     fun run(args: Array<String>): Boolean {
-        val cmd = args.find { it.startsWith("cmd=") }?.substringAfter("cmd=")
+        println("Welcome to Jugg cmdline! args:${args.toList()}")
 
-        return when (cmd) {
+        val cmd = args.find { it.startsWith("cmd=") }?.substringAfter("cmd=")
+        val result = when (cmd) {
             Command.BUILD_INCREMENTAL_APK.value -> {
                 CmdLineLogger.stdLogger.info("Going to run cmd: buildIncrementalApk.")
                 BuildIncrementalApkCommand.run(args)
@@ -44,6 +43,8 @@ class CmdLine {
                 false
             }
         }
+        println("Jugg cmdline exit. result: $result")
+        return result
     }
 
     enum class Command(
