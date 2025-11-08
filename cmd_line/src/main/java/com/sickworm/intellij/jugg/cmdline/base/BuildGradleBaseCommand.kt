@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.data.DeployDataDatabase
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
@@ -81,7 +82,7 @@ class BuildGradleBaseCommand(private val params: Params) {
             localClasspathStoragePath = pathManager.localClasspathStoragePathManager,
             initGradleFileRelativePath = pathManager.initGradleFileRelativePath,
             compileCommand,
-            params.outputApkPath,
+            params.gradleOutputApkPath,
             isRemoteCompile = false,
             isSyncAllProjects = false,
             remoteSshUser = "",
@@ -172,6 +173,7 @@ class BuildGradleBaseCommand(private val params: Params) {
             logger.getInstance("DeployHistoryManager")
         )
         val startCompileTime = System.currentTimeMillis()
+        deployHistoryManager.checkProjectDirChanged()
         deployHistoryManager.reInitAfterFullCompiled(
             apkInfos,
             gradleProjectInfo.modules,
@@ -189,6 +191,18 @@ class BuildGradleBaseCommand(private val params: Params) {
             it.value.sourceDirs
         }
         sourceFileManager.init(sourceDirs)
+
+        // copy apk to outputApkDir
+        if (params.outputApkDir != null) {
+            params.outputApkDir.deleteRecursively()
+            params.outputApkDir.mkdirs()
+            apkInfos.forEach { apkInfo ->
+                apkInfo.files.forEach {
+                    val targetFile = File(params.outputApkDir, it.apkFile.name)
+                    it.apkFile.copyTo(targetFile, overwrite = true)
+                }
+            }
+        }
 
         runBlocking {
             backupLibraryJob.join()

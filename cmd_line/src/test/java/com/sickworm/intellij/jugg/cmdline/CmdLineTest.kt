@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.cmdline
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CmdLineTest {
@@ -11,10 +12,14 @@ class CmdLineTest {
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
             "baseBuildProjectDir=../idea/src/test/assets/android/MyApplicationIntellij",
             "gradleCompileTask=assembleDebug",
-            "outputApkPath=app/build/outputs/apk/debug/*.apk",
+            "gradleOutputApkPath=app/build/outputs/apk/debug/*.apk",
+            "outputApkDir=${Global.outputDir}",
         )
         val result = CmdLine().run(args)
         assertTrue(result)
+
+        val apks = Global.outputDir.listFiles { file -> file.name.endsWith(".apk") } ?: emptyArray()
+        assertEquals(1, apks.size)
     }
 
     @Test

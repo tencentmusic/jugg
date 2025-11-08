@@ -34,10 +34,16 @@ class ParamsParser {
             throw BaseBuildException("Param 'gradleCompileTask' not found.")
         }
 
-        val outputApkPath = keyValueMap["outputApkPath"] ?: ""
-        if (outputApkPath.isEmpty()) {
-            throw BaseBuildException("Param 'outputApkPath' not found.")
+        val gradleOutputApkPath = keyValueMap["gradleOutputApkPath"] ?: ""
+        if (gradleOutputApkPath.isEmpty()) {
+            throw BaseBuildException("Param 'gradleOutputApkPath' not found.")
         }
+
+        val outputApkDirValue = keyValueMap["outputApkDir"] ?: ""
+        if (outputApkDirValue.isEmpty()) {
+            throw BaseBuildException("Param 'outputApkDir' not found.")
+        }
+        val outputApkDir = File(outputApkDirValue)
 
         val logLevelValue = keyValueMap["logLevel"] ?: "INFO"
         val logLevel = Level.toLevel(logLevelValue)
@@ -45,7 +51,8 @@ class ParamsParser {
         return Params(
             baseBuildProjectDir = baseBuildProjectDir,
             gradleCompileTask = gradleCompileTask,
-            outputApkPath = outputApkPath,
+            gradleOutputApkPath = gradleOutputApkPath,
+            outputApkDir = outputApkDir,
             logLevel = logLevel,
         )
     }

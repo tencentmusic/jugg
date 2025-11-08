@@ -17,7 +17,12 @@ data class Params(
     /**
      * Output apk relative path, supports match, e.g. app/build/outputs/debug/a*.apk
      */
-    val outputApkPath: String,
+    val gradleOutputApkPath: String,
+
+    /**
+     * Output apk directory. will copy all output apk to this directory.
+     */
+    val outputApkDir: File?,
 
     /**
      * Log level.
