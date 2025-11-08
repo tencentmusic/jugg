@@ -34,28 +34,28 @@ class FileLoggerWrapper(
         return true
     }
 
-    override fun debug(message: String) {
-        logger.log(Level.FINE, message.withPrefix)
+    override fun debug(message: String?) {
+        logger.log(Level.FINE, message?.withPrefix)
     }
 
     override fun debug(t: Throwable?) {
         logger.log(Level.FINE, "".withPrefix, t)
     }
 
-    override fun debug(message: String, t: Throwable?) {
-        logger.log(Level.FINE, message.withPrefix, t)
+    override fun debug(message: String?, t: Throwable?) {
+        logger.log(Level.FINE, message?.withPrefix, t)
     }
 
-    override fun info(message: String) {
-        logger.log(Level.INFO, message.withPrefix)
+    override fun info(message: String?) {
+        logger.log(Level.INFO, message?.withPrefix)
     }
 
-    override fun info(message: String, t: Throwable?) {
-        logger.log(Level.INFO, message.withPrefix, t)
+    override fun info(message: String?, t: Throwable?) {
+        logger.log(Level.INFO, message?.withPrefix, t)
     }
 
-    override fun warn(message: String, t: Throwable?) {
-        logger.log(Level.WARNING, message.withPrefix, t)
+    override fun warn(message: String?, t: Throwable?) {
+        logger.log(Level.WARNING, message?.withPrefix, t)
     }
 
     override fun error(message: String, t: Throwable?, vararg details: String) {

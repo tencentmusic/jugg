@@ -32,13 +32,13 @@ object CmdLineLogger {
 
         override fun info(message: String?) {
             if (Level.INFO.isGreaterOrEqual(logLevel)) {
-                println("[I] $message")
+                println("$message")
             }
         }
 
         override fun info(message: String?, t: Throwable?) {
             if (Level.INFO.isGreaterOrEqual(logLevel)) {
-                dumpExceptionsToStderr("[I] $message", t)
+                dumpExceptionsToStderr("$message", t)
             }
         }
 

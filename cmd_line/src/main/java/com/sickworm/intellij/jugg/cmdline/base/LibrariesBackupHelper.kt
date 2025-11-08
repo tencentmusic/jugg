@@ -16,8 +16,6 @@ class LibrariesBackupHelper(
     private val logger: Logger,
 ) {
 
-    val normalizeProjectDir = pathManager.projectDir.normalize()
-
     fun backup(): JuggProjectInfo {
         val backupDir = pathManager.localClasspathStoragePathManager.librariesBackupDir
         backupDir.deleteRecursively()
@@ -56,7 +54,7 @@ class LibrariesBackupHelper(
             return it
         }
 
-        if (file.isChild(normalizeProjectDir)) {
+        if (file.isChild(pathManager.projectDir)) {
             return file
         }
 

@@ -452,64 +452,22 @@ class JuggManager @TestOnly constructor(
             compileContextManager.updateCompileContextAfterLocalFetch()
         }
 
-        var allModules = compileContextManager.getProjectInfo().modules
-        val moduleBuildPathInfos = allModules.map { it.value.buildPathInfo }
+        var projectInfo = compileContextManager.getProjectInfo()
 
         logger.info("Fetching classpath...")
-        val (costTime2, classpathRootDir) = measureTimeMillisWithResult {
-            val currentIndicator = taskRunnerManager.currentIndicator
-            val originText = currentIndicator?.text
-            currentIndicator?.text = "Jugg: Fetching classpath..."
-
-            var updateJob: Job? = null
-            var syncCount = 0
-            val terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
-                override fun onOutput(line: String, isNeedPrint: Boolean) {
-                    syncCount++
-                    if (updateJob?.isActive == true) {
-                        return
-                    }
-                    updateJob = launch {
-                        delay(16)
-                        currentIndicator?.text = "Jugg: Fetching classpath... (synced $syncCount)"
-                    }
-                }
-
-                override fun onOutputErr(line: String) {
-                }
-            }
-            val result = juggCompilerHelper.fetchClasspathResult(isRemoteCompile, moduleBuildPathInfos, terminalOutputListener)
-            currentIndicator?.text = originText
-            return@measureTimeMillisWithResult result
-        }
-        logger.debug("fetchClasspathResult cost ${costTime2}ms")
-        logger.debug("fetchClasspathResult classpathRootDir = $classpathRootDir," +
-                "exists = ${classpathRootDir?.exists()}, children = ${classpathRootDir?.listFiles()?.map { it.path }}")
-        if (classpathRootDir != null && classpathRootDir.exists()) {
-            // wrap local CompileContextInfo to CompileContextInfo fetched from build
-            allModules = allModules.values
-                .map {
-                    it.copy(buildPathInfo = ModuleBuildPathInfo(
-                        classpathRootDir,
-                        File(classpathRootDir, it.buildPathInfo.modulePathRelative.path),
-                        it.buildVariant,
-                    )
-                    )
-                }
-                .associateBy { it.name }
-            val logInfo = allModules.entries.joinToString {
-                "${it.key}: ${it.value.buildPathInfo.buildDir}: exists: ${it.value.moduleRootDir.exists()}"
-            }
-            logger.debug("fetchClasspathResult dir info: $logInfo")
-        } else {
+        val backupProjectInfo = juggCompilerHelper.fetchClasspath(
+            isRemoteCompile, projectInfo, taskRunnerManager.currentIndicator, coroutineScope)
+        if (backupProjectInfo == null) {
             if (isRemoteCompile) {
-                logger.warn("Fetch classpath failed, please check log for details.")
+                logger.warn("Fetch classpath failed, unable to init incremental compile. Please check log for details.")
                 // unable to continue
                 return
             } else {
                 logger.debug("Fetch classpath failed, use local classpath instead.")
                 // just continue use local build classpath
             }
+        } else {
+            projectInfo = backupProjectInfo
         }
 
         val (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
@@ -521,7 +479,7 @@ class JuggManager @TestOnly constructor(
             }
             deployHistoryManager.reInitAfterFullCompiled(
                 apkInfos,
-                allModules,
+                projectInfo.modules,
                 startCompileTime,
             )
 

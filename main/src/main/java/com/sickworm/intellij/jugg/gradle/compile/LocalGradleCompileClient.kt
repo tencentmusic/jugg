@@ -141,7 +141,7 @@ class LocalGradleCompileClient(
         return outputApkFile
     }
 
-    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File {
+    override fun fetchClasspathResult(buildDirs: List<ModuleBuildPathInfo>): File? {
         isCanceled = false
 
         val projectRootPath = File(projectDir.path)
@@ -150,11 +150,11 @@ class LocalGradleCompileClient(
         JuggSettings.isCanUseBackupClasspath = RsyncCompatibleHelper.isCompatible
         if (!JuggSettings.isCanUseBackupClasspath) {
             logger.info("isCanUseBackupClasspath is false, skip fetchClasspathResult")
-            return projectRootPath
+            return null
         }
         if (!JuggSettings.isEnableBackupClasspath) {
             logger.info("isSupportsBackupClasspath is false, skip fetchClasspathResult")
-            return projectRootPath
+            return null
         }
 
         try {

@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler
 import com.google.gson.Gson
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
@@ -21,11 +22,13 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.toRunConfigurationTemplate
+import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 
@@ -607,14 +610,16 @@ class JuggCompilerHelper(
 
     /**
      * Fetch classpath from gradle compile client.
-     * @return classpath root dir
      */
-    fun fetchClasspathResult(isRemote: Boolean, buildDirs: List<ModuleBuildPathInfo>, terminalOutputListener: IGradleCompileClient.TerminalOutputListener): File? {
+    fun fetchClasspath(
+        isRemote: Boolean,
+        projectInfo: JuggProjectInfo,
+        progressIndicator: ProgressIndicator?,
+        coroutineScope: CoroutineScope,
+    ): JuggProjectInfo? {
         val client = gradleCompileClientManager.getClient(isRemote, pathManager.localClasspathStoragePathManager.classpathDir)
-        client.terminalOutputListener = terminalOutputListener
-        val result = client.fetchClasspathResult(buildDirs)
-        client.terminalOutputListener = IGradleCompileClient.TerminalOutputListener.DEFAULT
-        return result
+        val classpathBackupHelper = ClasspathBackupHelper(client, progressIndicator, coroutineScope, logger)
+        return classpathBackupHelper.fetch(projectInfo)
     }
 
     override fun dispose() {

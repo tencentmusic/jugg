@@ -1,6 +1,6 @@
 package com.sickworm.intellij.jugg.cmdline.base
 
-import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.DumbProgressIndicator
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
@@ -10,26 +10,31 @@ import com.sickworm.intellij.jugg.deploy.data.DeployDataDatabase
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
+import com.sickworm.intellij.jugg.gradle.compile.RsyncCompatibleHelper
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.bean.SyncMode
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.ChangedFile
-import com.sickworm.intellij.jugg.project.IFileChangesHandler
-import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
+import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import java.io.File
 import kotlin.system.measureTimeMillis
 
 class BuildGradleBaseCommand(private val params: Params) {
 
+    init {
+        clearBuildDir()
+    }
+
     private val pathManager = JuggPathManager(params.baseBuildProjectDir)
-    private lateinit var logger: Logger
+    private val logger = CmdLineLogger.init("BuildGradleBaseCommand", pathManager.logDir, params.logLevel)
+    private val compileClient = LocalGradleCompileClient(
+        pathManager.projectDir,
+        pathManager.localClasspathStoragePathManager.classpathDir,
+        null,
+        logger,
+    )
 
     fun run(): Boolean {
         try {
@@ -49,9 +54,11 @@ class BuildGradleBaseCommand(private val params: Params) {
         }
     }
 
+    private fun clearBuildDir() {
+        JuggPathManager(params.baseBuildProjectDir).juggRootDir.deleteRecursively()
+    }
+
     private fun prepare() {
-        pathManager.juggRootDir.deleteRecursively()
-        logger = CmdLineLogger.init("BuildGradleBaseCommand", pathManager.logDir, params.logLevel)
         GradleScriptWriter(pathManager, logger).writeInitGradleFile()
     }
 
@@ -67,12 +74,6 @@ class BuildGradleBaseCommand(private val params: Params) {
         }
         logger.info("ANDROID_HOME: $androidHome")
 
-        val compileClient = LocalGradleCompileClient(
-            pathManager.projectDir,
-            pathManager.localClasspathStoragePathManager.classpathDir,
-            null,
-            logger,
-        )
         val compileCommand = "./gradlew ${params.gradleCompileTask}"
 
         val compileOptions = JuggGradleCompileOptions(
@@ -118,18 +119,46 @@ class BuildGradleBaseCommand(private val params: Params) {
 
         // backup library dependencies
         val gradleProjectInfo = getProjectInfo()
-        val backupJob = CoroutineScope(Dispatchers.IO).launch {
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+
+        var libraryProjectInfo: JuggProjectInfo? = null
+        val backupLibraryJob = coroutineScope.async {
             logger.info("Backup library dependencies start.")
             val costTime = measureTimeMillis {
                 try {
-                    val backupGradleProjectInfo = LibrariesBackupHelper(pathManager, gradleProjectInfo, logger).backup()
-                    ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).save(backupGradleProjectInfo)
+                    libraryProjectInfo = LibrariesBackupHelper(pathManager, gradleProjectInfo, logger).backup()
                 } catch (e: Exception) {
                     logger.warn("Backup library dependencies failed", e)
-                    pathManager.localClasspathStoragePathManager.librariesBackupDir.deleteRecursively()
                 }
             }
-            logger.info("Backup library dependencies finish. cost: ${costTime}ms")
+            logger.info("Backup library dependencies finish. cost ${costTime / 1000}s.")
+        }
+
+        var classpathProjectInfo: JuggProjectInfo? = null
+        val backupClasspathJob = coroutineScope.launch {
+            logger.info("Backup classpath start.")
+            RsyncCompatibleHelper.init(logger)
+            JuggSettings.isEnableBackupClasspath = true
+            val costTime = measureTimeMillis {
+                try {
+                    val currentIndicator = object : DumbProgressIndicator() {
+                        override fun setText(text: String?) {
+                            if (text != null) {
+                                logger.debug(text)
+                            }
+                        }
+                    }
+                    classpathProjectInfo = ClasspathBackupHelper(
+                        compileClient, currentIndicator, coroutineScope, logger, 5000L)
+                        .fetch(gradleProjectInfo)
+                    if (classpathProjectInfo == null) {
+                        logger.warn("Backup classpath failed.")
+                    }
+                } catch (e: Exception) {
+                    logger.warn("Backup classpath failed by exception", e)
+                }
+            }
+            logger.info("Backup classpath finish. cost ${costTime / 1000}s.")
         }
 
         // init deploy history
@@ -162,10 +191,20 @@ class BuildGradleBaseCommand(private val params: Params) {
         sourceFileManager.init(sourceDirs)
 
         runBlocking {
-            backupJob.join()
-            if (!pathManager.localClasspathStoragePathManager.librariesBackupDir.exists()) {
-                throw BaseBuildException("Backup library dependencies failed.")
+            backupLibraryJob.join()
+            backupClasspathJob.join()
+            val isBackupSuccess = libraryProjectInfo != null && classpathProjectInfo != null
+            if (!isBackupSuccess) {
+                throw BaseBuildException("Backup classpath and libraries failed.")
             }
+            val finalProjectInfo = JuggProjectInfo(
+                libraryProjectInfo!!.modules.mapValues {
+                    it.value.copy(
+                        buildPathInfo = classpathProjectInfo!!.modules[it.key]!!.buildPathInfo
+                    )
+                }
+            )
+            ProjectInfoSerializer(pathManager.gradleProjectInfoFile, logger).save(finalProjectInfo)
         }
 
         val costTime = System.currentTimeMillis() - startTime
