@@ -1,0 +1,99 @@
+//file:noinspection GroovyAssignabilityCheck
+
+// Apply Application plugin to enable runnable distribution
+apply plugin: 'application'
+
+// Specify the main class for the application
+//noinspection GrUnresolvedAccess
+application {
+    mainClass = 'com.sickworm.intellij.jugg.cmdline.CmdLineKt'
+}
+
+// Ensure the plain jar includes Main-Class for `java -jar` usage
+tasks.withType(Jar).configureEach {
+    manifest {
+        attributes('Main-Class': 'com.sickworm.intellij.jugg.cmdline.CmdLineKt')
+    }
+}
+
+// Customize the distribution:
+// - Include demo scripts and README under demo/
+// - Add demo_project.zip containing the MyApplicationIntellij project (excluding all build directories)
+distributions {
+    main {
+        contents {
+            from("${projectDir}/src/demo") {
+                into('demo')
+            }
+            from(tasks.register('demoProjectZip', Zip) {
+                it.group = 'distribution'
+                it.description = 'Zip MyApplicationIntellij demo project excluding build dirs'
+                it.archiveFileName.set('demo_project.zip')
+                it.destinationDirectory.set(layout.buildDirectory.dir('demo'))
+                def demoProjectDir = file("${rootProject.projectDir}/idea/src/test/assets/android/MyApplicationIntellij")
+                it.from(demoProjectDir) {
+                    exclude '**/build/**'
+                    into 'demo_project'
+                }
+            }.flatMap { it.archiveFile }) {
+                into('demo')
+            }
+        }
+    }
+}
+
+// Post-process: after distZip completes, clean old unzipped directory and unzip the new archive for quick testing
+def unzipDistTask = tasks.register('unzipDistZip') {
+    group = 'distribution'
+    description = 'Unzip cmd_line.zip to build/distributions, cleaning old directory first'
+    dependsOn(tasks.named('distZip'))
+    doLast {
+        def distDir = layout.buildDirectory.dir('distributions').get().asFile
+        def zipFile = new File(distDir, "${project.name}.zip")
+        if (!zipFile.exists()) {
+            throw new GradleException("Distribution zip not found: ${zipFile}")
+        }
+        def targetDir = new File(distDir, project.name)
+        if (targetDir.exists()) {
+            project.delete(targetDir)
+        }
+        project.copy {
+            from project.zipTree(zipFile)
+            into distDir
+        }
+        println("Unzipped ${zipFile.name} to ${targetDir.absolutePath}")
+    }
+}
+
+// Post-process: open the demo directory in the unzipped distribution
+def openDemoTask = tasks.register('openDemoDir') {
+    group = 'distribution'
+    description = 'Open the demo directory of the unzipped distribution'
+    dependsOn(unzipDistTask)
+    doLast {
+        def distDir = layout.buildDirectory.dir('distributions').get().asFile
+        def demoDir = new File(distDir, "${project.name}/demo")
+        if (!demoDir.exists()) {
+            throw new GradleException("Demo directory not found: ${demoDir}")
+        }
+        def osName = System.getProperty('os.name').toLowerCase()
+        if (osName.contains('mac')) {
+            project.exec {
+                commandLine 'open', demoDir.absolutePath
+            }
+        } else if (osName.contains('win')) {
+            project.exec {
+                commandLine 'cmd', '/c', 'start', demoDir.absolutePath
+            }
+        } else {
+            // Linux and others
+            project.exec {
+                commandLine 'xdg-open', demoDir.absolutePath
+            }
+        }
+        println("Opened demo directory: ${demoDir.absolutePath}")
+    }
+}
+
+tasks.named('distZip').configure { finalizedBy(unzipDistTask, openDemoTask) }
+// Java compatibility is inherited from the module (11)

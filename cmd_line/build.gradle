@@ -1,4 +1,5 @@
 //file:noinspection ConfigurationAvoidance
+//file:noinspection GroovyAssignabilityCheck
 
 plugins {
     id 'java'
@@ -34,3 +35,6 @@ dependencies {
     testImplementation "junit:junit:4.12"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
 }
+
+// Apply external distribution and packaging configuration
+apply from: 'cmdline-distribution.gradle'
