@@ -9,8 +9,6 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.project.BaseCompileContext
-import com.sickworm.intellij.jugg.project.FileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -22,27 +20,19 @@ import java.io.File
 class BuildIncrementalApkCommand(private val params: Params) {
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
-
-    private val baseBuildPathManager = JuggPathManager(params.baseBuildProjectDir)
-
-    private val logger = CmdLineLogger.init("BuildIncrementalApkCommand", baseBuildPathManager.logDir, params.logLevel)
-
-    private val fileChangesHandler = FileChangesHandler(
-        baseBuildPathManager.projectDir,
-        baseBuildPathManager.juggRootDir,
-        logger,
-    )
-
-    private val dirtyFlag = File(baseBuildPathManager.juggRootDir, ".dirty")
+    private val pathManager = JuggPathManager(params.sourceProjectDir, params.baseBuildJuggRootDir)
+    private val dirtyFlag = File(pathManager.juggRootDir, ".dirty")
+    private val logger = CmdLineLogger.init("BuildIncrementalApkCommand", pathManager.logDir, params.logLevel)
+    private val contextManager = ContextManager(pathManager, coroutineScope, logger)
 
     fun run(): Boolean {
         try {
             logger.info("Init compile context...")
             TimeLogger.start("Init compile context")
             checkDirty()
-            val context = getCompileContext()
-            val compiler = getCompiler(context)
-            val compileTask = getCompileTask(context)
+            contextManager.init()
+            val compiler = getCompiler()
+            val compileTask = getCompileTask()
             TimeLogger.end("Init compile context", logger)
 
             val compileResult = compiler.compile(compileTask)
@@ -51,7 +41,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
                 return false
             }
             logger.info("Compile success.")
-            updateApk(context, compileResult)
+            updateApk(contextManager.compileContext, compileResult)
             logger.info("Update apk success.")
             return true
         } catch (e: IncrementalException) {
@@ -73,62 +63,8 @@ class BuildIncrementalApkCommand(private val params: Params) {
         dirtyFlag.createNewFile()
     }
 
-    private fun getCompileContext(): ICompileContext {
-        val envValue = System.getenv("ANDROID_HOME")
-            ?: throw IncrementalException("Environment variable ANDROID_HOME is not set.")
-        val androidHome = File(envValue)
-        if (!androidHome.exists()) {
-            throw IncrementalException("Environment variable ANDROID_HOME($androidHome) not exists.")
-        }
-
-        val cmdCompileEnv = System.getenv().entries
-           .map {
-                "${it.key}=${it.value}"
-            }
-            .toMutableList()
-
-        val compileContextDb = CompileContextDb(
-            dbDir = baseBuildPathManager.compileContextDbDir,
-            logger = logger,
-        )
-        val compileContextInfo = compileContextDb.getCompileBuildPathInfoFromDb()
-            ?: throw IncrementalException("Argument 'baseBuildProjectDir' invalid, can get compile history in it.")
-        if (compileContextInfo.apkInfos.isEmpty()) {
-            throw IncrementalException("Argument 'baseBuildProjectDir' invalid, can not found apk infos in it.")
-        }
-
-        val baseContext = BaseCompileContext(
-            logger = logger,
-            androidHome = androidHome,
-            tempCompileDir = File(baseBuildPathManager.compileRootDir, "compiled"),
-            tempModuleDir = File(baseBuildPathManager.compileRootDir, "temp_module"),
-            modules = getProjectInfo().modules,
-            projectDir = baseBuildPathManager.projectDir,
-            deployFileManager = DeployFileManager(
-                logger,
-                baseBuildPathManager.tmpDir,
-                baseBuildPathManager.databaseDir,
-                coroutineScope,
-            ),
-            deployHistoryManager = DeployHistoryManager(
-                baseBuildPathManager,
-                FileChangesHandler(
-                    baseBuildPathManager.projectDir,
-                    baseBuildPathManager.juggRootDir,
-                    logger,
-                ),
-                logger,
-            ),
-            incrementalDataDir = File(baseBuildPathManager.compileRootDir, "incremental"),
-            cmdCompileEnv = cmdCompileEnv,
-            apkInfos = compileContextInfo.apkInfos,
-            scene = ICompileContext.Scene.INCREMENTAL_APK
-        )
-        return baseContext
-    }
-
     private fun getProjectInfo(): JuggProjectInfo {
-        val gradleProjectInfoFile = baseBuildPathManager.gradleProjectInfoFile
+        val gradleProjectInfoFile = pathManager.gradleProjectInfoFile
         if (!gradleProjectInfoFile.exists()) {
             throw IncrementalException("Gradle project info file not exists: ${gradleProjectInfoFile.absolutePath}")
         }
@@ -140,16 +76,16 @@ class BuildIncrementalApkCommand(private val params: Params) {
         return gradleProjectInfo
     }
 
-    private fun getCompiler(context: ICompileContext): ICompiler {
+    private fun getCompiler(): ICompiler {
         val idleDisposer = object : Disposable {
             override fun dispose() = Unit
         }
-        val juggServer = JuggServer(baseBuildPathManager.projectDir.name, baseBuildPathManager, coroutineScope, logger)
-        val customCompilerManager = CustomCompilerManager(baseBuildPathManager.projectDir, baseBuildPathManager.customCompilerDir, juggServer, logger)
-        return JuggCompiler(context, idleDisposer, customCompilerManager::getCustomCompilers)
+        val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
+        val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
+        return JuggCompiler(contextManager.compileContext, idleDisposer, customCompilerManager::getCustomCompilers)
     }
 
-    private fun getCompileTask(context: ICompileContext): CompileTask {
+    private fun getCompileTask(): CompileTask {
         val changedFiles = params.changedFiles // changed files comes from source project dir
         if (changedFiles.isEmpty()) {
             throw IncrementalException("Argument 'changedFiles' is empty.")
@@ -163,20 +99,9 @@ class BuildIncrementalApkCommand(private val params: Params) {
             }
         }
 
-        // copy to base build dir
-        val baseChangedFiles = changedFiles.map {
-            if (params.baseBuildProjectDir == params.sourceProjectDir) {
-                return@map it
-            }
-            val baseChangedFile = it.changeBaseDir(params.sourceProjectDir, params.baseBuildProjectDir)
-            it.copyTo(baseChangedFile, overwrite = true)
-            return@map baseChangedFile
-        }
-
         // build source dir FileChangesHandler
-        fileChangesHandler.init(context)
-        val changedCompileFiles = fileChangesHandler.filter(baseChangedFiles)
-        if (changedCompileFiles.size != baseChangedFiles.size) {
+        val changedCompileFiles = contextManager.fileChangesHandler.filter(changedFiles)
+        if (changedCompileFiles.size != changedFiles.size) {
             throw IncrementalException("Files check failed, not all files are compilable." +
                     "\nchangedFiles:\n${changedFiles.joinToString("\n", prefix = "    ") { it.path }}" +
                     "\ncompileFiles:\n${changedCompileFiles.joinToString("\n", prefix = "    ") { it.file.path }}"
@@ -191,7 +116,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
         val compileFiles: List<CompileFile> = changedCompileFiles.map {
             CompileFile(it.type, it.file, it.baseDir, it.module)
         }
-        return CompileTask(compileFiles, baseBuildPathManager.stagingDir, CompileStatusHolder.DEFAULT)
+        return CompileTask(compileFiles, pathManager.stagingDir, CompileStatusHolder.DEFAULT)
     }
 
     private fun updateApk(context: ICompileContext, compileResult: CompileResult) {
@@ -238,6 +163,8 @@ class BuildIncrementalApkCommand(private val params: Params) {
                     throw IncrementalException("Update apk failed: ${apkFile.absolutePath}", e)
                 }
             }
+            params.outputApkDir.deleteRecursively()
+            params.outputApkDir.mkdirs()
             val outputApkFile = File(params.outputApkDir, apkFile.name)
             apkFile.copyTo(outputApkFile, true)
             if (!outputApkFile.exists() || outputApkFile.length() == 0L) {

@@ -163,7 +163,7 @@ class DeployHistoryManager(
      * Current project directory is history.
      * Used to detect whether user copied the project
      */
-    private var historyProjectDir: File?
+    override var historyProjectDir: File?
         get() {
             return pathManager.historyProjectDirFile.takeIf { it.exists() }
                 ?.readText(Charsets.UTF_8)

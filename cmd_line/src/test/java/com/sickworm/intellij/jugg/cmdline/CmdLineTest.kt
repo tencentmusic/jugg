@@ -28,7 +28,7 @@ class CmdLineTest {
 
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_INCREMENTAL_APK.value}",
-            "baseBuildProjectDir=${Global.projectRootDir}",
+            "baseBuildJuggRootDir=${Global.projectRootDir}/build/jugg",
             "sourceProjectDir=${Global.projectRootDir}",
             "outputApkDir=${Global.outputDir}",
             "changedFiles=../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt:../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity2.java",

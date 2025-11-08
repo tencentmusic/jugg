@@ -17,16 +17,16 @@ class ParamsParser {
             keyValueMap[key] = value
         }
 
-        val baseBuildProjectDirValue = keyValueMap["baseBuildProjectDir"] ?: ""
+        val baseBuildProjectDirValue = keyValueMap["baseBuildJuggRootDir"] ?: ""
         if (baseBuildProjectDirValue.isEmpty()) {
-            throw IncrementalException("Param 'baseBuildProjectDir' not found.")
+            throw IncrementalException("Param 'baseBuildJuggRootDir' not found.")
         }
-        var baseBuildProjectDir = File(baseBuildProjectDirValue).normalize()
-        if (!baseBuildProjectDir.exists()) {
-            throw IncrementalException("Param 'baseBuildProjectDir' invalid, not exists: $baseBuildProjectDirValue")
+        var baseBuildJuggRootDir = File(baseBuildProjectDirValue).normalize()
+        if (!baseBuildJuggRootDir.exists()) {
+            throw IncrementalException("Param 'baseBuildJuggRootDir' invalid, not exists: $baseBuildProjectDirValue")
         }
-        if (!baseBuildProjectDir.isAbsolute) {
-            baseBuildProjectDir = baseBuildProjectDir.absoluteFile
+        if (!baseBuildJuggRootDir.isAbsolute) {
+            baseBuildJuggRootDir = baseBuildJuggRootDir.absoluteFile
         }
 
         val sourceProjectDirValue = keyValueMap["sourceProjectDir"] ?: baseBuildProjectDirValue
@@ -67,7 +67,7 @@ class ParamsParser {
         val logLevel = Level.toLevel(logLevelValue)
 
         return Params(
-            baseBuildProjectDir = baseBuildProjectDir,
+            baseBuildJuggRootDir = baseBuildJuggRootDir,
             sourceProjectDir = sourceProjectDir,
             outputApkDir = outputApkDir,
             changedFiles = changedFiles,

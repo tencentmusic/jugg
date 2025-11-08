@@ -38,6 +38,11 @@ interface IDeployHistoryManager {
     var isForceReinstall: Boolean
 
     /**
+     * Current project directory is history.
+     */
+    val historyProjectDir: File?
+
+    /**
      * Delete the deployment history and fallback at next time compilation.
      */
     fun deleteDeployHistory()
@@ -82,6 +87,9 @@ interface IDeployHistoryManager {
 
     fun getDeployHistoryData(): DeployHistoryData?
 
+    /**
+     * Check whether project dir changed and write down the current project directory.
+     */
     fun checkProjectDirChanged()
 
     /**
