@@ -7,12 +7,12 @@ import java.io.File
 import java.sql.DriverManager
 import java.sql.ResultSet
 
-class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logger: Logger) {
+class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     companion object {
-        private const val VERSION = 2
+        private const val VERSION = 3
     }
 
     @Synchronized
@@ -92,7 +92,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val deleteSQL = "DELETE FROM source_dirs WHERE path = ?"
                 connection.prepareStatement(deleteSQL).use { statement ->
                     deleteDirs.forEach { dir ->
-                        statement.setString(1, dir.absolutePath)
+                        statement.setString(1, dir.relativeTo(projectDir).path)
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -104,7 +104,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val insertSQL = "INSERT INTO source_dirs(path) VALUES(?)"
                     connection.prepareStatement(insertSQL).use { statement ->
                         addDirs.forEach { dir ->
-                            statement.setString(1, dir.absolutePath)
+                            statement.setString(1, dir.relativeTo(projectDir).path)
                             statement.addBatch()
                         }
                         statement.executeBatch()
@@ -121,8 +121,8 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     connection.prepareStatement(insertSQL).use { statement ->
                         newFiles.forEach { (dir, files) ->
                             files.forEach { file ->
-                                statement.setString(1, dir.absolutePath)
-                                statement.setString(2, file.absolutePath)
+                                statement.setString(1, dir.relativeTo(projectDir).path)
+                                statement.setString(2, file.relativeTo(projectDir).path)
                                 statement.setString(3, file.name)
                                 statement.addBatch()
                             }
@@ -137,7 +137,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                     val deleteSQL = "DELETE FROM file_infos WHERE source_dir_path = ?"
                     connection.prepareStatement(deleteSQL).use { statement ->
                         deleteDirs.forEach { dir ->
-                            statement.setString(1, dir.absolutePath)
+                            statement.setString(1, dir.relativeTo(projectDir).path)
                             statement.addBatch()
                         }
                         statement.executeBatch()
@@ -157,8 +157,8 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val insertSQL = "INSERT OR REPLACE INTO file_infos(source_dir_path, path, name) VALUES(?, ?, ?)"
                 connection.prepareStatement(insertSQL).use { statement ->
                     addFiles.forEach { file ->
-                        statement.setString(1, file.baseDir.absolutePath)
-                        statement.setString(2, file.file.absolutePath)
+                        statement.setString(1, file.baseDir.relativeTo(projectDir).path)
+                        statement.setString(2, file.file.relativeTo(projectDir).path)
                         statement.setString(3, file.file.name)
                         statement.addBatch()
                     }
@@ -170,7 +170,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 val deleteSQL = "DELETE FROM file_infos WHERE path = ?"
                 connection.prepareStatement(deleteSQL).use { statement ->
                     deleteFiles.forEach { file ->
-                        statement.setString(1, file.absolutePath)
+                        statement.setString(1, file.relativeTo(projectDir).path)
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -194,7 +194,7 @@ class SourceFileDatabaseSqLiteHelper(private val dbFile: File, private val logge
                 statement.executeQuery(selectSQL).use { resultSet ->
                     while (resultSet.next()) {
                         val path = resultSet.getString("path")
-                        files.add(File(path))
+                        files.add(File(projectDir, path))
                     }
                 }
             }

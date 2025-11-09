@@ -37,6 +37,7 @@ class CmdLineContextManager(
     )
 
     val deployFileManager = DeployFileManager(
+        pathManager.projectDir,
         logger,
         pathManager.tmpDir,
         pathManager.databaseDir,

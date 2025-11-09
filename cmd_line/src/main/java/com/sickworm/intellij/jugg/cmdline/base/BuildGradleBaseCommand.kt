@@ -188,7 +188,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         deployDataDatabase.init(apkInfos, emptyList())
 
         // init source file manager
-        val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)
+        val sourceFileManager = SourceFileManager(pathManager.projectDir, databaseDir, logger.getInstance("SourceFileManager"))
         val sourceDirs = gradleProjectInfo.modules.flatMap {
             it.value.sourceDirs
         }

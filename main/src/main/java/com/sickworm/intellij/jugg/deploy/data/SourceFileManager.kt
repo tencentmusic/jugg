@@ -6,9 +6,13 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import org.sqlite.SQLiteException
 import java.io.File
 
-class SourceFileManager(private val logger: Logger, dbDir: File) {
+class SourceFileManager(
+    projectDir: File,
+    dbDir: File,
+    private val logger: Logger,
+) {
 
-    private val database = SourceFileDatabaseSqLiteHelper(File(dbDir, "source_files.db"), logger.getInstance("SourceFileDatabaseSqLiteHelper"))
+    private val database = SourceFileDatabaseSqLiteHelper(projectDir, File(dbDir, "source_files.db"), logger.getInstance("SourceFileDatabaseSqLiteHelper"))
 
     private var sourceDirs = emptyList<File>()
 

@@ -29,6 +29,7 @@ import java.util.zip.ZipFile
  * Manage runtime deploy file status and provides [JuggDeployData]
  */
 class DeployFileManager(
+    projectDir: File,
     private val logger: Logger,
     private val tmpDir: File,
     databaseDir: File,
@@ -69,7 +70,7 @@ class DeployFileManager(
     /**
      * get source file by source file name in dex file
      */
-    private val sourceFileManager = SourceFileManager(logger.getInstance("SourceFileManager"), databaseDir)
+    private val sourceFileManager = SourceFileManager(projectDir, databaseDir, logger.getInstance("SourceFileManager"))
 
     private var moduleInfos: Map<String, ModuleInfo> = emptyMap()
 

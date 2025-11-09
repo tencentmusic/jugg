@@ -26,7 +26,7 @@ class SourceFileDatabaseSqLiteHelperTest {
 
     @Test
     fun testCreateDataBase() {
-        val helper = SourceFileDatabaseSqLiteHelper(dbFile, logger)
+        val helper = SourceFileDatabaseSqLiteHelper(TestGlobal.projectInfo.projectRoot, dbFile, logger)
 
         helper.init()
         assertTrue(dbFile.exists())
@@ -34,7 +34,7 @@ class SourceFileDatabaseSqLiteHelperTest {
 
     @Test
     fun testUpdateSourceDirs() {
-        val helper = SourceFileDatabaseSqLiteHelper(dbFile, logger)
+        val helper = SourceFileDatabaseSqLiteHelper(TestGlobal.projectInfo.projectRoot, dbFile, logger)
         helper.init()
         helper.updateSourceDirs(sourceDirs1)
         val sourceDirs1FileSize = helper.getFiles().size
@@ -55,7 +55,7 @@ class SourceFileDatabaseSqLiteHelperTest {
 
     @Test
     fun testUpdateFiles() {
-        val helper = SourceFileDatabaseSqLiteHelper(dbFile, logger)
+        val helper = SourceFileDatabaseSqLiteHelper(TestGlobal.projectInfo.projectRoot, dbFile, logger)
         helper.init()
         helper.updateSourceDirs(sourceDirs)
         var originFileSize = helper.getFiles().size
