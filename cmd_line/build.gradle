@@ -42,7 +42,9 @@ dependencies {
     // of the Java Runtime (class file version 61.0), this version of the Java Runtime only recognizes
     // class file versions up to 55.0
     implementation 'androidx.databinding:databinding-compiler:7.4.2'
-    implementation 'androidx.databinding:databinding-compiler-common:7.4.2'
+    implementation 'androidx.databinding:databinding-compiler-common:7.4.2'// https://mvnrepository.com/artifact/org.slf4j/slf4j-nop
+    // avoid warning: "SLF4J: Failed to load class org.slf4j.impl.StaticLoggerBinder."
+    implementation 'org.slf4j:slf4j-nop:1.7.36'
 }
 
 // Apply external distribution and packaging configuration
