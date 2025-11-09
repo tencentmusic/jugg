@@ -500,7 +500,7 @@ class BaseCompileContext(
     override fun backupGradleDir(sourceDir: File, overrideOnExists: Boolean, dryRun: Boolean): File {
         val projectRootDir = modules.values.first().projectRootDir
         val relativePath = sourceDir.relativeTo(projectRootDir).path.replace("..", "__")
-        val targetDir = File(projectRootDir, relativePath)
+        val targetDir = File(incrementalDataDir, relativePath)
         logger.debug("backupGradleDir from $sourceDir(exists: ${sourceDir.exists()}) to " +
                 "$targetDir(exists: ${targetDir.exists()}), overrideOnExists: $overrideOnExists, dryRun: $dryRun")
         if (dryRun) {
