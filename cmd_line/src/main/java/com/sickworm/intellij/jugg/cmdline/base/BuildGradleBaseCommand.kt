@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.apk.ApkInfoReader
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.data.DeployDataDatabase
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
@@ -28,6 +27,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         clearBuildDir()
     }
 
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private val pathManager = JuggPathManager(params.baseBuildProjectDir)
     private val logger = CmdLineLogger.init("BuildGradleBaseCommand", pathManager.logDir, params.logLevel)
     private val compileClient = LocalGradleCompileClient(
@@ -52,6 +52,9 @@ class BuildGradleBaseCommand(private val params: Params) {
             logger.warn("Build gradle base failed unexpected", e)
             logger.warn("Build gradle base got unexpected error: ${e.message}")
             return false
+        } finally {
+            coroutineScope.cancel()
+            CmdLineLogger.release("BuildGradleBaseCommand")
         }
     }
 
@@ -120,7 +123,6 @@ class BuildGradleBaseCommand(private val params: Params) {
 
         // backup library dependencies
         val gradleProjectInfo = getProjectInfo()
-        val coroutineScope = CoroutineScope(Dispatchers.IO)
 
         var libraryProjectInfo: JuggProjectInfo? = null
         val backupLibraryJob = coroutineScope.async {

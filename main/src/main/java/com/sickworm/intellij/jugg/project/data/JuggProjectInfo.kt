@@ -45,6 +45,11 @@ data class ModuleInfo(
     val isUseViewBinding: Boolean? = null,
     val isUseDataBinding: Boolean? = null,
     val kspDependencies: List<LibraryDependency>? = null,
+
+    // if adds new files info, also updates:
+    // JuggProjectInfoSerialize, JuggProjectInfoMerger, ProjectInfoSerializerInGradle
+    // CmdLineContextManager, LibrariesBackupHelper
+    // :(
 ) {
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")

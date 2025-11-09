@@ -11,6 +11,7 @@ fun main(args: Array<String>) {
     if (!result) {
         exitProcess(-1)
     }
+    exitProcess(0)
 }
 
 class CmdLine {

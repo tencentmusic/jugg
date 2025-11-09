@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.cmdline.logger
 
 import com.intellij.openapi.diagnostic.DefaultLogger
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.logger.FileLogger
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import org.apache.log4j.Level
 import org.jetbrains.annotations.NonNls
@@ -60,10 +61,15 @@ object CmdLineLogger {
     @Suppress("UnnecessaryVariable")
     fun init(name: String, logDir: File, level: Level): Logger {
         stdLogger.setLevel(level)
+        FileLogger.isCreateLastLogLinkFile = false
 
         val instanceKey = name
         JuggLogger.register(instanceKey, logDir)
         JuggLogger.listenProjectLog(instanceKey, stdLogger)
         return JuggLogger.getInstance(instanceKey, name)
+    }
+
+    fun release(name: String) {
+        JuggLogger.unregister(name)
     }
 }

@@ -36,6 +36,8 @@ class FileLogger(
         private const val LATEST_LOG_NAME = "compile_latest.log"
         private const val LAST_LATEST_LOG_NAME = "compile_latest-1.log"
 
+        var isCreateLastLogLinkFile: Boolean = true
+
         private fun createPatternName(): String {
             return "compile_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date()) + ".%g.log"
         }
@@ -81,6 +83,14 @@ class FileLogger(
             }
             loggerHandler.formatter = formatter
 
+            if (isCreateLastLogLinkFile) {
+                createLastLogFiles(dir, name)
+            }
+
+            return loggerHandler
+        }
+
+        private fun createLastLogFiles(dir: File, name: String) {
             val latestLogFile = File(dir, LATEST_LOG_NAME)
             val lastLatestLogFile = File(dir, LAST_LATEST_LOG_NAME)
             try {
@@ -110,8 +120,6 @@ class FileLogger(
                 com.intellij.openapi.diagnostic.Logger.getInstance("Jugg")
                     .warn("createFileHandler $latestLogFile error", e)
             }
-
-            return loggerHandler
         }
 
         private const val MAX_LOG_FILE_AMOUNT = 10

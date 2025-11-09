@@ -11,6 +11,7 @@ import java.io.File
  * Manage compile context build files, e.g. apk, classpath, etc.
  */
 class CompileContextDb(
+    private val juggRootDir: File,
     private val dbDir: File,
     private val logger: Logger,
 ) {
@@ -38,7 +39,7 @@ class CompileContextDb(
         }
 
     private var apkInfosCache: List<ApkInfo>? = if (apkInfoFile.exists()) {
-        ApkInfoSerializer().deserialize(apkInfoFile.readText())
+        ApkInfoSerializer().deserialize(juggRootDir, apkInfoFile.readText())
     } else {
         null
     }
@@ -52,7 +53,7 @@ class CompileContextDb(
 
         // save apk info
         apkInfoFile.parentFile?.mkdirs()
-        apkInfoFile.writeText(ApkInfoSerializer().serialize(apkInfos), Charsets.UTF_8)
+        apkInfoFile.writeText(ApkInfoSerializer().serialize(juggRootDir, apkInfos), Charsets.UTF_8)
         apkInfosCache = apkInfos
 
         // save module info
@@ -78,7 +79,7 @@ class CompileContextDb(
             return null
         }
 
-        val apkInfos = ApkInfoSerializer().deserialize(apkInfoFile.readText())
+        val apkInfos = ApkInfoSerializer().deserialize(juggRootDir, apkInfoFile.readText())
         if (apkInfos.isEmpty()) {
             logger.warn("Failed to load apk info from db")
             completeFlagFile.delete()

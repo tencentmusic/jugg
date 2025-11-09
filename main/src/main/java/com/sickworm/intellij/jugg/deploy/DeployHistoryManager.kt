@@ -26,6 +26,7 @@ class DeployHistoryManager(
         logger = logger,
     ),
     private val compileContextDb: CompileContextDb = CompileContextDb(
+        juggRootDir = pathManager.juggRootDir,
         dbDir = pathManager.compileContextDbDir,
         logger = logger,
     ),

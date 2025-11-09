@@ -1,8 +1,8 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
-import com.sickworm.intellij.jugg.cmdline.base.BaseBuildException
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
@@ -16,6 +16,7 @@ import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import java.io.File
 
 class BuildIncrementalApkCommand(private val params: Params) {
@@ -24,7 +25,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
     private val pathManager = JuggPathManager(params.sourceProjectDir, params.baseBuildJuggRootDir)
     private val dirtyFlag = File(pathManager.juggRootDir, ".dirty")
     private val logger = CmdLineLogger.init("BuildIncrementalApkCommand", pathManager.logDir, params.logLevel)
-    private val contextManager = ContextManager(pathManager, coroutineScope, logger)
+    private val contextManager = CmdLineContextManager(pathManager, coroutineScope, logger)
 
     fun run(): Boolean {
         try {
@@ -53,12 +54,16 @@ class BuildIncrementalApkCommand(private val params: Params) {
             logger.warn("Compile failed unexpected", e)
             logger.warn("Compile got unexpected error: ${e.message}")
             return false
+        } finally {
+            coroutineScope.cancel()
+            Disposer.dispose(contextManager.disposer)
+            CmdLineLogger.release("BuildIncrementalApkCommand")
         }
     }
 
     private fun checkDirty() {
         if (dirtyFlag.exists()) {
-            throw IncrementalException("Argument 'baseBuildProjectDir' invalid, $dirtyFlag exists, which means directory was compiled before.")
+            throw IncrementalException("Argument 'baseBuildJuggRootDir' invalid, $dirtyFlag exists, which means directory was compiled before.")
         }
         dirtyFlag.parentFile.mkdirs()
         dirtyFlag.createNewFile()
@@ -78,12 +83,9 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     private fun getCompiler(): ICompiler {
-        val idleDisposer = object : Disposable {
-            override fun dispose() = Unit
-        }
         val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
         val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
-        return JuggCompiler(contextManager.compileContext, idleDisposer, customCompilerManager::getCustomCompilers)
+        return JuggCompiler(contextManager.compileContext, contextManager.disposer, customCompilerManager::getCustomCompilers)
     }
 
     private fun getCompileTask(): CompileTask {
