@@ -29,11 +29,20 @@ repositories {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-    implementation project(':main')
+    implementation(project(':main')) {
+        exclude group: 'androidx.databinding'
+    }
     implementation project(':platform_compat:base_api')
 
     testImplementation "junit:junit:4.12"
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
+
+    // override databinding library to Java 11 class, or will get:
+    // android/databinding/parser/XMLParser$ElementContext has been compiled by a more recent version
+    // of the Java Runtime (class file version 61.0), this version of the Java Runtime only recognizes
+    // class file versions up to 55.0
+    implementation 'androidx.databinding:databinding-compiler:7.4.2'
+    implementation 'androidx.databinding:databinding-compiler-common:7.4.2'
 }
 
 // Apply external distribution and packaging configuration
