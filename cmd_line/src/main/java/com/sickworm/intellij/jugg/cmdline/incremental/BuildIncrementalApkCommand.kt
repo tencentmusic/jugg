@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
@@ -10,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
@@ -33,17 +33,18 @@ class BuildIncrementalApkCommand(private val params: Params) {
             TimeLogger.start("Init compile context")
             checkDirty()
             contextManager.init()
-            val compiler = getCompiler()
-            val compileTask = getCompileTask()
+            val compilerHelper = getCompilerHelper()
+            val changedFiles = getChangedFiles()
             TimeLogger.end("Init compile context", logger)
 
-            val compileResult = compiler.compile(compileTask)
-            if (!compileResult.isAllSuccess) {
+            val compileResult = compilerHelper.compile(changedFiles,
+                CompileUiHandler.DEFAULT, CompileUiHandler.DEFAULT.createCompileStatusHolder())
+            if (!compileResult.isSuccess) {
                 logger.warn("Compile failed, exit.")
                 return false
             }
             logger.info("Compile success.")
-            updateApk(contextManager.compileContext, compileResult)
+            updateApk(contextManager.compileContext, compileResult.incrementalCompileResult!!)
             logger.info("Update apk success.")
             return true
         } catch (e: IncrementalException) {
@@ -82,13 +83,23 @@ class BuildIncrementalApkCommand(private val params: Params) {
         return gradleProjectInfo
     }
 
-    private fun getCompiler(): ICompiler {
+    private fun getCompilerHelper(): IncrementalCompilerHelper {
         val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
         val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
-        return JuggCompiler(contextManager.compileContext, contextManager.disposer, customCompilerManager::getCustomCompilers)
+        val juggCompiler = JuggCompiler(contextManager.compileContext, contextManager.disposer, customCompilerManager::getCustomCompilers)
+
+        return IncrementalCompilerHelper(
+            juggCompiler,
+            pathManager,
+            contextManager.deployStateManager,
+            contextManager.deployFileManager,
+            contextManager.fileChangesHandler,
+            contextManager.dependencyMissingResolver,
+            logger
+        )
     }
 
-    private fun getCompileTask(): CompileTask {
+    private fun getChangedFiles(): List<ChangedFile> {
         val changedFiles = params.changedFiles // changed files comes from source project dir
         if (changedFiles.isEmpty()) {
             throw IncrementalException("Argument 'changedFiles' is empty.")
@@ -116,10 +127,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
             }
         }
 
-        val compileFiles: List<CompileFile> = changedCompileFiles.map {
-            CompileFile(it.type, it.file, it.baseDir, it.module)
-        }
-        return CompileTask(compileFiles, pathManager.stagingDir, CompileStatusHolder.DEFAULT)
+        return changedCompileFiles
     }
 
     private fun updateApk(context: ICompileContext, compileResult: CompileResult) {
@@ -155,7 +163,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
                     }
                 }
             }
-            logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n", "    ") { it.name }}\n")
+            logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n") { "    " + it.name }}\n")
             if (deployItems.isNotEmpty()) {
                 deployItems.forEach {
                     modifier.addFile(it.name, it.content)

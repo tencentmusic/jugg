@@ -381,7 +381,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
-        val compileUiHandler = JuggCompileUiHandler(
+        val compileUiHandler = JuggCompileUiHandler(project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = false,
             options.toCompileOptions(pathManager),

@@ -30,6 +30,7 @@ interface CompileUiHandler {
 
     fun updateIndicatorText(text: String)
     fun listenCancelAction(listener: (() -> Unit)?)
+    fun notifyByBalloon(text: String)
 
     fun onEnd(runResult: RunResult) = Unit
 
@@ -51,6 +52,7 @@ interface CompileUiHandler {
 
             override fun updateIndicatorText(text: String) = Unit
             override fun listenCancelAction(listener: (() -> Unit)?) = Unit
+            override fun notifyByBalloon(text: String) = Unit
 
             override fun cancel() = Unit
         }

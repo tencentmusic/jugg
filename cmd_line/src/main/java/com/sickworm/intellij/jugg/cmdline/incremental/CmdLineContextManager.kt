@@ -2,11 +2,11 @@ package com.sickworm.intellij.jugg.cmdline.incremental
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.IDependencyMissingResolver
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
-import com.sickworm.intellij.jugg.deploy.CompileContextDb
-import com.sickworm.intellij.jugg.deploy.DeployFileManager
-import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
+import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.BaseCompileContext
 import com.sickworm.intellij.jugg.project.FileChangesHandler
@@ -14,7 +14,6 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
@@ -37,12 +36,24 @@ class CmdLineContextManager(
         logger,
     )
 
-    private val deployFileManager = DeployFileManager(
+    val deployFileManager = DeployFileManager(
         logger,
         pathManager.tmpDir,
         pathManager.databaseDir,
         coroutineScope,
     )
+
+    val deployStateManager = object : IDeployStateManager {
+        override fun updateDeployState(): JuggDeployState {
+            return JuggDeployState.READY
+        }
+    }
+
+    val dependencyMissingResolver = object : IDependencyMissingResolver {
+        override fun resolve(compileResult: CompileResult): Boolean {
+            return false
+        }
+    }
 
     private val deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
@@ -86,11 +97,6 @@ class CmdLineContextManager(
                 return this
             }
             return changeBaseDir(historyProjectDir, pathManager.projectDir)
-        }
-        fun List<LibraryDependency>.convertSourceBaseDir(): List<LibraryDependency> {
-            return this.map {
-                it.copy(file = it.file.convertSourceBaseDir())
-            }
         }
         fun List<File>.convertSourceBaseDir(): List<File> {
             return this.map {
@@ -160,6 +166,7 @@ class CmdLineContextManager(
         )
 
         fileChangesHandler.init(baseContext)
+        deployFileManager.init(baseContext.apkInfos, emptyList(), null)
         return baseContext
     }
 

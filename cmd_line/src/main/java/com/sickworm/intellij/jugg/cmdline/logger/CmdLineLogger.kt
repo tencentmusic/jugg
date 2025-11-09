@@ -10,8 +10,13 @@ import java.io.File
 
 object CmdLineLogger {
 
+    @Suppress("OVERRIDE_DEPRECATION")
     val stdLogger = object : DefaultLogger("cmd") {
         var logLevel = Level.INFO
+
+        override fun setLevel(level: Level) {
+            logLevel = level
+        }
 
         override fun debug(message: String?) {
             if (Level.DEBUG.isGreaterOrEqual(logLevel)) {

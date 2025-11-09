@@ -10,14 +10,14 @@ class DependencyMissingResolver(
     private val compileContextManager: CompileContextManager,
     private val gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager,
     private val logger: Logger
-) {
+) : IDependencyMissingResolver {
 
     private var lastCheckTime = 0L
 
     /**
      * @return is can retry
      */
-    fun resolve(compileResult: CompileResult): Boolean {
+    override fun resolve(compileResult: CompileResult): Boolean {
         if (compileResult.isAllSuccess) {
             return false
         }

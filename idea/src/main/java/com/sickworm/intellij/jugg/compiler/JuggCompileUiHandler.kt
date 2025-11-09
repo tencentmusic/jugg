@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
+import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.ide.ui.BuildChangesConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.getInstance
@@ -17,6 +18,7 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import java.io.File
 
 open class JuggCompileUiHandler(
+    private val project: Project,
     override var isForceGradleCompile: Boolean,
     private val isRpcMode: Boolean,
     private val juggGradleCompileOptions: JuggGradleCompileOptions,
@@ -73,6 +75,10 @@ open class JuggCompileUiHandler(
 
     override fun listenCancelAction(listener: (() -> Unit)?) {
         processHandler.cancelAction = listener
+    }
+
+    override fun notifyByBalloon(text: String) {
+        JuggRunningTask.notifyByBalloon(project, text)
     }
 
     override fun cancel() {

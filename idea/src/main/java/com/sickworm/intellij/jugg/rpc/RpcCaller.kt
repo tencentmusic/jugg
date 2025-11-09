@@ -52,7 +52,7 @@ class RpcCaller(private val juggManager: JuggManager, private val gitFileChanges
         var runResultFinal: RunResult? = null
         val isRpcMode = rpcRequest.args?.get("isRpcMode") as? Boolean ?: true
         val waitLock = Object()
-        val compileUiHandler = object : JuggCompileUiHandler(
+        val compileUiHandler = object : JuggCompileUiHandler(juggManager.project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = isRpcMode,
             state.toCompileOptions(juggManager.pathManager),

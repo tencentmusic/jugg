@@ -25,6 +25,19 @@ class CmdLineTest {
 
     @Test
     fun buildIncrementalApk() {
+        doBuildIncrementalApk(
+            modify = {
+                return@doBuildIncrementalApk listOf(
+                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt",
+                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/res/layout/activity_main.xml",
+                ).map(::File)
+            },
+            revert = {
+            },
+        )
+    }
+
+    private fun doBuildIncrementalApk(modify: (() -> List<File>), revert: (() -> Unit)) {
         buildBase()
 
         // backup juggRootDir and delete origin for test
@@ -35,14 +48,41 @@ class CmdLineTest {
         baseBuildJuggRootDir.copyRecursively(backupBaseBuildJuggRootDir)
         baseBuildJuggRootDir.deleteRecursively()
 
+        val changedFiles = modify.invoke()
+
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_INCREMENTAL_APK.value}",
             "baseBuildJuggRootDir=$backupBaseBuildJuggRootDir",
             "sourceProjectDir=${Global.projectRootDir}",
             "outputApkDir=${Global.buildOutputDir}/outputs",
-            "changedFiles=../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt:../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/res/layout/activity_main.xml",
+            "logLevel=debug",
+            "changedFiles=${changedFiles.joinToString(":")}",
         )
         val result = CmdLine().run(args)
+
+        revert.invoke()
+
         assertTrue(result)
+    }
+
+
+    @Test
+    fun buildIncrementalApkEffects() {
+        val classFile = File("../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
+        val originCode = classFile.readText()
+
+        doBuildIncrementalApk(
+            modify = {
+                val modifyCode = classFile.readText().replace(
+                    "public void func1",
+                    "protected void func1"
+                )
+                classFile.writeText(modifyCode)
+                return@doBuildIncrementalApk listOf(classFile)
+            },
+            revert = {
+                classFile.writeText(originCode)
+            },
+        )
     }
 }

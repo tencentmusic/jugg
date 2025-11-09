@@ -14,7 +14,7 @@ class DeployStateManager(
     private val deployTargetManager: IDeployTargetManager,
     private val deployHistoryManager: IDeployHistoryManager,
     private val ideDeployStateHelper: IIdeDeployStateHelper = IdeDeployStateHelper(project),
-) {
+) : IDeployStateManager {
 
     private val logger = JuggLogger.getInstance(project, "DeployStateManager")
 

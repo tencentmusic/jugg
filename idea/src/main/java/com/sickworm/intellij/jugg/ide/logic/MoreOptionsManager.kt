@@ -247,7 +247,7 @@ class MoreOptionsManager(
             val compileOptions = options.toCompileOptions(pathManager)
             val result = juggCompilerHelper.gradleCompile(
                 compileOptions,
-                JuggCompileUiHandler(
+                JuggCompileUiHandler(juggManager.project,
                     isForceGradleCompile = true, isRpcMode = false,
                     compileOptions, logger,
                     progressIndicator = taskRunnerManager.currentIndicator ?: DumbProgressIndicator.INSTANCE,
