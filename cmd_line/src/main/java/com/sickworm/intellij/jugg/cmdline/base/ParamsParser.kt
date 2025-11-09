@@ -40,10 +40,11 @@ class ParamsParser {
         }
 
         val outputApkDirValue = keyValueMap["outputApkDir"] ?: ""
-        if (outputApkDirValue.isEmpty()) {
-            throw BaseBuildException("Param 'outputApkDir' not found.")
+        val outputApkDir = if (outputApkDirValue.isEmpty()) {
+            null
+        } else {
+            File(outputApkDirValue)
         }
-        val outputApkDir = File(outputApkDirValue)
 
         val logLevelValue = keyValueMap["logLevel"] ?: "INFO"
         val logLevel = Level.toLevel(logLevelValue)

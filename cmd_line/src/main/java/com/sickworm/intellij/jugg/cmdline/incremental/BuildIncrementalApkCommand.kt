@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.cmdline.incremental
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.apk.ApkFileModifier
+import com.sickworm.intellij.jugg.cmdline.base.BaseBuildException
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
@@ -182,7 +183,11 @@ class BuildIncrementalApkCommand(private val params: Params) {
             try {
                 val params = ParamsParser().parse(args)
                 return BuildIncrementalApkCommand(params).run()
-            } catch (e: Exception) {
+            } catch (e: IncrementalException) {
+                CmdLineLogger.stdLogger.warn("Parse params invalid, reason: ${e.message}")
+                CmdLineLogger.stdLogger.warn("Parse params invalid, exit.")
+                return false
+            } catch (e : Throwable) {
                 CmdLineLogger.stdLogger.warn("Parse params got unexpected error:", e)
                 return false
             }
