@@ -78,37 +78,7 @@ val context get() = SimpleCompileContext(
 
 val mockParentDisposable = Disposable { }
 
-private val appModuleDir = File(projectInfo.projectRoot, "app")
-
-val mockModule get() = ModuleInfo(
-    name = "mock_module",
-    moduleType = ModuleInfo.Type.Unknown,
-    moduleRootDir = appModuleDir,
-    projectRootDir = projectInfo.projectRoot,
-    sourceDirs = listOf(File(appModuleDir, "src/main/java")),
-    resourceDirs = listOf(File(appModuleDir, "src/main/res")),
-    assetsDirs = listOf(File(appModuleDir, "src/main/assets")),
-    manifestFile = File(appModuleDir, "src/main/AndroidManifest.xml"),
-    manifestPlaceHolders = null,
-    buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
-    compileVersion = null,
-    buildToolsVersion = null,
-    buildPathInfo = ModuleBuildPathInfo(
-        projectInfo.projectRoot,
-        appModuleDir,
-        ModuleInfo.DEFAULT_BUILD_VARIANT
-    ),
-    kotlinJvmTarget = "1.8",
-    kotlinFreeCompilerArgs = emptyList(),
-    javaSourceCompatibility = "1.8",
-    javaTargetCompatibility = "1.8",
-    moduleDependencies = emptyList(),
-    libraryDependencies = emptyList(),
-    minSdkVersion = "21",
-    runtimeLibraryDependencies = emptyList(),
-    annotationProcessorDependencies = emptyList(),
-    kaptDependencies = emptyList(),
-)
+val mockModule get() = TestGlobal.mockModule
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
 
@@ -180,41 +150,9 @@ fun CompileTask.Companion.singleJavaFile(filePath: File, outputDir: File, baseDi
 val String.systemBasedPath get() = File(this).path
 
 
-val application = MockApplication {}
-
 @Suppress("unused", "UnstableApiUsage")
 val init = run {
-    PlatformApi.impl = IdeaPlatformApi()
-
-    // avoid AsDeployerCompat init failed
-    ApplicationManager.setApplication(application) {}
-    application.registerService(ApplicationInfo::class.java, ApplicationInfoImpl.getShadowInstance())
-    // avoid JuggSettings init failed
-    application.registerService(PropertiesComponent::class.java, DummyPropertiesComponent())
-
-    val projectJdkTable = Mockito.mock(ProjectJdkTable::class.java)
-    Mockito.doReturn(arrayOf(MockAndroid30Sdk())).`when`(projectJdkTable).allJdks
-    application.registerService(ProjectJdkTable::class.java, projectJdkTable)
-
-    application.registerService(GradleModelProvider::class.java, GradleModelSource())
-    application.registerService(MessagesService::class.java, Mockito.mock(MessagesService::class.java))
-
-    val mockProgressManager = Mockito.mock(ProgressManager::class.java)
-    Mockito.doAnswer {
-        (it.arguments[0] as Task).run(Mockito.mock(ProgressIndicator::class.java))
-    }.`when`(mockProgressManager).run(Mockito.any<Task>())
-    application.registerService(ProgressManager::class.java, mockProgressManager)
-
-    val extensionPoint = ExtensionPointName.create<ConfigurationType>("com.intellij.configurationType")
-    application.extensionArea.registerExtensionPoint(extensionPoint,
-        ConfigurationType::class.java.name, ExtensionPoint.Kind.INTERFACE, application)
-    application.registerExtension(extensionPoint, JuggConfigurationType(), application)
-
-    AsDeployerCompat.init(logger)
-
-    // in tests, we often add change file without really change, so disable checksum check
-    JuggSettings.isCheckChecksumWhenFileChanges = false
-    JuggSettings.isEnableWarmUp = false
+    TestGlobal.init()
 }
 
 @Suppress("TestFunctionName")
