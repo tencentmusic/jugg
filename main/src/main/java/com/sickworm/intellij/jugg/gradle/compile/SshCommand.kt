@@ -102,7 +102,7 @@ open class CompileProjectCommand(
     private val initGradleFileRelativePath: String,
 ) : BaseSshCommand() {
 
-    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex("""(\./|.\\)?(gradle|gradlew)\s+[\w-_ :=.]+"""))
+    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex(""".*(\./|.\\)?(gradle|gradlew)\s+[\w-_ :=.]+"""))
         private set
 
     private val injectParam = if (JuggSettings.isEnableInjectGradleCompile) {

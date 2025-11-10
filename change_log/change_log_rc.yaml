@@ -1,3 +1,8 @@
+- version: 2.5.0-rc10
+  date: 2025.11.10
+  updates:
+    - optimize compilation commands to identify whether compatibility mode can be enabled.
+
 - version: 2.5.0-rc9
   date: 2025.11.05
   updates:
