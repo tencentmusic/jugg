@@ -1,3 +1,8 @@
+- version: 2.5.0-rc11
+  date: 2025.11.11
+  updates:
+    - 支持 Kotlin 2.2
+
 - version: 2.5.0-rc10
   date: 2025.11.10
   updates:
