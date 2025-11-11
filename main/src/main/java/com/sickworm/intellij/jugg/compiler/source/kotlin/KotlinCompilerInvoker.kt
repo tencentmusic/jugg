@@ -269,7 +269,7 @@ class KotlinCompilerInvoker {
         )).toMutableList()
         if (!kotlinCompile.isUseProjectCompiler) {
             // use embedded compiler, we need to set the language version
-            compileArgs.addAll(listOf("-language-version", guessKotlinVersion(module, logger)))
+            compileArgs.addAll(listOf("-language-version", guessKotlinVersionForEmbedded(module, logger)))
         }
 
         var classPathArgs = listOf<String>()
@@ -286,7 +286,7 @@ class KotlinCompilerInvoker {
         logCompileCommand(command, context.projectDir, logger)
 
         // resolve kotlin extension function unresolved reference
-        val merger = KmModuleMergerForCompilation(kotlinClassPath)
+        val merger = IKmModuleMergerForCompilation.create(kotlinCompile.currentCompiler, kotlinClassPath, logger)
         try {
             merger.loadAndMerge()
         } catch (e: Exception) {
@@ -554,7 +554,7 @@ class KotlinCompilerInvoker {
     private var guessKotlinVersionCache = mapOf<String, String>()
 
 
-    private fun guessKotlinVersion(module: ModuleInfo, logger: Logger): String {
+    private fun guessKotlinVersionForEmbedded(module: ModuleInfo, logger: Logger): String {
         guessKotlinVersionCache[module.name]?.let {
             return it
         }
@@ -570,7 +570,7 @@ class KotlinCompilerInvoker {
 
         val kotlinVersion = try {
             val splits = kotlinStdlibName.split("-")
-            val regex = Regex("[0-9\\.]+")
+            val regex = Regex("[0-9.]+")
             val version = splits.find { it.matches(regex) }?: throw IllegalArgumentException("not a standard stdlib")
             version.split(".").take(2).joinToString(".")
         } catch (e: Exception) {

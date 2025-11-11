@@ -57,4 +57,14 @@ packageParts:
 
         """.trimIndent(), newMerger.toString())
     }
+
+
+
+    @Test
+    fun testMerge2() {
+        val merger = KmModuleMerger()
+        val newKmModuleFile = File("/Users/wormchen/AndroidStudioProjects/Gradle8Test/app/build/tmp/kotlin-classes/debug/META-INF/app_debug.kotlin_module")
+        merger.merge(newKmModuleFile)
+        println("merge result: $merger")
+    }
 }

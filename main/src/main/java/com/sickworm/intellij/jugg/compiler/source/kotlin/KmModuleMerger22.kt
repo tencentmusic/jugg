@@ -1,19 +1,19 @@
-@file:OptIn(UnstableMetadataApi::class)
 
 package com.sickworm.intellij.jugg.compiler.source.kotlin
 
-import kotlinx.metadata.jvm.*
+import kotlin.metadata.jvm.*
 import java.io.File
 
 /**
  * Read, write and merge .kotlin_module files in classPaths.
+ * @see {@link https://github.com/Kotlin/binary-compatibility-validator/issues/241}
  */
-class KmModuleMergerForCompilation(
+class KmModuleMergerForCompilation22(
     private val classPath: File,
-): IKmModuleMergerForCompilation {
+) : IKmModuleMergerForCompilation {
 
     private val metaInfDir get() = File(classPath, "META-INF")
-    private val kmModuleFileMap = mutableMapOf<String, KmModuleMerger>()
+    private val kmModuleFileMap = mutableMapOf<String, KmModuleMerger22>()
 
     override fun loadAndMerge() {
         metaInfDir.listFiles()
@@ -21,14 +21,21 @@ class KmModuleMergerForCompilation(
             ?.forEach {
                 var merger = kmModuleFileMap[it.absolutePath]
                 if (merger == null) {
-                    merger = KmModuleMerger()
+                    merger = KmModuleMerger22()
                     kmModuleFileMap[it.absolutePath] = merger
                 }
                 merger.merge(it)
             }
     }
 
-    override fun save(targetVersion: JvmMetadataVersion?) {
+    override fun save(targetVersion: kotlinx.metadata.jvm.JvmMetadataVersion?) {
+        val convertTargetVersion = targetVersion?.let {
+            JvmMetadataVersion(targetVersion.major, targetVersion.minor)
+        }
+        save(convertTargetVersion)
+    }
+
+    private fun save(targetVersion: JvmMetadataVersion?) {
         kmModuleFileMap.forEach { (filePath, merger) ->
             val destFile = File(filePath)
             if (targetVersion == null) {
@@ -51,7 +58,7 @@ class KmModuleMergerForCompilation(
 /**
  * Read, write and merge .kotlin_module files.
  */
-class KmModuleMerger {
+class KmModuleMerger22 {
 
     private val kmModule = KmModule()
     private var version = JvmMetadataVersion.LATEST_STABLE_SUPPORTED

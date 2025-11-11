@@ -26,7 +26,7 @@ class K2JVMCompilerIsolate {
         private set
 
     private lateinit var classLoader: URLClassLoader
-    private val currentCompiler: String?
+    val currentCompiler: String?
         get() {
             if (!::classLoader.isInitialized) {
                 return null
