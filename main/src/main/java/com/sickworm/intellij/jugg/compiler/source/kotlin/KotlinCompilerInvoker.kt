@@ -582,6 +582,10 @@ class KotlinCompilerInvoker {
             logger.debug("guess kotlin version is $kotlinVersion, use min 1.4")
             return "1.4"
         }
+        if (kotlinVersion in listOf("2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "2.10")) {
+            logger.debug("guess kotlin version is $kotlinVersion, use max 2.1")
+            return "2.1"
+        }
 
         logger.debug("guess kotlin version: $kotlinVersion")
         return kotlinVersion
