@@ -108,7 +108,7 @@ class K2JVMCompilerIsolate {
         private val requiredLibraries = setOf(
             "annotations",
             "kotlin-compiler-embeddable",
-            "trove4j",
+            // "trove4j", // trove4j is not in Kotlin 2.2 classpath, and I just skip checking it for all Kotlin versions
             "kotlin-reflect",
             "kotlin-stdlib",
         )
