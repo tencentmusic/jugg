@@ -20,7 +20,14 @@ object JuggSettings {
     // default compile settings
     private var defaultCompileSettingsJson: String by propertiesComponent.delegate(defaultValue = "")
 
+
+    // Run options start
+
     var isConfirmFallbackWhenNoFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)
+
+    var isAlwaysRestartAppAfterDeployment: Boolean by propertiesComponent.delegate(defaultValue = false)
+
+    // Run options end
 
     /** whether check checksum to make sure file is really change when file changes */
     var isCheckChecksumWhenFileChanges: Boolean by propertiesComponent.delegate(defaultValue = true)

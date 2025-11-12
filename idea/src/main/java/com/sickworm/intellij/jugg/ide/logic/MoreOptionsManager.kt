@@ -82,6 +82,13 @@ class MoreOptionsManager(
             { JuggSettings.isConfirmFallbackWhenNoFileChanges = it }
         )
 
+        createOption(
+            name = "Always restart App after deployment",
+            { JuggSettings.isAlwaysRestartAppAfterDeployment  },
+            { JuggSettings.isAlwaysRestartAppAfterDeployment = it }
+        )
+
+
         createSplitLine("Tools")
 
         createOption(

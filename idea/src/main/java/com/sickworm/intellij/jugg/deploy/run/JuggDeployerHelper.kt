@@ -120,6 +120,12 @@ class JuggDeployerHelper(
         launchResult.pushingAgentCostTime = TimeLogger.end("push_agent", logger)
 
         var isNeedRestartApp = data.isNeedRestartApp
+
+        if (JuggSettings.isAlwaysRestartAppAfterDeployment) {
+            logger.info("User require always restart app after deployment, restart app.")
+            isNeedRestartApp = true
+        }
+
         if ((isNeedPushAgentAfterDeploy && !isNeedRestartApp) || (data.isFullRes && !isNeedRestartApp)) {
             val adb = IdeaDeviceAdb(device, logger)
             if (PlatformApi.isHasRelaunchActivityIssues(adb, logger)) {

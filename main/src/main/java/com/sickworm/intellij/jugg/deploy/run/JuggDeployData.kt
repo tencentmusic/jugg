@@ -41,8 +41,6 @@ data class JuggDeployData(
     val isPushOverlayOnly: Boolean = false,
     /** is using compat deploy */
     val isCompatDeploy: Boolean = false,
-    /** Device can not update overlays without restart App. Occurs in Android 15(api 35) */
-    val isHasRelaunchActivityIssues: Boolean = false,
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
@@ -58,7 +56,7 @@ data class JuggDeployData(
     /** is restart app after deployment */
     val isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty()
             || (isPushOverlayOnly && !isEmpty)
-            || (isNeedRestartActivityInner && isHasRelaunchActivityIssues)
+            || isNeedRestartActivityInner
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
