@@ -83,10 +83,25 @@ class MoreOptionsManager(
         )
 
         createOption(
-            name = "Always restart App after deployment",
+            name = "Always restart app after deployment",
             { JuggSettings.isAlwaysRestartAppAfterDeployment  },
             { JuggSettings.isAlwaysRestartAppAfterDeployment = it }
         )
+
+        if (JuggSettings.isEnableInjectGradleCompile) {
+            val devices = deployTargetManager.getConnectedDevices()
+            devices.forEach {
+                val compatDeployHelper = CompatDeployHelper(logger)
+                val adb = IdeaDeviceAdb(it, DefaultLogger("CompatDeployHelper"))
+                createOption(
+                    name = "Force use compat deploy for ${adb.displayName}",
+                    onGet = { compatDeployHelper.isForceCompatDevice(adb) },
+                    onSet = {
+                        setForceCompatDevice(adb)
+                    }
+                )
+            }
+        }
 
 
         createSplitLine("Tools")
@@ -102,7 +117,7 @@ class MoreOptionsManager(
         )
 
         createOption(
-            name = "Clean and Reset Jugg",
+            name = "Clean and reset Jugg",
             onSet = { cleanAndResetJugg() }
         )
 
@@ -122,23 +137,6 @@ class MoreOptionsManager(
                 }
             }
         )
-
-        if (JuggSettings.isCanUseBackupClasspath) {
-            createOption(
-                name = "Enable backup classpath",
-                onGet = { JuggSettings.isEnableBackupClasspath },
-                onSet = {
-                    val isConfirmed = CommonConfirmDialog.showAndGetResult(
-                        "Confirm Switch Backup Classpath",
-                        "<html>This will effects compilation stability. Continue?</html>"
-                    )
-                    if (isConfirmed) {
-                        JuggSettings.isEnableBackupClasspath = it
-                        setEnableBackupClasspath()
-                    }
-                }
-            )
-        }
 
         if (JuggSettings.isEnableInjectGradleCompile) {
             createOption(
@@ -167,19 +165,23 @@ class MoreOptionsManager(
                     JuggSettings.isUseProjectKotlinCompiler = it
                 }
             )
+        }
 
-            val devices = deployTargetManager.getConnectedDevices()
-            devices.forEach {
-                val compatDeployHelper = CompatDeployHelper(logger)
-                val adb = IdeaDeviceAdb(it, DefaultLogger("CompatDeployHelper"))
-                createOption(
-                    name = "Force use compat deploy for ${adb.displayName}",
-                    onGet = { compatDeployHelper.isForceCompatDevice(adb) },
-                    onSet = {
-                        setForceCompatDevice(adb)
+        if (JuggSettings.isCanUseBackupClasspath) {
+            createOption(
+                name = "Enable backup classpath",
+                onGet = { JuggSettings.isEnableBackupClasspath },
+                onSet = {
+                    val isConfirmed = CommonConfirmDialog.showAndGetResult(
+                        "Confirm Switch Backup Classpath",
+                        "<html>This will effects compilation stability. Continue?</html>"
+                    )
+                    if (isConfirmed) {
+                        JuggSettings.isEnableBackupClasspath = it
+                        setEnableBackupClasspath()
                     }
-                )
-            }
+                }
+            )
         }
 
         createSplitLine("(Test) Mock Events")
