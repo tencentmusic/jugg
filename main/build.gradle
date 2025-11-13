@@ -136,6 +136,10 @@ dependencies {
     testImplementation "org.jetbrains.kotlin:kotlin-test:1.9.23"
     testImplementation "org.json:json:20230618"
 
+    // java code analysis
+    testImplementation "com.github.javaparser:javaparser-symbol-solver-core:3.17.0"
+    testImplementation "org.eclipse.jdt:org.eclipse.jdt.core:3.28.0"
+
     // for debug source code
     // arouter-compiler
 //    compileOnly 'com.alibaba:arouter-compiler:1.5.2'

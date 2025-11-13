@@ -5,7 +5,7 @@ class Reflector(val value: Any?) {
     val valueString: String? get() = value?.toString()
 
     /** get property */
-    fun getProperty(propertyName: String): Reflector? {
+    fun property(propertyName: String): Reflector? {
         value ?: return null
         try {
             val getMethodName = if (propertyName.startsWith("is")) propertyName else "get${propertyName.camel}"
@@ -18,20 +18,48 @@ class Reflector(val value: Any?) {
         }
     }
 
-    fun getPrivateField(propertyName: String): Reflector? {
+    fun field(propertyName: String): Reflector? {
+        return doGetField(propertyName, false)
+    }
+
+    fun fieldP(propertyName: String): Reflector? {
+        return doGetField(propertyName, true)
+    }
+
+    private fun doGetField(fieldName: String, isPrivate: Boolean, clazzInput: Class<*>? = null): Reflector? {
         value ?: return null
+        val clazz = clazzInput ?: value::class.java
         try {
-            val field = value::class.java.getDeclaredField(propertyName)
+            val field = if (isPrivate) {
+                clazz.getDeclaredField(fieldName)
+            } else {
+                clazz.getField(fieldName)
+            }
             field.isAccessible = true
-            val result = field.get(value)
-            return Reflector(result)
+            return Reflector(field.get(value))
         } catch (e: Throwable) {
-            println("Jugg: reflect get private field failed: $e")
+            if (isPrivate) {
+                if (e is NoSuchFieldError || e is NoSuchFieldException) {
+                    if (clazz.superclass != Object::class.java) {
+                        return doGetField(fieldName, true, clazz.superclass)
+                    }
+                }
+            }
+            println("Jugg: reflect get field failed: $e")
             return null
         }
     }
 
+
     fun invoke(methodName: String, vararg args: Any): Reflector? {
+        return doInvoke(methodName, false, args.toList())
+    }
+
+    fun invokeP(methodName: String, vararg args: Any): Reflector? {
+        return doInvoke(methodName, true, args.toList())
+    }
+
+    private fun doInvoke(methodName: String, isPrivate: Boolean, args: List<Any>): Reflector? {
         value ?: return null
         try {
             val argsType: Array<Class<*>> = args.map {
@@ -40,10 +68,15 @@ class Reflector(val value: Any?) {
             val argValue: Array<Any?> = args.map {
                 if (it is Value) it.value else it
             }.toTypedArray()
-            val method = value::class.java.getMethod(methodName, *argsType)
+            val method = if (isPrivate) {
+                value::class.java.getDeclaredMethod(methodName, *argsType)
+            } else {
+                value::class.java.getMethod(methodName, *argsType)
+            }
             val result = method.invoke(value, *argValue)
             return Reflector(result)
         } catch (e: Throwable) {
+            println("Jugg: reflect invoke method failed: $e")
             return null
         }
     }
@@ -51,6 +84,35 @@ class Reflector(val value: Any?) {
     class Value(val clazz: Class<*>, val value: Any?)
 
     companion object {
+
+        fun newInstance(className: String, vararg args: Any): Reflector? {
+            return doNewInstance(className, false, args.toList().toTypedArray())
+        }
+
+        fun newInstanceP(className: String, vararg args: Any): Reflector? {
+            return doNewInstance(className, true, args.toList().toTypedArray())
+        }
+
+        private fun doNewInstance(className: String, isPrivate: Boolean, args: Array<Any>): Reflector? {
+            try {
+                val clazz = Class.forName(className)
+                val argsType: Array<Class<*>> = args.map {
+                    if (it is Value) it.clazz else it::class.java
+                }.toTypedArray()
+                val constructor = if (isPrivate) {
+                    clazz.getDeclaredConstructor(*argsType)
+                } else {
+                    clazz.getConstructor(*argsType)
+                }
+                constructor.isAccessible = true
+                val result = constructor.newInstance(*args)
+                return Reflector(result)
+            } catch (e: Throwable) {
+                println("Jugg: reflect new instance failed: $e")
+                return null
+            }
+        }
+
 
         private val String.camel: String get() {
             return this.replaceFirstChar { it.uppercaseChar() }
@@ -68,5 +130,5 @@ class Reflector(val value: Any?) {
 }
 
 operator fun Reflector?.get(propertyName: String): Reflector? {
-    return this?.getProperty(propertyName)
+    return this?.property(propertyName)
 }

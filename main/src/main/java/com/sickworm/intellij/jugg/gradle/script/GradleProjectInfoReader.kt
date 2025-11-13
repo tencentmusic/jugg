@@ -508,7 +508,7 @@ class GradleProjectInfoReader(
 
             if (identifier is OpaqueComponentArtifactIdentifier) {
                 // library file in file collection
-                val fileGet = Reflector(identifier).getPrivateField("file")
+                val fileGet = Reflector(identifier).fieldP("file")
                 val file = (fileGet?.value as? File) ?: it.file
                 val dependencyName = file.standardFileCollectionLibraryName
                 if (identifier.toString().endsWith(".jar")) {
