@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compile
 
-import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.manager.changeAndRevert
@@ -29,7 +28,7 @@ class SourceCompileTest {
                         + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                         + "$assetsAndroidDir/app/build/tmp/kotlin-classes/debug"
                         + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-                        + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
+                        + LibraryParser().loadInTest()!!
             ),
             CompileFile(
                 CompileFile.Type.Java,
@@ -40,7 +39,7 @@ class SourceCompileTest {
                         + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                         + "$assetsAndroidDir/app/build/tmp/kotlin-classes/debug"
                         + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-                        + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
+                        + LibraryParser().loadInTest()!!
             )
         ),
         stagingDir,

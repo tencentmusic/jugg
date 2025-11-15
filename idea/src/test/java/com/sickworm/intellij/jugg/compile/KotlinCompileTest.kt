@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.jetbrains.rd.util.first
-import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerOutputParser
@@ -53,7 +52,7 @@ class KotlinCompileTest {
             dependencyPaths = listOf(androidJar.absolutePath)
                     + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                     + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-                    + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
+                    + LibraryParser().loadInTest()!!
         )
         ),
         stagingDir,
@@ -88,7 +87,7 @@ class KotlinCompileTest {
                     File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/ktsmartcast/ImplClass1.kt"),
                     File(assetsAndroidDir, "app/src/main/java/"),
                     mockModule,
-                    dependencyPaths = IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!,
+                    dependencyPaths = LibraryParser().loadInTest()!!,
                 )
             ),
             stagingDir,
@@ -106,7 +105,7 @@ class KotlinCompileTest {
                     File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/ktinternal/InvokeClass1.kt"),
                     File(assetsAndroidDir, "app/src/main/java/"),
                     mockModule,
-                    dependencyPaths = IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!,
+                    dependencyPaths = LibraryParser().loadInTest()!!,
                 )
             ),
             stagingDir,

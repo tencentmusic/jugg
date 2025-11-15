@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg.compile
 
-import com.sickworm.intellij.jugg.IntellijLibraryConfigParserTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.JavaCompiler
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -64,7 +63,7 @@ class JavaCompileTest {
         stagingDir,
         dependencies = listOf(androidJar.absolutePath)
                 + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
-                + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
+                + LibraryParser().loadInTest()!!
     )
     @Test
     fun javaCompileAndroidActivity() {
@@ -86,7 +85,7 @@ class JavaCompileTest {
                     mockModule,
                     dependencyPaths = listOf(androidJar.absolutePath)
                             + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
-                            + IntellijLibraryConfigParserTest().loadLibraryConfigInTest()!!
+                            + LibraryParser().loadInTest()!!
                 )
             ),
             stagingDir,

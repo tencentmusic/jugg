@@ -1,7 +1,6 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.server
 
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.JuggMockProject
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
@@ -22,12 +21,14 @@ class JuggServerTest {
         JuggLogger.register(project, buildDir)
         JuggLogger.listenProjectLog(project, logger)
         runBlocking {
-            val job1 = JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO)).report {
-                isSuccess = true
-            }
-            val job2 = JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO)).report {
-                isSuccess = false
-            }
+            val job1 =
+                JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO)).report {
+                    isSuccess = true
+                }
+            val job2 =
+                JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO)).report {
+                    isSuccess = false
+                }
             listOf(job1, job2).joinAll()
         }
     }

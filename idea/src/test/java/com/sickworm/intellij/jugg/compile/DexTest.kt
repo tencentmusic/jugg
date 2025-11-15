@@ -1,6 +1,5 @@
-package com.sickworm.intellij.jugg
+package com.sickworm.intellij.jugg.compile
 
-import com.sickworm.intellij.jugg.compile.JavaCompileTest
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.DexFileMaker
 import com.sickworm.intellij.jugg.deploy.classNameToPath
@@ -111,7 +110,11 @@ class DexTest {
 
         if (isHasDefaultMethodInvocation != null) {
             dexFiles.forEach {
-                assertEquals(isHasDefaultMethodInvocation, checkDefaultMethodDesugar(it), "file: ${it.path} isHasDefaultMethodInvocation: $isHasDefaultMethodInvocation")
+                assertEquals(
+                    isHasDefaultMethodInvocation,
+                    checkDefaultMethodDesugar(it),
+                    "file: ${it.path} isHasDefaultMethodInvocation: $isHasDefaultMethodInvocation"
+                )
             }
         }
     }
@@ -149,5 +152,3 @@ class DexTest {
         }
     }
 }
-
-
