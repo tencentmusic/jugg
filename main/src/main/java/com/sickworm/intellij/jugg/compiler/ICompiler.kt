@@ -198,6 +198,14 @@ data class CompileResult(
 
     companion object {
         private val quickFailedErrors = listOf(-1L to "quick failed")
+
+        fun empty(compileStatusHolder: CompileStatusHolder): CompileResult {
+            return CompileResult(
+                CompileTask(emptyList(), File(""), compileStatusHolder),
+                emptyList(),
+                emptyList(),
+            )
+        }
     }
 }
 

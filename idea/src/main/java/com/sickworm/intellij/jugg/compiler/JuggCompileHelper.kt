@@ -410,7 +410,7 @@ class JuggCompilerHelper(
             if (juggRunningTaskStatusManager.isFirstTimeRun(deviceName)) {
                 if (deployFileManager.getUncompiledFiles().isEmpty()) {
                     logger.info("No file changes, but it's first time run, deploy directly.")
-                    return CompileTaskResult.incrementalSuccess()
+                    return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
                     logger.info("No file changes, but it's last compilation not finished" +
                             ", will run with incremental compile.")
@@ -523,42 +523,5 @@ private class GradleCompileClientManager(private val project: Project): Disposab
     }
 
     override fun dispose() {
-    }
-}
-
-data class CompileTaskResult(
-    val isSuccess: Boolean,
-    val isGradleCompile: Boolean,
-    val isCanFallback: Boolean,
-    val costTime: Long,
-    val failedReason: String? = null,
-    val incrementalFailedReason: String? = null,
-) {
-    companion object {
-
-        fun incrementalSuccess() = CompileTaskResult(
-            isSuccess = true,
-            isGradleCompile = false,
-            isCanFallback = false,
-            costTime = 0,
-        )
-
-        fun incrementalFailed(isCanFallback: Boolean, failedReason: String) = CompileTaskResult(
-            isSuccess = false,
-            isGradleCompile = false,
-            isCanFallback,
-            costTime = 0,
-            failedReason = failedReason,
-            incrementalFailedReason = failedReason,
-        )
-
-        fun incrementalCanceled(startTime: Long) = CompileTaskResult(
-            isSuccess = false,
-            isGradleCompile = false,
-            isCanFallback = false,
-            costTime = System.currentTimeMillis() - startTime,
-            failedReason = "Compile canceled",
-            incrementalFailedReason = "Compile canceled",
-        )
     }
 }

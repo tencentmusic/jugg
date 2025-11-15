@@ -96,7 +96,16 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-reflect"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
 
-    implementation project(':main')
+    implementation(project(':main')) {
+        // com.intellij.diagnostic.PluginException: Cannot load class com.google.common.util.concurrent.ListenableFuture (
+        //  error: loader constraint violation: loader com.intellij.ide.plugins.cl.PluginClassLoader @286323ab wants to load interface com.google.common.util.concurrent.ListenableFuture. A different interface with the same name was previously loaded by com.intellij.util.lang.PathClassLoader @3941a79c. (com.google.common.util.concurrent.ListenableFuture is in unnamed module of loader com.intellij.util.lang.PathClassLoader @3941a79c),
+        //  classLoader=PluginClassLoader(plugin=PluginDescriptor(name=Jugg, id=com.sickworm.intellij.jugg, descriptorPath=plugin.xml, path=~/Library/Application Support/Google/AndroidStudio2024.3/plugins/jugg, version=2.2.0-rc27-feature_databinding-SNAPSHOT, package=null, isBundled=false), packagePrefix=null, state=active, parents=PluginDescriptor(name=IDEA CORE, id=com.intellij, moduleName=intellij.platform.vcs.impl, descriptorPath=intellij.platform.vcs.impl.xml, path=/Applications/Android Studio.app/Contents/lib, version=243.24978.46, package=null, isBundled=true), PluginDescriptor(name=IDEA CORE, id=com.intellij, moduleName=intellij.platform.vcs.log.impl, descriptorPath=intellij.platform.vcs.log.impl.xml, path=/Applications/Android Studio.app/Contents/lib, version=243.24978.46, package=null, isBundled=true), PluginDescriptor(name=IDEA CORE, id=com.intellij, moduleName=intellij.platform.vcs.dvcs.impl, descriptorPath=intellij.platform.vcs.dvcs.impl.xml, path=/Applications/Android Studio.app/Contents/lib, version=243.24978.46, package=null, isBundled=true), PluginDescriptor(name=IDEA CORE, id=com.intellij, moduleName=intellij.platform.collaborationTools, descriptorPath=intellij.platform.collaborationTools.xml, path=/Applications/Android Studio.app/Contents/lib, version=243.24978.46, package=null, isBundled=true), PluginDescriptor(name=Android, id=org.jetbrains.android, descriptorPath=plugin.xml, path=/Applications/Android Studio.app/Contents/plugins/android, version=243.24978.46.2431.13208083, package=com.android.tools.idea.gradle.dsl.kotlin, isBundled=true), )
+        // use embedded guava in IDEA
+        exclude group: 'com.google.guava', module: 'guava'
+        // java.lang.LinkageError: loader constraint violation: when resolving method
+        // 'org.slf4j.ILoggerFactory org.slf4j.impl.StaticLoggerBinder.getLoggerFactory()'
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
     implementation project(':deploy_compat:interface')
     implementation project(':deploy_compat:v_chipmunk')
     implementation project(':deploy_compat:v_giraffe')
