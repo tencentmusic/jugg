@@ -304,7 +304,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
 
             val deleteClassSql = "DELETE FROM class_info WHERE id=?;"
             connection.prepareStatement(deleteClassSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
+//                dbDeleteClasses.values.forEach { // keep removed class info to let it recoverable after re-add it
+                updatedClasses.values.forEach {
                     preparedStatement.setInt(1, it)
                     preparedStatement.addBatch()
                 }

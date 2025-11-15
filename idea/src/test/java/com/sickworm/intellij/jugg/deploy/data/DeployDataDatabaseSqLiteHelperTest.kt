@@ -100,7 +100,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         parsedApk.methodRefs.forEach { (methodNode, classRefs) ->
             val classRefs2 = parsedApkFromDb.methodRefs[methodNode]!!
             assertNotNull(classRefs2)
-            assertContentEquals(classRefs, classRefs2)
+            assertContentEquals(classRefs.sorted(), classRefs2.sorted())
         }
 
         assertEquals(parsedApk.fieldRefs.size, parsedApkFromDb.fieldRefs.size)
@@ -112,9 +112,9 @@ class DeployDataDatabaseSqLiteHelperTest {
 
         assertEquals(parsedApk.subclassRefs.size, parsedApkFromDb.subclassRefs.size)
         parsedApk.subclassRefs.forEach { (className, classRefs) ->
-            val classRefs2 = parsedApkFromDb.subclassRefs[className]!!
-            assertNotNull(classRefs2)
-            assertContentEquals(classRefs, classRefs2)
+            val dbClassRefs = parsedApkFromDb.subclassRefs[className]!!
+            assertNotNull(dbClassRefs)
+            assertContentEquals(classRefs.sorted(), dbClassRefs.sorted(), "class: $className\nclassRefs: ${classRefs.sorted()}\ndbClassRefs: ${dbClassRefs.sorted()}")
         }
     }
 

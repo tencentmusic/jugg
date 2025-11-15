@@ -59,6 +59,14 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
 
     @Synchronized
     override fun init(apks: List<ApkInfo>, deployedItems: List<DeployItem>): List<ParsedApkUpdateResult> {
+        // forbid concurrent running to avoid IDE stuck
+        synchronized(DeployDataDatabase::class) {
+            return doInit(apks, deployedItems)
+        }
+    }
+
+    @Synchronized
+    fun doInit(apks: List<ApkInfo>, deployedItems: List<DeployItem>): List<ParsedApkUpdateResult> {
         logger.debug("initAfterInstall parsed apk start, apks: ${apks.size}, deployedItems: ${deployedItems.size}")
 
         classNodeDbCache.clear()

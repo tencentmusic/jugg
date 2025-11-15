@@ -56,8 +56,8 @@ class DeployHistoryManagerTest {
         assertTrue(recoverInfo1.deployedFiles.isEmpty())
         assertTrue(recoverInfo1.changedFiles.isEmpty())
         assertEquals(
-            ApkInfoSerializer().serialize(projectInfo.apkInfos),
-            ApkInfoSerializer().serialize(recoverInfo1.compileContextInfo.apkInfos),
+            ApkInfoSerializer().serialize(projectInfo.projectRoot, projectInfo.apkInfos),
+            ApkInfoSerializer().serialize(projectInfo.projectRoot, recoverInfo1.compileContextInfo.apkInfos),
         )
         assertTrue(recoverInfo1.compileContextInfo.moduleBuildPathInfos.isNotEmpty())
 

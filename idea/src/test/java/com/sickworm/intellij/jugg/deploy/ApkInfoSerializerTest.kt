@@ -1,18 +1,20 @@
 package com.sickworm.intellij.jugg.deploy
 
-import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import org.junit.Test
 import kotlin.test.assertEquals
 
 class ApkInfoSerializerTest {
 
+    private val projectInfo = TestGlobal.projectInfo
+
     @Test
     fun testSerialize() {
         val apkInfo = projectInfo.apkInfos
         val serializer = ApkInfoSerializer()
-        val json = serializer.serialize(apkInfo)
+        val json = serializer.serialize(projectInfo.projectRoot, apkInfo)
         println(json)
-        val newApkInfo = serializer.deserialize(json)
+        val newApkInfo = serializer.deserialize(projectInfo.projectRoot, json)
         assertEquals(apkInfo.size, newApkInfo.size)
 
         apkInfo.forEachIndexed { index, _ ->
@@ -28,7 +30,7 @@ class ApkInfoSerializerTest {
             }
         }
 
-        val newJson = serializer.serialize(apkInfo)
+        val newJson = serializer.serialize(projectInfo.projectRoot, apkInfo)
         println(newJson)
         assertEquals(json, newJson)
     }
