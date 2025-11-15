@@ -14,6 +14,7 @@ class CmdLineTest {
             "baseBuildProjectDir=../idea/src/test/assets/android/MyApplicationIntellij",
             "gradleCompileTask=assembleDebug",
             "gradleOutputApkPath=app/build/outputs/apk/debug/*.apk",
+            "logLevel=debug",
             "outputApkDir=${Global.buildOutputDir}/outputs",
         )
         val result = CmdLine().run(args)

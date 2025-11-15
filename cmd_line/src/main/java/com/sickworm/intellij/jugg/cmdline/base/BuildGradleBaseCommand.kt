@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.deploy.DeployHistoryManager
 import com.sickworm.intellij.jugg.deploy.data.DeployDataDatabase
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
+import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.gradle.compile.RsyncCompatibleHelper
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -18,6 +19,7 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import kotlinx.coroutines.*
+import org.apache.log4j.Level
 import java.io.File
 import kotlin.system.measureTimeMillis
 
@@ -103,6 +105,19 @@ class BuildGradleBaseCommand(private val params: Params) {
         )
         JuggSettings.isEnableBackupClasspath = false
 
+        compileClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
+            override fun onOutput(line: String, isNeedPrint: Boolean) {
+                if (!Level.INFO.isGreaterOrEqual(params.logLevel)) {
+                    // if params.logLevel is lower than INFO, print it
+                    println(line)
+                } else {
+                    // logger will automatically print it
+                }
+            }
+            override fun onOutputErr(line: String) {
+                // logger will automatically print it
+            }
+        }
         compileClient.login(compileOptions)
         val result = compileClient.compileAndFetchResult()
         if (!result.isSuccess) {
