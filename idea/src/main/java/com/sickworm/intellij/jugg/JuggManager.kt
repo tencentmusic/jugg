@@ -10,7 +10,6 @@ import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.DumbProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -19,7 +18,6 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
-import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -607,9 +605,15 @@ class JuggManager @TestOnly constructor(
 
         deployStateManager.isBuildFileChanged = false
 
+        var finalApkInfos = compileContextInfo.apkInfos
+        logger.debug("hasEmbeddedApks: ${customConfigManager.hasEmbeddedApks()}")
+        if (customConfigManager.hasEmbeddedApks()) {
+            finalApkInfos = customConfigManager.fillApkInfosWithEmbeddedApks(finalApkInfos, pathManager.localClasspathStoragePathManager.embeddedApkDir)
+        }
+
         val costTime = measureTimeMillis {
             compileContextManager.setCompileContext(compileContextInfo)
-            deployFileManager.init(compileContextInfo.apkInfos, deployedFiles, startCompileTime)
+            deployFileManager.init(finalApkInfos, deployedFiles, startCompileTime)
             dependencyChangeManager.init(pathManager.projectInfosDir, compileContextManager.compileContext)
             reInitOnCompileContextUpdate()
         }

@@ -8,7 +8,9 @@ import java.io.File
  */
 interface IFileMatcher {
 
-    fun init(rootDir: File, rules: List<String>)
+    fun init(rootDir: File?, rules: List<String>)
 
     fun isMatch(file: File, isDirectory: Boolean = false): Boolean
+
+    fun isMatch(relativePath: String, isDirectory: Boolean = false): Boolean
 }

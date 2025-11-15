@@ -34,6 +34,10 @@ data class ProjectCustomConfig(
      * custom compile plugins. maybe absolute/relative local file path, or download url.
      */
     val customCompilers: List<CustomCompilerInfo>?,
+    /**
+     * embedded apks in apk
+     */
+    val embeddedApksSearchRules: List<String>?,
 )
 
 @Serializable

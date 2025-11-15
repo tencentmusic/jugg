@@ -2,8 +2,12 @@ package com.sickworm.intellij.jugg.project
 
 import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.apk.ApkInfoReader
+import com.sickworm.intellij.jugg.git.FileMatcher
 import com.sickworm.intellij.jugg.server.protocols.ProjectCustomConfig
 import java.io.File
+import java.util.zip.ZipFile
 
 class CustomConfigManager(
     private val configDir: File,
@@ -49,6 +53,67 @@ class CustomConfigManager(
         }
 
         defaultCustomConfigFile.writeText(Gson().toJson(customConfig))
+    }
+
+    fun fillApkInfosWithEmbeddedApks(apkInfos: List<ApkInfo>, extractDir: File): List<ApkInfo> {
+        logger.debug("hasEmbeddedApks: ${hasEmbeddedApks()}")
+        if (!hasEmbeddedApks()) {
+            return apkInfos
+        }
+
+        val finalApkInfos = apkInfos.toMutableList()
+        apkInfos.forEach { apkInfo ->
+            apkInfo.files.forEach { apkFileUnit ->
+                val embeddedApks = extractEmbeddedApks(apkFileUnit.apkFile, extractDir)
+                logger.debug("find embeddedApks for ${apkFileUnit.apkFile}, result: $embeddedApks")
+                val embeddedApkInfos = ApkInfoReader(logger).createApkInfo(embeddedApks)
+                embeddedApkInfos.forEach { embApkInfo ->
+                    val existsApkInfo = apkInfos.find { it.applicationId == embApkInfo.applicationId }
+                    if (existsApkInfo == null) {
+                        finalApkInfos.add(embApkInfo)
+                    } else {
+                        finalApkInfos.remove(existsApkInfo)
+                        finalApkInfos.add(existsApkInfo.copy(files = existsApkInfo.files + embApkInfo.files))
+                    }
+                }
+            }
+        }
+        logger.debug("finalApkInfos: $finalApkInfos")
+        return finalApkInfos
+    }
+
+    fun hasEmbeddedApks(): Boolean {
+        return config?.embeddedApksSearchRules?.isNotEmpty() ?: false
+    }
+
+    private fun extractEmbeddedApks(apkFile: File, outputDir: File): List<File> {
+        val rules = config?.embeddedApksSearchRules ?: return emptyList()
+        if (rules.isEmpty()) {
+            return emptyList()
+        }
+        val fileMatcher = FileMatcher().also {
+            it.init(null, rules)
+        }
+
+        ZipFile(apkFile).use { zipFile ->
+            val result = mutableListOf<File>()
+            zipFile.entries().asIterator().forEach {
+                val entryName = it.name
+                if (fileMatcher.isMatch(it.name)) {
+                    val outputFile = File(outputDir, apkFile.name + "_" + entryName)
+                    outputFile.parentFile.mkdirs()
+                    logger.debug("found embedded apk: $entryName in $apkFile, output to: $outputFile")
+                    zipFile.getInputStream(it).use { inputStream ->
+                        outputFile.outputStream().use { outputStream ->
+                            inputStream.copyTo(outputStream)
+                        }
+                    }
+                    outputFile.setLastModified(it.time)
+                    result.add(outputFile)
+                }
+            }
+            return result
+        }
     }
 
     private fun loadDefaultConfig(): ProjectCustomConfig? {
