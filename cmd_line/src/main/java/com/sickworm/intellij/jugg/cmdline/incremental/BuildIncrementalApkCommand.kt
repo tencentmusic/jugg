@@ -5,14 +5,14 @@ import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
+import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,8 +37,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
             val changedFiles = getChangedFiles()
             TimeLogger.end("Init compile context", logger)
 
-            val compileResult = compilerHelper.compile(changedFiles,
-                CompileUiHandler.DEFAULT, CompileUiHandler.DEFAULT.createCompileStatusHolder())
+            val compileResult = compile(compilerHelper, changedFiles)
             if (!compileResult.isSuccess) {
                 logger.warn("Compile failed, exit.")
                 return false
@@ -68,19 +67,6 @@ class BuildIncrementalApkCommand(private val params: Params) {
         }
         dirtyFlag.parentFile.mkdirs()
         dirtyFlag.createNewFile()
-    }
-
-    private fun getProjectInfo(): JuggProjectInfo {
-        val gradleProjectInfoFile = pathManager.gradleProjectInfoFile
-        if (!gradleProjectInfoFile.exists()) {
-            throw IncrementalException("Gradle project info file not exists: ${gradleProjectInfoFile.absolutePath}")
-        }
-        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load()
-            ?: throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        if (gradleProjectInfo.modules.isEmpty()) {
-            throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
-        }
-        return gradleProjectInfo
     }
 
     private fun getCompilerHelper(): IncrementalCompilerHelper {
@@ -183,6 +169,56 @@ class BuildIncrementalApkCommand(private val params: Params) {
             }
             logger.info("Update apk success, output: ${outputApkFile.absolutePath}")
         }
+    }
+
+    private fun compile(compilerHelper: IncrementalCompilerHelper, changedFiles: List<ChangedFile>): CompileTaskResult {
+        // no limit to compile failed because we will merge dex at the last
+        JuggSettings.maxCompileSourceFilePoints = Int.MAX_VALUE
+        JuggSettings.maxCompileSourceModules = Int.MAX_VALUE
+
+        val compileTaskResult = compilerHelper.compile(changedFiles,
+            CompileUiHandler.DEFAULT, CompileUiHandler.DEFAULT.createCompileStatusHolder())
+        if (!compileTaskResult.isSuccess) {
+            return compileTaskResult // return directly
+        }
+
+        // merge dex
+        val incrementalCompileResult = compileTaskResult.incrementalCompileResult!! // not null if success
+        val isHasDexOutput = incrementalCompileResult.outputs.any { it.type == CompileOutput.Type.Dex }
+        if (!isHasDexOutput) {
+            logger.debug("No dex output, no need to merge dex.")
+            return compileTaskResult
+        }
+
+        val dexOutputDir = File(pathManager.stagingDir, "merged_dex")
+        dexOutputDir.deleteRecursively()
+        dexOutputDir.mkdirs()
+        try {
+            mergeDex(incrementalCompileResult, dexOutputDir)
+            val mergedDexFiles = dexOutputDir.listFiles()!!
+                .filter { it.extension == "dex" }
+                .map { CompileOutput(CompileOutput.Type.Dex, it, dexOutputDir) }
+            // filter out origin dex files, add merged dex files
+            val mergedOutput = mergedDexFiles +
+                    incrementalCompileResult.outputs.filter { it.type != CompileOutput.Type.Dex  }
+            val mergedIncrementalCompileResult = incrementalCompileResult.copy(outputs = mergedOutput)
+            return CompileTaskResult.incrementalSuccess(mergedIncrementalCompileResult)
+        } catch (e: Exception) {
+            logger.warn("Merge dex failed", e)
+            logger.warn("Merge dex failed, reason: ${e.message}")
+            return CompileTaskResult.incrementalFailed(isCanFallback = false, failedReason = "Merge dex failed")
+        }
+    }
+
+    private fun mergeDex(compileResult: CompileResult, outputDir: File) {
+        val dexFiles = compileResult.outputs
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.file }
+        if (dexFiles.isEmpty()) {
+            throw IncrementalException("Can not found any dex file in compile result.")
+        }
+        val dexMerger = DexFileMerger(logger)
+        dexMerger.merge(dexFiles, outputDir)
     }
 
     companion object {

@@ -59,13 +59,13 @@ object JuggSettings {
     var isUseProjectKotlinCompiler: Boolean by propertiesComponent.delegate(keyName = "isUseProjectKotlinCompiler_v3", defaultValue = true)
 
     /** limit max source modules to compile for better performance */
-    const val maxCompileSourceModules = 25
+    var maxCompileSourceModules = 25
     /**
      * Limit max source files to compile for better performance.
      * Kotlin counts 3 and java counts 2, because I found that Kotlin generate 3 classes for each source file average,
      * and Java generate 2 classes for each source file average.
      */
-    const val maxCompileSourceFilePoints = 180
+    var maxCompileSourceFilePoints = 180
     /** limit min compiler error to recreate once */
     const val minErrorToRecreateCompiler = 30
     /** source file size to trigger detect rollback */

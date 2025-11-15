@@ -7,6 +7,7 @@ data class CompileTaskResult(
     val costTime: Long,
     val failedReason: String? = null,
     val incrementalFailedReason: String? = null,
+    /** Not null if isGradleCompile=false and isSuccess=true */
     val incrementalCompileResult: CompileResult? = null,
 ) {
     companion object {
