@@ -4,7 +4,7 @@ import java.io.File
 
 object Global {
 
-    private val rootDir = File("../").absoluteFile
+    private val rootDir = File("../").normalize().absoluteFile
 
     val projectRootDir: File = File(rootDir, "idea/src/test/assets/android/MyApplicationIntellij").absoluteFile
 

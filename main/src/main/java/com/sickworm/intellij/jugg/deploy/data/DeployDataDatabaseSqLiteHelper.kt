@@ -31,7 +31,9 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
          * Generate db name by APK absolute path.
          */
         fun getApkFileDbName(apkFile: File): String {
-            return "${apkFile.name}.${apkFile.path.md5().substring(0, 8)}.db"
+            // use path will reparse apk if jugg root is changed
+//            return "${apkFile.name}.${apkFile.path.md5().substring(0, 8)}.db"
+            return "${apkFile.name}.db"
         }
 
         private val File.apkFileKey get() = getApkFileDbName(this) + "_" + this.lastModified()
