@@ -20,23 +20,14 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     companion object {
-        private const val VERSION = 8
+        private const val VERSION = 9
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
         private const val ENTRY_TYPE_RES = 2
         private const val ENTRY_TYPE_ASSETS = 3
 
-        /**
-         * Generate db name by APK absolute path.
-         */
-        fun getApkFileDbName(apkFile: File): String {
-            // use path will reparse apk if jugg root is changed
-//            return "${apkFile.name}.${apkFile.path.md5().substring(0, 8)}.db"
-            return "${apkFile.name}.db"
-        }
-
-        private val File.apkFileKey get() = getApkFileDbName(this) + "_" + this.lastModified()
+        private val File.apkFileKey get() = this.name + "_" + this.lastModified()
 
         private fun String.md5(): String {
             val md = MessageDigest.getInstance("MD5")
@@ -76,20 +67,26 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             val createTableSQL = """
                 CREATE TABLE IF NOT EXISTS apk_info (
                     key TEXT NOT NULL PRIMARY KEY,
+                    apk_info_id INTEGER NOT NULL UNIQUE,
                     next_class_id INTEGER NOT NULL,
                     is_enable_desugar BOOL NOT NULL
                 );
                 
                 CREATE TABLE IF NOT EXISTS entry_info (
-                    name TEXT NOT NULL PRIMARY KEY,
+                    entry_info_id INTEGER NOT NULL PRIMARY KEY,
+                    apk_info_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
                     checksum INTEGER NOT NULL,
                     type INTEGER NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS entry_info_apk_index ON entry_info(apk_info_id);
+                CREATE INDEX IF NOT EXISTS entry_info_name_apk_index ON entry_info(name, apk_info_id);
                 
                 CREATE TABLE IF NOT EXISTS class_info (
                     id INTEGER NOT NULL PRIMARY KEY,
                     name TEXT NOT NULL,
                     entry_info_name TEXT NOT NULL,
+                    entry_info_id INTEGER NOT NULL,
                     source TEXT,
                     super_name TEXT NOT NULL,
                     interface_names TEXT NOT NULL,
@@ -98,6 +95,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                     fields TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS class_info_name_index ON class_info(name);
+                CREATE INDEX IF NOT EXISTS class_info_entry_id_index ON class_info(entry_info_id);
                 
                 CREATE TABLE IF NOT EXISTS method_refs (
                     class_id INTEGER NOT NULL,
@@ -136,321 +134,358 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     }
 
     @Synchronized
-    fun saveParsedApk(parsedApk: ParsedApk, apkDiffResult: ParsedApkDiffResult): ParsedApkUpdateResult {
-        logger.debug("saveParsedApk $parsedApk")
+    fun saveParsedApkBatch(parsedApks: List<ParsedApk>, apkDiffResults: List<ParsedApkDiffResult>): List<ParsedApkUpdateResult> {
+        if (parsedApks.isEmpty()) return emptyList()
         DriverManager.getConnection(url).use { connection ->
             val startTime = System.currentTimeMillis()
             connection.autoCommit = false
             try {
-                val result = doInsertApkInfo(connection, parsedApk, apkDiffResult)
+                val result = doInsertApkInfoBatch(connection, parsedApks, apkDiffResults)
                 connection.commit()
-                logger.debug("saveParsedApk success. cost ${System.currentTimeMillis() - startTime}ms.")
+                logger.debug("saveParsedApkBatch success. cost ${System.currentTimeMillis() - startTime}ms.")
                 return result
             } catch (e: Exception) {
                 connection.rollback()
-                logger.error("saveParsedApk failed. cost ${System.currentTimeMillis() - startTime}ms.", e)
-                return ParsedApkUpdateResult.failed(apkDiffResult, e.message)
+                logger.error("saveParsedApkBatch failed. cost ${System.currentTimeMillis() - startTime}ms.", e)
+                return apkDiffResults.map { ParsedApkUpdateResult.failed(it, e.message) }
             }
         }
     }
 
-    private fun doInsertApkInfo(connection: Connection,
-                                parsedApk: ParsedApk,
-                                apkDiffResult: ParsedApkDiffResult): ParsedApkUpdateResult {
-        if (apkDiffResult.updatedApkInfos == 0) {
-            return ParsedApkUpdateResult.success(apkDiffResult)
-        }
+    private fun doInsertApkInfoBatch(connection: Connection,
+                                     parsedApks: List<ParsedApk>,
+                                     apkDiffResults: List<ParsedApkDiffResult>): List<ParsedApkUpdateResult> {
+        logger.debug("doInsertApkInfoBatch\nparsedApks:$parsedApks\napkDiffResults: $apkDiffResults")
+        val results = mutableListOf<ParsedApkUpdateResult>()
+        val pairs = parsedApks.zip(apkDiffResults).filter { it.second.updatedApkInfos != 0 }
+        if (pairs.isEmpty()) return apkDiffResults.map { ParsedApkUpdateResult.success(it) }
 
         var nextClassId = 1
-        runWithTimeCost("doInsertApkInfo") {
-            var oldIsEnableDesugar = true
+        val apkInfoIdByKey = mutableMapOf<String, Int>()
+        val isEnableDesugarByApkId = mutableMapOf<Int, Boolean>()
 
-            val querySql = "SELECT next_class_id, is_enable_desugar FROM apk_info;"
-            connection.createStatement().use { preparedStatement ->
-                val resultSet: ResultSet = preparedStatement.executeQueryAndLog(querySql)
-                while (resultSet.next()) {
-                    nextClassId = max(nextClassId, resultSet.getInt(1))
-                    oldIsEnableDesugar = resultSet.getBoolean(2)
+        runWithTimeCost("doInsertApkInfo.prepare") {
+            val queryAllSql = "SELECT next_class_id FROM apk_info;"
+            connection.createStatement().use { st ->
+                val rs = st.executeQueryAndLog(queryAllSql)
+                while (rs.next()) nextClassId = max(nextClassId, rs.getInt(1))
+            }
+
+            pairs.forEach { (parsedApk, apkDiffResult) ->
+                var currentApkInfoId = -1
+                var oldIsEnableDesugar = true
+                val selectApkSql = "SELECT apk_info_id, next_class_id, is_enable_desugar FROM apk_info WHERE key=?;"
+                connection.prepareStatement(selectApkSql).use { ps ->
+                    ps.setString(1, parsedApk.apkFile.apkFileKey)
+                    val rs = ps.executeQuery()
+                    if (rs.next()) {
+                        currentApkInfoId = rs.getInt(1)
+                        nextClassId = max(nextClassId, rs.getInt(2))
+                        oldIsEnableDesugar = rs.getBoolean(3)
+                    }
                 }
-            }
-            val deleteSql = "DELETE FROM apk_info;"
-            connection.createStatement().use { preparedStatement ->
-                preparedStatement.executeUpdate(deleteSql)
-            }
 
-            val newIsEnableDesugar = if (apkDiffResult.isFullUpdate) {
-                parsedApk.classes.keys.any {
-                    it.endsWith(desugarDefaultInterfaceSuffix) || it.endsWith(desugarDefaultInterfaceSuffix2)
+                val newIsEnableDesugar = if (apkDiffResult.isFullUpdate) {
+                    parsedApk.classes.keys.any { it.endsWith(desugarDefaultInterfaceSuffix) || it.endsWith(desugarDefaultInterfaceSuffix2) }
+                } else oldIsEnableDesugar
+
+                if (currentApkInfoId < 0) {
+                    var nextApkInfoId = 1
+                    val maxIdSql = "SELECT MAX(apk_info_id) FROM apk_info;"
+                    connection.createStatement().use { st ->
+                        val rs = st.executeQueryAndLog(maxIdSql)
+                        if (rs.next()) nextApkInfoId = max(nextApkInfoId, rs.getInt(1) + 1)
+                    }
+
+                    val sql = "INSERT INTO apk_info(key, apk_info_id, next_class_id, is_enable_desugar) VALUES(?, ?, ?, ?);"
+                    connection.prepareStatement(sql).use { ps ->
+                        ps.setString(1, parsedApk.apkFile.apkFileKey)
+                        ps.setInt(2, nextApkInfoId)
+                        ps.setInt(3, nextClassId)
+                        ps.setBoolean(4, newIsEnableDesugar)
+                        ps.executeUpdate()
+                    }
+                    currentApkInfoId = nextApkInfoId
+                } else {
+                    val sql = "UPDATE apk_info SET is_enable_desugar=? WHERE apk_info_id=?;"
+                    connection.prepareStatement(sql).use { ps ->
+                        ps.setBoolean(1, newIsEnableDesugar)
+                        ps.setInt(2, currentApkInfoId)
+                        ps.executeUpdate()
+                    }
                 }
-            } else {
-                oldIsEnableDesugar
-            }
-
-            val sql = "INSERT INTO apk_info(key, next_class_id, is_enable_desugar) VALUES(?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                preparedStatement.setString(1, parsedApk.apkFile.apkFileKey)
-                preparedStatement.setInt(2, nextClassId)
-                preparedStatement.setBoolean(3, newIsEnableDesugar)
-                preparedStatement.executeUpdate()
+                apkInfoIdByKey[parsedApk.apkFile.apkFileKey] = currentApkInfoId
+                isEnableDesugarByApkId[currentApkInfoId] = newIsEnableDesugar
             }
         }
-
 
         runWithTimeCost("doDeleteEntryInfo") {
-            val removedDexFiles = apkDiffResult.removedDexFiles + apkDiffResult.updatedDexFiles
-            val removedOverlayFiles = apkDiffResult.removedOverlayFiles + apkDiffResult.updatedOverlayFiles
-            if (removedDexFiles.isEmpty() && removedOverlayFiles.isEmpty()) {
-                return@runWithTimeCost
+            val removedDexFiles = mutableMapOf<String, JuggFileInfo>()
+            val removedOverlayFiles = mutableMapOf<String, JuggFileInfo>()
+            pairs.forEach { (_, diff) ->
+                removedDexFiles.putAll(diff.removedDexFiles)
+                removedDexFiles.putAll(diff.updatedDexFiles)
+                removedOverlayFiles.putAll(diff.removedOverlayFiles)
+                removedOverlayFiles.putAll(diff.updatedOverlayFiles)
             }
-
-            val sql = "DELETE FROM entry_info WHERE name=?;"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                removedDexFiles.values.forEach {
-                    preparedStatement.setString(1, it.name)
-                    preparedStatement.addBatch()
+            if (removedDexFiles.isEmpty() && removedOverlayFiles.isEmpty()) {
+                // nothing to delete
+            } else {
+                val sql = "DELETE FROM entry_info WHERE name=?;"
+                connection.prepareStatement(sql).use { ps ->
+                    removedDexFiles.values.forEach { ps.setString(1, it.name); ps.addBatch() }
+                    removedOverlayFiles.values.forEach { ps.setString(1, it.name); ps.addBatch() }
+                    ps.executeBatch()
                 }
-                removedOverlayFiles.values.forEach {
-                    preparedStatement.setString(1, it.name)
-                    preparedStatement.addBatch()
-                }
-                preparedStatement.executeBatch()
             }
         }
+
+        val entryInfoIdByNameByApkId = mutableMapOf<Int, MutableMap<String, Int>>()
 
         runWithTimeCost("doInsertEntryInfo") {
-            val addedDexFiles = apkDiffResult.addedDexFiles + apkDiffResult.updatedDexFiles
-            val addedOverlayFiles = apkDiffResult.addedOverlayFiles + apkDiffResult.updatedOverlayFiles
-            if (addedDexFiles.isEmpty() && addedOverlayFiles.isEmpty()) {
-                return@runWithTimeCost
+            var nextEntryInfoId = 1
+            val maxEntrySql = "SELECT MAX(entry_info_id) FROM entry_info;"
+            connection.createStatement().use { st ->
+                val rs = st.executeQueryAndLog(maxEntrySql)
+                if (rs.next()) nextEntryInfoId = max(nextEntryInfoId, rs.getInt(1) + 1)
             }
 
-            val sql = "INSERT INTO entry_info(name, checksum, type) VALUES(?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                addedDexFiles.values.forEach {
-                    preparedStatement.setString(1, it.name)
-                    preparedStatement.setLong(2, it.checksum)
-                    preparedStatement.setInt(3, ENTRY_TYPE_DEX)
-                    preparedStatement.addBatch()
-                }
-                addedOverlayFiles.values.forEach {
-                    preparedStatement.setString(1, it.name)
-                    preparedStatement.setLong(2, it.checksum)
-                    if (it.isRes) {
-                        preparedStatement.setInt(3, ENTRY_TYPE_RES)
-                    } else if (it.isAsset) {
-                        preparedStatement.setInt(3, ENTRY_TYPE_ASSETS)
-                    } else {
-                        preparedStatement.setInt(3, ENTRY_TYPE_OTHER)
+            val sql = "INSERT INTO entry_info(entry_info_id, apk_info_id, name, checksum, type) VALUES(?, ?, ?, ?, ?);"
+            connection.prepareStatement(sql).use { ps ->
+                pairs.forEach { (parsedApk, diff) ->
+                    val apkId = apkInfoIdByKey[parsedApk.apkFile.apkFileKey]!!
+                    val addedDexFiles = diff.addedDexFiles + diff.updatedDexFiles
+                    val addedOverlayFiles = diff.addedOverlayFiles + diff.updatedOverlayFiles
+                    addedDexFiles.values.forEach {
+                        ps.setInt(1, nextEntryInfoId++)
+                        ps.setInt(2, apkId)
+                        ps.setString(3, it.name)
+                        ps.setLong(4, it.checksum)
+                        ps.setInt(5, ENTRY_TYPE_DEX)
+                        ps.addBatch()
                     }
-                    preparedStatement.addBatch()
+                    addedOverlayFiles.values.forEach {
+                        ps.setInt(1, nextEntryInfoId++)
+                        ps.setInt(2, apkId)
+                        ps.setString(3, it.name)
+                        ps.setLong(4, it.checksum)
+                        ps.setInt(5, if (it.isRes) ENTRY_TYPE_RES else if (it.isAsset) ENTRY_TYPE_ASSETS else ENTRY_TYPE_OTHER)
+                        ps.addBatch()
+                    }
                 }
-                preparedStatement.executeBatch()
+                ps.executeBatch()
             }
         }
 
-        val dbClassNodeMap = mutableMapOf<String, Int>() // class name -> id map
+        runWithTimeCost("doLoadEntryIds") {
+            val sql = "SELECT name, entry_info_id, apk_info_id FROM entry_info;"
+            connection.createStatement().use { st ->
+                val rs = st.executeQueryAndLog(sql)
+                while (rs.next()) {
+                    val name = rs.getString(1)
+                    val entryId = rs.getInt(2)
+                    val apkId = rs.getInt(3)
+                    val map = entryInfoIdByNameByApkId.getOrPut(apkId) { mutableMapOf() }
+                    map[name] = entryId
+                }
+            }
+        }
+
+        val dbClassNodeMap = mutableMapOf<String, Int>()
         val removedClasses = mutableMapOf<String, Int>()
         val updatedClasses = mutableMapOf<String, Int>()
 
         runWithTimeCost("doGetClassInfo") {
-            val deleteDexNames = apkDiffResult.removedDexFiles + apkDiffResult.updatedDexFiles
-            if (deleteDexNames.isEmpty()) {
-                return@runWithTimeCost
-            }
-
+            val removedDexNames = mutableSetOf<String>()
+            val updatedDexNames = mutableSetOf<String>()
             val refClassNames = mutableSetOf<String>()
-            parsedApk.methodRefs.keys.forEach {
-                refClassNames.add(it.owner)
+            pairs.forEach { (parsedApk, diff) ->
+                removedDexNames.addAll(diff.removedDexFiles.keys)
+                updatedDexNames.addAll(diff.updatedDexFiles.keys)
+                parsedApk.methodRefs.keys.forEach { refClassNames.add(it.owner) }
+                parsedApk.fieldRefs.keys.forEach { refClassNames.add(it.owner) }
+                parsedApk.subclassRefs.keys.forEach { refClassNames.add(it) }
             }
-            parsedApk.fieldRefs.keys.forEach {
-                refClassNames.add(it.owner)
+            val conditions = mutableListOf<String>()
+            if (removedDexNames.isNotEmpty()) {
+                val s = removedDexNames.joinToString(",") { "'$it'" }
+                conditions.add("entry_info_name IN ($s)")
             }
-            parsedApk.subclassRefs.keys.forEach {
-                refClassNames.add(it)
+            if (updatedDexNames.isNotEmpty()) {
+                val s = updatedDexNames.joinToString(",") { "'$it'" }
+                conditions.add("entry_info_name IN ($s)")
             }
-            logger.debug("doGetClassInfo deleteDexNames: ${deleteDexNames.size}, refClassNames: ${refClassNames.size}")
-
-            val selectClassSQL = if (deleteDexNames.size + refClassNames.size > 10000) {
-                // query performance optimize
+            if (refClassNames.isNotEmpty()) {
+                val s = refClassNames.joinToString(",") { "'$it'" }
+                conditions.add("name IN ($s)")
+            }
+            val selectClassSQL = if (conditions.isEmpty()) {
                 "SELECT name, entry_info_name, id FROM class_info;"
             } else {
-                val deleteDexNamesString = deleteDexNames.keys.joinToString(",") { "'$it'"}
-                val refClassNamesString = refClassNames.joinToString(",") { "'$it'"}
-                "SELECT name, entry_info_name, id FROM class_info WHERE (entry_info_name IN ($deleteDexNamesString)) OR (name IN ($refClassNamesString));"
+                "SELECT name, entry_info_name, id FROM class_info WHERE ${conditions.joinToString(" OR ")};"
             }
-            connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQueryAndLog(selectClassSQL)
-                while (resultSet.next()) {
-                    val className = resultSet.getString(1)
-                    val entryName = resultSet.getString(2)
-                    val id = resultSet.getInt(3)
+            connection.createStatement().use { st ->
+                val rs = st.executeQueryAndLog(selectClassSQL)
+                while (rs.next()) {
+                    val className = rs.getString(1)
+                    val entryName = rs.getString(2)
+                    val id = rs.getInt(3)
                     dbClassNodeMap[className] = id
-
-                    if (apkDiffResult.removedDexFiles.containsKey(entryName)) {
-                        removedClasses[className] = id
-                    } else if (apkDiffResult.updatedDexFiles.containsKey(entryName)) {
-                        updatedClasses[className] = id
-                    }
+                    if (removedDexNames.contains(entryName)) removedClasses[className] = id
+                    if (updatedDexNames.contains(entryName)) updatedClasses[className] = id
                 }
             }
         }
 
         runWithTimeCost("doDeleteAllClassInfo") {
-
             val dbDeleteClasses = removedClasses + updatedClasses
-            if (dbDeleteClasses.isEmpty()) {
-                return@runWithTimeCost
-            }
-
-            val deleteClassSql = "DELETE FROM class_info WHERE id=?;"
-            connection.prepareStatement(deleteClassSql).use { preparedStatement ->
-//                dbDeleteClasses.values.forEach { // keep removed class info to let it recoverable after re-add it
-                updatedClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
+            if (dbDeleteClasses.isNotEmpty()) {
+                val deleteClassSql = "DELETE FROM class_info WHERE id=?;"
+                connection.prepareStatement(deleteClassSql).use { ps ->
+                    updatedClasses.values.forEach { ps.setInt(1, it); ps.addBatch() }
+                    ps.executeBatch()
                 }
-                preparedStatement.executeBatch()
-            }
-
-            val deleteMethodRefSql = "DELETE FROM method_refs WHERE ref_class_id=?;"
-            connection.prepareStatement(deleteMethodRefSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
+                val deleteMethodRefSql = "DELETE FROM method_refs WHERE ref_class_id=?;"
+                connection.prepareStatement(deleteMethodRefSql).use { ps ->
+                    dbDeleteClasses.values.forEach { ps.setInt(1, it); ps.addBatch() }
+                    ps.executeBatch()
                 }
-                preparedStatement.executeBatch()
-            }
-
-            val deleteFieldRefSql = "DELETE FROM field_refs WHERE ref_class_id=?;"
-            connection.prepareStatement(deleteFieldRefSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
+                val deleteFieldRefSql = "DELETE FROM field_refs WHERE ref_class_id=?;"
+                connection.prepareStatement(deleteFieldRefSql).use { ps ->
+                    dbDeleteClasses.values.forEach { ps.setInt(1, it); ps.addBatch() }
+                    ps.executeBatch()
                 }
-                preparedStatement.executeBatch()
-            }
-
-            val deleteSubclassRefSql = "DELETE FROM subclass_refs WHERE ref_class_id=?;"
-            connection.prepareStatement(deleteSubclassRefSql).use { preparedStatement ->
-                dbDeleteClasses.values.forEach {
-                    preparedStatement.setInt(1, it)
-                    preparedStatement.addBatch()
+                val deleteSubclassRefSql = "DELETE FROM subclass_refs WHERE ref_class_id=?;"
+                connection.prepareStatement(deleteSubclassRefSql).use { ps ->
+                    dbDeleteClasses.values.forEach { ps.setInt(1, it); ps.addBatch() }
+                    ps.executeBatch()
                 }
-                preparedStatement.executeBatch()
             }
-        }
-
-        val addedClasses = parsedApk.classes.keys.filter {
-            !updatedClasses.containsKey(it)
         }
 
         runWithTimeCost("doInsertClassInfo") {
-            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, access, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.classes.values.forEach {
-                    preparedStatement.setString(1, it.className)
-                    preparedStatement.setString(2, it.interfaceNames.toInterfaceString())
-                    preparedStatement.setString(3, it.superClass)
-                    preparedStatement.setString(4, it.source)
-                    preparedStatement.setString(5, it.dexFileName)
-                    preparedStatement.setInt(6, it.access)
-                    preparedStatement.setString(7, it.methods.toMethodString())
-                    preparedStatement.setString(8, it.fields.toFieldString())
-                    val classId = updatedClasses[it.className] ?: nextClassId++ // reuse id, or method_refs/field_refs/subclass_refs will be wrong
-                    preparedStatement.setInt(9, classId)
-                    preparedStatement.addBatch()
-                    dbClassNodeMap[it.className] = classId
+            val sql = "INSERT INTO class_info(name, interface_names, super_name, source, entry_info_name, entry_info_id, access, methods, fields, id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+            connection.prepareStatement(sql).use { ps ->
+                pairs.forEach { (parsedApk, _) ->
+                    val apkId = apkInfoIdByKey[parsedApk.apkFile.apkFileKey]!!
+                    val idMap = entryInfoIdByNameByApkId[apkId] ?: mutableMapOf()
+                    parsedApk.classes.values.forEach { cn ->
+                        ps.setString(1, cn.className)
+                        ps.setString(2, cn.interfaceNames.toInterfaceString())
+                        ps.setString(3, cn.superClass)
+                        ps.setString(4, cn.source)
+                        ps.setString(5, cn.dexFileName)
+                        ps.setInt(6, idMap[cn.dexFileName] ?: 0)
+                        ps.setInt(7, cn.access)
+                        ps.setString(8, cn.methods.toMethodString())
+                        ps.setString(9, cn.fields.toFieldString())
+                        val classId = updatedClasses[cn.className] ?: nextClassId++
+                        ps.setInt(10, classId)
+                        ps.addBatch()
+                        dbClassNodeMap[cn.className] = classId
+                    }
                 }
-                preparedStatement.executeBatch()
+                ps.executeBatch()
             }
         }
 
         runWithTimeCost("doInsertMethodRef") {
             val sql = "INSERT INTO method_refs(class_id, name, desc, ref_class_id) VALUES(?, ?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.methodRefs.forEach { (methodNode, refClasses) ->
-                    val dbClassNode = dbClassNodeMap[methodNode.owner]
-                        ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
-                        return@forEach
-                    refClasses.forEach {
-                        preparedStatement.setInt(1, dbClassNode)
-                        preparedStatement.setString(2, methodNode.name)
-                        preparedStatement.setString(3, methodNode.desc)
-                        preparedStatement.setInt(4, dbClassNodeMap[it]!!)
-                        preparedStatement.addBatch()
+            connection.prepareStatement(sql).use { ps ->
+                pairs.forEach { (parsedApk, _) ->
+                    parsedApk.methodRefs.forEach { (methodNode, refClasses) ->
+                        val dbClassNode = dbClassNodeMap[methodNode.owner] ?: return@forEach
+                        refClasses.forEach {
+                            val refId = dbClassNodeMap[it] ?: return@forEach
+                            ps.setInt(1, dbClassNode)
+                            ps.setString(2, methodNode.name)
+                            ps.setString(3, methodNode.desc)
+                            ps.setInt(4, refId)
+                            ps.addBatch()
+                        }
                     }
                 }
-                preparedStatement.executeBatch()
+                ps.executeBatch()
             }
         }
 
         runWithTimeCost("doInsertFieldRef") {
             val sql = "INSERT INTO field_refs(class_id, name, type, ref_class_id) VALUES(?, ?, ?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.fieldRefs.forEach { (fieldNode, refClassIds) ->
-                    val dbClassNode = dbClassNodeMap[fieldNode.owner]
-                        ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
-                        return@forEach
-                    refClassIds.forEach {
-                        preparedStatement.setInt(1, dbClassNode)
-                        preparedStatement.setString(2, fieldNode.name)
-                        preparedStatement.setString(3, fieldNode.type)
-                        preparedStatement.setInt(4, dbClassNodeMap[it]!!)
-                        preparedStatement.addBatch()
+            connection.prepareStatement(sql).use { ps ->
+                pairs.forEach { (parsedApk, _) ->
+                    parsedApk.fieldRefs.forEach { (fieldNode, refClassIds) ->
+                        val dbClassNode = dbClassNodeMap[fieldNode.owner] ?: return@forEach
+                        refClassIds.forEach {
+                            val refId = dbClassNodeMap[it] ?: return@forEach
+                            ps.setInt(1, dbClassNode)
+                            ps.setString(2, fieldNode.name)
+                            ps.setString(3, fieldNode.type)
+                            ps.setInt(4, refId)
+                            ps.addBatch()
+                        }
                     }
                 }
-                preparedStatement.executeBatch()
+                ps.executeBatch()
             }
         }
 
         runWithTimeCost("doInsertSubclassRef") {
             val sql = "INSERT INTO subclass_refs(class_id, ref_class_id) VALUES(?, ?);"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                parsedApk.subclassRefs.forEach { (className, refClassName) ->
-                    val dbClassNode = dbClassNodeMap[className]
-                        ?: // The class of the field is not exists in the apk. Maybe in the android.jar. Skip it.
-                        return@forEach
-                    refClassName.forEach {
-                        preparedStatement.setInt(1, dbClassNode)
-                        preparedStatement.setInt(2, dbClassNodeMap[it]!!)
-                        preparedStatement.addBatch()
+            connection.prepareStatement(sql).use { ps ->
+                pairs.forEach { (parsedApk, _) ->
+                    parsedApk.subclassRefs.forEach { (className, refClassName) ->
+                        val dbClassNode = dbClassNodeMap[className] ?: return@forEach
+                        refClassName.forEach {
+                            val refId = dbClassNodeMap[it] ?: return@forEach
+                            ps.setInt(1, dbClassNode)
+                            ps.setInt(2, refId)
+                            ps.addBatch()
+                        }
                     }
                 }
-                preparedStatement.executeBatch()
+                ps.executeBatch()
             }
         }
 
         runWithTimeCost("doUpdateNextClassId") {
-            val sql = "UPDATE apk_info SET next_class_id=?;"
-            connection.prepareStatement(sql).use { preparedStatement ->
-                preparedStatement.setInt(1, nextClassId)
-                preparedStatement.execute()
+            val sql = "UPDATE apk_info SET next_class_id=? WHERE apk_info_id=?;"
+            connection.prepareStatement(sql).use { ps ->
+                isEnableDesugarByApkId.keys.forEach { apkId ->
+                    ps.setInt(1, nextClassId)
+                    ps.setInt(2, apkId)
+                    ps.addBatch()
+                }
+                ps.executeBatch()
             }
         }
 
-        System.gc()
-        return ParsedApkUpdateResult.success(apkDiffResult).copy(
-            addedClasses = addedClasses,
-            removedClasses = removedClasses.keys.toList(),
-            updatedClasses = updatedClasses.keys.toList(),
-        )
+        pairs.forEach { (parsedApk, diff) ->
+            val added = parsedApk.classes.keys.filter { !updatedClasses.containsKey(it) }
+            results.add(ParsedApkUpdateResult.success(diff).copy(
+                addedClasses = added,
+                removedClasses = removedClasses.keys.toList(),
+                updatedClasses = updatedClasses.keys.toList(),
+            ))
+        }
+        return results
     }
 
     @Synchronized
     fun diffApk(apkEntries: ApkEntries): ParsedApkDiffResult {
         logger.debug("diffApk apkEntries: dexFiles ${apkEntries.dexFiles.size}")
         DriverManager.getConnection(url).use { connection ->
-            val apkInfoKeys = mutableListOf<String>()
-            val selectApkSQL = "SELECT * FROM apk_info;"
-            connection.createStatement().use { statement ->
-                val resultSet: ResultSet = statement.executeQueryAndLog(selectApkSQL)
-                while (resultSet.next()) {
-                    val key = resultSet.getString("key")
-                    apkInfoKeys.add(key)
+            // try find existing apk_info row
+            var apkInfoId: Int? = null
+            val selectApkSQL = "SELECT apk_info_id FROM apk_info WHERE key=?;"
+            connection.prepareStatement(selectApkSQL).use { ps ->
+                ps.setString(1, apkEntries.apkFile.apkFileKey)
+                val rs = ps.executeQuery()
+                if (rs.next()) {
+                    apkInfoId = rs.getInt(1)
                 }
             }
 
-            if (apkInfoKeys.contains(apkEntries.apkFile.apkFileKey)) {
+            if (apkInfoId != null) {
                 return ParsedApkDiffResult(apkEntries.apkFile, updatedApkInfos = 0)
             }
 
@@ -521,15 +556,19 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     fun getParsedApk(apkFile: File): ParsedApk? {
         logger.debug("getParsedApk $apkFile")
 
-        val apkInfoKeys = getApkInfoKeys()
-        if (apkInfoKeys.size != 1) {
-            logger.warn("Apk info key size is not 1.")
-            return null
-        }
-        val apkInfoKey = apkInfoKeys[0]
-        if (apkFile.apkFileKey != apkInfoKey) {
-            logger.warn("Apk info key is not match. expect: ${apkFile.apkFileKey}, actual: $apkInfoKey")
-            return null
+        var currentApkInfoId = -1
+        DriverManager.getConnection(url).use { connection0 ->
+            val sql = "SELECT apk_info_id FROM apk_info WHERE key=?;"
+            connection0.prepareStatement(sql).use { ps ->
+                ps.setString(1, apkFile.apkFileKey)
+                val rs = ps.executeQuery()
+                if (rs.next()) {
+                    currentApkInfoId = rs.getInt(1)
+                } else {
+                    logger.warn("Apk info key not found: ${apkFile.apkFileKey}")
+                    return null
+                }
+            }
         }
 
         DriverManager.getConnection(url).use { connection ->

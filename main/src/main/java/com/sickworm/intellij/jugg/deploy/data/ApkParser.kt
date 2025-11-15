@@ -22,6 +22,14 @@ class ApkParser: CoroutineScope by CoroutineScope(
     )
 ) {
 
+    fun parse(diffs: List<ParsedApkDiffResult>): List<ParsedApk> {
+        val result = diffs.map {
+            parse(it.apkFile, it.includeEntries)
+        }
+        ClassStringPool.clear()
+        return result
+    }
+
     fun parse(apkFile: File, includeEntries: ApkEntries? = null): ParsedApk {
         val classes = ConcurrentHashMap<String, ClassNode>()
         val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
@@ -115,7 +123,6 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 jobs.joinAll()
             }
         }
-        ClassStringPool.clear()
     }
 
     private fun parseDex(dexFileName: String, bytes: ByteArray,

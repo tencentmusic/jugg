@@ -250,6 +250,138 @@ class DeployDataDatabaseSqLiteHelperTest {
         testGetParsedApk(helper, finalParsedApk)
     }
 
+    @Test
+    fun testInsertMultipleApkInfos() {
+        // Scenario: insert two APKs; the second APK is copied from the first
+        // Expectation: apk_info keys increase to 2 and both APKs are retrievable
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
+        helper.init()
+
+        // Insert first APK (full insert)
+        val apkFile1 = projectInfo.apkFile
+        val entries1 = ApkParser().parseEntries(apkFile1)
+        val diff1 = helper.diffApk(entries1)
+        val parsed1 = ApkParser().parse(apkFile1, diff1.includeEntries).filterNotExistsClassesRef()
+        helper.saveParsedApk(parsed1, diff1)
+
+        // Prepare second APK by copying and bumping lastModified so key changes
+        val apkCopy = File(buildDir, "app-debug-copy.apk")
+        apkFile1.copyTo(apkCopy, overwrite = true)
+        apkCopy.setLastModified(apkCopy.lastModified() + 2)
+
+        // Insert second APK (full insert)
+        val entries2 = ApkParser().parseEntries(apkCopy)
+        val diff2 = helper.diffApk(entries2)
+        val parsed2 = ApkParser().parse(apkCopy, diff2.includeEntries).filterNotExistsClassesRef()
+        helper.saveParsedApk(parsed2, diff2)
+
+        // Verify: two keys and both APKs can be read back with matching file
+        val keys = helper.getApkInfoKeys()
+        assertEquals(2, keys.size)
+
+        val fromDb1 = helper.getParsedApk(apkFile1)
+        val fromDb2 = helper.getParsedApk(apkCopy)
+        assertNotNull(fromDb1)
+        assertNotNull(fromDb2)
+        assertEquals(apkFile1, fromDb1.apkFile)
+        assertEquals(apkCopy, fromDb2.apkFile)
+    }
+
+    @Test
+    fun testUpdateApkInfosMultipleApk() {
+        // Scenario: mirror single-APK update flows across two APKs
+        // Expectation: diff flags and update results follow the same semantics for each APK
+        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger)
+        helper.init()
+
+        // APK #1 full insert
+        var apkEntries1 = ApkParser().parseEntries(projectInfo.apkFile)
+        val originApkEntries1 = apkEntries1
+        val emptyDiffResult1 = ParsedApkDiffResult(apkEntries1)
+        var diffResult1 = helper.diffApk(apkEntries1)
+        var parsedApk1: ParsedApk = ApkParser().parse(projectInfo.apkFile, diffResult1.includeEntries).filterNotExistsClassesRef()
+        var finalParsedApk1 = parsedApk1
+        var updateResult1 = helper.saveParsedApk(parsedApk1, diffResult1)
+        // Expect: addedClasses equals classes of the current parsed APK
+        assertUpdateResultEquals(
+            ParsedApkUpdateResult.success(diffResult1).copy(addedClasses = parsedApk1.classes.map { it.value.className }.toList()),
+            updateResult1
+        )
+
+        // Re-diff same entries: expect updatedApkInfos == 0
+        diffResult1 = helper.diffApk(apkEntries1)
+        assertEquals(0, diffResult1.updatedApkInfos)
+
+        // Refresh key and re-diff: expect updatedApkInfos == 1 and save succeeds
+        projectInfo.apkInfo.refreshApkInfoKey()
+        diffResult1 = helper.diffApk(apkEntries1)
+        assertEquals(1, diffResult1.updatedApkInfos)
+        parsedApk1 = ApkParser().parse(projectInfo.apkFile, diffResult1.includeEntries)
+        updateResult1 = helper.saveParsedApk(parsedApk1, diffResult1)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult1), updateResult1)
+
+        // Remove one dex from APK #1: expect removedDexFiles non-empty and removedClasses non-empty after save
+        val firstDex1 = originApkEntries1.dexFiles.first()
+        projectInfo.apkInfo.refreshApkInfoKey()
+        val removedDexFiles1 = mapOf(
+            firstDex1.key to firstDex1.value
+        )
+        apkEntries1 = apkEntries1.copy(dexFiles = apkEntries1.dexFiles - removedDexFiles1.keys)
+        diffResult1 = helper.diffApk(apkEntries1)
+        assertEquals(1, diffResult1.updatedApkInfos)
+        assertEquals(removedDexFiles1.size, diffResult1.removedDexFiles.size)
+        parsedApk1 = ApkParser().parse(projectInfo.apkFile, diffResult1.includeEntries)
+        updateResult1 = helper.saveParsedApk(parsedApk1, diffResult1)
+        assertTrue(updateResult1.removedClasses.isNotEmpty())
+
+        // Add dex back: expect addedClasses equals current parsed classes after save
+        val addDexFiles1 = mapOf(
+            firstDex1.key to firstDex1.value
+        )
+        projectInfo.apkInfo.refreshApkInfoKey()
+        apkEntries1 = apkEntries1.copy(dexFiles = apkEntries1.dexFiles + addDexFiles1)
+        diffResult1 = helper.diffApk(apkEntries1)
+        parsedApk1 = ApkParser().parse(projectInfo.apkFile, diffResult1.includeEntries)
+        updateResult1 = helper.saveParsedApk(parsedApk1, diffResult1)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult1).copy(addedClasses = parsedApk1.classes.map { it.value.className}), updateResult1)
+
+        // APK #2: copy APK #1 and insert
+        val apkFile2 = File(buildDir, "app-debug-multi.apk")
+        projectInfo.apkFile.copyTo(apkFile2, overwrite = true)
+        apkFile2.setLastModified(apkFile2.lastModified() + 2)
+
+        // Insert APK #2: expect success
+        var apkEntries2 = ApkParser().parseEntries(apkFile2)
+        val originApkEntries2 = apkEntries2
+        val emptyDiffResult2 = ParsedApkDiffResult(apkEntries2.apkFile)
+        var diffResult2 = helper.diffApk(apkEntries2)
+        var parsedApk2: ParsedApk = ApkParser().parse(apkFile2, diffResult2.includeEntries).filterNotExistsClassesRef()
+        var finalParsedApk2 = parsedApk2
+        var updateResult2 = helper.saveParsedApk(parsedApk2, diffResult2)
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult2), updateResult2)
+
+        // Remove one dex from APK #2: expect removedClasses non-empty
+        val firstDex2 = originApkEntries2.dexFiles.first()
+        apkFile2.setLastModified(apkFile2.lastModified() + 2)
+        val removedDexFiles2 = mapOf(
+            firstDex2.key to firstDex2.value
+        )
+        apkEntries2 = apkEntries2.copy(dexFiles = apkEntries2.dexFiles - removedDexFiles2.keys)
+        diffResult2 = helper.diffApk(apkEntries2)
+        parsedApk2 = ApkParser().parse(apkFile2, diffResult2.includeEntries)
+        updateResult2 = helper.saveParsedApk(parsedApk2, diffResult2)
+        assertTrue(updateResult2.removedClasses.isNotEmpty())
+
+        // Verify: multiple keys exist and both APKs can be read back
+        val keys = helper.getApkInfoKeys()
+        assertTrue(keys.size >= 2)
+
+        val parsedFromDb1 = helper.getParsedApk(projectInfo.apkFile)
+        val parsedFromDb2 = helper.getParsedApk(apkFile2)
+        assertNotNull(parsedFromDb1)
+        assertNotNull(parsedFromDb2)
+    }
+
     private fun ApkInfo.refreshApkInfoKey() {
         files.first().apkFile.also {
             it.setLastModified(it.lastModified() + 1)
@@ -285,5 +417,9 @@ class DeployDataDatabaseSqLiteHelperTest {
             fieldRefs.filter { classes.containsKey(it.key.owner) },
             subclassRefs.filter { classes.containsKey(it.key) },
         )
+    }
+
+    private fun DeployDataDatabaseSqLiteHelper.saveParsedApk(parsedApk: ParsedApk, diffResult: ParsedApkDiffResult): ParsedApkUpdateResult {
+        return saveParsedApkBatch(listOf(parsedApk), listOf(diffResult)).first()
     }
 }

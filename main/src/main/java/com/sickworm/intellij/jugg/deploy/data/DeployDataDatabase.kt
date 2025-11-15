@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName
 import com.sickworm.intellij.jugg.deploy.desugarDefaultInterfaceName2
@@ -74,16 +75,23 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val startTime = System.currentTimeMillis()
         database.clear()
         val updateResults = mutableListOf<ParsedApkUpdateResult>()
-        apks.forEach { apk ->
-            apk.files.forEach { apkFileUnit ->
-                val helper = createDbHelper(apkFileUnit.apkFile, updateResults)
-                database[helper.dbFile.name] = helper
-            }
+
+        val newDbFiles = mutableListOf<String>()
+        apks.groupBy { it.applicationId }
+            .mapValues { entry -> entry.value.flatMap { it.files } }
+            .forEach { (applicationId, apkFileUnits) ->
+                val dbFile = File(dbDir, "$applicationId.db")
+                newDbFiles += dbFile.path
+                val helper = database[applicationId] ?: DeployDataDatabaseSqLiteHelper(dbFile, logger.getInstance("DeployDataDatabaseSqLiteHelper")).also {
+                    it.init()
+                    database[applicationId] = it
+                }
+                updateResults.addAll(processApkWithHelper(apkFileUnits, helper))
         }
         incDeployedDatabase.init(deployedItems)
 
         // clear deprecated databases
-        val newDbFiles = database.values.map { it.dbFile.path }
+        // remove deprecated db files not in current applicationId set
         val existsDbFiles = dbDir.listFiles()?.filter { it.name.endsWith(".db") }?.toList() ?: emptyList()
         existsDbFiles.forEach { dbFile ->
             if (dbFile.path !in newDbFiles) {
@@ -98,42 +106,44 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return updateResults
     }
 
-    private fun createDbHelper(apkFile: File, updateResults: MutableList<ParsedApkUpdateResult>): DeployDataDatabaseSqLiteHelper {
-        val dbName = DeployDataDatabaseSqLiteHelper.getApkFileDbName(apkFile)
-        val dbFile = File(dbDir, dbName)
-        val helper = DeployDataDatabaseSqLiteHelper(dbFile, logger.getInstance("DeployDataDatabaseSqLiteHelper"))
-        helper.init()
-        val apkEntries = ApkParser().parseEntries(apkFile)
-        logger.debug("$dbName apkEntries, dexFiles: ${apkEntries.dexFiles.size}, overlayFiles: ${apkEntries.overlayFiles.size}")
-        var diffResult = helper.diffApk(apkEntries)
-        var includeEntries = diffResult.includeEntries
-        val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
-        logger.debug("$dbName diffResult $diffResult")
-        if (allChangedDexFileSize > 3 || allChangedDexFileSize >= apkEntries.dexFiles.size * 0.2) {
-            // If removed dex files is more than 20%, it's better to full update the apk for better database update performance.
-            logger.info("$dbName database dex files changed too much (${allChangedDexFileSize}/${apkEntries.dexFiles.size}), re-parse the apk.")
-            includeEntries = apkEntries
-            diffResult = ParsedApkDiffResult(apkEntries)
+    private fun processApkWithHelper(apkFiles: List<ApkFileUnit>, helper: DeployDataDatabaseSqLiteHelper): List<ParsedApkUpdateResult> {
+        val diffBeanList = apkFiles.map { apkFileUnit ->
+            val apkFile = apkFileUnit.apkFile
+            val apkEntries = ApkParser().parseEntries(apkFile)
+            logger.debug("${apkFile.name} apkEntries, dexFiles: ${apkEntries.dexFiles.size}, overlayFiles: ${apkEntries.overlayFiles.size}")
+            val diffResult = helper.diffApk(apkEntries)
+            logger.debug("${apkFile.name} diffResult $diffResult")
+            DiffBean(apkEntries, diffResult)
+        }.toMutableList()
+
+        val allChangedDexFileSize = diffBeanList.sumOf { it.allChangedDexFileSize }
+        val dexFileSize = diffBeanList.sumOf { it.dexFileSize }
+        val isFullUpdate = allChangedDexFileSize > 3 || (dexFileSize > 0 && allChangedDexFileSize >= dexFileSize * 0.2)
+
+        val diffs = diffBeanList.map { if (isFullUpdate) ParsedApkDiffResult(it.apkEntries) else it.diffResult }
+        TimeLogger.start("ApkParser.parse")
+        val parsedList = ApkParser().parse(diffs)
+        TimeLogger.end("ApkParser.parse", logger)
+
+        if (isFullUpdate) {
+            logger.info("${apkFiles.map { it.apkFile.name }} dex changes too much (${allChangedDexFileSize}/$dexFileSize), full update this APK.")
             helper.recreateDatabase()
         } else {
-            logger.debug("$dbName database dex files changed $allChangedDexFileSize, incremental update database.")
+            logger.debug("${apkFiles.map { it.apkFile.name }} incremental update database.")
         }
 
-        val parseStartTime = System.currentTimeMillis()
-        logger.debug("$dbName parse apk start.")
-        val diffParsedApk = ApkParser().parse(apkFile, includeEntries)
-        logger.debug("$dbName parse apk finish, cost ${System.currentTimeMillis() - parseStartTime}ms.")
-        logger.debug("diffParsedApk: $diffParsedApk")
+        TimeLogger.start("saveParsedApkBatch")
+        val result = helper.saveParsedApkBatch(parsedList, diffs)
+        TimeLogger.end("saveParsedApkBatch", logger)
+        return result
+    }
 
-        val updateResult = helper.saveParsedApk(diffParsedApk, diffResult)
-        updateResults.add(updateResult)
-        if (updateResult.isSuccess) {
-            logger.debug("$dbName database init finish: $updateResult")
-        } else {
-            logger.warn("$dbName database init failed: $updateResult")
-        }
-
-        return helper
+    private data class DiffBean(
+        val apkEntries: ApkEntries,
+        val diffResult: ParsedApkDiffResult,
+    ) {
+        val allChangedDexFileSize = diffResult.removedDexFiles.size + diffResult.addedDexFiles.size + diffResult.updatedDexFiles.size
+        val dexFileSize = apkEntries.dexFiles.size
     }
 
     override fun clearDeployedData() {
@@ -162,10 +172,12 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val apkFiles = apks.flatMap { it.files }.map { it.apkFile }
         apkFiles.forEach out@{ apkFile ->
             ZipFile(apkFile).use { zipFile ->
-                val databaseName = DeployDataDatabaseSqLiteHelper.getApkFileDbName(apkFile)
-                val overlayInfos = database[databaseName]?.getResInfos(isNeedRes, isNeedAsset)
-                    ?: throw JuggException.databaseNotFound(apkFile, databaseName)
-                logger.debug("addFullRes, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, " +
+                val applicationId = apks.find { info -> info.files.any { it.apkFile == apkFile } }?.applicationId
+                    ?: throw JuggException.databaseNotFound(apkFile, "unknown")
+                val helper = database[applicationId]
+                    ?: throw JuggException.databaseNotFound(apkFile, "$applicationId.db")
+                val overlayInfos = helper.getResInfos(isNeedRes, isNeedAsset)
+                logger.debug("addFullRes for $apkFile, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, " +
                         "isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
                 val nameSet = changedOverlays
                     .filter { it.apkPath == apkFile.path }
@@ -301,21 +313,15 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     override fun getCoreLibraryRewriteClassMap(apkFile: File): Map<String, String> {
         desugarInfoCache[apkFile.path]?.let { return it }
 
-        val databaseName = DeployDataDatabaseSqLiteHelper.getApkFileDbName(apkFile)
-        val apkDatabase = database[databaseName] ?: run {
-            logger.warn("$apkFile not found in database, desugar may not work correctly.")
-            logger.warn("Fallback again may helps.")
-            return emptyMap()
-        }
-        val result = apkDatabase.getCoreLibraryRewriteClassMap()
+        val applicationId = apks.find { info -> info.files.any { it.apkFile == apkFile } }?.applicationId
+        val helper = database[applicationId]
+        val result = helper?.getCoreLibraryRewriteClassMap() ?: emptyMap()
         desugarInfoCache[apkFile.path] = result
         return result
     }
 
     override fun isEnableDesugared(): Boolean {
-        return database.values.any {
-            it.isEnableDesugared()
-        }
+        return database.values.any { it.isEnableDesugared() }
     }
 }
 
