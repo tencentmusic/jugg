@@ -39,7 +39,7 @@ class DeployStateManager(
     /**
      * Invoke when project need to update [JuggDeployState].
      */
-    fun updateDeployState(): JuggDeployState {
+    override fun updateDeployState(): JuggDeployState {
         var lastState = deployState
         deployState = getNewDeployState()
         while (lastState != deployState) {

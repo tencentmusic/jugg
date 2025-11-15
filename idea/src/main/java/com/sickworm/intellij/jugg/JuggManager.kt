@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg
 
+import com.android.ide.common.util.pathTreeMapOf
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
@@ -63,6 +64,7 @@ class JuggManager @TestOnly constructor(
         JuggLogger.getInstance(project, "DeployHistoryManager")
     ),
     private val deployFileManager: DeployFileManager = DeployFileManager(
+        pathManager.projectDir,
         JuggLogger.getInstance(project, "DeployFileManager"),
         pathManager.tmpDir,
         pathManager.databaseDir,
