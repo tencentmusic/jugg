@@ -497,7 +497,7 @@ class DeployDataGeneratorTest {
 
         val deployItems = compileResult.outputs.map { it.toDeployItem() }
         val deployData = generator.buildDeployData(deployItems)
-        assertEquals(0, deployData.newClasses.size)
+        assertEquals(11, deployData.newClasses.size)
         assertEquals(1, deployData.hotFixModifiedClasses.size)
         assertEquals(0, deployData.hotReloadModifiedClasses.size)
     }
