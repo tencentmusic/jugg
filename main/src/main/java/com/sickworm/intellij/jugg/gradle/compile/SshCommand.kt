@@ -217,6 +217,7 @@ class SyncLocalClasspathCommand(
     private val sourcePath: File,
     private val destPath: File,
     private val modules: List<ModuleBuildPathInfo>,
+    private val isEnableLog: Boolean = true,
 ) : BaseSshCommand() {
 
     private var includeClasspathFilter = ""
@@ -249,6 +250,10 @@ class SyncLocalClasspathCommand(
             .joinToString(" ")
 
         return super.getCommand(isNeedSetChineseLanguage, isWindows)
+    }
+
+    override fun isCanOutput(line: String, isError: Boolean): Boolean {
+        return isEnableLog
     }
 }
 

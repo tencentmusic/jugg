@@ -5,7 +5,6 @@ import com.jcraft.jsch.*
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient.Companion.parseDiffSet
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
-import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggException

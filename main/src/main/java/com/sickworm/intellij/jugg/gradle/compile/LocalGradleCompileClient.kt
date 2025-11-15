@@ -182,6 +182,7 @@ class LocalGradleCompileClient(
                 sourcePath = rootDir,
                 destPath = destPath,
                 modules = buildDirs,
+                isEnableLog = false,
             )
             val result = invoke(command)
             if (result == 0) {

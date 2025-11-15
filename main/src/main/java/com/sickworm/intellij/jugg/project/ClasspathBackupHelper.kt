@@ -43,6 +43,8 @@ class ClasspathBackupHelper(
                         try {
                             delay(indicatorUpdateInterval)
                             progressIndicator?.text = "Jugg: Fetching classpath... (synced $syncCount)"
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            // ignore
                         } catch (e: Exception) {
                             logger.debug("fetchClasspathResult updateJob failed $e")
                         }
@@ -54,6 +56,7 @@ class ClasspathBackupHelper(
             }
             val result = fetchClasspathResult(moduleBuildPathInfos, terminalOutputListener)
             progressIndicator?.text = originText
+            updateJob?.cancel()
             return@measureTimeMillisWithResult result
         }
         logger.debug("fetchClasspathResult cost ${costTime}ms")

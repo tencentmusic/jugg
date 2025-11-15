@@ -103,7 +103,6 @@ class BuildGradleBaseCommand(private val params: Params) {
             httpProxyPort = 0,
             syncMode = SyncMode.RSYNC_SIMPLE,
         )
-        JuggSettings.isEnableBackupClasspath = false
 
         compileClient.terminalOutputListener = object : IGradleCompileClient.TerminalOutputListener {
             override fun onOutput(line: String, isNeedPrint: Boolean) {
@@ -167,7 +166,7 @@ class BuildGradleBaseCommand(private val params: Params) {
                         }
                     }
                     classpathProjectInfo = ClasspathBackupHelper(
-                        compileClient, currentIndicator, coroutineScope, logger, 5000L)
+                        compileClient, currentIndicator, coroutineScope, logger, 3000L)
                         .fetch(gradleProjectInfo)
                     if (classpathProjectInfo == null) {
                         logger.warn("Backup classpath failed.")

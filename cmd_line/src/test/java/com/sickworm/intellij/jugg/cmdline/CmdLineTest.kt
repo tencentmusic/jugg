@@ -9,18 +9,19 @@ class CmdLineTest {
 
     @Test
     fun buildBase() {
+        val outputDir = File("${Global.buildOutputDir}/outputs")
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
             "baseBuildProjectDir=../idea/src/test/assets/android/MyApplicationIntellij",
             "gradleCompileTask=assembleDebug",
             "gradleOutputApkPath=app/build/outputs/apk/debug/*.apk",
             "logLevel=debug",
-            "outputApkDir=${Global.buildOutputDir}/outputs",
+            "outputApkDir=$outputDir",
         )
         val result = CmdLine().run(args)
         assertTrue(result)
 
-        val apks = Global.buildOutputDir.listFiles { file -> file.name.endsWith(".apk") } ?: emptyArray()
+        val apks = outputDir.listFiles { file -> file.name.endsWith(".apk") } ?: emptyArray()
         assertEquals(1, apks.size)
     }
 

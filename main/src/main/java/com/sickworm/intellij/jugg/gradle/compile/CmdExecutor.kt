@@ -77,6 +77,8 @@ class CmdExecutor(
                                     } else {
                                         printToStreamError(line)
                                     }
+                                } else {
+                                    terminalOutputListener.onOutput(line, isNeedPrint = false)
                                 }
                             }
                         }
@@ -100,6 +102,8 @@ class CmdExecutor(
                     if (line.isNotEmpty()) {
                         if (command.isCanOutput(line, isError = false)) {
                             printToStream(line)
+                        } else {
+                            terminalOutputListener.onOutput(line, isNeedPrint = false)
                         }
                     }
                     val output = command.getInput(line)
