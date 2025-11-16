@@ -563,8 +563,10 @@ class CompileContextManager(
         // simpleName = lib_common
         // e.g. name = example.lib_common.lib2.main
         // simpleName = lib_common.lib2
-        private val String.moduleSimpleName: String get() {
-            var name = this
+        // e.g. name = example.lib_common.lib2.main~1
+        // simpleName = lib_common.lib2
+        val String.moduleSimpleName: String get() {
+            var name = this.replace(Regex("~\\d+$"), "")
             if (name.endsWith(".main")) {
                 name = name.substring(0, name.length - ".main".length)
             }
