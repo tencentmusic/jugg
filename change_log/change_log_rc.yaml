@@ -1,3 +1,10 @@
+- version: 2.6.0
+  date: 2025.11.16
+  updates:
+    - supports running on CI
+    - supports side effect checking with dynamic feature modules(AAB)
+    - fix dependency may be missing if ide name is like 'example.lib_common.lib2.main~1'
+
 - version: 2.5.0-rc11
   date: 2025.11.11
   updates:

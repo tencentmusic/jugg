@@ -1,3 +1,10 @@
+- version: 2.6.0
+  date: 2025.11.16
+  updates:
+    - 支持 CI 构建
+    - 支持多 APK 扩散编译
+    - 修复读取到 IDE 模块名为类似 'example.lib_common.lib2.main~1' 的名字时，依赖可能丢失导致编译失败
+
 - version: 2.5.0-rc11
   date: 2025.11.11
   updates:
