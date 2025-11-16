@@ -5,6 +5,11 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.ChangedFile
 import org.sqlite.SQLiteException
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
+import java.text.SimpleDateFormat
+import java.util.*
+
 
 class SourceFileManager(
     projectDir: File,
@@ -12,7 +17,8 @@ class SourceFileManager(
     private val logger: Logger,
 ) {
 
-    private val database = SourceFileDatabaseSqLiteHelper(projectDir, File(dbDir, "source_files.db"), logger.getInstance("SourceFileDatabaseSqLiteHelper"))
+    private val dbFile = File(dbDir, "source_files.db")
+    private val database = SourceFileDatabaseSqLiteHelper(projectDir, dbFile, logger.getInstance("SourceFileDatabaseSqLiteHelper"))
 
     private var sourceDirs = emptyList<File>()
 
@@ -24,6 +30,10 @@ class SourceFileManager(
 
         val startTime = System.currentTimeMillis()
         try {
+            if (isNeedRecreate()) {
+                database.recreateDatabase()
+            }
+
             database.init()
             database.updateSourceDirs(sourceDirs)
             isCanRecreateOnError = true
@@ -40,6 +50,22 @@ class SourceFileManager(
         }
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("source file db init cost ${costTime}ms")
+    }
+
+    private fun isNeedRecreate(): Boolean {
+        if (!dbFile.exists()) {
+            return false
+        }
+        val attr: BasicFileAttributes = Files.readAttributes(dbFile.toPath(), BasicFileAttributes::class.java)
+        val creationTime = attr.creationTime()
+        val creationTimeString = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(creationTime.toMillis()))
+        val daysSinceCreated = (System.currentTimeMillis() - creationTime.toMillis()) / (1000 * 60 * 60 * 24)
+        logger.debug("dbFile creationTime: $creationTimeString, daysSinceCreated: $daysSinceCreated")
+        if (daysSinceCreated > 14) {
+            logger.debug("dbFile is too old, recreate database")
+            return true
+        }
+        return false
     }
 
     @Synchronized
