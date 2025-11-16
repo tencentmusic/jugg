@@ -306,22 +306,28 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 parsedApk.fieldRefs.keys.forEach { refClassNames.add(it.owner) }
                 parsedApk.subclassRefs.keys.forEach { refClassNames.add(it) }
             }
-            val conditions = mutableListOf<String>()
-            if (removedDexNames.isNotEmpty()) {
-                val s = removedDexNames.joinToString(",") { "'$it'" }
-                conditions.add("entry_info_name IN ($s)")
+            val totalWhereCount = removedDexNames.size + updatedDexNames.size + refClassNames.size
+            if (totalWhereCount == 0) {
+                return@runWithTimeCost
             }
-            if (updatedDexNames.isNotEmpty()) {
-                val s = updatedDexNames.joinToString(",") { "'$it'" }
-                conditions.add("entry_info_name IN ($s)")
-            }
-            if (refClassNames.isNotEmpty()) {
-                val s = refClassNames.joinToString(",") { "'$it'" }
-                conditions.add("name IN ($s)")
-            }
-            val selectClassSQL = if (conditions.isEmpty()) {
+
+            val selectClassSQL = if (totalWhereCount > 10000) {
+                // query performance optimize
                 "SELECT name, entry_info_name, id FROM class_info;"
             } else {
+                val conditions = mutableListOf<String>()
+                if (removedDexNames.isNotEmpty()) {
+                    val s = removedDexNames.joinToString(",") { "'$it'" }
+                    conditions.add("entry_info_name IN ($s)")
+                }
+                if (updatedDexNames.isNotEmpty()) {
+                    val s = updatedDexNames.joinToString(",") { "'$it'" }
+                    conditions.add("entry_info_name IN ($s)")
+                }
+                if (refClassNames.isNotEmpty()) {
+                    val s = refClassNames.joinToString(",") { "'$it'" }
+                    conditions.add("name IN ($s)")
+                }
                 "SELECT name, entry_info_name, id FROM class_info WHERE ${conditions.joinToString(" OR ")};"
             }
             connection.createStatement().use { st ->
