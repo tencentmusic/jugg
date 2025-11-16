@@ -83,7 +83,8 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                 }
             }
 
-            val sourceDirsSet = sourceDirs.toSet()
+            val relativeSourceDirs = sourceDirs.map { it.relativeTo(projectDir) }
+            val sourceDirsSet = relativeSourceDirs.toSet()
             val addDirs = sourceDirsSet - currentSourceDirs
             val deleteDirs = currentSourceDirs - sourceDirsSet
             logger.debug("currentSourceDirs: ${currentSourceDirs.size}, addDirs: ${addDirs.size}, deleteDirs: ${deleteDirs.size}")
@@ -92,7 +93,7 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                 val deleteSQL = "DELETE FROM source_dirs WHERE path = ?"
                 connection.prepareStatement(deleteSQL).use { statement ->
                     deleteDirs.forEach { dir ->
-                        statement.setString(1, dir.relativeTo(projectDir).path)
+                        statement.setString(1, dir.path)
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -104,7 +105,7 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                     val insertSQL = "INSERT INTO source_dirs(path) VALUES(?)"
                     connection.prepareStatement(insertSQL).use { statement ->
                         addDirs.forEach { dir ->
-                            statement.setString(1, dir.relativeTo(projectDir).path)
+                            statement.setString(1, dir.path)
                             statement.addBatch()
                         }
                         statement.executeBatch()
@@ -112,7 +113,11 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                 }
 
                 val newFiles = runWithTimeCost("doGetNewFiles") {
-                    addDirs.associateWith { it.listFilesRecursively() }
+                    addDirs.associateWith {
+                        File(projectDir, it.path).listFilesRecursively().map { file ->
+                            file.relativeTo(projectDir)
+                        }
+                    }
                 }
                 logger.debug("newFiles: ${newFiles.values.sumOf { it.size }}")
 
@@ -121,8 +126,8 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                     connection.prepareStatement(insertSQL).use { statement ->
                         newFiles.forEach { (dir, files) ->
                             files.forEach { file ->
-                                statement.setString(1, dir.relativeTo(projectDir).path)
-                                statement.setString(2, file.relativeTo(projectDir).path)
+                                statement.setString(1, dir.path)
+                                statement.setString(2, file.path)
                                 statement.setString(3, file.name)
                                 statement.addBatch()
                             }
@@ -137,7 +142,7 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                     val deleteSQL = "DELETE FROM file_infos WHERE source_dir_path = ?"
                     connection.prepareStatement(deleteSQL).use { statement ->
                         deleteDirs.forEach { dir ->
-                            statement.setString(1, dir.relativeTo(projectDir).path)
+                            statement.setString(1, dir.path)
                             statement.addBatch()
                         }
                         statement.executeBatch()
