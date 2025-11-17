@@ -9,10 +9,10 @@ class KotlinConstRefReader(
     private val logger: Logger,
 ) {
 
-    fun read(lookupsDir: File, sourceDir: List<String>): Map<String, GraphNode> {
+    fun read(lookupsDir: File, relativeSourceFiles: List<String>): Map<String, Set<String>> {
         val map = processLookups(lookupsDir)!!
-        val result = mutableMapOf<String, GraphNode>()
-        processKotlinFiles(sourceDir, this::class.java.classLoader, emptyMap(), map, result)
+        val result = mutableMapOf<String, MutableSet<String>>()
+        processKotlinFiles(relativeSourceFiles, this::class.java.classLoader, emptyMap(), map, result)
         return result
     }
 
@@ -72,12 +72,12 @@ class KotlinConstRefReader(
                 return null
             }
 
-            // 读取 key.scopeHash
+            // read key.scopeHash
             val scopeHash = try {
                 val scopeHashField = key::class.java.getDeclaredField("scopeHash").apply { isAccessible = true }
                 scopeHashField.get(key).toString()
             } catch (e: NoSuchFieldException) {
-                // 如果字段名或可见性不同，可改为调用 getter：key.getScopeHash()
+                // try getter：key.getScopeHash()
                 val maybeGetter = key::class.java.methods.firstOrNull { it.name == "getScopeHash" && it.parameterCount == 0 }
                 (maybeGetter?.invoke(key) ?: "UNKNOWN").toString()
             }
@@ -96,43 +96,23 @@ class KotlinConstRefReader(
         return filesByScopeHash
     }
 
-    data class GraphNode(
-        val refByClasses: MutableSet<String> = mutableSetOf(),
-        val refToClasses: MutableSet<String> = mutableSetOf()
-    )
-
-    private fun replaceByMap(input: String, replacements: Map<String, String>): String {
-        var out = input
-        replacements.forEach { (k, v) -> out = out.replace(k, v) }
-        return out
-    }
-
     private fun processKotlinFiles(
-        kotlinFilesPath: Iterable<String>,
+        kotlinFilesPath: Collection<String>,
         kotlinClassLoader: ClassLoader,
         srcDirReplacements: Map<String, String>,
         filesByScopeHash: Map<String, Set<String>>,
-        graph: MutableMap<String, GraphNode>
+        graph: MutableMap<String, MutableSet<String>>
     ) {
         for (it in kotlinFilesPath) {
             val scopeHash = it.scopeHash(kotlinClassLoader, srcDirReplacements).toString()
 
             val foundRefs = filesByScopeHash[scopeHash] ?: continue
 
-            val resultReplacements = HashMap<String, String>()
-            resultReplacements.putAll(srcDirReplacements)
-            resultReplacements[".kt"] = ""
-            val matchGraphClass = replaceByMap(it, resultReplacements).removePrefix("/")
+            val matchGraphClass = it.pathToClass(false)
 
-
-            val resolvedClass = graph.getOrPut(matchGraphClass) { GraphNode() }
-            val refBy = resolvedClass.refByClasses
+            val refBy = graph.getOrPut(matchGraphClass) { mutableSetOf() }
             foundRefs.forEach { ref ->
-                val path = replaceByMap(ref, resultReplacements).removePrefix("/")
-                val node = graph[path]
-                if (node != null) {
-                    node.refToClasses.add(matchGraphClass)
-                }
+                val path = ref.pathToClass(true)
                 if (path != matchGraphClass) {
                     refBy.add(path)
                 }
@@ -144,7 +124,7 @@ class KotlinConstRefReader(
         val fqNameReplacements = HashMap<String, String>()
         fqNameReplacements.putAll(srcDirReplacements)
         fqNameReplacements["/"] = "."
-        val withDotPath = replaceByMap(this, fqNameReplacements).removePrefix(".")
+        val withDotPath = this.pathToFqName()
 
         val fqNameClass = kotlinClassLoader.loadClass("org.jetbrains.kotlin.name.FqName")
         val fqName = fqNameClass.getConstructor(String::class.java).newInstance(withDotPath)
@@ -167,4 +147,35 @@ class KotlinConstRefReader(
         val scopeHash = lookupSymbolKeyClass.getMethod("getScopeHash").invoke(lookupSymbolKey)
         return scopeHash as Int
     }
+
+    private val pathPrefixStartIndex = "\$PROJECT_DIR\$/".length
+    private val pathEndIndex = ".kt".length
+    private fun String.pathToClass(hasPrefix: Boolean): String {
+        val pathStartIndex = if (hasPrefix) pathPrefixStartIndex else 0
+        val needLength = this.length - pathStartIndex - pathEndIndex
+        val charLength = 1 + needLength + 1
+        val chars = CharArray(charLength)
+        chars[0] = 'L'
+        for (index in 0 until needLength) {
+            val char = this[pathStartIndex + index]
+            chars[index + 1] = char
+        }
+        chars[charLength - 1] = ';'
+        return String(chars)
+    }
+
+    private fun String.pathToFqName(): String {
+        val charLength = this.length
+        val startIndex = 0
+        val chars = CharArray(charLength)
+        for (index in 0 until charLength) {
+            var char = this[startIndex + index]
+            if (char == '/') {
+                char = '.'
+            }
+            chars[index] = char
+        }
+        return String(chars)
+    }
+
 }

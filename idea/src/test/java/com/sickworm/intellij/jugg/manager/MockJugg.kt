@@ -4,6 +4,7 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deploy.proto.Deploy
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.log.LogWrapper
+import com.intellij.openapi.module.Module
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -14,6 +15,8 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployerHelper
+import com.sickworm.intellij.jugg.gradle.LocalGradleCompileClientTest
+import com.sickworm.intellij.jugg.gradle.LocalGradleCompileClientTest.Companion
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.mock.*
@@ -24,6 +27,7 @@ import com.sickworm.intellij.jugg.project.dependency.create
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
+import org.mockito.Mockito
 import org.mockito.Mockito.*
 import java.io.File
 import kotlin.test.assertEquals
@@ -34,7 +38,7 @@ import kotlin.test.assertTrue
 
 class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
-    lateinit var project: Project
+    lateinit var project: JuggMockProject
     lateinit var juggManager: JuggManager
     lateinit var pathManager: JuggPathManager
     lateinit var fileChangesHandler: FileChangesHandler
@@ -191,6 +195,10 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     private fun renewComponents(isMockCompileContextManager: Boolean = true) {
         project = JuggMockProject(projectDir)
+        val moduleManager = mock(ModuleManager::class.java)
+        doReturn(arrayOf<Module>()).`when`(moduleManager).modules
+        project.registerService(ModuleManager::class.java, moduleManager)
+
         pathManager = JuggPathManager(projectDir)
         JuggLogger.register(project, pathManager.logDir)
 
@@ -254,6 +262,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         }
 
         val juggServer = JuggServer(project, JuggPathManager(File(project.basePath!!)), CoroutineScope(Dispatchers.IO))
+        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
@@ -265,7 +274,6 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             downloader.installerFilePath.absolutePath
         }
 
-        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
         gradleProjectInfoLocalFetchManager = GradleProjectInfoLocalFetchManager(project, pathManager, compileContextManager, taskRunnerManager, dependencyChangeManager, logger)
 
         JuggLogger.listenProjectLog(project, logger)
