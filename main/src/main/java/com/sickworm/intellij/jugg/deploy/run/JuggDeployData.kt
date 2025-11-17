@@ -56,7 +56,6 @@ data class JuggDeployData(
     /** is restart app after deployment */
     val isNeedRestartApp: Boolean = hotFixModifiedClasses.isNotEmpty()
             || (isPushOverlayOnly && !isEmpty)
-            || isNeedRestartActivityInner
 
     /** is need update files in APK and resign, e.g. AndroidManifest.xml lib/arm64-v8a/xxx.so */
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
