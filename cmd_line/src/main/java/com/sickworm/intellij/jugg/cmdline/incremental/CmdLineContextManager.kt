@@ -176,7 +176,8 @@ class CmdLineContextManager(
         if (!gradleProjectInfoFile.exists()) {
             throw IncrementalException("Gradle project info file not exists: ${gradleProjectInfoFile.absolutePath}")
         }
-        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load()
+        // skip version check for reusable cache, which actually is compatible with old version
+        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load(isSkipVersionCheck = true)
             ?: throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")
         if (gradleProjectInfo.modules.isEmpty()) {
             throw IncrementalException("Gradle project info file invalid: ${gradleProjectInfoFile.absolutePath}")

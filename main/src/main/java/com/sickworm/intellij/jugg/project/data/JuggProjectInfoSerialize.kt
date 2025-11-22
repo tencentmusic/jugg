@@ -72,8 +72,8 @@ class JuggProjectInfoSerialize(
             return JuggProjectInfoSerialize(juggProjectInfoExceptModules, dependencyList, modules)
         }
 
-        fun deserialize(projectInfoSerialize: JuggProjectInfoSerialize): JuggProjectInfo {
-            if (projectInfoSerialize.version != VERSION) {
+        fun deserialize(projectInfoSerialize: JuggProjectInfoSerialize, isSkipVersionCheck: Boolean = false): JuggProjectInfo {
+            if (!isSkipVersionCheck && projectInfoSerialize.version != VERSION) {
                 throw IllegalArgumentException("Project info too old, version=${projectInfoSerialize.version}, " +
                         "expectVersion=$VERSION. Please update your project.")
             }

@@ -34,7 +34,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
     }
 
     @Synchronized
-    fun load(): JuggProjectInfo? {
+    fun load(isSkipVersionCheck: Boolean = false): JuggProjectInfo? {
         if (!dataFile.exists()) {
             return null
         }
@@ -46,7 +46,7 @@ class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
             val startTime = System.currentTimeMillis()
             val dataString = dataFile.readText()
             val juggProjectInfoSerialize = gson.fromJson(dataString, JuggProjectInfoSerialize::class.java)
-            val juggProjectInfo = JuggProjectInfoSerialize.deserialize(juggProjectInfoSerialize)
+            val juggProjectInfo = JuggProjectInfoSerialize.deserialize(juggProjectInfoSerialize, isSkipVersionCheck)
             val costTime = System.currentTimeMillis() - startTime
             logger.debug("Load project info to ${dataFile.absolutePath} cost $costTime ms")
             memoryCache = juggProjectInfo
