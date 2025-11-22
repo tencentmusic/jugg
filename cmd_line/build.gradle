@@ -6,6 +6,12 @@ plugins {
     id 'org.jetbrains.kotlin.jvm'
 }
 
+test {
+    minHeapSize = "512m" // initial heap size
+    maxHeapSize = "8192m" // maximum heap size
+    jvmArgs '-XX:MaxPermSize=152m' // mem argument for the test JVM
+}
+
 sourceCompatibility = 11
 targetCompatibility = 11
 

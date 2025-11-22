@@ -23,6 +23,7 @@ local.properties
 /main/src/main/resources/gradle/
 /main/src/test/java/local
 /idea/src/test/java/local
+/cmd_line/src/test/java/local
 /idea/src/main/resources/META-INF/JUGG_PLUGIN_INFO.MF
 /idea/src/main/resources/change_log/
 
