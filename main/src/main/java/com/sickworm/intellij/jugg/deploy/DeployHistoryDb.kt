@@ -238,7 +238,7 @@ class DeployHistoryDb(
         val changedFiles = mutableMapOf<String, Long>()
 
         // add changed files in project root
-        logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from: $${gitManager.rootDir}")
+        logger.debug("resetHistoryAfterFullCompiled, getUncommittedFiles from: ${gitManager.rootDir}")
         val mainChangedFiles = gitManager.getUncommittedFiles()
             .filter { it.exists() } // ignore deleted files
             .associate { it.toChangedFilePair(startCompileTime) }
