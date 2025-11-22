@@ -25,11 +25,17 @@ class GradleProjectInfoReader(
 
     private var modulesNames = setOf<String>()
 
-    private val isEnableJetifier: Boolean = true
+    private var isEnableJetifier: Boolean = false
 
     fun getProjectInfo(): JuggProjectInfo {
         TraceLogger.clear()
-        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, isEnableJetifier: $isEnableJetifier")
+        val isEnableJetifierValue = try {
+            rootProject.providers.gradleProperty("android.enableJetifier").get()
+        } catch (e: Exception) {
+            null
+        }
+        isEnableJetifier = isEnableJetifierValue == "true"
+        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, isEnableJetifierValue: $isEnableJetifierValue")
 
         // load dependenciesCache
         // we can not use lastProjectInfo for cache because it misses the info of transitive dependencies
