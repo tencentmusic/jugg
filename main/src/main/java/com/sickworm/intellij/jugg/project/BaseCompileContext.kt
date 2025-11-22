@@ -258,9 +258,7 @@ class BaseCompileContext(
     private fun ModuleInfo.getLibraryDependencyPaths(): List<String> {
         return libraryDependencies
             .filter {
-                // filter unnecessary LibraryDependency for source file compilation
-                val isInBuildDir = it.file.isChild(this.buildPathInfo.buildDir)
-                if (isInBuildDir || it.isAndroidManifest || it.isRes || it.isKlib) {
+                if (it.isAndroidManifest || it.isRes || it.isKlib) {
                     return@filter false
                 }
                 if (!it.isValid) {
