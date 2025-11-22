@@ -62,7 +62,7 @@ class LibrariesBackupHelper(
             file.path.substring(1)
         } else {
             file.path
-        }
+        }.replace(".gradle", "_gradle")
         val destFile = File(pathManager.localClasspathStoragePathManager.librariesBackupDir, relativePath)
         if (destFile.exists()) {
             return destFile
