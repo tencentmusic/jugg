@@ -210,9 +210,18 @@ class GradleProjectInfoReader(
                     }
                 }
                 if (kotlinTask == null) {
-                    // compat with kmm
                     val kotlinTaskNameKmm = "compile${buildVariantCapital}KotlinAndroid"
-                    kotlinTask = project.tasks.findByName(kotlinTaskNameKmm)
+                    try {
+                        // compat with kmm
+                        kotlinTask = project.tasks.findByName(kotlinTaskNameKmm)
+                    } catch (e: Throwable) {
+                        try {
+                            kotlinTask = project.tasks.findByName(kotlinTaskNameKmm)
+                            println("Jugg: ${project.name}.findByName(\"$kotlinTaskNameKmm\") failed and success with retry")
+                        } catch (e: Throwable) {
+                            println("Jugg: ${project.name}.findByName(\"$kotlinTaskNameKmm\") failed with retry")
+                        }
+                    }
                 }
                 if (kotlinTask != null) {
                     // before 2.0, kotlin classpath is in pluginClasspath
