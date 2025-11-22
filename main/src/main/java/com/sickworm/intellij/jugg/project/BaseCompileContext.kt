@@ -277,6 +277,14 @@ class BaseCompileContext(
     override fun printClasspathCheck(moduleInfo: ModuleInfo) {
         logger.debug("printClasspathCheck: ${moduleInfo.name}")
 
+        val libraryDependencies = getParentModules(moduleInfo, true).flatMap { it.libraryDependencies }
+        logger.debug("printClasspathCheck libraryDependencies size: ${libraryDependencies.size}")
+        libraryDependencies.forEach {
+            if (!it.file.exists()) {
+                logger.debug("library dependency $it not exists")
+            }
+        }
+
         printParentTree(moduleInfo.buildPathInfo.javaClassPath, moduleInfo.buildPathInfo.moduleRootDir)
         printParentTree(moduleInfo.buildPathInfo.kotlinClassPath, moduleInfo.buildPathInfo.moduleRootDir)
         moduleInfo.moduleDependencies.forEach {
