@@ -63,7 +63,7 @@ class ParamsParser {
             }
         }
 
-        val logLevelValue = keyValueMap["logLevel"] ?: "INFO"
+        val logLevelValue = keyValueMap["logLevel"] ?: "DEBUG"
         val logLevel = Level.toLevel(logLevelValue)
 
         return Params(

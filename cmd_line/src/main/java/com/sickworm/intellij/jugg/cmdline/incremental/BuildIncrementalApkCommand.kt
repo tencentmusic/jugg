@@ -30,6 +30,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
     fun run(): Boolean {
         try {
             logger.info("Init compile context...")
+            logger.debug("BuildIncrementalApkCommand params: $params")
             TimeLogger.start("Init compile context")
             checkDirty()
             contextManager.init()

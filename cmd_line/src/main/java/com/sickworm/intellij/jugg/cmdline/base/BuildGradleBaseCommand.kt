@@ -41,6 +41,8 @@ class BuildGradleBaseCommand(private val params: Params) {
 
     fun run(): Boolean {
         try {
+            logger.info("Start build gradle base.")
+            logger.debug("BuildGradleBaseCommand params: $params")
             prepare()
             val apkInfos = gradleCompile()
             initAfterGradleCompile(apkInfos)

@@ -12,7 +12,7 @@ object CmdLineLogger {
 
     @Suppress("OVERRIDE_DEPRECATION")
     val stdLogger = object : DefaultLogger("cmd") {
-        var logLevel = Level.INFO
+        var logLevel = Level.DEBUG
 
         override fun setLevel(level: Level) {
             logLevel = level
