@@ -25,7 +25,7 @@ echo "ANDROID_HOME" $ANDROID_HOME
 #     baseBuildProjectDir：工程目录，相对/绝对路径都可以
 #     gradleCompileTask：构建 apk 的 gradle 编译命令
 #     gradleOutputApkPath：apk 输出路径（相对工程的相对路径
-#     logLevel：（可选）日志级别 debug/info/warn/error
+#     logLevel：（可选）日志级别 debug/info/warn/error，默认 debug
 #     outputApkDir：（可选）apk 输出目录
 # 命令 cmd_line 等价于 java -cp "lib/*" com.sickworm.intellij.jugg.cmdline.CmdLineKt
 ../bin/cmd_line \

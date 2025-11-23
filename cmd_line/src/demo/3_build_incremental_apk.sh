@@ -26,7 +26,7 @@ cp -r backups/jugg_bak backups/jugg_bak_checkout
 #     cmd：运行命令
 #     baseBuildJuggRootDir：备份的 build/jugg 目录，相对/绝对路径都可以
 #     sourceProjectDir：工程目录，含待编译的文件
-#     logLevel：（可选）日志级别 debug/info/warn/error
+#     logLevel：（可选）日志级别 debug/info/warn/error，默认 debug
 #     outputApkDir：增量 APK 输出目录，如果是 Dynamic feature 则会有多个 APK
 #     changedFiles：变化的文件，相对/绝对路径都可以，多个用:分割
 # 命令 cmd_line 等价于 java -cp "lib/*" com.sickworm.intellij.jugg.cmdline.CmdLineKt
