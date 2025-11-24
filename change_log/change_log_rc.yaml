@@ -1,3 +1,8 @@
+- version: 2.6.1
+  date: 2025.11.24
+  updates:
+    - improve compatibility with android.enableJetifier=false, avoid compilation failed by dependencies missing
+
 - version: 2.6.0
   date: 2025.11.16
   updates:

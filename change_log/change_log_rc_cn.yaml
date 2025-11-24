@@ -1,3 +1,8 @@
+- version: 2.6.1
+  date: 2025.11.24
+  updates:
+    - 优化 android.enableJetifier=false 工程的依赖读取兼容性，修复部分场景编译失败
+
 - version: 2.6.0
   date: 2025.11.16
   updates:
