@@ -97,6 +97,7 @@ class JuggServer(
             return@launch
         }
 
+        val serverUrl = serverUrl
         try {
             val request: Request = Request.Builder()
                 .url("$checkUpdateUrl?version=$version&requestToken=$requestToken&projectName=${URLEncoder.encode(projectId, "UTF-8")}")
@@ -111,7 +112,7 @@ class JuggServer(
             onComplete.invoke(result)
         } catch (e: Exception) {
             logger.debug("check update error: ${e.message}")
-            if (juggServerChooser.updateServerWithForbidCurrentUrl()) {
+            if (juggServerChooser.updateServerWithForbidCurrentUrl(serverUrl)) {
                 logger.debug("check update error, update server, current: $serverUrl")
                 checkUpdate(onComplete)
             }

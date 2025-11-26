@@ -78,10 +78,9 @@ class JuggServerChooser(logger: Logger) {
     /**
      * Update server with forbid url.
      */
-    fun updateServerWithForbidCurrentUrl(): Boolean {
-        val forbidUrl = JuggSettings.serverUrl
+    fun updateServerWithForbidCurrentUrl(forbidUrl: String?): Boolean {
         if (forbidUrl == null) {
-            logger.debug("No server url found.")
+            logger.debug("forbidUrl is null, skip.")
             return false
         }
         if (forbidUrl in forbidUrls) {
