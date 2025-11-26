@@ -1,3 +1,8 @@
+- version: 2.6.2
+  date: 2025.11.26
+  updates:
+    - 修复偶现上传日志失败
+
 - version: 2.6.1
   date: 2025.11.24
   updates:
