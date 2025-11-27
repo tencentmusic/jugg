@@ -45,12 +45,12 @@ data class ModuleInfo(
     val isUseViewBinding: Boolean? = null,
     val isUseDataBinding: Boolean? = null,
     val kspDependencies: List<LibraryDependency>? = null,
-
-    // if adds new files info, also updates:
+) {
+    // do not add unnecessary content before ") {", for kotlin 1.3 compat: buildReadProjectInfoScript.gradle
+    // if adds new fields, also updates:
     // JuggProjectInfoSerialize, JuggProjectInfoMerger, ProjectInfoSerializerInGradle
     // CmdLineContextManager, LibrariesBackupHelper
     // :(
-) {
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")
 

@@ -9,6 +9,7 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.attributes.*
 import org.gradle.api.file.FileCollection
+import org.gradle.api.provider.Provider
 import org.gradle.internal.component.local.model.OpaqueComponentArtifactIdentifier
 import java.io.File
 
@@ -29,13 +30,18 @@ class GradleProjectInfoReader(
 
     fun getProjectInfo(): JuggProjectInfo {
         TraceLogger.clear()
+        var jetifierReadError: String? = null
         val isEnableJetifierValue = try {
-            rootProject.providers.gradleProperty("android.enableJetifier").get()
+            rootProject.findProperty("android.enableJetifier")
         } catch (e: Exception) {
+            jetifierReadError = e.message
             null
         }
         isEnableJetifier = isEnableJetifierValue == "true"
-        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, isEnableJetifierValue: $isEnableJetifierValue")
+        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, " +
+                "isEnableJetifierValue: $isEnableJetifierValue, " +
+                "jetifierReadError:$jetifierReadError"
+        )
 
         // load dependenciesCache
         // we can not use lastProjectInfo for cache because it misses the info of transitive dependencies
