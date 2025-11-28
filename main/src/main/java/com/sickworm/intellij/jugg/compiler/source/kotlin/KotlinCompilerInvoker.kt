@@ -263,6 +263,7 @@ class KotlinCompilerInvoker {
             // resolve "class is not abstract and does not implement abstract member"
             // resolve "reference not found" when invoke new java methods that haven't been compiled
             "-Xjava-source-roots=${javaSourceRoots.joinToString(",")}",
+            "-Xallow-unstable-dependencies", // error: classes compiled by an unstable version of the Kotlin compiler were found in dependencies. Remove them from the classpath or use '-Xallow-unstable-dependencies' to suppress errors
             // we have to set output dir to kotlin compiled class path to resolve
             // 'xxx' is a public API property declared in different module
             "-d", outputDir.path,
@@ -497,7 +498,6 @@ class KotlinCompilerInvoker {
             // no idea whether it's working
             composeArgs.addAll(listOf("-P", "plugin:androidx.compose.plugins.idea:enabled=true"))
             composeArgs.addAll(listOf("-P", "plugin:androidx.compose.compiler.plugins.kotlin:sourceInformation=true"))
-            composeArgs.add("-Xallow-unstable-dependencies")
             return composeArgs
         }
 

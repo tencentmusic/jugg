@@ -1,9 +1,10 @@
 <h1>更新日志</h1>
-<h2>2.6.0-2.6.3 (2025.11.27)</h2>
+<h2>2.6.4 (2025.11.28)</h2>
 <ol>
     <li>[feature] 支持 CI 构建</li>
     <li>[feature] 支持多 APK 扩散编译</li>
     <li>[optimize] 优化 android.enableJetifier=false 工程的依赖读取兼容性，修复部分场景编译失败</li>
+    <li>[optimize] 兼容错误 "classes compiled by an unstable version of the Kotlin compiler"</li>
     <li>[bugfix] 修复读取到 IDE 模块名为类似 'example.lib_common.lib2.main~1' 的名字时，依赖可能丢失导致编译失败</li>
     <li>[bugfix] 修复偶现上传日志失败</li>
     <li>[bugfix] 修复 Kotlin 1.3 和 Gradle 6.1 的兼容性问题</li>

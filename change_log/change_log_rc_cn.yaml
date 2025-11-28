@@ -1,3 +1,8 @@
+- version: 2.6.4
+  date: 2025.11.28
+  updates:
+    - 兼容错误 "classes compiled by an unstable version of the Kotlin compiler"
+
 - version: 2.6.3
   date: 2025.11.27
   updates:
