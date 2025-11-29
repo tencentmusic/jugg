@@ -119,7 +119,7 @@ class BuildIncrementalApkCommand(private val params: Params) {
 
     private fun updateApk(context: ICompileContext, compileResult: CompileResult) {
         val (isSuccess, failedReason) = IncrementalDeployHelper(context, logger)
-            .updateApk(context.apkInfos, compileResult.outputs)
+            .updateApk(context.apkInfos, compileResult.outputs.map { it.toDeployItem() })
         if (!isSuccess) {
             throw IncrementalException("Update apk failed, reason: $failedReason")
         }

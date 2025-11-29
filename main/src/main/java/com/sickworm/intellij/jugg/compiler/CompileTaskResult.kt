@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
+import java.io.File
+
 data class CompileTaskResult(
     val isSuccess: Boolean,
     val isGradleCompile: Boolean,
@@ -39,3 +41,9 @@ data class CompileTaskResult(
         )
     }
 }
+
+data class ExportIncrementalApkResult(
+    val isSuccess: Boolean,
+    val apkFiles: List<File>,
+    val failedReason: String? = null,
+)

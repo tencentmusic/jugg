@@ -12,6 +12,7 @@ import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
@@ -32,6 +33,7 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
+import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
@@ -516,6 +518,12 @@ class JuggManager @TestOnly constructor(
         // clear lastDeployOverlayIds to force re-reinstall
         deployHistoryManager.isCleanAndReinstall = true
         juggRunningTaskStatusManager.resetHasRun()
+    }
+
+    fun exportIncrementalApk(dialog: DialogWrapper) {
+        logger.debug("exportIncrementalApk")
+        ExportIncrementalApkHelper(project, taskRunnerManager, deployFileManager, logger)
+            .exportIncrementalApk(dialog, compileContextManager.compileContext)
     }
 
     private fun copyGeneratedSourceToLocal() {

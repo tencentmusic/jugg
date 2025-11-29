@@ -50,6 +50,11 @@ object ForceGradleCompileHelper {
             okButtonText = "Yes",
             negativeButtonText = "No",
             leftButtonText = "Clean And Reinstall",
+            linkActions = listOf(
+                CommonConfirmDialog.CustomLinkAction("Export incremental APK") {
+                    juggManager.exportIncrementalApk(it)
+                }
+            )
         )
         when (confirmResult) {
             ConfirmResult.POSITIVE -> {

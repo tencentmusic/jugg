@@ -6,6 +6,7 @@ enum class ConfirmResult {
     CANCEL,
     INVALID,
     LEFT,
+    LINK_ACTION,
     ;
 
     val isConfirmed get() = this == POSITIVE
