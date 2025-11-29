@@ -16,4 +16,9 @@ data class DeployOptions(
     val retryDeployData: JuggDeployData? = null,
     val startTime: Long = System.currentTimeMillis(),
     var timeOutRetryTimes: Int = 0,
-)
+) {
+
+    fun costTime(): Long {
+        return System.currentTimeMillis() - startTime
+    }
+}

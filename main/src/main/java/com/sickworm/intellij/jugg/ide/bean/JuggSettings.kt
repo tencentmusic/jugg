@@ -27,6 +27,8 @@ object JuggSettings {
 
     var isAlwaysRestartAppAfterDeployment: Boolean by propertiesComponent.delegate(defaultValue = false)
 
+    var isEmbeddedToApk: Boolean by propertiesComponent.delegate(defaultValue = false)
+
     // Run options end
 
     /** whether check checksum to make sure file is really change when file changes */

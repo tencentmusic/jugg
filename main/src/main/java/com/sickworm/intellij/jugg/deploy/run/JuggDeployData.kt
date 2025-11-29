@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.ClassNode
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ParsedDex
 import com.sickworm.intellij.jugg.deploy.outerClassName
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 
 /**
  * Final data that going to deploy to the device.
@@ -61,6 +62,7 @@ data class JuggDeployData(
     val isNeedUpdateApk: Boolean = updateApkFiles.isNotEmpty()
 
     val deployType: DeployType get() = when {
+        JuggSettings.isEmbeddedToApk -> DeployType.EMBEDDED
         isInstall -> DeployType.INSTALL
         isWarmUp -> DeployType.WARM_UP
         isCompatDeploy -> DeployType.COMPAT_HOT_FIX
@@ -188,6 +190,7 @@ data class JuggDeployData(
 
     enum class DeployType {
         INSTALL,
+        EMBEDDED,
         HOT_FIX,
         COMPAT_HOT_FIX,
         HOT_RELOAD,

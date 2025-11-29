@@ -193,6 +193,9 @@ class JuggRunningTask(
             deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.INSTALL } -> {
                 JuggDeployData.DeployType.INSTALL
             }
+            deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.EMBEDDED } -> {
+                JuggDeployData.DeployType.EMBEDDED
+            }
             deployTaskResultList.any { it.deployType == JuggDeployData.DeployType.COMPAT_HOT_FIX } -> {
                 JuggDeployData.DeployType.COMPAT_HOT_FIX
             }

@@ -252,6 +252,8 @@ class JuggDeployerHelper(
                     deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
                 }
                 DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
+            } else if (JuggSettings.isEmbeddedToApk) {
+                embeddedToApk(deployOptions)
             } else {
                 if (!deployTargetManager.hasDevice) {
                     logger.warn("\nNo device connected, please check device is connected.")
@@ -363,6 +365,33 @@ class JuggDeployerHelper(
 
             DeployTaskResult(isSuccess = false, deployType = deployData.deployType, isCanFallback = isCanFallback, costTime = costTime(), failedReason = reason)
         }
+    }
+
+    private fun embeddedToApk(deployOptions: DeployOptions): DeployTaskResult {
+        val incDeployData = deployFileManager.getDeployData(deployOptions.isWarmUp, false)
+        val apks = incDeployData.apks
+        val apkFiles = apks.flatMap { it.files.map { it.apkFile } }
+        if (apkFiles.size <= 1) {
+            logger.info("Embedding APK... ${apkFiles.first()}")
+        } else {
+            logger.info("Embedding APK...\n${apkFiles.joinToString("\n")}")
+        }
+        val deployItems = (incDeployData.newClasses + incDeployData.hotFixModifiedClasses + incDeployData.hotReloadModifiedClasses)
+            .map { it.deployItem } + incDeployData.overlays + incDeployData.updateApkFiles
+        val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger).updateApk(
+            incDeployData.apks, deployItems)
+        logger.debug("Embedding APK finished, isSuccess: $isSuccess, failedReason: $failedReason")
+        if (!isSuccess) {
+            return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = deployOptions.costTime(), failedReason = failedReason)
+        }
+
+        val deployData = JuggDeployData.forInstall(apks)
+        val launchResult = runTask(deployOptions.device, deployData)
+        if (deployOptions.isLastDevice) {
+            logger.debug("Installing finished, update info after install.")
+            deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
+        }
+        return DeployTaskResult(isSuccess = true, costTime = deployOptions.costTime(), deployType = deployData.deployType)
     }
 
     private fun tryRetry(

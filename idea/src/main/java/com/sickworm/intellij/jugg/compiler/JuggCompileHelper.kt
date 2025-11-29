@@ -18,9 +18,8 @@ import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
+import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
@@ -266,6 +265,18 @@ class JuggCompilerHelper(
         if (!deployState.isReadyIncCompile) {
             logger.info("Deploy state ${deployStateManager.deployState} not ready for incremental compile. Return.")
             return CompileTaskResult.incrementalFailed(true, deployState.msg)
+        }
+
+        if (JuggSettings.isEmbeddedToApk) {
+            val isStillNeedEmbedded = CommonConfirmDialog.showAndGetResult(
+                "Embedded to APK is Enabled",
+                "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
+                okButtonText = "Yes, embed to APK",
+                cancelButtonText = "No, disable embedded",
+            )
+            if (!isStillNeedEmbedded) {
+                JuggSettings.isEmbeddedToApk = false
+            }
         }
         return null
     }

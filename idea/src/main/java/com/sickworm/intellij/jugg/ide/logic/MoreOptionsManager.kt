@@ -89,6 +89,24 @@ class MoreOptionsManager(
         )
 
         if (JuggSettings.isEnableInjectGradleCompile) {
+            createOption(
+                name = "Embedded to APK(for Android RemoteViews)",
+                { JuggSettings.isEmbeddedToApk  },
+                {
+                    var isConfirmed = true
+                    if (!JuggSettings.isEmbeddedToApk) {
+                        isConfirmed = CommonConfirmDialog.showAndGetResult(
+                            "Enable Embedded to APK",
+                            "<html>This will embed incremental changes to APK, let incremental effects for Android RemoteViews, " +
+                                    "but it will cost more time to deploy.<br>Are you sure to enable?</html>"
+                        )
+                    }
+                    if (isConfirmed) {
+                        JuggSettings.isEmbeddedToApk = it
+                    }
+                }
+            )
+
             val devices = deployTargetManager.getConnectedDevices()
             devices.forEach {
                 val compatDeployHelper = CompatDeployHelper(logger)
@@ -144,6 +162,9 @@ class MoreOptionsManager(
                 onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
                 onSet = {
                     JuggSettings.isEnableReadProjectInfoFromGradle = it
+                    if (!it) {
+                        JuggSettings.isEmbeddedToApk = false
+                    }
                     enableReadProjectFromGradle()
                 }
             )

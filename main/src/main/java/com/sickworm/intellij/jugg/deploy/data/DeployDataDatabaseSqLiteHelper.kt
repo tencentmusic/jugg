@@ -28,13 +28,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         private const val ENTRY_TYPE_RES = 2
         private const val ENTRY_TYPE_ASSETS = 3
 
-        private val File.apkFileKey get() = this.name + "_" + this.lastModified()
-
-        private fun String.md5(): String {
-            val md = MessageDigest.getInstance("MD5")
-            md.update(this.toByteArray(Charsets.UTF_8))
-            return md.digest().joinToString("") { "%02x".format(it) }
-        }
+        private val File.apkFileKey get() = this.name // not use absolute path because root directory may change
     }
 
     @Synchronized
