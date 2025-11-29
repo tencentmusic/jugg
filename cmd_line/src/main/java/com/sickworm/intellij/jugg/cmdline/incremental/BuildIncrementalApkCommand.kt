@@ -148,41 +148,10 @@ class BuildIncrementalApkCommand(private val params: Params) {
 
         // merge dex
         val incrementalCompileResult = compileTaskResult.incrementalCompileResult!! // not null if success
-        val isHasDexOutput = incrementalCompileResult.outputs.any { it.type == CompileOutput.Type.Dex }
-        if (!isHasDexOutput) {
-            logger.debug("No dex output, no need to merge dex.")
-            return compileTaskResult
-        }
-
         val dexOutputDir = File(pathManager.stagingDir, "merged_dex")
-        dexOutputDir.deleteRecursively()
-        dexOutputDir.mkdirs()
-        try {
-            mergeDex(incrementalCompileResult, dexOutputDir)
-            val mergedDexFiles = dexOutputDir.listFiles()!!
-                .filter { it.extension == "dex" }
-                .map { CompileOutput(CompileOutput.Type.Dex, it, dexOutputDir) }
-            // filter out origin dex files, add merged dex files
-            val mergedOutput = mergedDexFiles +
-                    incrementalCompileResult.outputs.filter { it.type != CompileOutput.Type.Dex  }
-            val mergedIncrementalCompileResult = incrementalCompileResult.copy(outputs = mergedOutput)
-            return CompileTaskResult.incrementalSuccess(mergedIncrementalCompileResult)
-        } catch (e: Exception) {
-            logger.warn("Merge dex failed", e)
-            logger.warn("Merge dex failed, reason: ${e.message}")
-            return CompileTaskResult.incrementalFailed(isCanFallback = false, failedReason = "Merge dex failed")
-        }
-    }
-
-    private fun mergeDex(compileResult: CompileResult, outputDir: File) {
-        val dexFiles = compileResult.outputs
-            .filter { it.type == CompileOutput.Type.Dex }
-            .map { it.file }
-        if (dexFiles.isEmpty()) {
-            throw IncrementalException("Can not found any dex file in compile result.")
-        }
-        val dexMerger = DexFileMerger(logger)
-        dexMerger.merge(dexFiles, outputDir)
+        val mergedIncrementalCompileResult = compilerHelper.mergeDex(incrementalCompileResult, dexOutputDir)
+            ?: return CompileTaskResult.incrementalFailed(isCanFallback = false, failedReason = "Merge dex failed")
+        return CompileTaskResult.incrementalSuccess(mergedIncrementalCompileResult)
     }
 
     companion object {

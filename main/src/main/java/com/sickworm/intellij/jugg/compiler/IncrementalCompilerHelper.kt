@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployStateManager
@@ -11,6 +12,7 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.IFileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import java.io.File
 
 /**
  * Extract from JuggCompileHelper.
@@ -165,6 +167,48 @@ class IncrementalCompilerHelper(
         } else {
             CompileTaskResult.incrementalFailed(false, "Compile failed")
         }
+    }
+
+    /**
+     * @param dexOutputDir merged dex output directory, will clean first, so do not reuse
+     * @return CompileResult with merged dex result and filter dex output before merge
+     */
+    fun mergeDex(compileResult: CompileResult, dexOutputDir: File): CompileResult? {
+        try {
+            val dexFiles = compileResult.outputs
+                .filter { it.type == CompileOutput.Type.Dex }
+                .map { it.file }
+            if (dexFiles.isEmpty()) {
+                logger.debug("No need merge dex, no dex files")
+                return compileResult
+            }
+
+            dexOutputDir.deleteRecursively()
+            dexOutputDir.mkdirs()
+            val mergedDexFiles = doMergeDex(dexFiles, dexOutputDir)
+            if (mergedDexFiles.isEmpty()) {
+                logger.warn("Merge dex failed, no dex files found")
+                return null
+            }
+            // filter out origin dex files, add merged dex files
+            val mergedOutput = mergedDexFiles +
+                    compileResult.outputs.filter { it.type != CompileOutput.Type.Dex  }
+            val mergedIncrementalCompileResult = compileResult.copy(outputs = mergedOutput)
+            return mergedIncrementalCompileResult
+        } catch (e: Exception) {
+            logger.warn("Merge dex failed", e)
+            logger.warn("Merge dex failed, reason: ${e.message}")
+            return null
+        }
+    }
+
+    private fun doMergeDex(dexFiles: List<File>, outputDir: File): List<CompileOutput> {
+        val dexMerger = DexFileMerger(logger)
+        dexMerger.merge(dexFiles, outputDir)
+        val mergedDexFiles = outputDir.listFiles()!!
+            .filter { it.extension == "dex" }
+            .map { CompileOutput(CompileOutput.Type.Dex, it, outputDir) }
+        return mergedDexFiles
     }
 
     /**
