@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalStdlibApi::class)
+
 package com.sickworm.intellij.jugg.ide.logic
 
 import com.google.gson.GsonBuilder
