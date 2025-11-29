@@ -35,7 +35,7 @@ interface IDeployHistoryManager {
     /**
      * Mark to force reinstall apk on next running.
      */
-    var isForceReinstall: Boolean
+    var isCleanAndReinstall: Boolean
 
     /**
      * Current project directory is history.

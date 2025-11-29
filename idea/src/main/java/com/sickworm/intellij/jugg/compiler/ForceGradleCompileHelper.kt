@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 object ForceGradleCompileHelper {
 
     var isForceGradleCompileNextTime = false
-    var isForceReinstallNextTime = false
+    var isCleanAndReinstallNextTime = false
 
     fun executeGradleCompile(juggManager: JuggManager) {
         val project = juggManager.project
@@ -49,7 +49,7 @@ object ForceGradleCompileHelper {
             content,
             okButtonText = "Yes",
             negativeButtonText = "No",
-            leftButtonText = "Just Reinstall",
+            leftButtonText = "Clean And Reinstall",
         )
         when (confirmResult) {
             ConfirmResult.POSITIVE -> {
@@ -61,7 +61,7 @@ object ForceGradleCompileHelper {
                 }
             }
             ConfirmResult.LEFT -> {
-                isForceReinstallNextTime = true
+                isCleanAndReinstallNextTime = true
                 if (isJuggConfiguration) {
                     tryRunFirstConfiguration(juggManager)
                 } else {

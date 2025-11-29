@@ -542,15 +542,21 @@ class JuggDeployerHelper(
             logger.info("App not ready to deploy, recover deploy state from history.")
         }
 
-        val isForceReinstall = deployHistoryManager.isForceReinstall
-        val reinstallTips = if (isForceReinstall) {
-            "User triggerred, start reinstalling app..."
+        val isCleanAndReinstall = deployHistoryManager.isCleanAndReinstall
+        val reinstallTips = if (isCleanAndReinstall) {
+            "User triggerred, start clean and reinstalling app..."
         } else {
             "Deploy state not match, start reinstalling app..."
         }
 
+        if (isCleanAndReinstall) {
+            indicator?.text = "Cleaning app..."
+            val packageName = deployTargetManager.getPackageName()
+            IdeaDeviceAdb(device, logger).execAdbShellCmd("pm clear $packageName")
+        }
+
         // dry deploy first, if success, no need to reinstall and recover
-        if (isNeedTryDeyDeployFirst && !isForceReinstall) {
+        if (isNeedTryDeyDeployFirst && !isCleanAndReinstall) {
             val isSuccess = tryDryDeploy(device, isSkipExceptOverlayCheck)
             if (isSuccess) {
                 logger.info("Deploy state matched, no need reinstall app.")

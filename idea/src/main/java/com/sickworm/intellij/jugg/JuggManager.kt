@@ -391,7 +391,7 @@ class JuggManager @TestOnly constructor(
     }
 
     fun runTask(options: JuggRunConfigurationOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
-        if (ForceGradleCompileHelper.isForceReinstallNextTime) {
+        if (ForceGradleCompileHelper.isCleanAndReinstallNextTime) {
             forceReInstallNextTime()
         }
         val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
@@ -404,7 +404,7 @@ class JuggManager @TestOnly constructor(
             val task = createRunningTask(options.toCompileOptions(pathManager), compileUiHandler)
             ProgressManager.getInstance().run(task)
         }
-        ForceGradleCompileHelper.isForceReinstallNextTime = false
+        ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
         ForceGradleCompileHelper.isForceGradleCompileNextTime = false
         return DefaultExecutionResult(consoleView, processHandler)
     }
@@ -514,7 +514,7 @@ class JuggManager @TestOnly constructor(
 
     fun forceReInstallNextTime() {
         // clear lastDeployOverlayIds to force re-reinstall
-        deployHistoryManager.isForceReinstall = true
+        deployHistoryManager.isCleanAndReinstall = true
         juggRunningTaskStatusManager.resetHasRun()
     }
 

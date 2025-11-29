@@ -58,15 +58,15 @@ class DeployHistoryManager(
             deployHistoryDb.overlayIds = value
         }
 
-    override var isForceReinstall: Boolean
+    override var isCleanAndReinstall: Boolean
         get() {
-            return lastDeployOverlayIds.any { it.value == "force re-install" }
+            return lastDeployOverlayIds.any { it.value == "cleanAndReinstall" }
         }
         set(value) {
             if (!value) {
-                throw IllegalArgumentException("isForceReinstall can only be set to true")
+                throw IllegalArgumentException("isCleanAndReinstall can only be set to true")
             }
-            lastDeployOverlayIds = lastDeployOverlayIds.mapValues { "force re-install" }
+            lastDeployOverlayIds = lastDeployOverlayIds.mapValues { "cleanAndReinstall" }
         }
 
     override fun deleteDeployHistory() {
