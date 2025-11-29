@@ -5,24 +5,20 @@ import com.android.ddmlib.IDevice
 import com.android.tools.deployer.AdbClient
 import com.android.tools.idea.IdeInfo
 import com.android.tools.idea.log.LogWrapper
-import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
-import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.JuggRunningTask
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
@@ -275,8 +271,8 @@ class JuggDeployerHelper(
                     logger.info("Need resign APK to update files: ${deployData.updateApkFiles}.")
                     logger.info("Resigning APK...")
                     TimeLogger.start("insertFileAndResignApk")
-                    val (isSuccess, failedReason) = insertFileAndResignApk(
-                        deployData.apks, compileContextManager.compileContext, deployData.updateApkFiles)
+                    val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger)
+                        .updateApk(deployData.apks, deployData.updateApkFiles)
                     if (!isSuccess) {
                         return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = costTime(), failedReason = failedReason)
                     }
@@ -642,46 +638,6 @@ class JuggDeployerHelper(
 
         logger.info("App not launched, please check the app is started and debuggable, and adb is not occupied by other process")
         return false
-    }
-
-    /**
-     * @return <isSuccess, failedReason>
-     */
-    private fun insertFileAndResignApk(apkInfos: List<ApkInfo>,
-                                       compileContext: ICompileContext,
-                                       files: List<DeployItem>): Pair<Boolean, String> {
-        apkInfos.forEach { apkInfo ->
-            apkInfo.files.forEach { apkFileUnit ->
-                val (isSuccess, failedReason) = insertFileAndResignApk(apkFileUnit.apkFile, compileContext, files)
-                if (!isSuccess) {
-                    return false to failedReason
-                }
-            }
-        }
-        return true to ""
-    }
-
-    @Suppress("LiftReturnOrAssignment")
-    private fun insertFileAndResignApk(apkFile: File, compileContext: ICompileContext, files: List<DeployItem>): Pair<Boolean, String> {
-        val signingConfig = compileContext.signingConfig
-        if (signingConfig == null || signingConfig.isInvalid) {
-            logger.warn("Unable to update APK, signing config not found.")
-            return false to "AndroidManifest.xml changed and signing config not found"
-        }
-        val modifier = ApkFileModifier(
-            apkFile, signingConfig, compileContext.androidHome, logger.getInstance("ApkFileModifier"),
-            envArray = LocalGradleCompileClient.buildCompileEnv(project, logger))
-        try {
-            files.forEach {
-                modifier.addFile(it.name, it.content)
-            }
-            modifier.insertAndResign()
-            return true to ""
-        } catch (e: Exception) {
-            logger.debug("unexpected error when insert file and resign apk", e)
-            logger.warn("Insert file and resign apk failed, reason: $e")
-            return false to "rewrite APK failed"
-        }
     }
 
     private fun isNeedPushResourceApk(device: IDevice, data: JuggDeployData): Boolean {

@@ -118,57 +118,20 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     private fun updateApk(context: ICompileContext, compileResult: CompileResult) {
-        val baseApk = context.apkInfos.firstOrNull { it.baseApk != null }?.baseApk?.apkFile
-        val allApks = context.apkInfos.flatMap { it.files }.map { it.apkFile }
-        if (baseApk == null) {
-            throw IncrementalException("Can not found base APK, all APKs: $allApks")
+        val (isSuccess, failedReason) = IncrementalDeployHelper(context, logger)
+            .updateApk(context.apkInfos, compileResult.outputs)
+        if (!isSuccess) {
+            throw IncrementalException("Update apk failed, reason: $failedReason")
         }
-        if (allApks.isEmpty()) {
-            throw IncrementalException("Can not found any APK in base build project dir: ${context.projectDir.absolutePath}")
-        }
-
-        val signingConfig = context.signingConfig
-        if (signingConfig == null || signingConfig.isInvalid) {
-            throw IncrementalException("Unable to update APK, signing config not found.")
-        }
-
-        allApks.forEach { apkFile ->
-            val isBaseApk = apkFile == baseApk
-            val modifier = ApkFileModifier(apkFile, signingConfig, context.androidHome, logger, context.cmdCompileEnv)
-            val deployItems = mutableListOf<DeployItem>()
-            compileResult.outputs.forEach {
-                val isBaseOutput = it.apkPath == null || it.apkPath == DeployItem.FLAG_CLASS || it.apkPath == DeployItem.FLAG_BASE_APK
-                if ((isBaseApk && isBaseOutput) || (it.apkPath == apkFile.path)) {
-                    if (it.type == CompileOutput.Type.Dex) {
-                        // put in INCREMENTAL_DATA_PATH
-                        val deployItem = it.toDeployItem(deployName = INCREMENTAL_DATA_PATH + it.deployItemName + ".dex")
-                        deployItems.add(deployItem)
-                    } else {
-                        // override
-                        val deployItem = it.toDeployItem()
-                        deployItems.add(deployItem)
-                    }
+        context.apkInfos.forEach { apkInfo ->
+            apkInfo.files.forEach { apkFileUnit ->
+                val apkFile = apkFileUnit.apkFile
+                val outputApkFile = File(params.outputApkDir, apkFile.name)
+                apkFile.copyTo(outputApkFile, true)
+                if (!outputApkFile.exists() || outputApkFile.length() == 0L) {
+                    throw IncrementalException("Copy apk failed, apk file not exists: ${apkFile.absolutePath}")
                 }
             }
-            logger.debug("Update apk: $apkFile\nDeploy items:\n${deployItems.joinToString("\n") { "    " + it.name }}\n")
-            if (deployItems.isNotEmpty()) {
-                deployItems.forEach {
-                    modifier.addFile(it.name, it.content)
-                }
-                try {
-                    modifier.insertAndResign()
-                } catch (e: Exception) {
-                    throw IncrementalException("Update apk failed: ${apkFile.absolutePath}", e)
-                }
-            }
-            params.outputApkDir.deleteRecursively()
-            params.outputApkDir.mkdirs()
-            val outputApkFile = File(params.outputApkDir, apkFile.name)
-            apkFile.copyTo(outputApkFile, true)
-            if (!outputApkFile.exists() || outputApkFile.length() == 0L) {
-                throw IncrementalException("Copy apk failed, apk file not exists: ${apkFile.absolutePath}")
-            }
-            logger.info("Update apk success, output: ${outputApkFile.absolutePath}")
         }
     }
 
@@ -223,8 +186,6 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     companion object {
-
-        private const val INCREMENTAL_DATA_PATH = "assets/jugg_/"
 
         fun run(args: Array<String>): Boolean {
             try {
