@@ -176,7 +176,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
                     ?: throw JuggException.databaseNotFound(apkFile, "unknown")
                 val helper = database[applicationId]
                     ?: throw JuggException.databaseNotFound(apkFile, "$applicationId.db")
-                val overlayInfos = helper.getResInfos(isNeedRes, isNeedAsset)
+                val overlayInfos = helper.getResInfos(apkFile, isNeedRes, isNeedAsset)
                 logger.debug("addFullRes for $apkFile, changedOverlays: ${changedOverlays.size}, isNeedRes: $isNeedRes, " +
                         "isNeedAsset: $isNeedAsset, overlayInfos: ${overlayInfos.size}")
                 val nameSet = changedOverlays

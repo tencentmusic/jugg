@@ -6,6 +6,7 @@ import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
+import com.sickworm.intellij.jugg.project.JuggException
 import java.io.File
 import java.security.MessageDigest
 import java.sql.Connection
@@ -667,10 +668,27 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     }
 
     @Synchronized
-    fun getResInfos(isNeedRes: Boolean, isNeedAsset: Boolean): List<JuggFileInfo> {
+    fun getResInfos(apkFile: File, isNeedRes: Boolean, isNeedAsset: Boolean): List<JuggFileInfo> {
         logger.debug("getResInfos")
 
         if (!isNeedRes && !isNeedAsset) return emptyList()
+
+        val apkFileKey = apkFile.apkFileKey
+        val queryApkInfoIdSQL = "SELECT apk_info_id FROM apk_info WHERE key=?;"
+        var apkInfoId: Int = -1
+        DriverManager.getConnection(url).use { connection ->
+            connection.prepareStatement(queryApkInfoIdSQL).use { ps ->
+                ps.setString(1, apkFileKey)
+                val rs = ps.executeQuery()
+                if (rs.next()) {
+                    apkInfoId = rs.getInt(1)
+                }
+            }
+        }
+        if (apkInfoId == -1) {
+            logger.warn("Apk info key not found: $apkFileKey")
+            throw JuggException.apkDbNotFound(apkFileKey)
+        }
 
         var whereCondition = ""
         if (isNeedRes) {
@@ -680,6 +698,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             if (whereCondition.isNotEmpty()) whereCondition += " or "
             whereCondition += "type = $ENTRY_TYPE_ASSETS or type = $ENTRY_TYPE_OTHER"
         }
+        whereCondition = "apk_info_id = $apkInfoId and ($whereCondition)"
 
         val selectSQL = "SELECT name, checksum FROM entry_info WHERE $whereCondition;"
         val resInfos = mutableListOf<JuggFileInfo>()

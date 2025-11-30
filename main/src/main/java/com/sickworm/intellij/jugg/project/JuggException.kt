@@ -41,6 +41,9 @@ class JuggException(msg: String): Exception(msg) {
 
         fun baseApkNotFound(packageName: String?, apkInfos: List<ApkInfo>) =
             JuggException("Can not found apk for package name: $packageName, apkInfos: $apkInfos")
+
+        fun apkDbNotFound(apkInfoKey: String) =
+            JuggException("Can not found apk database for apkInfoKey: $apkInfoKey")
     }
 }
 
