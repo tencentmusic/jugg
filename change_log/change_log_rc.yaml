@@ -1,3 +1,10 @@
+- version: 2.6.5
+  date: 2025.11.30
+  updates:
+    - supports export incremental APK
+    - supports clean and reinstall app
+    - supports embed to APK on run to let Android RemoteViews work
+
 - version: 2.6.4
   date: 2025.11.28
   updates:

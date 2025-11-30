@@ -1,3 +1,10 @@
+- version: 2.6.5
+  date: 2025.11.30
+  updates:
+    - 支持导出增量构建 APK
+    - 支持一键清除数据重装
+    - 兼容 Android RemoteViews，支持将增量修改打进 APK 并重装
+
 - version: 2.6.4
   date: 2025.11.28
   updates:
