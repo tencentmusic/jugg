@@ -357,7 +357,15 @@ class JuggDeployerHelper(
             val isDeviceNotFound = reason.contains("device") && reason.contains("not found")
             // in this case, device is lost connection or version downgrade something
             val isApkInstallFailed = reason.contains("The application could not be installed.")
-            val isNeedStopDeploy = isUserRestrict || isDeviceNotFound || isApkInstallFailed
+            // in this case, base APK is an incremental-embedded APK. Because incremental-embedded APK will create .overlay folder
+            val isEmbeddedApk = reason.contains("overlay has no readable id file")
+            if (isEmbeddedApk) {
+                logger.warn("\nCaution:")
+                logger.warn("The base APK is an Jugg incremental embedded APK, will conflict with incremental deploy.")
+                logger.warn("Please make sure your APK does not contains \"${IncrementalDeployHelper.INCREMENTAL_DATA_PATH}\" folder.")
+            }
+
+            val isNeedStopDeploy = isUserRestrict || isDeviceNotFound || isApkInstallFailed || isEmbeddedApk
             if (isNeedStopDeploy) {
                 logger.warn("\nDeploy Stopped.")
             }

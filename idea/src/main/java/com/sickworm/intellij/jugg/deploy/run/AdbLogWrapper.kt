@@ -42,6 +42,10 @@ class AdbLogWrapper(val logger: Logger) : LogWrapper(logger) {
             realErrorMessage = message
         } else if (message.contains("device") && message.contains("not found")) {
             realErrorMessage = message
+        } else if (message.contains("overlay has no readable id file")) {
+            // .overlay exists but no id file
+            // Occurs when base APK is an incremental-embedded APK. Because incremental-embedded APK will create .overlay folder
+            realErrorMessage = message
         }
     }
 }

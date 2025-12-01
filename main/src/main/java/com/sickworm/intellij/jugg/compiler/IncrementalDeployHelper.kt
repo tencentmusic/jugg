@@ -124,6 +124,6 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
     }
 
     companion object {
-        private const val INCREMENTAL_DATA_PATH = "assets/jugg_/"
+        const val INCREMENTAL_DATA_PATH = "assets/jugg_/"
     }
 }
