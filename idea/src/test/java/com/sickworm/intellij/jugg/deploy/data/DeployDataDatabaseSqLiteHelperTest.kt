@@ -273,7 +273,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         val entries2 = ApkParser().parseEntries(apkCopy)
         val diff2 = helper.diffApk(entries2)
         val parsed2 = ApkParser().parse(apkCopy, diff2.includeEntries).filterNotExistsClassesRef()
-        helper.saveParsedApk(parsed2, diff2)
+        helper.saveParsedApkBatch(listOf(parsed1, parsed2), listOf(diff1, diff2))
 
         // Verify: two keys and both APKs can be read back with matching file
         val keys = helper.getApkInfoKeys()
@@ -353,12 +353,12 @@ class DeployDataDatabaseSqLiteHelperTest {
         // Insert APK #2: expect success
         var apkEntries2 = ApkParser().parseEntries(apkFile2)
         val originApkEntries2 = apkEntries2
-        val emptyDiffResult2 = ParsedApkDiffResult(apkEntries2.apkFile)
         var diffResult2 = helper.diffApk(apkEntries2)
         var parsedApk2: ParsedApk = ApkParser().parse(apkFile2, diffResult2.includeEntries).filterNotExistsClassesRef()
-        var finalParsedApk2 = parsedApk2
-        var updateResult2 = helper.saveParsedApk(parsedApk2, diffResult2)
-        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult2), updateResult2)
+        diffResult1 = helper.diffApk(apkEntries1)
+        val updateResultBatch = helper.saveParsedApkBatch(listOf(parsedApk1, parsedApk2), listOf(diffResult1, diffResult2))
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult1), updateResultBatch[0])
+        assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult2).copy(addedClasses = parsedApk2.classes.map { it.value.className}), updateResultBatch[1])
 
         // Remove one dex from APK #2: expect removedClasses non-empty
         val firstDex2 = originApkEntries2.dexFiles.first()
@@ -369,12 +369,12 @@ class DeployDataDatabaseSqLiteHelperTest {
         apkEntries2 = apkEntries2.copy(dexFiles = apkEntries2.dexFiles - removedDexFiles2.keys)
         diffResult2 = helper.diffApk(apkEntries2)
         parsedApk2 = ApkParser().parse(apkFile2, diffResult2.includeEntries)
-        updateResult2 = helper.saveParsedApk(parsedApk2, diffResult2)
+        val updateResult2 = helper.saveParsedApkBatch(listOf(parsedApk1, parsedApk2), listOf(diffResult1, diffResult2))[1]
         assertTrue(updateResult2.removedClasses.isNotEmpty())
 
         // Verify: multiple keys exist and both APKs can be read back
         val keys = helper.getApkInfoKeys()
-        assertTrue(keys.size >= 2)
+        assertEquals(2, keys.size)
 
         val parsedFromDb1 = helper.getParsedApk(projectInfo.apkFile)
         val parsedFromDb2 = helper.getParsedApk(apkFile2)

@@ -1,4 +1,4 @@
-@file:Suppress("NOTHING_TO_INLINE")
+@file:Suppress("NOTHING_TO_INLINE", "SqlNoDataSourceInspection")
 
 package com.sickworm.intellij.jugg.deploy.data
 
@@ -7,6 +7,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.project.JuggException
+import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.security.MessageDigest
 import java.sql.Connection
@@ -14,6 +15,7 @@ import java.sql.DriverManager
 import java.sql.ResultSet
 import java.sql.Statement
 import kotlin.math.max
+import kotlin.use
 
 
 class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logger) {
@@ -21,7 +23,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     companion object {
-        private const val VERSION = 9
+        private const val VERSION = 10
 
         private const val ENTRY_TYPE_OTHER = 0
         private const val ENTRY_TYPE_DEX = 1
@@ -63,6 +65,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 CREATE TABLE IF NOT EXISTS apk_info (
                     key TEXT NOT NULL PRIMARY KEY,
                     apk_info_id INTEGER NOT NULL UNIQUE,
+                    apk_name TEXT NOT NULL,
+                    last_modified BIGINT NOT NULL,
                     next_class_id INTEGER NOT NULL,
                     is_enable_desugar BOOL NOT NULL
                 );
@@ -152,7 +156,13 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                                      apkDiffResults: List<ParsedApkDiffResult>): List<ParsedApkUpdateResult> {
         logger.debug("doInsertApkInfoBatch\nparsedApks:$parsedApks\napkDiffResults: $apkDiffResults")
         val results = mutableListOf<ParsedApkUpdateResult>()
-        val pairs = parsedApks.zip(apkDiffResults).filter { it.second.updatedApkInfos != 0 }
+        val pairs = parsedApks.zip(apkDiffResults).filter {
+            if (it.second.updatedApkInfos == 0) {
+                results.add(ParsedApkUpdateResult.success(it.second))
+                return@filter false
+            }
+            return@filter true
+        }
         if (pairs.isEmpty()) return apkDiffResults.map { ParsedApkUpdateResult.success(it) }
 
         var nextClassId = 1
@@ -192,46 +202,65 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         if (rs.next()) nextApkInfoId = max(nextApkInfoId, rs.getInt(1) + 1)
                     }
 
-                    val sql = "INSERT INTO apk_info(key, apk_info_id, next_class_id, is_enable_desugar) VALUES(?, ?, ?, ?);"
+                    val sql = "INSERT INTO apk_info(key, apk_info_id, apk_name, last_modified, next_class_id, is_enable_desugar) VALUES(?, ?, ?, ?, ?, ?);"
                     connection.prepareStatement(sql).use { ps ->
                         ps.setString(1, parsedApk.apkFile.apkFileKey)
                         ps.setInt(2, nextApkInfoId)
-                        ps.setInt(3, nextClassId)
-                        ps.setBoolean(4, newIsEnableDesugar)
+                        ps.setString(3, parsedApk.apkFile.name)
+                        ps.setLong(4, parsedApk.apkFile.lastModified())
+                        ps.setInt(5, nextClassId)
+                        ps.setBoolean(6, newIsEnableDesugar)
                         ps.executeUpdate()
                     }
                     currentApkInfoId = nextApkInfoId
                 } else {
-                    val sql = "UPDATE apk_info SET is_enable_desugar=? WHERE apk_info_id=?;"
+                    val sql = "UPDATE apk_info SET apk_name=?, last_modified=?, next_class_id=?, is_enable_desugar=? WHERE apk_info_id=?;"
                     connection.prepareStatement(sql).use { ps ->
-                        ps.setBoolean(1, newIsEnableDesugar)
-                        ps.setInt(2, currentApkInfoId)
+                        ps.setString(1, parsedApk.apkFile.name)
+                        ps.setLong(2, parsedApk.apkFile.lastModified())
+                        ps.setInt(3, nextClassId)
+                        ps.setBoolean(4, newIsEnableDesugar)
+                        ps.setInt(5, currentApkInfoId)
                         ps.executeUpdate()
                     }
                 }
+
                 apkInfoIdByKey[parsedApk.apkFile.apkFileKey] = currentApkInfoId
                 isEnableDesugarByApkId[currentApkInfoId] = newIsEnableDesugar
+            }
+
+            val newApkInfoKeys = parsedApks.joinToString(",") { "\"" + it.apkFile.apkFileKey + "\"" }
+            val deleteOldApkInfoSql = "DELETE FROM apk_info WHERE key NOT IN ($newApkInfoKeys);"
+            connection.createStatement().use { statement ->
+                @Suppress("SqlSourceToSinkFlow")
+                statement.execute(deleteOldApkInfoSql)
             }
         }
 
         runWithTimeCost("doDeleteEntryInfo") {
             val removedDexFiles = mutableMapOf<String, JuggFileInfo>()
             val removedOverlayFiles = mutableMapOf<String, JuggFileInfo>()
-            pairs.forEach { (_, diff) ->
-                removedDexFiles.putAll(diff.removedDexFiles)
-                removedDexFiles.putAll(diff.updatedDexFiles)
-                removedOverlayFiles.putAll(diff.removedOverlayFiles)
-                removedOverlayFiles.putAll(diff.updatedOverlayFiles)
-            }
-            if (removedDexFiles.isEmpty() && removedOverlayFiles.isEmpty()) {
-                // nothing to delete
-            } else {
-                val sql = "DELETE FROM entry_info WHERE name=?;"
-                connection.prepareStatement(sql).use { ps ->
-                    removedDexFiles.values.forEach { ps.setString(1, it.name); ps.addBatch() }
-                    removedOverlayFiles.values.forEach { ps.setString(1, it.name); ps.addBatch() }
-                    ps.executeBatch()
+            val sql = "DELETE FROM entry_info WHERE apk_info_id=? AND name=?;"
+            connection.prepareStatement(sql).use { ps ->
+                pairs.forEach { (parsedApk, diff) ->
+                    removedDexFiles.putAll(diff.removedDexFiles)
+                    removedDexFiles.putAll(diff.updatedDexFiles)
+                    removedOverlayFiles.putAll(diff.removedOverlayFiles)
+                    removedOverlayFiles.putAll(diff.updatedOverlayFiles)
+
+                    val apkId = apkInfoIdByKey[parsedApk.apkFile.apkFileKey]!!
+                    removedDexFiles.values.forEach {
+                        ps.setInt(1, apkId)
+                        ps.setString(2, it.name)
+                        ps.addBatch()
+                    }
+                    removedOverlayFiles.values.forEach {
+                        ps.setInt(1, apkId)
+                        ps.setString(2, it.name)
+                        ps.addBatch()
+                    }
                 }
+                ps.executeBatch()
             }
         }
 
@@ -477,20 +506,33 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         DriverManager.getConnection(url).use { connection ->
             // try find existing apk_info row
             var apkInfoId: Int? = null
-            val selectApkSQL = "SELECT apk_info_id FROM apk_info WHERE key=?;"
+            var lastModified: Long = 0
+            val selectApkSQL = "SELECT apk_info_id, last_modified FROM apk_info WHERE key=?;"
             connection.prepareStatement(selectApkSQL).use { ps ->
                 ps.setString(1, apkEntries.apkFile.apkFileKey)
                 val rs = ps.executeQuery()
                 if (rs.next()) {
                     apkInfoId = rs.getInt(1)
+                    lastModified = rs.getLong(2)
                 }
             }
 
-            if (apkInfoId != null) {
+            if (apkInfoId == null) {
+                // no apk info
+                return ParsedApkDiffResult(
+                    apkEntries.apkFile,
+                    updatedApkInfos = 1,
+                    addedOverlayFiles = apkEntries.overlayFiles,
+                    addedDexFiles = apkEntries.dexFiles,
+                    isFullUpdate = true,
+                )
+            }
+            if (lastModified == apkEntries.apkFile.lastModified()) {
+                // apk not changed
                 return ParsedApkDiffResult(apkEntries.apkFile, updatedApkInfos = 0)
             }
 
-            val selectEntrySQL = "SELECT name, checksum, type FROM entry_info;"
+            val selectEntrySQL = "SELECT name, checksum, type FROM entry_info WHERE apk_info_id=$apkInfoId;"
             val dbDexFiles = mutableMapOf<String, JuggFileInfo>()
             val dbOverlayFiles = mutableMapOf<String, JuggFileInfo>()
             connection.createStatement().use { statement ->
@@ -553,30 +595,33 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         }
     }
 
+    @TestOnly
     @Synchronized
     fun getParsedApk(apkFile: File): ParsedApk? {
         logger.debug("getParsedApk $apkFile")
 
         var currentApkInfoId = -1
         DriverManager.getConnection(url).use { connection0 ->
-            val sql = "SELECT apk_info_id FROM apk_info WHERE key=?;"
+            val sql = "SELECT apk_info_id FROM apk_info WHERE key=? AND last_modified=?;"
             connection0.prepareStatement(sql).use { ps ->
                 ps.setString(1, apkFile.apkFileKey)
+                ps.setLong(2, apkFile.lastModified())
                 val rs = ps.executeQuery()
                 if (rs.next()) {
                     currentApkInfoId = rs.getInt(1)
-                } else {
-                    logger.warn("Apk info key not found: ${apkFile.apkFileKey}")
-                    return null
                 }
             }
+        }
+        if (currentApkInfoId < 0) {
+            logger.warn("Apk info key not found: ${apkFile.apkFileKey}")
+            return null
         }
 
         DriverManager.getConnection(url).use { connection ->
             val dexFiles = mutableMapOf<String, JuggFileInfo>()
             val overlayFiles = mutableMapOf<String, JuggFileInfo>()
 
-            val selectSQL = "SELECT name, checksum, type FROM entry_info;"
+            val selectSQL = "SELECT name, checksum, type FROM entry_info WHERE apk_info_id=$currentApkInfoId;"
             connection.createStatement().use { statement ->
                 val resultSet: ResultSet = statement.executeQueryAndLog(selectSQL)
                 while (resultSet.next()) {
