@@ -391,10 +391,17 @@ class JuggDeployerHelper(
         } else {
             logger.info("Embedding APK...\n${apkFiles.joinToString("\n")}")
         }
-        val deployItems = (incDeployData.newClasses + incDeployData.hotFixModifiedClasses + incDeployData.hotReloadModifiedClasses)
-            .map { it.deployItem } + incDeployData.overlays + incDeployData.updateApkFiles
+        val classes = (incDeployData.newClasses + incDeployData.hotFixModifiedClasses + incDeployData.hotReloadModifiedClasses)
+        val deployItems = classes.map { it.deployItem } + incDeployData.overlays + incDeployData.updateApkFiles
+        val deployedItems = deployFileManager.getDeployedFiles()
+            .map { it.toDeployItem() }
+            .filter { deployedItem ->
+                !deployItems.any {
+                    it.name == deployedItem.name
+                }
+            }
         val (isSuccess, failedReason) = IncrementalDeployHelper(compileContextManager.compileContext, logger).updateApk(
-            incDeployData.apks, deployItems)
+            incDeployData.apks, deployItems + deployedItems)
         logger.debug("Embedding APK finished, isSuccess: $isSuccess, failedReason: $failedReason")
         if (!isSuccess) {
             return DeployTaskResult(isSuccess = false, isCanFallback = true, costTime = deployOptions.costTime(), failedReason = failedReason)
