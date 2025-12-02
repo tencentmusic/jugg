@@ -130,8 +130,10 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         add(Box.createVerticalStrut(5))
 
         addPair(compileCommandLabel, compileCommandTextField, leftWidth = 180)
+        compileCommandTextField.preferredSize = Dimension(400, outputApkNameTextField.preferredSize.height)
         add(Box.createVerticalStrut(5))
         addPair(outputApkNameLabel, outputApkNameTextField, leftWidth = 180)
+        outputApkNameTextField.preferredSize = Dimension(400, outputApkNameTextField.preferredSize.height)
         add(Box.createVerticalStrut(5))
 
         addPair(enableRemoteCompileCheckBox, reportIssueActionLink, leftWidth = 260, isAlignEnd = true)
@@ -320,6 +322,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
                 } else {
                     left.preferredSize.width
                 }
+                left.minimumSize = Dimension(realLeftWidth, left.preferredSize.height)
                 left.preferredSize = Dimension(realLeftWidth, left.preferredSize.height)
             }
 
@@ -354,6 +357,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         remoteCompilePanel.removeAll()
 
         val syncModePanel = createPairPanel(syncModeLabel, syncModeComboBox, isMaxRight = false, marginHorizontal = 0)
+        syncModePanel.preferredSize = Dimension(300, syncModePanel.preferredSize.height)
         val actionLinkPanel = createPairPanel(applyServerActionLink, copyRemoteConfigActionLink, isMaxRight = false, marginBetween = 8, marginHorizontal = 0)
         val topPanel = createPairPanel(syncModePanel, actionLinkPanel, isAlignEnd = true, marginHorizontal = 0)
         remoteCompilePanel.add(topPanel)
