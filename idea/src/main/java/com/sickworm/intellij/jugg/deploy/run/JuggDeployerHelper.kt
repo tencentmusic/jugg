@@ -335,11 +335,18 @@ class JuggDeployerHelper(
             val reason = e.message ?: e.cause?.message ?: e.toString()
             val retryReason = deployOptions.retryReason
             val canRetry = (retryReason != DO_NOT_RETRY) && (retryReason == null || retryReason != reason)
-            if (canRetry && !deployOptions.isInstall) {
-                logger.debug("try retry deploy...")
-                val retryResult = tryRetry(deployOptions, finalIsFallbackAllHotFix, deployData, reason)
-                if (retryResult != null) {
-                    return retryResult
+            if (canRetry) {
+                logger.debug("try retry deploy..., deployOptions: $deployOptions")
+                if (deployOptions.isInstall) {
+                    val retryResult = tryRetryInstall(deployOptions, deployData, reason)
+                    if (retryResult != null) {
+                        return retryResult
+                    }
+                } else {
+                    val retryResult = tryRetry(deployOptions, finalIsFallbackAllHotFix, deployData, reason)
+                    if (retryResult != null) {
+                        return retryResult
+                    }
                 }
             }
 
@@ -527,6 +534,18 @@ class JuggDeployerHelper(
             return deploy(nextDeployOptions)
         }
 
+        tryRetryInstall(deployOptions, deployData, reason)?.let {
+            return it
+        }
+
+        return null
+    }
+
+    private fun tryRetryInstall(
+        deployOptions: DeployOptions,
+        deployData: JuggDeployData,
+        reason: String,
+    ): DeployTaskResult? {
         val isNeedUninstall = reason.contains("INSTALL_FAILED_INVALID_APK")
         if (isNeedUninstall) {
             val applicationIds = deployData.apks.map { it.applicationId }.toSet()
@@ -542,7 +561,6 @@ class JuggDeployerHelper(
             }
             return deploy(deployOptions)
         }
-
         return null
     }
 
