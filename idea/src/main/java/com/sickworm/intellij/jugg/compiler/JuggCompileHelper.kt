@@ -272,10 +272,11 @@ class JuggCompilerHelper(
                 "Embedded to APK is Enabled",
                 "<html>Embedded to APK is enabled, which will cost more time to deploy.<br>Do you still need it?</html>",
                 okButtonText = "Yes, embed to APK",
-                cancelButtonText = "No, disable embedded",
+                cancelButtonText = "No, disable embedded and fallback",
             )
             if (!isStillNeedEmbedded) {
                 JuggSettings.isEmbeddedToApk = false
+                return CompileTaskResult.incrementalFailed(true, "Disable embed to APK")
             }
         }
         return null

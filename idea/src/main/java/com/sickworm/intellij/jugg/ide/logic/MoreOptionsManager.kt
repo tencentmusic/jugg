@@ -100,10 +100,14 @@ class MoreOptionsManager(
                             "<html>This will embed incremental changes to APK, let incremental effects for Android RemoteViews, " +
                                     "but it will cost more time to deploy.<br>Are you sure to enable?</html>"
                         )
+                        if (isConfirmed) {
+                            JuggSettings.isEmbeddedToApk = true
+                        }
+                    } else {
+                        deployHistoryManager.deleteDeployHistory()
+                        JuggSettings.isEmbeddedToApk = false
                     }
-                    if (isConfirmed) {
-                        JuggSettings.isEmbeddedToApk = it
-                    }
+
                 }
             )
 
@@ -152,6 +156,9 @@ class MoreOptionsManager(
                 if (isConfirmed) {
                     JuggSettings.isEnableInjectGradleCompile = it
                     enableInjectGradleCompilation()
+                    if (!it) {
+                        JuggSettings.isEmbeddedToApk = false
+                    }
                 }
             }
         )
@@ -162,9 +169,6 @@ class MoreOptionsManager(
                 onGet = { JuggSettings.isEnableReadProjectInfoFromGradle },
                 onSet = {
                     JuggSettings.isEnableReadProjectInfoFromGradle = it
-                    if (!it) {
-                        JuggSettings.isEmbeddedToApk = false
-                    }
                     enableReadProjectFromGradle()
                 }
             )
