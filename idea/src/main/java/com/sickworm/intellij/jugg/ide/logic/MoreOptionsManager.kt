@@ -104,7 +104,6 @@ class MoreOptionsManager(
                             JuggSettings.isEmbeddedToApk = true
                         }
                     } else {
-                        deployHistoryManager.deleteDeployHistory()
                         JuggSettings.isEmbeddedToApk = false
                     }
 

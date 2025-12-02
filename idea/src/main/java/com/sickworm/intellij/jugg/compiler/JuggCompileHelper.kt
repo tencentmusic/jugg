@@ -276,7 +276,6 @@ class JuggCompilerHelper(
             )
             if (!isStillNeedEmbedded) {
                 JuggSettings.isEmbeddedToApk = false
-                return CompileTaskResult.incrementalFailed(true, "Disable embed to APK")
             }
         }
         return null

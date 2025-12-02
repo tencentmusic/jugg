@@ -5,9 +5,6 @@ import com.sickworm.intellij.jugg.instrument.DexPathListFixer;
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
 
 import java.io.File;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
 public class HotfixLoader {
 
@@ -15,10 +12,12 @@ public class HotfixLoader {
 
     public static File codeCacheDir; // dir where Apply Changes save files
     public static File overlayFilesDir; // dir where Apply Changes save files
+    public static File embeddedClassesDir; // dir where Apply Changes save files
 
     public static void init(final Context base) {
         codeCacheDir = base.getCodeCacheDir();
         overlayFilesDir = new File(codeCacheDir, ".overlay");
+        embeddedClassesDir = new File(codeCacheDir, ".jugg_classes_embed");
         IncrementalApkLoader.init(base);
     }
 

@@ -40,6 +40,16 @@ class DexPatchLoader {
                 }
             }
         }
+        if (HotfixLoader.embeddedClassesDir.exists()) {
+            final File[] dstFiles = HotfixLoader.embeddedClassesDir.listFiles();
+            if (dstFiles != null) {
+                for (File file : dstFiles) {
+                    if (file.getName().endsWith(DEX_FILE_SUFFIX)) {
+                        dstDexFiles.add(file);
+                    }
+                }
+            }
+        }
 
         ClassLoader classLoader;
         LogUtils.d(TAG, "install: before inject base context's classloader = " + baseContext.getClassLoader());

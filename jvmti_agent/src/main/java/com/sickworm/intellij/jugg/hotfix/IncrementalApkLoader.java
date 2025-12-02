@@ -20,15 +20,15 @@ public class IncrementalApkLoader {
             }
 
             LogUtils.i(TAG, "initIncrementalApk is incremental apk");
-            if (HotfixLoader.overlayFilesDir.exists()) {
-                FileUtil.deleteRecursively(HotfixLoader.overlayFilesDir);
-            }
-            if (!HotfixLoader.overlayFilesDir.mkdirs()) {
-                throw new RuntimeException("initIncrementalApk mkdirs failed: " + HotfixLoader.overlayFilesDir);
+            File classesFilesDir = HotfixLoader.embeddedClassesDir;
+            if (!classesFilesDir.exists() && !classesFilesDir.mkdirs()) {
+                throw new RuntimeException("initIncrementalApk mkdirs failed: " + classesFilesDir);
             }
             for (String fileName : files) {
-                File targetFile = new File(HotfixLoader.overlayFilesDir, fileName);
-                FileUtil.copyFromAssetsToFile(base, INCREMENTAL_DATA_ASSETS_PATH + fileName, targetFile);
+                File targetFile = new File(classesFilesDir, fileName);
+                if (!targetFile.exists()) {
+                    FileUtil.copyFromAssetsToFile(base, INCREMENTAL_DATA_ASSETS_PATH + fileName, targetFile);
+                }
             }
             isIncrementalApk = true;
         } catch (Exception e) {
