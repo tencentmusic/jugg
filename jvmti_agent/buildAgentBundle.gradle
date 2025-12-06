@@ -33,6 +33,8 @@ android {
         buildConfigField("String", "RUNTIME_JAR_PATH", "\"$runtimeJarPath\"")
         buildConfigField("String", "META_DATA_LABEL_RAW_APPLICATION", "\"com.sickworm.intellij.jugg.hotfix.raw.application\"")
         buildConfigField("String", "INJECT_APPLICATION_NAME", "\"com.sickworm.intellij.jugg.hotfix.BootstrapApplication\"")
+        buildConfigField("String", "META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY", "\"com.sickworm.intellij.jugg.hotfix.raw.appComponentFactory\"")
+        buildConfigField("String", "INJECT_APP_COMPONENT_FACTORY_NAME", "\"com.sickworm.intellij.jugg.hotfix.BootstrapAppComponentFactory\"")
         buildConfigField("String", "RESOURCE_APK_NAME", "\"resource.ap_\"")
         buildConfigField("String", "AAA_JUGG_FLAG_FILE_PREFIX", "\".jugg_\"") // add AAA_ to control the order in BuildConfig.java
         buildConfigField("String", "JVMTI_AVAILABLE_FLAG_FILE", "AAA_JUGG_FLAG_FILE_PREFIX + \"jvmti_available\"")

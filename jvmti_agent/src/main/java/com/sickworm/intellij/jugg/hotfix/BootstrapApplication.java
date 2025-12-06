@@ -2,11 +2,13 @@ package com.sickworm.intellij.jugg.hotfix;
 
 
 import android.annotation.SuppressLint;
+import android.app.AppComponentFactory;
 import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.text.TextUtils;
 
 import java.lang.ref.WeakReference;
@@ -43,6 +45,7 @@ public class BootstrapApplication extends Application {
     public static final String META_DATA_LABEL_RAW_APPLICATION = BuildConfig.META_DATA_LABEL_RAW_APPLICATION;
 
     private Application rawApplication = null;
+    public static AppComponentFactory rawAppComponentFactory = null;
 
     public BootstrapApplication() {
         LogUtils.i(TAG, "BootstrapApplication instance created: @" + Integer.toHexString(hashCode()) );
@@ -58,7 +61,7 @@ public class BootstrapApplication extends Application {
         }
 
         super.attachBaseContext(base);
-        generateRawApplication(base);
+        initRawApplicationAndAppComponentFactory(base);
         LogUtils.i(TAG, "attachBaseContext done");
     }
 
@@ -101,34 +104,65 @@ public class BootstrapApplication extends Application {
         }
     }
 
+    private void initRawApplicationAndAppComponentFactory(Context base) {
+        try {
+            ApplicationInfo applicationInfo = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
+            if (applicationInfo == null) {
+                throw new IllegalStateException("initRawApplicationAndAppComponentFactory: applicationInfo is null");
+            }
+            if (applicationInfo.metaData == null) {
+                throw new IllegalStateException("initRawApplicationAndAppComponentFactory: applicationInfo.metaData is null");
+            }
+            generateRawAppComponentFactory(applicationInfo, base);
+            generateRawApplication(applicationInfo, base);
+        } catch (Throwable e) {
+            LogUtils.e(TAG, "generateRawApplication: error while create raw instance", e);
+            throw new IllegalStateException(e);
+        }
+    }
+
     /**
      * Create a new instance of raw application and then call "attachBaseContext()" on it.
      */
-    private void generateRawApplication(Context base) {
+    private void generateRawAppComponentFactory(ApplicationInfo applicationInfo, Context base) throws Throwable {
+        String rawAppComponentFactoryName = applicationInfo.metaData.getString(BuildConfig.META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY);
+        LogUtils.i(TAG, "generateRawAppComponentFactory: rawAppComponentFactoryName: " + rawAppComponentFactoryName);
 
-        String rawApplicationName = null;
-
-        try {
-            ApplicationInfo applicationInfo = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
-            if (applicationInfo != null && applicationInfo.metaData != null) {
-                rawApplicationName = applicationInfo.metaData.getString(META_DATA_LABEL_RAW_APPLICATION);
-                LogUtils.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
-
-                if (TextUtils.isEmpty(rawApplicationName) || rawApplicationName.equals("null") || BootstrapApplication.class.getName().equals(rawApplicationName)) {
-                    LogUtils.i(TAG, "generateRawApplication: no raw application, exit generate");
-                    return;
-                }
-                Class<?> clazz = getClassLoader().loadClass(rawApplicationName);
-                rawApplication = (Application) clazz.newInstance();
-                Method attachMethod = ContextWrapper.class.getDeclaredMethod("attachBaseContext", Context.class);
-                attachMethod.setAccessible(true);
-                attachMethod.invoke(rawApplication, base);
-                LogUtils.i(TAG, "generateRawApplication: rawApplication : " + rawApplication);
-            }
-        } catch (Throwable e) {
-            LogUtils.e(TAG, "generateRawApplication: error while create instance for rawApplicationName : " + rawApplicationName, e);
-            throw new IllegalStateException(e);
+        if (TextUtils.isEmpty(rawAppComponentFactoryName) || rawAppComponentFactoryName.equals("null") || BootstrapAppComponentFactory.class.getName().equals(rawAppComponentFactoryName)) {
+            LogUtils.i(TAG, "generateRawAppComponentFactory: no raw appComponentFactory, exit generate");
+            return;
         }
+        Class<?> clazz = getClassLoader().loadClass(rawAppComponentFactoryName);
+        rawAppComponentFactory = (AppComponentFactory) clazz.newInstance();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            rawAppComponentFactory.instantiateClassLoader(base.getClassLoader(), applicationInfo);
+        }
+        LogUtils.i(TAG, "generateRawAppComponentFactory: rawAppComponentFactory : " + rawAppComponentFactory);
+    }
+
+    /**
+     * Create a new instance of raw application and then call "attachBaseContext()" on it.
+     */
+    private void generateRawApplication(ApplicationInfo applicationInfo, Context base) throws Throwable {
+        String rawApplicationName = applicationInfo.metaData.getString(META_DATA_LABEL_RAW_APPLICATION);
+        LogUtils.i(TAG, "generateRawApplication: rawApplicationName : " + rawApplicationName);
+
+        if (TextUtils.isEmpty(rawApplicationName) || rawApplicationName.equals("null") || BootstrapApplication.class.getName().equals(rawApplicationName)) {
+            LogUtils.i(TAG, "generateRawApplication: no raw application, exit generate");
+            return;
+        }
+        Class<?> clazz = base.getClassLoader().loadClass(rawApplicationName);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && rawAppComponentFactory != null) {
+            rawApplication = rawAppComponentFactory.instantiateApplication(base.getClassLoader(), rawApplicationName);
+        } else {
+            rawApplication = (Application) clazz.newInstance();
+        }
+        Method attachMethod = ContextWrapper.class.getDeclaredMethod("attachBaseContext", Context.class);
+        attachMethod.setAccessible(true);
+        attachMethod.invoke(rawApplication, base);
+
+        LogUtils.i(TAG, "generateRawApplication: rawApplication : " + rawApplication);
     }
 
     private void replaceApplication() {

@@ -84,15 +84,22 @@ class GradleApplicationInjector(
         }
 
         var originApplicationName: String? = null
+        var originAppComponentName: String? = null
         val attributes = application.attributes() as? MutableMap<Any?, Any?>
         println("Jugg attributes size: ${attributes?.size}")
 
         // don't import BuildConfig cause it a java file which can not included in readProjectInfo.gradle.kts
         val juggApplicationName = "com.sickworm.intellij.jugg.hotfix.BootstrapApplication"  // BuildConfig.INJECT_APPLICATION_NAME
+        val juggAppComponentName = "com.sickworm.intellij.jugg.hotfix.BootstrapAppComponentFactory"  // BuildConfig.INJECT_APP_COMPONENT_FACTORY_NAME
+
         attributes?.forEach {
             if((it.key as? QName)?.localPart == "name") {
                 originApplicationName = it.value?.toString()
                 attributes[it.key] = juggApplicationName
+            }
+            if ((it.key as? QName)?.localPart == "appComponentFactory") {
+                originAppComponentName = it.value?.toString()
+                attributes[it.key] = juggAppComponentName
             }
         }
         if (originApplicationName == null) {
@@ -104,6 +111,15 @@ class GradleApplicationInjector(
                 "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.application", // BuildConfig.META_DATA_LABEL_RAW_APPLICATION
                 "android:value" to originApplicationName,
             ))
+        }
+        if (originAppComponentName == null) {
+            println("Jugg: originAppComponentName is null, no need to handle")
+        } else if (originAppComponentName != juggAppComponentName) {
+            application.appendNode("meta-data", mapOf(
+                "android:name" to "com.sickworm.intellij.jugg.hotfix.raw.appComponentFactory", // BuildConfig.META_DATA_LABEL_RAW_APP_COMPONENT_FACTORY
+                "android:value" to originAppComponentName,
+            ))
+            attributes?.put("android:backupAgent", "com.sickworm.intellij.jugg.hotfix.raw.appComponentFactory") // BuildConfig.INJECT_APP_COMPONENT_FACTORY_NAME
         }
 
         val printer = XmlNodePrinter(PrintWriter(mergedManifest.absolutePath, "utf-8"))
