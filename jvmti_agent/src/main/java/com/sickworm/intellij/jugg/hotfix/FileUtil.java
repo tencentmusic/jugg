@@ -144,7 +144,6 @@ public class FileUtil {
 
     static void copyFromAssetsToFile(Context context, String fileName, File cacheTo) throws IOException {
         try (InputStream inputStream = context.getAssets().open(fileName)) {
-            cacheTo.deleteOnExit();
             if (cacheTo.exists()) {
                 if (!cacheTo.delete()) {
                     throw new IOException("Could not delete file " + cacheTo.getAbsolutePath());
@@ -159,6 +158,9 @@ public class FileUtil {
                 while ((len = inputStream.read(buf)) > 0) {
                     outputStream.write(buf, 0, len);
                 }
+            }
+            if (!cacheTo.setReadOnly()) {
+                LogUtils.w("FileUtil", "Could not set file " + cacheTo.getAbsolutePath() + " to read-only");
             }
         }
     }
