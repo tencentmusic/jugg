@@ -1,11 +1,12 @@
 <h1>更新日志</h1>
-<h2>2.6.5 (2025.11.30)</h2>
+<h2>2.6.7 (2025.12.06)</h2>
 <ol>
     <li>[feature] 支持导出增量构建 APK</li>
     <li>[feature] 支持一键清除数据重装</li>
     <li>[feature] 兼容 Android RemoteViews，支持将增量修改打进 APK 并重装</li>
     <li>[feature] 支持 CI 构建</li>
     <li>[feature] 支持多 APK 扩散编译</li>
+    <li>[feature] 支持 AppComponentFactory，修复兼容部署模式/集成模式下使用 AppComponentFactory ClassLoader 不正确的问题</li>
     <li>[optimize] 优化 android.enableJetifier=false 工程的依赖读取兼容性，修复部分场景编译失败</li>
     <li>[optimize] 兼容错误 "classes compiled by an unstable version of the Kotlin compiler"</li>
     <li>[bugfix] 修复读取到 IDE 模块名为类似 'example.lib_common.lib2.main~1' 的名字时，依赖可能丢失导致编译失败</li>

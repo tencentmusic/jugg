@@ -1,3 +1,8 @@
+- version: 2.6.7
+  date: 2025.12.06
+  updates:
+    - supports AppComponentFactory in compat mode / embed mode
+
 - version: 2.6.5
   date: 2025.11.30
   updates:
