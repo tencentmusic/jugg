@@ -163,9 +163,11 @@ class GradleProjectInfoReader(
                 val variants = mutableListOf<Variant>()
                 var signingConfigs: List<SigningConfig>? = null
                 val isApplication = moduleType == ModuleInfo.Type.Application
+                val isDynamicFeature = moduleType == ModuleInfo.Type.DynamicFeature
                 if (isApplication) {
                     signingConfigs = mutableListOf()
-                    // com.android.build.gradle.AppExtension.applicationVariants
+                    // com.android.build.gradle.internal.dsl.BaseAppModuleExtension -> AppExtension ->
+                    // com.android.build.gradle.AbstractAppExtension.applicationVariants
                     (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
                         // com.android.build.gradle.api.ApplicationVariant
                         val variant = Reflector(obj)
@@ -193,6 +195,19 @@ class GradleProjectInfoReader(
                             signingConfig["enableV4Signing"]?.value == true,
                             signingConfig["isSigningReady"]?.value == true,
                         ))
+                    }
+                } else if (isDynamicFeature) {
+                    // com.android.build.gradle.internal.dsl.DynamicFeatureExtension -> AppExtension ->
+                    // com.android.build.gradle.AbstractAppExtension.applicationVariants
+                    (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
+                        // com.android.build.gradle.api.ApplicationVariant
+                        val variant = Reflector(obj)
+                        variants.add(
+                            Variant(
+                                variant["name"]?.valueString ?: return@mapNotNull null,
+                                variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
+                            )
+                        )
                     }
                 } else {
                     // com.android.build.gradle.api.LibraryVariant
