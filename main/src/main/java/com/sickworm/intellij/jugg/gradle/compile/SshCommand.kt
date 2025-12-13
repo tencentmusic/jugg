@@ -112,7 +112,15 @@ open class CompileProjectCommand(
     }
 
     override val baseCommand: String = run {
-        val suffix = if (isNormalGradleCommand) " --console=plain $injectParam" else ""
+        var suffix = ""
+        if (isNormalGradleCommand) {
+            if (!compileCommand.contains("--console")) {
+                suffix += " " + "--console=plain"
+            }
+            suffix += ConfigurationCacheCompatHelper.getDisableArgsIfEnabled(
+                File(projectPath), compileCommand)
+            suffix += " $injectParam"
+        }
         return@run "cd $projectPath && $compileCommand$suffix"
     }
 

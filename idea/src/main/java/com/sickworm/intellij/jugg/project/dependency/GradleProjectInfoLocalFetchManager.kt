@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
+import com.sickworm.intellij.jugg.gradle.compile.ConfigurationCacheCompatHelper
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
@@ -111,10 +112,12 @@ class GradleProjectInfoLocalFetchManager(
             compileContextManager.ensureInitProjectInfo()
 
             val daemonArg = if (isKeepDaemon) "" else "--no-daemon"
+            val isEnableConfigurationCacheArg = ConfigurationCacheCompatHelper.isNeedAddArg(pathManager.projectDir, logger)
+            val configurationCacheWarnOnlyArg = if (isEnableConfigurationCacheArg) ConfigurationCacheCompatHelper.CMD_CONFIGURATION_CACHE_WARN_ONLY_ARG_VALUE else ""
             val localFetchCommand = CompileProjectCommand(
                 // cannot use --dry-run only on Gradle 8.x, it cannot get kotlin task
                 // assembleDebug is ok to use as default command, it won't cost much more than :app:assembleDevelopmentFreeDebug
-                "./gradlew assembleDebug --dry-run --console=plain $daemonArg -I ${pathManager.initGradleFilePath.absolutePath}",
+                "./gradlew assembleDebug --dry-run --console=plain $configurationCacheWarnOnlyArg $daemonArg -I ${pathManager.initGradleFilePath.absolutePath}",
                 pathManager.projectDir.path,
                 pathManager.initGradleFileRelativePath
             )
