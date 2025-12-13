@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.gradle.compile
 
+import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.gradle.script.GradleApplicationInjector
 import com.sickworm.intellij.jugg.gradle.script.GradleProjectInfoReaderManager
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
@@ -100,10 +101,10 @@ open class CompileProjectCommand(
     private val compileCommand: String,
     private val projectPath: String,
     private val initGradleFileRelativePath: String,
+    private val logger: Logger? = null,
 ) : BaseSshCommand() {
 
-    var isNormalGradleCommand: Boolean = compileCommand.matches(Regex(""".*(gradle|gradlew|gradle\.bat|gradlew\.bat)\s+[\w-_ :=.]+"""))
-        private set
+    val isNormalGradleCommand: Boolean = isNormalGradleCommand(compileCommand)
 
     private val injectParam = if (JuggSettings.isEnableInjectGradleCompile) {
         "-I ${initGradleFileRelativePath.replace("\\", "/")} -P${GradleApplicationInjector.PARAM_ENABLE}=${JuggSettings.finalIsEnableCompatibleDeploymentMode}"
@@ -111,18 +112,20 @@ open class CompileProjectCommand(
         ""
     }
 
-    override val baseCommand: String = run {
+    private val finalCompileCommand: String = run {
         var suffix = ""
         if (isNormalGradleCommand) {
             if (!compileCommand.contains("--console")) {
                 suffix += " " + "--console=plain"
             }
             suffix += ConfigurationCacheCompatHelper.getDisableArgsIfEnabled(
-                File(projectPath), compileCommand)
+                File(projectPath), compileCommand, logger)
             suffix += " $injectParam"
         }
-        return@run "cd $projectPath && $compileCommand$suffix"
+        return@run "$compileCommand$suffix"
     }
+
+    override val baseCommand: String = "cd $projectPath && $finalCompileCommand"
 
     override fun getCommand(isNeedSetChineseLanguage: Boolean, isWindows: Boolean): String {
         val command = super.getCommand(isNeedSetChineseLanguage, isWindows)
@@ -135,6 +138,13 @@ open class CompileProjectCommand(
         }
 
         return command
+    }
+
+    companion object {
+
+        fun isNormalGradleCommand(compileCommand: String): Boolean {
+            return compileCommand.matches(Regex(""".*(gradle|gradlew|gradle\.bat|gradlew\.bat)\s+[\w-_ :=.]+"""))
+        }
     }
 }
 
@@ -269,11 +279,13 @@ class DiffLibraryChangesCommand(
     projectPath: String,
     initGradleFileRelativePath: String,
     incDeployTimes: Int,
+    localProjectPath: String = projectPath,
 ) : CompileProjectCommand(
     "./gradlew --dry-run" +
             " -P${GradleProjectInfoReaderManager.PARAM_DIFF_MODE}=true" +
             " -P${GradleProjectInfoReaderManager.PARAM_INC_DEPLOY_TIMES}=$incDeployTimes",
-    projectPath, initGradleFileRelativePath
+    projectPath, initGradleFileRelativePath,
+    localProjectPath = localProjectPath,
 )
 
 class FetchChangedLibraryCommand(

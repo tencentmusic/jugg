@@ -45,6 +45,7 @@ class LocalGradleCompileClient(
                 juggGradleCompileOptions.compileCommand,
                 projectDir.path,
                 juggGradleCompileOptions.initGradleFileRelativePath,
+                logger,
             )
             val compileProjectResult = invoke(compileProjectCommand)
             if (compileProjectResult != 0) {

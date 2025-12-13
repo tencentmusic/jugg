@@ -48,19 +48,20 @@ class GradleProjectInfoReaderManager(
     private fun readLastProjectInfo(): JuggProjectInfoSerialize?  {
         var lastProjectInfo: File? = null
 
-        // priority use ide project info, which contains build variant info
-        if (juggPathManager.ideProjectInfoFile.exists()) {
-            lastProjectInfo = juggPathManager.ideProjectInfoFile
-        } else if (juggPathManager.gradleProjectInfoFile.exists()) {
+        if (juggPathManager.gradleProjectInfoFile.exists()) {
             lastProjectInfo = juggPathManager.gradleProjectInfoFile
         }
-
         if (lastProjectInfo == null) {
-            println("Jugg: lastProjectInfo not exists")
+            println("Jugg: lastProjectInfo ${juggPathManager.gradleProjectInfoFile} not exists")
             return null
         }
 
-        return ProjectInfoSerializerInGradle(lastProjectInfo).load()
+        val lastProjectInfoSerialize = ProjectInfoSerializerInGradle(lastProjectInfo).load()
+        if (lastProjectInfoSerialize == null) {
+            println("Jugg: lastProjectInfo ${juggPathManager.gradleProjectInfoFile} load failed")
+            return null
+        }
+        return lastProjectInfoSerialize
     }
 
     private fun writeProjectInfoFile(projectInfo: JuggProjectInfo) {

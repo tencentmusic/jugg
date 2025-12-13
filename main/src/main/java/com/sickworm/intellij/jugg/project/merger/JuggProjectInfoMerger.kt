@@ -176,6 +176,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
             }
 
             // merge with different strategy
+            val buildVariant = selectBuildVariant(moduleInfo, gradleModuleInfo)
             val mergedModuleInfo = ModuleInfo(
                 name = moduleInfo.name,
                 moduleType = gradleModuleInfo.moduleType,
@@ -185,7 +186,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 resourceDirs = mergeWithBase(name, "resourceDirs", moduleInfo.resourceDirs, gradleModuleInfo.resourceDirs, mergeResult) { it.absolutePath },
                 assetsDirs = mergeWithBase(name, "assetsDirs", moduleInfo.assetsDirs, gradleModuleInfo.assetsDirs, mergeResult) { it.absolutePath },
                 manifestFile = moduleInfo.manifestFile, // gradleModuleInfo.manifestFile may not exist, it will always return debug/AndroidManifestFest.xml
-                buildVariant = moduleInfo.buildVariant, // only ide can get, gradle is also read from ide project info
+                buildVariant = buildVariant,
                 compileVersion = chooseValue(gradleModuleInfo.compileVersion, moduleInfo.compileVersion),
                 minSdkVersion = chooseValue(gradleModuleInfo.minSdkVersion, moduleInfo.minSdkVersion),
                 buildToolsVersion = chooseValue(gradleModuleInfo.buildToolsVersion, moduleInfo.buildToolsVersion),
@@ -193,7 +194,7 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
                 kotlinFreeCompilerArgs = mergeWithBase(name, "kotlinFreeCompilerArgs", gradleModuleInfo.kotlinFreeCompilerArgs, moduleInfo.kotlinFreeCompilerArgs, mergeResult) { it },
                 javaSourceCompatibility = chooseValue(gradleModuleInfo.javaSourceCompatibility, moduleInfo.javaSourceCompatibility),
                 javaTargetCompatibility = chooseValue(gradleModuleInfo.javaTargetCompatibility, moduleInfo.javaTargetCompatibility),
-                buildPathInfo = moduleInfo.buildPathInfo, // ide project info has real buildPathInfo in jugg/classpath
+                buildPathInfo = moduleInfo.buildPathInfo.copy(buildVariant = buildVariant), // ide project info has real buildPathInfo in jugg/classpath
                 moduleDependencies = setIfEmpty(name, "moduleDependencies", moduleInfo.moduleDependencies, gradleModuleInfo.moduleDependencies, mergeResult) { it.moduleName }, // merge may cause circular dependencies, just pick the latest one
                 libraryDependencies = libraryMerger.mergeLibrariesWithBase(name, moduleInfo.libraryDependencies, gradleModuleInfo.libraryDependencies, mergeResult, isNeedUpdateDependency),
                 runtimeLibraryDependencies = gradleModuleInfo.runtimeLibraryDependencies,
@@ -249,6 +250,23 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
         }
         return list
     }
+
+    private fun selectBuildVariant(moduleInfo: ModuleInfo, gradleModuleInfo: ModuleInfo): String {
+        // gradle can know which build variant is executed, and ide read from "Build Variants" selection
+        // and which may not be correct
+
+        if (moduleInfo.buildVariant == gradleModuleInfo.buildVariant) {
+            return moduleInfo.buildVariant
+        }
+
+        // priority: gradleBuildVariant > ideBuildVariant
+        // can not check exists build path to ensure which build variant is reliable, because buildPathInfo is not
+        // the final path which may changed by classpath JuggCompilerHelper.fetchClasspath
+        logger.debug("module ${moduleInfo.name} build variant not match, " +
+                "ide:${moduleInfo.buildVariant} vs gradle:${gradleModuleInfo.buildVariant}, use ${gradleModuleInfo.buildVariant}")
+        return gradleModuleInfo.buildVariant
+    }
+
 
     @Suppress("SameParameterValue")
     private fun <T, K> setIfEmpty(moduleName: String, type: String,

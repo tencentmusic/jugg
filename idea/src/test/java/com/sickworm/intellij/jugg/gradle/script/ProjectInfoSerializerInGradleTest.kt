@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.gradle.script
 
 import com.sickworm.intellij.jugg.manager.MockJugg
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
@@ -30,11 +31,11 @@ class ProjectInfoSerializerInGradleTest {
             assertTrue(mockJugg.pathManager.markProjectInfoNeedUpdateFlagFile.exists())
 
             ideProjectInfoFile.copyTo(mockJugg.pathManager.ideProjectInfoFile, overwrite = true)
-            val scriptFile = File("src/main/resources/gradle/readProjectInfo.gradle.kts")
+            val scriptFile = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts")
             scriptFile.copyTo(mockJugg.pathManager.initGradleFilePath, overwrite = true)
 
             mockJugg.pathManager.gradleProjectInfoFile.delete()
-            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded()
+            gradleProjectInfoLocalFetchManager.runUpdateIfNeeded(specificCompileCommand = "./gradlew :app:assembleDebug")
         }
     }
 
@@ -42,22 +43,6 @@ class ProjectInfoSerializerInGradleTest {
     fun testGenerate() {
         assertTrue(mockJugg.pathManager.gradleProjectInfoFile.exists())
         assertTrue(mockJugg.pathManager.gradleProjectInfoFile.length() > 0)
-    }
-
-    @Test
-    fun testReadConsistent() {
-        val projectInfoSerializer = ProjectInfoSerializer(gradleProjectInfo, logger)
-        val tmpFile = File(buildDir, "project_infos.json")
-        val tmpSerializer = ProjectInfoSerializer(tmpFile, logger)
-        tmpSerializer.save(projectInfoSerializer.load())
-
-        assertTrue(tmpSerializer.dataFile.exists())
-        assertTrue(tmpSerializer.dataFile.length() > 0)
-
-        // compare fields
-        val gradleJsonObject = JSONObject(tmpSerializer.dataFile.readText())
-        val ideJsonObject = JSONObject(projectInfoSerializer.dataFile.readText())
-        assertJsonObjectEquals("root", ideJsonObject, gradleJsonObject)
     }
 
     private fun assertJsonObjectEquals(keyName: String, except: JSONObject, actual: JSONObject) {

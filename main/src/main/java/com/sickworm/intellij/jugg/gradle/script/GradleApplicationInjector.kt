@@ -42,7 +42,7 @@ class GradleApplicationInjector(
         val androidExt = Reflector(project.extensions.getByName("android"))
         val applicationVariants = androidExt["applicationVariants"]
         val variants = applicationVariants?.value as? Collection<Any?>
-        println("Jugg: project ${project.name} applicationVariants size: ${variants?.size}")
+        println("Jugg: project ${project.name} applicationVariants: ${variants?.size}")
         if (variants.isNullOrEmpty()) {
             throw IllegalStateException("Jugg: project ${project.name} applicationVariants is null or empty")
         }

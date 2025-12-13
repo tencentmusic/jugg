@@ -9,7 +9,6 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.attributes.*
 import org.gradle.api.file.FileCollection
-import org.gradle.api.provider.Provider
 import org.gradle.internal.component.local.model.OpaqueComponentArtifactIdentifier
 import java.io.File
 
@@ -23,6 +22,11 @@ class GradleProjectInfoReader(
     private var totalReadArtifacts = 0
     private var resolveArtifacts = 0
     private var printResolveDetail = false
+    private val taskGraphGroup: Map<Project, Set<String>> = rootProject.gradle.taskGraph.allTasks
+        .groupBy { it.project }
+        .mapValues { (_, task) ->
+            task.map { it.name }.toSet()
+        }
 
     private var modulesNames = setOf<String>()
 
@@ -38,17 +42,14 @@ class GradleProjectInfoReader(
             null
         }
         isEnableJetifier = isEnableJetifierValue == "true"
-        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, " +
-                "isEnableJetifierValue: $isEnableJetifierValue, " +
-                "jetifierReadError:$jetifierReadError"
-        )
+        println("Jugg: getProjectInfo rootPath: ${rootProject.projectDir}, isEnableJetifierValue: $isEnableJetifierValue")
+        if (jetifierReadError != null) {
+            println("Jugg: got jetifierReadError : $jetifierReadError")
+        }
 
         // load dependenciesCache
         // we can not use lastProjectInfo for cache because it misses the info of transitive dependencies
         TraceLogger.start("loadDependencyCrcCache")
-        if (lastProjectInfo == null) {
-            println("Jugg: lastProjectInfo is null, project info very likely not correct.")
-        }
         dependenciesCrcCache = mutableMapOf()
         lastProjectInfo?.dependencyList?.forEach {
             dependenciesCrcCache[it.file.absolutePath] = it
@@ -79,14 +80,13 @@ class GradleProjectInfoReader(
             else -> ModuleInfo.Type.Unknown
         }
 
-        val buildVariant: String = getBuildVariant(project.projectDir)
         var moduleInfo = ModuleInfo.virtualModule.copy(
             name = project.standardModuleName,
             moduleType = moduleType,
             moduleRootDir = project.projectDir,
             projectRootDir = rootProject.projectDir,
-            buildVariant = buildVariant,
-            buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant),
+            // set defaults to non-android modules, will update later in updateVariantAndSignConfigs for android modules
+            buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, "debug"),
             gradleModuleName = project.name,
         )
 
@@ -117,6 +117,8 @@ class GradleProjectInfoReader(
                     }
                 }
 
+                moduleInfo = updateVariantAndSignConfigs(moduleInfo, project, androidExt)
+
                 val sourceDirs = mutableSetOf<File>()
                 val resDirs = mutableSetOf<File>()
                 val assetDirs = mutableSetOf<File>()
@@ -129,7 +131,7 @@ class GradleProjectInfoReader(
                     if (mainSourceSet != null) {
                         sourceSetsList.add(mainSourceSet)
                     }
-                    val variantSourceSet = sourceSets.invoke("findByName", buildVariant)
+                    val variantSourceSet = sourceSets.invoke("findByName", moduleInfo.buildVariant)
                     if (variantSourceSet != null) {
                         sourceSetsList.add(variantSourceSet)
                     }
@@ -160,66 +162,9 @@ class GradleProjectInfoReader(
                     }
                 }
 
-                val variants = mutableListOf<Variant>()
-                var signingConfigs: List<SigningConfig>? = null
-                val isApplication = moduleType == ModuleInfo.Type.Application
-                val isDynamicFeature = moduleType == ModuleInfo.Type.DynamicFeature
-                if (isApplication) {
-                    signingConfigs = mutableListOf()
-                    // com.android.build.gradle.internal.dsl.BaseAppModuleExtension -> AppExtension ->
-                    // com.android.build.gradle.AbstractAppExtension.applicationVariants
-                    (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
-                        // com.android.build.gradle.api.ApplicationVariant
-                        val variant = Reflector(obj)
-                        variants.add(Variant(
-                            variant["name"]?.valueString ?: return@mapNotNull null,
-                            variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
-                        ))
-                    }
-
-                    // com.android.build.gradle.internal.dsl.BaseAppModuleExtension.signingConfigs
-                    (androidExt["signingConfigs"]?.value as? Collection<*>)?.mapNotNull { obj ->
-                        // com.android.builder.model.SigningConfig
-                        // com.android.build.gradle.internal.api.ReadOnlySigningConfig
-                        val signingConfig = Reflector(obj)
-                        signingConfigs.add(SigningConfig(
-                            signingConfig["name"]?.valueString ?: return@mapNotNull null,
-                            signingConfig["storeFile"]?.value as? File,
-                            signingConfig["storePassword"]?.valueString,
-                            signingConfig["keyAlias"]?.valueString,
-                            signingConfig["keyPassword"]?.valueString,
-                            signingConfig["storeType"]?.valueString,
-                            (signingConfig["isV1SigningEnabled"]?.value == true) || (signingConfig["enableV1Signing"]?.value == true),
-                            (signingConfig["isV2SigningEnabled"]?.value == true) || (signingConfig["enableV2Signing"]?.value == true),
-                            signingConfig["enableV3Signing"]?.value == true,
-                            signingConfig["enableV4Signing"]?.value == true,
-                            signingConfig["isSigningReady"]?.value == true,
-                        ))
-                    }
-                } else if (isDynamicFeature) {
-                    // com.android.build.gradle.internal.dsl.DynamicFeatureExtension -> AppExtension ->
-                    // com.android.build.gradle.AbstractAppExtension.applicationVariants
-                    (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
-                        // com.android.build.gradle.api.ApplicationVariant
-                        val variant = Reflector(obj)
-                        variants.add(
-                            Variant(
-                                variant["name"]?.valueString ?: return@mapNotNull null,
-                                variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
-                            )
-                        )
-                    }
-                } else {
-                    // com.android.build.gradle.api.LibraryVariant
-                    (androidExt["libraryVariants"]?.value as? Collection<*>)?.forEach { obj ->
-                        val variant = Reflector(obj)
-                        variants.add(Variant(variant["name"]?.valueString ?: return@forEach,  null))
-                    }
-                }
-
                 var kotlinPlugins: List<File>? = null
                 @Suppress("DEPRECATION")
-                val buildVariantCapital = buildVariant[0].toUpperCase() + buildVariant.substring(1)
+                val buildVariantCapital = moduleInfo.buildVariant[0].toUpperCase() + moduleInfo.buildVariant.substring(1)
                 val kotlinTaskName = "compile${buildVariantCapital}Kotlin"
                 var kotlinTask: Any? = null
                 try {
@@ -286,10 +231,8 @@ class GradleProjectInfoReader(
                     )?.value as? Map<String, String>,
                     // (project.extensions.getByName("android") as com.android.build.gradle.AppExtension).defaultConfig.javaCompileOptions.annotationProcessorOptions.arguments
                     javaAnnotationProcessorOptions = defaultConfig["javaCompileOptions"]["annotationProcessorOptions"]["arguments"]?.value as? Map<String, String>,
-                    applicationId = if (isApplication) defaultConfig["applicationId"]?.valueString else null,
+                    applicationId = if (moduleType == ModuleInfo.Type.Application || moduleType == ModuleInfo.Type.DynamicFeature) defaultConfig["applicationId"]?.valueString else null,
                     namespace = androidExt["namespace"]?.valueString,
-                    variants = variants,
-                    signingConfigs = signingConfigs,
                     kotlinPlugins = kotlinPlugins,
                     kotlinExtensions = kotlinExtensions,
                     isUseCompose = androidExt["buildFeatures"]["compose"]?.value == true,
@@ -306,7 +249,7 @@ class GradleProjectInfoReader(
         TraceLogger.start("getDep")
         try {
             TraceLogger.start("getCompile")
-            var dependFilterName = if (moduleType.isAndroidModule) "${buildVariant}CompileClasspath" else "compileClasspath"
+            var dependFilterName = if (moduleType.isAndroidModule) "${moduleInfo.buildVariant}CompileClasspath" else "compileClasspath"
             if (moduleType.isAndroidModule) {
                 val isValidFilterName = project.configurations.names.any { filterConfigs(it, dependFilterName) }
                 if (!isValidFilterName) {
@@ -353,24 +296,108 @@ class GradleProjectInfoReader(
         return moduleInfo
     }
 
-    private val fixedModulePathMap: Map<String, ModuleInfo> by lazy {
-        lastProjectInfo?.modules?.associate {
-            val relativePath = it.moduleInfoExceptLibraries.moduleRootDir.relativeTo(it.moduleInfoExceptLibraries.projectRootDir).path
-            relativePath to it.moduleInfoExceptLibraries
-        } ?: emptyMap()
+    private fun updateVariantAndSignConfigs(moduleInfo: ModuleInfo, project: Project, androidExt: Reflector): ModuleInfo {
+        val variants = mutableListOf<Variant>()
+        var signingConfigs: List<SigningConfig>? = null
+        val isApplication = moduleInfo.moduleType == ModuleInfo.Type.Application
+        val isDynamicFeature = moduleInfo.moduleType == ModuleInfo.Type.DynamicFeature
+        if (isApplication) {
+            signingConfigs = mutableListOf()
+            // com.android.build.gradle.internal.dsl.BaseAppModuleExtension -> AppExtension ->
+            // com.android.build.gradle.AbstractAppExtension.applicationVariants
+            (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
+                // com.android.build.gradle.api.ApplicationVariant
+                val variant = Reflector(obj)
+                variants.add(Variant(
+                    variant["name"]?.valueString ?: return@mapNotNull null,
+                    variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
+                ))
+            }
+
+            // com.android.build.gradle.internal.dsl.BaseAppModuleExtension.signingConfigs
+            (androidExt["signingConfigs"]?.value as? Collection<*>)?.mapNotNull { obj ->
+                // com.android.builder.model.SigningConfig
+                // com.android.build.gradle.internal.api.ReadOnlySigningConfig
+                val signingConfig = Reflector(obj)
+                signingConfigs.add(SigningConfig(
+                    signingConfig["name"]?.valueString ?: return@mapNotNull null,
+                    signingConfig["storeFile"]?.value as? File,
+                    signingConfig["storePassword"]?.valueString,
+                    signingConfig["keyAlias"]?.valueString,
+                    signingConfig["keyPassword"]?.valueString,
+                    signingConfig["storeType"]?.valueString,
+                    (signingConfig["isV1SigningEnabled"]?.value == true) || (signingConfig["enableV1Signing"]?.value == true),
+                    (signingConfig["isV2SigningEnabled"]?.value == true) || (signingConfig["enableV2Signing"]?.value == true),
+                    signingConfig["enableV3Signing"]?.value == true,
+                    signingConfig["enableV4Signing"]?.value == true,
+                    signingConfig["isSigningReady"]?.value == true,
+                ))
+            }
+        } else if (isDynamicFeature) {
+            // com.android.build.gradle.internal.dsl.DynamicFeatureExtension -> AppExtension ->
+            // com.android.build.gradle.AbstractAppExtension.applicationVariants
+            (androidExt["applicationVariants"]?.value as? Collection<*>)?.mapNotNull { obj ->
+                // com.android.build.gradle.api.ApplicationVariant
+                val variant = Reflector(obj)
+                variants.add(
+                    Variant(
+                        variant["name"]?.valueString ?: return@mapNotNull null,
+                        variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
+                    )
+                )
+            }
+        } else {
+            // com.android.build.gradle.api.LibraryVariant
+            (androidExt["libraryVariants"]?.value as? Collection<*>)?.forEach { obj ->
+                val variant = Reflector(obj)
+                variants.add(Variant(variant["name"]?.valueString ?: return@forEach,  null))
+            }
+        }
+
+        val buildVariant = guessBuildVariant(project, variants) ?: "debug"
+
+        return moduleInfo.copy(
+            buildVariant = buildVariant,
+            variants = variants,
+            signingConfigs = signingConfigs,
+            buildPathInfo = ModuleBuildPathInfo(rootProject.projectDir, project.projectDir, buildVariant),
+        )
     }
 
-    private val defaultVariant: String by lazy {
-        fixedModulePathMap.values
-            .groupBy { it.buildVariant }
-            .entries.maxByOrNullForKt14 { it.value.size }
-            ?.key
-            ?: ModuleInfo.DEFAULT_BUILD_VARIANT
-    }
+    private fun guessBuildVariant(project: Project, variants: List<Variant>): String? {
+        val taskNames = taskGraphGroup[project] ?: run {
+            println("Jugg: ${project.standardModuleName} task graph not found, build variant may not correct. " +
+                    "Most likely the module is not in compilation")
+            emptyList()
+        }
+        val executedVariants = variants.filter {
+            val capitalizedName = it.name.capitalize() // compat kotlin 1.4, name.capitalize(Locale.ROOT)
+            val manifestTaskName = "process${capitalizedName}Manifest"
+            return@filter manifestTaskName in taskNames
+        }
 
-    private fun getBuildVariant(projectDir: File): String {
-        val relativePath = projectDir.relativeTo(rootProject.projectDir).path
-        return fixedModulePathMap[relativePath]?.buildVariant ?: defaultVariant
+        val startTaskNames: List<String>? = project.gradle.startParameter.taskRequests.getOrNull(0)?.args
+        val isRelease = startTaskNames?.any { it.contains("release", ignoreCase = true) } ?: false
+        val priorityVariant = if (isRelease) "release" else "debug"
+
+        if (executedVariants.size == 1) {
+            return executedVariants[0].name
+        } else if (executedVariants.isEmpty()) {
+            // this module may not be compiled, just return the first variant
+            val guessVariant = variants.firstOrNull {
+                it.name.contains(priorityVariant, ignoreCase = true)
+            }
+            println("Jugg: ${project.standardModuleName} has no executedVariants, " +
+                    "variants $variants, startTaskNames: $startTaskNames, guessVariant: $guessVariant")
+            return guessVariant?.name
+        } else {
+            val guessVariant = executedVariants.firstOrNull {
+                it.name.contains(priorityVariant, ignoreCase = true)
+            } ?: executedVariants.firstOrNull()
+            println("Jugg: ${project.standardModuleName} has multiple executedVariants: $executedVariants, " +
+                    "startTaskNames: $startTaskNames, guessVariant: $guessVariant")
+            return guessVariant?.name
+        }
     }
 
     private fun getDependenciesByConfig(project: Project, filterName: String, isAndroidDepend: Boolean, isNeedResolve: Boolean = true, isGetByNewWay: Boolean = false): List<Dependency> {

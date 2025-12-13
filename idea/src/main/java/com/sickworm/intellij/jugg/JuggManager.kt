@@ -19,6 +19,7 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
+import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.ide.*
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
@@ -421,6 +422,7 @@ class JuggManager @TestOnly constructor(
         val initIncrementalCompileTask = task@{
             // do it async
             fun action() {
+                BaseBuildCommandHelper(pathManager).recordBaseBuildCmd(options)
                 initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
             }
             runTaskSafe("Init Incremental Compile", ::action)

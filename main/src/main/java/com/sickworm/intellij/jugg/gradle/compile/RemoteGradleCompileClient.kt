@@ -254,6 +254,7 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.compileCommand,
                 gradleCompileSettings.remoteProjectPath,
                 gradleCompileSettings.initGradleFileRelativePath,
+                logger,
             )
             val compileProjectResult = invoke(channel, compileProjectCommand)
             if (compileProjectResult != 0) {

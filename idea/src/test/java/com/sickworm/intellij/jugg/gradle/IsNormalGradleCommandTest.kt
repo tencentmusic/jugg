@@ -12,6 +12,7 @@ class IsNormalGradleCommandTest {
         TestGlobal.init()
         val testMap = mapOf(
             "./gradlew :app:assembleDebug" to true,
+            "./gradlew :app:assembleDebug " to true,
             ".\\gradlew.bat :app:assembleDebug" to true,
             "gradle :app:assembleDebug" to true,
             "gradlew :app:assembleDebug" to true,
@@ -21,6 +22,7 @@ class IsNormalGradleCommandTest {
             "cd C:/project/demo/android && gradlew.bat :app:baseApp:deployDebug" to true,
             "./build.sh" to false,
             "./gradlew :app:assembleDebug && echo ok" to false,
+            "./gradlew :app:assembleDebug --dry-run --no-daemon" to true,
         )
 
         testMap.forEach { (command, isNormalGradleCommand) ->

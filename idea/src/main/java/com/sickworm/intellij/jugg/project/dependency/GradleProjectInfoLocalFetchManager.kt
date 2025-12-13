@@ -3,13 +3,11 @@ package com.sickworm.intellij.jugg.project.dependency
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.compiler.JuggCompilerHelper
 import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
 import com.sickworm.intellij.jugg.gradle.compile.CompileProjectCommand
-import com.sickworm.intellij.jugg.gradle.compile.ConfigurationCacheCompatHelper
 import com.sickworm.intellij.jugg.gradle.compile.GradleScriptWriter
 import com.sickworm.intellij.jugg.gradle.compile.LocalGradleCompileClient
-import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
+import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.CompileContextManager
@@ -90,7 +88,7 @@ class GradleProjectInfoLocalFetchManager(
      * 1. init compile finished after project opened/build finished
      * 2. start remote compile
      */
-    fun runUpdateIfNeeded(isForce: Boolean = false) {
+    fun runUpdateIfNeeded(isForce: Boolean = false, specificCompileCommand: String? = null) {
         // make sure we have checked the gradle project info data
         // gradleProjectInfoFile will be deleted if data is invalid
         compileContextManager.ensureInitProjectInfo()
@@ -101,25 +99,50 @@ class GradleProjectInfoLocalFetchManager(
             return
         }
 
-        taskRunnerManager.runTaskSafe("Update project info from gradle", ::update, isBlockIncrementalCompile = false)
+        taskRunnerManager.runTaskSafe("Update project info from gradle", {
+            update(specificCompileCommand)
+        }, isBlockIncrementalCompile = false)
     }
 
     @Synchronized
-    private fun update(isKeepDaemon: Boolean = false): Boolean {
+    private fun update(specificCompileCommand: String?): Boolean {
         try {
             isUpdating = true
             GradleScriptWriter(pathManager, logger).writeInitGradleFile()
             compileContextManager.ensureInitProjectInfo()
 
-            val daemonArg = if (isKeepDaemon) "" else "--no-daemon"
-            val isEnableConfigurationCacheArg = ConfigurationCacheCompatHelper.isNeedAddArg(pathManager.projectDir, logger)
-            val configurationCacheWarnOnlyArg = if (isEnableConfigurationCacheArg) ConfigurationCacheCompatHelper.CMD_CONFIGURATION_CACHE_WARN_ONLY_ARG_VALUE else ""
+            // cannot use --dry-run only on Gradle 8.x, it cannot get kotlin task
+            // use real command to detect build variant correctly
+            var finalCompileCommand = ""
+            if (specificCompileCommand.isNullOrEmpty()) {
+                val baseBuildCommand = BaseBuildCommandHelper(pathManager).getBaseBuildCmd()
+                if (baseBuildCommand == null) {
+                    logger.debug("cannot get standard base build command, can not update")
+                    return false
+                }
+                finalCompileCommand = baseBuildCommand
+            } else {
+                finalCompileCommand = specificCompileCommand
+            }
+            if (!CompileProjectCommand.isNormalGradleCommand(finalCompileCommand)) {
+                logger.debug("finalCompileCommand: $finalCompileCommand is not normal gradle command, can not update")
+                return false
+            }
+
+            // e.g. ./gradlew assembleDebug --dry-run --console=plain --no-daemon -Dorg.gradle.configuration-cache.problems=warn
+            // -I /build/jugg/readProjectInfo.gradle.kts -Pjugg.inject.application.enable=true
+            if (!finalCompileCommand.contains("--dry-run")) {
+                finalCompileCommand += " --dry-run"
+            }
+            if (!finalCompileCommand.contains("--no-daemon")) {
+                finalCompileCommand += " --no-daemon"
+            }
+
             val localFetchCommand = CompileProjectCommand(
-                // cannot use --dry-run only on Gradle 8.x, it cannot get kotlin task
-                // assembleDebug is ok to use as default command, it won't cost much more than :app:assembleDevelopmentFreeDebug
-                "./gradlew assembleDebug --dry-run --console=plain $configurationCacheWarnOnlyArg $daemonArg -I ${pathManager.initGradleFilePath.absolutePath}",
+                finalCompileCommand,
                 pathManager.projectDir.path,
-                pathManager.initGradleFileRelativePath
+                pathManager.initGradleFileRelativePath,
+                logger,
             )
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")
