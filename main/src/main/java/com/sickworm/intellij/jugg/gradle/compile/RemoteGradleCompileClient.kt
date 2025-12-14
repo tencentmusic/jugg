@@ -254,7 +254,8 @@ class RemoteGradleCompileClient(
                 gradleCompileSettings.compileCommand,
                 gradleCompileSettings.remoteProjectPath,
                 gradleCompileSettings.initGradleFileRelativePath,
-                logger,
+                localProjectPath = project.basePath,
+                logger = logger,
             )
             val compileProjectResult = invoke(channel, compileProjectCommand)
             if (compileProjectResult != 0) {
@@ -450,6 +451,7 @@ class RemoteGradleCompileClient(
             gradleCompileSettings.remoteProjectPath,
             gradleCompileSettings.initGradleFileRelativePath,
             incDeployTimes,
+            localProjectPath = project.basePath,
         )
         val compileProjectResult = invoke(channel, diffLibraryChangesCommand)
         if (compileProjectResult != 0) {

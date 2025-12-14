@@ -142,7 +142,7 @@ class GradleProjectInfoLocalFetchManager(
                 finalCompileCommand,
                 pathManager.projectDir.path,
                 pathManager.initGradleFileRelativePath,
-                logger,
+                logger = logger,
             )
             logger.debug("runUpdateIfNeeded start")
             TimeLogger.start("localFetch")

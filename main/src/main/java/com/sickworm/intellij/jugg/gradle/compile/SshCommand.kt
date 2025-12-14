@@ -101,6 +101,7 @@ open class CompileProjectCommand(
     private val compileCommand: String,
     private val projectPath: String,
     private val initGradleFileRelativePath: String,
+    private val localProjectPath: String = projectPath,
     private val logger: Logger? = null,
 ) : BaseSshCommand() {
 
@@ -119,7 +120,7 @@ open class CompileProjectCommand(
                 suffix += " " + "--console=plain"
             }
             suffix += ConfigurationCacheCompatHelper.getDisableArgsIfEnabled(
-                File(projectPath), compileCommand, logger)
+                File(localProjectPath), compileCommand, logger)
             suffix += " $injectParam"
         }
         return@run "$compileCommand$suffix"
