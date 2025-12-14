@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.data.*
 import org.gradle.api.Project
 import org.gradle.api.initialization.IncludedBuild
+import org.gradle.util.GradleVersion
 import java.io.File
 
 /**
@@ -22,6 +23,7 @@ class GradleProjectInfoReaderManager(
             val isDiffMode = rootProject.properties[PARAM_DIFF_MODE] == "true"
             println("Jugg: readProjectInfo.gradle execute start, diffMode: $isDiffMode, " +
                     "includeBuildProjects: ${includeBuildProjects.map { it.projectDir }}")
+            readEnvironment()
             val startTime = System.currentTimeMillis()
             val lastProjectInfo = readLastProjectInfo()
             val projectInfo = GradleProjectInfoReader(rootProject, lastProjectInfo).getProjectInfo()
@@ -39,6 +41,38 @@ class GradleProjectInfoReaderManager(
         } catch (e: Throwable) {
             println("Jugg: readProjectInfo.gradle execute failed: $e")
             printException(e)
+        }
+    }
+
+    private fun readEnvironment() {
+        try {
+            val gradleVersion = GradleVersion.current()
+            val agpVersion = checkAgpVersion(rootProject)
+            println("Jugg: readEnvironment gradleVersion: $gradleVersion, agpVersion: $agpVersion")
+        } catch (e: Throwable) {
+            println("Jugg: readProjectInfo.gradle readEnvironment failed: $e")
+            printException(e)
+        }
+    }
+
+    private fun checkAgpVersion(rootProject: Project): String {
+        val project = rootProject.subprojects.find { it.plugins.hasPlugin("com.android.application") }
+        if (project == null) return "no_application_module"
+        try {
+            val plugin = project.plugins.findPlugin("com.android.base")
+                ?: return "no_plugin"
+            val versionClass = try {
+                plugin::class.java.classLoader.loadClass("com.android.Version")
+            } catch (exception: ClassNotFoundException) {
+                plugin::class.java.classLoader.loadClass("com.android.builder.model.Version")
+            } catch (ex: ClassNotFoundException) {
+                return "no_version_class"
+            }
+            val field = versionClass.fields.find { it.name == "ANDROID_GRADLE_PLUGIN_VERSION" }
+                ?: return "no_version_field"
+            return field.get(null) as String
+        } catch (ex: Throwable) {
+            return "throwable_$ex"
         }
     }
 
