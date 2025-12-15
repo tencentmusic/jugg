@@ -62,7 +62,7 @@ data class ModuleInfo(
         Unknown,
         ;
 
-        val isAndroidModule get() = this == Application || this == Library
+        val isAndroidModule get() = this == Application || this == Library || this == DynamicFeature
     }
 
     companion object {

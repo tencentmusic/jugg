@@ -310,7 +310,7 @@ class GradleProjectInfoReader(
                 val variant = Reflector(obj)
                 variants.add(Variant(
                     variant["name"]?.valueString ?: return@mapNotNull null,
-                    variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
+                    variant["signingConfig"]["name"]?.valueString,
                 ))
             }
 
@@ -342,7 +342,7 @@ class GradleProjectInfoReader(
                 variants.add(
                     Variant(
                         variant["name"]?.valueString ?: return@mapNotNull null,
-                        variant["signingConfig"]["name"]?.valueString ?: return@mapNotNull null,
+                        variant["signingConfig"]["name"]?.valueString,
                     )
                 )
             }
