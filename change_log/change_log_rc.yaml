@@ -1,3 +1,10 @@
+- version: 2.6.8
+  date: 2025.12.16
+  updates:
+    - compat with configuration cache
+    - optimize reading info from gradle
+    - fix variant is wrong and incremental compilation failed, after switch build variants in IDE panel
+
 - version: 2.6.7
   date: 2025.12.06
   updates:
