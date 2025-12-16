@@ -546,23 +546,36 @@ class GradleProjectInfoReader(
         getProjectDependencies(result, resolvedConfiguration.resolvedConfiguration.firstLevelModuleDependencies)
 
         val resolvedArtifacts = mutableSetOf<ResolvedArtifactResult>()
-        if (isAndroidDepend) {
+
+        fun putJarArtifacts() {
+            val jarArtifacts = mutableMapOf<String, ResolvedArtifactResult>()
             // "processed-jar" matched the jar get by IDE
-            // "processed-jar" returns empty list if jetifier not enabled
-            val jarArtifactType = if (isEnableJetifier) "processed-jar" else "jar"
-            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter(jarArtifactType))
-            resolvedArtifacts.addAll(jarView.artifacts.artifacts)
+            // "processed-jar" returns empty list if jetifier not enabled if gradle/agp > 8.x (x is not confirmed)
+            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("jar"))
+            jarView.artifacts.artifacts.forEach {
+                jarArtifacts[it.id.componentIdentifier.toString()] = it
+            }
+
+            // read processed-jar last, to override jar result if exists
+            val processedJarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("processed-jar"))
+            val processedResult = processedJarView.artifacts.artifacts
+            processedResult.forEach {
+                jarArtifacts[it.id.componentIdentifier.toString()] = it
+            }
+
+            resolvedArtifacts.addAll(jarArtifacts.values)
+        }
+
+        if (isAndroidDepend) {
             val resView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("android-res"))
             resolvedArtifacts.addAll(resView.artifacts.artifacts)
             val manifestView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("android-manifest"))
             resolvedArtifacts.addAll(manifestView.artifacts.artifacts)
+            putJarArtifacts()
         } else {
             // "jar" is not correct when dependency using android-support library, e.g. ARouter
             // "processed-jar" returns empty list if jetifier not enabled
-            val jarArtifactType = if (isEnableJetifier) "processed-jar" else "jar"
-            val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter(jarArtifactType))
-            resolvedConfiguration.dependencies
-            resolvedArtifacts.addAll(jarView.artifacts.artifacts)
+            putJarArtifacts()
         }
 
         resolvedArtifacts.forEach {
