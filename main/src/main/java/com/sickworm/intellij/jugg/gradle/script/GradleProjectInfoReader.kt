@@ -108,6 +108,15 @@ class GradleProjectInfoReader(
                 // org.jetbrains.kotlin.gradle.plugin.KaptExtension
                 val kapt = Reflector(project.extensions.findByName("kapt"))
 
+                val isDynamicFeatureInstance = androidExt.value != null &&
+                        androidExt.value::class.java.name.startsWith("com.android.build.gradle.internal.dsl.DynamicFeatureExtension")
+                if (isDynamicFeatureInstance) {
+                    // correct moduleType for dynamic feature, it happened when we change dynamic feature plugin runtime
+                    moduleInfo = moduleInfo.copy(
+                        moduleType = ModuleInfo.Type.DynamicFeature,
+                    )
+                }
+
                 var manifestPlaceholders: Map<String, String>? = null
                 val manifestValue = defaultConfig["manifestPlaceholders"]?.value as? Map<*, *>
                 if (!manifestValue.isNullOrEmpty()) {
