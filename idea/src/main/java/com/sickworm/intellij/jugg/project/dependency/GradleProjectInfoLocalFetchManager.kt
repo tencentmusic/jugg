@@ -33,7 +33,7 @@ class GradleProjectInfoLocalFetchManager(
     private val logger = loggerArg.getInstance("GradleProjectInfoLocalFetchManager")
 
     private var isNeedUpdate: Boolean
-        get() = pathManager.markProjectInfoNeedUpdateFlagFile.exists() || !isProjectInfoExits
+        get() = pathManager.markProjectInfoNeedUpdateFlagFile.exists() || !pathManager.gradleProjectInfoFile.exists()
         set(value) {
             val markFile = pathManager.markProjectInfoNeedUpdateFlagFile
             if (value) {
@@ -46,7 +46,8 @@ class GradleProjectInfoLocalFetchManager(
             }
         }
 
-    val isProjectInfoExits: Boolean get() = pathManager.gradleProjectInfoFile.exists()
+    val isProjectInfoAvailable: Boolean get() = pathManager.gradleProjectInfoFile.exists()
+            && BaseBuildCommandHelper(pathManager).hasBaseBuildCmd
 
     @Volatile
     private var isUpdating: Boolean = false

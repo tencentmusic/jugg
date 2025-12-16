@@ -7,6 +7,8 @@ class BaseBuildCommandHelper(pathManager: JuggPathManager) {
 
     private val recordFile = pathManager.baseBuildCmdFile
 
+    val hasBaseBuildCmd: Boolean get() = recordFile.exists()
+
     fun recordBaseBuildCmd(options: JuggGradleCompileOptions) {
         recordFile.parentFile.mkdirs()
         recordFile.delete()
