@@ -107,6 +107,7 @@ data class CompileFile(
         BuildFile,
         AndroidManifest,
         DexToChangePackageName,
+        Dex,
         ;
 
     }
@@ -206,6 +207,10 @@ data class CompileResult(
                 emptyList(),
             )
         }
+
+        fun empty(compileTask: CompileTask): CompileResult {
+            return CompileResult(compileTask, emptyList(), emptyList())
+        }
     }
 }
 
@@ -229,15 +234,19 @@ interface ICompiler: Disposable {
     fun warmUp() = Unit
 
     /**
-     * for custom compiler, if return true, it will be executed before normal compile
+     * for custom compiler execute point
      */
-    val isBeforeNormalCompile: Boolean get() = false
+    val order: Int get() = NO_ORDER
 
     /**
-     * consume compile files
+     * consume compile files to avoid some files compile by other compilers
      * @return the rest files that should be compiled by other compilers
      */
     fun consumeFiles(files: List<CompileFile>): List<CompileFile> = files
+
+    companion object {
+        const val NO_ORDER = 0
+    }
 }
 
 interface ICompileContext {
@@ -285,6 +294,8 @@ interface ICompileContext {
     val cmdCompileEnv: List<String>
 
     val scene: Scene
+
+    val customCompilers: List<ICompiler>
 
     fun getModuleDependencies(moduleInfo: ModuleInfo, task: CompileTask): List<String>
 
@@ -335,15 +346,6 @@ data class DesugarInfo(
 
     companion object {
         val EMPTY = DesugarInfo(emptyList(), emptyMap(), false, null)
-    }
-}
-
-
-fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
-    val origin = this
-    return object : ICompileContext by origin {
-        override val tempCompileDir: File
-            get() = File(origin.tempCompileDir, subTempCompileDirName)
     }
 }
 

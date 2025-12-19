@@ -32,6 +32,9 @@ class JavaCompiler(
 
     private var isSourceTargetVersionNotSupport: Boolean = false
 
+    override val beforeCompileOrderRange: IntRange = CompileOrder.beforeSource
+    override val afterCompileOrderRange: IntRange = CompileOrder.afterSource
+
     @Suppress("IfThenToElvis")
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val compileItems = task.files.map {

@@ -1,19 +1,14 @@
 package com.sickworm.intellij.jugg.cmdline.incremental
 
 import com.intellij.openapi.util.Disposer
-import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.cmdline.logger.CmdLineLogger
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
-import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.deploy.*
-import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -71,9 +66,9 @@ class BuildIncrementalApkCommand(private val params: Params) {
     }
 
     private fun getCompilerHelper(): IncrementalCompilerHelper {
-        val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
-        val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
-        val juggCompiler = JuggCompiler(contextManager.compileContext, contextManager.disposer, customCompilerManager::getCustomCompilers)
+        val juggCompiler = JuggCompiler(contextManager.compileContext, contextManager.disposer)
+        contextManager.customCompilerManager.setCustomCompilerJars(params.customCompilerJars)
+        contextManager.customCompilerManager.init(contextManager.compileContext, juggCompiler)
 
         return IncrementalCompilerHelper(
             juggCompiler,

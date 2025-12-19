@@ -17,6 +17,9 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
 
     override val supportedTypes: List<CompileFile.Type> = CompileFile.Type.values().toList()
 
+    open val beforeCompileOrderRange: IntRange = CompileOrder.noOrder
+    open val afterCompileOrderRange: IntRange = CompileOrder.noOrder
+
     init {
         @Suppress("LeakingThis")
         (Disposer.register(parent, this))
@@ -38,7 +41,17 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
             task.outputDir.mkdirs()
         }
 
-        val result = doCompile(task)
+        var result = CompileResult.empty(task)
+        val (filteredCompileTask, beforeCustomCompileOutput) = executeBeforeCustomCompilers(beforeCompileOrderRange, task)
+        result += beforeCustomCompileOutput
+        if (result.isAllSuccess) {
+            result += doCompile(filteredCompileTask)
+        }
+        if (result.isAllSuccess) {
+            val afterCustomCompileOutput = executeAfterCustomCompilers(afterCompileOrderRange, filteredCompileTask, result)
+            result += afterCustomCompileOutput
+        }
+
         if (!supportedTypes.contains(CompileFile.Type.DexToChangePackageName)) {
             task.notifyCompiled(task.files)
         }
@@ -182,5 +195,78 @@ abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): I
         if (!task.outputDir.listFiles().isNullOrEmpty()) {
             throw JuggInternalException.compileOutputDirNotEmpty()
         }
+    }
+
+    fun executeBeforeCustomCompilers(
+        range: IntRange,
+        compileTask: CompileTask,
+    ): Pair<CompileTask, CompileResult> {
+        val toExecuteCustomCompilers = context.customCompilers.filter { it.order in range }
+        if (toExecuteCustomCompilers.isEmpty()) {
+            return compileTask to CompileResult.empty(compileTask)
+        }
+
+        var filteredCompileTask = compileTask
+        var customCompileResult = CompileResult.empty(filteredCompileTask)
+        toExecuteCustomCompilers.forEach {
+            filteredCompileTask = CompileTask(
+                it.consumeFiles(filteredCompileTask.files),
+                compileTask.outputDir,
+                compileTask,
+            )
+            try {
+                logger.debug("run custom compiler: $it, order: ${it.order}")
+                val subCompileResult = it.compile(filteredCompileTask)
+                if (subCompileResult.isAllSuccess) {
+                    customCompileResult += subCompileResult
+                } else {
+                    customCompileResult = subCompileResult.quickFailedOthers(compileTask)
+                }
+            } catch (e: Throwable) {
+                logger.debug("custom compiler ${it::class.java.name} failed", e)
+                logger.warn("Custom compiler ${it::class.java.name} got unexcepted error: ${e.message}")
+                logger.warn("Please report to your project admin.")
+                customCompileResult = customCompileResult.quickFailedOthers(compileTask)
+            }
+        }
+        return filteredCompileTask to customCompileResult.copy(task = compileTask)
+    }
+
+    fun executeAfterCustomCompilers(
+        range: IntRange,
+        compileTask: CompileTask,
+        compileResult: CompileResult,
+    ): CompileResult {
+        val toExecuteCustomCompilers = context.customCompilers.filter { it.order in range }
+        if (toExecuteCustomCompilers.isEmpty()) {
+            return CompileResult.empty(compileTask)
+        }
+
+        if (!compileResult.isAllSuccess) {
+            return CompileResult.empty(compileTask)
+        }
+
+        val files = compileResult.outputs.mapNotNull { output ->
+            output.toCompileFile(context.tempModule)
+        }
+        val customCompileTask = CompileTask(files, compileTask.outputDir, compileTask)
+        var customCompileResult = CompileResult.empty(customCompileTask)
+        toExecuteCustomCompilers.forEach {
+            try {
+                logger.debug("run custom compiler: $it, order: ${it.order}")
+                val subCompileResult = it.compile(customCompileTask)
+                if (subCompileResult.isAllSuccess) {
+                    customCompileResult += subCompileResult
+                } else {
+                    customCompileResult = subCompileResult.quickFailedOthers(compileTask)
+                }
+            } catch (e: Throwable) {
+                logger.debug("custom compiler ${it::class.java.name} failed", e)
+                logger.warn("Custom compiler ${it::class.java.name} got unexcepted error: ${e.message}")
+                logger.warn("Please report to your project admin.")
+                customCompileResult = customCompileResult.quickFailedOthers(compileTask)
+            }
+        }
+        return customCompileResult.copy(task = compileTask)
     }
 }

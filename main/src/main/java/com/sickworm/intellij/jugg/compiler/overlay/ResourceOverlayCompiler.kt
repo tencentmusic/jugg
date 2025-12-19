@@ -37,6 +37,9 @@ class ResourceOverlayCompiler(
 
     private val arscCompiler = ArscCompiler(context, this)
 
+    override val beforeCompileOrderRange: IntRange = CompileOrder.beforeRes
+    override val afterCompileOrderRange: IntRange = CompileOrder.afterRes
+
     override fun doCompile(task: CompileTask): CompileResult {
         return splitApkAndCompile(task)
     }

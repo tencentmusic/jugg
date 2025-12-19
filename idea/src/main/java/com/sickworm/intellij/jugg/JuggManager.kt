@@ -71,7 +71,8 @@ class JuggManager @TestOnly constructor(
         pathManager.databaseDir,
         coroutineScope,
     ),
-    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager),
+    private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
+    private val compileContextManager: CompileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager, customCompilerManager),
     private val deployTargetManager: IDeployTargetManager = DeployTargetManager(project),
     private val deployStateManager: DeployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager),
     private val juggRunningTaskStatusManager: IJuggRunningTaskStatusManager = JuggRunningTaskStatusManager(),
@@ -82,7 +83,6 @@ class JuggManager @TestOnly constructor(
     private val juggDeployerHelper: JuggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager),
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
-    private val customCompilerManager: CustomCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
@@ -601,9 +601,11 @@ class JuggManager @TestOnly constructor(
 
     private fun reInitOnCompileContextUpdate() {
         deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
-        juggCompilerHelper.juggCompiler = JuggCompiler(compileContextManager.compileContext, this, customCompilerManager::getCustomCompilers)
+        val juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
+        juggCompilerHelper.juggCompiler = juggCompiler
         fileChangesHandler.init(compileContextManager.compileContext)
         gitFileChangesDetector.init(pathManager.projectDir, compileContextManager.compileContext.modules)
+        customCompilerManager.init(compileContextManager.compileContext, juggCompiler)
     }
 
     private fun initCompile(

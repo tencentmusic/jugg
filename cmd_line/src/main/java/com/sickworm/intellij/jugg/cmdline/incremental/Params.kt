@@ -27,6 +27,12 @@ data class Params(
     val changedFiles: List<File>,
 
     /**
+     * Custom compiler jars.
+     * @see [com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager.getCustomCompilers]
+     */
+    val customCompilerJars: List<File>,
+
+    /**
      * Log level.
      * ALL / DEBUG / INFO / WARN / ERROR / FATAL / OFF
      */

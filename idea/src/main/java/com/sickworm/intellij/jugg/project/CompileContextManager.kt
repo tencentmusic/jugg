@@ -7,6 +7,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.vfs.VfsUtil
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.CompileContextInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
@@ -33,6 +34,7 @@ class CompileContextManager(
     private val pathManager: JuggPathManager,
     private val deployFileManager: DeployFileManager,
     private val deployHisManager: IDeployHistoryManager,
+    private val customCompilerManager: CustomCompilerManager,
     private val moduleManager: ModuleManager = AsDeployerCompat.getModuleManager(project), // mock
     private val logger: Logger = JuggLogger.getInstance(project, "CompileContextManager"),
 ) {
@@ -260,6 +262,7 @@ class CompileContextManager(
             projectDir = pathManager.projectDir,
             deployFileManager = deployFileManager,
             deployHistoryManager = deployHisManager,
+            customCompilerManager = customCompilerManager,
             incrementalDataDir = File(pathManager.compileRootDir, "incremental"),
             cmdCompileEnv = LocalGradleCompileClient.buildCompileEnv(project, logger),
             scene = ICompileContext.Scene.IDE,

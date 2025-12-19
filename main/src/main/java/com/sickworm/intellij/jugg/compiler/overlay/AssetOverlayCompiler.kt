@@ -23,6 +23,9 @@ class AssetOverlayCompiler(
         return splitApkAndCompile(task)
     }
 
+    override val beforeCompileOrderRange: IntRange = CompileOrder.beforeAsset
+    override val afterCompileOrderRange: IntRange = CompileOrder.afterAsset
+
     override fun doApkCompile(task: CompileTask, apkFileUnit: ApkFileUnit): CompileResult {
         // just copy
         val outputs = mutableListOf<CompileOutput>()

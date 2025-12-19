@@ -56,11 +56,20 @@ class ParamsParser {
         if (changedFiles.isEmpty()) {
             throw IncrementalException("Param 'changedFiles' is empty.")
         }
-        // 验证所有文件是否存在
+        // check file exists
         changedFiles.forEach { file ->
             if (!file.exists()) {
                 throw IncrementalException("Changed file not exists: ${file.absolutePath}")
             }
+        }
+
+        val customCompilerJars = mutableListOf<File>()
+        keyValueMap["customCompilerJars"]?.split(File.pathSeparator)?.forEach { customCompiler ->
+            val file = File(customCompiler).absoluteFile.normalize()
+            if (!file.exists()) {
+                throw IncrementalException("Custom compiler file not exists: ${file.absolutePath}")
+            }
+            customCompilerJars.add(file)
         }
 
         val logLevelValue = keyValueMap["logLevel"] ?: "DEBUG"
@@ -71,6 +80,7 @@ class ParamsParser {
             sourceProjectDir = sourceProjectDir,
             outputApkDir = outputApkDir,
             changedFiles = changedFiles,
+            customCompilerJars = customCompilerJars,
             logLevel = logLevel,
         )
     }

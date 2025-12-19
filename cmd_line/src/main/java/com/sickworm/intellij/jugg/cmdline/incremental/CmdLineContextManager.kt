@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.IDependencyMissingResolver
 import com.sickworm.intellij.jugg.compiler.changeBaseDir
+import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.BaseCompileContext
@@ -14,6 +15,7 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
+import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
@@ -55,6 +57,10 @@ class CmdLineContextManager(
             return false
         }
     }
+
+    val juggServer = JuggServer(pathManager.projectDir.name, pathManager, coroutineScope, logger)
+
+    val customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
 
     private val deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
 
@@ -163,7 +169,8 @@ class CmdLineContextManager(
             incrementalDataDir = File(pathManager.compileRootDir, "incremental"),
             cmdCompileEnv = cmdCompileEnv,
             apkInfos = compileContextInfo.apkInfos,
-            scene = ICompileContext.Scene.INCREMENTAL_APK
+            scene = ICompileContext.Scene.INCREMENTAL_APK,
+            customCompilerManager = customCompilerManager,
         )
 
         fileChangesHandler.init(baseContext)

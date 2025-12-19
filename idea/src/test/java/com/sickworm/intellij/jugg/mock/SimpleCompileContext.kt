@@ -48,6 +48,8 @@ data class SimpleCompileContext(
 
     override val cmdCompileEnv: List<String> = emptyList()
 
+    override val customCompilers: List<ICompiler> = emptyList()
+
     private val finalRFiles: List<String> by lazy {
         return@lazy modules.mapNotNull { module ->
             val rFile = module.value.buildPathInfo.rFilePath

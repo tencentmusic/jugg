@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.sickworm.intellij.jugg.project.ChangedFile
+import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 private const val KEY_DEPENDENCY_NAME = "dependency_name"
@@ -165,6 +166,7 @@ fun List<CompileFile>.desc(): String {
                     CompileFile.Type.AndroidManifest -> "manifest"
                     CompileFile.Type.DexToChangePackageName -> "dex"
                     CompileFile.Type.NativeLib -> "lib"
+                    CompileFile.Type.Dex -> "dex"
                 }
                 return@groupBy type
             }
@@ -188,4 +190,32 @@ fun CompileTask.toCancelResult(): CompileResult {
     return CompileResult(this, this.files.map {
         Result.failure(CompileError(it, listOf(0L to "Compile canceled.")))
     }, emptyList())
+}
+
+fun ICompileContext.subContext(subTempCompileDirName: String): ICompileContext {
+    val origin = this
+    return object : ICompileContext by origin {
+        override val tempCompileDir: File
+            get() = File(origin.tempCompileDir, subTempCompileDirName)
+    }
+}
+
+
+fun CompileOutput.toCompileFile(defaultModule: ModuleInfo): CompileFile? {
+    val type = type.toCompileFileType() ?: return null
+    return CompileFile(type, file, baseDir, relativeModule ?: defaultModule)
+}
+
+fun CompileOutput.Type.toCompileFileType(): CompileFile.Type? {
+    return when (this) {
+        CompileOutput.Type.Class -> CompileFile.Type.Class
+        CompileOutput.Type.Flat -> CompileFile.Type.Flat
+        CompileOutput.Type.Dex -> CompileFile.Type.Dex
+        CompileOutput.Type.Res -> CompileFile.Type.Resource
+        CompileOutput.Type.Asset -> CompileFile.Type.Asset
+        CompileOutput.Type.NativeLib -> CompileFile.Type.NativeLib
+        CompileOutput.Type.Java -> CompileFile.Type.Java
+        CompileOutput.Type.Kotlin -> CompileFile.Type.Kotlin
+        else -> null
+    }
 }

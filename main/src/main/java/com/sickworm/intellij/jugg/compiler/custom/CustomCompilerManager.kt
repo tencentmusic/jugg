@@ -7,7 +7,6 @@ import com.sickworm.intellij.jugg.compiler.ICompiler
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.server.JuggServer
 import com.sickworm.intellij.jugg.server.protocols.CustomCompilerInfo
-import kotlinx.coroutines.launch
 import java.io.File
 import java.net.URLClassLoader
 import java.security.MessageDigest
@@ -46,6 +45,10 @@ class CustomCompilerManager(
         juggServer.launchSafe {
             downloadCompilers(customCompilers)
         }
+    }
+
+    fun setCustomCompilerJars(jars: List<File>) {
+        customCompilerJars = jars
     }
 
     private fun updateCustomCompiler(customCompilerInfo: CustomCompilerInfo): File? {
@@ -128,16 +131,21 @@ class CustomCompilerManager(
 
     private var customCompilers: List<ICompiler> = listOf()
 
+    private var compileContext: ICompileContext? = null
+    private var compileParentDisposable: Disposable? = null
+
     @Synchronized
-    fun getCustomCompilers(context: ICompileContext, parent: Disposable): List<ICompiler> {
-        if (customCompilerJars.isNotEmpty() && customCompilers.isEmpty()) {
-            customCompilers = createCustomCompilers(context, parent)
-            logger.debug("create custom compilers finished: $customCompilers")
-        }
-        return customCompilers
+    fun init(context: ICompileContext, parent: Disposable) {
+        logger.debug("init")
+        this.compileContext = context
+        this.compileParentDisposable = parent
+        this.customCompilers = emptyList()
     }
 
-    private fun createCustomCompilers(context: ICompileContext, parent: Disposable): List<ICompiler> {
+    private fun initCompilers(): List<ICompiler> {
+        logger.debug("initCompilers")
+        val context = compileContext ?: return emptyList()
+        val parent = compileParentDisposable ?: return emptyList()
         val urls = customCompilerJars.map { it.toURI().toURL() }.toTypedArray()
         val classLoader = URLClassLoader(urls, this::class.java.classLoader)
         val customCompilers = mutableListOf<ICompiler>()
@@ -145,15 +153,20 @@ class CustomCompilerManager(
             val compiler = it.create(context, parent)
             customCompilers.add(compiler)
         }
+        logger.debug("initCompilers finished: $customCompilers")
         return customCompilers
     }
 
     @Synchronized
+    fun getCustomCompilers(): List<ICompiler> {
+        if (customCompilerJars.isNotEmpty() && customCompilers.isEmpty()) {
+            customCompilers = initCompilers()
+        }
+        return customCompilers
+    }
+
     private fun resetCompilerJars() {
         customCompilerJars = customCompilerDir.listFiles()?.filter { it.name.endsWith(".jar") } ?: emptyList()
-        customCompilers.forEach {
-            it.dispose()
-        }
         this.customCompilers = emptyList() // recreate next time
         logger.debug("resetCompilerJars: $customCompilerJars")
     }

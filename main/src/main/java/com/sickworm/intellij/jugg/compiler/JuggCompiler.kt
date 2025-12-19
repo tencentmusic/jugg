@@ -13,7 +13,6 @@ import java.io.File
 class JuggCompiler(
     context: ICompileContext,
     parent: Disposable,
-    private val customCompilersGetter: ((ICompileContext, Disposable) -> List<ICompiler>) = { _, _ -> emptyList() },
 ): BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
@@ -48,6 +47,9 @@ class JuggCompiler(
         this,
     )
 
+    override val beforeCompileOrderRange: IntRange = CompileOrder.atFirst
+    override val afterCompileOrderRange: IntRange = CompileOrder.atLast
+
     @Synchronized
     override fun doCompile(task: CompileTask): CompileResult {
         var compileResult = CompileResult(task, emptyList(), emptyList())
@@ -55,18 +57,18 @@ class JuggCompiler(
         val classesOutputDir = File(task.outputDir, "classes")
 
         // custom compilers
-        var compileFiles = task.files
-        val customCompilers = customCompilersGetter.invoke(context, this)
+        val compileFiles = task.files
+        val customCompilers = context.customCompilers
         logger.debug("custom compilers: ${customCompilers.joinToString { this::class.java.name }}")
-        val beforeCustomCompilers = customCompilers.filter { it.isBeforeNormalCompile }
-        beforeCustomCompilers.forEach {
-            val compileTask = CompileTask(compileFiles, task.outputDir, task)
-            compileFiles = it.consumeFiles(compileFiles)
-            val subCompileResult = it.compile(compileTask)
-            if (!subCompileResult.isAllSuccess) {
-                return subCompileResult.quickFailedOthers(task)
+
+        fun checkQuickStop(): CompileResult? {
+            if (task.isShouldCancel) {
+                return task.toCancelResult()
             }
-            compileResult += subCompileResult
+            if (!compileResult.isAllSuccess) {
+                return compileResult.quickFailedOthers(task)
+            }
+            return null
         }
 
         // compile asset
@@ -84,6 +86,7 @@ class JuggCompiler(
                 return compileResult.quickFailedOthers(task)
             }
         }
+        checkQuickStop()?.let { return it }
 
         // compile resource
         val resourceCompileTask = CompileTask(
@@ -193,6 +196,7 @@ class JuggCompiler(
             // and R.* won't inline if using kotlinx.android.synthetic
             compileResult += rDexResult.copy(task = task)
         }
+        checkQuickStop()?.let { return it }
 
         // compile source
         val sourceCompileTask = CompileTask(
@@ -232,6 +236,7 @@ class JuggCompiler(
                 }
             }
         }
+        checkQuickStop()?.let { return it }
 
         // compile .class
         val dexCompileTask = CompileTask(
@@ -248,25 +253,7 @@ class JuggCompiler(
             return compileResult.quickFailedOthers(task)
         }
 
-        if (task.isShouldCancel) {
-            return task.toCancelResult()
-        }
-
-        // custom compilers
-        val afterCustomCompilers = customCompilers.filter { !it.isBeforeNormalCompile }
-        afterCustomCompilers.forEach {
-            val compileTask = CompileTask(compileFiles, task.outputDir, task)
-            compileFiles = it.consumeFiles(compileFiles)
-            val subCompileResult = it.compile(compileTask)
-            if (!subCompileResult.isAllSuccess) {
-                return subCompileResult.quickFailedOthers(task)
-            }
-            compileResult += subCompileResult
-        }
-
-        if (task.isShouldCancel) {
-            return task.toCancelResult()
-        }
+        checkQuickStop()?.let { return it }
         return compileResult
     }
 

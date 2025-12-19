@@ -21,6 +21,9 @@ class DexCompiler(
 
     private val dexFileMaker = DexFileMaker(logger)
 
+    override val beforeCompileOrderRange: IntRange = CompileOrder.beforeDex
+    override val afterCompileOrderRange: IntRange = CompileOrder.afterDex
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         if (task.files.isEmpty()) {
             return CompileResult(task, emptyList(), emptyList())

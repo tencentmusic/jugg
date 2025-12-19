@@ -19,6 +19,9 @@ class KotlinCompiler(
 
     override val isNeedPrintProgress: Boolean = true
 
+    override val beforeCompileOrderRange: IntRange = CompileOrder.beforeSource
+    override val afterCompileOrderRange: IntRange = CompileOrder.afterSource
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val options = analyzeSource(task.files.map { it.file }, module)
         logger.debug("analyzeSource result: $options")

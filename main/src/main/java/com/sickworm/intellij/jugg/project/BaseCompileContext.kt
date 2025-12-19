@@ -6,12 +6,12 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.ModuleApkBelongsUtils
 import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
-import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.SigningConfig
@@ -31,6 +31,7 @@ class BaseCompileContext(
     override val scene: ICompileContext.Scene,
     private val deployFileManager: DeployFileManager,
     private val deployHistoryManager: IDeployHistoryManager,
+    private val customCompilerManager: CustomCompilerManager,
 ): ICompileContext {
 
     private val androidJarApi: String = getSuggestedPlatformApi(modules)
@@ -48,6 +49,8 @@ class BaseCompileContext(
         private set
 
     override val deployedFiles: List<CompileOutput> get() = deployFileManager.getDeployedFiles()
+
+    override val customCompilers: List<ICompiler> get() = customCompilerManager.getCustomCompilers()
 
     private val listeners = mutableListOf<OnContextUpdate>()
 
