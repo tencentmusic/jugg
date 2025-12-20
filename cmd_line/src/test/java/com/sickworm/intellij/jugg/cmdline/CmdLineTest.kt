@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.cmdline
 
+import com.sickworm.intellij.jugg.gradle.compile.CmdExecutor
+import com.sickworm.intellij.jugg.gradle.compile.SimpleSshCommand
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -9,6 +11,10 @@ class CmdLineTest {
 
     @Test
     fun buildBase() {
+        val cmd = SimpleSshCommand("rm -rf ../idea/src/test/assets/android/MyApplicationIntellij/build/jugg")
+        val resultInt = CmdExecutor(StdLogger("JuggTest")).invoke(cmd)
+        assertEquals(0, resultInt)
+
         val outputDir = File("${Global.buildOutputDir}/outputs")
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
@@ -39,7 +45,7 @@ class CmdLineTest {
         )
     }
 
-    private fun doBuildIncrementalApk(modify: (() -> List<File>), revert: (() -> Unit)) {
+    private fun doBuildIncrementalApk(modify: (() -> List<File>), revert: (() -> Unit), extraArgs: (() -> Array<String>)? = null) {
         buildBase()
 
         // backup juggRootDir and delete origin for test
@@ -52,7 +58,7 @@ class CmdLineTest {
 
         val changedFiles = modify.invoke()
 
-        val args = arrayOf(
+        var args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_INCREMENTAL_APK.value}",
             "baseBuildJuggRootDir=$backupBaseBuildJuggRootDir",
             "sourceProjectDir=${Global.projectRootDir}",
@@ -60,6 +66,9 @@ class CmdLineTest {
             "logLevel=debug",
             "changedFiles=${changedFiles.joinToString(":")}",
         )
+        extraArgs?.let {
+            args += it()
+        }
         val result = CmdLine().run(args)
 
         revert.invoke()
@@ -85,6 +94,25 @@ class CmdLineTest {
             revert = {
                 classFile.writeText(originCode)
             },
+        )
+    }
+
+    @Test
+    fun buildIncrementalApkWithCustomCompilers() {
+        doBuildIncrementalApk(
+            modify = {
+                return@doBuildIncrementalApk listOf(
+                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt",
+                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/res/layout/activity_main.xml",
+                ).map(::File)
+            },
+            revert = {
+            },
+            extraArgs = {
+                arrayOf(
+                    "customCompilerJars=src/demo/custom_compilers/custom_compiler_instrument-1.0.jar:src/demo/custom_compilers/dependency.jar"
+                )
+            }
         )
     }
 }

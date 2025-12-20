@@ -52,4 +52,5 @@ dependencies {
 
     implementation project(':main')
     implementation project(':platform_compat:base_api')
+    implementation fileTree(dir: '../main/libs', include: ['*.jar'])
 }
