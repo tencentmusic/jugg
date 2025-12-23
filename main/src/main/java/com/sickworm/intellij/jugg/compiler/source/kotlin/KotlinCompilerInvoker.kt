@@ -359,6 +359,22 @@ class KotlinCompilerInvoker {
             tryDisablePlugins = noOptionPlugins
         }
 
+        // handles exception: java.lang.ClassCastException: Cannot cast org.jetbrains.kotlin.parcelize.ParcelizeComponentRegistrar
+        // to org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
+        val parcelizePlugins = mutableListOf<File>()
+        if (outputParser.isGotParcelizeClassCastException) {
+            val relativePlugins = (kotlinPlugins + kotlinExtensions).filter {
+                it.path.contains("parcelize", ignoreCase = true)
+            }
+            parcelizePlugins.addAll(relativePlugins)
+        }
+        if (parcelizePlugins.isNotEmpty()) {
+            logger.debug("Plugin parcelize not working, try to recreate compiler once. parcelizePlugins: $parcelizePlugins")
+            retryReason = "Parcelize not working"
+            shouldRecreate = true
+            tryDisablePlugins += parcelizePlugins
+        }
+
         // handles -jvm-target not proper:
         // cannot inline bytecode built with JVM target 21 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option.
         var properJvmTargetInError: String? = null

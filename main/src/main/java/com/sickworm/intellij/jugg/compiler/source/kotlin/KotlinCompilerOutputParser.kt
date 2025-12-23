@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.compiler.source.kotlin
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.CompileError
 import com.sickworm.intellij.jugg.compiler.CompileFile
-import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.Result
 import kotlinx.metadata.jvm.JvmMetadataVersion
 import java.io.File
@@ -62,6 +61,9 @@ class KotlinCompilerOutputParser(
     var metadataVersionErrors = mutableListOf<MetadataVersionError>()
         private set
 
+    var isGotParcelizeClassCastException: Boolean = false
+        private set
+
     private val innerErrors = mutableMapOf<CompileFile, MutableList<Pair<Long, String>>>()
     /** Map<SourceFile, List<OutputClassFile>> */
     private val innerOutputs = mutableMapOf<File, MutableList<File>>()
@@ -69,10 +71,8 @@ class KotlinCompilerOutputParser(
     val currentMessage = StringBuilder()
     private var currentMessageType: MessageType = MessageType.LOGGING
 
-    private val newLineRegex = Regex("(.*):?(logging|warning|error|output):(.*)")
-
     private fun onNewLine(line: String) {
-        val contents = newLineRegex.find(line)?.groups
+        val contents = MessageType.newLineRegex.find(line)?.groups
         val tag = contents?.get(2)?.value
 
         val newMessageType = MessageType.getByTag(tag)
@@ -103,6 +103,10 @@ class KotlinCompilerOutputParser(
             MessageType.OUTPUT -> {
                 logger.debug(message)
                 parseOutputMessage(message)
+            }
+            MessageType.EXCEPTION -> {
+                logger.debug(message)
+                parseExceptionMessage(message)
             }
         }
         currentMessage.clear()
@@ -159,6 +163,14 @@ class KotlinCompilerOutputParser(
 
         // replace to absolute path to make it clickable in IDE
         return message.replace(filePath, file.file.absolutePath)
+    }
+
+    private fun parseExceptionMessage(message: String) {
+        // handles exception: java.lang.ClassCastException: Cannot cast org.jetbrains.kotlin.parcelize.ParcelizeComponentRegistrar
+        // to org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
+        if (message.contains("java.lang.ClassCastException") && message.contains("parcelize")) {
+            isGotParcelizeClassCastException = true
+        }
     }
 
     private fun parseOutputMessage(message: String) {
@@ -234,15 +246,20 @@ class KotlinCompilerOutputParser(
         LOGGING,
         WARNING,
         ERROR,
-        OUTPUT
+        OUTPUT,
+        EXCEPTION,
         ;
 
         companion object {
+
+            val newLineRegex = Regex("(.*):?(logging|warning|error|output|exception):(.*)")
+
             fun getByTag(tag: String?): MessageType? = when (tag) {
                 "logging" -> LOGGING
                 "warning" -> WARNING
                 "error" -> ERROR
                 "output" -> OUTPUT
+                "exception" -> EXCEPTION
                 else -> null
             }
         }
