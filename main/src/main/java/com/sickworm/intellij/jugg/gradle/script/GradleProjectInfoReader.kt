@@ -553,14 +553,16 @@ class GradleProjectInfoReader(
             // "processed-jar" returns empty list if jetifier not enabled if gradle/agp > 8.x (x is not confirmed)
             val jarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("jar"))
             jarView.artifacts.artifacts.forEach {
-                jarArtifacts[it.id.componentIdentifier.toString()] = it
+                val uniqueKey = it.id.componentIdentifier.toString() + "_" + it.file.parentFile.name + "_" + it.file.name
+                jarArtifacts[uniqueKey] = it
             }
 
             // read processed-jar last, to override jar result if exists
             val processedJarView = resolvedConfiguration.incoming.artifactView(SimpleArtifactFilter("processed-jar"))
             val processedResult = processedJarView.artifacts.artifacts
             processedResult.forEach {
-                jarArtifacts[it.id.componentIdentifier.toString()] = it
+                val uniqueKey = it.id.componentIdentifier.toString() + "_" + it.file.parentFile.name + "_" + it.file.name
+                jarArtifacts[uniqueKey] = it
             }
 
             resolvedArtifacts.addAll(jarArtifacts.values)
