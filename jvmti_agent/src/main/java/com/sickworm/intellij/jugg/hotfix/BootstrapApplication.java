@@ -113,7 +113,15 @@ public class BootstrapApplication extends Application {
             if (applicationInfo.metaData == null) {
                 throw new IllegalStateException("initRawApplicationAndAppComponentFactory: applicationInfo.metaData is null");
             }
-            generateRawAppComponentFactory(applicationInfo, base);
+            try {
+                generateRawAppComponentFactory(applicationInfo, base);
+            } catch (Throwable e) {
+                LogUtils.e(TAG, "generateRawAppComponentFactory: error while create raw instance", e);
+                rawAppComponentFactory = null;
+                // don't throw exception for some projects may hook android:appComponentFactory and set an invalid value
+                // which it's ok for Android runtime
+    //            throw new IllegalStateException(e);
+            }
             generateRawApplication(applicationInfo, base);
         } catch (Throwable e) {
             LogUtils.e(TAG, "generateRawApplication: error while create raw instance", e);

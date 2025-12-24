@@ -6,7 +6,7 @@ plugins {
 //    id 'org.jetbrains.kotlin.jvm' version '2.1.21' apply false
 }
 
-def versionName = '2.6.10'
+def versionName = '2.6.12'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 def pluginVersionArg = "${versionName}-${gitBranchPrefix}"
@@ -20,7 +20,7 @@ ext {
     ide_version = '223.7571.182' // Android Studio Giraffe
 //    ide_version = '231.9225.16' // Android Studio Hedgehog, needs Kotlin 1.9.0 and remove Kotlin Android extension plugin
 
-    agentVersion = "1.0.18"
+    agentVersion = "1.0.20"
     agentBundleDir = new File(project.projectDir, "jvmti_agent/build/outputs/bundle/")
     agentGeneratedSourceDir = new File(project.projectDir, "jvmti_agent/build/generated/source/buildConfig/release")
 
