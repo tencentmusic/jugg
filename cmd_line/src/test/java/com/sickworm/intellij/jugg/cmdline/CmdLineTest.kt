@@ -115,4 +115,25 @@ class CmdLineTest {
             }
         )
     }
+
+    @Test
+    fun buildIncrementalApkManifest() {
+        val manifestFile = File("../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/AndroidManifest.xml")
+        val originCode = manifestFile.readText()
+        doBuildIncrementalApk(
+            modify = {
+                manifestFile.writeText(manifestFile.readText().replace(
+                    """<meta-data android:name="com.test.metadata" android:value="0" />""",
+                    """<meta-data android:name="com.test.metadata" android:value="100" />
+                        |<meta-data android:name="com.test.metadata2" android:value="200" />""".trimMargin(),
+                ))
+                return@doBuildIncrementalApk listOf(
+                    manifestFile.path,
+                ).map(::File)
+            },
+            revert = {
+                manifestFile.writeText(originCode)
+            }
+        )
+    }
 }
