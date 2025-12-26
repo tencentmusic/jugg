@@ -91,7 +91,12 @@ class IncrementalCompilerHelper(
             val changedFiles = fileChangesHandler.filter(effectedSourceFiles)
 
             TimeLogger.start("CheckEffectByTopLevelClass")
-            logger.debug("CheckEffectByTopLevelClass compiledFilesThisTime: $compiledFilesThisTime, undeployedFiles: $undeployedFiles, recompileFiles: $recompileFiles")
+            logger.debug("CheckEffectByTopLevelClass" +
+                    ", undeployedFiles: $undeployedFiles" +
+                    ", effectedSourceFiles: $effectedSourceFiles" +
+                    ", changedFiles: $changedFiles" +
+                    ", compiledFilesThisTime: $compiledFilesThisTime"
+            )
             val compiledFilesThisTimeSet = (undeployedFiles + compiledFilesThisTime).map { it.file.absolutePath }.toSet()
             val undeployedFilesSet = undeployedFiles.map { it.file.absolutePath }.toSet()
             val unCompiledEffectedFiles = changedFiles.filter { changedFile ->
@@ -133,6 +138,8 @@ class IncrementalCompilerHelper(
                     return it
                 }
                 nextCompileFiles.addAll(unCompiledEffectedFiles)
+            } else {
+                logger.info("Compile success, no effected source files found.")
             }
 
             val redexClasses = recompileFiles.redexClasses.map {

@@ -199,7 +199,7 @@ class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val d
                 statement.executeQuery(selectSQL).use { resultSet ->
                     while (resultSet.next()) {
                         val path = resultSet.getString("path")
-                        files.add(File(projectDir, path))
+                        files.add(File(projectDir, path).normalize())
                     }
                 }
             }
