@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.guardsquare.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:r8.googlesource.com)",
+      "WebFetch(domain:mvnrepository.com)",
+      "WebFetch(domain:guardsquare.github.io)",
+      "Bash(./gradlew :main:dependencies:*)",
+      "Bash(ls:*)",
+      "Bash(./gradlew:*)",
+      "Bash(unzip:*)",
+      "Bash(xargs:*)"
+    ]
+  }
+}
