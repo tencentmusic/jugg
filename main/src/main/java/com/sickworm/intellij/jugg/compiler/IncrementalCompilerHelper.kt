@@ -142,14 +142,6 @@ class IncrementalCompilerHelper(
                 logger.info("Compile success, no effected source files found.")
             }
 
-            val redexClasses = recompileFiles.redexClasses.map {
-                it.copy(module = compiler.context.tempModule)
-            }
-            if (redexClasses.isNotEmpty()) {
-                logger.info("Compile success, but found classes that need to be redexed, continue compile. Classes: ${redexClasses.map { it.file.name }}")
-                nextCompileFiles.addAll(redexClasses)
-            }
-
             if (nextCompileFiles.isNotEmpty()) {
                 return compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder,
                     compiledFilesThisTime = undeployedFiles + compiledFilesThisTime,

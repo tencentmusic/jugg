@@ -331,7 +331,6 @@ class DeployFileManager(
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
             getEffectedSourceFiles(juggDeployData.effectedClassNodes),
-            emptyList(),
             juggDeployData,
         )
         val costTime = System.currentTimeMillis() - startTime
@@ -536,7 +535,6 @@ class DeployFileManager(
 
 class RecompileFiles(
     val effectedSourceFiles: List<File>,
-    val redexClasses: List<ChangedFile>,
     val juggDeployData: JuggDeployData,
 )
 
