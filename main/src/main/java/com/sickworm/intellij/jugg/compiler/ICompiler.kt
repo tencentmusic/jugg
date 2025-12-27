@@ -279,6 +279,8 @@ interface ICompileContext {
 
     val isSingleApk get() = apkInfos.flatMap { it.files }.map { it.apkFile }.size == 1
 
+    val isReleaseApk get() = applicationModule?.buildVariant?.contains("release", ignoreCase = true) == true
+
     val tempModule: ModuleInfo
 
     val applicationModule: ModuleInfo?

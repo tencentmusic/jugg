@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.obfuscation
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
@@ -22,52 +23,56 @@ class ClassMinifyCompiler(
     override val beforeCompileOrderRange: IntRange = CompileOrder.beforeMinify
     override val afterCompileOrderRange: IntRange = CompileOrder.afterMinify
 
-    private var obfuscator: ClassObfuscator? = null
-    private var mappingFile: File? = null
+    private lateinit var obfuscator: ClassObfuscator
 
     override fun compile(task: CompileTask): CompileResult {
-        if (!task.isNeedCompile) {
-            return CompileResult.empty(task)
+        initIfNeeded(task)?.let { failedResult ->
+            return failedResult
         }
 
-        // Try to find mapping file from incremental data directory
-        val mapping = findMappingFile()
-        if (mapping == null) {
-            logger.debug("No mapping file found, skip obfuscation")
-            return CompileResult.empty(task)
-        }
-
-        // Initialize obfuscator if mapping file changed
-        if (mappingFile != mapping || obfuscator == null) {
-            logger.info("Loading mapping file: ${mapping.absolutePath}")
-            obfuscator = ClassObfuscator.fromMappingFile(mapping)
-            mappingFile = mapping
-            val stats = obfuscator!!.getMappingStats()
-            logger.debug("Mapping loaded: ${stats.classCount} classes, ${stats.fieldCount} fields, ${stats.methodCount} methods")
-        }
-
-        return super.compile(task)
+        return process(task)
     }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        val obfuscator = this.obfuscator
-        if (obfuscator == null) {
-            logger.warn("Obfuscator not initialized")
-            return CompileResult.empty(task)
+        // no need implement
+        return CompileResult.empty(task)
+    }
+
+    private fun initIfNeeded(task: CompileTask): CompileResult? {
+        if (!task.isNeedCompile) {
+            return task.wrapToResult()
         }
 
-        if (task.files.isEmpty()) {
-            return CompileResult(task, emptyList(), emptyList())
+        // Try to find mapping file from incremental data directory
+        val mappingFile = context.applicationModule?.buildPathInfo?.mappingFile
+        if (mappingFile == null || !mappingFile.exists()) {
+            if (context.isReleaseApk) {
+                logger.warn("This appears to be a release build, but mapping file not found, skip obfuscation.")
+                logger.warn("Compile result may not correct.")
+            } else {
+                logger.debug("No mapping file found, skip obfuscation.")
+            }
+            return task.wrapToResult()
         }
 
+        // Initialize obfuscator if mapping file changed
+        if (!::obfuscator.isInitialized) {
+            TimeLogger.start("load mapping file")
+            logger.debug("Loading mapping file: ${mappingFile.absolutePath}")
+            obfuscator = ClassObfuscator.fromMappingFile(mappingFile)
+            val stats = obfuscator.getMappingStats()
+            logger.debug("Mapping loaded: ${stats.classCount} classes, ${stats.fieldCount} fields, ${stats.methodCount} methods")
+            TimeLogger.end("load mapping file", logger)
+        }
+
+        return null
+    }
+
+    private fun process(task: CompileTask): CompileResult {
         val details = mutableListOf<Result<CompileFile, CompileError>>()
         val outputs = mutableListOf<CompileOutput>()
 
         for (compileFile in task.files) {
-            if (task.isShouldCancel) {
-                return task.toCancelResult()
-            }
-
             try {
                 val result = obfuscateClassFile(compileFile, task.outputDir, obfuscator)
                 if (result != null) {
@@ -138,38 +143,4 @@ class ClassMinifyCompiler(
         return CompileOutput(CompileOutput.Type.Class, outputFile, outputDir)
     }
 
-    /**
-     * Find the mapping.txt file from various possible locations.
-     */
-    private fun findMappingFile(): File? {
-        // Priority 1: Check incremental data directory
-        val incrementalMapping = File(context.incrementalDataDir, "mapping.txt")
-        if (incrementalMapping.exists()) {
-            return incrementalMapping
-        }
-
-        // Priority 2: Check each APK's extracted data
-        for (apkInfo in context.apkInfos) {
-            for (apkFileUnit in apkInfo.files) {
-                val apkMappingDir = File(context.incrementalDataDir, apkFileUnit.apkFile.nameWithoutExtension)
-                val apkMapping = File(apkMappingDir, "mapping.txt")
-                if (apkMapping.exists()) {
-                    return apkMapping
-                }
-            }
-        }
-
-        // Priority 3: Check temp compile directory
-        val tempMapping = File(context.tempCompileDir, "mapping.txt")
-        if (tempMapping.exists()) {
-            return tempMapping
-        }
-
-        return null
-    }
-
-    override fun dispose() {
-        obfuscator = null
-        mappingFile = null
-    }
 }

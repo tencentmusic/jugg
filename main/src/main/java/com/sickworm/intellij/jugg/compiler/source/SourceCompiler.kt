@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.source
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.obfuscation.ClassMinifyCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
@@ -19,6 +20,8 @@ class SourceCompiler(
     private val kotlinCompiler = KotlinCompiler(context.subContext("tmp_kotlin"), this)
 
     private val dexCompiler = DexCompiler(context.subContext("tmp_dex"), this)
+
+    private val classMinify = ClassMinifyCompiler(context.subContext("minify"), this)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         context.tempCompileDir.clearDir()
@@ -74,25 +77,30 @@ class SourceCompiler(
             it.type != CompileOutput.Type.Class
         }
 
-        // dex .class
+        // minify by mapping for minified apk
         val classFiles = classCompileResult.outputs.filter {
             it.type == CompileOutput.Type.Class
         }
-        val dependencies = (javaCompileTask.files + kotlinCompileTask.files).flatMap { it.dependencyPaths }
         val compileClassFiles = classFiles.map {
-            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module, dependencyPaths = dependencies)
+            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module)
         }
-        val dexTask = CompileTask(compileClassFiles, task.outputDir, task)
+        val outputDir = File(context.tempCompileDir, "minify")
+        val minifyTask = CompileTask(compileClassFiles, outputDir, task)
+        val minifyResult = classMinify.compile(minifyTask)
+        if (!minifyResult.isAllSuccess) {
+            return classCompileResult.failedAll("Minify failed")
+        }
+
+        // dex .class
+        val minifyClassFiles = minifyResult.outputs.map {
+            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module)
+        }
+        val dexTask = CompileTask(minifyClassFiles, task.outputDir, task)
         val dexCompileResult = dexCompiler.compile(dexTask)
         if (!dexCompileResult.isAllSuccess) {
-            // mark all failed
-            val successDetails = classCompileResult.details.filter { it.isSuccess }
-            val failedDetails = classCompileResult.details.filter { !it.isSuccess }
-            val failedDexDetails = successDetails.map {
-                Result.failure<CompileFile, CompileError>(CompileError(it.file, listOf(-1L to "Dex compile failed")))
-            }
-            return CompileResult(task, failedDexDetails + failedDetails, emptyList())
+            return classCompileResult.failedAll("Dex compile failed")
         }
+
         return CompileResult(task, classCompileResult.details, dexCompileResult.outputs + otherOutputs)
     }
 

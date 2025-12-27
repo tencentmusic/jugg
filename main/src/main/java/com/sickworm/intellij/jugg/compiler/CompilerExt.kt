@@ -206,6 +206,10 @@ fun CompileOutput.toCompileFile(defaultModule: ModuleInfo): CompileFile? {
     return CompileFile(type, file, baseDir, relativeModule ?: defaultModule)
 }
 
+fun CompileFile.toCompileOutput(): CompileOutput? {
+    return CompileOutput(type.toCompileOutputType() ?: return null, file, baseDir, null, module)
+}
+
 fun CompileOutput.Type.toCompileFileType(): CompileFile.Type? {
     return when (this) {
         CompileOutput.Type.Class -> CompileFile.Type.Class
@@ -218,4 +222,39 @@ fun CompileOutput.Type.toCompileFileType(): CompileFile.Type? {
         CompileOutput.Type.Kotlin -> CompileFile.Type.Kotlin
         else -> null
     }
+}
+
+fun CompileFile.Type.toCompileOutputType(): CompileOutput.Type? {
+    return when (this) {
+        CompileFile.Type.Class -> CompileOutput.Type.Class
+        CompileFile.Type.Flat -> CompileOutput.Type.Flat
+        CompileFile.Type.Dex -> CompileOutput.Type.Dex
+        CompileFile.Type.Resource -> CompileOutput.Type.Res
+        CompileFile.Type.Asset -> CompileOutput.Type.Asset
+        CompileFile.Type.NativeLib -> CompileOutput.Type.NativeLib
+        CompileFile.Type.Java -> CompileOutput.Type.Java
+        CompileFile.Type.Kotlin -> CompileOutput.Type.Kotlin
+        else -> null
+    }
+}
+
+fun CompileResult.failedAll(message: String): CompileResult {
+    // mark all failed
+    val successDetails = details.filter { it.isSuccess }
+    val failedDetails = details.filter { !it.isSuccess }
+    val failedDexDetails = successDetails.map {
+        Result.failure<CompileFile, CompileError>(CompileError(it.file, listOf(-1L to message)))
+    }
+    return CompileResult(task, failedDexDetails + failedDetails, emptyList())
+}
+
+fun CompileTask.wrapToResult(): CompileResult {
+    val compileTask = this
+    return CompileResult(compileTask,
+        details = compileTask.files.map {
+            Result.success(it)
+        },
+        outputs = compileTask.files.mapNotNull {
+            it.toCompileOutput()
+        })
 }
