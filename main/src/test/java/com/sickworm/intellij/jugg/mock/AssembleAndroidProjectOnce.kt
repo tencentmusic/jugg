@@ -15,8 +15,8 @@ object AssembleAndroidProjectOnce {
         }
     }
 
-    private val scriptFile = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts")
-    private val gradleProjectInfoFile = JuggPathManager(TestGlobal.projectRootDir).gradleProjectInfoFile
+    val scriptFile = File("../main/src/main/resources/gradle/readProjectInfo.gradle.kts")
+    val gradleProjectInfoFile = JuggPathManager(TestGlobal.projectRootDir).gradleProjectInfoFile
     private val serializer = ProjectInfoSerializer(gradleProjectInfoFile, logger)
 
     fun ensure() {

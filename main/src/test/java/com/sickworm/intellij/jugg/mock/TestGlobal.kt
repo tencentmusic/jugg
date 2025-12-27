@@ -1,4 +1,4 @@
-@file:Suppress("MayBeConstant")
+@file:Suppress("MayBeConstant", "HasPlatformType")
 
 package com.sickworm.intellij.jugg.mock
 
@@ -27,7 +27,7 @@ object TestGlobal {
     private val rootDir = File("../").absoluteFile.normalize()
 
     private val ideaDir = File(rootDir, "idea").absoluteFile
-    private val buildDir = File(ideaDir, "src/test/build").absoluteFile
+    val buildDir = File(rootDir, "main/src/test/build").absoluteFile
     private val tempCompileDir = File(buildDir, "compiled")
     val stagingDir = File(buildDir, "staging")
 
@@ -67,36 +67,7 @@ object TestGlobal {
         incrementalDataDir = File(buildDir, "incremental"),
         deployedFiles = mutableListOf(),
     )
-
-    val mockModule get() = ModuleInfo(
-        name = "mock_module",
-        moduleType = ModuleInfo.Type.Unknown,
-        moduleRootDir = appModuleDir,
-        projectRootDir = projectRootDir,
-        sourceDirs = listOf(File(appModuleDir, "src/main/java")),
-        resourceDirs = listOf(File(appModuleDir, "src/main/res")),
-        assetsDirs = listOf(File(appModuleDir, "src/main/assets")),
-        manifestFile = File(appModuleDir, "src/main/AndroidManifest.xml"),
-        manifestPlaceHolders = null,
-        buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
-        compileVersion = null,
-        buildToolsVersion = null,
-        buildPathInfo = ModuleBuildPathInfo(
-            projectRootDir,
-            appModuleDir,
-            ModuleInfo.DEFAULT_BUILD_VARIANT
-        ),
-        kotlinJvmTarget = "1.8",
-        kotlinFreeCompilerArgs = emptyList(),
-        javaSourceCompatibility = "1.8",
-        javaTargetCompatibility = "1.8",
-        moduleDependencies = emptyList(),
-        libraryDependencies = emptyList(),
-        minSdkVersion = "21",
-        runtimeLibraryDependencies = emptyList(),
-        annotationProcessorDependencies = emptyList(),
-        kaptDependencies = emptyList(),
-    )
+    val applicationModule get() = context.modules["app"]!!
 
     init {
         PlatformApi.impl = TestPlatformApi()

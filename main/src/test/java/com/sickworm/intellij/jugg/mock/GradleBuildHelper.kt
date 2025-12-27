@@ -19,7 +19,7 @@ object GradleBuildHelper {
         }
     }
 
-    fun appAssembleDebug(initScriptPath: String? = null) {
+    fun appAssembleDebug(initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
         val process = Runtime.getRuntime().exec("$gradlew :app:assembleDebug $initArg", null, TestGlobal.projectRootDir)
         println("\n----------- assembleDebug start -----------\n")
@@ -33,7 +33,7 @@ object GradleBuildHelper {
         }
     }
 
-    fun appAssembleRelease(initScriptPath: String? = null) {
+    fun appAssembleRelease(initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath) {
         val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
         val process = Runtime.getRuntime().exec("$gradlew :app:assembleRelease $initArg", null, TestGlobal.projectRootDir)
         println("\n----------- assembleRelease start -----------\n")
