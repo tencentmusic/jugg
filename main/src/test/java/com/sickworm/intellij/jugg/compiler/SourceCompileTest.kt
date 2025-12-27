@@ -1,20 +1,21 @@
-package com.sickworm.intellij.jugg.compile
+package com.sickworm.intellij.jugg.compiler
 
-import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
-import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.mock.TestGlobal.androidJar
+import com.sickworm.intellij.jugg.mock.TestGlobal.assetsAndroidDir
+import com.sickworm.intellij.jugg.mock.TestGlobal.mockModule
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 
 class SourceCompileTest {
 
-    private val sourceCompiler = SourceCompiler(context, mockParentDisposable)
+    private val sourceCompiler = SourceCompiler(TestGlobal.context, TestGlobal.mockParentDisposable)
 
     @Before
     fun init() {
-        clearBuild()
+        TestGlobal.clearBuild()
     }
 
     private val twoActivityTask = CompileTask(
@@ -28,7 +29,7 @@ class SourceCompileTest {
                         + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                         + "$assetsAndroidDir/app/build/tmp/kotlin-classes/debug"
                         + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-                        + LibraryParser().loadInTest()!!
+                        + LibraryParser().loadInTest()
             ),
             CompileFile(
                 CompileFile.Type.Java,
@@ -39,10 +40,11 @@ class SourceCompileTest {
                         + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                         + "$assetsAndroidDir/app/build/tmp/kotlin-classes/debug"
                         + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-                        + LibraryParser().loadInTest()!!
+                        + LibraryParser().loadInTest()
             )
         ),
-        stagingDir,
+        TestGlobal.stagingDir,
+        CompileStatusHolder.DEFAULT,
     )
 
     @Test

@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.mock
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
 import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
-import local.main.logger
 import java.io.File
 
 object AssembleAndroidProjectOnce {

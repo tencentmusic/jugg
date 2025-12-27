@@ -4,7 +4,6 @@ import com.sickworm.intellij.jugg.apk.ApkFileModifier
 import com.sickworm.intellij.jugg.mock.AssembleAndroidProjectOnce
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
-import local.main.logger
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertNotNull
@@ -28,11 +27,11 @@ class ResignApk {
         val gradleProjectInfoFile = File(gradleProjectInfoPath)
         assertTrue(gradleProjectInfoFile.exists(), "Gradle project info file not found: $gradleProjectInfoPath")
 
-        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, logger).load(isSkipVersionCheck = true)
+        val gradleProjectInfo = ProjectInfoSerializer(gradleProjectInfoFile, TestGlobal.logger).load(isSkipVersionCheck = true)
         assertNotNull(gradleProjectInfo, "Gradle project info not found")
         val signingConfig = gradleProjectInfo.modules.values.find { it.signingConfigs != null }?.signingConfigs?.firstOrNull()
         assertNotNull(signingConfig, "Signing config not found")
 
-        ApkFileModifier(apkFile, signingConfig, TestGlobal.androidHome, logger).insertAndResign()
+        ApkFileModifier(apkFile, signingConfig, TestGlobal.androidHome, TestGlobal.logger).insertAndResign()
     }
 }
