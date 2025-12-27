@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.mock.GradleBuildHelper
 import com.sickworm.intellij.jugg.mock.projectInfo
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.junit.Test
+import java.io.File
 import java.lang.management.ManagementFactory
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -34,6 +35,13 @@ class BuildDemoApkTest {
     fun testBuildApk() {
         GradleBuildHelper.appAssembleDebug()
         assertTrue(projectInfo.apkFile.exists())
+    }
+
+    @Test
+    fun testBuildApkRelease() {
+        GradleBuildHelper.appAssembleRelease()
+        val releaseApkFile = File(projectInfo.apkFile.absolutePath.replace("debug", "release"))
+        assertTrue(releaseApkFile.exists())
     }
 
     @Test

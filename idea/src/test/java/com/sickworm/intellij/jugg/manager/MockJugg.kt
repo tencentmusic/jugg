@@ -11,6 +11,7 @@ import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.MockitoFixer
+import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeDeployState
@@ -52,6 +53,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
     lateinit var dependencyChangeManager: IDependencyChangeManager
     lateinit var taskRunnerManager: TaskRunnerManager
     lateinit var gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager
+    lateinit var customCompilerManager: CustomCompilerManager
     val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     private val adbDeviceHelper = AdbDeviceHelper()
@@ -251,6 +253,9 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
+        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO))
+        customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
+
         if (isMockCompileContextManager) {
             compileContextManager = mock(CompileContextManager::class.java)
             doReturn(context.copy(tempCompileDir = File(pathManager.compileRootDir, "compiled"))).`when`(compileContextManager).compileContext
@@ -258,10 +263,9 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
             val moduleManager = mock(ModuleManager::class.java)
             doReturn(emptyArray<com.intellij.openapi.module.Module>()).`when`(moduleManager).modules
             compileContextManager = CompileContextManager(project, pathManager, deployFileManager, deployHistoryManager,
-                moduleManager = moduleManager)
+                moduleManager = moduleManager, customCompilerManager = customCompilerManager)
         }
 
-        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath!!)), CoroutineScope(Dispatchers.IO))
         taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager, logger) {
             val downloader = MockAndroidProfilerDownloader()
