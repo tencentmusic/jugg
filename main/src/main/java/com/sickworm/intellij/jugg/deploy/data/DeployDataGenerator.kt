@@ -30,13 +30,12 @@ class DeployDataGenerator(
         items: List<DeployItem>,
         isWarmUp: Boolean = false,
         isNeedCheckRecompile: Boolean = true,
-        isRecompilation: Boolean = false,
     ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
-        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isRecompilation)
+        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile)
     }
 
     @TestOnly
@@ -45,8 +44,6 @@ class DeployDataGenerator(
                         changedLibs: List<DeployItem> = emptyList(),
                         isWarmUp: Boolean = false,
                         isNeedCheckRecompile: Boolean = true,
-                        @Suppress("UNUSED_PARAMETER")
-                        isRecompilation: Boolean = false,
     ): JuggDeployData {
         val startTime = System.currentTimeMillis()
 

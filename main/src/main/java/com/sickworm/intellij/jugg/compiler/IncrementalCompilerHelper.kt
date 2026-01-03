@@ -83,8 +83,7 @@ class IncrementalCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val isRecompilation = compiledFilesThisTime.isNotEmpty()
-            val recompileFiles = deployFileManager.getRecompileFiles(isRecompilation)
+            val recompileFiles = deployFileManager.getRecompileFiles()
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()
