@@ -45,7 +45,7 @@ class ClassFileParser(
     }
 
 
-    inner class InvocationCollector: ClassVisitor(Opcodes.ASM9) {
+    inner class InvocationCollector : ClassVisitor(Opcodes.ASM9) {
 
         override fun visit(
             version: Int,
