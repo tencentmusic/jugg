@@ -7,6 +7,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
+import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
@@ -375,12 +376,15 @@ class DeployFileManager(
      * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
      */
     private fun getEffectedSourceFiles(effectClassNodes: List<EffectedClassNode>): List<File> {
-        val effectedSourceFiles = effectClassNodes.map { it.sourceFileName }.distinct()
+        val effectedSourceFiles = effectClassNodes
+            .fillMissingSourceFile()
+            .map { it.sourceFileName }.distinct()
 
         if (effectedSourceFiles.isEmpty()) {
             logger.debug("getEffectedSourceFiles: no effected source files")
             return emptyList()
         }
+        logger.debug("getEffectedSourceFiles: $effectedSourceFiles")
 
         val sourceFiles = sourceFileManager.getFiles(effectedSourceFiles)
         if (sourceFiles.size < effectedSourceFiles.size) {
@@ -398,6 +402,54 @@ class DeployFileManager(
         logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $sourceFiles")
         return sourceFiles
     }
+
+    /**
+     * If .source is missing by minify, find it by .class which is not minified yet
+     */
+    private fun List<EffectedClassNode>.fillMissingSourceFile(): List<EffectedClassNode> {
+        val existsSourceNode = mutableListOf<EffectedClassNode>()
+        val missingSourceNode = mutableListOf<EffectedClassNode>()
+        forEach {
+            if (it.sourceFileName.endsWith(".kt") || it.sourceFileName.endsWith(".java")) {
+                existsSourceNode.add(it)
+            } else {
+                missingSourceNode.add(it)
+            }
+        }
+        if (missingSourceNode.isEmpty()) {
+            return this
+        }
+
+        logger.debug("found missing source files ${this.size}: $missingSourceNode")
+        val missingClassNames = missingSourceNode.map { it.className }
+        val allDependModules = moduleInfos.values.toList()
+        val allDependLibraries = mutableSetOf<File>()
+        moduleInfos.values.forEach { moduleInfoIt ->
+            moduleInfoIt.libraryDependencies.forEach {
+                allDependLibraries.add(it.file)
+            }
+        }
+        val searchedClassFiles = getClassFilesByName(missingClassNames, allDependModules, allDependLibraries.toList())
+        searchedClassFiles.forEach { searchedClassFile ->
+            val (className, source) = ClassSourceReader(searchedClassFile.file).read()
+            val node = missingSourceNode.find { it.className == className?.classSigName }
+            if (node == null || className == null || source == null) {
+                logger.debug("fillMissingSourceFile found invalid EffectedClassNode: $node, source: $source, className: $className")
+                logger.warn("fillMissingSourceFile parse class name failed, source: $source, className: $className, which should not happened")
+                return@forEach
+            }
+            existsSourceNode.add(node.copy(sourceFileName = source))
+            missingSourceNode.remove(node)
+        }
+
+        if (missingSourceNode.isNotEmpty()) {
+            logger.debug("Found source files: $existsSourceNode")
+            logger.warn("Failed to find source files for: ${missingSourceNode.map { it.className }}")
+        }
+
+        return existsSourceNode + missingSourceNode
+    }
+
 
     private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>, moduleInfo: ModuleInfo): List<ChangedFile> {
         return getClassFilesByName(interfaceNames, moduleInfo)
@@ -469,7 +521,7 @@ class DeployFileManager(
                                                           dependModules: List<ModuleInfo>,
                                                           dependLibraries: List<File>): List<ChangedFile> {
         if (classNames.isEmpty()) {
-            logger.debug("getClassFilesByName: no desugar interface with default method files")
+            logger.debug("getClassFilesByName: no class files")
             return emptyList()
         }
 
@@ -482,7 +534,7 @@ class DeployFileManager(
         }.toMutableList()
         logger.debug("getClassFilesByName: classRelativePaths $classRelativePaths")
 
-        val redexClassesFiles = mutableListOf<ChangedFile>()
+        val foundClassesFiles = mutableListOf<ChangedFile>()
         dependModules.forEach moduleLoop@{ moduleInfo ->
             moduleInfo.buildPathInfo.allClassPath.forEach {  classPath ->
                 if (!classPath.isDirectory) {
@@ -496,7 +548,7 @@ class DeployFileManager(
                         logger.debug("found class file: $destFile")
                         iterator.remove()
                         val changedFile = ChangedFile(CompileFile.Type.Class, destFile, classPath, moduleInfo)
-                        redexClassesFiles.add(changedFile)
+                        foundClassesFiles.add(changedFile)
                     }
                 }
             }
@@ -504,7 +556,7 @@ class DeployFileManager(
         if (classRelativePaths.isEmpty()) {
             val costTime = System.currentTimeMillis() - startTime
             logger.debug("find class files cost: $costTime ms")
-            return redexClassesFiles
+            return foundClassesFiles
         }
 
         logger.debug("getClassFilesByName: libraryPaths ${dependLibraries.size}")
@@ -534,7 +586,7 @@ class DeployFileManager(
                                 }
                                 iterator.remove()
                                 val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.virtualModule)
-                                redexClassesFiles.add(changedFile)
+                                foundClassesFiles.add(changedFile)
                             }
                         }
                     }
@@ -551,7 +603,7 @@ class DeployFileManager(
 
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("find class files cost: $costTime ms")
-        return redexClassesFiles
+        return foundClassesFiles
     }
 
     fun isEnableDesugared(): Boolean {
