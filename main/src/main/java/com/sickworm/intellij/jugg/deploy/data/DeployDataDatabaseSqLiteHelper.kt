@@ -2,6 +2,7 @@
 
 package com.sickworm.intellij.jugg.deploy.data
 
+import android.databinding.tool.ext.fieldSpec
 import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
@@ -793,10 +794,12 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
+        maybeMinifiedRemoveClasses: ParsedDex?,
     ): List<EffectedClassNode> {
         logger.debug("getEffectedClassNodes changedMethodRefs $changedMethodRefs")
         logger.debug("getEffectedClassNodes changedFieldRefs $changedFieldRefs $changedAbstractClasses")
         logger.debug("getEffectedClassNodes changedAbstractClasses $changedAbstractClasses")
+        logger.debug("getEffectedClassNodes maybeMinifiedRemoveClasses ${maybeMinifiedRemoveClasses?.classDeployItems?.size}}")
 
         DriverManager.getConnection(url).use { connection ->
             // step 1. build dbClassNodeMap to get classId
@@ -966,48 +969,199 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             }
 
             // step 5. get all effected class nodes by [refClassIds]
-            if (refClassIds.isEmpty()) {
-                return emptyList()
-            }
             val effectedClassNodes = mutableListOf<EffectedClassNode>()
-            runWithTimeCost("doGetClassNodes") {
-                val allClassIds = mutableSetOf<Int>()
-                refClassIds.forEach { (effectClassId, effectByClassIds) ->
-                    allClassIds.add(effectClassId)
-                    allClassIds.addAll(effectByClassIds)
-                }
-                val allClassIdsString = allClassIds.joinToString(",")
+            if (refClassIds.isNotEmpty()) {
+                runWithTimeCost("doGetClassNodes") {
+                    val allClassIds = mutableSetOf<Int>()
+                    refClassIds.forEach { (effectClassId, effectByClassIds) ->
+                        allClassIds.add(effectClassId)
+                        allClassIds.addAll(effectByClassIds)
+                    }
+                    val allClassIdsString = allClassIds.joinToString(",")
 
-                val idNameMap = mutableMapOf<Int, String>()
-                val idSourceMap = mutableMapOf<Int, String>()
-                val sql = "SELECT id, name, source FROM class_info WHERE id IN ($allClassIdsString);"
-                connection.createStatement().use { statement ->
-                    val resultSet: ResultSet = statement.executeQueryAndLog(sql)
-                    while (resultSet.next()) {
-                        val id = resultSet.getInt(1)
-                        val className = resultSet.getString(2)
-                        val source = resultSet.getString(3)
+                    val idNameMap = mutableMapOf<Int, String>()
+                    val idSourceMap = mutableMapOf<Int, String>()
+                    val sql = "SELECT id, name, source FROM class_info WHERE id IN ($allClassIdsString);"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                        while (resultSet.next()) {
+                            val id = resultSet.getInt(1)
+                            val className = resultSet.getString(2)
+                            val source = resultSet.getString(3)
 
-                        if (refClassIds.containsKey(id)) {
-                            idSourceMap[id] = source
+                            if (refClassIds.containsKey(id)) {
+                                idSourceMap[id] = source
+                            }
+                            idNameMap[id] = className
                         }
-                        idNameMap[id] = className
                     }
-                }
 
-                refClassIds.forEach { (effectClassId, effectByClassIds) ->
-                    val className = idNameMap[effectClassId]!!
-                    val classSource = idSourceMap[effectClassId]!!
-                    val effectedByClasses = effectByClassIds.map {
-                        idNameMap[it]!!
+                    refClassIds.forEach { (effectClassId, effectByClassIds) ->
+                        val className = idNameMap[effectClassId]!!
+                        val classSource = idSourceMap[effectClassId]!!
+                        val effectedByClasses = effectByClassIds.map {
+                            idNameMap[it]!!
+                        }
+                        effectedClassNodes.add(EffectedClassNode(className, classSource, effectedByClasses))
                     }
-                    effectedClassNodes.add(EffectedClassNode(className, classSource, effectedByClasses))
                 }
             }
+
+            // step 6. check if any class is minified and removed
+            effectedClassNodes.addAll(checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses))
 
             logger.debug("getEffectedClassNodes result $effectedClassNodes")
             return effectedClassNodes
         }
+    }
+
+    private fun checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses: ParsedDex?): List<EffectedClassNode> {
+        if (maybeMinifiedRemoveClasses == null) {
+            return emptyList()
+        }
+
+        logger.debug("checkMaybeMinifiedRemoveClass: checking ${maybeMinifiedRemoveClasses.classDeployItems.size} deploy items")
+
+        val result = mutableListOf<EffectedClassNode>()
+
+        DriverManager.getConnection(url).use { connection ->
+            runWithTimeCost("checkMaybeMinifiedRemoveClass") {
+                // Collect all class names from maybeMinifiedRemoveClasses
+                val suspectClassNames = mutableSetOf<String>()
+
+                // 1. Collect from methodRefs.key.owner
+                maybeMinifiedRemoveClasses.methodRefs.keys.forEach { methodNode ->
+                    suspectClassNames.add(methodNode.owner)
+                }
+                // 2. Collect from fieldRefs.key.owner
+                maybeMinifiedRemoveClasses.fieldRefs.keys.forEach { fieldNode ->
+                    suspectClassNames.add(fieldNode.owner)
+                }
+                // 3. Collect from subclassRefs.key
+                suspectClassNames.addAll(maybeMinifiedRemoveClasses.subclassRefs.keys)
+                if (suspectClassNames.isEmpty()) {
+                    logger.debug("checkMaybeMinifiedRemoveClass: no suspect classes found")
+                    return@runWithTimeCost
+                }
+                logger.debug("checkMaybeMinifiedRemoveClass: checking ${suspectClassNames.size} suspect classes")
+
+                // Query database to find which classes exist and their methods/fields
+                val existingClasses = mutableSetOf<String>()
+                val dbClassInfoMap = mutableMapOf<String, ClassNode>() // Map<className, uncompleted ClassNode>
+
+                // Split into chunks to avoid SQL query too long
+                suspectClassNames.chunked(2000).forEach { chunk ->
+                    val classNamesString = chunk.joinToString(",") { "'$it'" }
+                    val sql = "SELECT name, methods, fields, source FROM class_info WHERE name IN ($classNamesString);"
+                    connection.createStatement().use { statement ->
+                        val resultSet: ResultSet = statement.executeQueryAndLog(sql)
+                        while (resultSet.next()) {
+                            val className = resultSet.getString(1)
+                            val methodsStr = resultSet.getString(2)
+                            val fieldsStr = resultSet.getString(3)
+                            val source = resultSet.getString(4)
+                            existingClasses.add(className)
+
+                            val methods = methodsStr.toMethodList(className)
+                            val fields = fieldsStr.toFieldList(className)
+                            dbClassInfoMap[className] = ClassNode(
+                                "", className, 0, methods, fields, emptyList(), "", source
+                            )
+                        }
+                    }
+                }
+
+                // Check 1: Find completely removed classes
+                val removedClasses = suspectClassNames - existingClasses
+                logger.debug("checkMaybeMinifiedRemoveClass: found $removedClasses completely removed classes")
+
+                // Create EffectedClassNode for each completely removed class
+                // Find which classes reference the removed class from maybeMinifiedRemoveClasses
+                removedClasses.forEach { className ->
+                    val referencedBy = mutableSetOf<String>()
+
+                    // Check methodRefs for methods of this removed class
+                    maybeMinifiedRemoveClasses.methodRefs.forEach { (methodNode, refClassNames) ->
+                        if (methodNode.owner == className) {
+                            referencedBy.addAll(refClassNames)
+                        }
+                    }
+
+                    // Check fieldRefs for fields of this removed class
+                    maybeMinifiedRemoveClasses.fieldRefs.forEach { (fieldNode, refClassNames) ->
+                        if (fieldNode.owner == className) {
+                            referencedBy.addAll(refClassNames)
+                        }
+                    }
+
+                    // Check subclassRefs if this removed class is a superclass
+                    maybeMinifiedRemoveClasses.subclassRefs[className]?.let { subclasses ->
+                        referencedBy.addAll(subclasses)
+                    }
+
+                    result.add(EffectedClassNode(
+                        className = className,
+                        sourceFileName = EffectedClassNode.SOURCE_NOT_FOUND, // source file not found, need to found in .class classpath
+                        effectedByClasses = referencedBy.toList()
+                    ))
+                }
+
+                // Check 2: Find classes with removed methods or fields
+                val deployMethodsMap = mutableMapOf<String, MutableList<MethodNode>>()
+                val deployFieldsMap = mutableMapOf<String, MutableList<FieldNode>>()
+                maybeMinifiedRemoveClasses.methodRefs.forEach { (methodNode, _) ->
+                    deployMethodsMap.getOrPut(methodNode.owner) { mutableListOf() }.add(methodNode)
+                }
+                maybeMinifiedRemoveClasses.fieldRefs.forEach { (fieldNode, _) ->
+                    deployFieldsMap.getOrPut(fieldNode.owner) { mutableListOf() }.add(fieldNode)
+                }
+                existingClasses.forEach { className ->
+                    val classNode = dbClassInfoMap[className] ?: return@forEach
+
+                    // Check for removed methods
+                    val dbMethods = classNode.methods
+                    val deployMethods = deployMethodsMap[className] ?: emptyList()
+                    val removedMethods = deployMethods.filter { methodNode ->
+                        dbMethods.none { it.equalsWithoutAccess(methodNode) } // refs doesn't have access
+                    }
+
+                    // Check for removed fields
+                    val deployFields = deployFieldsMap[className] ?: emptyList()
+                    val dbFields = classNode.fields
+                    val removedFields = deployFields.filter { fieldNode ->
+                        dbFields.none { it.equalsWithoutAccess(fieldNode) } // refs doesn't have access
+                    }
+
+                    if (removedMethods.isNotEmpty() || removedFields.isNotEmpty()) {
+                        val referencedBy = mutableSetOf<String>()
+                        // Find classes that reference the removed methods from maybeMinifiedRemoveClasses
+                        removedMethods.forEach { methodNode ->
+                            maybeMinifiedRemoveClasses.methodRefs[methodNode]?.let { refs ->
+                                referencedBy.addAll(refs)
+                            }
+                        }
+                        // Find classes that reference the removed fields from maybeMinifiedRemoveClasses
+                        removedFields.forEach { fieldNode ->
+                            maybeMinifiedRemoveClasses.fieldRefs[fieldNode]?.let { refs ->
+                                referencedBy.addAll(refs)
+                            }
+                        }
+
+                        result.add(EffectedClassNode(
+                            className = className,
+                            sourceFileName = classNode.source,
+                            effectedByClasses = referencedBy.toList()
+                        ))
+
+                        logger.debug("checkMaybeMinifiedRemoveClass: class $className has removed members - methods: $removedMethods, fields: $removedFields, referenced by: $referencedBy")
+                    }
+                }
+
+                logger.debug("checkMaybeMinifiedRemoveClass: returning ${result.size} effected class nodes")
+            }
+        }
+
+        return result
     }
 
     /**

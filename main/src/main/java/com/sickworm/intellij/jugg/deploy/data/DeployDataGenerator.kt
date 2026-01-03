@@ -30,12 +30,13 @@ class DeployDataGenerator(
         items: List<DeployItem>,
         isWarmUp: Boolean = false,
         isNeedCheckRecompile: Boolean = true,
+        isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
     ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex)
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
-        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile)
+        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isNeedCheckRecompileMinifyRemovedClass)
     }
 
     @TestOnly
@@ -44,6 +45,7 @@ class DeployDataGenerator(
                         changedLibs: List<DeployItem> = emptyList(),
                         isWarmUp: Boolean = false,
                         isNeedCheckRecompile: Boolean = true,
+                        isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
     ): JuggDeployData {
         val startTime = System.currentTimeMillis()
 
@@ -130,7 +132,8 @@ class DeployDataGenerator(
         }
 
         val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
-            deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef, changedAbstractClasses)
+            val checkMinifiedRemoveClass = if (isNeedCheckRecompileMinifyRemovedClass) parsedDex else null
+            deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef, changedAbstractClasses, checkMinifiedRemoveClass)
         } else {
             emptyList()
         }

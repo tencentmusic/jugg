@@ -120,6 +120,12 @@ class MethodNode(
         return true
     }
 
+    fun equalsWithoutAccess(other: MethodNode): Boolean {
+        return this.owner == other.owner
+                && this.name == other.name
+                && this.desc == other.desc
+    }
+
     override fun toString(): String {
         return signature
     }
@@ -181,6 +187,12 @@ class FieldNode(owner: String, access: Int, name: String, type: String) {
             return false
         }
         return true
+    }
+
+    fun equalsWithoutAccess(other: FieldNode): Boolean {
+        return this.owner == other.owner
+                && this.name == other.name
+                && this.type == other.type
     }
 
     override fun toString(): String {

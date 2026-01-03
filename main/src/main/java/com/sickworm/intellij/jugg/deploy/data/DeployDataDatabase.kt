@@ -43,6 +43,7 @@ interface IDeployDataDatabase {
     fun getEffectedSourceAndClass(changedMethodRefs: List<MethodNode>,
                                   changedFieldRefs: List<FieldNode>,
                                   changedAbstractClasses: List<ClassNode>,
+                                  maybeMinifiedRemoveClasses: ParsedDex?,
                                   ): List<EffectedClassNode>
 
     fun getAllInterfacesWithDefaultMethod(interfaces: List<String>, staticInvocations: List<String>): List<String>
@@ -250,8 +251,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
+        maybeMinifiedRemoveClasses: ParsedDex?,
     ): List<EffectedClassNode> {
-        if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty() && changedAbstractClasses.isEmpty()) {
+        if (changedMethodRefs.isEmpty() && changedFieldRefs.isEmpty() && changedAbstractClasses.isEmpty() && maybeMinifiedRemoveClasses == null) {
             return emptyList()
         }
 
@@ -259,7 +261,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         val effectClassNodesMap: MutableMap<String, EffectedClassNode> = incrementalEffectClassNodes.associateBy { it.className }.toMutableMap()
         database.values.forEach { helper ->
             try {
-                val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs, changedAbstractClasses)
+                val apkEffectClassNodesMap = helper.getEffectedClassNodes(changedMethodRefs, changedFieldRefs, changedAbstractClasses, maybeMinifiedRemoveClasses)
                 apkEffectClassNodesMap.forEach addNode@{
                     // use incremental first
                     val oldNode = effectClassNodesMap[it.className]

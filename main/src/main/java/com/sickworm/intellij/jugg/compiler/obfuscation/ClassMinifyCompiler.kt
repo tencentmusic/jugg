@@ -44,8 +44,8 @@ class ClassMinifyCompiler(
         }
 
         // Try to find mapping file from incremental data directory
-        val mappingFile = context.applicationModule?.buildPathInfo?.mappingFile
-        if (mappingFile == null || !mappingFile.exists()) {
+        val mappingFile = context.mappingFile
+        if (!context.isMinified || mappingFile == null || !mappingFile.exists()) {
             if (context.isReleaseApk) {
                 logger.warn("This appears to be a release build, but mapping file not found, skip obfuscation.")
                 logger.warn("Compile result may not correct.")

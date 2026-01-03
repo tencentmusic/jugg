@@ -281,6 +281,10 @@ interface ICompileContext {
 
     val isReleaseApk get() = applicationModule?.buildVariant?.contains("release", ignoreCase = true) == true
 
+    val mappingFile get() = applicationModule?.buildPathInfo?.mappingFile
+
+    val isMinified get() = mappingFile?.exists() == true
+
     val tempModule: ModuleInfo
 
     val applicationModule: ModuleInfo?

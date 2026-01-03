@@ -83,7 +83,7 @@ class IncrementalCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val recompileFiles = deployFileManager.getRecompileFiles()
+            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()
@@ -138,7 +138,7 @@ class IncrementalCompilerHelper(
                 }
                 nextCompileFiles.addAll(unCompiledEffectedFiles)
             } else {
-                logger.info("Compile success, no effected source files found.")
+                logger.debug("Compile success, no effected source files found.")
             }
 
             if (nextCompileFiles.isNotEmpty()) {

@@ -320,13 +320,13 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getRecompileFiles(): RecompileFiles {
+    fun getRecompileFiles(isMinified: Boolean): RecompileFiles {
         logger.debug("getRecompileFiles")
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
         val juggDeployData = deployDataGenerator.buildDeployData(deployItems,
-            isNeedCheckRecompile = true)
+            isNeedCheckRecompile = true, isNeedCheckRecompileMinifyRemovedClass = isMinified)
 
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
