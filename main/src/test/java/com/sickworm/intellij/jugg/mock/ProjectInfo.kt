@@ -3,19 +3,17 @@ package com.sickworm.intellij.jugg.mock
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.google.gson.Gson
 import java.io.File
+import kotlin.io.normalize
 
 @Suppress("MemberVisibilityCanBePrivate")
 class ProjectInfo(
     val packageName: String,
     val projectRootDir: String,
-    val modifiedSourceDir: String,
     val apkPath: String,
-    val apkEntryInfo: ApkEntryInfo,
 ) {
 
-    val projectRoot: File get() = File(projectRootDir).absoluteFile
-    val apkFile: File get() = File(projectRoot, apkPath).absoluteFile
-    val modifiedSource: File get() = File(modifiedSourceDir).absoluteFile
+    val projectRoot: File get() = File(projectRootDir).absoluteFile.normalize()
+    val apkFile: File get() = File(projectRoot, apkPath).absoluteFile.normalize()
     val apkInfo: ApkInfo get() = ApkInfo(apkFile, packageName)
     val apkInfos: List<ApkInfo> get() = listOf(apkInfo)
 
@@ -23,15 +21,8 @@ class ProjectInfo(
         val DEMO_JSON = """
 {
     "packageName": "com.example.myapplication",
-    "projectRootDir": "src/test/assets/android/MyApplicationIntellij",
-    "modifiedSourceDir": "src/test/assets/android/modify_source",
-    "apkPath": "app/build/outputs/apk/debug/app-debug.apk",
-    "apkEntryInfo": {
-        "classCount": 2399,
-        "fieldCount": 12300,
-        "methodCount": 19370,
-        "overlayFileCount": 756
-    }
+    "projectRootDir": "../idea/src/test/assets/android/MyApplicationIntellij",
+    "apkPath": "app/build/outputs/apk/debug/app-debug.apk"
 }
 """.trimIndent()
 

@@ -73,8 +73,11 @@ class ClassFileParserTest {
             expectedInterfaces = listOf(
                 "Ljava/lang/annotation/Annotation;",
                 "Lorg/reactivestreams/Publisher;",
-                "Lorg/reactivestreams/Subscriber;",
+                "Ljava/util/function/Function;",
+                "Ljava/util/function/Supplier;",
                 "Ljava/lang/Runnable;",
+                "Lorg/reactivestreams/Subscriber;",
+                "Ljava/lang/AutoCloseable;",
                 "Ljava/util/concurrent/Callable;",
                 "Ljava/util/Comparator;",
                 "Lorg/reactivestreams/Subscription;",

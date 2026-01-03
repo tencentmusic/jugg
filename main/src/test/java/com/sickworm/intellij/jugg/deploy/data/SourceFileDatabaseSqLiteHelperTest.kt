@@ -60,14 +60,14 @@ class SourceFileDatabaseSqLiteHelperTest {
         helper.updateSourceDirs(sourceDirs)
         var originFileSize = helper.getFiles().size
 
-        val newFiles = listOf(ChangedFile(CompileFile.Type.Java, File("lib/A.java"), File("lib"), mockModule))
+        val newFiles = listOf(ChangedFile(CompileFile.Type.Java, File("lib/A.java").absoluteFile, File("lib").absoluteFile, mockModule))
         helper.updateFiles(newFiles, emptyList())
         assertEquals(++originFileSize, helper.getFiles().size)
 
         helper.updateFiles(newFiles, emptyList())
         assertEquals(originFileSize, helper.getFiles().size)
 
-        val deleteFiles = listOf(File("lib/B.java")) // not exists
+        val deleteFiles = listOf(File("lib/B.java").absoluteFile) // not exists
         helper.updateFiles(emptyList(), deleteFiles)
         assertEquals(originFileSize, helper.getFiles().size)
 

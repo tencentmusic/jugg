@@ -2,22 +2,16 @@
 
 package com.sickworm.intellij.jugg.mock
 
+import com.google.gson.JsonSyntaxException
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.sickworm.intellij.jugg.compiler.CompileError
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.CompileResult
-import com.sickworm.intellij.jugg.compiler.CompileTask
-import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.clearDir
-import com.sickworm.intellij.jugg.compiler.file
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 
 typealias OutputFileMapper = (CompileFile) -> List<CompileOutput>
@@ -68,6 +62,48 @@ object TestGlobal {
         deployedFiles = mutableListOf(),
     )
     val applicationModule get() = context.modules["app"]!!
+
+    val mockModule get() = ModuleInfo(
+        name = "mock_module",
+        moduleType = ModuleInfo.Type.Unknown,
+        moduleRootDir = appModuleDir,
+        projectRootDir = projectRootDir,
+        sourceDirs = listOf(File(appModuleDir, "src/main/java")),
+        resourceDirs = listOf(File(appModuleDir, "src/main/res")),
+        assetsDirs = listOf(File(appModuleDir, "src/main/assets")),
+        manifestFile = File(appModuleDir, "src/main/AndroidManifest.xml"),
+        manifestPlaceHolders = null,
+        buildVariant = ModuleInfo.DEFAULT_BUILD_VARIANT,
+        compileVersion = null,
+        buildToolsVersion = null,
+        buildPathInfo = ModuleBuildPathInfo(
+            projectRootDir,
+            appModuleDir,
+            ModuleInfo.DEFAULT_BUILD_VARIANT
+        ),
+        kotlinJvmTarget = "1.8",
+        kotlinFreeCompilerArgs = emptyList(),
+        javaSourceCompatibility = "1.8",
+        javaTargetCompatibility = "1.8",
+        moduleDependencies = emptyList(),
+        libraryDependencies = emptyList(),
+        minSdkVersion = "21",
+        runtimeLibraryDependencies = emptyList(),
+        annotationProcessorDependencies = emptyList(),
+        kaptDependencies = emptyList(),
+    )
+
+    val projectInfo = try {
+        val projectInfoFromEnv = System.getenv("JUGG_PROJECT_INFO_PATH")
+        val json = if (projectInfoFromEnv != null) {
+            File(projectInfoFromEnv).readText()
+        } else {
+            ProjectInfo.DEMO_JSON
+        }
+        ProjectInfo.parseJson(json)
+    } catch (e: JsonSyntaxException) {
+        throw IllegalArgumentException("parse project info failed", e)
+    }
 
     init {
         PlatformApi.impl = TestPlatformApi()

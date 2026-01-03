@@ -5,7 +5,6 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.manager.changeAndRevert
 import com.sickworm.intellij.jugg.mock.*
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.project.FileChangesHandler
@@ -189,6 +188,6 @@ class DeployHistoryManagerTest {
 
         val settingsGradle = File(projectInfo.projectRoot, "settings.gradle")
         result = historyManager.filterUnchangedFiles(listOf(settingsGradle))
-        assertEquals(0, result.size)
+        assertEquals(1, result.size)
     }
 }

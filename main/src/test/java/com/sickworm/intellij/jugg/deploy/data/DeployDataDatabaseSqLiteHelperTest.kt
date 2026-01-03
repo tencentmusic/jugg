@@ -1,7 +1,6 @@
 package com.sickworm.intellij.jugg.deploy.data
 
 import com.sickworm.intellij.jugg.apk.ApkInfo
-import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.logger
 import com.sickworm.intellij.jugg.mock.projectInfo
@@ -150,7 +149,7 @@ class DeployDataDatabaseSqLiteHelperTest {
 
         // removeDexFiles
         logger.info("removeDexFiles")
-        val firstDex = originApkEntries.dexFiles.first()
+        val firstDex = originApkEntries.dexFiles.entries.first()
         projectInfo.apkInfo.refreshApkInfoKey()
         val removedDexFiles = mapOf(
             firstDex.key to firstDex.value
@@ -199,7 +198,7 @@ class DeployDataDatabaseSqLiteHelperTest {
 
         // removeOverlayFiles
         logger.info("removeOverlayFiles")
-        val firstOverlayFile = originApkEntries.overlayFiles.first()
+        val firstOverlayFile = originApkEntries.overlayFiles.entries.first()
         projectInfo.apkInfo.refreshApkInfoKey()
         val deletedOverlayFiles = mapOf(
             firstOverlayFile.key to firstOverlayFile.value
@@ -321,7 +320,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult1), updateResult1)
 
         // Remove one dex from APK #1: expect removedDexFiles non-empty and removedClasses non-empty after save
-        val firstDex1 = originApkEntries1.dexFiles.first()
+        val firstDex1 = originApkEntries1.dexFiles.entries.first()
         projectInfo.apkInfo.refreshApkInfoKey()
         val removedDexFiles1 = mapOf(
             firstDex1.key to firstDex1.value
@@ -361,7 +360,7 @@ class DeployDataDatabaseSqLiteHelperTest {
         assertUpdateResultEquals(ParsedApkUpdateResult.success(diffResult2).copy(addedClasses = parsedApk2.classes.map { it.value.className}), updateResultBatch[1])
 
         // Remove one dex from APK #2: expect removedClasses non-empty
-        val firstDex2 = originApkEntries2.dexFiles.first()
+        val firstDex2 = originApkEntries2.dexFiles.entries.first()
         apkFile2.setLastModified(apkFile2.lastModified() + 2)
         val removedDexFiles2 = mapOf(
             firstDex2.key to firstDex2.value
