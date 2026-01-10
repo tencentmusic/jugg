@@ -67,6 +67,7 @@ class RemoteGradleCompileClient(
                 }
                 doLogin(juggGradleCompileOptions, keyList, finalPasswordOrKey)
                 logger.debug("login success with password")
+                keyPathList = mutableListOf() // won't use keyPathList in laster rsync
                 return
             } catch (e: Exception) {
                 logger.debug("login failed with password", e)
