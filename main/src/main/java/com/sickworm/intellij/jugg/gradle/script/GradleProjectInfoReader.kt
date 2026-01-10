@@ -377,7 +377,7 @@ class GradleProjectInfoReader(
         val taskNames = taskGraphGroup[project] ?: run {
             println("Jugg: ${project.standardModuleName} task graph not found, build variant may not correct. " +
                     "Most likely the module is not in compilation")
-            emptyList()
+            emptySet()
         }
         val executedVariants = variants.filter {
             val capitalizedName = it.name.capitalize() // compat kotlin 1.4, name.capitalize(Locale.ROOT)
