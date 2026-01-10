@@ -1,3 +1,9 @@
+- version: 2.6.14
+  date: 2026.01.10
+  updates:
+    - fix gradle build failed with Kotlin 1.3
+    - fix remote compilation failed with rsync if ssh key in .ssh too much
+
 - version: 2.6.13
   date: 2025.12.26
   updates:
