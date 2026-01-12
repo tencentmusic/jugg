@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.ObjectOutputStream
 import java.util.*
+import kotlin.collections.filter
 
 class KotlinCompilerInvoker {
 
@@ -36,15 +37,21 @@ class KotlinCompilerInvoker {
         val versionMap = mutableMapOf<String, String>()
         val voteMap = mutableMapOf<String, MutableSet<String>>()
         context.modules.values.forEach { module ->
-            val kotlinCompilerClasspath = mutableListOf<File>()
+            var kotlinCompilerClasspath = mutableListOf<File>()
             kotlinCompilerClasspath.addAll(module.kotlinPlugins ?: emptyList())
             kotlinCompilerClasspath.addAll(module.kotlinExtensions ?: emptyList())
             kotlinCompilerClasspath.addAll(module.kspDependencies?.map { it.file } ?: emptyList())
-            kotlinCompilerClasspath.filter {
-                val isExists = it.exists()
-                if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
-                isExists
-            }
+            kotlinCompilerClasspath = kotlinCompilerClasspath
+                .filter {
+                    val isExists = it.exists()
+                    if (!isExists) logger.debug("projectKotlinCompilerClasspath not exists: ${it.path}")
+                    isExists
+                }.filter {
+                    // exception: java.lang.ClassCastException: Cannot cast
+                    // org.jetbrains.kotlin.scripting.compiler.plugin.ScriptingCompilerConfigurationComponentRegistrar
+                    // to org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
+                    !it.path.contains("kotlin-scripting-")
+                }.toMutableList()
             val kotlinCompilerVersion = K2JVMCompilerIsolate.getKotlinCompilerVersion(kotlinCompilerClasspath) ?: "not_found"
             classpathMap.getOrPut(kotlinCompilerVersion) { mutableSetOf() }
             // collect all available kotlin compiler classpath, some plugins may not appear in all modules
@@ -114,6 +121,13 @@ class KotlinCompilerInvoker {
 
         val kotlinPlugins = options.kotlinPlugins
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
+            .filter {
+                // exception: java.lang.ClassCastException: Cannot cast
+                // org.jetbrains.kotlin.scripting.compiler.plugin.ScriptingCompilerConfigurationComponentRegistrar
+                // to org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
+                !it.path.contains("kotlin-scripting-")
+            }
+
         val kotlinExtensions = options.kotlinExtensions
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
