@@ -201,7 +201,7 @@ class JuggCompiler(
         // compile source
         val sourceCompileTask = CompileTask(
             files = dataBindingResultOutputs + compileFiles.filter {
-                it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
+                it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin || it.type == CompileFile.Type.Class
             },
             outputDir = classesOutputDir,
             parentTask = task,
@@ -238,17 +238,6 @@ class JuggCompiler(
         }
         checkQuickStop()?.let { return it }
 
-        // compile .class
-        val dexCompileTask = CompileTask(
-            files = compileFiles.filter {
-                it.type == CompileFile.Type.Class
-            },
-            outputDir = classesOutputDir,
-            parentTask = task,
-        )
-        if (dexCompileTask.isNeedCompile) {
-            compileResult += dexCompiler.compile(dexCompileTask)
-        }
         if (!compileResult.isAllSuccess) {
             return compileResult.quickFailedOthers(task)
         }

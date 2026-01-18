@@ -13,7 +13,7 @@ class SourceCompiler(
     parent: Disposable,
 ): BaseCompiler(context, parent) {
 
-    override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Java, CompileFile.Type.Kotlin)
+    override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Java, CompileFile.Type.Kotlin, CompileFile.Type.Class)
 
     private val javaCompiler = JavaCompiler(context.subContext("tmp_java"), this)
 
@@ -83,6 +83,8 @@ class SourceCompiler(
         }
         val compileClassFiles = classFiles.map {
             CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module)
+        } + task.files.filter {
+            it.type == CompileFile.Type.Class
         }
         val outputDir = File(context.tempCompileDir, "minify")
         val minifyTask = CompileTask(compileClassFiles, outputDir, task)

@@ -794,12 +794,10 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
         changedMethodRefs: List<MethodNode>,
         changedFieldRefs: List<FieldNode>,
         changedAbstractClasses: List<ClassNode>,
-        maybeMinifiedRemoveClasses: ParsedDex?,
     ): List<EffectedClassNode> {
         logger.debug("getEffectedClassNodes changedMethodRefs $changedMethodRefs")
         logger.debug("getEffectedClassNodes changedFieldRefs $changedFieldRefs $changedAbstractClasses")
         logger.debug("getEffectedClassNodes changedAbstractClasses $changedAbstractClasses")
-        logger.debug("getEffectedClassNodes maybeMinifiedRemoveClasses ${maybeMinifiedRemoveClasses?.classDeployItems?.size}}")
 
         DriverManager.getConnection(url).use { connection ->
             // step 1. build dbClassNodeMap to get classId
@@ -1002,20 +1000,39 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         val effectedByClasses = effectByClassIds.map {
                             idNameMap[it]!!
                         }
-                        effectedClassNodes.add(EffectedClassNode(className, classSource, effectedByClasses))
+                        effectedClassNodes.add(
+                            EffectedClassNode(
+                                className,
+                                classSource,
+                                effectedByClasses,
+                                EffectedClassNode.EffectedType.SOURCE,
+                            )
+                        )
                     }
                 }
             }
-
-            // step 6. check if any class is minified and removed
-            effectedClassNodes.addAll(checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses))
 
             logger.debug("getEffectedClassNodes result $effectedClassNodes")
             return effectedClassNodes
         }
     }
 
-    private fun checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses: ParsedDex?): List<EffectedClassNode> {
+    @Synchronized
+    fun getEffectedClassNodesForMinify(
+        maybeMinifiedRemoveClasses: ParsedDex?,
+        deployedClasses: List<String>,
+    ): List<EffectedClassNode> {
+        logger.debug("getEffectedClassNodesForMinify maybeMinifiedRemoveClasses ${maybeMinifiedRemoveClasses?.classDeployItems?.size}, deployedClasses ${deployedClasses.size}")
+        val effectedClassNodes = mutableListOf<EffectedClassNode>()
+
+        // check if any class is minified and removed
+        effectedClassNodes.addAll(checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses, deployedClasses))
+
+        logger.debug("getEffectedClassNodesForMinify result $effectedClassNodes")
+        return effectedClassNodes
+    }
+
+    private fun checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses: ParsedDex?, deployedClasses: List<String>): List<EffectedClassNode> {
         if (maybeMinifiedRemoveClasses == null) {
             return emptyList()
         }
@@ -1039,6 +1056,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 }
                 // 3. Collect from subclassRefs.key
                 suspectClassNames.addAll(maybeMinifiedRemoveClasses.subclassRefs.keys)
+                // 4. filter out classes in deployedClasses (no need check again)
+                suspectClassNames.removeAll(deployedClasses.toSet())
                 if (suspectClassNames.isEmpty()) {
                     logger.debug("checkMaybeMinifiedRemoveClass: no suspect classes found")
                     return@runWithTimeCost
@@ -1102,7 +1121,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                     result.add(EffectedClassNode(
                         className = className,
                         sourceFileName = EffectedClassNode.SOURCE_NOT_FOUND, // source file not found, need to found in .class classpath
-                        effectedByClasses = referencedBy.toList()
+                        effectedByClasses = referencedBy.toList(),
+                        effectedType = EffectedClassNode.EffectedType.CLASS
                     ))
                 }
 
@@ -1150,7 +1170,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         result.add(EffectedClassNode(
                             className = className,
                             sourceFileName = classNode.source,
-                            effectedByClasses = referencedBy.toList()
+                            effectedByClasses = referencedBy.toList(),
+                            effectedType = EffectedClassNode.EffectedType.CLASS,
                         ))
 
                         logger.debug("checkMaybeMinifiedRemoveClass: class $className has removed members - methods: $removedMethods, fields: $removedFields, referenced by: $referencedBy")

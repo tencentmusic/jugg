@@ -91,7 +91,7 @@ class DeployDataGeneratorReleaseTest {
             "Lcom/sickworm/jugg/demo/testcase/minify/NativeMethodClass;",
         )
         removedOrPartiallyRemovedClasses.forEach { className ->
-            val result = deployData.effectedClassNodes.find {
+            val result = deployData.effectedClassNodes.classes.find {
                 it.className == className
             }
             assertTrue(result != null, "$className should also be detected as removed")
