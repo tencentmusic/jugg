@@ -38,43 +38,7 @@ class DeployDataGeneratorReleaseTest {
     }
 
     @Test
-    fun testMinifyRemove() {
-        val sourceCompiler = SourceCompiler(releaseContext, mockParentDisposable)
-
-        // Compile MinifyTestActivity which references MinifyTestEnum and other potentially removed classes
-        val compileTask = CompileTask(
-            files = listOf(
-                CompileFile(
-                    type = CompileFile.Type.Kotlin,
-                    file = File(TestGlobal.assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/minify/MinifyTestActivity.kt"),
-                    baseDir = File(TestGlobal.assetsAndroidDir, "app/src/main/java/"),
-                    module = releaseContext.applicationModule,
-                )
-            ),
-            outputDir = stagingDir,
-        )
-
-        val compileResult = sourceCompiler.compile(compileTask)
-        compileResult.printCompileErrors()
-        assertTrue(compileResult.isAllSuccess, "Compilation should succeed for MinifyTestActivity")
-
-        // Parse the compiled dex to get class information
-        val deployItems = compileResult.outputs.map { it.toDeployItem() }
-        val changedDex = deployItems.filter { it.type == com.sickworm.intellij.jugg.compiler.CompileOutput.Type.Dex }
-        val parsedDex = ApkParser().parseDex(changedDex)
-
-        // Build deploy data with minify removed class check enabled
-        val deployData = generator.buildDeployData(
-            parsedDex = parsedDex,
-            changedOverlays = emptyList(),
-            changedLibs = emptyList(),
-            isWarmUp = false,
-            isNeedCheckRecompile = true,
-            isNeedCheckRecompileMinifyRemovedClass = true,
-        )
-
-        logger.debug("effectedClassNodes: ${deployData.effectedClassNodes}")
-
+    fun testMinifyRemoveMinifyTestActivity() {
         val removedOrPartiallyRemovedClasses = listOf(
             "Lcom/sickworm/jugg/demo/testcase/minify/FullyObfuscated;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$InnerClass;",
@@ -90,6 +54,49 @@ class DeployDataGeneratorReleaseTest {
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepClassName;",
             "Lcom/sickworm/jugg/demo/testcase/minify/NativeMethodClass;",
         )
+        testMinifyRemove("MinifyTestActivity", removedOrPartiallyRemovedClasses)
+    }
+
+    @Test
+    fun testMinifyRemoveKeepClassName() {
+        val removedOrPartiallyRemovedClasses = listOf(
+            "Ljava/lang/Object;",
+            "Ljava/lang/StringBuilder;",
+            "Lkotlin/jvm/internal/Intrinsics;",
+        )
+        testMinifyRemove("KeepClassName", removedOrPartiallyRemovedClasses)
+    }
+
+    private fun testMinifyRemove(testClassName: String, removedOrPartiallyRemovedClasses: List<String>) {
+        val sourceCompiler = SourceCompiler(releaseContext, mockParentDisposable)
+
+        // Compile MinifyTestActivity which references MinifyTestEnum and other potentially removed classes
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(
+                    type = CompileFile.Type.Kotlin,
+                    file = File(TestGlobal.assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/minify/$testClassName.kt"),
+                    baseDir = File(TestGlobal.assetsAndroidDir, "app/src/main/java/"),
+                    module = releaseContext.applicationModule,
+                )
+            ),
+            outputDir = stagingDir,
+        )
+
+        val compileResult = sourceCompiler.compile(compileTask)
+        compileResult.printCompileErrors()
+        assertTrue(compileResult.isAllSuccess, "Compilation should succeed for $testClassName")
+
+        // Parse the compiled dex to get class information
+        val deployItems = compileResult.outputs.map { it.toDeployItem() }
+        val changedDex = deployItems.filter { it.type == com.sickworm.intellij.jugg.compiler.CompileOutput.Type.Dex }
+        val parsedDex = ApkParser().parseDex(changedDex, isSkipOfficialClass = false)
+
+        // Build deploy data with minify removed class check enabled
+        val deployData = generator.buildDeployData(changedDex, isNeedCheckRecompileMinifyRemovedClass = true)
+
+        logger.debug("effectedClassNodes: ${deployData.effectedClassNodes}")
+
         removedOrPartiallyRemovedClasses.forEach { className ->
             val result = deployData.effectedClassNodes.classes.find {
                 it.className == className
@@ -97,7 +104,7 @@ class DeployDataGeneratorReleaseTest {
             assertTrue(result != null, "$className should also be detected as removed")
 
             val isEffectedByMinifyTestActivity = result.effectedByClasses.any { className ->
-                className.contains("MinifyTestActivity")
+                className.contains(testClassName)
             }
             assertTrue(isEffectedByMinifyTestActivity, "$className should be effected by MinifyTestActivity (which references it). ")
         }

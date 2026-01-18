@@ -20,6 +20,7 @@ class DexFileNodeCollector(
     private val fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
     private val subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
     private val defaultMethodInvokeRefs: ConcurrentHashMap<String, MutableList<String>>,
+    private val isSkipOfficialClass: Boolean,
 ) : DexFileVisitor() {
 
 
@@ -92,7 +93,7 @@ class DexFileNodeCollector(
                                     classDefaultMethodInvokeRefs.add(realOwner)
                                 }
 
-                                if (owner.isOfficialClass) {
+                                if (isSkipOfficialClass && owner.isOfficialClass) {
                                     return
                                 }
 

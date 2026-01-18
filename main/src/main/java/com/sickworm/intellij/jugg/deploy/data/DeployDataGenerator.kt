@@ -33,7 +33,7 @@ class DeployDataGenerator(
         isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
     ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
-        val parsedDex = ApkParser().parseDex(changedDex)
+        val parsedDex = ApkParser().parseDex(changedDex, isSkipOfficialClass = !isNeedCheckRecompileMinifyRemovedClass) // check official class minify
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
         return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isNeedCheckRecompileMinifyRemovedClass)

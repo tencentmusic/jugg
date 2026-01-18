@@ -42,7 +42,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
         return ParsedApk(apkFile, classes, apkOverlays.dexFiles, apkOverlays.overlayFiles, methodRefs, fieldRefs, subclassRefs)
     }
 
-    fun parseDex(deployItems: List<DeployItem>): ParsedDex {
+    fun parseDex(deployItems: List<DeployItem>, isSkipOfficialClass: Boolean = true): ParsedDex {
         val methodRefs = ConcurrentHashMap<MethodNode, MutableList<String>>()
         val fieldRefs = ConcurrentHashMap<FieldNode, MutableList<String>>()
         val subclassRefs = ConcurrentHashMap<String, MutableList<String>>()
@@ -58,6 +58,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 subclassRefs,
                 defaultMethodInvokeRefs,
                 false,
+                isSkipOfficialClass,
             )
             ClassDeployItem(it, classes.values.toList())
         }
@@ -114,7 +115,7 @@ class ApkParser: CoroutineScope by CoroutineScope(
                 if (entryName.startsWith("classes") && entryName.endsWith(".dex")) {
                     val job = launch {
                         val dexBytes = zipFile.getInputStream(it).readBytes()
-                        parseDex(entryName, dexBytes, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs, false)
+                        parseDex(entryName, dexBytes, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
                     }
                     jobs.add(job)
                 }
@@ -131,9 +132,11 @@ class ApkParser: CoroutineScope by CoroutineScope(
                          fieldRefs: ConcurrentHashMap<FieldNode, MutableList<String>>,
                          subclassRefs: ConcurrentHashMap<String, MutableList<String>>,
                          defaultMethodInvokeRefs: ConcurrentHashMap<String, MutableList<String>>,
-                         @Suppress("SameParameterValue") isSkipCode: Boolean) {
+                         isSkipCode: Boolean = false,
+                         isSkipOfficialClass: Boolean = true,
+    ) {
         val reader: BaseDexFileReader = DexFileReader(bytes)
-        val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs)
+        val visitor = DexFileNodeCollector(dexFileName, classes, methodRefs, fieldRefs, subclassRefs, defaultMethodInvokeRefs, isSkipOfficialClass)
         val flag = if (isSkipCode) DexFileReader.SKIP_CODE else 0
         reader.accept(visitor, flag)
     }
