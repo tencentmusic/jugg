@@ -286,6 +286,142 @@ class ClassObfuscatorTest {
         assertNotNull("Field should be renamed to 'x'", field)
     }
 
+    // ==================== Superclass and interface tests ====================
+
+    @Test
+    fun testObfuscateSuperclass() {
+        val mappingContent = """
+            com.example.BaseClass -> x.y.z:
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = ClassObfuscator.fromMappingString(mappingContent)
+
+        // Create a class that extends BaseClass
+        val classNode = ClassNode()
+        classNode.version = Opcodes.V11
+        classNode.access = Opcodes.ACC_PUBLIC
+        classNode.name = "com/example/TestClass"
+        classNode.superName = "com/example/BaseClass"
+
+        val classWriter = ClassWriter(0)
+        classNode.accept(classWriter)
+        val originalBytes = classWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the class", obfuscatedBytes)
+
+        val obfuscatedClass = readClass(obfuscatedBytes!!)
+
+        // Class should be renamed
+        assertEquals("a/b", obfuscatedClass.name)
+
+        // Superclass should also be remapped
+        assertEquals("x/y/z", obfuscatedClass.superName)
+    }
+
+    @Test
+    fun testObfuscateInterfaces() {
+        val mappingContent = """
+            com.example.InterfaceA -> i.a:
+            com.example.InterfaceB -> i.b:
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = ClassObfuscator.fromMappingString(mappingContent)
+
+        // Create a class that implements multiple interfaces
+        val classNode = ClassNode()
+        classNode.version = Opcodes.V11
+        classNode.access = Opcodes.ACC_PUBLIC
+        classNode.name = "com/example/TestClass"
+        classNode.superName = "java/lang/Object"
+        classNode.interfaces = mutableListOf("com/example/InterfaceA", "com/example/InterfaceB")
+
+        val classWriter = ClassWriter(0)
+        classNode.accept(classWriter)
+        val originalBytes = classWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the class", obfuscatedBytes)
+
+        val obfuscatedClass = readClass(obfuscatedBytes!!)
+
+        // Class should be renamed
+        assertEquals("a/b", obfuscatedClass.name)
+
+        // Both interfaces should be remapped
+        assertEquals(2, obfuscatedClass.interfaces.size)
+        assertTrue("InterfaceA should be remapped", obfuscatedClass.interfaces.contains("i/a"))
+        assertTrue("InterfaceB should be remapped", obfuscatedClass.interfaces.contains("i/b"))
+    }
+
+    @Test
+    fun testObfuscateSuperclassNotInMapping() {
+        val mappingContent = """
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = ClassObfuscator.fromMappingString(mappingContent)
+
+        // Create a class that extends a class not in the mapping
+        val classNode = ClassNode()
+        classNode.version = Opcodes.V11
+        classNode.access = Opcodes.ACC_PUBLIC
+        classNode.name = "com/example/TestClass"
+        classNode.superName = "com/example/NotInMapping"
+
+        val classWriter = ClassWriter(0)
+        classNode.accept(classWriter)
+        val originalBytes = classWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the class", obfuscatedBytes)
+
+        val obfuscatedClass = readClass(obfuscatedBytes!!)
+
+        // Class should be renamed
+        assertEquals("a/b", obfuscatedClass.name)
+
+        // Superclass should NOT be remapped (not in mapping)
+        assertEquals("com/example/NotInMapping", obfuscatedClass.superName)
+    }
+
+    @Test
+    fun testObfuscateMixedInterfaces() {
+        val mappingContent = """
+            com.example.InterfaceA -> i.a:
+            com.example.TestClass -> a.b:
+        """.trimIndent()
+
+        val obfuscator = ClassObfuscator.fromMappingString(mappingContent)
+
+        // Create a class with one interface in mapping and one not
+        val classNode = ClassNode()
+        classNode.version = Opcodes.V11
+        classNode.access = Opcodes.ACC_PUBLIC
+        classNode.name = "com/example/TestClass"
+        classNode.superName = "java/lang/Object"
+        classNode.interfaces = mutableListOf("com/example/InterfaceA", "com/example/NotInMapping")
+
+        val classWriter = ClassWriter(0)
+        classNode.accept(classWriter)
+        val originalBytes = classWriter.toByteArray()
+
+        val obfuscatedBytes = obfuscator.obfuscate(originalBytes)
+        assertNotNull("Should obfuscate the class", obfuscatedBytes)
+
+        val obfuscatedClass = readClass(obfuscatedBytes!!)
+
+        // Class should be renamed
+        assertEquals("a/b", obfuscatedClass.name)
+
+        // InterfaceA should be remapped, NotInMapping should stay the same
+        assertEquals(2, obfuscatedClass.interfaces.size)
+        assertTrue("InterfaceA should be remapped", obfuscatedClass.interfaces.contains("i/a"))
+        assertTrue("NotInMapping should stay the same", obfuscatedClass.interfaces.contains("com/example/NotInMapping"))
+    }
+
     // ==================== Special methods tests ====================
 
     @Test

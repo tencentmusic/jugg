@@ -176,6 +176,36 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
             return internalName
         }
 
+        override fun mapType(internalName: String?): String? {
+            if (internalName == null) return null
+            val mapped = classNameMap[internalName]
+            if (mapped != null) {
+                hasRemapped = true
+                return mapped
+            }
+            return internalName
+        }
+
+        override fun mapTypes(internalNames: Array<out String>?): Array<String>? {
+            if (internalNames == null) return null
+            var hasChanges = false
+            val result = internalNames.map { original ->
+                val mapped = classNameMap[original]
+                if (mapped != null) {
+                    hasRemapped = true
+                    hasChanges = true
+                    mapped
+                } else {
+                    original
+                }
+            }.toTypedArray()
+            return if (hasChanges) result else null
+        }
+
+        override fun mapSignature(signature: String?, typeSignature: Boolean): String? {
+            return super.mapSignature(signature, typeSignature)
+        }
+
         override fun mapFieldName(owner: String, name: String, descriptor: String): String {
             // Convert owner to dot notation for lookup
             val ownerDot = owner.replace('/', '.')
