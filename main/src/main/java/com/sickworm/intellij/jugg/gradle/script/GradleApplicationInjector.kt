@@ -32,6 +32,7 @@ class GradleApplicationInjector(
             return
         }
 
+        injectProguardKeepRulesForVariant(project)
         addRuntimeDependency(project)
         rootProject.gradle.projectsEvaluated {
             injectManifestTask(project)
@@ -188,6 +189,52 @@ class GradleApplicationInjector(
         return listFiles()?.flatMap {
             it.listFilesRecursively()
         }?: emptyList()
+    }
+
+    @Suppress("DefaultLocale")
+    private fun injectProguardKeepRulesForVariant(project: Project) {
+        val androidExt = Reflector(project.extensions.getByName("android"))
+        val buildTypes = androidExt["buildTypes"]
+        val buildTypesValue = buildTypes?.value as? Collection<Any?>
+        if (buildTypesValue.isNullOrEmpty()) {
+            return
+        }
+        val dynamicRulesFile = File(project.buildDir, "jugg/proguard-rules.pro")
+        generateDynamicKeepRules(dynamicRulesFile)
+
+        buildTypesValue.forEach { buildType ->
+            val buildTypeReflector = Reflector(buildType)
+            // Check if minification is enabled
+            val isMinifyEnabledValue = buildTypeReflector["isMinifyEnabled"]?.value as? Boolean
+            val name = buildTypeReflector["name"]?.valueString ?: return@forEach
+            var isMinifyEnabled = isMinifyEnabledValue ?: false
+            if (isMinifyEnabledValue == null && name.endsWith("release", ignoreCase = true)) {
+                isMinifyEnabled = true // null if not specific, and AGP regard as true
+            }
+            if (!isMinifyEnabled) {
+                return@forEach
+            }
+            println("Jugg: inject proguard keep rules for buildType: $name")
+            buildTypeReflector.invoke("proguardFile",
+                Reflector.Value(Any::class.java, dynamicRulesFile))
+        }
+
+    }
+
+    private fun generateDynamicKeepRules(outputFile: File) {
+        outputFile.parentFile.mkdirs()
+
+        val rules = mutableListOf<String>()
+
+        rules.add("# ============================================================================")
+        rules.add("# Jugg Dynamic Keep Rules - Auto-generated")
+        rules.add("# Generated at build time to keep all Application and AppComponentFactory subclasses")
+        rules.add("# ============================================================================")
+        rules.add("# Keep all Application subclasses (generic rule as fallback)")
+        rules.add("-keep class * extends android.app.Application { *; }")
+        rules.add("-keep class * extends android.app.AppComponentFactory { *; }")
+
+        outputFile.writeText(rules.joinToString("\n"))
     }
 
 }
