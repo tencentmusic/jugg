@@ -33,6 +33,7 @@ class ApkInfoReader(
             val apkFileUnit = ApkFileUnit(
                 applicationId = manifestInfo.packageName(),
                 moduleName = manifestInfo.featureSplit() ?: "",
+                debuggable = manifestInfo.debuggable() == "true",
                 apkFile,
             )
             apkFileUnits.add(apkFileUnit)

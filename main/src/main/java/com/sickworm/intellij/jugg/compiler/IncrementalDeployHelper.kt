@@ -85,7 +85,7 @@ class IncrementalDeployHelper(private val context: ICompileContext, private val 
         fun mapApkInfos(apkInfos: List<ApkInfo>, apkFileMapper: (File) -> File): List<ApkInfo> {
             return apkInfos.map { apkInfo ->
                 ApkInfo(apkInfo.files.map {
-                    ApkFileUnit(it.applicationId, it.moduleName, apkFileMapper(it.apkFile))
+                    ApkFileUnit(it.applicationId, it.moduleName, it.debuggable, apkFileMapper(it.apkFile))
                 }, apkInfo.applicationId)
             }
         }

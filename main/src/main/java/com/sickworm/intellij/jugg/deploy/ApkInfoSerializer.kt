@@ -34,7 +34,7 @@ class ApkInfoSerializer {
                 } else {
                     File(juggRootDir, it.apkFilePath)
                 }
-                ApkFileUnit(applicationId, it.moduleName, absoluteFile)
+                ApkFileUnit(applicationId, it.moduleName, it.debuggable ?: true,absoluteFile)
             }
             return ApkInfo(files, applicationId)
         }
@@ -48,7 +48,7 @@ class ApkInfoSerializer {
                         } else {
                             it.apkFile.path
                         }
-                        ApkFileUnitJsonData(it.moduleName, relativePathIfInRoot)
+                        ApkFileUnitJsonData(it.moduleName, it.debuggable, relativePathIfInRoot)
                     },
                     apkInfo.applicationId,
                 )
@@ -58,6 +58,7 @@ class ApkInfoSerializer {
 
     private class ApkFileUnitJsonData(
         val moduleName: String,
+        val debuggable: Boolean?,
         val apkFilePath: String,
     )
 }

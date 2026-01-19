@@ -281,6 +281,8 @@ interface ICompileContext {
 
     val isReleaseApk get() = applicationModule?.buildVariant?.contains("release", ignoreCase = true) == true
 
+    val isDebuggable get() = apkInfos.flatMap { it.files }.all { it.debuggable }
+
     val mappingFile get() = applicationModule?.buildPathInfo?.mappingFile
 
     val isMinified get() = mappingFile?.exists() == true

@@ -254,6 +254,9 @@ class JuggDeployerHelper(
                 DeployTaskResult(isSuccess = true, costTime = costTime(), deployType = deployData.deployType)
             } else if (JuggSettings.isEmbeddedToApk) {
                 embeddedToApk(deployOptions)
+            } else if (!compileContextManager.compileContext.isDebuggable) {
+                logger.warn("APK is not debuggable, will auto switch to embedded to apk mode.")
+                embeddedToApk(deployOptions)
             } else {
                 if (!deployTargetManager.hasDevice) {
                     logger.warn("\nNo device connected, please check device is connected.")

@@ -28,6 +28,7 @@ public class ManifestActivityInfo {
   private List<NodeActivity> myActivities;
   private String myPackageName;
   private String myFeatureSplit;
+  private String myDebuggable;
 
   public ManifestActivityInfo() {
     myActivities = new ArrayList<>();
@@ -47,6 +48,11 @@ public class ManifestActivityInfo {
   @Nullable
   public String featureSplit() {
     return myFeatureSplit;
+  }
+
+  @Nullable
+  public String debuggable() {
+    return myDebuggable;
   }
 
   public void parseNode(@NotNull XmlNode node) {
@@ -72,6 +78,13 @@ public class ManifestActivityInfo {
       if ("activity".equals(child.name()) || "activity-alias".equals(child.name())) {
         NodeActivity activity = new NodeActivity(child, myPackageName);
         myActivities.add(activity);
+      }
+    }
+
+    for (String attribute : node.attributes().keySet()) {
+      String value = node.attributes().get(attribute);
+      if ("debuggable".equals(attribute)) {
+          myDebuggable = value;
       }
     }
   }

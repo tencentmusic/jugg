@@ -13,10 +13,10 @@ data class ApkInfo(
     constructor(
         file: File,
         applicationId: String,
-    ) : this(listOf(ApkFileUnit(applicationId, "", file)), applicationId)
+    ) : this(listOf(ApkFileUnit(applicationId, "", true, file)), applicationId)
 }
 
-data class ApkFileUnit(val applicationId: String, val moduleName: String, val apkFile: File) {
+data class ApkFileUnit(val applicationId: String, val moduleName: String, val debuggable: Boolean, val apkFile: File) {
 
     val isBaseApk get() = moduleName.isEmpty()
     val isFeatureApk get() = moduleName.isNotEmpty()
