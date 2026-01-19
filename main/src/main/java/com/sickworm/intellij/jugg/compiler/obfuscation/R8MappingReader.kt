@@ -179,7 +179,7 @@ class R8MappingReader private constructor(
          * Load mapping from path.
          */
         fun fromPath(path: Path): R8MappingReader {
-            val mapper = ClassNameMapper.mapperFromFile(path)
+            val mapper = ClassNameMapper.mapperFromFile(path, ClassNameMapper.MissingFileAction.MISSING_FILE_IS_EMPTY_MAP)
             return R8MappingReader(mapper)
         }
 

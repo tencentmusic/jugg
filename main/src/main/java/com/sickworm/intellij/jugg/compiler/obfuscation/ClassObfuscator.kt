@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.obfuscation
 
+import com.sickworm.intellij.jugg.deploy.asmSigFormat
+import com.sickworm.intellij.jugg.deploy.classSigName
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassReader
 import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
 import com.sickworm.intellij.jugg.org.objectweb.asm.commons.ClassRemapper
@@ -18,6 +20,7 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
     // Build lookup maps for efficient remapping
     // originalName (internal format) -> obfuscatedName (internal format)
     private val classNameMap: Map<String, String>
+    private val antiClassNameMap: Map<String, String>
     // originalClassName + "." + originalFieldName -> obfuscatedFieldName
     private val fieldNameMap: Map<String, String>
     // originalClassName + "." + originalMethodName + methodDescriptor -> obfuscatedMethodName
@@ -25,6 +28,7 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
 
     init {
         val classMap = mutableMapOf<String, String>()
+        val antiClassMap = mutableMapOf<String, String>()
         val fieldMap = mutableMapOf<String, String>()
         val methodMap = mutableMapOf<String, String>()
 
@@ -32,6 +36,7 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
             val originalInternal = classMapping.originalName.replace('.', '/')
             val obfuscatedInternal = classMapping.obfuscatedName.replace('.', '/')
             classMap[originalInternal] = obfuscatedInternal
+            antiClassMap[obfuscatedInternal] = originalInternal
 
             // Build field mapping
             classMapping.fields.forEach { field ->
@@ -47,6 +52,7 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
         }
 
         classNameMap = classMap
+        antiClassNameMap = antiClassMap
         fieldNameMap = fieldMap
         methodNameMap = methodMap
     }
@@ -110,6 +116,11 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
     fun getObfuscatedClassName(originalName: String): String? {
         val internal = originalName.replace('.', '/')
         return classNameMap[internal]?.replace('/', '.')
+    }
+
+    fun getOriginClassSigName(obfuscateClassDexName: String): String? {
+        val internal = obfuscateClassDexName.asmSigFormat
+        return antiClassNameMap[internal]?.classSigName
     }
 
     /**
@@ -295,12 +306,22 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
     }
 
     companion object {
+
+        private var classObfuscatorCache: ClassObfuscator? = null
+        private var classObfuscatorCacheKey: String? = null
+
         /**
          * Create an obfuscator from a mapping file.
          */
         fun fromMappingFile(mappingFile: File): ClassObfuscator {
+            val newKey = mappingFile.absolutePath + "_" + mappingFile.lastModified()
+            classObfuscatorCache
+                ?.takeIf { classObfuscatorCacheKey == newKey }
+                ?.let { return it }
+            classObfuscatorCacheKey = newKey
             val reader = R8MappingReader.fromFile(mappingFile)
-            return ClassObfuscator(reader)
+            val result = ClassObfuscator(reader)
+            return result
         }
 
         /**

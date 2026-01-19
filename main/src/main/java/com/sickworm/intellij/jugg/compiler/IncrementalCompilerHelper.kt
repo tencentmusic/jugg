@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.source.DexFileMerger
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KmModuleMergerForCompilation
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
@@ -83,7 +84,10 @@ class IncrementalCompilerHelper(
 
         val isSuccess = failedStates.isEmpty()
         if (isSuccess) {
-            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified)
+            val classObfuscator = compiler.context.mappingFile
+                ?.takeIf { it.exists() }
+                ?.let { ClassObfuscator.fromMappingFile(it) }
+            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified, classObfuscator)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()

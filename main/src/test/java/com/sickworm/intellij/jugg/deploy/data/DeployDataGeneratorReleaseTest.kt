@@ -95,7 +95,7 @@ class DeployDataGeneratorReleaseTest {
         // Build deploy data with minify removed class check enabled
         val deployData = generator.buildDeployData(changedDex, isNeedCheckRecompileMinifyRemovedClass = true)
 
-        logger.debug("effectedClassNodes: ${deployData.effectedClassNodes}")
+        logger.debug("effected classes: ${deployData.effectedClassNodes.map { it.className }}")
 
         removedOrPartiallyRemovedClasses.forEach { className ->
             val result = deployData.effectedClassNodes.classes.find {

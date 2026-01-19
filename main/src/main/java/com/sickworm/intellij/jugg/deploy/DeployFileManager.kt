@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
+import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
@@ -322,7 +323,7 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getRecompileFiles(isMinified: Boolean): RecompileFiles {
+    fun getRecompileFiles(isMinified: Boolean, classObfuscator: ClassObfuscator?): RecompileFiles {
         logger.debug("getRecompileFiles")
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
@@ -330,10 +331,19 @@ class DeployFileManager(
         val juggDeployData = deployDataGenerator.buildDeployData(deployItems,
             isNeedCheckRecompile = true, isNeedCheckRecompileMinifyRemovedClass = isMinified)
 
+        val obfuscatedClasses = juggDeployData.effectedClassNodes.map {
+            val originClassName = classObfuscator?.getOriginClassSigName(it.className) ?: it.className
+            it.copy(className = originClassName)
+        }
+        if (obfuscatedClasses.isNotEmpty()) {
+            logger.debug("getRecompileFiles: effectedClassesNodeForClass: ${obfuscatedClasses.map { it.className }}, " +
+                    "obfuscatedClasses: ${obfuscatedClasses.map { it.className }}")
+        }
+
         val startTime = System.currentTimeMillis()
         val recompileFiles = RecompileFiles(
-            getEffectedSourceFiles(juggDeployData.effectedClassNodes.sources),
-            getMissingMinifiedClassFiles(juggDeployData.effectedClassNodes.classes, ),
+            getEffectedSourceFiles(obfuscatedClasses.sources),
+            getMissingMinifiedClassFiles(obfuscatedClasses.classes),
             juggDeployData,
         )
         val costTime = System.currentTimeMillis() - startTime
