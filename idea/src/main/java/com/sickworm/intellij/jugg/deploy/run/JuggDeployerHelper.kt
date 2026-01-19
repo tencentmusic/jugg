@@ -412,6 +412,7 @@ class JuggDeployerHelper(
         if (deployOptions.isLastDevice) {
             logger.debug("Installing finished, update info after install.")
             deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
+            updateInfoAfterIncDeploy(launchResult, incDeployData)
         }
         return DeployTaskResult(isSuccess = true, costTime = deployOptions.costTime(), deployType = deployData.deployType)
     }
