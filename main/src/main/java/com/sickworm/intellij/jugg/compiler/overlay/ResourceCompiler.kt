@@ -30,6 +30,7 @@ class ResourceCompiler(
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
+    private val aabResGuardHandler = AabResGuardHandler(logger)
 
     private val dataBindingGenBaseClassesCompiler = DataBindingGenBaseClassesCompiler(context.subContext("databinding"), this)
     private val dataBindingGenMapperCompiler = DataBindingGenMapperCompiler(context.subContext("databinding"), this)
@@ -156,9 +157,15 @@ class ResourceCompiler(
         return processedResCompileSet
     }
 
-    private fun aapt2Compile(resCompileSet: ResCompileSet): CompileResult {
-        if (resCompileSet.compileFiles.isEmpty()) {
-            return CompileResult(resCompileSet.originTask, resCompileSet.taskFiles.map { Result.success(it) }, emptyList())
+    private fun aapt2Compile(originResCompileSet: ResCompileSet): CompileResult {
+        if (originResCompileSet.compileFiles.isEmpty()) {
+            return CompileResult(originResCompileSet.originTask, originResCompileSet.taskFiles.map { Result.success(it) }, emptyList())
+        }
+
+        // Process AabResGuard obfuscation if mapping file exists
+        val resCompileSet = aabResGuardHandler.process(originResCompileSet) ?: run {
+            // Processing failed, return error
+            return originResCompileSet.originTask.allFailed("AabResGuard processing failed")
         }
 
         val filesString = resCompileSet.compileFiles.joinToString(" ") {
@@ -234,7 +241,7 @@ class ResourceCompiler(
         aapt2Invoker.release()
     }
 
-    private data class ResCompileSet(
+    data class ResCompileSet(
         val originTask: CompileTask,
         val compileFileMap: Map<CompileFile, List<File>>,
         val outputDir: File,

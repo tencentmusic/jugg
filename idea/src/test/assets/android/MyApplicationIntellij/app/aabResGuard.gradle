@@ -1,0 +1,109 @@
+
+def isRelease = gradle.startParameter.taskNames[0] != null && gradle.startParameter.taskNames[0].contains("Release")
+println("isRelease: ${isRelease}")
+if (isRelease) {
+    new File("$rootDir/app/build/outputs/bundle/release").deleteDir()
+
+    apply plugin: "com.bytedance.android.aabResGuard"
+    aabResGuard {
+        enableObfuscate = true // Whether to enable obfuscation
+//    mappingFile = file("mapping.txt").toPath() // Mapping file used for incremental obfuscation
+        whiteList = [ // White list rules
+//                  "*.R.raw.*",
+//                  "*.R.drawable.icon"
+        ]
+        obfuscatedBundleFileName = "duplicated-app.aab" // Obfuscated file name, must end with '.aab'
+        mergeDuplicatedRes = true // Whether to allow the merge of duplicate resources
+        enableFilterFiles = true // Whether to allow filter files
+        filterList = [ // file filter rules
+//                   "*/arm64-v8a/*",
+//                   "META-INF/*"
+        ]
+
+        enableFilterStrings = true // switch of filter strings
+        unusedStringPath = file("unused.txt").toPath() // strings will be filtered in this file
+        languageWhiteList = ["en", "zh"] // keep en,en-xx,zh,zh-xx etc. remove others.
+    }
+
+}
+
+/**
+ * Task to convert AAB to APK using bundletool
+ * This task runs after bundleRelease and converts the obfuscated AAB to APK
+ */
+tasks.register('bundleReleaseToApk') {
+    group = 'build'
+    description = 'Convert the obfuscated AAB to APK using bundletool'
+
+    // Depend on bundleRelease task
+    dependsOn 'bundleRelease'
+
+    doLast {
+        // Define paths relative to project root
+        def bundletoolJar = file("${rootDir}/bundletool-all-1.18.3.jar")
+        def aabFile = file("${project.buildDir}/outputs/bundle/release/duplicated-app.aab")
+        def outputDir = file("${project.buildDir}/outputs/bundle/release")
+        def apkFile = new File(outputDir, "duplicated-app.apks")
+
+        // Check if bundletool exists
+        if (!bundletoolJar.exists()) {
+            throw new GradleException("bundletool not found at: ${bundletoolJar.absolutePath}")
+        }
+
+        // Check if AAB file exists
+        if (!aabFile.exists()) {
+            throw new GradleException("AAB file not found at: ${aabFile.absolutePath}")
+        }
+
+        println "Converting AAB to APK..."
+        println "  Bundletool: ${bundletoolJar.absolutePath}"
+        println "  AAB file: ${aabFile.absolutePath}"
+        println "  Output: ${apkFile.absolutePath}"
+
+        // Execute bundletool command to build APKs
+        def command = [
+            'java', '-jar', bundletoolJar.absolutePath,
+            'build-apks',
+            '--bundle', aabFile.absolutePath,
+            '--output', apkFile.absolutePath,
+            '--mode=universal'
+        ]
+
+        def process = command.execute()
+        process.waitForProcessOutput(System.out, System.err)
+
+        def exitCode = process.exitValue()
+        if (exitCode != 0) {
+            throw new GradleException("bundletool execution failed with exit code: ${exitCode}")
+        }
+
+        println "Successfully converted AAB to APK: ${apkFile.absolutePath}"
+
+        // Extract the universal APK from the APKS file
+        def universalApkFile = new File(outputDir, "duplicated-app.apk")
+        if (apkFile.exists()) {
+            println "Extracting universal APK..."
+
+            // Use zip to extract universal.apk
+            def zipCommand = [
+                'unzip', '-o', apkFile.absolutePath,
+                'universal.apk',
+                '-d', outputDir.absolutePath
+            ]
+
+            def zipProcess = zipCommand.execute()
+            zipProcess.waitForProcessOutput(System.out, System.err)
+
+            if (zipProcess.exitValue() == 0) {
+                // Rename universal.apk to duplicated-app.apk
+                def extractedApk = new File(outputDir, "universal.apk")
+                if (extractedApk.exists()) {
+                    extractedApk.renameTo(universalApkFile)
+                    println "Universal APK extracted to: ${universalApkFile.absolutePath}"
+                }
+            } else {
+                println "Warning: Failed to extract universal APK"
+            }
+        }
+    }
+}
