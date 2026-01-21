@@ -1,4 +1,4 @@
-package com.sickworm.intellij.jugg.compile
+package com.sickworm.intellij.jugg.compiler.overlay
 
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*

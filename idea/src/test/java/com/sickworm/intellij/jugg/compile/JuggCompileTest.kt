@@ -16,7 +16,7 @@ class JuggCompileTest {
     @Before
     fun init() {
         clearBuild()
-        ResourceCompileTest().init()
+        ResourceCompileTestTask().init()
     }
 
     @Test
@@ -49,14 +49,14 @@ class JuggCompileTest {
 
     @Test
     fun compileResource() {
-        val task = ResourceCompileTest().resourceOverlayTask
+        val task = ResourceCompileTestTask().resourceOverlayTask
         val result = juggCompiler.compile(task)
         assertCompileResultJugg(task, result)
     }
 
     @Test
     fun compileResourceAddIds() {
-        val task = ResourceCompileTest().resourceOverlayAddIdsTask
+        val task = ResourceCompileTestTask().resourceOverlayAddIdsTask
         val result = juggCompiler.compile(task)
         assertCompileResultJugg(task, result)
     }
@@ -70,7 +70,7 @@ class JuggCompileTest {
 
     @Test
     fun compileMultiJavaAndAssetAndRes() {
-        val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTest().resourceOverlayTask
+        val task = JavaCompileTest().multiFilesTask + AssetCompileTest().multiFilesTask + ResourceCompileTestTask().resourceOverlayTask
         val result = juggCompiler.compile(task)
         assertCompileResultJugg(task, result)
     }
@@ -101,7 +101,7 @@ class JuggCompileTest {
     fun compileMultiJavaErrorAndAssetAndRes() {
         val sourceTask = JavaCompileTest().multiFilesWithErrorTask
         val assetTask = AssetCompileTest().multiFilesTask
-        val resourceTask = ResourceCompileTest().resourceOverlayTask
+        val resourceTask = ResourceCompileTestTask().resourceOverlayTask
         val task = sourceTask + assetTask + resourceTask
         val result = juggCompiler.compile(task)
 
