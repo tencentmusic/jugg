@@ -119,7 +119,7 @@ class ResourceCompiler(
             return resCompileSet.originTask.allFailed("process view binding failed")
         }
 
-        val isRunDataBinding = DataBindingArgsManager.isUseDataBinding(module, resCompileSet.taskFiles.map { it.file })
+        val isRunDataBinding = DataBindingArgsManager.isUseDataBinding(module, layoutFiles.map { it.file })
         if (!isRunDataBinding) {
             return viewBindingResult
         }

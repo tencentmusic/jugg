@@ -62,8 +62,10 @@ class ResourceCompileTest {
         val result = resCompiler.compile(task)
         assertEquals(result.details.size, files.size)
         assertTrue(result.isAllSuccess)
-        assertEquals(result.outputs.size, files.size)
-        result.outputs.forEach {
+
+        val flatOutput = result.outputs.filter { it.type == CompileOutput.Type.Flat }
+        assertEquals(flatOutput.size, files.size, "expected: ${files}, actual: ${result.outputs}")
+        flatOutput.forEach {
             assertEquals(it.type, CompileOutput.Type.Flat)
             assertTrue(it.file.exists())
             assertTrue(it.file.length() > 0)
@@ -336,7 +338,7 @@ class ResourceCompileTest {
         )
 
         val result = resourceOverlayCompiler.compile(task)
-        checkArscResult(task, result, 27, isRJavaChanged = false)
+        checkArscResult(task, result, 29, isRJavaChanged = false)
     }
 
     @Test
@@ -400,11 +402,14 @@ class ResourceCompileTest {
         assertTrue(result.isAllSuccess)
         assertEquals(
             listOf(
+                "${projectInfo.packageName.replace('.', '/')}/databinding/ActivityMainBinding.java",
+                "${projectInfo.packageName.replace('.', '/')}/databinding/TestStyleableLayoutBinding.java",
                 "resources.arsc",
                 "res/layout/activity_main.xml",
                 "res/layout/test_styleable_layout.xml",
             ).sorted(),
-            result.outputs.map { it.relativeFile.path.replace('\\', '/') }.sorted()
+            result.outputs
+                .map { it.relativeFile.path.replace('\\', '/') }.sorted()
         )
 
         // test incremental res
@@ -422,13 +427,18 @@ class ResourceCompileTest {
         assertEquals(
             listOf(
                 "${projectInfo.packageName.replace('.', '/')}/R.java",
+                "${projectInfo.packageName.replace('.', '/')}/databinding/ActivityMainBinding.java",
+                "${projectInfo.packageName.replace('.', '/')}/databinding/TestStyleableLayoutBinding.java",
+                "${projectInfo.packageName.replace('.', '/')}/databinding/ActivityMainNewBinding.java",
+                "${projectInfo.packageName.replace('.', '/')}/databinding/TestStyleableLayoutNewBinding.java",
                 "resources.arsc",
                 "res/layout/activity_main.xml",
                 "res/layout/test_styleable_layout.xml",
                 "res/layout/activity_main_new.xml",
                 "res/layout/test_styleable_layout_new.xml",
             ).sorted(),
-            result.outputs.map { it.relativeFile.path.replace('\\', '/') }.sorted()
+            result.outputs
+                .map { it.relativeFile.path.replace('\\', '/') }.sorted()
         )
     }
 
