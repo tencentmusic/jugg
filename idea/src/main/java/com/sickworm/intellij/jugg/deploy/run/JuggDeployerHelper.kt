@@ -610,7 +610,7 @@ class JuggDeployerHelper(
 
         val isCleanAndReinstall = deployHistoryManager.isCleanAndReinstall
         val reinstallTips = if (isCleanAndReinstall) {
-            "User triggerred, start clean and reinstalling app..."
+            "User triggered, start clean and reinstalling app..."
         } else {
             "Deploy state not match, start reinstalling app..."
         }
