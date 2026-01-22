@@ -1,11 +1,6 @@
 package com.sickworm.intellij.jugg.compiler.overlay
 
-import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.overlay.AabResGuardHandler
-import com.sickworm.intellij.jugg.compiler.overlay.AabResGuardMappingParser
-import com.sickworm.intellij.jugg.compiler.overlay.AabResGuardResourceProcessor
-import com.sickworm.intellij.jugg.compiler.overlay.ResourceCompiler
 import com.sickworm.intellij.jugg.mock.*
 import org.junit.After
 import org.junit.Before
@@ -13,10 +8,9 @@ import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class ResourceCompileForAabResGuardTest {
+class AabResGuardTest {
 
     private lateinit var aabResGuardHandler: AabResGuardHandler
     private val testMappingDir = File(buildDir, "aabresguard_test")
@@ -125,13 +119,14 @@ class ResourceCompileForAabResGuardTest {
             </LinearLayout>
         """.trimIndent()
 
-        val inputFile = File(testMappingDir, "test_layout.xml")
+        val inputFile = File(testMappingDir, "input/res/layout/test_layout.xml")
+        inputFile.parentFile.mkdirs()
         inputFile.writeText(testXml)
 
         val outputDir = File(testMappingDir, "output")
         outputDir.mkdirs()
 
-        val baseDir = File(assetsAndroidDir, "app/src/main/res")
+        val baseDir = File(testMappingDir, "input/res")
         val compileFile = CompileFile(CompileFile.Type.Resource, inputFile, baseDir, mockModule)
 
         val processedFiles = processor.processResourceFiles(listOf(inputFile), outputDir, compileFile)
@@ -169,13 +164,14 @@ class ResourceCompileForAabResGuardTest {
                 android:id="@+id/my_text_view" />
         """.trimIndent()
 
-        val inputFile = File(testMappingDir, "test_preserve.xml")
+        val inputFile = File(testMappingDir, "input/res/layout/test_preserve.xml")
+        inputFile.parentFile.mkdirs()
         inputFile.writeText(testXml)
 
-        val outputDir = File(testMappingDir, "output_preserve")
+        val outputDir = File(testMappingDir, "output")
         outputDir.mkdirs()
 
-        val baseDir = File(assetsAndroidDir, "app/src/main/res")
+        val baseDir = File(testMappingDir, "input/res")
         val compileFile = CompileFile(CompileFile.Type.Resource, inputFile, baseDir, mockModule)
 
         val processedFiles = processor.processResourceFiles(listOf(inputFile), outputDir, compileFile)
@@ -198,13 +194,14 @@ class ResourceCompileForAabResGuardTest {
         val processor = AabResGuardResourceProcessor(mappings, logger)
 
         // Create a dummy PNG file
-        val pngFile = File(testMappingDir, "test_image.png")
+        val pngFile = File(testMappingDir, "input/res/drawable/test_image.png")
+        pngFile.parentFile.mkdirs()
         pngFile.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)) // PNG magic number
 
-        val outputDir = File(testMappingDir, "output_png")
+        val outputDir = File(testMappingDir, "output")
         outputDir.mkdirs()
 
-        val baseDir = File(assetsAndroidDir, "app/src/main/res")
+        val baseDir = testMappingDir
         val compileFile = CompileFile(CompileFile.Type.Resource, pngFile, baseDir, mockModule)
 
         val processedFiles = processor.processResourceFiles(listOf(pngFile), outputDir, compileFile)
@@ -223,16 +220,18 @@ class ResourceCompileForAabResGuardTest {
         val mappings = AabResGuardMappingParser.parse(mappingFile)
         val processor = AabResGuardResourceProcessor(mappings, logger)
 
-        val layout1 = File(testMappingDir, "layout1.xml")
+        val layout1 = File(testMappingDir, "input/res/layout/layout1.xml")
+        layout1.parentFile.mkdirs()
         layout1.writeText("""<TextView android:textColor="@color/colorPrimary" />""")
 
-        val layout2 = File(testMappingDir, "layout2.xml")
+        val layout2 = File(testMappingDir, "input/res/layout/layout2.xml")
+        layout2.parentFile.mkdirs()
         layout2.writeText("""<ImageView android:src="@drawable/ic_launcher" />""")
 
         val outputDir = File(testMappingDir, "output_multiple")
         outputDir.mkdirs()
 
-        val baseDir = File(assetsAndroidDir, "app/src/main/res")
+        val baseDir = File(testMappingDir, "input/res")
         val compileFile = CompileFile(CompileFile.Type.Resource, testMappingDir, baseDir, mockModule)
 
         val processedFiles = processor.processResourceFiles(listOf(layout1, layout2), outputDir, compileFile)
@@ -251,7 +250,11 @@ class ResourceCompileForAabResGuardTest {
     @Test
     fun testHandlerWithNoMappingFile() {
         // Create a task with no mapping file
-        val baseDir = File(assetsAndroidDir, "app/src/main/res")
+        val baseDir = try {
+            File(assetsAndroidDir, "app/src/main/res")
+        } catch (e: Exception) {
+            TODO("Not yet implemented")
+        }
         val layoutFile = File(assetsAndroidDir, "app/src/main/res/layout/activity_main.xml")
 
         val task = CompileTask(
@@ -284,10 +287,11 @@ class ResourceCompileForAabResGuardTest {
         try {
             // Create a test XML file
             val testXmlContent = """<TextView android:textColor="@color/colorPrimary" />"""
-            val testXmlFile = File(testMappingDir, "test.xml")
+            val testXmlFile = File(testMappingDir, "input/res/layout/test.xml")
+            testXmlFile.parentFile.mkdirs()
             testXmlFile.writeText(testXmlContent)
 
-            val baseDir = File(assetsAndroidDir, "app/src/main/res")
+            val baseDir = File(testMappingDir, "input/res")
             val task = CompileTask(
                 listOf(CompileFile(CompileFile.Type.Resource, testXmlFile, baseDir, mockModule)),
                 stagingDir
@@ -334,7 +338,7 @@ class ResourceCompileForAabResGuardTest {
         """.trimIndent())
 
         try {
-            val baseDir = File(assetsAndroidDir, "app/src/main/res")
+            val baseDir = File(testMappingDir, "input/res")
             val layoutFile = File(assetsAndroidDir, "app/src/main/res/layout/activity_main.xml")
 
             val task = CompileTask(

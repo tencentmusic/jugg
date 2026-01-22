@@ -35,12 +35,7 @@ class AabResGuardResourceProcessor(
         outputDir.mkdirs()
 
         return originalFiles.map { originalFile ->
-            val relativePath = if (compileFile.file.isDirectory) {
-                originalFile.relativeTo(compileFile.file)
-            } else {
-                originalFile.relativeTo(compileFile.baseDir)
-            }
-
+            val relativePath = originalFile.relativeTo(compileFile.baseDir)
             val outputFile = File(outputDir, relativePath.path)
             outputFile.parentFile.mkdirs()
 
