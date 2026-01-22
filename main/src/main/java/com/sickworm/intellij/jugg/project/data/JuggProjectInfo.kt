@@ -175,6 +175,7 @@ data class ModuleBuildPathInfo(
     val libraryDataBindingIntoTypeDir get() = File(buildDir, "intermediates/data_binding_layout_info_type_package/$buildVariant")
 
     val mappingFile get() = File(buildDir, "outputs/mapping/$buildVariant/mapping.txt")
+    val aabResGuardMappingFile get() = File(buildDir, "outputs/bundle/$buildVariant/resources-mapping.txt")
 
     private val customClasspathFiles get() = customClasspath?.map { File(moduleRootDir, it) } ?: emptyList()
     private val customSyncFiles get() = customSyncFilePath?.map { File(moduleRootDir, it) } ?: emptyList()
@@ -188,7 +189,7 @@ data class ModuleBuildPathInfo(
         kotlinClassPathForJavaLibrary, javaClassPathForJavaLibrary, generatedSourcePath,
         oldLibraryMergedManifestDir, libraryMergedManifestDir, applicationMergedManifestDir, libraryRFileDirInLowAgp,
         dataBindingInfoDir, dataBindingDependencyInfoDir, applicationDataBindingIntoTypeDir, libraryDataBindingIntoTypeDir,
-        mappingFile,
+        mappingFile, aabResGuardMappingFile
     ) + customClasspathFiles + customSyncFiles).map { it.relativeTo(moduleRootDir) }
 
     val modulePathRelative get() = moduleRootDir.relativeTo(projectRootDir)

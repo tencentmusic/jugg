@@ -46,4 +46,18 @@ object GradleBuildHelper {
             throw IllegalStateException("assembleRelease failed, see log for details")
         }
     }
+
+    fun appBundleReleaseToApk(initScriptPath: String? = AssembleAndroidProjectOnce.scriptFile.absolutePath) {
+        val initArg = if (initScriptPath == null) "" else "-I $initScriptPath"
+        val process = Runtime.getRuntime().exec("$gradlew :app:bundleReleaseToApk $initArg", null, TestGlobal.projectRootDir)
+        println("\n----------- assembleRelease start -----------\n")
+        println(String(process.inputStream.readBytes()))
+        println()
+        println(String(process.errorStream.readBytes()))
+        println("\n-----------  assembleRelease end  -----------\n")
+        val result = process.waitFor()
+        if (result != 0) {
+            throw IllegalStateException("assembleRelease failed, see log for details")
+        }
+    }
 }

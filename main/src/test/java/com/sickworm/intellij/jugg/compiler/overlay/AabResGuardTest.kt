@@ -18,7 +18,7 @@ class AabResGuardTest {
     @Before
     fun init() {
         clearBuild()
-        aabResGuardHandler = AabResGuardHandler(logger)
+        aabResGuardHandler = AabResGuardHandler(createTestMappingFile(), logger)
         testMappingDir.mkdirs()
     }
 
@@ -126,10 +126,7 @@ class AabResGuardTest {
         val outputDir = File(testMappingDir, "output")
         outputDir.mkdirs()
 
-        val baseDir = File(testMappingDir, "input/res")
-        val compileFile = CompileFile(CompileFile.Type.Resource, inputFile, baseDir, mockModule)
-
-        val processedFiles = processor.processResourceFiles(listOf(inputFile), outputDir, compileFile)
+        val processedFiles = processor.processResourceFiles(listOf(inputFile), outputDir)
 
         assertEquals(1, processedFiles.size)
         val processedFile = processedFiles.first()
@@ -171,10 +168,7 @@ class AabResGuardTest {
         val outputDir = File(testMappingDir, "output")
         outputDir.mkdirs()
 
-        val baseDir = File(testMappingDir, "input/res")
-        val compileFile = CompileFile(CompileFile.Type.Resource, inputFile, baseDir, mockModule)
-
-        val processedFiles = processor.processResourceFiles(listOf(inputFile), outputDir, compileFile)
+        val processedFiles = processor.processResourceFiles(listOf(inputFile), outputDir)
         val processedContent = processedFiles.first().readText()
 
         // System resources should be preserved
@@ -201,10 +195,7 @@ class AabResGuardTest {
         val outputDir = File(testMappingDir, "output")
         outputDir.mkdirs()
 
-        val baseDir = testMappingDir
-        val compileFile = CompileFile(CompileFile.Type.Resource, pngFile, baseDir, mockModule)
-
-        val processedFiles = processor.processResourceFiles(listOf(pngFile), outputDir, compileFile)
+        val processedFiles = processor.processResourceFiles(listOf(pngFile), outputDir)
 
         assertEquals(1, processedFiles.size)
         val processedFile = processedFiles.first()
@@ -222,19 +213,16 @@ class AabResGuardTest {
 
         val layout1 = File(testMappingDir, "input/res/layout/layout1.xml")
         layout1.parentFile.mkdirs()
-        layout1.writeText("""<TextView android:textColor="@color/colorPrimary" />""")
+        layout1.writeText("""<TextView xmlns:android="http://schemas.android.com/apk/res/android" android:textColor="@color/colorPrimary" />""")
 
         val layout2 = File(testMappingDir, "input/res/layout/layout2.xml")
         layout2.parentFile.mkdirs()
-        layout2.writeText("""<ImageView android:src="@drawable/ic_launcher" />""")
+        layout2.writeText("""<ImageView xmlns:android="http://schemas.android.com/apk/res/android" android:src="@drawable/ic_launcher" />""")
 
         val outputDir = File(testMappingDir, "output_multiple")
         outputDir.mkdirs()
 
-        val baseDir = File(testMappingDir, "input/res")
-        val compileFile = CompileFile(CompileFile.Type.Resource, testMappingDir, baseDir, mockModule)
-
-        val processedFiles = processor.processResourceFiles(listOf(layout1, layout2), outputDir, compileFile)
+        val processedFiles = processor.processResourceFiles(listOf(layout1, layout2), outputDir)
 
         assertEquals(2, processedFiles.size)
 
@@ -250,11 +238,8 @@ class AabResGuardTest {
     @Test
     fun testHandlerWithNoMappingFile() {
         // Create a task with no mapping file
-        val baseDir = try {
-            File(assetsAndroidDir, "app/src/main/res")
-        } catch (e: Exception) {
-            TODO("Not yet implemented")
-        }
+        createTestMappingFile().writeText("")
+        val baseDir = File(assetsAndroidDir, "app/src/main/res")
         val layoutFile = File(assetsAndroidDir, "app/src/main/res/layout/activity_main.xml")
 
         val task = CompileTask(
@@ -269,7 +254,7 @@ class AabResGuardTest {
         )
 
         // Process should return original ResCompileSet when no mapping file exists
-        val result = aabResGuardHandler.process(resCompileSet)
+        val result = aabResGuardHandler.process(resCompileSet, stagingDir)
         assertNotNull(result, "Should return original ResCompileSet when no mapping file exists")
         assertEquals(resCompileSet, result, "Should return the same ResCompileSet")
     }
@@ -281,12 +266,11 @@ class AabResGuardTest {
         val mappingFileDir = File(moduleRootDir, "build/outputs/bundle/debug")
         mappingFileDir.mkdirs()
 
-        val mappingFile = File(mappingFileDir, "resources-mapping.txt")
-        createTestMappingFileAt(mappingFile)
+        val mappingFile = createTestMappingFile()
 
         try {
             // Create a test XML file
-            val testXmlContent = """<TextView android:textColor="@color/colorPrimary" />"""
+            val testXmlContent = """<TextView xmlns:android="http://schemas.android.com/apk/res/android" android:textColor="@color/colorPrimary" />"""
             val testXmlFile = File(testMappingDir, "input/res/layout/test.xml")
             testXmlFile.parentFile.mkdirs()
             testXmlFile.writeText(testXmlContent)
@@ -304,7 +288,7 @@ class AabResGuardTest {
             )
 
             // Process should apply obfuscation
-            val result = aabResGuardHandler.process(resCompileSet)
+            val result = aabResGuardHandler.process(resCompileSet, stagingDir)
             assertNotNull(result, "Should return processed ResCompileSet")
 
             // Verify the file was processed
@@ -328,7 +312,7 @@ class AabResGuardTest {
         val mappingFileDir = File(moduleRootDir, "build/outputs/bundle/debug")
         mappingFileDir.mkdirs()
 
-        val mappingFile = File(mappingFileDir, "resources-mapping.txt")
+        val mappingFile = createTestMappingFile()
         mappingFile.writeText("""
             res dir mapping:
 
@@ -353,7 +337,7 @@ class AabResGuardTest {
             )
 
             // Should return original ResCompileSet when mappings are empty
-            val result = aabResGuardHandler.process(resCompileSet)
+            val result = aabResGuardHandler.process(resCompileSet, stagingDir)
             assertNotNull(result, "Should return original ResCompileSet when mappings are empty")
             assertEquals(resCompileSet, result, "Should return the same ResCompileSet")
         } finally {
@@ -367,6 +351,7 @@ class AabResGuardTest {
      */
     private fun createTestMappingFile(): File {
         val mappingFile = File(testMappingDir, "resources-mapping.txt")
+        mappingFile.parentFile.mkdirs()
         createTestMappingFileAt(mappingFile)
         return mappingFile
     }

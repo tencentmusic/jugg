@@ -14,7 +14,7 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class ResourceCompileTest {
+open class ResourceCompileTest {
 
     private val flatFiles = assetsFlatDir.listFilesRecursively()
         .map {
@@ -25,12 +25,20 @@ class ResourceCompileTest {
     private lateinit var arscCompiler: ArscCompiler
     private lateinit var resourceOverlayCompiler: ResourceOverlayCompiler
 
+    open fun build() {
+        clearBuild()
+    }
+
+    open fun getContext(): SimpleCompileContext {
+        return context
+    }
+
     @Before
     fun init() {
-        clearBuild()
-        resourceOverlayCompiler = ResourceOverlayCompiler(context, mockParentDisposable)
-        resCompiler = ResourceCompiler(context, mockParentDisposable)
-        arscCompiler = ArscCompiler(context, mockParentDisposable)
+        build()
+        resourceOverlayCompiler = ResourceOverlayCompiler(getContext(), mockParentDisposable)
+        resCompiler = ResourceCompiler(getContext(), mockParentDisposable)
+        arscCompiler = ArscCompiler(getContext(), mockParentDisposable)
     }
 
     @After
@@ -93,7 +101,7 @@ class ResourceCompileTest {
         stagingDir
     )
     @Test
-    fun compileResourceOverlay() {
+    open fun compileResourceOverlay() {
         val task = resourceOverlayTask
 
         val result = resourceOverlayCompiler.compile(task)
@@ -286,7 +294,7 @@ class ResourceCompileTest {
     }
 
     @Test
-    fun compileStyleableLayout() {
+    open fun compileStyleableLayout() {
 
         val compileStyleableLayoutTask = CompileTask(
             listOf(

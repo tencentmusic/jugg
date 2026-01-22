@@ -30,7 +30,8 @@ class ResourceCompiler(
     override val supportedTypes = listOf(CompileFile.Type.Resource)
 
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
-    private val aabResGuardHandler = AabResGuardHandler(logger)
+    private val aabResGuardHandler = AabResGuardHandler(
+        context.applicationModule?.buildPathInfo?.aabResGuardMappingFile, logger)
 
     private val dataBindingGenBaseClassesCompiler = DataBindingGenBaseClassesCompiler(context.subContext("databinding"), this)
     private val dataBindingGenMapperCompiler = DataBindingGenMapperCompiler(context.subContext("databinding"), this)
@@ -163,7 +164,7 @@ class ResourceCompiler(
         }
 
         // Process AabResGuard obfuscation if mapping file exists
-        val resCompileSet = aabResGuardHandler.process(originResCompileSet) ?: run {
+        val resCompileSet = aabResGuardHandler.process(originResCompileSet, context.tempCompileDir.resolve("aabResGuard")) ?: run {
             // Processing failed, return error
             return originResCompileSet.originTask.allFailed("AabResGuard processing failed")
         }

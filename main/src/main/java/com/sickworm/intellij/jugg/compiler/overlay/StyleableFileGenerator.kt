@@ -37,6 +37,8 @@ class StyleableFileGenerator(
         }
         logger.debug("generateStyleableFile modules: ${modules.map { it.name } }, apk: $apkFileUnit")
 
+        val aabResGuardHandler = AabResGuardHandler(context.applicationModule?.buildPathInfo?.aabResGuardMappingFile, logger)
+
         val rFiles = modules.mapNotNull {
             val rFile = it.buildPathInfo.rFilePath
             if (rFile.exists()) {
@@ -45,7 +47,7 @@ class StyleableFileGenerator(
             null
         }
         return if (rFiles.isNotEmpty()) {
-            generateStyleableFile(rFiles, outputDir)
+            generateStyleableFile(aabResGuardHandler, rFiles, outputDir)
         } else {
             // low AGP don't have R.jar, it stored in java classpath
             // won't handle dynamicFeatureModules because I'm lazy to test :)
@@ -61,7 +63,7 @@ class StyleableFileGenerator(
                 logger.warn("generateStyleableFile failed, read package name from manifest file ${manifestFile.absolutePath} failed")
                 return null
             }
-            generateStyleableFile2(selectedApplicationModule.buildPathInfo.javaClassPath, packageName, outputDir)
+            generateStyleableFile2(aabResGuardHandler, selectedApplicationModule.buildPathInfo.javaClassPath, packageName, outputDir)
         }
     }
 
@@ -69,7 +71,7 @@ class StyleableFileGenerator(
     private val availableStyleableNames = listOf("R\$styleable.class", "R\$styleable0.class", "styleable0.class")
 
     @TestOnly
-    fun generateStyleableFile(rFileList: List<File>, outputDir: File): File? {
+    fun generateStyleableFile(aabResGuardHandler: AabResGuardHandler, rFileList: List<File>, outputDir: File): File? {
         val openedJarFile = mutableListOf<ZipFile>()
         rFileList.forEach { rFile ->
             if (!rFile.exists()) {
@@ -102,13 +104,13 @@ class StyleableFileGenerator(
                 }
                 providers.addAll(rStyleableEntryList.map { InputStreamProvider.of(jarFile, it) })
             }
-            return doGenerateStyleableFile(providers, outputDir)
+            return doGenerateStyleableFile(aabResGuardHandler, providers, outputDir)
         } finally {
             openedJarFile.forEach { it.close() }
         }
     }
 
-    private fun generateStyleableFile2(rFileDir: File, packageName: String, outputDir: File): File? {
+    private fun generateStyleableFile2(aabResGuardHandler: AabResGuardHandler, rFileDir: File, packageName: String, outputDir: File): File? {
         if (!rFileDir.exists()) {
             logger.warn("generateStyleableFile failed, rFileDir not exists: ${rFileDir.absolutePath}")
             return null
@@ -129,10 +131,10 @@ class StyleableFileGenerator(
         }
 
         val providers = rStyleableFileList.map { InputStreamProvider.of(it) }
-        return doGenerateStyleableFile(providers, outputDir)
+        return doGenerateStyleableFile(aabResGuardHandler, providers, outputDir)
     }
 
-    private fun doGenerateStyleableFile(providers: List<InputStreamProvider>, outputDir: File): File {
+    private fun doGenerateStyleableFile(aabResGuardHandler: AabResGuardHandler, providers: List<InputStreamProvider>, outputDir: File): File {
         val styleablesMerger = StyleablesMerger(logger)
         providers.forEach { provider ->
             provider.use { ins ->
@@ -153,8 +155,9 @@ class StyleableFileGenerator(
 
         BufferedOutputStream(outputFile.outputStream()).use { outs ->
             styleablesMerger.getResult().forEach {
+                val processedAttrs = it.attrs.map { attr -> aabResGuardHandler.convertAttr(attr) ?: attr }
                 outs.write("${it.name}:".toByteArray())
-                outs.write(it.attrs.joinToString(",").toByteArray())
+                outs.write(processedAttrs.joinToString(",").toByteArray())
                 outs.write("\n".toByteArray())
             }
             outs.flush()

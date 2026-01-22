@@ -76,7 +76,7 @@ class Reflector(val value: Any?) {
             val result = method.invoke(value, *argValue)
             return Reflector(result)
         } catch (e: Throwable) {
-            println("Jugg: reflect invoke method failed: $e")
+            println("Jugg: reflect invoke method failed for ${value::class.java}.${methodName}: $e")
             return null
         }
     }
