@@ -279,7 +279,6 @@ private class MainFrame(private val username: String,
 
     private fun createStepPanel(step: InteractionStep): JPanel {
         val editorPane = JEditorPane()
-        editorPane.maximumSize = Dimension(Int.MAX_VALUE, PANEL_HEIGHT / 3 * 2)
         editorPane.contentType = "text/html"
         editorPane.isEditable = false
         editorPane.text = step.htmlText
@@ -293,11 +292,15 @@ private class MainFrame(private val username: String,
         doc.putProperty("IgnoreCharsetDirective", true)
         editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
 
+        val scrollPane = JScrollPane(editorPane)
+        scrollPane.verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        scrollPane.horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        scrollPane.border = null
+
         val contentPanel = JPanel()
-        contentPanel.maximumSize = Dimension(Int.MAX_VALUE, PANEL_HEIGHT / 3 * 2)
         val layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
         contentPanel.layout = layout
-        contentPanel.add(editorPane)
+        contentPanel.add(scrollPane)
         contentPanel.background = editorPane.background
 
         if (step.inputTips.isNotEmpty()) {
@@ -324,7 +327,9 @@ private class MainFrame(private val username: String,
             this.inputGetter = inputGetter
         }
 
-        return contentPanel
+        val wrapperPanel = JPanel(BorderLayout())
+        wrapperPanel.add(contentPanel, BorderLayout.CENTER)
+        return wrapperPanel
     }
 
     private fun checkStepFinish(step: InteractionStep) {
