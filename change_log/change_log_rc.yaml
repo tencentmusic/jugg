@@ -1,3 +1,10 @@
+- version: 2.6.16
+  date: 2026.01.22
+  isNeedReinstall: true
+  updates:
+    - scroll content when content too much in remote compile application
+    - supports environment variables for remote compilation
+
 - version: 2.6.15
   date: 2026.01.22
   updates:
