@@ -30,6 +30,7 @@ fun JuggRunConfigurationOptions.toCompileOptions(
         options.httpProxyIp ?: "",
         options.httpProxyPort,
         SyncMode.values().find { it.modeName == options.syncMode } ?: SyncMode.IFT,
+        options.environmentVariables ?: "",
     )
 }
 
@@ -53,6 +54,7 @@ fun JuggRunConfigurationOptions.toRunConfigurationTemplate(): RunConfigurationTe
         httpProxyIp = options.httpProxyIp,
         httpProxyPort = options.httpProxyPort,
         syncMode = options.syncMode,
+        environmentVariables = options.environmentVariables,
     )
 }
 
@@ -72,4 +74,5 @@ fun JuggRunConfigurationOptions.setDefaultRemoteOption(template: RunConfiguratio
     httpProxyPort = template.httpProxyPort
     isSyncAllProjects = template.isSyncAllProjects
     syncMode = template.syncMode
+    environmentVariables = template.environmentVariables
 }

@@ -89,6 +89,10 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
     private val httpProxyIpTextField = JTextField()
     private val httpProxyPortLabel = JLabel("HTTP proxy port:")
     private val httpProxyPortTextField = JTextField()
+    private val environmentVariablesLabel = JLabel("Environment variables:")
+    private val environmentVariablesTextField = JBTextField().also {
+        it.emptyText.text = "e.g. JAVA_HOME=/root/openjdk17; VAR=value"
+    }
 
     private val applyServerActionLink = ActionLink("Apply server")
     private val copyRemoteConfigActionLink = ActionLink("Copy config")
@@ -110,6 +114,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         Pair(remoteToLocalSyncPathLabel, remoteToLocalSyncPathTextField),
         Pair(httpProxyIpLabel, httpProxyIpTextField),
         Pair(httpProxyPortLabel, httpProxyPortTextField),
+        Pair(environmentVariablesLabel, environmentVariablesTextField),
     )
 
     private val filteredRsyncLabel = listOf(localToRemoteIftConfigNameLabel, remoteToLocalIftConfigNameLabel)
@@ -205,6 +210,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
         remoteSyncPathTextField.text = settings.remoteSyncPath
         remoteToLocalIftConfigNameTextField.text = settings.remoteToLocalIftConfigName
         remoteToLocalSyncPathTextField.text = settings.remoteToLocalSyncPath
+        environmentVariablesTextField.text = settings.environmentVariables ?: ""
 
         tipsContainer.removeAll()
         if (configName == SuggestRunConfiguration.DEFAULT.runConfigName) {
@@ -288,6 +294,7 @@ class JuggRunSettingsComponent : JComponent(), IJuggRunSettingsComponent {
             it.remoteToLocalSyncPath = component.remoteToLocalSyncPathTextField.text
             it.httpProxyIp = component.httpProxyIpTextField.text
             it.httpProxyPort = component.httpProxyPortTextField.text.toIntOrNull() ?: 0
+            it.environmentVariables = component.environmentVariablesTextField.text
         }
     }
 

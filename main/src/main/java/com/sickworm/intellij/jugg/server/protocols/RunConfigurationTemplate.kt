@@ -18,6 +18,7 @@ data class RunConfigurationTemplate(
     val httpProxyPort: Int,
     val isSyncAllProjects: Boolean,
     val syncMode: String?,
+    val environmentVariables: String?,
 ) {
     companion object {
 
@@ -39,6 +40,7 @@ data class RunConfigurationTemplate(
             0,
             false,
             "rsync_simple",
+            null,
         )
     }
 }

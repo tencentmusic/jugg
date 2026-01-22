@@ -87,6 +87,11 @@ data class JuggGradleCompileOptions(
      *  RSYNC_SIMPLE -> Built-in sync tool of Linux & macOS, but has simple configuration which will only sync [projectRootPath].
      */
     val syncMode: SyncMode,
+    /**
+     * Environment variables to set on remote SSH session.
+     * Format: VAR=value; VAR1=value1
+     */
+    val environmentVariables: String,
 ) {
 
 

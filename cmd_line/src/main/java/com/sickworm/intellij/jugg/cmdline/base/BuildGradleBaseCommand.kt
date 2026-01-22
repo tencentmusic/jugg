@@ -103,6 +103,7 @@ class BuildGradleBaseCommand(private val params: Params) {
             remoteToLocalSyncPath = "",
             httpProxyIp = "",
             httpProxyPort = 0,
+            environmentVariables = "",
             syncMode = SyncMode.RSYNC_SIMPLE,
         )
 

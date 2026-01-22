@@ -29,6 +29,8 @@ class JuggRunConfigurationOptions: RunConfigurationOptions() {
 
     var syncMode by string()
 
+    var environmentVariables by string()
+
     // new options must add to the end because property persist is in order
 
 }

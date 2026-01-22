@@ -38,6 +38,8 @@ class RemoteGradleCompileClient(
     override fun login(juggGradleCompileOptions: JuggGradleCompileOptions) {
         if ((this.juggGradleCompileOptions == juggGradleCompileOptions) && (session?.isConnected == true) && channel != null) {
             printToStreamInfo("${juggGradleCompileOptions.remoteSshIp} already login")
+            // Set environment variables for already logged in session
+            setEnvironmentVariables(juggGradleCompileOptions.environmentVariables)
             return
         }
 
@@ -104,6 +106,47 @@ class RemoteGradleCompileClient(
         session = null
         printToStreamError("RemoteClient login failed", e)
         throw JuggException.loginToRemoteFailed("Please check your login info.")
+    }
+
+    /**
+     * Set environment variables on remote SSH session.
+     * Format: VAR=value; VAR1=value1
+     */
+    private fun setEnvironmentVariables(environmentVariables: String) {
+        if (environmentVariables.isEmpty()) {
+            return
+        }
+
+        val channel = channel ?: run {
+            logger.warn("setEnvironmentVariables but channel is null, skip")
+            return
+        }
+
+        try {
+            // Parse environment variables (format: VAR=value; VAR1=value1)
+            val envVars = environmentVariables.split(";")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && it.contains("=") }
+
+            if (envVars.isEmpty()) {
+                logger.debug("No valid environment variables to set")
+                return
+            }
+
+            logger.info("Setting ${envVars.size} environment variables on remote session")
+
+            val commander = PrintStream(channel.outputStream, false)
+            envVars.forEach { envVar ->
+                val exportCommand = "export $envVar"
+                logger.debug("Setting environment variable: $exportCommand")
+                commander.printlnCompat(exportCommand)
+            }
+            commander.flush()
+            printToStreamInfo("Environment variables set successfully: ${envVars.joinToString(", ")}")
+        } catch (e: Exception) {
+            logger.warn("Failed to set environment variables", e)
+            printToStreamError("Failed to set environment variables: ${e.message}")
+        }
     }
 
     private fun showDialogAndGetPasswordOrKey(extraTips: String): String {
