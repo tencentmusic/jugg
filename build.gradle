@@ -6,7 +6,7 @@ plugins {
 //    id 'org.jetbrains.kotlin.jvm' version '2.1.21' apply false
 }
 
-def versionName = '2.6.14'
+def versionName = '2.6.15'
 def gitBranch = 'git rev-parse --abbrev-ref HEAD'.execute().text.trim().replace('/', '_')
 def gitBranchPrefix = gitBranch == 'main' ? 'release' : (gitBranch == 'develop' ? 'SNAPSHOT' : gitBranch + '-SNAPSHOT')
 def pluginVersionArg = "${versionName}-${gitBranchPrefix}"
