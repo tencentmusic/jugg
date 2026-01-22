@@ -87,7 +87,7 @@ class BuildGradleBaseCommand(private val params: Params) {
         val compileOptions = JuggGradleCompileOptions(
             projectRootPath = pathManager.projectDir.absolutePath,
             localClasspathStoragePath = pathManager.localClasspathStoragePathManager,
-            initGradleFileRelativePath = pathManager.initGradleFileRelativePath,
+            initGradleFilePath = pathManager.initGradleFilePath.path,
             compileCommand,
             params.gradleOutputApkPath,
             isRemoteCompile = false,

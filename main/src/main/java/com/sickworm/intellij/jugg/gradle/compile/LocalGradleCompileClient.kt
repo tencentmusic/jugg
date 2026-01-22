@@ -44,7 +44,7 @@ class LocalGradleCompileClient(
             val compileProjectCommand = CompileProjectCommand(
                 juggGradleCompileOptions.compileCommand,
                 projectDir.path,
-                juggGradleCompileOptions.initGradleFileRelativePath,
+                juggGradleCompileOptions.initGradleFilePath,
                 logger = logger,
             )
             val compileProjectResult = invoke(compileProjectCommand)
@@ -212,7 +212,7 @@ class LocalGradleCompileClient(
         // 1. run library diff
         val diffLibraryChangesCommand = DiffLibraryChangesCommand(
             juggGradleCompileOptions.projectRootPath,
-            juggGradleCompileOptions.initGradleFileRelativePath,
+            juggGradleCompileOptions.initGradleFilePath,
             incDeployTimes,
         )
         val compileProjectResult = invoke(diffLibraryChangesCommand)

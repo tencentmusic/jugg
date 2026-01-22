@@ -53,7 +53,7 @@ open class LocalGradleCompileClientTest {
             }
             juggGradleCompileOptions = options.toCompileOptions(pathManager)
 
-            val initGradleFile = File(juggGradleCompileOptions.projectRootPath, juggGradleCompileOptions.initGradleFileRelativePath)
+            val initGradleFile = File(juggGradleCompileOptions.initGradleFilePath)
             JuggCompilerHelper::class.java.getResource("/gradle/readProjectInfo.gradle.kts")!!.openStream().use { ins ->
                 val text = ins.reader().readText()
                 initGradleFile.parentFile.mkdirs()

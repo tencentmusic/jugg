@@ -20,9 +20,9 @@ data class JuggGradleCompileOptions(
     val localClasspathStoragePath: LocalClasspathStoragePathManager,
     /**
      * Gradle initial script, use to read project info.
-     * e.g. build/jugg/config/readProjectInfo.gradle.kts
+     * e.g. $projectRootPath/jugg/config/readProjectInfo.gradle.kts
      */
-    val initGradleFileRelativePath: String,
+    val initGradleFilePath: String,
     /**
      * e.g. ./gradlew :app:assembleDebug
      */
@@ -189,6 +189,11 @@ data class JuggGradleCompileOptions(
         "$remoteToLocalSyncPath/jugg_all_classpath/${File(finalRemoteSyncPath).name}/$projectSyncRelativePath"
     } else {
         "$remoteToLocalSyncPath/$projectSyncRootRelativePath/$projectSyncRelativePath"
+    }
+
+    val remoteInitGradleFilePath: String get() {
+        val relativePath = File(initGradleFilePath).relativeTo(File(projectRootPath)).path
+        return File(remoteProjectPath, relativePath).path
     }
 
     fun checkConfig() {

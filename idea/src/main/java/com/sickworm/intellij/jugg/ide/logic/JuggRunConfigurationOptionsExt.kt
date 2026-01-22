@@ -13,7 +13,7 @@ fun JuggRunConfigurationOptions.toCompileOptions(
     return JuggGradleCompileOptions(
         projectRootPath = pathManager.projectDir.absolutePath,
         localClasspathStoragePath = pathManager.localClasspathStoragePathManager,
-        initGradleFileRelativePath = pathManager.initGradleFileRelativePath,
+        initGradleFilePath = pathManager.initGradleFilePath.path,
         options.compileCommand ?: "",
         options.outputApkName ?: "",
         options.isRemoteCompile,

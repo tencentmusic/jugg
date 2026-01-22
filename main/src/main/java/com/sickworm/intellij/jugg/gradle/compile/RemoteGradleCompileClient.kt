@@ -254,7 +254,7 @@ class RemoteGradleCompileClient(
             val compileProjectCommand = CompileProjectCommand(
                 gradleCompileSettings.compileCommand,
                 gradleCompileSettings.remoteProjectPath,
-                gradleCompileSettings.initGradleFileRelativePath,
+                gradleCompileSettings.remoteInitGradleFilePath,
                 localProjectPath = project.basePath,
                 logger = logger,
             )
@@ -450,7 +450,7 @@ class RemoteGradleCompileClient(
         // 2. run library diff
         val diffLibraryChangesCommand = DiffLibraryChangesCommand(
             gradleCompileSettings.remoteProjectPath,
-            gradleCompileSettings.initGradleFileRelativePath,
+            gradleCompileSettings.remoteInitGradleFilePath,
             incDeployTimes,
             localProjectPath = project.basePath,
         )
