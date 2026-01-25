@@ -40,6 +40,8 @@ class IncLinkCommand : public Command {
     AddOptionalSwitch("--load", "load apk before start inclink", &load_apk_);
     AddOptionalFlag("--styleables", "Available when using --load. File in which to import styleables. format:\nname:attr1,attr2(one styleable one line)",
         &options_.styleable_path, Command::kPath);
+    AddOptionalFlag("--res-guard-mapping", "Available when using --load. File in which to import resource mapping for de-obfuscation. format:\ntype:origin:obfuscated(one mapping one line)",
+        &options_.res_guard_mapping_path, Command::kPath);
     AddRequiredFlag("-o", "Output path.", &options_.output_path, Command::kPath);
     AddRequiredFlag("--manifest", "Path to the Android manifest to build.",
         &options_.manifest_path, Command::kPath);

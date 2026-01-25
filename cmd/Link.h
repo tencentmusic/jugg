@@ -111,6 +111,8 @@ struct LinkOptions {
   // Inclink options.
   // Import styleable definitions from a text file.
   Maybe<std::string> styleable_path;
+  // Import resource mapping for de-obfuscation from a text file.
+  Maybe<std::string> res_guard_mapping_path;
 };
 
 class LinkCommand : public Command {

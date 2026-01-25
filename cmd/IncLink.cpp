@@ -142,6 +142,52 @@ class IncLinker: private Linker {
     file.close();
   }
 
+  void processResGuardMappingFile(const std::string& mapping_path,
+      std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    std::ifstream file(mapping_path);
+    if (!file.is_open()) {
+      context_->GetDiagnostics()->Warn(DiagMessage() << "Error: Unable to open file " << mapping_path);
+      return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+      if (line.empty()) {
+        continue;
+      }
+
+      std::istringstream line_stream(line);
+      std::string type_str;
+      std::string origin_name;
+      std::string obfuscated_name;
+
+      if (!std::getline(line_stream, type_str, ':')) {
+        context_->GetDiagnostics()->Warn(DiagMessage() << "Error: Unable to parse type in line: " << line);
+        continue;
+      }
+
+      if (!std::getline(line_stream, origin_name, ':')) {
+        context_->GetDiagnostics()->Warn(DiagMessage() << "Error: Unable to parse origin name in line: " << line);
+        continue;
+      }
+
+      if (!std::getline(line_stream, obfuscated_name, ':')) {
+        context_->GetDiagnostics()->Warn(DiagMessage() << "Error: Unable to parse obfuscated name in line: " << line);
+        continue;
+      }
+
+      const ResourceType* type = ParseResourceType(type_str);
+      if (!type) {
+        context_->GetDiagnostics()->Warn(DiagMessage() << "Error: Invalid resource type: " << type_str);
+        continue;
+      }
+
+      mapping[std::make_pair(*type, obfuscated_name)] = origin_name;
+    }
+
+    file.close();
+  }
+
   int LoadFromApk(const std::vector<std::string>& input_files) {
     // load table from .apk
     if (input_files.size() == 0) {
@@ -228,6 +274,16 @@ class IncLinker: private Linker {
                                                        context_->GetPackageId()));
     }
 
+    // read res-guard-mapping file if provided
+    std::map<std::pair<ResourceType, std::string>, std::string> res_guard_mapping;
+    if (options_.res_guard_mapping_path) {
+      processResGuardMappingFile(options_.res_guard_mapping_path.value(), res_guard_mapping);
+      if (context_->IsVerbose()) {
+        context_->GetDiagnostics()->Note(DiagMessage() << "loaded " << res_guard_mapping.size()
+            << " resource mappings for de-obfuscation");
+      }
+    }
+
     // revert package name to main package name
     // see package_to_rewrite in Link.app
     std::string app_rewrited_package;
@@ -256,7 +312,21 @@ class IncLinker: private Linker {
         new_type->visibility_level = type->visibility_level;
 
         for (const auto& entry : type->entries) {
-          ResourceEntry* new_entry = new_type->FindOrCreateEntry(entry->name);
+          // apply de-obfuscation if mapping is available
+          std::string entry_name = entry->name;
+          if (!res_guard_mapping.empty()) {
+            auto key = std::make_pair(type->type, entry->name);
+            auto it = res_guard_mapping.find(key);
+            if (it != res_guard_mapping.end()) {
+              entry_name = it->second;
+              if (context_->IsVerbose()) {
+                context_->GetDiagnostics()->Note(DiagMessage() << "de-obfuscating "
+                    << type->type << ":" << entry->name << " -> " << entry_name);
+              }
+            }
+          }
+
+          ResourceEntry* new_entry = new_type->FindOrCreateEntry(entry_name);
           new_entry->id = entry->id;
           new_entry->visibility = entry->visibility;
           new_entry->allow_new = entry->allow_new;
