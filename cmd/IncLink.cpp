@@ -188,6 +188,34 @@ class IncLinker: private Linker {
     file.close();
   }
 
+  // De-obfuscate references in Attribute symbols
+  void deobfuscateAttributeSymbols(Value* value,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty()) {
+      return;
+    }
+
+    Attribute* attribute = ValueCast<Attribute>(value);
+    if (!attribute) {
+      return;
+    }
+
+    for (auto& symbol : attribute->symbols) {
+      if (symbol.symbol.name) {
+        ResourceName& name = symbol.symbol.name.value();
+        auto key = std::make_pair(name.type, name.entry);
+        auto it = mapping.find(key);
+        if (it != mapping.end()) {
+          if (context_->IsVerbose()) {
+            context_->GetDiagnostics()->Note(DiagMessage() << "de-obfuscating attribute symbol "
+                << name.type << ":" << name.entry << " -> " << it->second);
+          }
+          name.entry = it->second;
+        }
+      }
+    }
+  }
+
   int LoadFromApk(const std::vector<std::string>& input_files) {
     // load table from .apk
     if (input_files.size() == 0) {
@@ -336,6 +364,9 @@ class IncLinker: private Linker {
             ResourceConfigValue* new_value =
                 new_entry->FindOrCreateValue(config_value->config, config_value->product);
             new_value->value.reset(config_value->value->Clone(&final_table_.string_pool));
+
+            // De-obfuscate Attribute symbols if needed
+            deobfuscateAttributeSymbols(new_value->value.get(), res_guard_mapping);
           }
         }
       }
