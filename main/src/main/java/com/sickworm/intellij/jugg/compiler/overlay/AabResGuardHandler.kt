@@ -21,44 +21,6 @@ class AabResGuardHandler(
 
     private val logger: Logger = loggerArg.getInstance("AabResGuardHandler")
 
-    /**
-     * Process a ResCompileSet with AabResGuard obfuscation if applicable
-     *
-     * @param resCompileSet The resource compile set to process
-     * @return Processed ResCompileSet, or null if processing failed (should abort compilation)
-     *         Returns original ResCompileSet if no mapping file exists (skip processing)
-     */
-    fun process(resCompileSet: ResourceCompiler.ResCompileSet, outputDir: File): ResourceCompiler.ResCompileSet? {
-        // 1. Get mapping file path
-        if (mappingFile == null) {
-            // No mapping file, skip processing
-            return resCompileSet
-        }
-
-        // 2. Parse mapping file
-        val mappings = parseMappingFile(mappingFile)
-        if (mappings == null || mappings.isEmpty()) {
-            logger.info("No resource mappings found in ${mappingFile.absolutePath}, skipping AabResGuard processing")
-            return resCompileSet
-        }
-
-        logger.info("Found ${mappings.size} resource mappings, processing with AabResGuard")
-
-        // 3. Process resource files
-        return processResourceFiles(resCompileSet, mappings, outputDir)
-    }
-
-    fun convertAttr(attrName: String): String? {
-        if (mappingFile == null) {
-            return null
-        }
-        val mappings = parseMappingFile(mappingFile)
-        if (mappings == null || mappings.isEmpty()) {
-            return null
-        }
-        return mappings["attr/$attrName"]?.obfuscatedName
-    }
-
     private var mappingCache: Map<String, AabResGuardMappingParser.ResourceMapping>? = null
 
     /**
@@ -79,29 +41,27 @@ class AabResGuardHandler(
         }
     }
 
-    /**
-     * Process resource files with the given mappings
-     * @return Processed ResCompileSet, or null if processing failed
-     */
-    private fun processResourceFiles(
-        resCompileSet: ResourceCompiler.ResCompileSet,
-        mappings: Map<String, AabResGuardMappingParser.ResourceMapping>,
-        outputDir: File,
-    ): ResourceCompiler.ResCompileSet? {
-        val processor = AabResGuardResourceProcessor(mappings, logger)
-        outputDir.deleteRecursively()
-        outputDir.mkdirs()
+    fun writeAapt2IncLinkMappingFile(outputFile: File) {
+        outputFile.parentFile.mkdirs()
+        outputFile.delete()
 
-        val processedCompileFileMap = try {
-            resCompileSet.compileFileMap.mapValues { (_, files) ->
-                processor.processResourceFiles(files, outputDir)
-            }
-        } catch (e: Exception) {
-            logger.error("Failed to process resources with AabResGuard", e)
-            return null // Processing failed, should abort compilation
+        if (mappingFile == null) {
+            return
+        }
+        val mappings = parseMappingFile(mappingFile)
+        if (mappings == null || mappings.isEmpty()) {
+            return
         }
 
-        // Return processed ResCompileSet
-        return resCompileSet.copy(compileFileMap = processedCompileFileMap)
+        val content = StringBuilder()
+        mappings.forEach { (_, mapping) ->
+            content.append(mapping.resourceType)
+            content.append(":")
+            content.append(mapping.originalName)
+            content.append(":")
+            content.append(mapping.obfuscatedName)
+            content.append("\n")
+        }
+        outputFile.writeText(content.toString())
     }
 }

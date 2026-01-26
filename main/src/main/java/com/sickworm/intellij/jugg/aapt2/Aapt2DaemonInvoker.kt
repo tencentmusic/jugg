@@ -152,7 +152,7 @@ class Aapt2DaemonInvoker(
 
     companion object {
         fun getEmbeddedAapt2(): File {
-            val version = "2.19.14"
+            val version = "2.19.15"
             return if (isMac) {
                 copyResource("/tools/darwin/aapt2-inclink-$version")
             } else if (isLinux) {

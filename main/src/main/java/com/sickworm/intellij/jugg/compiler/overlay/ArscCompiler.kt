@@ -66,6 +66,7 @@ class ArscCompiler(
         if (styleableFile == null) {
             logger.debug("generateStyleableFile failed, start aapt2 with no styleableFile")
         }
+        val resGuardMappingFile = ResGuardMappingFileGenerator(logger).generate(context, context.tempCompileDir)
 
         val aapt2Invoker = Aapt2DaemonInvoker(logger)
         val command: String
@@ -74,6 +75,8 @@ class ArscCompiler(
                 |inclink
                 |--load
                 |--warn-manifest-validation
+                |--res-guard-mapping
+                |${resGuardMappingFile?.absolutePath ?: "no_res_guard_mapping_file"}
                 |--styleables
                 |${styleableFile?.absolutePath ?: "no_styleables_file"}
                 |-o no_need_output_path_on_load
@@ -93,6 +96,8 @@ class ArscCompiler(
                 |inclink
                 |--load
                 |--warn-manifest-validation
+                |--res-guard-mapping
+                |${resGuardMappingFile?.absolutePath ?: "no_res_guard_mapping_file"}
                 |--styleables
                 |${styleableFile?.absolutePath ?: "no_styleables_file"}
                 |-o no_need_output_path_on_load
