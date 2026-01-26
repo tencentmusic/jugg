@@ -113,6 +113,8 @@ struct LinkOptions {
   Maybe<std::string> styleable_path;
   // Import resource mapping for de-obfuscation from a text file.
   Maybe<std::string> res_guard_mapping_path;
+  // Force R.java generation even when resource table hasn't changed.
+  bool force_generate_java = false;
 };
 
 class LinkCommand : public Command {

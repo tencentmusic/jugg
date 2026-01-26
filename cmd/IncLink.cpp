@@ -754,7 +754,11 @@ class IncLinker: private Linker {
     }
 
     if (options_.generate_java_class_path || options_.generate_text_symbols_path) {
-      if (isRJavaChange) {
+      if (isRJavaChange || options_.force_generate_java) {
+        if (options_.force_generate_java && !isRJavaChange && context_->IsVerbose()) {
+          context_->GetDiagnostics()->Note(DiagMessage()
+              << "forcing R.java generation due to --force-generate-java flag");
+        }
         if (!GenerateJavaClasses()) {
           return 1;
         }

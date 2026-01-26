@@ -42,6 +42,8 @@ class IncLinkCommand : public Command {
         &options_.styleable_path, Command::kPath);
     AddOptionalFlag("--res-guard-mapping", "Available when using --load. File in which to import resource mapping for de-obfuscation. format:\ntype:origin:obfuscated(one mapping one line)",
         &options_.res_guard_mapping_path, Command::kPath);
+    AddOptionalSwitch("--force-generate-java", "Force R.java generation even when resource table hasn't changed.",
+        &options_.force_generate_java);
     AddRequiredFlag("-o", "Output path.", &options_.output_path, Command::kPath);
     AddRequiredFlag("--manifest", "Path to the Android manifest to build.",
         &options_.manifest_path, Command::kPath);
