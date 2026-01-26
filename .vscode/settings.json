@@ -87,6 +87,7 @@
         "charconv": "cpp",
         "execution": "cpp",
         "print": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "utility": "cpp"
     }
 }

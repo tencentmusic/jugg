@@ -188,6 +188,25 @@ class IncLinker: private Linker {
     file.close();
   }
 
+  // De-obfuscate a Reference
+  void deobfuscateReference(Reference* reference,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty() || !reference || !reference->name) {
+      return;
+    }
+
+    ResourceName& name = reference->name.value();
+    auto key = std::make_pair(name.type, name.entry);
+    auto it = mapping.find(key);
+    if (it != mapping.end()) {
+      if (context_->IsVerbose()) {
+        context_->GetDiagnostics()->Note(DiagMessage() << "de-obfuscating reference "
+            << name.type << ":" << name.entry << " -> " << it->second);
+      }
+      name.entry = it->second;
+    }
+  }
+
   // De-obfuscate references in Attribute symbols
   void deobfuscateAttributeSymbols(Value* value,
       const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
@@ -201,18 +220,133 @@ class IncLinker: private Linker {
     }
 
     for (auto& symbol : attribute->symbols) {
-      if (symbol.symbol.name) {
-        ResourceName& name = symbol.symbol.name.value();
-        auto key = std::make_pair(name.type, name.entry);
-        auto it = mapping.find(key);
-        if (it != mapping.end()) {
-          if (context_->IsVerbose()) {
-            context_->GetDiagnostics()->Note(DiagMessage() << "de-obfuscating attribute symbol "
-                << name.type << ":" << name.entry << " -> " << it->second);
-          }
-          name.entry = it->second;
+      deobfuscateReference(&symbol.symbol, mapping);
+    }
+  }
+
+  // De-obfuscate references in Style (parent and entry keys)
+  void deobfuscateStyle(Value* value,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty()) {
+      return;
+    }
+
+    Style* style = ValueCast<Style>(value);
+    if (!style) {
+      return;
+    }
+
+    // De-obfuscate parent reference if present
+    if (style->parent) {
+      deobfuscateReference(&style->parent.value(), mapping);
+    }
+
+    // De-obfuscate entry keys (attribute references) and values
+    for (auto& entry : style->entries) {
+      // De-obfuscate the attribute reference (key)
+      deobfuscateReference(&entry.key, mapping);
+
+      // De-obfuscate the value if it's a Reference
+      if (entry.value) {
+        if (Reference* ref = ValueCast<Reference>(entry.value.get())) {
+          deobfuscateReference(ref, mapping);
         }
       }
+    }
+  }
+
+  // De-obfuscate references in Styleable (attribute references)
+  void deobfuscateStyleable(Value* value,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty()) {
+      return;
+    }
+
+    Styleable* styleable = ValueCast<Styleable>(value);
+    if (!styleable) {
+      return;
+    }
+
+    // De-obfuscate all attribute references in entries
+    for (auto& entry : styleable->entries) {
+      deobfuscateReference(&entry, mapping);
+    }
+  }
+
+  // De-obfuscate references in Array elements
+  void deobfuscateArray(Value* value,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty()) {
+      return;
+    }
+
+    Array* array = ValueCast<Array>(value);
+    if (!array) {
+      return;
+    }
+
+    // De-obfuscate any Reference elements
+    for (auto& element : array->elements) {
+      if (element) {
+        if (Reference* ref = ValueCast<Reference>(element.get())) {
+          deobfuscateReference(ref, mapping);
+        }
+      }
+    }
+  }
+
+  // De-obfuscate references in Plural values
+  void deobfuscatePlural(Value* value,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty()) {
+      return;
+    }
+
+    Plural* plural = ValueCast<Plural>(value);
+    if (!plural) {
+      return;
+    }
+
+    // De-obfuscate any Reference values
+    for (auto& val : plural->values) {
+      if (val) {
+        if (Reference* ref = ValueCast<Reference>(val.get())) {
+          deobfuscateReference(ref, mapping);
+        }
+      }
+    }
+  }
+
+  // De-obfuscate value based on its type
+  void deobfuscateValue(Value* value,
+      const std::map<std::pair<ResourceType, std::string>, std::string>& mapping) {
+    if (mapping.empty() || !value) {
+      return;
+    }
+
+    // Handle Reference type values
+    if (Reference* reference = ValueCast<Reference>(value)) {
+      deobfuscateReference(reference, mapping);
+    }
+    // Handle Attribute type values (which contain symbols with references)
+    else if (Attribute* attribute = ValueCast<Attribute>(value)) {
+      deobfuscateAttributeSymbols(value, mapping);
+    }
+    // Handle Style type values (which contain parent and entry key references)
+    else if (Style* style = ValueCast<Style>(value)) {
+      deobfuscateStyle(value, mapping);
+    }
+    // Handle Styleable type values (which contain attribute references)
+    else if (Styleable* styleable = ValueCast<Styleable>(value)) {
+      deobfuscateStyleable(value, mapping);
+    }
+    // Handle Array type values (which may contain Reference elements)
+    else if (Array* array = ValueCast<Array>(value)) {
+      deobfuscateArray(value, mapping);
+    }
+    // Handle Plural type values (which may contain Reference values)
+    else if (Plural* plural = ValueCast<Plural>(value)) {
+      deobfuscatePlural(value, mapping);
     }
   }
 
@@ -365,8 +499,8 @@ class IncLinker: private Linker {
                 new_entry->FindOrCreateValue(config_value->config, config_value->product);
             new_value->value.reset(config_value->value->Clone(&final_table_.string_pool));
 
-            // De-obfuscate Attribute symbols if needed
-            deobfuscateAttributeSymbols(new_value->value.get(), res_guard_mapping);
+            // De-obfuscate references in the value if needed
+            deobfuscateValue(new_value->value.get(), res_guard_mapping);
           }
         }
       }
