@@ -1,9 +1,13 @@
 package com.sickworm.intellij.jugg.compile
 
+import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
+import com.sickworm.intellij.jugg.compiler.obfuscation.R8MappingReader
 import com.sickworm.intellij.jugg.deploy.data.ApkParser
 import com.sickworm.intellij.jugg.deploy.data.ParsedApk
 import com.sickworm.intellij.jugg.mock.GradleBuildHelper
+import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.mock.projectInfo
+import com.sun.management.HotSpotDiagnosticMXBean
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.junit.Test
 import java.io.File
@@ -81,12 +85,37 @@ class BuildDemoApkTest {
 
         println(parsedApk)
     }
+
+    @Test
+    fun testParseMapping() {
+        println("testParseMapping start")
+        val mappingFile = File(TestGlobal.projectInfo.projectRootDir, "app/build/outputs/mapping/release/mapping.txt")
+        if (!mappingFile.exists()) {
+            testBuildApkRelease()
+        }
+        assertTrue(mappingFile.exists())
+
+        System.gc()
+        JVMemorySize.printMemory(isStart = true)
+        val (costTime, classObfuscator) = measureTimeMillisWithResult {
+//            val reader = R8MappingReader.fromFile(mappingFile) // this will make gc not clean :(
+            ClassObfuscator(R8MappingReader.fromFile(mappingFile))
+        }
+        System.gc()
+        JVMemorySize.printMemory(isStart = false)
+        println("testParseMapping end, cost ${costTime}ms")
+
+        println(classObfuscator)
+//        JVMemorySize.dumpHeap("jvm_heap_dump.hprof", true)
+    }
 }
 
 
 object JVMemorySize {
 
-    fun printMemory() {
+    private var startUseHeapMb = 0L
+
+    fun printMemory(isStart: Boolean = true) {
         // 获取MemoryMXBean实例
         val memoryMXBean = ManagementFactory.getMemoryMXBean()
 
@@ -97,6 +126,7 @@ object JVMemorySize {
         println("   - Used: " + heapMemoryUsage.used / 1024 / 1024 + "MB")
         println("   - Committed: " + heapMemoryUsage.committed / 1024 / 1024 + " MB")
         println("   - Max: " + heapMemoryUsage.max / 1024 / 1024 + "MB")
+        val useHeapMb = heapMemoryUsage.used / 1024 / 1024
 
         // 获取非堆内存使用情况
         val nonHeapMemoryUsage = memoryMXBean.nonHeapMemoryUsage
@@ -105,5 +135,24 @@ object JVMemorySize {
         println("   - Used: " + nonHeapMemoryUsage.used / 1024 / 1024 + "MB")
         println("   - Committed: " + nonHeapMemoryUsage.committed / 1024 / 1024 + "MB")
         println("   - Max: " + nonHeapMemoryUsage.max / 1024 / 1024 + "MB")
+
+        if (!isStart) {
+            val increaseMb = useHeapMb - startUseHeapMb
+            println("increaseMb: ${increaseMb}MB, ${startUseHeapMb}MB -> ${useHeapMb}MB")
+        } else {
+            startUseHeapMb = useHeapMb
+        }
+    }
+
+    fun dumpHeap(filePath: String, live: Boolean) {
+        File(filePath).delete()
+        val server = ManagementFactory.getPlatformMBeanServer()
+        val mxBean = ManagementFactory.newPlatformMXBeanProxy(
+            server,
+            "com.sun.management:type=HotSpotDiagnostic",
+            HotSpotDiagnosticMXBean::class.java
+        )
+        mxBean.dumpHeap(filePath, live)
+        println("Heap dump created at: $filePath")
     }
 }
