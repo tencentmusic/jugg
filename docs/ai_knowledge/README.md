@@ -1,266 +1,143 @@
-# Jugg 技术文档 Wiki
+# Jugg AI 知识库 - 使用协议
 
-> 创建时间: 2025-01-20  
-> 文档版本: v1.0  
-> 项目版本: 2.6.13  
-> 总文档数: 20 个
-> 文档总大小: ~420 KB
+> **项目**: Android 增量编译与热部署插件  
+> **版本**: 2.6.13 | **文档版本**: v1.0 | **更新**: 2026-01-27  
+> **代码覆盖**: 236/236 核心文件 (100%)
 
 ---
 
-## 📚 文档列表
+## ⚠️ AI 必读：强制工作流
 
-### 🎯 概览与架构 (2 个)
+**在回答任何问题前,你必须按以下步骤执行:**
 
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [00_overview.md](00_overview.md) | 项目概览 | 5.4KB |
-| [01_architecture.md](01_architecture.md) | 架构设计 | ~15KB |
+### 步骤 1: 意图识别 (必须完成)
+根据用户问题,确定查询类型并**立即读取**对应文档:
 
-### 🔧 编译系统 (6 个)
+```
+IF 用户问题包含 "在哪" / "找不到" / "类名" / "路径" 
+   → 立即执行: read_file("docs/ai_knowledge/98_code_map.md")
+   
+IF 用户问题包含 "怎么做" / "如何实现" / "步骤" / "教程"
+   → 立即执行: read_file("docs/ai_knowledge/07_cookbook.md")
+   
+IF 用户问题包含 "架构" / "设计" / "为什么" / "原理"
+   → 立即执行: read_file("docs/ai_knowledge/00_overview.md")
+   → 然后执行: read_file("docs/ai_knowledge/01_architecture.md")
+   
+IF 用户问题包含具体功能关键词 (如 "增量编译" / "热部署" / "JVMTI")
+   → 立即执行: read_file("docs/ai_knowledge/99_index.md")
+   → 根据索引结果读取对应专题文档
+   
+IF 以上都不匹配
+   → 默认执行: read_file("docs/ai_knowledge/98_code_map.md")
+```
 
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [02_compile_core.md](02_compile_core.md) | 编译系统核心架构 | 28KB |
-| [02_compile_source.md](02_compile_source.md) | 源码编译器 (Java/Kotlin/Dex) | 36KB |
-| [02_compile_resource.md](02_compile_resource.md) | 资源编译器 (AAPT2) | 35KB |
-| [02_compile_databinding.md](02_compile_databinding.md) | DataBinding/ViewBinding | 32KB |
-| [02_compile_manifest_obfuscation.md](02_compile_manifest_obfuscation.md) | Manifest 和混淆支持 | 29KB |
-| [02_compile_custom_ui.md](02_compile_custom_ui.md) | 自定义编译器和 UI | 18KB |
+### 步骤 2: 深度查询 (按需执行)
+如果步骤 1 的文档未完全解答问题,根据提示读取专题文档:
 
-### 🚀 部署系统 (2 个)
+| 触发关键词 | 必读文档 | 补充文档 |
+|-----------|---------|---------|
+| Java/Kotlin/Dex 编译 | `02_compile_source.md` | `02_compile_core.md` |
+| 资源编译/AAPT2 | `02_compile_resource.md` | `02_compile_core.md` |
+| DataBinding/ViewBinding | `02_compile_databinding.md` | - |
+| Manifest/混淆 | `02_compile_manifest_obfuscation.md` | - |
+| 自定义编译器/UI | `02_compile_custom_ui.md` | `02_compile_core.md` |
+| 热部署/JVMTI/Overlay | `03_deploy_core.md` | `03_runtime_jvmti.md` |
+| 完整部署流程 | `03_deploy_complete.md` | `03_deploy_core.md` |
+| Gradle/依赖解析 | `04_engineering_project.md` | - |
+| IDE 插件/UI | `04_engineering_ide.md` | - |
+| 版本兼容/CI/命令行 | `04_engineering_compat.md` | - |
+| APK/Git/Logger/RPC | `05_utilities.md` | - |
+| 历史演进/技术债 | `06_evolution.md` | - |
 
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [03_deploy_core.md](03_deploy_core.md) | 核心部署机制 (JVMTI/Overlay) | 18KB |
-| [03_deploy_complete.md](03_deploy_complete.md) | 完整部署流程 | 18KB |
-
-### 🧩 运行时 (1 个)
-
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [03_runtime_jvmti.md](03_runtime_jvmti.md) | JVMTI/Overlay 运行时 | ~6KB |
-
-### 🏗️ 工程化 (3 个)
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [04_engineering_project.md](04_engineering_project.md) | 项目管理与 Gradle 集成 | 7.0KB |
-| [04_engineering_ide.md](04_engineering_ide.md) | IDE 插件层 | 34KB |
-| [04_engineering_compat.md](04_engineering_compat.md) | 兼容层 (AS 版本/命令行/自定义编译器) | 43KB |
-
-### 📖 其他 (4 个)
-
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [06_evolution.md](06_evolution.md) | 演进历史 (2024-2025) | ~15KB |
-| [05_utilities.md](05_utilities.md) | 辅助模块 (APK/AAPT2/Git/Logger/RPC) | 31KB |
-| [07_cookbook.md](07_cookbook.md) | 常见任务手册 | ~6KB |
-| [99_index.md](99_index.md) | 总索引 | ~10KB |
-
-### 🔗 代码索引 (1 个)
-
-| 文档 | 说明 | 大小 |
-|------|------|------|
-| [98_code_map.md](98_code_map.md) | 代码路径速查表 | ~6KB |
+### 步骤 3: 响应用户 (必须包含)
+在回答中**明确说明**:
+1. ✅ 已读取的文档列表
+2. 📍 答案来源的具体章节 (如 "根据 98_code_map.md § 2.1 编译系统")
+3. 🔗 相关文档链接 (如需深入了解)
 
 ---
 
-## 🎓 学习路径
+## 📚 文档索引 (仅供参考)
 
-### 初学者路径 (4 个文档，约 1-2 小时)
+<details>
+<summary>点击展开完整文档列表</summary>
 
-适合第一次接触 Jugg 的开发者：
+### 核心导航
+- `98_code_map.md` - 模块/类/路径速查表
+- `99_index.md` - 功能/关键词总索引
+- `07_cookbook.md` - 常见任务操作手册
 
-1. **[00_overview.md](00_overview.md)** - 了解 Jugg 是什么，能做什么
-2. **[01_architecture.md](01_architecture.md)** - 理解整体架构和设计思想
-3. **[02_compile_core.md](02_compile_core.md)** - 学习编译系统核心概念
-4. **[03_deploy_core.md](03_deploy_core.md)** - 学习部署系统核心概念
+### 架构设计
+- `00_overview.md` - 项目概览
+- `01_architecture.md` - 架构设计
 
-### 开发者路径 (10 个文档，约 4-6 小时)
+### 编译系统 (02_compile_*)
+- `02_compile_core.md` - 编译器架构与增量策略
+- `02_compile_source.md` - Java/Kotlin/Dex 编译
+- `02_compile_resource.md` - AAPT2 资源编译
+- `02_compile_databinding.md` - DataBinding/ViewBinding
+- `02_compile_manifest_obfuscation.md` - Manifest 与混淆
+- `02_compile_custom_ui.md` - 自定义编译器与 UI
 
-适合需要深入理解或参与开发的开发者：
+### 部署与运行时 (03_*)
+- `03_deploy_core.md` - JVMTI/Overlay 热部署
+- `03_deploy_complete.md` - 完整部署流程
+- `03_runtime_jvmti.md` - JVMTI Agent 实现
 
-1. **概览与架构** (2 个)
-   - [00_overview.md](00_overview.md)
-   - [01_architecture.md](01_architecture.md)
+### 工程化 (04_engineering_*)
+- `04_engineering_project.md` - Gradle 集成与依赖解析
+- `04_engineering_ide.md` - IDE 插件层
+- `04_engineering_compat.md` - 版本兼容/命令行/CI
 
-2. **核心系统** (4 个)
-   - [02_compile_core.md](02_compile_core.md)
-   - [02_compile_source.md](02_compile_source.md)
-   - [03_deploy_core.md](03_deploy_core.md)
-   - [03_deploy_complete.md](03_deploy_complete.md)
+### 辅助模块
+- `05_utilities.md` - APK/Git/Logger/RPC
+- `06_evolution.md` - 技术演进历史
 
-3. **工程化** (3 个)
-   - [04_engineering_project.md](04_engineering_project.md)
-   - [04_engineering_ide.md](04_engineering_ide.md)
-   - [04_engineering_compat.md](04_engineering_compat.md)
-
-4. **演进历史** (1 个)
-   - [05_evolution.md](06_evolution.md)
-
-### 深入研究路径 (全部 16 个文档，约 8-12 小时)
-
-适合需要完全掌握 Jugg 技术细节的开发者：
-
-按顺序阅读所有文档，参考 [99_index.md](99_index.md) 快速查找特定内容。
-
----
-
-## 🔍 快速查找
-
-### 按功能查找
-
-- **Java 编译**: [02_compile_source.md](02_compile_source.md) → JavaCompiler
-- **Kotlin 编译**: [02_compile_source.md](02_compile_source.md) → KotlinCompiler
-- **资源编译**: [02_compile_resource.md](02_compile_resource.md) → ResourceCompiler
-- **DataBinding**: [02_compile_databinding.md](02_compile_databinding.md) → DataBindingCompiler
-- **热修复**: [03_deploy_core.md](03_deploy_core.md) → JuggDeployer
-- **Gradle 集成**: [04_engineering_project.md](04_engineering_project.md) → GradleProjectInfoReader
-- **IDE 集成**: [04_engineering_ide.md](04_engineering_ide.md) → JuggManager
-- **版本兼容**: [04_engineering_compat.md](04_engineering_compat.md) → AsDeployerCompat
-- **APK 操作**: [06_utilities.md](05_utilities.md) → ApkFileModifier
-- **Git 集成**: [06_utilities.md](05_utilities.md) → GitManager
-
-### 按模块查找
-
-- **compiler/**: [02_compile_*.md](02_compile_core.md)
-- **deploy/**: [03_deploy_*.md](03_deploy_core.md)
-- **project/**: [04_engineering_project.md](04_engineering_project.md)
-- **idea/**: [04_engineering_ide.md](04_engineering_ide.md)
-- **deploy_compat/**: [04_engineering_compat.md](04_engineering_compat.md)
-- **platform_compat/**: [04_engineering_compat.md](04_engineering_compat.md)
-- **cmd_line/**: [04_engineering_compat.md](04_engineering_compat.md)
-- **apk/**: [06_utilities.md](05_utilities.md)
-- **git/**: [06_utilities.md](05_utilities.md)
-- **logger/**: [06_utilities.md](05_utilities.md)
+</details>
 
 ---
 
-## 📊 统计信息
+## 🎯 典型场景示例
 
-### 文档统计
+### 场景 1: 用户问 "ResourceCompiler 在哪个包?"
+```
+1. 识别为 "查找类/路径" 类型
+2. 执行 read_file("docs/ai_knowledge/98_code_map.md")
+3. 在 § 2.2 资源编译 中找到答案
+4. 回答: "根据 98_code_map.md § 2.2,ResourceCompiler 位于 
+   io.github.lizhangqu.plugin.compiler.resource 包"
+```
 
-| 类型 | 数量 | 总大小 |
-|------|------|--------|
-| 概览文档 | 2 | ~20 KB |
-| 编译文档 | 6 | ~178 KB |
-| 部署文档 | 2 | ~36 KB |
-| 运行时文档 | 1 | ~6 KB |
-| 工程文档 | 3 | ~84 KB |
-| 演进文档 | 1 | ~15 KB |
-| 辅助文档 | 1 | ~31 KB |
-| 任务手册 | 1 | ~6 KB |
-| 索引文档 | 2 | ~16 KB |
-| **总计** | **20** | **~420 KB** |
+### 场景 2: 用户问 "如何新增一个编译器?"
+```
+1. 识别为 "操作步骤" 类型
+2. 执行 read_file("docs/ai_knowledge/07_cookbook.md")
+3. 在 § 1.1 新增编译器 中找到步骤
+4. 如需深入,补充读取 02_compile_core.md
+5. 回答: "根据 07_cookbook.md § 1.1,需要以下 4 步..."
+```
 
-### 代码覆盖
-
-| 模块 | 文件数 | 已分析 | 覆盖率 |
-|------|--------|--------|--------|
-| main/compiler | 62 | 62 | 100% |
-| main/deploy | 17 | 17 | 100% |
-| main/project | 30 | 30 | 100% |
-| idea/ | 50 | 50 | 100% |
-| deploy_compat/ | 15 | 15 | 100% |
-| platform_compat/ | 19 | 19 | 100% |
-| cmd_line/ | 14 | 14 | 100% |
-| custom_compilers/ | 4 | 4 | 100% |
-| main/辅助模块 | 25 | 25 | 100% |
-| **核心代码** | **236** | **236** | **100%** |
+### 场景 3: 用户问 "增量编译的原理是什么?"
+```
+1. 识别为 "架构/原理" 类型
+2. 执行 read_file("docs/ai_knowledge/00_overview.md")
+3. 执行 read_file("docs/ai_knowledge/01_architecture.md")
+4. 补充读取 02_compile_core.md § 2 增量策略
+5. 回答: "根据 01_architecture.md § 3.2 和 02_compile_core.md § 2..."
+```
 
 ---
 
-## 🎯 关键技术点
+## 🚫 禁止行为
 
-### 编译系统
-
-- **增量编译**: 只编译变化的文件，性能提升 90%+
-- **多编译器**: Java, Kotlin, Resource, DataBinding, Manifest
-- **自定义编译器**: 支持插件化扩展
-
-### 部署系统
-
-- **热修复**: 无需重启 App 即可更新代码和资源
-- **JVMTI**: 使用 JVMTI 接口重定义类
-- **Overlay**: Android 11+ 使用 Overlay 机制
-
-### 工程化
-
-- **Gradle 集成**: 读取 Gradle 项目信息，无需依赖 IDE
-- **版本兼容**: 支持 Android Studio Chipmunk ~ Otter 2 FD
-- **命令行工具**: 支持 CI/CD 集成
-
-### 性能优化
-
-- **APK 修改**: JDK 14+ FileSystems API，性能提升 90%
-- **AAPT2 守护进程**: 复用进程，避免重复启动
-- **Gradle 依赖缓存**: 避免重复读取
+1. ❌ **禁止直接回答** 而不读取文档
+2. ❌ **禁止仅读取 README.md** 就停止
+3. ❌ **禁止猜测** 文档内容或代码位置
+4. ✅ **必须明确引用** 文档章节和路径
 
 ---
 
-## 🔗 外部资源
+## 📝 版本历史
 
-### 官方资源
-
-- **GitHub**: https://github.com/SickWorm/ARRTI
-- **README**: [../README.md](../README.md)
-- **更新日志**: [../change_log/](../change_log/)
-
-### 相关技术
-
-- **Android Gradle Plugin**: https://developer.android.com/studio/build
-- **Kotlin Compiler**: https://kotlinlang.org/docs/compiler-reference.html
-- **JVMTI**: https://docs.oracle.com/javase/8/docs/platform/jvmti/jvmti.html
-- **JGit**: https://www.eclipse.org/jgit/
-- **ASM**: https://asm.ow2.io/
-
----
-
-## 📝 文档约定
-
-### 章节结构
-
-1. **一、模块概述**: 模块职责和核心组件
-2. **二、核心类**: 关键类的详细说明
-3. **三、设计亮点**: 技术亮点和设计模式
-4. **四、总结**: 关键技术点和扩展点
-5. **附录**: 文件清单
-
-### 代码示例
-
-- 使用 Kotlin 语法高亮
-- 包含关键注释
-- 展示核心逻辑
-
-### 文件命名
-
-- `00-09`: 概览和架构
-- `10-29`: 核心模块 (编译、部署)
-- `30-49`: 工程化
-- `50-69`: 演进和辅助
-- `90-99`: 索引和附录
-
----
-
-## 📞 联系方式
-
-如有问题或建议，请通过以下方式联系：
-
-- **GitHub Issues**: https://github.com/SickWorm/ARRTI/issues
-- **Email**: (见 GitHub Profile)
-
----
-
-## 📄 许可证
-
-本文档遵循项目的许可证。
-
----
-
-**最后更新**: 2025-01-20  
-**文档版本**: v1.0  
-**总文档数**: 16 个  
-**代码覆盖**: 236/346 文件 (68.2%)  
-**文档总大小**: ~366 KB
-
-**感谢阅读！** 🎉
+- **v1.0** (2026-01-27): 初始版本,强制工作流设计
