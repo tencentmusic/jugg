@@ -67,7 +67,15 @@ class DeployDataGeneratorReleaseTest {
         testMinifyRemove("KeepClassName", removedOrPartiallyRemovedClasses)
     }
 
-    private fun testMinifyRemove(testClassName: String, removedOrPartiallyRemovedClasses: List<String>) {
+    @Test
+    fun testMinifyInlineEffects() {
+        val removedOrPartiallyRemovedClasses = listOf(
+            "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestActivity;",
+        )
+        testMinifyRemove("MinifyTestEnum", removedOrPartiallyRemovedClasses)
+    }
+
+    private fun testMinifyRemove(testClassName: String, removedOrPartiallyRemovedOrEffectsClasses: List<String>) {
         val sourceCompiler = SourceCompiler(releaseContext, mockParentDisposable)
 
         // Compile MinifyTestActivity which references MinifyTestEnum and other potentially removed classes
@@ -90,18 +98,17 @@ class DeployDataGeneratorReleaseTest {
         // Parse the compiled dex to get class information
         val deployItems = compileResult.outputs.map { it.toDeployItem() }
         val changedDex = deployItems.filter { it.type == com.sickworm.intellij.jugg.compiler.CompileOutput.Type.Dex }
-        val parsedDex = ApkParser().parseDex(changedDex, isSkipOfficialClass = false)
 
         // Build deploy data with minify removed class check enabled
         val deployData = generator.buildDeployData(changedDex, isNeedCheckRecompileMinifyRemovedClass = true)
 
         logger.debug("effected classes: ${deployData.effectedClassNodes.map { it.className }}")
 
-        removedOrPartiallyRemovedClasses.forEach { className ->
+        removedOrPartiallyRemovedOrEffectsClasses.forEach { className ->
             val result = deployData.effectedClassNodes.classes.find {
                 it.className == className
             }
-            assertTrue(result != null, "$className should also be detected as removed")
+            assertTrue(result != null, "$className should be detected")
 
             val isEffectedByMinifyTestActivity = result.effectedByClasses.any { className ->
                 className.contains(testClassName)

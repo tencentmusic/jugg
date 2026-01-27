@@ -43,7 +43,21 @@ class R8MappingReader private constructor(
         val originalName: String,
         val parameters: String,
         val obfuscatedName: String,
-        val lineRange: IntRange?
+        val lineRange: IntRange?,
+        val invocations: List<MethodInvocation> = emptyList()
+    )
+
+    /**
+     * Method invocation information (inlined method call).
+     * Represents a method that was called and potentially inlined into the caller method.
+     */
+    data class MethodInvocation(
+        val lineRange: IntRange,
+        val originalLineRange: IntRange?,
+        val calledClass: String,
+        val calledMethod: String,
+        val returnType: String,
+        val parameters: String
     )
 
     /**
@@ -145,16 +159,119 @@ class R8MappingReader private constructor(
             )
         }
 
-        // Get method mappings
+        // Get method mappings with invocation information
+        // Build a map from renamed name to invocations
+        val invocationsByRenamedName = mutableMapOf<String, MutableList<MethodInvocation>>()
+        val lineRangesByRenamedName = mutableMapOf<String, IntRange>()
+
+        classNaming.mappedRangesByRenamedName.forEach { (renamedName, mappedRangesOfName) ->
+            val mappedRanges = mappedRangesOfName.mappedRanges
+            if (mappedRanges.isEmpty()) return@forEach
+
+            val invocations = mutableListOf<MethodInvocation>()
+            val seenInvocations = mutableSetOf<String>()
+
+            // Find signatures that appear to be from other classes (qualified signatures)
+            mappedRanges.forEach { range ->
+                val sig = range.signature
+                if (sig != null && range.minifiedRange != null) {
+                    // A qualified signature indicates an inlined method from another class
+                    if (sig.isQualified) {
+                        // For qualified signatures, the toString() already has the full class name
+                        // Format: "returnType fullyQualifiedClassName.methodName(params)"
+                        val sigString = sig.toString()
+
+                        // Extract just the class name from the qualified signature
+                        // Find the opening parenthesis first
+                        val openParenIndex = sigString.indexOf('(')
+                        val searchPart = if (openParenIndex > 0) {
+                            sigString.substring(0, openParenIndex)
+                        } else {
+                            sigString
+                        }
+
+                        // Now find the last dot before the method name
+                        val dotBeforeMethod = searchPart.lastIndexOf('.')
+                        if (dotBeforeMethod > 0) {
+                            val beforeMethod = searchPart.substring(0, dotBeforeMethod)
+                            val spaceIndex = beforeMethod.indexOf(' ')
+                            var calledClass = if (spaceIndex > 0) {
+                                beforeMethod.substring(spaceIndex + 1)
+                            } else {
+                                classNaming.originalName
+                            }
+
+                            // R8's qualified signature sometimes duplicates the class name
+                            // e.g., "com.example.MyClass.com.example.MyClass"
+                            // Check if there's an exact duplication at the midpoint
+                            val segments = calledClass.split(".")
+                            if (segments.size >= 4 && segments.size % 2 == 0) {
+                                val midPoint = segments.size / 2
+                                val firstHalf = segments.subList(0, midPoint).joinToString(".")
+                                val secondHalf = segments.subList(midPoint, segments.size).joinToString(".")
+                                if (firstHalf == secondHalf) {
+                                    // Exact duplication at midpoint
+                                    calledClass = firstHalf
+                                }
+                            }
+
+                            val invocationKey = "${calledClass}.${sig.name}@${range.minifiedRange.from}"
+                            if (!seenInvocations.contains(invocationKey)) {
+                                seenInvocations.add(invocationKey)
+
+                                val originalRange = range.originalRange?.let {
+                                    if (it.from > 0 || it.to > 0) it.from..it.to else null
+                                }
+
+                                // Extract just the method name from sig.name
+                                // sig.name might be qualified like "com.example.Class.method"
+                                val methodName = sig.name.substringAfterLast('.')
+
+                                invocations.add(
+                                    MethodInvocation(
+                                        lineRange = range.minifiedRange.from..range.minifiedRange.to,
+                                        originalLineRange = originalRange,
+                                        calledClass = calledClass,
+                                        calledMethod = methodName,
+                                        returnType = sig.type,
+                                        parameters = sig.parameters.joinToString(",")
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            invocationsByRenamedName[renamedName] = invocations
+
+            // Calculate line range
+            val lineRange = if (mappedRanges.isNotEmpty()) {
+                val minLine = mappedRanges.minOf { it.minifiedRange?.from ?: 0 }
+                val maxLine = mappedRanges.maxOf { it.minifiedRange?.to ?: 0 }
+                if (minLine > 0 && maxLine > 0) minLine..maxLine else null
+            } else {
+                null
+            }
+            if (lineRange != null) {
+                lineRangesByRenamedName[renamedName] = lineRange
+            }
+        }
+
+        // Now get methods from allMethodNamings and attach invocation information
         classNaming.allMethodNamings().forEach { memberNaming ->
             val signature = memberNaming.originalSignature as? MemberNaming.MethodSignature ?: return@forEach
+            val invocations = invocationsByRenamedName[memberNaming.renamedName] ?: emptyList()
+            val lineRange = lineRangesByRenamedName[memberNaming.renamedName]
+
             methods.add(
                 MethodMapping(
                     returnType = signature.type,
                     originalName = signature.name,
                     parameters = signature.parameters.joinToString(","),
                     obfuscatedName = memberNaming.renamedName,
-                    lineRange = null // R8 line number info is in different structure
+                    lineRange = lineRange,
+                    invocations = invocations
                 )
             )
         }
@@ -166,6 +283,53 @@ class R8MappingReader private constructor(
             methods = methods
         )
     }
+
+    /**
+     * Find all invocations of a specific method (by original class and method name).
+     * Returns a list of caller information including the class, method, and line where the call occurred.
+     */
+    fun findInvocationsOf(calledClass: String, calledMethod: String): List<InvocationSite> {
+        val results = mutableListOf<InvocationSite>()
+        mapper.classNameMappings.forEach { (_, classNaming) ->
+            val classMapping = convertClassNaming(classNaming)
+            classMapping.methods.forEach { method ->
+                method.invocations.forEach { invocation ->
+                    if (invocation.calledClass == calledClass && invocation.calledMethod == calledMethod) {
+                        results.add(
+                            InvocationSite(
+                                callerClass = classMapping.originalName,
+                                callerMethod = method.originalName,
+                                callerMethodSignature = "${method.returnType} ${method.originalName}(${method.parameters})",
+                                lineRange = invocation.lineRange,
+                                invocation = invocation
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        return results
+    }
+
+    /**
+     * Get all methods invoked within a specific method (by original class and method name).
+     */
+    fun getMethodInvocations(className: String, methodName: String): List<MethodInvocation> {
+        val classMapping = getClassMappingByOriginalName(className) ?: return emptyList()
+        val method = classMapping.methods.find { it.originalName == methodName } ?: return emptyList()
+        return method.invocations
+    }
+
+    /**
+     * Information about where a method is invoked/called.
+     */
+    data class InvocationSite(
+        val callerClass: String,
+        val callerMethod: String,
+        val callerMethodSignature: String,
+        val lineRange: IntRange,
+        val invocation: MethodInvocation
+    )
 
     companion object {
         /**
