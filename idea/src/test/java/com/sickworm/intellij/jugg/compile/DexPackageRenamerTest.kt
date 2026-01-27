@@ -5,7 +5,6 @@ import com.googlecode.d2j.reader.DexFileReader
 import com.sickworm.intellij.jugg.compiler.overlay.DexPackageRenamer
 import com.sickworm.intellij.jugg.deploy.asmSigFormat
 import com.sickworm.intellij.jugg.deploy.data.ApkParser
-import com.sickworm.intellij.jugg.deploy.data.classNode
 import com.sickworm.intellij.jugg.mock.buildDir
 import com.sickworm.intellij.jugg.mock.clearBuild
 import org.junit.Before
@@ -41,11 +40,11 @@ class DexPackageRenamerTest {
 
         val originParsedDex = ApkParser().parseDexFiles(listOf(dexFile))
         assertEquals(1, originParsedDex.classDeployItems.size)
-        val originClassNode = originParsedDex.classDeployItems.first().classNode
+        val originClassNode = originParsedDex.classDeployItems.first().classNodes.first()
 
         val parsedDex = ApkParser().parseDexFiles(listOf(outputDexFile))
         assertEquals(1, parsedDex.classDeployItems.size)
-        val classNode = parsedDex.classDeployItems.first().classNode
+        val classNode = parsedDex.classDeployItems.first().classNodes.first()
         assertEquals(newOwnerName, classNode.className)
         assertEquals(originClassNode.fields.size, classNode.fields.size)
 
