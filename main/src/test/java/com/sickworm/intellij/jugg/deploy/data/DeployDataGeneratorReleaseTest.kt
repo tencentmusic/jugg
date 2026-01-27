@@ -35,6 +35,7 @@ class DeployDataGeneratorReleaseTest {
 
         generator = DeployDataGenerator(logger, buildDir)
         generator.init(listOf(ApkInfo(releaseApkFile, TestGlobal.packageName)), emptyList())
+        generator.mappingFile = releaseContext.mappingFile
     }
 
     @Test

@@ -304,7 +304,7 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun updateModuleInfos(moduleInfos: Map<String, ModuleInfo>) {
+    fun updateModuleInfos(moduleInfos: Map<String, ModuleInfo>, mappingFile: File?) {
         this.moduleInfos = moduleInfos
         uncompiledFiles = uncompiledFiles
             .filter {
@@ -321,6 +321,7 @@ class DeployFileManager(
             it.sourceDirs
         }
         sourceFileManager.init(sourceDirs)
+        deployDataGenerator.mappingFile = mappingFile
     }
 
     @Synchronized

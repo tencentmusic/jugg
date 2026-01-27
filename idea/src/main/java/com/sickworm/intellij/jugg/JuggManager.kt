@@ -600,7 +600,7 @@ class JuggManager @TestOnly constructor(
     }
 
     private fun reInitOnCompileContextUpdate() {
-        deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules)
+        deployFileManager.updateModuleInfos(compileContextManager.compileContext.modules, compileContextManager.compileContext.mappingFile)
         val juggCompiler = JuggCompiler(compileContextManager.compileContext, this)
         juggCompilerHelper.juggCompiler = juggCompiler
         fileChangesHandler.init(compileContextManager.compileContext)

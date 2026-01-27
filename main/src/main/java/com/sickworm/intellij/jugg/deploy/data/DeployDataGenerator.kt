@@ -23,6 +23,8 @@ class DeployDataGenerator(
     var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
         private set
 
+    var mappingFile: File? = null
+
     /**
      * Build [JuggDeployData] according to deployment history.
      */
@@ -133,7 +135,14 @@ class DeployDataGenerator(
 
         val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
             val checkMinifiedRemoveClass = if (isNeedCheckRecompileMinifyRemovedClass) parsedDex else null
-            deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef, changedAbstractClasses, checkMinifiedRemoveClass)
+            val effectedNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef, changedAbstractClasses, checkMinifiedRemoveClass).toMutableList()
+
+            // Check for method inlining effects if we're checking minified removed classes
+            val inlineDetector = InlineMethodDetector(mappingFile, logger.getInstance("InlineMethodDetector"))
+            val inlineEffectedNodes = inlineDetector.findInlineEffectedClasses(checkMinifiedRemoveClass, oldClassNodes)
+            merge(effectedNodes, inlineEffectedNodes)
+
+            effectedNodes
         } else {
             emptyList()
         }
@@ -168,6 +177,21 @@ class DeployDataGenerator(
         val costTime = System.currentTimeMillis() - startTime
         logger.debug("buildDeployData finish, cost ${costTime}ms.")
         return juggDeployData
+    }
+
+    private fun merge(effectedNodes: MutableList<EffectedClassNode>, inlineEffectedNodes: List<EffectedClassNode>) {
+        // Merge inline effected nodes with existing effected nodes
+        inlineEffectedNodes.forEach { inlineNode ->
+            val existing = effectedNodes.find { it.className == inlineNode.className }
+            if (existing != null) {
+                val updated = existing.copy(
+                    effectedByClasses = (existing.effectedByClasses + inlineNode.effectedByClasses).distinct()
+                )
+                effectedNodes[effectedNodes.indexOf(existing)] = updated
+            } else {
+                effectedNodes.add(inlineNode)
+            }
+        }
     }
 
     fun getDesugarInfo(classFiles: List<CompileFile>, apkFile: File): DesugarInfo {
