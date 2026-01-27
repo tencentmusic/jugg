@@ -28,6 +28,7 @@ class MinifyTestActivity : Activity() {
         fullyObfuscated.fieldTwo = 42
         fullyObfuscated.methodOne()
         fullyObfuscated.methodTwo("param")
+        System.out.println(fullyObfuscated.fieldThree)
 
         val keepMethodName = KeepMethodName()
         keepMethodName.keptMethod()

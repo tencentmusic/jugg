@@ -76,6 +76,13 @@ class DeployDataGeneratorReleaseTest {
         testMinifyRemove("MinifyTestEnum", removedOrPartiallyRemovedClasses)
     }
 
+    @Test
+    fun testMinifyInlineFieldEffects() {
+        // no way to detect field inline. mapping and dex in apk don't have information
+        val removedOrPartiallyRemovedClasses = emptyList<String>()
+        testMinifyRemove("FullyObfuscated", removedOrPartiallyRemovedClasses)
+    }
+
     private fun testMinifyRemove(testClassName: String, removedOrPartiallyRemovedOrEffectsClasses: List<String>) {
         val sourceCompiler = SourceCompiler(releaseContext, mockParentDisposable)
 

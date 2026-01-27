@@ -11,6 +11,8 @@ class FullyObfuscated {
 
     var fieldTwo: Int = 0
 
+    var fieldThree: String = "fieldThree"
+
     fun methodOne(): String {
         return "methodOne: $fieldOne"
     }
