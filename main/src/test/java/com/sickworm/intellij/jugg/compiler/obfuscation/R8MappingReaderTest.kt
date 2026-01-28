@@ -214,8 +214,7 @@ class R8MappingReaderTest {
         // Verify methods
         val doSomethingMethod = mapping.methods.find { it.originalName == "doSomething" }
         assertNotNull(doSomethingMethod)
-        assertEquals("void", doSomethingMethod!!.returnType)
-        assertEquals("a", doSomethingMethod.obfuscatedName)
+        assertEquals("a", doSomethingMethod?.obfuscatedName)
     }
 
     @Test
@@ -261,7 +260,7 @@ class R8MappingReaderTest {
                 foundInvocations = true
                 println("  Method ${method.originalName} has ${method.invocations.size} invocations")
                 method.invocations.take(3).forEach { invocation ->
-                    println("    - Calls ${invocation.calledClass}.${invocation.calledMethod} at line ${invocation.lineRange}")
+                    println("    - Calls ${invocation.calledClass}.${invocation.calledMethod}")
                 }
             }
         }
@@ -295,7 +294,7 @@ class R8MappingReaderTest {
 
         println("Found ${invocationSites.size} invocations of Lifecycle.addObserver")
         invocationSites.take(5).forEach { site ->
-            println("  - Called in ${site.callerClass}.${site.callerMethod} at line ${site.lineRange}")
+            println("  - Called in ${site.callerClass}.${site.callerMethod}")
         }
     }
 
@@ -325,7 +324,7 @@ class R8MappingReaderTest {
 
         println("testMethod invocations: ${testMethod.invocations.size}")
         testMethod.invocations.forEach { invocation ->
-            println("  - ${invocation.calledClass}.${invocation.calledMethod} at line ${invocation.lineRange}")
+            println("  - ${invocation.calledClass}.${invocation.calledMethod}")
         }
 
         // Verify invocations were captured
@@ -390,7 +389,7 @@ class R8MappingReaderTest {
         println("Number of methods: ${activityMapping.methods.size}")
         println("Methods:")
         activityMapping.methods.forEach { method ->
-            println("  - ${method.originalName}: ${method.returnType} (${method.parameters})")
+            println("  - ${method.originalName}: (${method.parameters})")
         }
 
         // Get onCreate method
@@ -399,14 +398,14 @@ class R8MappingReaderTest {
         onCreateMethod!!
 
         println("\nonCreate method:")
-        println("  Original signature: ${onCreateMethod.returnType} ${onCreateMethod.originalName}(${onCreateMethod.parameters})")
+        println("  Original signature: ${onCreateMethod.originalName}(${onCreateMethod.parameters})")
         println("  Obfuscated name: ${onCreateMethod.obfuscatedName}")
         println("  Invocations: ${onCreateMethod.invocations.size}")
 
         // Debug: print all invocations
         println("\nAll invocations in onCreate:")
         onCreateMethod.invocations.forEach { inv ->
-            println("  - ${inv.calledClass}.${inv.calledMethod}() returns ${inv.returnType}")
+            println("  - ${inv.calledClass}.${inv.calledMethod}()")
         }
 
         // Verify MinifyTestEnum.enumMethod is in the invocations
@@ -420,12 +419,6 @@ class R8MappingReaderTest {
         println("\nFound MinifyTestEnum.enumMethod invocation:")
         println("  Called class: ${enumMethodInvocation.calledClass}")
         println("  Called method: ${enumMethodInvocation.calledMethod}")
-        println("  Return type: ${enumMethodInvocation.returnType}")
-        println("  Line range: ${enumMethodInvocation.lineRange}")
-        println("  Original line range: ${enumMethodInvocation.originalLineRange}")
-
-        assertEquals("java.lang.String", enumMethodInvocation.returnType)
-        assertTrue("Line range should be valid", enumMethodInvocation.lineRange.first > 0)
 
         // Also test the query methods
         val invocations = reader.getMethodInvocations(
@@ -451,7 +444,7 @@ class R8MappingReaderTest {
         println("\nAll invocation sites of MinifyTestEnum.enumMethod: ${invocationSites.size}")
         println("Sites with MinifyTestEnum in name: ${invocationSitesPartial.size}")
         invocationSitesPartial.forEach { site ->
-            println("  - ${site.callerClass}.${site.callerMethod} at line ${site.lineRange}")
+            println("  - ${site.callerClass}.${site.callerMethod}")
         }
 
         assertTrue("Should find invocation sites", invocationSitesPartial.isNotEmpty())
