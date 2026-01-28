@@ -2,7 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ClassNode
-import com.sickworm.intellij.jugg.compiler.obfuscation.R8MappingReader
+import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import java.io.File
 
 /**
@@ -40,7 +40,7 @@ class InlineMethodDetector(
         val result = mutableListOf<EffectedClassNode>()
 
         try {
-            val mappingReader = R8MappingReader.fromFile(mappingFile)
+            val classObfuscator = ClassObfuscator.fromMappingFile(mappingFile)
 
             // For each class that we're deploying, check if any of its methods are inlined into other classes
             changedClasses.classDeployItems.forEach { classDeployItem ->
@@ -49,14 +49,14 @@ class InlineMethodDetector(
 
                     // For each method in this class, find where it's invoked (potentially inlined)
                     classNode.methods.forEach { method ->
-                        val invocationSites = mappingReader.findInvocationsOf(originalClassName, method.name)
+                        val invocationSites = classObfuscator.findInvocationsOf(originalClassName, method.name)
 
                         if (invocationSites.isNotEmpty()) {
                             logger.debug("InlineMethodDetector: Found ${invocationSites.size} invocation sites for $originalClassName.${method.name}")
 
                             // Create a set of classes that have this method inlined
                             val inlinedIntoClasses = invocationSites.map { site ->
-                                "L${site.callerClass.replace(".", "/")};"
+                                "L${site.replace(".", "/")};"
                             }.toSet()
 
                             if (inlinedIntoClasses.isNotEmpty()) {

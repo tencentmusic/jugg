@@ -15,7 +15,7 @@ import java.io.InputStream
  * Remaps class names, method names, and field names in bytecode
  * based on the provided mapping information from R8MappingReader.
  */
-class ClassObfuscator(private val mappingReader: R8MappingReader) {
+class ClassObfuscator(mappingReader: R8MappingReader) {
 
     // Build lookup maps for efficient remapping
     // originalName (internal format) -> obfuscatedName (internal format)
@@ -25,12 +25,16 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
     private val fieldNameMap: Map<String, String>
     // originalClassName + "." + originalMethodName + methodDescriptor -> obfuscatedMethodName
     private val methodNameMap: Map<String, String>
+    // Store method invocation information for inline detection
+    // Key: originalClassName.methodName -> List of caller class names (original names)
+    private val methodInvocationMap: Map<String, List<String>>
 
     init {
         val classMap = mutableMapOf<String, String>()
         val antiClassMap = mutableMapOf<String, String>()
         val fieldMap = mutableMapOf<String, String>()
         val methodMap = mutableMapOf<String, String>()
+        val invocationMap = mutableMapOf<String, MutableList<String>>()
 
         mappingReader.forEachClass { _, classMapping ->
             val originalInternal = classMapping.originalName.replace('.', '/')
@@ -44,10 +48,18 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
                 fieldMap[key] = field.obfuscatedName
             }
 
-            // Build method mapping
+            // Build method mapping and invocation mapping
             classMapping.methods.forEach { method ->
                 val key = "${classMapping.originalName}.${method.originalName}(${method.parameters})"
                 methodMap[key] = method.obfuscatedName
+
+                // Build invocation map: for each method that has invocations,
+                // record which classes call which methods
+                method.invocations.forEach { invocation ->
+                    val invocationKey = "${invocation.calledClass}.${invocation.calledMethod}"
+                    invocationMap.getOrPut(invocationKey) { mutableListOf() }
+                        .add(classMapping.originalName)
+                }
             }
         }
 
@@ -55,6 +67,7 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
         antiClassNameMap = antiClassMap
         fieldNameMap = fieldMap
         methodNameMap = methodMap
+        methodInvocationMap = invocationMap.mapValues { it.value.distinct() }
     }
 
     /**
@@ -152,6 +165,18 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
      */
     fun hasClassMapping(className: String): Boolean {
         return classNameMap.containsKey(className)
+    }
+
+    /**
+     * Find all classes that invoke a specific method (for inline detection).
+     *
+     * @param originalClassName The original class name in dot notation (e.g., "com.example.MyClass")
+     * @param methodName The method name
+     * @return List of original class names (in dot notation) that invoke this method
+     */
+    fun findInvocationsOf(originalClassName: String, methodName: String): List<String> {
+        val key = "$originalClassName.$methodName"
+        return methodInvocationMap[key] ?: emptyList()
     }
 
     /**
@@ -321,6 +346,7 @@ class ClassObfuscator(private val mappingReader: R8MappingReader) {
             classObfuscatorCacheKey = newKey
             val reader = R8MappingReader.fromFile(mappingFile)
             val result = ClassObfuscator(reader)
+            classObfuscatorCache = result
             return result
         }
 
