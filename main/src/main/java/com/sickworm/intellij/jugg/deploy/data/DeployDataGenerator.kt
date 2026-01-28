@@ -139,7 +139,7 @@ class DeployDataGenerator(
 
             // Check for method inlining effects if we're checking minified removed classes
             val inlineDetector = InlineMethodDetector(mappingFile, logger.getInstance("InlineMethodDetector"))
-            val inlineEffectedNodes = inlineDetector.findInlineEffectedClasses(checkMinifiedRemoveClass, oldClassNodes)
+            val inlineEffectedNodes = inlineDetector.findInlineEffectedClasses(checkMinifiedRemoveClass)
             merge(effectedNodes, inlineEffectedNodes)
 
             effectedNodes

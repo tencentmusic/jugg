@@ -546,7 +546,7 @@ class DeployFileManager(
                     val relativePath = iterator.next()
                     val destFile = File(classPath, relativePath)
                     if (destFile.exists()) {
-                        logger.debug("found class file: $destFile")
+                        // logger.debug("found class file: $destFile")
                         iterator.remove()
                         val changedFile = ChangedFile(CompileFile.Type.Class, destFile, classPath, moduleInfo)
                         foundClassesFiles.add(changedFile)
@@ -578,7 +578,7 @@ class DeployFileManager(
                     ZipFile(libraryFile).use { zipFile ->
                         val entry = zipFile.getEntry(relativePath)
                         if (entry != null) {
-                            logger.debug("found class in library ${libraryFile.absolutePath}/${relativePath}")
+                            // logger.debug("found class in library ${libraryFile.absolutePath}/${relativePath}")
                             val destFile = File(tmpDir, relativePath)
                             destFile.parentFile?.mkdirs()
                             zipFile.getInputStream(entry).use { inputStream ->
