@@ -68,7 +68,7 @@ class IncrementalCompilerHelper(
         val successFiles = compileResult.details.filter { it.isSuccess }.map { it.get() }
         val failedFiles = compileResult.details.filter { !it.isSuccess }.map { it.getFailure().file }
         deployFileManager.updateUncompiledFiles(successFiles, failedFiles)
-        deployFileManager.addDeployFiles(compileResult.outputs)
+        deployFileManager.addStagingFiles(compileResult.outputs)
 
         val failedStates = compileResult.failedFiles
 
@@ -161,10 +161,21 @@ class IncrementalCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                return compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder,
+                val result = compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder,
                     compiledFilesThisTime = undeployedFiles + compiledFilesThisTime,
                     isRetry = isRetry,
                 )
+                if (compileStatusHolder.isShouldCancel) {
+                    // revert file compile status, compile again next round
+                    val isFirstCompile = compiledFilesThisTime.isEmpty()
+                    if (isFirstCompile) {
+                        deployFileManager.addChangedFile(undeployedFiles)
+                        deployFileManager.clearStagingFiles()
+                    }
+                    return CompileTaskResult.incrementalFailed(false, "Compile canceled")
+                } else {
+                    return result
+                }
             }
         }
 

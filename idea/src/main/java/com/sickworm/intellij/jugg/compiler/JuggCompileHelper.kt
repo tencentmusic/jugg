@@ -420,7 +420,7 @@ class JuggCompilerHelper(
                     logger.info("No file changes, but it's first time run, deploy directly.")
                     return CompileTaskResult.incrementalSuccess(CompileResult.empty(uiHandler.createCompileStatusHolder()))
                 } else {
-                    logger.info("No file changes, but it's last compilation not finished" +
+                    logger.info("No file changes, but last compilation not finished" +
                             ", will run with incremental compile.")
                 }
             } else {

@@ -198,10 +198,15 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun addDeployFiles(compileOutputFiles: List<CompileOutput>) {
+    fun addStagingFiles(compileOutputFiles: List<CompileOutput>) {
         compileOutputFiles.forEach {
             stagingFiles[it.file.stdAbsPath] = it
         }
+    }
+
+    @Synchronized
+    fun clearStagingFiles() {
+        stagingFiles.clear()
     }
 
     @Synchronized
