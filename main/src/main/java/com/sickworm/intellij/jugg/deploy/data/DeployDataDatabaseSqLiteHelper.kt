@@ -2,7 +2,6 @@
 
 package com.sickworm.intellij.jugg.deploy.data
 
-import android.databinding.tool.ext.fieldSpec
 import com.googlecode.d2j.DexConstants
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.*
@@ -10,7 +9,6 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.project.JuggException
 import org.jetbrains.annotations.TestOnly
 import java.io.File
-import java.security.MessageDigest
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
@@ -1020,23 +1018,17 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     @Synchronized
     fun getEffectedClassNodesForMinify(
         maybeMinifiedRemoveClasses: ParsedDex?,
-        deployedClasses: List<String>,
+        deployedClasses: Set<String>,
     ): List<EffectedClassNode> {
-        logger.debug("getEffectedClassNodesForMinify maybeMinifiedRemoveClasses ${maybeMinifiedRemoveClasses?.classDeployItems?.size}, deployedClasses ${deployedClasses.size}")
-        val effectedClassNodes = mutableListOf<EffectedClassNode>()
-
-        // check if any class is minified and removed
-        effectedClassNodes.addAll(checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses, deployedClasses))
-
-        logger.debug("getEffectedClassNodesForMinify result $effectedClassNodes")
-        return effectedClassNodes
-    }
-
-    private fun checkMaybeMinifiedRemoveClass(maybeMinifiedRemoveClasses: ParsedDex?, deployedClasses: List<String>): List<EffectedClassNode> {
         if (maybeMinifiedRemoveClasses == null) {
             return emptyList()
         }
 
+        val dexedClasses = deployedClasses.toMutableSet()
+        dexedClasses += maybeMinifiedRemoveClasses.classDeployItems
+            .flatMap { it.classNodes }
+            .map { it.className }
+            .toSet()
         logger.debug("checkMaybeMinifiedRemoveClass: checking ${maybeMinifiedRemoveClasses.classDeployItems.size} deploy items")
 
         val result = mutableListOf<EffectedClassNode>()
@@ -1056,8 +1048,8 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 }
                 // 3. Collect from subclassRefs.key
                 suspectClassNames.addAll(maybeMinifiedRemoveClasses.subclassRefs.keys)
-                // 4. filter out classes in deployedClasses (no need check again)
-                suspectClassNames.removeAll(deployedClasses.toSet())
+                // 4. filter out classes in dexedClasses (no need check again)
+                suspectClassNames.removeAll(dexedClasses)
                 if (suspectClassNames.isEmpty()) {
                     logger.debug("checkMaybeMinifiedRemoveClass: no suspect classes found")
                     return@runWithTimeCost

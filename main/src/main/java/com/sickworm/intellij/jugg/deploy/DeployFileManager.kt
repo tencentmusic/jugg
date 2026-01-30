@@ -330,13 +330,16 @@ class DeployFileManager(
     }
 
     @Synchronized
-    fun getRecompileFiles(isMinified: Boolean, classObfuscator: ClassObfuscator?): RecompileFiles {
+    fun getRecompileFiles(isMinified: Boolean, isCompilingEffectedSourceFiles: Boolean, classObfuscator: ClassObfuscator?): RecompileFiles {
         logger.debug("getRecompileFiles")
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
         val juggDeployData = deployDataGenerator.buildDeployData(deployItems,
-            isNeedCheckRecompile = true, isNeedCheckRecompileMinifyRemovedClass = isMinified)
+            isNeedCheckRecompile = true,
+            isNeedCheckRecompileMinifyRemovedClass = isMinified,
+            isCompilingEffectedSourceFiles = isCompilingEffectedSourceFiles,
+        )
 
         val obfuscatedClasses = juggDeployData.effectedClassNodes.map {
             val originClassName = classObfuscator?.getOriginClassSigName(it.className) ?: it.className

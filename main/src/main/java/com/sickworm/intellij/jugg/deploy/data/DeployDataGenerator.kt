@@ -33,12 +33,13 @@ class DeployDataGenerator(
         isWarmUp: Boolean = false,
         isNeedCheckRecompile: Boolean = true,
         isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
+        isCompilingEffectedSourceFiles: Boolean = false,
     ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex, isSkipOfficialClass = !isNeedCheckRecompileMinifyRemovedClass) // check official class minify
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
-        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isNeedCheckRecompileMinifyRemovedClass)
+        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isNeedCheckRecompileMinifyRemovedClass, isCompilingEffectedSourceFiles)
     }
 
     @TestOnly
@@ -48,6 +49,7 @@ class DeployDataGenerator(
                         isWarmUp: Boolean = false,
                         isNeedCheckRecompile: Boolean = true,
                         isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
+                        isCompilingEffectedSourceFiles: Boolean = false,
     ): JuggDeployData {
         val startTime = System.currentTimeMillis()
 
@@ -135,12 +137,17 @@ class DeployDataGenerator(
 
         val effectedSourceAndClassNodes = if (isNeedCheckRecompile) {
             val checkMinifiedRemoveClass = if (isNeedCheckRecompileMinifyRemovedClass) parsedDex else null
-            val effectedNodes = deployDataDatabase.getEffectedSourceAndClass(changedMethodRef, changedFieldRef, changedAbstractClasses, checkMinifiedRemoveClass).toMutableList()
+            val effectedNodes = deployDataDatabase.getEffectedSourceAndClass(
+                changedMethodRef, changedFieldRef, changedAbstractClasses,
+                checkMinifiedRemoveClass).toMutableList()
 
             // Check for method inlining effects if we're checking minified removed classes
-            val inlineDetector = InlineMethodDetector(mappingFile, logger.getInstance("InlineMethodDetector"))
-            val inlineEffectedNodes = inlineDetector.findInlineEffectedClasses(checkMinifiedRemoveClass)
-            merge(effectedNodes, inlineEffectedNodes)
+            // for effected source files, no need to detect because logic is not changed, no need to update inlined codes.
+            if (!isCompilingEffectedSourceFiles) {
+                val inlineDetector = InlineMethodDetector(mappingFile, logger.getInstance("InlineMethodDetector"))
+                val inlineEffectedNodes = inlineDetector.findInlineEffectedClasses(checkMinifiedRemoveClass)
+                merge(effectedNodes, inlineEffectedNodes)
+            }
 
             effectedNodes
         } else {

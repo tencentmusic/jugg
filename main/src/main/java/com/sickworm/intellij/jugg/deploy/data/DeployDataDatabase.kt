@@ -271,7 +271,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
                 }
 
                 val apkMinifyEffectClassNodesMap = helper.getEffectedClassNodesForMinify(
-                    maybeMinifiedRemoveClasses, incDeployedDatabase.deployedClasses.keys.toList()
+                    maybeMinifiedRemoveClasses, incDeployedDatabase.deployedClasses.keys.toSet(),
                 )
                 apkMinifyEffectClassNodesMap.forEach addNode@{
                     val oldNode = effectClassNodesMap[it.className]

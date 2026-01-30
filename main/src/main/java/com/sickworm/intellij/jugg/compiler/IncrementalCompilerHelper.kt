@@ -34,9 +34,10 @@ class IncrementalCompilerHelper(
         undeployedFiles: List<ChangedFile>,
         uiHandler: CompileUiHandler,
         compileStatusHolder: CompileStatusHolder,
-        compiledFilesThisTime: List<ChangedFile> = emptyList(), // used for avoid recompilation dead loop
-        isRetry: Boolean = false,
+        compileLoopStatus: CompileLoopStatus = CompileLoopStatus(),
     ): CompileTaskResult {
+        val isFirstCompile = compileLoopStatus.isFirstCompile
+
         if (compileStatusHolder.isShouldCancel) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
         }
@@ -48,7 +49,7 @@ class IncrementalCompilerHelper(
         // do compile
         logger.debug("Compile files: ${compileFiles.map { it.file.absolutePath }}")
         logger.info("Compile files:\n${compileFiles.desc()}")
-        val notifyText = if (compiledFilesThisTime.isEmpty()) {
+        val notifyText = if (compileLoopStatus.isFirstCompile) {
             "Compiling ${compileFiles.size} files..."
         } else {
             "Detect effected sources, compiling ${compileFiles.size} files..."
@@ -87,7 +88,7 @@ class IncrementalCompilerHelper(
             val classObfuscator = compiler.context.mappingFile
                 ?.takeIf { it.exists() }
                 ?.let { ClassObfuscator.fromMappingFile(it) }
-            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified, classObfuscator)
+            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified, !compileLoopStatus.isFirstCompile, classObfuscator)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()
@@ -98,9 +99,11 @@ class IncrementalCompilerHelper(
                     ", undeployedFiles: $undeployedFiles" +
                     ", effectedSourceFiles: $effectedSourceFiles" +
                     ", changedFiles: $changedFiles" +
-                    ", compiledFilesThisTime: $compiledFilesThisTime"
+                    ", compiledFilesThisTime: ${compileLoopStatus.compiledFilesThisTime.map { it.file }}"
             )
-            val compiledFilesThisTimeSet = (undeployedFiles + compiledFilesThisTime).map { it.file.absolutePath }.toSet()
+
+            compileLoopStatus.compiledFilesThisTime += undeployedFiles
+            val compiledFilesThisTimeSet = compileLoopStatus.compiledFilesThisTime.map { it.file.absolutePath }.toSet()
             val undeployedFilesSet = undeployedFiles.map { it.file.absolutePath }.toSet()
             val unCompiledEffectedFiles = changedFiles.filter { changedFile ->
                 if (compiledFilesThisTimeSet.contains(changedFile.file.absolutePath)) {
@@ -145,15 +148,8 @@ class IncrementalCompilerHelper(
                 logger.debug("Compile success, no effected source files found.")
             }
 
-            val alreadyReDexClasses = (undeployedFiles + compiledFilesThisTime).filter {
-                it.type == CompileFile.Type.Class
-            }.map {
-                it.file
-            }.toSet()
             val redexClasses = recompileFiles.redexClasses.map {
                 it.copy(module = compiler.context.tempModule)
-            }.filter {
-                it.file !in alreadyReDexClasses
             }
             if (redexClasses.isNotEmpty()) {
                 logger.info("Compile success, but found classes that need to be redexed, continue compile. Classes: ${redexClasses.map { it.file.name }}")
@@ -161,13 +157,9 @@ class IncrementalCompilerHelper(
             }
 
             if (nextCompileFiles.isNotEmpty()) {
-                val result = compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder,
-                    compiledFilesThisTime = undeployedFiles + compiledFilesThisTime,
-                    isRetry = isRetry,
-                )
+                val result = compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder, compileLoopStatus)
                 if (compileStatusHolder.isShouldCancel) {
                     // revert file compile status, compile again next round
-                    val isFirstCompile = compiledFilesThisTime.isEmpty()
                     if (isFirstCompile) {
                         deployFileManager.addChangedFile(undeployedFiles)
                         deployFileManager.clearStagingFiles()
@@ -179,14 +171,15 @@ class IncrementalCompilerHelper(
             }
         }
 
-        if (!isSuccess && !isRetry) {
+        if (!isSuccess && !compileLoopStatus.isRetry) {
             val isCanRetry = dependencyMissingResolver.resolve(compileResult)
             logger.debug("DependencyMissingResolver isCanRetry: $isCanRetry")
             if (isCanRetry) {
                 logger.info("\nCompile failed, but try fixing dependency success, retry compile once.\n")
-                return compile(undeployedFiles, uiHandler, compileStatusHolder,
-                    compiledFilesThisTime = compiledFilesThisTime,
-                    isRetry = true)
+                val status = CompileLoopStatus().also {
+                    it.isRetry = true
+                }
+                return compile(undeployedFiles, uiHandler, compileStatusHolder, status)
             }
         }
 
@@ -279,5 +272,12 @@ class IncrementalCompilerHelper(
         return null
     }
 
+    class CompileLoopStatus(
+        /** used for avoid recompilation dead loop */
+        var compiledFilesThisTime: List<ChangedFile> = emptyList(),
+        var isRetry: Boolean = false,
+    ) {
+        val isFirstCompile get() = compiledFilesThisTime.isEmpty()
+    }
 }
 
