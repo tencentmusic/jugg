@@ -7,6 +7,8 @@ import java.io.File
 import java.nio.file.Path
 
 /**
+ * [No usage for now]
+ *
  * R8FileMaker is responsible for running R8 to produce optimized and obfuscated DEX files.
  *
  * R8 combines DEX compilation, optimization, shrinking, and obfuscation in a single step.
