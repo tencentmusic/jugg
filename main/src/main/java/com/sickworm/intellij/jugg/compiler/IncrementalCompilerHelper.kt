@@ -36,7 +36,7 @@ class IncrementalCompilerHelper(
         compileStatusHolder: CompileStatusHolder,
         compileLoopStatus: CompileLoopStatus = CompileLoopStatus(),
     ): CompileTaskResult {
-        val isFirstCompile = compileLoopStatus.isFirstCompile
+        val isFirstRoundCompile = compileLoopStatus.isFirstRoundCompile
 
         if (compileStatusHolder.isShouldCancel) {
             return CompileTaskResult.incrementalFailed(false, "Compile canceled")
@@ -49,7 +49,7 @@ class IncrementalCompilerHelper(
         // do compile
         logger.debug("Compile files: ${compileFiles.map { it.file.absolutePath }}")
         logger.info("Compile files:\n${compileFiles.desc()}")
-        val notifyText = if (compileLoopStatus.isFirstCompile) {
+        val notifyText = if (compileLoopStatus.isFirstRoundCompile) {
             "Compiling ${compileFiles.size} files..."
         } else {
             "Detect effected sources, compiling ${compileFiles.size} files..."
@@ -66,9 +66,11 @@ class IncrementalCompilerHelper(
         }
 
         // update file status
-        val successFiles = compileResult.details.filter { it.isSuccess }.map { it.get() }
-        val failedFiles = compileResult.details.filter { !it.isSuccess }.map { it.getFailure().file }
-        deployFileManager.updateUncompiledFiles(successFiles, failedFiles)
+        if (isFirstRoundCompile) {
+            val successFiles = compileResult.details.filter { it.isSuccess }.map { it.get() }
+            val failedFiles = compileResult.details.filter { !it.isSuccess }.map { it.getFailure().file }
+            deployFileManager.updateUncompiledFiles(successFiles, failedFiles)
+        }
         deployFileManager.addStagingFiles(compileResult.outputs)
 
         val failedStates = compileResult.failedFiles
@@ -88,7 +90,7 @@ class IncrementalCompilerHelper(
             val classObfuscator = compiler.context.mappingFile
                 ?.takeIf { it.exists() }
                 ?.let { ClassObfuscator.fromMappingFile(it) }
-            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified, !compileLoopStatus.isFirstCompile, classObfuscator)
+            val recompileFiles = deployFileManager.getRecompileFiles(compiler.context.isMinified, !compileLoopStatus.isFirstRoundCompile, classObfuscator)
             val effectedSourceFiles = recompileFiles.effectedSourceFiles
 
             val nextCompileFiles = mutableListOf<ChangedFile>()
@@ -160,7 +162,7 @@ class IncrementalCompilerHelper(
                 val result = compile(nextCompileFiles.distinct(), uiHandler, compileStatusHolder, compileLoopStatus)
                 if (compileStatusHolder.isShouldCancel) {
                     // revert file compile status, compile again next round
-                    if (isFirstCompile) {
+                    if (isFirstRoundCompile) {
                         deployFileManager.addChangedFile(undeployedFiles)
                         deployFileManager.clearStagingFiles()
                     }
@@ -277,7 +279,7 @@ class IncrementalCompilerHelper(
         var compiledFilesThisTime: List<ChangedFile> = emptyList(),
         var isRetry: Boolean = false,
     ) {
-        val isFirstCompile get() = compiledFilesThisTime.isEmpty()
+        val isFirstRoundCompile get() = compiledFilesThisTime.isEmpty()
     }
 }
 

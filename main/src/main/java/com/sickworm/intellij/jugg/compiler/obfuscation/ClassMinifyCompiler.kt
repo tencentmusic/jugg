@@ -72,12 +72,14 @@ class ClassMinifyCompiler(
         val details = mutableListOf<Result<CompileFile, CompileError>>()
         val outputs = mutableListOf<CompileOutput>()
 
+        val detailLog = StringBuilder("Obfuscated: ")
         for (compileFile in task.files) {
             try {
                 val result = obfuscateClassFile(compileFile, task.outputDir, obfuscator)
                 if (result != null) {
                     details.add(Result.success(compileFile))
                     outputs.add(result)
+                    detailLog.append("${compileFile.file.name} -> ${result.file.name}\"")
                 } else {
                     // No mapping for this class, output as-is
                     val output = copyClassFile(compileFile, task.outputDir)
@@ -93,6 +95,7 @@ class ClassMinifyCompiler(
                 )
             }
         }
+        logger.debug(detailLog.toString())
 
         return CompileResult(task, details, outputs)
     }
@@ -121,7 +124,6 @@ class ClassMinifyCompiler(
         if (outputBytes != null) {
             outputFile.parentFile?.mkdirs()
             outputFile.writeBytes(outputBytes)
-            logger.debug("Obfuscated: ${inputFile.name} -> ${outputFile.name}")
             return CompileOutput(CompileOutput.Type.Class, outputFile, outputDir)
         }
 
