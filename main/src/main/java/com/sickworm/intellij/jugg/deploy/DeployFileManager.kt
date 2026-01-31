@@ -422,6 +422,11 @@ class DeployFileManager(
             if (it.sourceFileName.endsWith(".kt") || it.sourceFileName.endsWith(".java")) {
                 existsSourceNode.add(it)
             } else {
+                // desugar generate class don't need source files
+                val isDesugarClass = it.className.contains("$\$ExternalSyntheticLambda")
+                if (isDesugarClass) {
+                    return@forEach
+                }
                 missingSourceNode.add(it)
             }
         }
