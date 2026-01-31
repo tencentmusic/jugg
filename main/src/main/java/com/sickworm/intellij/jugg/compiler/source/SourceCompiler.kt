@@ -90,7 +90,7 @@ class SourceCompiler(
         val minifyTask = CompileTask(compileClassFiles, outputDir, task)
         val minifyResult = classMinify.compile(minifyTask)
         if (!minifyResult.isAllSuccess) {
-            return classCompileResult.failedAll("Minify failed")
+            return classCompileResult.failedAll(task, "Minify failed")
         }
 
         // dex .class
@@ -100,7 +100,7 @@ class SourceCompiler(
         val dexTask = CompileTask(minifyClassFiles, task.outputDir, task)
         val dexCompileResult = dexCompiler.compile(dexTask)
         if (!dexCompileResult.isAllSuccess) {
-            return classCompileResult.failedAll("Dex compile failed")
+            return classCompileResult.failedAll(task,"Dex compile failed")
         }
 
         return CompileResult(task, classCompileResult.details, dexCompileResult.outputs + otherOutputs)

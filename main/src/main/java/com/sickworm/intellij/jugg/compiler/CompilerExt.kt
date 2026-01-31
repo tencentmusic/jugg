@@ -238,7 +238,7 @@ fun CompileFile.Type.toCompileOutputType(): CompileOutput.Type? {
     }
 }
 
-fun CompileResult.failedAll(message: String): CompileResult {
+fun CompileResult.failedAll(task: CompileTask, message: String): CompileResult {
     // mark all failed
     val successDetails = details.filter { it.isSuccess }
     val failedDetails = details.filter { !it.isSuccess }
