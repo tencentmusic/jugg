@@ -74,5 +74,13 @@
             <add-to-group group-id="ToolbarRunGroup" anchor="last"/> <!-- old ui -->
             <add-to-group group-id="MainToolbarRight" anchor="first"/> <!-- new ui -->
         </action>
+
+        <action id="jugg.ReportIssueAction"
+                class="com.sickworm.intellij.jugg.ide.ui.ReportIssueAction"
+                text="Report Jugg Issue"
+                description="Report Jugg Issue"
+                icon="/res/icons/run_configuration.svg"
+        >
+        </action>
     </actions>
 </idea-plugin>
