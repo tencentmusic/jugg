@@ -18,6 +18,9 @@
 | compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
 | compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
 | deploy | JuggDeployer, DeployFileManager | deploy/core | 部署调度、文件准备 | 稳定 | 2025-01-20 |
+| deploy | DeployDataGenerator, ClassNodeComparator | deploy/data | 类结构比较、影响分析 | 稳定 | 2026-02-01 |
+| deploy | DeployDataDatabase, IncrementalDeployDataDatabase | deploy/data | 双层数据库、引用索引 | 稳定 | 2026-02-01 |
+| deploy | InlineMethodDetector | deploy/data | 内联方法影响检测 | 稳定 | 2026-02-01 |
 | deploy | IncrementalDeployHelper, DeployHistoryManager | deploy/core | 增量部署与历史管理 | 稳定 | 2025-01-20 |
 | project | JuggProjectInfo, GradleProjectInfoReader | project | 项目信息读取/序列化 | 稳定 | 2025-01-20 |
 | project | DependencyResolver, LocalGradleCompileClient | project | 依赖解析与 Gradle 调用 | 稳定 | 2025-01-20 |

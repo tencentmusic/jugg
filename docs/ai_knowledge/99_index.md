@@ -25,11 +25,12 @@
 | [02_compile_manifest_obfuscation.md](02_compile_manifest_obfuscation.md) | Manifest 和混淆 | `ManifestCompiler`, `ObfuscationCompiler` |
 | [02_compile_custom_ui.md](02_compile_custom_ui.md) | 自定义编译器和 UI | `CustomCompilerManager`, `CompileUiHandler` |
 
-#### 部署系统 (2 个文档)
+#### 部署系统 (3 个文档)
 
 | 文档 | 说明 | 关键类 |
 |------|------|--------|
 | [03_deploy_core.md](03_deploy_core.md) | 核心部署机制 | `JuggDeployer`, `DeployFileManager` |
+| [03_deploy_data_generator.md](03_deploy_data_generator.md) | 增量影响分析与类结构变更检测 | `DeployDataGenerator`, `ClassNodeComparator`, `DeployDataDatabase` |
 | [03_deploy_complete.md](03_deploy_complete.md) | 完整部署流程 | `IncrementalDeployHelper`, `DeployHistoryManager` |
 
 #### 运行时 (1 个文档)
@@ -86,6 +87,10 @@
 - **APK 安装**: [03_deploy_core.md](03_deploy_core.md) → JuggDeployer.install
 - **代码热修**: [03_deploy_core.md](03_deploy_core.md) → JuggDeployer.codeSwap
 - **热点修**: [03_deploy_core.md](03_deploy_core.md) → JuggDeployer.fullSwap
+- **类结构比较**: [03_deploy_data_generator.md](03_deploy_data_generator.md) → ClassNodeComparator
+- **影响分析**: [03_deploy_data_generator.md](03_deploy_data_generator.md) → DeployDataDatabase.getEffectedSourceAndClass
+- **内联检测**: [03_deploy_data_generator.md](03_deploy_data_generator.md) → InlineMethodDetector
+- **部署数据生成**: [03_deploy_data_generator.md](03_deploy_data_generator.md) → DeployDataGenerator.buildDeployData
 - **增量部署**: [03_deploy_complete.md](03_deploy_complete.md) → IncrementalDeployHelper
 - **部署历史**: [03_deploy_complete.md](03_deploy_complete.md) → DeployHistoryManager
 - **文件管理**: [03_deploy_core.md](03_deploy_core.md) → DeployFileManager
@@ -131,6 +136,7 @@
 2. **理解架构** → [01_architecture.md](01_architecture.md)
 3. **编译系统** → [02_compile_core.md](02_compile_core.md)
 4. **部署系统** → [03_deploy_core.md](03_deploy_core.md)
+5. **影响分析** → [03_deploy_data_generator.md](03_deploy_data_generator.md)
 
 ### 开发者路径
 
@@ -145,7 +151,8 @@
 2. **资源编译** → [02_compile_resource.md](02_compile_resource.md)
 3. **DataBinding** → [02_compile_databinding.md](02_compile_databinding.md)
 4. **混淆支持** → [02_compile_manifest_obfuscation.md](02_compile_manifest_obfuscation.md)
-5. **完整部署** → [03_deploy_complete.md](03_deploy_complete.md)
+5. **影响分析** → [03_deploy_data_generator.md](03_deploy_data_generator.md)
+6. **完整部署** → [03_deploy_complete.md](03_deploy_complete.md)
 ---
 
 ## 📊 统计信息
@@ -156,14 +163,14 @@
 |------|------|--------|
 | 概览文档 | 2 | ~6 KB |
 | 编译文档 | 6 | ~178 KB |
-| 部署文档 | 2 | ~36 KB |
+| 部署文档 | 3 | ~96 KB |
 | 运行时文档 | 1 | ~6 KB |
 | 工程文档 | 3 | ~84 KB |
 | 辅助文档 | 1 | ~25 KB |
 | 任务手册 | 1 | ~6 KB |
 | 代码索引 | 1 | ~6 KB |
 | 演进文档 | 1 | ~15 KB |
-| **总计** | **20** | **~370 KB** |
+| **总计** | **21** | **~430 KB** |
 
 ### 代码覆盖
 

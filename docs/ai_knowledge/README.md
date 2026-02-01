@@ -82,6 +82,7 @@ IF 以上都不匹配
 
 ### 部署与运行时 (03_*)
 - `03_deploy_core.md` - JVMTI/Overlay 热部署
+- `03_deploy_data_generator.md` - 增量影响分析与类结构变更检测
 - `03_deploy_complete.md` - 完整部署流程
 - `03_runtime_jvmti.md` - JVMTI Agent 实现
 
