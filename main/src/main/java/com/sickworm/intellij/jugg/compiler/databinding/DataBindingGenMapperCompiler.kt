@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.compiler.databinding
 
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.source.JavaCompilerInvoker
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -234,7 +235,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         val currentDataBinderMapperImplFile = File(argsManager.dataBindingSourcesOutputDir, argsManager.dataBindingMapperRelativePath)
         if (!currentDataBinderMapperImplFile.exists()) {
             throw RuntimeException("dataBinderMapper file not exist: $currentDataBinderMapperImplFile, " +
-                    "kapt may not proceed. see \"runAnnotationProcessor kapt output\" for more details")
+                    "apt may not proceed. see \"runAnnotationProcessor apt output\" for more details")
         }
         logger.debug("generateIncrementalMapperHolder currentDataBinderMapperImplFile = $currentDataBinderMapperImplFile")
 
@@ -305,7 +306,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     }
 
     /**
-     * Run kapt，generate DataBindingImpl.java、BR.java、DataMapping.
+     * Run apt，generate DataBindingImpl.java、BR.java、DataMapping.
      */
     private fun runAnnotationProcessor(task: CompileTask, module: ModuleInfo) {
         logger.debug("runAnnotationProcessor in")
@@ -330,8 +331,8 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         val apOptions = prepareAnnotationProcessorOptions(module)
         logger.debug("runAnnotationProcessor apOptions: $apOptions")
 
-        // kapt compile
-        val kaptTask = CompileTask(
+        // apt compile
+        val aptTask = CompileTask(
             files = source,
             outputDir = argsManager.dataBindingSourcesOutputDir,
             parentTask = task,
@@ -343,24 +344,45 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             val targetFile = File(argsManager.dataBindingDependencyArtifacts, it.name)
             it.copyTo(targetFile, overwrite = true)
         }
-        val options = KotlinCompilerInvoker.Options(
-            isEnableKapt = true,
-            isCanAutoRetry = false,
-            kaptOptions = apOptions,
-            kaptDependencies = classpath.kaptDependencies,
-            kotlinPlugins = classpath.kotlinPlugins,
-            javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
-        )
-        val kaptResult = KotlinCompilerInvoker.currentInstance.compile(
-            subContext, module, kaptTask, logger, options
-        )
-        if (!kaptResult.isAllSuccess) {
-            throw RuntimeException("Failed to compile annotation process task: $kaptResult")
+
+        val aptResult: CompileResult
+        if (argsManager.isJava) {
+            // Filter only databinding-related dependencies for annotation processing
+            // to avoid issues with other annotation processors like ARouter
+            val databindingDeps = classpath.kaptDependencies.filter {
+                it.path.contains("databinding")
+            }
+            val options = JavaCompilerInvoker.Options(
+                isEnableApt = true,
+                isAptOnly = true, // Only generate sources, don't compile them
+                aptPaths = databindingDeps,
+                isCanAutoRetry = false,
+                aptOptions = apOptions,
+                aptSourcePaths = listOf(argsManager.dataBindingSourcesOutputDir),
+            )
+            aptResult = JavaCompilerInvoker.currentInstance.compile(
+                subContext, module, aptTask, logger, options
+            )
+        } else {
+            val options = KotlinCompilerInvoker.Options(
+                isEnableKapt = true,
+                isCanAutoRetry = false,
+                kaptOptions = apOptions,
+                kaptDependencies = classpath.kaptDependencies,
+                kotlinPlugins = classpath.kotlinPlugins,
+                javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
+            )
+            aptResult = KotlinCompilerInvoker.currentInstance.compile(
+                subContext, module, aptTask, logger, options
+            )
         }
-        if (kaptResult.outputs.isEmpty()) {
+        if (!aptResult.isAllSuccess) {
+            throw RuntimeException("Failed to compile annotation process task: $aptResult")
+        }
+        if (aptResult.outputs.isEmpty()) {
             throw RuntimeException("No annotation process task output")
         }
-        logger.debug("runAnnotationProcessor kapt output: ${kaptResult.outputs.joinToString(", ") { it.file.name }}")
+        logger.debug("runAnnotationProcessor apt output: ${aptResult.outputs.joinToString(", ") { it.file.name }}")
     }
 
     /**

@@ -11,7 +11,7 @@ import java.io.File
  */
 class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: ModuleInfo) {
 
-    val isJava = false
+    val isJava = true // use apt. kapt has JVM compat issue, e.g. running kapt in JVM 21(Android Studio runtime) needs Kotlin 1.9
     val isUseAndroidX = true // just leave it true
     val isUseViewBinding = isUseViewBinding(moduleInfo)
     val isUseDataBinding = isUseDataBinding(moduleInfo)
