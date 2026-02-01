@@ -338,7 +338,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             parentTask = task,
         )
         val subContext = context.subContext(argsManager.dataBindingKaptOutputDir)
-        val classpath = DataBindingClasspathHelper.getClasspath(context, module, logger)
+        val classpath = DataBindingClasspathHelper.getClasspath(argsManager.isJava, context, module, logger)
         classpath.adapterJson.forEach {
             logger.debug("classpath adapterJson: $it")
             val targetFile = File(argsManager.dataBindingDependencyArtifacts, it.name)
@@ -349,13 +349,10 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         if (argsManager.isJava) {
             // Filter only databinding-related dependencies for annotation processing
             // to avoid issues with other annotation processors like ARouter
-            val databindingDeps = classpath.kaptDependencies.filter {
-                it.path.contains("databinding")
-            }
             val options = JavaCompilerInvoker.Options(
                 isEnableApt = true,
                 isAptOnly = true, // Only generate sources, don't compile them
-                aptPaths = databindingDeps,
+                aptPaths = classpath.aptDependencies,
                 isCanAutoRetry = false,
                 aptOptions = apOptions,
                 aptSourcePaths = listOf(argsManager.dataBindingSourcesOutputDir),
@@ -368,7 +365,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 isEnableKapt = true,
                 isCanAutoRetry = false,
                 kaptOptions = apOptions,
-                kaptDependencies = classpath.kaptDependencies,
+                kaptDependencies = classpath.aptDependencies,
                 kotlinPlugins = classpath.kotlinPlugins,
                 javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
             )

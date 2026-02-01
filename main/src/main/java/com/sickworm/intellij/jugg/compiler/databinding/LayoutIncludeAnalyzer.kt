@@ -27,7 +27,7 @@ class LayoutIncludeAnalyzer(
             compileDataBindingXmlFiles.forEach { file ->
                 val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(file.file.nameWithoutExtension, file.file.parentFile.name)
                 if (subLayoutInfoFiles.isEmpty()) {
-                    logger.warn("can not find layout info file for layout: $file")
+                    logger.warn("Can not find layout info file for layout file: $file")
                     return@forEach
                 }
                 layoutInfoFiles.addAll(subLayoutInfoFiles)
@@ -46,7 +46,7 @@ class LayoutIncludeAnalyzer(
                 includeLayoutNames.forEach { name ->
                     val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(name)
                     if (subLayoutInfoFiles.isEmpty()) {
-                        logger.warn("can not find layout info file for layout: $name")
+                        logger.warn("Can not find layout info file for layout name: $name")
                         return@forEach
                     }
                     subLayoutInfoFiles.forEach { layoutInfoFile ->

@@ -98,6 +98,7 @@ dependencies {
     // only for jugg parsing, kapt will use project classpath
     implementation 'androidx.databinding:databinding-compiler:8.7.3'
     implementation 'androidx.databinding:databinding-compiler-common:8.7.3'
+    implementation 'com.squareup:javapoet:1.10.0' // fix apt error: Compile DataBinding failed: java.lang.NoClassDefFoundError: com/squareup/javapoet/TypeSpec
 //    implementation('androidx.databinding:databinding-adapters:8.7.3') // it's an aar, should extra and put the jar in libs
 
 

@@ -108,10 +108,14 @@ class JavaCompilerInvoker {
 
         // compile error listener
         var isCurrentSourceTargetVersionNotSupport = false
+        val notSourceErrors = mutableListOf<Pair<Long, String>>() // e.g. apt classpath error
         val compileListener = DiagnosticListener<JavaFileObject> { diagnostic ->
             val item = compileItems.firstOrNull { it.fileObject == diagnostic.source }
             val message = diagnostic.toString()
             if (diagnostic.kind != Diagnostic.Kind.ERROR || item == null) {
+                if (item == null) {
+                    notSourceErrors.add(diagnostic.lineNumber to message)
+                }
                 logger.debug("JavaCompiler output: [${diagnostic.kind}] $message")
                 if (!isSourceTargetVersionNotSupport) {
                     val isVersionError = message.contains("不再支持") || message.contains("is no longer supported")
@@ -189,6 +193,11 @@ class JavaCompilerInvoker {
                 retryReason = "Java compile failed with too many errors(> ${JuggSettings.minErrorToRecreateCompiler})"
                 shouldRecreate = true
             } else if (errorCount == 0) {
+                if (notSourceErrors.isNotEmpty()) {
+                    notSourceErrors.forEach { (_, message) ->
+                        logger.warn(message)
+                    }
+                }
                 logger.warn("Java compile failed with no error!")
                 retryReason = "Java compile failed with no error"
                 shouldRecreate = true
