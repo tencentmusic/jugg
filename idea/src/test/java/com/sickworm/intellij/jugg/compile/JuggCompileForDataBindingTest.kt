@@ -271,7 +271,7 @@ class JuggCompileForDataBindingTest {
             "com/example/myapplication/BR.dex",
             "com/example/myapplication/DataBinderMapperImpl.dex",
             "com/example/myapplication/DataBinderMapperImpl_Full.dex",
-            "com/example/myapplication/DataBinderMapperImpl_Inc_2.dex", // Inc_2 because 2 layouts
+            "com/example/myapplication/DataBinderMapperImpl_Inc_1.dex",
 
             // 布局资源
             "res/layout/activity_user_binding_test.xml",

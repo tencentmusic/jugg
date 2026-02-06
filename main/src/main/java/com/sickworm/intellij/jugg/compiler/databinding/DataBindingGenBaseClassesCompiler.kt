@@ -116,24 +116,41 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
     private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, module: ModuleInfo): CompileResult {
         TimeLogger.start("getOutput")
-        val sourceFiles = argsManager.dataBindingSourcesOutputDir
-            .listFilesRecursively()
-            .map {
-                val outputDir = task.outputDir.resolve("java")
-                val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, outputDir)
-                outputFile.parentFile.mkdirs()
-                it.copyTo(outputFile, overwrite = true)
+        val isWillRunDataBinding = DataBindingArgsManager.isUseDataBinding(module,
+            xmlFile = task.files.filter { it.type == CompileFile.Type.Resource }.map { it.file })
 
-                // storage when only use view binding, or will storage them after data binding
-                if (!argsManager.isUseDataBinding) {
-                    // storage for incremental compile
-                    // let Kotlin java-source-roots works
-                    val generatedOutputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, argsManager.incrementalBaseClassOutDir)
-                    it.copyTo(generatedOutputFile, overwrite = true)
-                }
-
-                CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
+        val sourceFiles: List<CompileOutput>
+        if (isWillRunDataBinding) {
+            // Return DataBinding trigger file and split XML files
+            generateAnnotationProcessorTrigger(argsManager)
+            val triggerFile = if (argsManager.isJava) {
+                CompileOutput(CompileOutput.Type.Java, argsManager.dataBindingKaptProcessorTrigger, argsManager.dataBindingPreProcessorSources, relativeModule = module)
+            } else {
+                CompileOutput(CompileOutput.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, relativeModule = module)
             }
+            sourceFiles = listOf(triggerFile)
+        } else {
+            // Return ViewBinding base classes and split XML files
+            sourceFiles = argsManager.dataBindingSourcesOutputDir
+                .listFilesRecursively()
+                .map {
+                    val outputDir = task.outputDir.resolve("java")
+                    val outputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, outputDir)
+                    outputFile.parentFile.mkdirs()
+                    it.copyTo(outputFile, overwrite = true)
+
+                    // storage when only use view binding, or will storage them after data binding
+                    if (!argsManager.isUseDataBinding) {
+                        // storage for incremental compile
+                        // let Kotlin java-source-roots works
+                        val generatedOutputFile = it.changeBaseDir(argsManager.dataBindingSourcesOutputDir, argsManager.incrementalBaseClassOutDir)
+                        it.copyTo(generatedOutputFile, overwrite = true)
+                    }
+
+                    CompileOutput(CompileOutput.Type.Java, outputFile, outputDir, relativeModule = module)
+                }
+        }
+
         var xmlFiles = emptyList<CompileOutput>()
         if (argsManager.isUseDataBinding) {
             xmlFiles = argsManager.dataBindingStrippedXmlDir
@@ -160,5 +177,34 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
             task.files.map { Result.success(it) },
             sourceFiles + xmlFiles,
         )
+    }
+
+    /**
+     * Create DataBindingInfo.java and DataBindingTrigger.kt
+     */
+    private fun generateAnnotationProcessorTrigger(argsManager: DataBindingArgsManager) {
+        if (argsManager.isJava) {
+            val triggerFile = argsManager.dataBindingKaptProcessorTrigger
+            triggerFile.parentFile.mkdirs()
+            val annotation = if (argsManager.isUseAndroidX) "androidx.databinding.BindingBuildInfo" else "android.databinding.BindingBuildInfo"
+            val classString = StringBuilder()
+                .appendLine("package ${argsManager.packageName};")
+                .appendLine("@$annotation")
+                .appendLine("public class DataBindingInfo {}")
+            triggerFile.writeText(classString.toString())
+            if (!triggerFile.exists()) {
+                throw RuntimeException("trigger file not exist: $triggerFile")
+            }
+        } else {
+            val ktSourceTriggerFile = argsManager.dataBindingKaptSourceTrigger
+            ktSourceTriggerFile.parentFile.mkdirs()
+            val content = StringBuilder()
+                .appendLine("package ${argsManager.packageName}")
+                .appendLine("class DataBindingIncTrigger {}")
+            ktSourceTriggerFile.writeText(content.toString())
+            if (!ktSourceTriggerFile.exists()) {
+                throw RuntimeException("ktSourceTriggerFile file not exist: $ktSourceTriggerFile")
+            }
+        }
     }
 }

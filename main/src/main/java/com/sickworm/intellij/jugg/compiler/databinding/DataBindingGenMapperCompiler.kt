@@ -43,7 +43,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 //        argsManager.reset()
 
         try {
-            generateAnnotationProcessorTrigger()
             runAnnotationProcessor(task, module)
             generateIncrementalMapperHolder()
             mergeLibraryBr()
@@ -58,37 +57,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 emptyList())
         }
 
-    }
-
-    /**
-     * Create DataBindingInfo.java and DataBindingTrigger.kt
-     */
-    private fun generateAnnotationProcessorTrigger() {
-        logger.debug("generateAnnotationProcessorTrigger trigger.")
-
-        if (argsManager.isJava) {
-            val triggerFile = argsManager.dataBindingKaptProcessorTrigger
-            triggerFile.parentFile.mkdirs()
-            val annotation = if (argsManager.isUseAndroidX) "androidx.databinding.BindingBuildInfo" else "android.databinding.BindingBuildInfo"
-            val classString = StringBuilder()
-                .appendLine("package ${argsManager.packageName};")
-                .appendLine("@$annotation")
-                .appendLine("public class DataBindingInfo {}")
-            triggerFile.writeText(classString.toString())
-            if (!triggerFile.exists()) {
-                throw RuntimeException("trigger file not exist: $triggerFile")
-            }
-        } else {
-            val ktSourceTriggerFile = argsManager.dataBindingKaptSourceTrigger
-            ktSourceTriggerFile.parentFile.mkdirs()
-            val content = StringBuilder()
-                .appendLine("package ${argsManager.packageName}")
-                .appendLine("class DataBindingIncTrigger {}")
-            ktSourceTriggerFile.writeText(content.toString())
-            if (!ktSourceTriggerFile.exists()) {
-                throw RuntimeException("ktSourceTriggerFile file not exist: $ktSourceTriggerFile")
-            }
-        }
     }
 
     private fun createFieldsMapFromBrFile(brFile: File): MutableMap<String, String> {
@@ -311,11 +279,10 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     private fun runAnnotationProcessor(task: CompileTask, module: ModuleInfo) {
         logger.debug("runAnnotationProcessor in")
 
-        val source = mutableListOf<CompileFile>()
-        if (argsManager.isJava) {
-            source.add(CompileFile(CompileFile.Type.Java, argsManager.dataBindingKaptProcessorTrigger, argsManager.dataBindingPreProcessorSources, module))
+        val source = if (argsManager.isJava) {
+            task.files.filter { it.type == CompileFile.Type.Java }
         } else {
-            source.add(CompileFile(CompileFile.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, module))
+            task.files.filter { it.type == CompileFile.Type.Kotlin }
         }
 
         TimeLogger.start("runAnnotationProcessor_findAllIncludePath")

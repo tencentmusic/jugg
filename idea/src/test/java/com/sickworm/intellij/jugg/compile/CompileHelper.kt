@@ -33,6 +33,16 @@ object CompileHelper {
     }
 
     fun checkOutputFiles(compileResult: CompileResult, expect: List<String>, isAllMatch: Boolean = false) {
+        try {
+            doCheckOutputFiles(compileResult, expect, isAllMatch)
+        } catch (e: Throwable) {
+            val allOutput = compileResult.outputs.joinToString("\n") { it.file.absolutePath }
+            System.err.println("check failed, all output files:\n$allOutput")
+            throw e
+        }
+    }
+
+    fun doCheckOutputFiles(compileResult: CompileResult, expect: List<String>, isAllMatch: Boolean = false) {
         expect.forEach { expectFilePath ->
             val extension = File(expectFilePath).extension
             val outputDir = when (extension) {

@@ -6,7 +6,6 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
-import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
@@ -32,7 +31,6 @@ class ResourceCompiler(
     private val aapt2Invoker = Aapt2DaemonInvoker(logger)
 
     private val dataBindingGenBaseClassesCompiler = DataBindingGenBaseClassesCompiler(context.subContext("databinding"), this)
-    private val dataBindingGenMapperCompiler = DataBindingGenMapperCompiler(context.subContext("databinding"), this)
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         val moduleName = module.name
@@ -67,7 +65,7 @@ class ResourceCompiler(
     }
 
     private fun compileResSet(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
-        val dataBindingResult = processDataBinding(resCompileSet, module)
+        val dataBindingResult = processViewBinding(resCompileSet, module)
         if (!dataBindingResult.isAllSuccess) {
             return dataBindingResult
         }
@@ -87,7 +85,7 @@ class ResourceCompiler(
         return flatResult.copy(outputs = flatResult.outputs + javaFiles)
     }
 
-    private fun processDataBinding(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
+    private fun processViewBinding(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {
         val layoutFiles = resCompileSet.compileFileMap.flatMap { (compileFile, xmlFiles) ->
             val baseDir = if (compileFile.file.isDirectory) compileFile.file else compileFile.baseDir
             xmlFiles.filter {
@@ -107,7 +105,8 @@ class ResourceCompiler(
             return CompileResult(resCompileSet.originTask, emptyList(), emptyList())
         }
 
-        // process data binding if needed
+        // Process ViewBinding base classes generation
+        // DataBinding Mapper generation will be handled in SourceCompiler after source code compilation
         if (DataBindingArgsManager.isUseViewBinding(module)) {
             logger.info("Processing view binding...")
         }
@@ -118,24 +117,9 @@ class ResourceCompiler(
             return resCompileSet.originTask.allFailed("process view binding failed")
         }
 
-        val isRunDataBinding = DataBindingArgsManager.isUseDataBinding(module, layoutFiles.map { it.file })
-        if (!isRunDataBinding) {
-            return viewBindingResult
-        }
-
-        logger.info("Processing data binding...")
-        TimeLogger.start("data_binding")
-        val dataBindingResult = dataBindingGenMapperCompiler.compile(databindingTask)
-        TimeLogger.end("data_binding", logger)
-        if (!dataBindingResult.isAllSuccess) {
-            return resCompileSet.originTask.allFailed("process data binding failed")
-        }
-        val isDataBindingWorking = dataBindingResult.outputs.isNotEmpty()
-        return if (isDataBindingWorking) {
-            dataBindingResult
-        } else {
-            viewBindingResult
-        }
+        // ViewBinding: Return ViewBinding base classes and split XML files
+        // DataBinding: Return split XML files and trigger source file(to force source compiler run)
+        return viewBindingResult
     }
 
     private fun updateResCompileSet(resCompileSet: ResCompileSet, splitLayoutFiles: List<CompileOutput>): ResCompileSet {

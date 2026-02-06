@@ -19,7 +19,10 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     val packageName get() = context.getModulePackageName(moduleInfo) ?: ""
     private val packagePath get() = packageName.replace(".", "/")
 
-    private val tempCompileDir = context.tempCompileDir
+    private val tempCompileDir = run {
+        val relativePath = moduleInfo.moduleRootDir.relativeTo(moduleInfo.projectRootDir).path.replace("..", "__")
+        File(context.tempModule.buildPathInfo.buildDir, "data_binding/$relativePath")
+    }
 
     /** ViewBinding start */
     // generate ViewBinding things e.g. ActivityMainBinding.java

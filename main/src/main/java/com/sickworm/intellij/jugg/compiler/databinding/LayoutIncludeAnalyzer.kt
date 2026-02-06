@@ -25,7 +25,7 @@ class LayoutIncludeAnalyzer(
             // convert to layout info files
             var layoutInfoFiles = mutableListOf<File>()
             compileDataBindingXmlFiles.forEach { file ->
-                val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(file.file.nameWithoutExtension, file.file.parentFile.name)
+                val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(file.file.nameWithoutExtension)
                 if (subLayoutInfoFiles.isEmpty()) {
                     logger.warn("Can not find layout info file for layout file: $file")
                     return@forEach
@@ -95,18 +95,17 @@ class LayoutIncludeAnalyzer(
     /**
      * find the layout info file by layout name in [DataBindingArgsManager.backupDataBindingLayoutXmlDir] and
      */
-    private fun findLayoutInfoFileByLayoutName(layoutName: String, parentFileName: String? = null): List<File> {
+    private fun findLayoutInfoFileByLayoutName(layoutName: String): List<File> {
         // find in moduleInfo
-        val finalLayoutName = layoutName + if (parentFileName != null) "-$parentFileName.xml" else "-"
         val layoutInfoFiles = argsManager.backupDataBindingLayoutXmlDir.listFiles()?.filter {
-            it.name.startsWith(finalLayoutName)
+            it.name.startsWith(layoutName)
         }
         if (!layoutInfoFiles.isNullOrEmpty()) {
             return layoutInfoFiles
         }
 
         // find in dependency modules
-        logger.debug("can not find layout info file for $finalLayoutName in moduleInfo, finds in dependency modules")
+        logger.debug("can not find layout info file for $layoutName in moduleInfo, finds in dependency modules")
         val dependentModules = argsManager.moduleInfo.moduleDependencies
         dependentModules.forEach { dependantModule ->
             val subModuleInfo = argsManager.context.modules[dependantModule.moduleName] ?: run {
@@ -120,7 +119,7 @@ class LayoutIncludeAnalyzer(
                 subArgsManager.gradleDataBindingLayoutXmlDir
             }
             val subLayoutInfoFile = layoutXmlDir.listFiles()?.filter {
-                it.name.startsWith(finalLayoutName)
+                it.name.startsWith(layoutName)
             }
             if (!subLayoutInfoFile.isNullOrEmpty()) {
                 return subLayoutInfoFile
