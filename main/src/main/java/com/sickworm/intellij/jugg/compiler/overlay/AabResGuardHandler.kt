@@ -45,7 +45,7 @@ class AabResGuardHandler(
         outputFile.parentFile.mkdirs()
         outputFile.delete()
 
-        if (mappingFile == null) {
+        if (mappingFile == null || !mappingFile.exists()) {
             return
         }
         val mappings = parseMappingFile(mappingFile)
