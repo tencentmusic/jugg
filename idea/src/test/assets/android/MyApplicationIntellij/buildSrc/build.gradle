@@ -1,15 +1,24 @@
 apply plugin: 'groovy'
 
 buildscript {
+    Properties gradleProperties = new Properties()
+    gradleProperties.load(new FileInputStream(new File(rootProject.projectDir, '../gradle.properties')))
+    ext.kotlin_version = gradleProperties.get('kotlinVersion')
+    ext.kotlinx_version = gradleProperties.get('kotlinxVersion')
+    ext.kotlin_coroutines_version = gradleProperties.get('kotlinxCoroutinesVersion')
+    ext.agp_version = gradleProperties.get('agpVersion')
+    ext.ksp_version = gradleProperties.get('kspVersion')
+
+    println "kotlin_version: $kotlin_version"
+
     repositories {
         mavenLocal()
         mavenCentral()
         google()
-        jcenter()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:7.2.2"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.21"
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
@@ -18,17 +27,17 @@ apply plugin: 'kotlin-kapt'
 
 repositories {
     google()
-    jcenter()
+    mavenCentral()
 }
 
 
 dependencies {
     compileOnly gradleApi()
-    compileOnly "com.android.tools.build:gradle:7.2.2"
-    compileOnly "com.google.devtools.ksp:symbol-processing-gradle-plugin:1.7.21-1.0.8"
-    compileOnly "com.google.devtools.ksp:symbol-processing-api:1.7.21-1.0.8"
-    compileOnly "org.jetbrains.kotlin:kotlin-gradle-plugin:1.7.21"
-    compileOnly "org.jetbrains.kotlin:kotlin-compiler-embeddable:1.7.21"
+    compileOnly "com.android.tools.build:gradle:$agp_version"
+    compileOnly "com.google.devtools.ksp:symbol-processing-gradle-plugin:$ksp_version"
+    compileOnly "com.google.devtools.ksp:symbol-processing-api:$ksp_version"
+    compileOnly "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    compileOnly "org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlin_version"
     compileOnly 'com.squareup.moshi:moshi-kotlin-codegen:1.14.0'
 }
 
