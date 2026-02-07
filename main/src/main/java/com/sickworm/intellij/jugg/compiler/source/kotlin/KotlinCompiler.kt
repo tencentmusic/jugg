@@ -40,10 +40,17 @@ class KotlinCompiler(
     }
 
     private fun kspAndCompile(task: CompileTask, module: ModuleInfo, options: KotlinCompilerInvoker.Options): CompileResult {
+        // Detect KSP2 mode
+        val isKsp2 = !options.isKspWithCompilation
+
+        // Phase 1: Run KSP to generate code
         val kspOptions = KotlinCompilerInvoker.Options(
+            isEnableKsp = true,
+            isKspWithCompilation = false, // Force KSP-only mode
             kaptDependencies = options.kaptDependencies,
             kspDependencies = options.kspDependencies,
             kotlinPlugins = options.kotlinPlugins,
+            kotlinExtensions = options.kotlinExtensions,
             javaSourceDirs = options.javaSourceDirs,
         )
         TimeLogger.start("kspCompile")
@@ -54,18 +61,25 @@ class KotlinCompiler(
             logger.warn("\nKSP compile failed, compile result may not correct.\n")
         }
 
+        // Phase 2: Collect KSP generated files
         val kspKotlinOutput = kspOutput.outputs
             .filter { it.type == CompileOutput.Type.Kotlin }
             .map { CompileFile(CompileFile.Type.Kotlin, it.file, it.baseDir, module) }
         val kspOtherOutput = kspOutput.outputs.filter { it.type != CompileOutput.Type.Kotlin }
 
+        logger.debug("KSP generated ${kspKotlinOutput.size} Kotlin files, ${kspOtherOutput.size} other files")
 
+        // Phase 3: Compile original files + KSP generated files
         val finalTask = CompileTask(
             files = task.files + kspKotlinOutput,
             outputDir = task.outputDir,
             task,
         )
-        val kotlinOutput = KotlinCompilerInvoker.currentInstance.compile(context, module, finalTask, logger, options)
+        val finalOptions = options.copy(
+            isEnableKsp = false, // Disable KSP for final compilation
+            isKspWithCompilation = false,
+        )
+        val kotlinOutput = KotlinCompilerInvoker.currentInstance.compile(context, module, finalTask, logger, finalOptions)
 
         if (kspOutput.outputs.isEmpty()) {
             // no ksp output, just return kotlinOutput
@@ -74,11 +88,21 @@ class KotlinCompiler(
 
         // has ksp output
         return if (kotlinOutput.isAllSuccess) {
-            // all success, filter ksp details
-            CompileResult(task,
-                kotlinOutput.details.filter { it.get() in task.files },
-                kotlinOutput.outputs + kspOtherOutput,
-            )
+            // In KSP2 mode, the first compilation should not produce class files for original sources
+            // Only the second compilation produces the final class files
+            // So we only return the second compilation's outputs
+            if (isKsp2) {
+                CompileResult(task,
+                    kotlinOutput.details.filter { it.get() in task.files },
+                    kotlinOutput.outputs, // Only use final compilation outputs
+                )
+            } else {
+                // KSP1 mode: merge outputs from both compilations
+                CompileResult(task,
+                    kotlinOutput.details.filter { it.get() in task.files },
+                    kotlinOutput.outputs + kspOtherOutput,
+                )
+            }
         } else {
             // some failed, filter ksp details and mark all kotlin output as failed
             // because we don't know which Kotlin file is success with ksp output
@@ -153,13 +177,33 @@ class KotlinCompiler(
            .flatMap { it.kspDependencies ?: emptyList() }
            .map { it.file }
 
+        // Detect KSP2 (Kotlin 2.0+)
+        // KSP2 uses symbol-processing-aa-embeddable or version 2.x
+        // Check both kspDependencies and kotlinPlugins
+        val allKspJars = kspDependencies + kotlinPlugins
+        val isKsp2 = allKspJars.any {
+            it.name.contains("symbol-processing-aa-embeddable") ||
+            it.name.matches(Regex(".*symbol-processing.*-2\\.[0-9]+.*"))
+        }
+
+        // KSP2 requires two-phase compilation (generate .kt files first, then compile)
+        // KSP1 can use withCompilation=true for single-phase compilation
+        val isKspWithCompilation = !isKsp2
+
+        if (isKsp2) {
+            logger.debug("Detected KSP2 (version 2.x), using two-phase compilation")
+        } else if (kspDependencies.isNotEmpty()) {
+            logger.debug("Detected KSP1 (version 1.x), using single-phase compilation with withCompilation=true")
+        }
+
         TimeLogger.end("analyzeSource", logger)
         return KotlinCompilerInvoker.Options(
             JuggSettings.isEnableApt,
             isNeedKotlinAndroidExtensions,
             isNeedCompileCompose,
             rPackageName,
-            isEnableKsp = JuggSettings.isEnableKsp && kspDependencies.isNotEmpty(),
+            isEnableKsp = kspDependencies.isNotEmpty(),
+            isKspWithCompilation = isKspWithCompilation,
             isCanAutoRetry = true,
             kaptDependencies = module.kaptDependencies.map { it.file },
             kotlinPlugins = kotlinPlugins,
