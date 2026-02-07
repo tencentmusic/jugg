@@ -201,6 +201,45 @@ class KotlinCompileTest {
         )
     }
 
+    @Test
+    fun testKsp1Compile() {
+        // Save current version (should be KSP2/Kotlin 2.1)
+        val originalVersion = "2.1"
+
+        try {
+            // Switch to KSP1 (Kotlin 1.7)
+            println("Switching to Kotlin 1.7 (KSP1)...")
+            GradleBuildHelper.switchKotlinVersion("1.7")
+
+            // Force rebuild with KSP1
+            println("Rebuilding project with KSP1...")
+            AssembleAndroidProjectOnce.forceRecompile(true)
+
+            // Run KSP1 test
+            println("Testing KSP1 compilation...")
+            val task = createTask("com/sickworm/jugg/demo/testcase/ksp/User.kt")
+            val result = kotlinCompiler.compile(task)
+            println("testKsp1Compile_output ${result.outputs.map { it.file.name }}")
+            assertCompileResult(task, result, mapper)
+            assertContentEquals(
+                listOf("User.class", "UserProfile.class", "UserListResponse.class", "UserJsonAdapter.class", "UserListResponseJsonAdapter.class", "UserProfileJsonAdapter.class"),
+                result.outputs.map { it.file.name }
+            )
+
+            println("KSP1 test passed!")
+        } finally {
+            // Always restore to original version (KSP2/Kotlin 2.1)
+            println("Restoring to Kotlin $originalVersion (KSP2)...")
+            GradleBuildHelper.switchKotlinVersion(originalVersion)
+
+            // Rebuild with KSP2 to restore state
+            println("Rebuilding project with KSP2...")
+            AssembleAndroidProjectOnce.forceRecompile(true)
+
+            println("Restored to original Kotlin version")
+        }
+    }
+
     private fun assertCompileResultKotlin(task: CompileTask, result: CompileResult, vararg subclassList: String) {
         val mapper: OutputFileMapper = { file ->
             (subclassList.toList() + "").map {

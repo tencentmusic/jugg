@@ -10,6 +10,15 @@ GRADLE_WRAPPER="gradle/wrapper/gradle-wrapper.properties"
 ROOT_BUILD_GRADLE="build.gradle"
 APP_BUILD_GRADLE="app/build.gradle"
 LIBRARY1_BUILD_GRADLE="library1/build.gradle"
+BACKUP_DIR=".kotlin-version-backup"
+BACKUP_VERSION_FILE="${BACKUP_DIR}/original-version"
+BACKUP_FILES=(
+    "$ROOT_BUILD_GRADLE"
+    "$APP_BUILD_GRADLE"
+    "$LIBRARY1_BUILD_GRADLE"
+    "$GRADLE_PROPERTIES"
+    "$GRADLE_WRAPPER"
+)
 
 # Color output
 RED='\033[0;31m'
@@ -36,6 +45,92 @@ KOTLIN_1_7_gradleVersion="7.3.3"
 show_current_version() {
     echo -e "${GREEN}Current version configuration:${NC}"
     grep -E "^(kotlinVersion|kspVersion|composeCompilerVersion|agpVersion)=" "$GRADLE_PROPERTIES" || echo "Version configuration not found"
+}
+
+normalize_version() {
+    local version="$1"
+    case "${version}" in
+        "1.7"|"kotlin1.7"|"legacy"|"1.7.21")
+            echo "1.7"
+            ;;
+        "2.1"|"kotlin2.1"|"latest"|"2.1.0")
+            echo "2.1"
+            ;;
+        *)
+            if [[ "${version}" == 1.7* ]]; then
+                echo "1.7"
+            elif [[ "${version}" == 2.1* ]]; then
+                echo "2.1"
+            else
+                echo "${version}"
+            fi
+            ;;
+    esac
+}
+
+current_kotlin_version() {
+    local raw_version
+    raw_version=$(grep -E "^kotlinVersion=" "$GRADLE_PROPERTIES" | head -n 1 | cut -d'=' -f2- | tr -d '[:space:]')
+    if [ -z "$raw_version" ]; then
+        echo -e "${RED}Error: kotlinVersion is missing in ${GRADLE_PROPERTIES}${NC}"
+        exit 1
+    fi
+    normalize_version "$raw_version"
+}
+
+ensure_backup_snapshot() {
+    if [ -f "$BACKUP_VERSION_FILE" ]; then
+        return 0
+    fi
+
+    local original_version
+    original_version=$(current_kotlin_version)
+
+    mkdir -p "$BACKUP_DIR"
+    echo "$original_version" > "$BACKUP_VERSION_FILE"
+
+    for file in "${BACKUP_FILES[@]}"; do
+        if [ ! -f "$file" ]; then
+            echo -e "${RED}Error: cannot create snapshot, missing file ${file}${NC}"
+            exit 1
+        fi
+        mkdir -p "$BACKUP_DIR/$(dirname "$file")"
+        cp "$file" "$BACKUP_DIR/$file"
+    done
+
+    echo -e "${BLUE}Snapshot created for original Kotlin version ${original_version}.${NC}"
+}
+
+original_snapshot_version() {
+    if [ -f "$BACKUP_VERSION_FILE" ]; then
+        tr -d '[:space:]' < "$BACKUP_VERSION_FILE"
+    fi
+}
+
+clear_backup_snapshot() {
+    rm -rf "$BACKUP_DIR"
+}
+
+restore_original_snapshot() {
+    local original_version
+    original_version=$(original_snapshot_version)
+    if [ -z "$original_version" ]; then
+        echo -e "${YELLOW}Warning: snapshot not found, fallback to template-based switch.${NC}"
+        return 1
+    fi
+
+    echo -e "${BLUE}Restoring original Gradle files for Kotlin ${original_version}...${NC}"
+    for file in "${BACKUP_FILES[@]}"; do
+        if [ ! -f "$BACKUP_DIR/$file" ]; then
+            echo -e "${RED}Error: snapshot file missing: ${BACKUP_DIR}/${file}${NC}"
+            exit 1
+        fi
+        mkdir -p "$(dirname "$file")"
+        cp "$BACKUP_DIR/$file" "$file"
+    done
+    clear_backup_snapshot
+    echo -e "${GREEN}Original Gradle files restored.${NC}"
+    return 0
 }
 
 # Update one property
@@ -106,6 +201,14 @@ switch_build_gradle_files() {
 # Update version
 update_version() {
     local prefix=$1
+    local target_version=$2
+
+    ensure_backup_snapshot
+    local original_version
+    original_version=$(original_snapshot_version)
+    if [ "$target_version" == "$original_version" ]; then
+        restore_original_snapshot && return 0
+    fi
 
     # Resolve version variables
     local kotlin_var="${prefix}_kotlinVersion"
@@ -151,10 +254,10 @@ update_version() {
 # Main logic
 case "${1:-}" in
     "2.1"|"kotlin2.1"|"latest")
-        update_version "KOTLIN_2_1"
+        update_version "KOTLIN_2_1" "2.1"
         ;;
     "1.7"|"kotlin1.7"|"legacy")
-        update_version "KOTLIN_1_7"
+        update_version "KOTLIN_1_7" "1.7"
         ;;
     "show"|"current"|"")
         show_current_version
