@@ -87,7 +87,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
                     it.init()
                     database[applicationId] = it
                 }
-                updateResults.addAll(processApkWithHelper(apkFileUnits, helper))
+                updateResults.addAll(processApkWithHelper(applicationId, apkFileUnits, helper))
         }
         incDeployedDatabase.init(deployedItems)
 
@@ -107,7 +107,33 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return updateResults
     }
 
-    private fun processApkWithHelper(apkFiles: List<ApkFileUnit>, helper: DeployDataDatabaseSqLiteHelper): List<ParsedApkUpdateResult> {
+    private fun processApkWithHelper(
+        applicationId: String,
+        apkFiles: List<ApkFileUnit>,
+        helper: DeployDataDatabaseSqLiteHelper
+    ): List<ParsedApkUpdateResult> {
+        // 判断是否使用独立进程解析
+        val launcher = ApkParserProcessLauncher(logger)
+        val useIsolatedProcess = launcher.shouldUseIsolatedProcess(apkFiles)
+
+        return if (useIsolatedProcess) {
+            logger.info("APK size exceeds threshold, using isolated process for parsing")
+            try {
+                launcher.parseInIsolatedProcess(dbDir, apkFiles, applicationId)
+            } catch (e: Exception) {
+                logger.warn("Isolated process parsing failed, fallback to in-process parsing: ${e.message}")
+                processApkInCurrentProcess(apkFiles, helper)
+            }
+        } else {
+            logger.debug("APK size is small, using in-process parsing")
+            processApkInCurrentProcess(apkFiles, helper)
+        }
+    }
+
+    private fun processApkInCurrentProcess(
+        apkFiles: List<ApkFileUnit>,
+        helper: DeployDataDatabaseSqLiteHelper
+    ): List<ParsedApkUpdateResult> {
         val diffBeanList = apkFiles.map { apkFileUnit ->
             val apkFile = apkFileUnit.apkFile
             val apkEntries = ApkParser().parseEntries(apkFile)
