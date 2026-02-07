@@ -1,7 +1,9 @@
 package com.sickworm.intellij.jugg.compile
 
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.mock.*
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -330,5 +332,25 @@ class JuggCompileForDataBindingTest {
 
         // For now, we'll skip it
         println("⊘ Skipping negative test - to be implemented after refactoring")
+    }
+
+    /**
+     * Test Case 6: DataBinding should use kapt when databinding dependencies are in kapt configuration
+     */
+    @Test
+    fun testDataBindingUseKaptWhenDependenciesPresent() {
+        val module = context.modules.values.first()
+        val fakeKaptJar = File(buildDir, "tmp/databinding-compiler-7.2.2.jar")
+        fakeKaptJar.parentFile.mkdirs()
+        fakeKaptJar.writeText("fake")
+
+        val kaptDependency = LibraryDependency(
+            name = "androidx.databinding:databinding-compiler:7.2.2",
+            file = fakeKaptJar,
+        )
+        val moduleWithKapt = module.copy(kaptDependencies = listOf(kaptDependency))
+
+        val argsManager = DataBindingArgsManager(context, moduleWithKapt)
+        assertFalse(argsManager.isJava, "DataBinding should use kapt when databinding dependency is in kaptDependencies")
     }
 }

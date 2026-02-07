@@ -87,6 +87,8 @@ class KotlinCompilerInvoker {
         val kaptOptions: Map<String, String> = emptyMap(),
         val kaptDependencies: List<File> = emptyList(),
         val javaSourceDirs: List<File>? = null,
+        // Force using embedded compiler by bypassing project compiler classpath.
+        val forceUseEmbeddedKotlinCompiler: Boolean = false,
         val isEnableKsp: Boolean = false,
         // kotlin compiler will compile file to class if ksp didn't process this file
         // so we only use isKspWithCompilation=true for now
@@ -109,14 +111,18 @@ class KotlinCompilerInvoker {
             initProjectKotlinCompilerClasspath(logger, context)
         }
         // Jugg will check it again in [initIfNeeded] before use it
-        val classpath =
+        val classpath = if (options.forceUseEmbeddedKotlinCompiler) {
+            logger.debug("forceUseEmbeddedKotlinCompiler enabled, bypass project compiler classpath")
+            null
+        } else {
             context.getParentModules(module, true)
                 .firstNotNullOfOrNull {
                     val result = projectKotlinCompilerClasspathMap[it.name]
                     if (result.isNullOrEmpty()) return@firstNotNullOfOrNull null
                     result
                 }
-            ?: defaultProjectKotlinCompilerClasspath
+                ?: defaultProjectKotlinCompilerClasspath
+        }
         kotlinCompile.initIfNeeded(classpath, logger)
 
         val kotlinPlugins = options.kotlinPlugins

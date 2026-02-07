@@ -70,9 +70,11 @@ class ResourceCompiler(
             return dataBindingResult
         }
         val splitLayoutFiles = dataBindingResult.outputs.filter { it.type == CompileOutput.Type.ResXml }
-        val javaFiles = dataBindingResult.outputs.filter { it.type == CompileOutput.Type.Java }
+        val sourceFiles = dataBindingResult.outputs.filter {
+            it.type == CompileOutput.Type.Java || it.type == CompileOutput.Type.Kotlin
+        }
         logger.debug("splitLayoutFiles output: ${splitLayoutFiles.map { it.relativeFile }}, " +
-                "javaFiles output: ${javaFiles.map { it.relativeFile }}")
+                "sourceFiles output: ${sourceFiles.map { it.relativeFile }}")
 
         val flatResult = if (splitLayoutFiles.isNotEmpty()) {
             // replace xml file which split by data binding
@@ -82,7 +84,7 @@ class ResourceCompiler(
             aapt2Compile(resCompileSet)
         }
 
-        return flatResult.copy(outputs = flatResult.outputs + javaFiles)
+        return flatResult.copy(outputs = flatResult.outputs + sourceFiles)
     }
 
     private fun processViewBinding(resCompileSet: ResCompileSet, module: ModuleInfo): CompileResult {

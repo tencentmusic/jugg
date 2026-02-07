@@ -121,7 +121,7 @@ class ResourceOverlayCompiler(
 
         val finalOutputs = filterResources(arscResult.outputs, task.files, isNeedOutputManifest = manifestFile != null)
         val databindingOutputs = resourceResult.outputs.filter {
-            it.type == CompileOutput.Type.Java
+            it.type == CompileOutput.Type.Java || it.type == CompileOutput.Type.Kotlin
         }
 
         return CompileResult(

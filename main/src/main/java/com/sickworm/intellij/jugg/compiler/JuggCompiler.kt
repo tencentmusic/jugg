@@ -157,9 +157,9 @@ class JuggCompiler(
                 // Note: DataBinding Mapper (XXXBindingImpl, BR, DataBinderMapper) will be generated in SourceCompiler
                 dataBindingResultOutputs = resourceResult.outputs
                     .filter {
-                        it.type == CompileOutput.Type.Java && it.file.name != "R.java"
+                        (it.type == CompileOutput.Type.Java || it.type == CompileOutput.Type.Kotlin) && it.file.name != "R.java"
                     }.map {
-                        CompileFile(CompileFile.Type.Java, it.file, it.baseDir, it.relativeModule!!)
+                        it.toCompileFile(it.relativeModule!!)!!
                     }
 
                 // successfully compiled .arsc and R.dex

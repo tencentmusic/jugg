@@ -328,17 +328,34 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 subContext, module, aptTask, logger, options
             )
         } else {
+            val extraJavaSourceDir = prepareJavaSourceDirForKapt(task, subContext)
+            val javaSourceDirs = mutableListOf<File>().apply {
+                add(argsManager.dataBindingSourcesOutputDir)
+                if (extraJavaSourceDir != null) {
+                    add(extraJavaSourceDir)
+                }
+            }
             val options = KotlinCompilerInvoker.Options(
                 isEnableKapt = true,
                 isCanAutoRetry = false,
                 kaptOptions = apOptions,
                 kaptDependencies = classpath.aptDependencies,
                 kotlinPlugins = classpath.kotlinPlugins,
-                javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir), // necessary to avoid compilation error
+                javaSourceDirs = javaSourceDirs, // include latest java sources to avoid stale read
             )
-            aptResult = KotlinCompilerInvoker.currentInstance.compile(
+            val firstResult = KotlinCompilerInvoker.currentInstance.compile(
                 subContext, module, aptTask, logger, options
             )
+            aptResult = if (firstResult.isAllSuccess) {
+                firstResult
+            } else {
+                // allow one retry for kapt, fallback to embedded kotlin compiler
+                logger.warn("Kapt failed once, retry with embedded Kotlin compiler")
+                val retryOptions = options.copy(forceUseEmbeddedKotlinCompiler = true)
+                KotlinCompilerInvoker.currentInstance.compile(
+                    subContext, module, aptTask, logger, retryOptions
+                )
+            }
         }
         if (!aptResult.isAllSuccess) {
             throw RuntimeException("Failed to compile annotation process task: $aptResult")
@@ -347,6 +364,21 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             throw RuntimeException("No annotation process task output")
         }
         logger.debug("runAnnotationProcessor apt output: ${aptResult.outputs.joinToString(", ") { it.file.name }}")
+    }
+
+    private fun prepareJavaSourceDirForKapt(task: CompileTask, subContext: ICompileContext): File? {
+        val javaFiles = task.files.filter { it.type == CompileFile.Type.Java }
+        if (javaFiles.isEmpty()) {
+            return null
+        }
+        val tempJavaSourceDir = File(subContext.tempCompileDir, "kapt_java_sources")
+        tempJavaSourceDir.clearDir()
+        javaFiles.forEach { javaFile ->
+            val targetFile = javaFile.file.changeBaseDir(javaFile.baseDir, tempJavaSourceDir)
+            targetFile.parentFile.mkdirs()
+            javaFile.file.copyTo(targetFile, overwrite = true)
+        }
+        return tempJavaSourceDir
     }
 
     /**

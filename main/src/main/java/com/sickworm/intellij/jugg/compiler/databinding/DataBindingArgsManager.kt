@@ -11,7 +11,7 @@ import java.io.File
  */
 class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: ModuleInfo) {
 
-    val isJava = true // use apt. kapt has JVM compat issue, e.g. running kapt in JVM 21(Android Studio runtime) needs Kotlin 1.9
+    val isJava = !isUseKaptForDataBinding(moduleInfo) // use apt if databinding not in kapt deps
     val isUseAndroidX = true // just leave it true
     val isUseViewBinding = isUseViewBinding(moduleInfo)
     val isUseDataBinding = isUseDataBinding(moduleInfo)
@@ -117,6 +117,17 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     }
 
     companion object {
+        private val dataBindingKaptDependencyHints = listOf(
+            "databinding-compiler",
+            "databinding-compiler-common",
+            "databinding-common",
+        )
+
+        fun isUseKaptForDataBinding(moduleInfo: ModuleInfo): Boolean {
+            return moduleInfo.kaptDependencies.any { dependency ->
+                dataBindingKaptDependencyHints.any { hint -> dependency.file.path.contains(hint) }
+            }
+        }
 
         private fun dir(file: File, name: String): File {
             return File(file, name).also { it.mkdirs() }
