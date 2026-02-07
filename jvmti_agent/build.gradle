@@ -19,6 +19,7 @@ apply from: "./buildAgentBundle.gradle"
 
 android {
     compileSdk 33
+    ndkVersion "27.0.12077973"
 
     defaultConfig {
         minSdkVersion 21
