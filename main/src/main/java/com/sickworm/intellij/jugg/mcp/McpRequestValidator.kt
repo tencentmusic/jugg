@@ -6,15 +6,6 @@ class McpRequestValidator(
 ) {
 
     fun validate(request: McpJsonRpcRequest): McpValidationResult {
-        if (request.jsonrpc != McpJsonRpc.Version) {
-            return McpValidationResult.Invalid(
-                errorCode = McpErrorCode.MCP_INVALID_JSON_RPC,
-                message = "Invalid jsonrpc version",
-                isJsonRpcError = true,
-                jsonRpcCode = McpJsonRpc.ErrorCode.InvalidRequest,
-            )
-        }
-
         return when (request.method) {
             McpJsonRpc.Method.ToolsList -> McpValidationResult.ToolsList
             McpJsonRpc.Method.ToolsCall -> validateToolsCall(request)
@@ -50,6 +41,14 @@ class McpRequestValidator(
         @Suppress("UNCHECKED_CAST")
         val args = params["arguments"] as? Map<String, Any?> ?: emptyMap()
         val projectDir = args["projectDir"] as? String
+
+        if (toolName == "list_projects") {
+            return McpValidationResult.ToolsCall(
+                toolName = toolName,
+                arguments = args,
+                projectDir = projectDir.orEmpty(),
+            )
+        }
 
         if (projectDir.isNullOrBlank()) {
             return McpValidationResult.Invalid(

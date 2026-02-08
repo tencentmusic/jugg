@@ -39,6 +39,17 @@ data class McpToolResult(
     val errorCode: String? = null,
 )
 
+data class McpToolCallResult(
+    val content: List<McpContentItem>,
+    val isError: Boolean = false,
+    val structuredContent: Map<String, Any?> = emptyMap(),
+)
+
+data class McpContentItem(
+    val type: String = "text",
+    val text: String,
+)
+
 object McpToolStatus {
     const val OK = "OK"
     const val ERROR = "ERROR"

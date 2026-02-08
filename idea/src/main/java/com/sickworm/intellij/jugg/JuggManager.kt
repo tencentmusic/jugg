@@ -1,6 +1,5 @@
 package com.sickworm.intellij.jugg
 
-import com.android.ide.common.util.pathTreeMapOf
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
@@ -34,16 +33,17 @@ import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
-import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.mcp.McpInvoker
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.mcp.McpRuntimeHolder
 import com.sickworm.intellij.jugg.rpc.RpcCaller
 import com.sickworm.intellij.jugg.rpc.RpcRequest
 import com.sickworm.intellij.jugg.rpc.RpcResponse
+import com.sickworm.intellij.jugg.server.IdeMcpRuntime
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
@@ -604,6 +604,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
+        McpRuntimeHolder.runtime = IdeMcpRuntime(project, deployTargetManager)
         return mcpInvoker.invokeMcp(request)
     }
 

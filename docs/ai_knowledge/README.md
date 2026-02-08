@@ -97,6 +97,7 @@ IF 以上都不匹配
 
 ### MCP 规划
 - `08_mcp_design.md` - MCP 分阶段架构与 Phase 1 设计
+- `08_mcp_usage.md` - MCP 服务调用与错误码说明
 
 </details>
 

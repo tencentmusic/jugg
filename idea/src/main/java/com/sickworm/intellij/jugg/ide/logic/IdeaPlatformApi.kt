@@ -19,8 +19,14 @@ import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
+import com.sickworm.intellij.jugg.mcp.McpInvoker
+import com.sickworm.intellij.jugg.mcp.McpProjectInfo
+import com.sickworm.intellij.jugg.mcp.McpToolResult
+import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.mcp.McpJsonRpc
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
@@ -28,7 +34,7 @@ import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.rpc.RpcRequest
 import com.sickworm.intellij.jugg.rpc.RpcResponse
 import com.sickworm.intellij.jugg.rpc.RpcResult
-import java.io.File
+import com.sickworm.intellij.jugg.server.IdeMcpRuntime
 
 class IdeaPlatformApi : IPlatformApi {
 
@@ -140,36 +146,7 @@ class IdeaPlatformApi : IPlatformApi {
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        val projectDir = (request.params as? Map<*, *>)
-            ?.let { params ->
-                @Suppress("UNCHECKED_CAST")
-                val args = params["arguments"] as? Map<String, Any?>
-                args?.get("projectDir") as? String
-            }
-            ?: return McpJsonRpcResponse(
-                id = request.id,
-                result = com.sickworm.intellij.jugg.mcp.McpToolResult(
-                    status = com.sickworm.intellij.jugg.mcp.McpToolStatus.ERROR,
-                    message = "invoke_mcp failed. Reason: projectDir is required.",
-                    data = emptyMap<String, Any>(),
-                    artifacts = emptyList(),
-                    errorCode = com.sickworm.intellij.jugg.mcp.McpErrorCode.MCP_INVALID_PARAMS,
-                )
-            )
-
-        val juggManager = JuggInitializer.getManager(projectDir)
-            ?: return McpJsonRpcResponse(
-                id = request.id,
-                result = com.sickworm.intellij.jugg.mcp.McpToolResult(
-                    status = com.sickworm.intellij.jugg.mcp.McpToolStatus.ERROR,
-                    message = "invoke_mcp failed. Reason: project is not initialized.",
-                    data = emptyMap<String, Any>(),
-                    artifacts = emptyList(),
-                    errorCode = com.sickworm.intellij.jugg.mcp.McpErrorCode.MCP_PROJECT_NOT_INITIALIZED,
-                )
-            )
-
-        return juggManager.invokeMcp(request)
+        return IdeMcpRuntime.invokeMcp(request)
     }
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {

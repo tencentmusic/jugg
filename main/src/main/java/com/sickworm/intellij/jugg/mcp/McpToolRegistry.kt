@@ -6,17 +6,17 @@ class McpToolRegistry {
         return listOf(
             McpToolDefinition(
                 name = "list_projects",
-                description = "List initialized projects",
+                description = "List Android projects that can run Jugg",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
                     ),
-                    required = listOf("projectDir")
+                    required = emptyList()
                 )
             ),
             McpToolDefinition(
                 name = "restart_app",
-                description = "Restart app",
+                description = "Restart Android app by Jugg",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string"),

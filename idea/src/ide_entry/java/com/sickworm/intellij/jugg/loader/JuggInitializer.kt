@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
+import com.sickworm.intellij.jugg.mcp.McpLocalServer
 import com.sickworm.intellij.jugg.rpc.RpcLocalServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,7 @@ object JuggInitializer {
         instanceSet[projectDir] = instance
         instance.init()
 
-        RpcLocalServer.start()
+        McpLocalServer.start()
     }
 
     @Synchronized
@@ -52,6 +53,7 @@ object JuggInitializer {
 
         if (instanceSet.isEmpty()) {
             RpcLocalServer.stop()
+            McpLocalServer.stop()
         }
     }
 
@@ -85,11 +87,6 @@ object JuggInitializer {
     @Synchronized
     fun getInitializedProjectDirs(): List<String> {
         return instanceSet.keys.toList().sorted()
-    }
-
-    @Synchronized
-    fun isProjectInitialized(projectDir: String): Boolean {
-        return instanceSet.containsKey(projectDir)
     }
 
     private val Project.bashPathOrDefault get() = basePath ?: "null"
