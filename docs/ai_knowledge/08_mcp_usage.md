@@ -1,8 +1,8 @@
-# Jugg MCP 使用说明（Phase 1）
+# Jugg MCP 使用说明（Phase 1-3）
 
 > 更新时间: 2026-02-08  
 > 传输协议: MCP Streamable HTTP + JSON-RPC 2.0  
-> 当前工具: `list_projects`, `restart_app`
+> 当前工具: `list_projects`, `restart_app`, `compile`, `deploy`, `clean_reinstall`, `device_list`, `screenshot`, `record`, `layout_dump`
 
 ---
 
@@ -83,6 +83,57 @@
 - `serial` 缺失：回落 selected device。
 - `serial` 非法：回落 selected device。
 - 无可用设备：返回 `MCP_NO_DEVICE`。
+
+### 4.3 `compile`
+
+- 作用：触发一次 Jugg 编译流程。
+- 参数：
+  - `projectDir`（必填）
+
+### 4.4 `deploy`
+
+- 作用：触发一次 Jugg 部署流程。
+- 参数：
+  - `projectDir`（必填）
+
+### 4.5 `clean_reinstall`
+
+- 作用：触发 clean + reinstall 流程后执行编译部署。
+- 参数：
+  - `projectDir`（必填）
+
+### 4.6 `device_list`
+
+- 作用：返回当前 connected device 列表及 selected 标记。
+- 参数：
+  - `projectDir`（必填）
+
+### 4.7 `screenshot`
+
+- 作用：对目标设备执行截图并回传本地产物路径。
+- 参数：
+  - `projectDir`（必填）
+  - `serial`（可选，缺失/非法时回落 selected device）
+
+### 4.8 `record`
+
+- 作用：对目标设备录屏并回传本地产物路径。
+- 参数：
+  - `projectDir`（必填）
+  - `serial`（可选，缺失/非法时回落 selected device）
+  - `durationSec`（可选，默认 `10`，范围 `1..180`）
+
+### 4.9 `layout_dump`
+
+- 作用：导出当前 UI 层级 XML 并回传本地产物路径。
+- 参数：
+  - `projectDir`（必填）
+  - `serial`（可选，缺失/非法时回落 selected device）
+
+### 4.10 产物目录
+
+- 所有 fetch 类型工具统一写入：`$PROJECT_DIR/build/jugg/mcp_fetch/<tool>/`
+- 当前包含子目录：`screenshot/`、`record/`、`layout_dump/`
 
 ---
 
@@ -168,14 +219,90 @@ curl -s -X POST "http://localhost:12320/mcp" \
   }'
 ```
 
+### 5.6 tools/call - device_list
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":4,
+    "method":"tools/call",
+    "params":{
+      "name":"device_list",
+      "arguments":{
+        "projectDir":"/abs/path/to/project"
+      }
+    }
+  }'
+```
+
+### 5.7 tools/call - screenshot
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":5,
+    "method":"tools/call",
+    "params":{
+      "name":"screenshot",
+      "arguments":{
+        "projectDir":"/abs/path/to/project",
+        "serial":"emulator-5554"
+      }
+    }
+  }'
+```
+
+### 5.8 tools/call - record
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":6,
+    "method":"tools/call",
+    "params":{
+      "name":"record",
+      "arguments":{
+        "projectDir":"/abs/path/to/project",
+        "serial":"emulator-5554",
+        "durationSec":12
+      }
+    }
+  }'
+```
+
+### 5.9 tools/call - layout_dump
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":7,
+    "method":"tools/call",
+    "params":{
+      "name":"layout_dump",
+      "arguments":{
+        "projectDir":"/abs/path/to/project",
+        "serial":"emulator-5554"
+      }
+    }
+  }'
+```
+
 ---
 
-## 六、错误码（Phase 1）
+## 六、错误码（Phase 1-3）
 
 - `MCP_INVALID_JSON_RPC`：JSON-RPC 格式错误
 - `MCP_METHOD_NOT_SUPPORTED`：不支持的方法
 - `MCP_TOOL_NOT_FOUND`：工具不存在
-- `MCP_INVALID_PARAMS`：参数错误（如 `restart_app` 缺失 `projectDir`）
+- `MCP_INVALID_PARAMS`：参数错误（如工具缺失 `projectDir`）
 - `MCP_PROJECT_NOT_INITIALIZED`：项目未初始化
 - `MCP_NO_DEVICE`：无可用设备
 - `MCP_INTERNAL_ERROR`：内部错误
@@ -251,3 +378,4 @@ for p in {12320..12329}; do curl -s "http://localhost:${p}/mcp" -X POST -H "Cont
 - 若找不到端口：确认 IDE 中 Jugg 已初始化该项目。
 - 若返回 `Server not initialized. Call initialize first.`：说明客户端未先发 `initialize`。
 - `list_projects` 不校验 `projectDir`，会直接返回当前 IDE 已初始化项目集合。
+- `screenshot`/`record`/`layout_dump` 依赖设备在线与 adb 可用，失败时可先检查 `device_list`。

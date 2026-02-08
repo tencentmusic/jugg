@@ -118,6 +118,20 @@ class IdeaDeviceAdb(
         }
     }
 
+    @Synchronized
+    override fun pull(from: String, to: File): Boolean {
+        return try {
+            to.parentFile?.mkdirs()
+            val process = Runtime.getRuntime().exec(arrayOf("adb", "-s", serial, "pull", from, to.path))
+            process.waitFor()
+            val exitCode = process.exitValue()
+            exitCode == 0
+        } catch (e: Exception) {
+            logger.warn("adb pull failed, from: $from, to: $to", e)
+            false
+        }
+    }
+
     override fun getDefaultLaunchActivity(apkFile: File): String? {
         return ApkReader(apkFile, logger).getDefaultActivity()
     }

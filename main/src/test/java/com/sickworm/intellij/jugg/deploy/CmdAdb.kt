@@ -40,6 +40,13 @@ class CmdAdb(loggerArg: Logger): IDeviceAdb {
         return true
     }
 
+    override fun pull(from: String, to: File): Boolean {
+        to.parentFile?.mkdirs()
+        val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb pull $from ${to.path}"))
+        process.waitFor()
+        return true
+    }
+
     fun install(apkFile: File) {
         val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb install ${apkFile.path}"))
         process.waitFor()

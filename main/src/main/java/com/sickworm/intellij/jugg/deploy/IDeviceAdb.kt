@@ -16,6 +16,8 @@ interface IDeviceAdb {
 
     fun push(from: File, to: String): Boolean
 
+    fun pull(from: String, to: File): Boolean
+
     fun getDefaultLaunchActivity(apkFile: File): String?
 
     /**

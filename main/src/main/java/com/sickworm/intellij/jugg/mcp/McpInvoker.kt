@@ -90,6 +90,23 @@ class McpInvoker(
                 logger.debug("[MCP][INVOKER] handling clean_reinstall")
                 runtime.cleanReinstall()
             }
+            "device_list" -> {
+                logger.debug("[MCP][INVOKER] handling device_list")
+                runtime.deviceList()
+            }
+            "screenshot" -> {
+                logger.debug("[MCP][INVOKER] handling screenshot")
+                runtime.screenshot(request.arguments["serial"] as? String)
+            }
+            "record" -> {
+                logger.debug("[MCP][INVOKER] handling record")
+                val durationSec = (request.arguments["durationSec"] as? Number)?.toInt()
+                runtime.record(request.arguments["serial"] as? String, durationSec)
+            }
+            "layout_dump" -> {
+                logger.debug("[MCP][INVOKER] handling layout_dump")
+                runtime.layoutDump(request.arguments["serial"] as? String)
+            }
             else -> McpToolResult(
                 status = McpToolStatus.OK,
                 message = "${request.toolName} executed successfully.",

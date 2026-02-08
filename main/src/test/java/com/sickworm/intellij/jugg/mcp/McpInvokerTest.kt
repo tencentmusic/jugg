@@ -90,6 +90,46 @@ class McpInvokerTest {
                     errorCode = null,
                 )
             }
+
+            override fun deviceList(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "device_list executed successfully.",
+                    data = mapOf("devices" to emptyList<Map<String, Any?>>()),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            override fun screenshot(serial: String?): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "screenshot executed successfully.",
+                    data = mapOf("serial" to serial),
+                    artifacts = listOf(McpArtifact(type = "image", path = "/tmp/a.png")),
+                    errorCode = null,
+                )
+            }
+
+            override fun record(serial: String?, durationSec: Int?): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "record executed successfully.",
+                    data = mapOf("serial" to serial, "durationSec" to durationSec),
+                    artifacts = listOf(McpArtifact(type = "video", path = "/tmp/a.mp4")),
+                    errorCode = null,
+                )
+            }
+
+            override fun layoutDump(serial: String?): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "layout_dump executed successfully.",
+                    data = mapOf("serial" to serial),
+                    artifacts = listOf(McpArtifact(type = "xml", path = "/tmp/a.xml")),
+                    errorCode = null,
+                )
+            }
         }
     }
 
@@ -272,5 +312,85 @@ class McpInvokerTest {
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
         Assert.assertTrue(result.content.first().text.contains("clean_reinstall executed successfully"))
+    }
+
+    @Test
+    fun testDeviceListToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 8,
+                params = mapOf(
+                    "name" to "device_list",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testScreenshotToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 9,
+                params = mapOf(
+                    "name" to "screenshot",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "serial" to "emulator-5554")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testRecordToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 10,
+                params = mapOf(
+                    "name" to "record",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "durationSec" to 12)
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testLayoutDumpToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 11,
+                params = mapOf(
+                    "name" to "layout_dump",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
     }
 }
