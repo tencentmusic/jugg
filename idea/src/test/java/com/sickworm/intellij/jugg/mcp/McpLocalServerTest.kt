@@ -123,8 +123,7 @@ class McpLocalServerTest {
             Assert.assertEquals(200, response.code)
             val responseBody = response.body?.string().orEmpty()
             val rpcResponse = gson.fromJson(responseBody, McpJsonRpcResponse::class.java)
-            Assert.assertNotNull(rpcResponse.error)
-            Assert.assertEquals(McpJsonRpc.ErrorCode.InvalidRequest, rpcResponse.error?.code)
+            Assert.assertNull(rpcResponse.error)
         }
     }
 
@@ -168,7 +167,7 @@ class McpLocalServerTest {
     }
 
     @Test
-    fun testGetEndpoint() {
+    fun testGetEndpointMethodNotAllowed() {
         McpLocalServer.start()
 
         val request = Request.Builder()
@@ -177,10 +176,35 @@ class McpLocalServerTest {
             .build()
 
         client.newCall(request).execute().use { response ->
-            Assert.assertEquals(200, response.code)
+            Assert.assertEquals(405, response.code)
             val responseBody = response.body?.string().orEmpty()
             val rpcResponse = gson.fromJson(responseBody, McpJsonRpcResponse::class.java)
-            Assert.assertNull(rpcResponse.error)
+            Assert.assertNotNull(rpcResponse.error)
+            Assert.assertEquals(McpJsonRpc.ErrorCode.MethodNotFound, rpcResponse.error?.code)
+        }
+    }
+
+    @Test
+    fun testNotificationReturns202() {
+        McpLocalServer.start()
+        doInitialize()
+
+        val notificationJson = """
+            {
+              "jsonrpc": "2.0",
+              "method": "notifications/initialized",
+              "params": {}
+            }
+        """.trimIndent()
+
+        val request = Request.Builder()
+            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .post(notificationJson.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            Assert.assertEquals(202, response.code)
+            Assert.assertTrue((response.body?.string().orEmpty()).isEmpty())
         }
     }
 
@@ -251,6 +275,37 @@ class McpLocalServerTest {
             val body = response.body?.string().orEmpty()
             val rpcResponse = gson.fromJson(body, McpJsonRpcResponse::class.java)
             Assert.assertNull(rpcResponse.error)
+        }
+    }
+
+    @Test
+    fun testUnsupportedProtocolVersion() {
+        McpLocalServer.start()
+        val requestJson = """
+            {
+              "jsonrpc": "2.0",
+              "id": 88,
+              "method": "initialize",
+              "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1.0.0"}
+              }
+            }
+        """.trimIndent()
+
+        val request = Request.Builder()
+            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .addHeader("MCP-Protocol-Version", "2099-01-01")
+            .post(requestJson.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            Assert.assertEquals(400, response.code)
+            val responseBody = response.body?.string().orEmpty()
+            val rpcResponse = gson.fromJson(responseBody, McpJsonRpcResponse::class.java)
+            Assert.assertNotNull(rpcResponse.error)
+            Assert.assertEquals(McpJsonRpc.ErrorCode.InvalidRequest, rpcResponse.error?.code)
         }
     }
 

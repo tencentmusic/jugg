@@ -1,7 +1,7 @@
 # Jugg MCP 使用说明（Phase 1）
 
 > 更新时间: 2026-02-08  
-> 协议: MCP over HTTP + JSON-RPC 2.0  
+> 传输协议: MCP Streamable HTTP + JSON-RPC 2.0  
 > 当前工具: `list_projects`, `restart_app`
 
 ---
@@ -10,19 +10,29 @@
 
 - 服务端口范围：`12320..12329`
 - HTTP 路径：`/mcp`
-- Content-Type：`application/json`
+- 响应 Content-Type：`application/json`
 
 说明：
 - 服务生命周期跟随 `JuggInitializer`（项目初始化时启动，全部释放后停止）。
 
 ---
 
-## 二、协议约定
+## 二、Streamable HTTP 行为
+
+- `POST /mcp`：发送 JSON-RPC 请求/通知。
+- `GET /mcp`：当前版本不提供 SSE 流，返回 `405 Method Not Allowed`（符合 Streamable HTTP 的允许行为）。
+- JSON-RPC **request**（带 `id`）：返回 `200` + JSON-RPC 响应。
+- JSON-RPC **notification**（不带 `id`）：返回 `202 Accepted`，空响应体。
+- 客户端可携带 `MCP-Protocol-Version` 请求头；当前支持：`2025-06-18`、`2025-11-25`。
+
+---
+
+## 三、协议约定
 
 - JSON-RPC 版本：`2.0`
-- MCP 生命周期：必须先调用 `initialize`，再发送 `notifications/initialized`
-- 协议层错误：返回 `error`
-- 业务层错误：返回 `result`，其中 `status=ERROR`
+- MCP 生命周期：先调用 `initialize`，再发送 `notifications/initialized`
+- 协议层错误：返回 JSON-RPC `error`
+- 业务层错误：返回 JSON-RPC `result`，其中 `status=ERROR`
 
 `tools/call` 标准返回（兼容 MCP）：
 
@@ -54,15 +64,15 @@
 
 ---
 
-## 三、工具列表
+## 四、工具列表
 
-### 3.1 `list_projects`
+### 4.1 `list_projects`
 
 - 作用：返回当前 IDE 已初始化项目列表（来源 `JuggInitializer#instanceSet`）。
 - 参数：
   - `projectDir`（可选，当前版本不会用于校验）
 
-### 3.2 `restart_app`
+### 4.2 `restart_app`
 
 - 作用：重启目标项目 app。
 - 参数：
@@ -76,15 +86,14 @@
 
 ---
 
-## 四、curl 示例
+## 五、curl 示例
 
-### 4.1 tools/list
-
-> 调用前请先执行一次 `initialize`。
+### 5.1 initialize
 
 ```bash
 curl -s -X POST "http://localhost:12320/mcp" \
   -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
   -d '{
     "jsonrpc":"2.0",
     "id":0,
@@ -97,6 +106,20 @@ curl -s -X POST "http://localhost:12320/mcp" \
   }'
 ```
 
+### 5.2 notifications/initialized（预期 202）
+
+```bash
+curl -i -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "method":"notifications/initialized",
+    "params":{}
+  }'
+```
+
+### 5.3 tools/list
+
 ```bash
 curl -s -X POST "http://localhost:12320/mcp" \
   -H "Content-Type: application/json" \
@@ -108,7 +131,7 @@ curl -s -X POST "http://localhost:12320/mcp" \
   }'
 ```
 
-### 4.2 tools/call - list_projects
+### 5.4 tools/call - list_projects
 
 ```bash
 curl -s -X POST "http://localhost:12320/mcp" \
@@ -126,7 +149,7 @@ curl -s -X POST "http://localhost:12320/mcp" \
   }'
 ```
 
-### 4.3 tools/call - restart_app
+### 5.5 tools/call - restart_app
 
 ```bash
 curl -s -X POST "http://localhost:12320/mcp" \
@@ -147,7 +170,7 @@ curl -s -X POST "http://localhost:12320/mcp" \
 
 ---
 
-## 五、错误码（Phase 1）
+## 六、错误码（Phase 1）
 
 - `MCP_INVALID_JSON_RPC`：JSON-RPC 格式错误
 - `MCP_METHOD_NOT_SUPPORTED`：不支持的方法
@@ -159,56 +182,65 @@ curl -s -X POST "http://localhost:12320/mcp" \
 
 ---
 
-## 六、Claude Code / Codex CLI MCP 配置指引
+## 七、Claude Code / Codex CLI MCP 配置指引
 
-> 建议优先使用 **stdio→HTTP 适配器** 方式接入（Jugg MCP 当前为 HTTP 本地服务）。
+> 优先使用 **Streamable HTTP 直连**，仅在客户端不支持 HTTP MCP 时再用 `npx mcp-remote`。
 
-### 6.1 前置条件
+### 7.1 前置条件
 
 1. 在 IDE 中打开工程并触发 Jugg 初始化（会自动启动 MCP Server）。
 2. 确认本地端口可访问（默认 `12320..12329`，路径 `/mcp`）。
-3. 可先用 `tools/mcp_smoke.sh` 做本地自检：
+
+### 7.2 Claude Code（推荐：HTTP 直连）
+
+使用 CLI 添加（官方推荐方式）：
 
 ```bash
-tools/mcp_smoke.sh --project-dir /abs/path/to/project
+claude mcp add --transport http jugg http://localhost:12320/mcp
+claude mcp list
 ```
 
-### 6.2 Claude Code 配置（示例）
+如需项目共享配置，可加 `--scope project` 写入项目 `.mcp.json`。
 
-方式 A：客户端原生支持 HTTP MCP 时，直接配置 URL（推荐）。
+### 7.3 Codex CLI（推荐：URL 直连）
 
-方式 B：如果仅支持 stdio MCP，使用 `mcp-remote` 适配器。
+使用 CLI 添加：
+
+```bash
+codex mcp add jugg --url http://localhost:12320/mcp
+codex mcp list
+```
+
+或直接写入 `~/.codex/config.toml`：
+
+```toml
+[mcp_servers.jugg]
+url = "http://localhost:12320/mcp"
+```
+
+### 7.4 兼容回退：stdio -> HTTP 适配
+
+当客户端仅支持 stdio MCP 时，使用 `mcp-remote`：
 
 ```json
 {
   "mcpServers": {
     "jugg": {
       "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://localhost:12320/mcp"
-      ]
+      "args": ["-y", "mcp-remote", "http://localhost:12320/mcp"]
     }
   }
 }
 ```
 
-> 提示：Claude Code 不同版本配置文件路径可能不同，请以该版本官方文档/`--help` 为准。
-
-### 6.3 Codex CLI 配置（示例）
-
-在 `~/.codex/config.toml` 中新增 MCP Server：
-
-```toml
-[mcp_servers.jugg]
-command = "npx"
-args = ["-y", "mcp-remote", "http://localhost:12320/mcp"]
+```bash
+node -v
+npx -v
 ```
 
-> 若你使用的 Codex CLI 版本已支持直接 HTTP MCP，可改为原生 HTTP 配置；字段名以当前版本文档为准。
+---
 
-### 6.4 连通性排查
+## 八、连通性排查
 
 - 检查端口：
 
@@ -217,5 +249,5 @@ for p in {12320..12329}; do curl -s "http://localhost:${p}/mcp" -X POST -H "Cont
 ```
 
 - 若找不到端口：确认 IDE 中 Jugg 已初始化该项目。
-- 若返回 `Server not initialized. Call initialize first.`：说明客户端未按 MCP 生命周期先发 `initialize`。
+- 若返回 `Server not initialized. Call initialize first.`：说明客户端未先发 `initialize`。
 - `list_projects` 不校验 `projectDir`，会直接返回当前 IDE 已初始化项目集合。

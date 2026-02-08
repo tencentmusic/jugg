@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.mcp
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.platform.PlatformApi
@@ -16,6 +17,12 @@ object McpLocalServer {
     private const val PORT_START = 12320
     private const val PORT_END = 12329
     private const val CONTEXT_PATH = "/mcp"
+
+    private const val HEADER_CONTENT_TYPE = "Content-Type"
+    private const val HEADER_ORIGIN = "Origin"
+    private const val HEADER_MCP_PROTOCOL_VERSION = "MCP-Protocol-Version"
+
+    private val SUPPORTED_PROTOCOL_VERSIONS = setOf("2025-06-18", "2025-11-25")
 
     private var server: HttpServer? = null
     private var actualPort: Int = PORT_START
@@ -73,22 +80,28 @@ object McpLocalServer {
 
     private class McpRequestHandler : HttpHandler {
         override fun handle(exchange: HttpExchange) {
+            logger.debug("[MCP][HTTP] ${exchange.requestMethod} ${exchange.requestURI.path}")
             try {
+                if (!isOriginAllowed(exchange)) {
+                    val errorResponse = McpJsonRpcResponse(
+                        error = McpJsonRpcError(
+                            code = McpJsonRpc.ErrorCode.InvalidRequest,
+                            message = "Forbidden origin",
+                            data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                        )
+                    )
+                    sendJsonResponse(exchange, 403, errorResponse)
+                    return
+                }
+
                 when (exchange.requestMethod) {
                     "GET" -> handleGetRequest(exchange)
                     "POST" -> handlePostRequest(exchange)
-                    else -> {
-                        val errorResponse = McpJsonRpcResponse(
-                            error = McpJsonRpcError(
-                                code = McpJsonRpc.ErrorCode.MethodNotFound,
-                                message = "Method Not Allowed",
-                                data = mapOf("errorCode" to McpErrorCode.MCP_METHOD_NOT_SUPPORTED),
-                            )
-                        )
-                        sendJsonResponse(exchange, 405, errorResponse)
-                    }
+                    "DELETE" -> sendMethodNotAllowed(exchange)
+                    else -> sendMethodNotAllowed(exchange)
                 }
             } catch (e: Exception) {
+                logger.warn("[MCP] request handling failed", e)
                 try {
                     val errorResponse = McpJsonRpcResponse(
                         error = McpJsonRpcError(
@@ -106,19 +119,27 @@ object McpLocalServer {
         }
 
         private fun handleGetRequest(exchange: HttpExchange) {
-            val info = mapOf(
-                "name" to "jugg-mcp",
-                "protocol" to "json-rpc-2.0",
-                "path" to CONTEXT_PATH,
-            )
-            logger.debug("[MCP][IN ] GET")
-            sendJsonResponse(exchange, 200, McpJsonRpcResponse(result = info))
+            sendMethodNotAllowed(exchange)
         }
 
         private fun handlePostRequest(exchange: HttpExchange) {
+            val protocolVersionHeader = exchange.requestHeaders.getFirst(HEADER_MCP_PROTOCOL_VERSION)
+            if (!protocolVersionHeader.isNullOrBlank() && protocolVersionHeader !in SUPPORTED_PROTOCOL_VERSIONS) {
+                val errorResponse = McpJsonRpcResponse(
+                    error = McpJsonRpcError(
+                        code = McpJsonRpc.ErrorCode.InvalidRequest,
+                        message = "Unsupported MCP protocol version: $protocolVersionHeader",
+                        data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                    )
+                )
+                sendJsonResponse(exchange, 400, errorResponse)
+                return
+            }
+
             val requestBody = exchange.requestBody.bufferedReader().use { it.readText() }
             logger.debug("[MCP][IN ] $requestBody")
-            if (requestBody.isEmpty()) {
+
+            if (requestBody.isBlank()) {
                 val errorResponse = McpJsonRpcResponse(
                     error = McpJsonRpcError(
                         code = McpJsonRpc.ErrorCode.InvalidRequest,
@@ -131,7 +152,37 @@ object McpLocalServer {
             }
 
             try {
-                val request = gson.fromJson(requestBody, McpJsonRpcRequest::class.java)
+                val jsonElement = JsonParser.parseString(requestBody)
+                if (!jsonElement.isJsonObject) {
+                    val errorResponse = McpJsonRpcResponse(
+                        error = McpJsonRpcError(
+                            code = McpJsonRpc.ErrorCode.InvalidRequest,
+                            message = "Batch or non-object JSON-RPC payload is not supported",
+                            data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
+                        )
+                    )
+                    sendJsonResponse(exchange, 400, errorResponse)
+                    return
+                }
+
+                val jsonObject = jsonElement.asJsonObject
+
+                if (!jsonObject.has("method")) {
+                    logger.debug("[MCP] client response or notification envelope without method; return 202")
+                    sendNoBodyResponse(exchange, 202)
+                    return
+                }
+
+                val request = gson.fromJson(jsonObject, McpJsonRpcRequest::class.java)
+
+                val isNotification = request.id == null
+                if (isNotification) {
+                    PlatformApi.invokeMcp(request)
+                    logger.debug("[MCP][OUT][202] notification accepted")
+                    sendNoBodyResponse(exchange, 202)
+                    return
+                }
+
                 val response = PlatformApi.invokeMcp(request)
                 sendJsonResponse(exchange, 200, response)
             } catch (e: JsonSyntaxException) {
@@ -156,16 +207,43 @@ object McpLocalServer {
             }
         }
 
+        private fun sendMethodNotAllowed(exchange: HttpExchange) {
+            val errorResponse = McpJsonRpcResponse(
+                error = McpJsonRpcError(
+                    code = McpJsonRpc.ErrorCode.MethodNotFound,
+                    message = "Method Not Allowed",
+                    data = mapOf("errorCode" to McpErrorCode.MCP_METHOD_NOT_SUPPORTED),
+                )
+            )
+            sendJsonResponse(exchange, 405, errorResponse)
+        }
+
+        private fun sendNoBodyResponse(exchange: HttpExchange, statusCode: Int) {
+            logger.debug("[MCP][OUT][$statusCode] <empty>")
+            exchange.sendResponseHeaders(statusCode, -1)
+        }
+
         private fun sendJsonResponse(exchange: HttpExchange, statusCode: Int, response: McpJsonRpcResponse) {
             val responseJson = gson.toJson(response)
             logger.debug("[MCP][OUT][${statusCode}] $responseJson")
             val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
 
-            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.responseHeaders.add(HEADER_CONTENT_TYPE, "application/json")
             exchange.sendResponseHeaders(statusCode, responseBytes.size.toLong())
             exchange.responseBody.use { os ->
                 os.write(responseBytes)
             }
+        }
+
+        private fun isOriginAllowed(exchange: HttpExchange): Boolean {
+            val origin = exchange.requestHeaders.getFirst(HEADER_ORIGIN) ?: return true
+            if (origin == "null") {
+                return true
+            }
+            return origin.startsWith("http://localhost") ||
+                origin.startsWith("http://127.0.0.1") ||
+                origin.startsWith("https://localhost") ||
+                origin.startsWith("https://127.0.0.1")
         }
     }
 }

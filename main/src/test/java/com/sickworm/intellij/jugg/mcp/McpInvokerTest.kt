@@ -25,11 +25,7 @@ class McpInvokerTest {
     @Before
     fun setUp() {
         McpRuntimeHolder.runtime = object : IMcpRuntime {
-            override fun listInitializedProjectDirs(): List<String> {
-                return listOf("/tmp/projectA", "/tmp/projectB")
-            }
-
-            override fun restartApp(serial: String?): Pair<String?, String> {
+            override fun restartApp(serial: String?): McpToolResult {
                 return when (serial) {
                     null -> McpToolResult(
                         status = McpToolStatus.OK,
@@ -73,7 +69,7 @@ class McpInvokerTest {
     }
 
     @Test
-    fun testListProjects() {
+    fun testListProjectsAcceptedWithoutProjectDir() {
         val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
         initialize(invoker)
         val response = invoker.invokeMcp(
@@ -82,7 +78,7 @@ class McpInvokerTest {
                 id = 1,
                 params = mapOf(
                     "name" to "list_projects",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                    "arguments" to emptyMap<String, Any?>(),
                 )
             )
         )
@@ -154,7 +150,7 @@ class McpInvokerTest {
     }
 
     @Test
-    fun testInitializeRequired() {
+    fun testToolsListWithoutInitializeIsAllowedInInvoker() {
         val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -164,8 +160,7 @@ class McpInvokerTest {
             )
         )
 
-        Assert.assertNotNull(response.error)
-        Assert.assertEquals(McpJsonRpc.ErrorCode.InvalidRequest, response.error?.code)
+        Assert.assertNull(response.error)
     }
 
     @Test
