@@ -1,0 +1,11 @@
+package com.sickworm.intellij.jugg.mcp
+
+object McpErrorCode {
+    const val MCP_INVALID_JSON_RPC = "MCP_INVALID_JSON_RPC"
+    const val MCP_METHOD_NOT_SUPPORTED = "MCP_METHOD_NOT_SUPPORTED"
+    const val MCP_TOOL_NOT_FOUND = "MCP_TOOL_NOT_FOUND"
+    const val MCP_INVALID_PARAMS = "MCP_INVALID_PARAMS"
+    const val MCP_PROJECT_NOT_INITIALIZED = "MCP_PROJECT_NOT_INITIALIZED"
+    const val MCP_NO_DEVICE = "MCP_NO_DEVICE"
+    const val MCP_INTERNAL_ERROR = "MCP_INTERNAL_ERROR"
+}

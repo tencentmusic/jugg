@@ -95,6 +95,9 @@ IF 以上都不匹配
 - `05_utilities.md` - APK/Git/Logger/RPC
 - `06_evolution.md` - 技术演进历史
 
+### MCP 规划
+- `08_mcp_design.md` - MCP 分阶段架构与 Phase 1 设计
+
 </details>
 
 ---
