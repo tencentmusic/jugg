@@ -30,12 +30,15 @@ python3 skills/jugg-mcp-android-loop/scripts/setup_mcp_clients.py --all --endpoi
 
 ---
 
-## 4) 快速闭环验证（推荐）
+## 4) 快速闭环验证（推荐，MCP-only）
 
 ```bash
 python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
   --project-dir /ABS/PROJECT/PATH \
-  --fallback-clean-reinstall
+  --fallback-clean-reinstall \
+  --start-activity .MainActivity \
+  --tap-x 540 --tap-y 530 \
+  --pre-tap-delay-sec 2.0 --tap-repeat 2 --tap-interval-sec 1.5
 ```
 
 可选参数：
@@ -120,7 +123,9 @@ claude mcp list
 ```bash
 python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
   --project-dir /ABS/PROJECT/PATH \
-  --mode clean_reinstall
+  --mode clean_reinstall \
+  --start-activity .MainActivity \
+  --tap-x 540 --tap-y 530
 ```
 
 ---
@@ -132,7 +137,10 @@ python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
 ```bash
 python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
   --project-dir /ABS/PROJECT/PATH \
-  --fallback-clean-reinstall
+  --fallback-clean-reinstall \
+  --start-activity .MainActivity \
+  --tap-x 540 --tap-y 530 \
+  --pre-tap-delay-sec 2.0 --tap-repeat 2 --tap-interval-sec 1.5
 ```
 
 回归验证（稳）：
@@ -141,11 +149,14 @@ python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
 python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
   --project-dir /ABS/PROJECT/PATH \
   --mode clean_reinstall \
-  --with-record --record-duration 12
+  --with-record --record-duration 12 \
+  --start-activity .MainActivity \
+  --tap-x 540 --tap-y 530 \
+  --pre-tap-delay-sec 2.0 --tap-repeat 2 --tap-interval-sec 1.5
 ```
 
 ---
 
 ## 8) 交付给 Agent 的一句话
 
-“Use `jugg-mcp-android-loop` skill and run a full compile/deploy/verify loop on project `<projectDir>`, then return pass/fail and artifact paths.”
+“Use `jugg-mcp-android-loop` skill and run a full MCP-only compile/deploy/verify loop on project `<projectDir>` (use `app_start` + `tap`), then return pass/fail and artifact paths.”

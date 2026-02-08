@@ -203,12 +203,22 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
     if not ok:
         return runner.summary
 
-    tap_args: Dict[str, Any] = {"projectDir": args.project_dir, "x": args.tap_x, "y": args.tap_y}
-    if args.serial:
-        tap_args["serial"] = args.serial
-    ok, msg, _, _ = runner.tools_call_required("tap", tap_args)
-    if not ok:
-        return runner.summary
+    if args.pre_tap_delay_sec > 0:
+        import time
+        time.sleep(args.pre_tap_delay_sec)
+
+    for idx in range(max(1, args.tap_repeat)):
+        tap_args: Dict[str, Any] = {"projectDir": args.project_dir, "x": args.tap_x, "y": args.tap_y}
+        if args.serial:
+            tap_args["serial"] = args.serial
+        ok, msg, _, _ = runner.tools_call("tap", tap_args)
+        step_name = "tap" if args.tap_repeat == 1 else f"tap#{idx + 1}"
+        runner._record_step(step_name, ok, msg)
+        if not ok:
+            return runner.summary
+        if args.tap_interval_sec > 0 and idx < args.tap_repeat - 1:
+            import time
+            time.sleep(args.tap_interval_sec)
 
     artifact_calls: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -255,6 +265,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-activity", default=".MainActivity", help="Activity for MCP app_start")
     parser.add_argument("--tap-x", type=int, default=540, help="Tap x for MCP tap")
     parser.add_argument("--tap-y", type=int, default=530, help="Tap y for MCP tap")
+    parser.add_argument("--pre-tap-delay-sec", type=float, default=2.0, help="Delay after app_start before first tap")
+    parser.add_argument("--tap-repeat", type=int, default=2, help="How many taps to perform")
+    parser.add_argument("--tap-interval-sec", type=float, default=1.5, help="Delay between repeated taps")
     return parser.parse_args()
 
 
