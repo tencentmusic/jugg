@@ -107,6 +107,7 @@ class McpInvokerTest {
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
         Assert.assertTrue(result.content.first().text.contains("Serial not provided"))
+        Assert.assertTrue(result.content.first().text.contains("structuredContent={"))
     }
 
     @Test
@@ -147,6 +148,7 @@ class McpInvokerTest {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("\"errorCode\":\"MCP_NO_DEVICE\""))
     }
 
     @Test

@@ -1,15 +1,27 @@
 package com.sickworm.intellij.jugg.mcp
 
+import com.google.gson.Gson
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 class McpResultMapper {
+
+    private val gson = Gson()
 
     private fun normalizeId(id: Any?): Any? {
         return when (id) {
             is Double -> id.roundToLong()
             is Float -> id.roundToInt()
             else -> id
+        }
+    }
+
+    private fun composeToolText(message: String, structured: Map<String, Any?>): String {
+        val structuredJson = gson.toJson(structured)
+        return if (message.isBlank()) {
+            structuredJson
+        } else {
+            "$message\nstructuredContent=$structuredJson"
         }
     }
 
@@ -68,7 +80,7 @@ class McpResultMapper {
             id = normalizeId(id),
             result = McpToolCallResult(
                 content = listOf(
-                    McpContentItem(text = toolResult.message)
+                    McpContentItem(text = composeToolText(toolResult.message, structured))
                 ),
                 isError = false,
                 structuredContent = structured,
@@ -88,7 +100,7 @@ class McpResultMapper {
             id = normalizeId(id),
             result = McpToolCallResult(
                 content = listOf(
-                    McpContentItem(text = message)
+                    McpContentItem(text = composeToolText(message, structured))
                 ),
                 isError = true,
                 structuredContent = structured,

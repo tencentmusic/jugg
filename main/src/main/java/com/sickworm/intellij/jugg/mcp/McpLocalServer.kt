@@ -80,7 +80,6 @@ object McpLocalServer {
 
     private class McpRequestHandler : HttpHandler {
         override fun handle(exchange: HttpExchange) {
-            logger.debug("[MCP][HTTP] ${exchange.requestMethod} ${exchange.requestURI.path}")
             try {
                 if (!isOriginAllowed(exchange)) {
                     val errorResponse = McpJsonRpcResponse(
