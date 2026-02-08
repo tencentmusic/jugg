@@ -15,6 +15,7 @@ import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.mcp.*
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import java.io.File
+import java.util.Locale
 
 class IdeMcpRuntime(
     private val project: Project,
@@ -253,26 +254,101 @@ class IdeMcpRuntime(
             internalErrorResult("screenshot", e.message ?: "unknown error")
         }
     }
-
-    override fun record(serial: String?, durationSec: Int?): McpToolResult {
+    override fun record(
+        serial: String?,
+        durationSec: Int?,
+        packageName: String?,
+        activity: String?,
+        tapX: Int?,
+        tapY: Int?,
+        preTapDelaySec: Double?,
+        tapRepeat: Int?,
+        tapIntervalSec: Double?,
+        recordStartDelaySec: Double?,
+    ): McpToolResult {
         val selected = resolveOnlineDevice(serial)
             ?: return noDeviceResult("record")
         val adb = selected.adb
         val toolDir = ensureToolDir("record")
             ?: return internalErrorResult("record", "failed to prepare artifact directory")
 
+        if ((tapX == null) xor (tapY == null)) {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "record failed. Reason: tapX and tapY must be provided together.",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            )
+        }
+
         val clampedDurationSec = (durationSec ?: 10).coerceIn(1, 180)
+        val recordDelay = (recordStartDelaySec ?: 0.8).coerceIn(0.0, 8.0)
+        val preTapDelay = (preTapDelaySec ?: 1.0).coerceIn(0.0, 15.0)
+        val clampedTapRepeat = (tapRepeat ?: 1).coerceIn(1, 8)
+        val clampedTapInterval = (tapIntervalSec ?: 1.0).coerceIn(0.0, 8.0)
+
         val fileName = "record_${safeName(adb.serial)}_${System.currentTimeMillis()}.mp4"
         val localFile = File(toolDir, fileName)
         val remoteDir = "/sdcard/Download/jugg_mcp"
         val remoteFile = "$remoteDir/$fileName"
 
+        val hasFlowActions = !activity.isNullOrBlank() || (tapX != null && tapY != null)
+
         return synchronized(recordLock) {
             try {
                 adb.execAdbShellCmd("mkdir -p $remoteDir")
-                adb.execAdbShellCmd("screenrecord --time-limit $clampedDurationSec $remoteFile")
-                if (!adb.pull(remoteFile, localFile) || !localFile.exists()) {
-                    return@synchronized internalErrorResult("record", "failed to pull record file")
+
+                var executedCommand = ""
+                var shellOutput = ""
+                if (hasFlowActions) {
+                    val resolvedPackageName = packageName ?: deployTargetManager.getPackageNameOrNull()
+                        ?: return@synchronized internalErrorResult("record", "packageName is required when deploy target is unavailable")
+                    val activityPart = normalizeActivity(activity, resolvedPackageName)
+                    val component = "$resolvedPackageName/$activityPart"
+                    val flowCommand = buildRecordFlowCommand(
+                        remoteFile = remoteFile,
+                        durationSec = clampedDurationSec,
+                        component = component,
+                        recordStartDelaySec = recordDelay,
+                        preTapDelaySec = preTapDelay,
+                        tapX = tapX,
+                        tapY = tapY,
+                        tapRepeat = clampedTapRepeat,
+                        tapIntervalSec = clampedTapInterval,
+                    )
+                    executedCommand = flowCommand
+                    shellOutput = adb.execAdbShellScript(flowCommand)
+                } else {
+                    val screenRecordCommand = "screenrecord --time-limit $clampedDurationSec $remoteFile"
+                    executedCommand = screenRecordCommand
+                    shellOutput = adb.execAdbShellCmd(screenRecordCommand)
+                }
+
+                var pulled = false
+                for (attempt in 1..3) {
+                    if (adb.pull(remoteFile, localFile) && localFile.exists()) {
+                        pulled = true
+                        break
+                    }
+                    if (attempt < 3) {
+                        Thread.sleep(800)
+                    }
+                }
+                if (!pulled) {
+                    val reason = "failed to pull record file after retries. cmd=$executedCommand, shellOut=$shellOutput"
+                    return@synchronized internalErrorResult("record", reason)
+                }
+                val extraData = if (hasFlowActions) {
+                    mapOf(
+                        "packageName" to (packageName ?: deployTargetManager.getPackageNameOrNull().orEmpty()),
+                        "activity" to activity,
+                        "tapX" to tapX,
+                        "tapY" to tapY,
+                        "tapRepeat" to clampedTapRepeat,
+                    )
+                } else {
+                    emptyMap()
                 }
 
                 McpToolResult(
@@ -286,7 +362,7 @@ class IdeMcpRuntime(
                         ),
                         "durationSec" to clampedDurationSec,
                         "file" to localFile.absolutePath,
-                    ),
+                    ) + extraData,
                     artifacts = listOf(McpArtifact(type = "video", path = localFile.absolutePath)),
                     errorCode = null,
                 )
@@ -342,12 +418,7 @@ class IdeMcpRuntime(
         return try {
             val resolvedPackageName = packageName ?: deployTargetManager.getPackageNameOrNull()
                 ?: return internalErrorResult("app_start", "packageName is required when deploy target is unavailable")
-            val activityPart = when {
-                activity.isNullOrBlank() -> ".MainActivity"
-                activity.startsWith(".") -> activity
-                activity.startsWith(resolvedPackageName) -> activity.removePrefix(resolvedPackageName)
-                else -> ".${activity.substringAfterLast('.')}"
-            }
+            val activityPart = normalizeActivity(activity, resolvedPackageName)
             val component = "$resolvedPackageName/$activityPart"
             adb.execAdbShellCmd("am start -n $component")
 
@@ -435,10 +506,55 @@ class IdeMcpRuntime(
         return dir
     }
 
+    private fun normalizeActivity(activity: String?, resolvedPackageName: String): String {
+        return when {
+            activity.isNullOrBlank() -> ".MainActivity"
+            activity.startsWith(".") -> activity
+            activity.startsWith(resolvedPackageName) -> activity.removePrefix(resolvedPackageName)
+            else -> ".${activity.substringAfterLast('.')}"
+        }
+    }
+
+    private fun buildRecordFlowCommand(
+        remoteFile: String,
+        durationSec: Int,
+        component: String,
+        recordStartDelaySec: Double,
+        preTapDelaySec: Double,
+        tapX: Int?,
+        tapY: Int?,
+        tapRepeat: Int,
+        tapIntervalSec: Double,
+    ): String {
+        val commands = mutableListOf<String>()
+        commands += "screenrecord --time-limit $durationSec $remoteFile >/dev/null 2>&1 & REC_PID=\$!"
+        if (recordStartDelaySec > 0.0) {
+            commands += "sleep ${formatShellSec(recordStartDelaySec)}"
+        }
+        commands += "am start -n $component >/dev/null 2>&1"
+
+        if (tapX != null && tapY != null) {
+            if (preTapDelaySec > 0.0) {
+                commands += "sleep ${formatShellSec(preTapDelaySec)}"
+            }
+            repeat(tapRepeat) { index ->
+                commands += "input tap $tapX $tapY"
+                if (index < tapRepeat - 1 && tapIntervalSec > 0.0) {
+                    commands += "sleep ${formatShellSec(tapIntervalSec)}"
+                }
+            }
+        }
+
+        commands += "wait \$REC_PID"
+        return commands.joinToString(" ; ")
+    }
+    private fun formatShellSec(value: Double): String {
+        return String.format(Locale.US, "%.2f", value.coerceAtLeast(0.0))
+    }
+
     private fun safeName(value: String): String {
         return value.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
     }
-
     private fun noDeviceResult(toolName: String): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.ERROR,

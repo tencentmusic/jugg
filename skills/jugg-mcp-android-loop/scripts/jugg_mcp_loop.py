@@ -2,8 +2,8 @@
 import argparse
 import json
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -36,6 +36,8 @@ def post_json(
         except Exception:
             pass
         return e.code, parsed, body
+    except urllib.error.URLError as e:
+        return 0, None, str(e)
 
 
 def probe_endpoint(port: Optional[int]) -> str:
@@ -122,16 +124,25 @@ class McpRunner:
         self._record_step("tools/list", ok, "ok" if ok else f"failed: {body}")
         return ok
 
-    def tools_call(self, name: str, arguments: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any], List[str]]:
-        status, parsed, body = post_json(self.endpoint, {
-            "jsonrpc": "2.0",
-            "id": self._next_id(),
-            "method": "tools/call",
-            "params": {
-                "name": name,
-                "arguments": arguments,
-            }
-        }, timeout_sec=self.timeout_sec)
+    def tools_call(
+        self,
+        name: str,
+        arguments: Dict[str, Any],
+        timeout_sec: Optional[int] = None,
+    ) -> Tuple[bool, str, Dict[str, Any], List[str]]:
+        status, parsed, body = post_json(
+            self.endpoint,
+            {
+                "jsonrpc": "2.0",
+                "id": self._next_id(),
+                "method": "tools/call",
+                "params": {
+                    "name": name,
+                    "arguments": arguments,
+                }
+            },
+            timeout_sec=timeout_sec or self.timeout_sec,
+        )
         if status != 200 or not isinstance(parsed, dict):
             return False, f"http={status}, body={body}", {}, []
 
@@ -152,10 +163,73 @@ class McpRunner:
 
         return is_ok, msg, structured, artifacts
 
-    def tools_call_required(self, name: str, arguments: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any], List[str]]:
-        ok, msg, structured, artifacts = self.tools_call(name, arguments)
+    def tools_call_required(
+        self,
+        name: str,
+        arguments: Dict[str, Any],
+        timeout_sec: Optional[int] = None,
+    ) -> Tuple[bool, str, Dict[str, Any], List[str]]:
+        ok, msg, structured, artifacts = self.tools_call(name, arguments, timeout_sec=timeout_sec)
         self._record_step(name, ok, msg, {"artifacts": artifacts} if artifacts else None)
         return ok, msg, structured, artifacts
+
+
+def _record_timeout(args: argparse.Namespace) -> int:
+    return max(args.timeout_sec, args.record_duration + args.record_timeout_buffer_sec)
+
+
+def run_runtime_actions(runner: McpRunner, args: argparse.Namespace) -> bool:
+    app_start_args: Dict[str, Any] = {"projectDir": args.project_dir, "activity": args.start_activity}
+    if args.serial:
+        app_start_args["serial"] = args.serial
+    ok, _, _, _ = runner.tools_call_required("app_start", app_start_args)
+    if not ok:
+        return False
+
+    for idx in range(max(1, args.tap_repeat)):
+        tap_args: Dict[str, Any] = {"projectDir": args.project_dir, "x": args.tap_x, "y": args.tap_y}
+        if args.serial:
+            tap_args["serial"] = args.serial
+        ok, msg, _, _ = runner.tools_call("tap", tap_args)
+        step_name = "tap" if args.tap_repeat == 1 else f"tap#{idx + 1}"
+        runner._record_step(step_name, ok, msg)
+        if not ok:
+            return False
+
+    return True
+
+
+def run_record_with_actions(runner: McpRunner, args: argparse.Namespace) -> Tuple[bool, List[str]]:
+    record_args: Dict[str, Any] = {
+        "projectDir": args.project_dir,
+        "durationSec": args.record_duration,
+        "activity": args.start_activity,
+        "tapX": args.tap_x,
+        "tapY": args.tap_y,
+        "preTapDelaySec": args.pre_tap_delay_sec,
+        "tapRepeat": args.tap_repeat,
+        "tapIntervalSec": args.tap_interval_sec,
+        "recordStartDelaySec": args.record_start_delay_sec,
+    }
+    if args.serial:
+        record_args["serial"] = args.serial
+
+    ok, msg, _, artifacts = runner.tools_call(
+        "record",
+        record_args,
+        timeout_sec=_record_timeout(args),
+    )
+    runner._record_step("record(flow)", ok, msg, {"artifacts": artifacts})
+    if ok:
+        return True, artifacts
+
+    retry_ok, retry_msg, _, retry_artifacts = runner.tools_call(
+        "record",
+        record_args,
+        timeout_sec=_record_timeout(args),
+    )
+    runner._record_step("record(flow_retry)", retry_ok, retry_msg, {"artifacts": retry_artifacts})
+    return retry_ok, retry_artifacts
 
 
 def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
@@ -169,23 +243,27 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
     if not runner.tools_list():
         return runner.summary
 
-    ok, msg, _, _ = runner.tools_call_required("list_projects", {"projectDir": args.project_dir})
+    ok, _, _, _ = runner.tools_call_required("list_projects", {"projectDir": args.project_dir})
     if not ok:
         return runner.summary
 
     ok, msg, data, _ = runner.tools_call("device_list", {"projectDir": args.project_dir})
-    runner._record_step("device_list", ok, msg, {"devices": data.get("data", {}).get("devices") if isinstance(data.get("data"), dict) else data.get("devices")})
+    runner._record_step(
+        "device_list",
+        ok,
+        msg,
+        {"devices": data.get("data", {}).get("devices") if isinstance(data.get("data"), dict) else data.get("devices")},
+    )
     if not ok:
         return runner.summary
 
     build_ok = True
     if args.mode == "clean_reinstall":
-        ok, msg, _, _ = runner.tools_call_required("clean_reinstall", {"projectDir": args.project_dir})
+        ok, _, _, _ = runner.tools_call_required("clean_reinstall", {"projectDir": args.project_dir})
         build_ok = ok
     else:
-        ok_compile, msg_compile, _, _ = runner.tools_call_required("compile", {"projectDir": args.project_dir})
-
-        ok_deploy, msg_deploy, _, _ = runner.tools_call_required("deploy", {"projectDir": args.project_dir})
+        ok_compile, _, _, _ = runner.tools_call_required("compile", {"projectDir": args.project_dir})
+        ok_deploy, _, _, _ = runner.tools_call_required("deploy", {"projectDir": args.project_dir})
 
         build_ok = ok_compile and ok_deploy
         if (not build_ok) and args.fallback_clean_reinstall:
@@ -196,29 +274,17 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
     if not build_ok:
         return runner.summary
 
-    app_start_args: Dict[str, Any] = {"projectDir": args.project_dir, "activity": args.start_activity}
-    if args.serial:
-        app_start_args["serial"] = args.serial
-    ok, msg, _, _ = runner.tools_call_required("app_start", app_start_args)
-    if not ok:
-        return runner.summary
+    all_artifacts: List[str] = []
+    artifact_ok = True
 
-    if args.pre_tap_delay_sec > 0:
-        import time
-        time.sleep(args.pre_tap_delay_sec)
-
-    for idx in range(max(1, args.tap_repeat)):
-        tap_args: Dict[str, Any] = {"projectDir": args.project_dir, "x": args.tap_x, "y": args.tap_y}
-        if args.serial:
-            tap_args["serial"] = args.serial
-        ok, msg, _, _ = runner.tools_call("tap", tap_args)
-        step_name = "tap" if args.tap_repeat == 1 else f"tap#{idx + 1}"
-        runner._record_step(step_name, ok, msg)
-        if not ok:
+    if args.with_record:
+        ok_record, record_artifacts = run_record_with_actions(runner, args)
+        artifact_ok = artifact_ok and ok_record
+        all_artifacts.extend(record_artifacts)
+    else:
+        runtime_ok = run_runtime_actions(runner, args)
+        if not runtime_ok:
             return runner.summary
-        if args.tap_interval_sec > 0 and idx < args.tap_repeat - 1:
-            import time
-            time.sleep(args.tap_interval_sec)
 
     artifact_calls: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -232,14 +298,6 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
         dump_args["serial"] = args.serial
     artifact_calls.append(("layout_dump", dump_args))
 
-    if args.with_record:
-        record_args: Dict[str, Any] = {"projectDir": args.project_dir, "durationSec": args.record_duration}
-        if args.serial:
-            record_args["serial"] = args.serial
-        artifact_calls.append(("record", record_args))
-
-    all_artifacts: List[str] = []
-    artifact_ok = True
     for name, call_args in artifact_calls:
         ok, msg, _, artifacts = runner.tools_call(name, call_args)
         runner._record_step(name, ok, msg, {"artifacts": artifacts})
@@ -259,12 +317,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=None, help="Optional MCP port")
     parser.add_argument("--mode", choices=["compile_deploy", "clean_reinstall"], default="compile_deploy")
     parser.add_argument("--fallback-clean-reinstall", action="store_true", help="Fallback to clean_reinstall when compile/deploy fails")
-    parser.add_argument("--with-record", action="store_true", help="Also run record for verification")
+    parser.add_argument("--with-record", action="store_true", help="Record with in-record app_start/tap actions")
     parser.add_argument("--record-duration", type=int, default=10, help="Record duration seconds (1..180)")
+    parser.add_argument("--record-start-delay-sec", type=float, default=0.8, help="Delay after record starts before app_start")
+    parser.add_argument("--record-timeout-buffer-sec", type=int, default=120, help="Extra timeout buffer for record call")
     parser.add_argument("--timeout-sec", type=int, default=300, help="HTTP timeout seconds per MCP call")
-    parser.add_argument("--start-activity", default=".MainActivity", help="Activity for MCP app_start")
-    parser.add_argument("--tap-x", type=int, default=540, help="Tap x for MCP tap")
-    parser.add_argument("--tap-y", type=int, default=530, help="Tap y for MCP tap")
+    parser.add_argument("--start-activity", default=".MainActivity", help="Activity for MCP app_start or record(flow)")
+    parser.add_argument("--tap-x", type=int, default=540, help="Tap x for MCP tap or record(flow)")
+    parser.add_argument("--tap-y", type=int, default=530, help="Tap y for MCP tap or record(flow)")
     parser.add_argument("--pre-tap-delay-sec", type=float, default=2.0, help="Delay after app_start before first tap")
     parser.add_argument("--tap-repeat", type=int, default=2, help="How many taps to perform")
     parser.add_argument("--tap-interval-sec", type=float, default=1.5, help="Delay between repeated taps")
@@ -279,8 +339,14 @@ def main() -> int:
         return 2
 
     args.record_duration = max(1, min(180, args.record_duration))
+    args.record_timeout_buffer_sec = max(30, args.record_timeout_buffer_sec)
+    args.tap_repeat = max(1, args.tap_repeat)
 
-    summary = run_loop(args)
+    try:
+        summary = run_loop(args)
+    except Exception as e:
+        summary = {"ok": False, "error": str(e), "steps": []}
+
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if summary.get("ok") else 1
 

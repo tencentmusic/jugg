@@ -44,6 +44,13 @@ class IdeaDeviceAdb(
         }
     }
 
+    override fun execAdbShellScript(cmd: String): String {
+        synchronized(IdeaDeviceAdb::class.java) {
+            logger.debug("adb script in: adb -s  shell ")
+            return execAdbShellCmdByCli(cmd)
+        }
+    }
+
     private fun execAdbShellCmd(cmd: String, retryCount: Int): String {
         try {
             val cmdList = cmd.splitIgnoringQuotes()

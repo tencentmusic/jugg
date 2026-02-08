@@ -111,7 +111,18 @@ class McpInvokerTest {
                 )
             }
 
-            override fun record(serial: String?, durationSec: Int?): McpToolResult {
+            override fun record(
+                serial: String?,
+                durationSec: Int?,
+                packageName: String?,
+                activity: String?,
+                tapX: Int?,
+                tapY: Int?,
+                preTapDelaySec: Double?,
+                tapRepeat: Int?,
+                tapIntervalSec: Double?,
+                recordStartDelaySec: Double?,
+            ): McpToolResult {
                 return McpToolResult(
                     status = McpToolStatus.OK,
                     message = "record executed successfully.",

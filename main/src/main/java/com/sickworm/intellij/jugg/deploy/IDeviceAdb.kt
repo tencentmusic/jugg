@@ -14,6 +14,10 @@ interface IDeviceAdb {
 
     fun execAdbShellCmd(cmd: String): String
 
+    fun execAdbShellScript(cmd: String): String {
+        return execAdbShellCmd(cmd)
+    }
+
     fun push(from: File, to: String): Boolean
 
     fun pull(from: String, to: File): Boolean

@@ -101,7 +101,24 @@ class McpInvoker(
             "record" -> {
                 logger.debug("[MCP][INVOKER] handling record")
                 val durationSec = (request.arguments["durationSec"] as? Number)?.toInt()
-                runtime.record(request.arguments["serial"] as? String, durationSec)
+                val tapX = (request.arguments["tapX"] as? Number)?.toInt()
+                val tapY = (request.arguments["tapY"] as? Number)?.toInt()
+                val tapRepeat = (request.arguments["tapRepeat"] as? Number)?.toInt()
+                val preTapDelaySec = (request.arguments["preTapDelaySec"] as? Number)?.toDouble()
+                val tapIntervalSec = (request.arguments["tapIntervalSec"] as? Number)?.toDouble()
+                val recordStartDelaySec = (request.arguments["recordStartDelaySec"] as? Number)?.toDouble()
+                runtime.record(
+                    serial = request.arguments["serial"] as? String,
+                    durationSec = durationSec,
+                    packageName = request.arguments["packageName"] as? String,
+                    activity = request.arguments["activity"] as? String,
+                    tapX = tapX,
+                    tapY = tapY,
+                    preTapDelaySec = preTapDelaySec,
+                    tapRepeat = tapRepeat,
+                    tapIntervalSec = tapIntervalSec,
+                    recordStartDelaySec = recordStartDelaySec,
+                )
             }
             "layout_dump" -> {
                 logger.debug("[MCP][INVOKER] handling layout_dump")

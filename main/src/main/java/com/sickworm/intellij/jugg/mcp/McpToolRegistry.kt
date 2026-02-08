@@ -6,17 +6,17 @@ class McpToolRegistry {
         return listOf(
             McpToolDefinition(
                 name = "list_projects",
-                description = "List Android projects that can run Jugg",
+                description = "List initialized projects in current IDE process",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
                     ),
-                    required = emptyList()
+                    required = listOf("projectDir")
                 )
             ),
             McpToolDefinition(
                 name = "restart_app",
-                description = "Restart Android app by Jugg",
+                description = "Restart app on selected device(s)",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string"),
@@ -84,7 +84,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "record",
-                description = "Record device screen video",
+                description = "Record device screen video, optionally with in-record app_start/tap actions",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string"),
@@ -95,6 +95,38 @@ class McpToolRegistry {
                         "durationSec" to McpJsonSchemaProperty(
                             type = "number",
                             description = "Optional. Screenrecord duration in seconds, default 10, max 180."
+                        ),
+                        "packageName" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional. Used with activity for in-record app start."
+                        ),
+                        "activity" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional. Supports short form (.MainActivity) or full class name."
+                        ),
+                        "tapX" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional. Tap x, must pair with tapY when provided."
+                        ),
+                        "tapY" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional. Tap y, must pair with tapX when provided."
+                        ),
+                        "preTapDelaySec" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional. Delay after app_start before first tap."
+                        ),
+                        "tapRepeat" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional. Number of taps for in-record interaction, default 1."
+                        ),
+                        "tapIntervalSec" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional. Delay between repeated taps."
+                        ),
+                        "recordStartDelaySec" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional. Delay after screenrecord starts before app_start."
                         )
                     ),
                     required = listOf("projectDir")
