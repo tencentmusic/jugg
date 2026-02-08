@@ -99,6 +99,9 @@ class McpLocalServerTest {
             }
             Assert.assertTrue(names.contains("list_projects"))
             Assert.assertTrue(names.contains("restart_app"))
+            Assert.assertTrue(names.contains("compile"))
+            Assert.assertTrue(names.contains("deploy"))
+            Assert.assertTrue(names.contains("clean_reinstall"))
         }
     }
 

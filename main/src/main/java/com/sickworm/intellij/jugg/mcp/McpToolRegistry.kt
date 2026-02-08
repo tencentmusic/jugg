@@ -27,6 +27,36 @@ class McpToolRegistry {
                     ),
                     required = listOf("projectDir")
                 )
+            ),
+            McpToolDefinition(
+                name = "compile",
+                description = "Compile project by Jugg",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to McpJsonSchemaProperty(type = "string")
+                    ),
+                    required = listOf("projectDir")
+                )
+            ),
+            McpToolDefinition(
+                name = "deploy",
+                description = "Deploy project by Jugg",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to McpJsonSchemaProperty(type = "string")
+                    ),
+                    required = listOf("projectDir")
+                )
+            ),
+            McpToolDefinition(
+                name = "clean_reinstall",
+                description = "Force clean and reinstall by Jugg",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to McpJsonSchemaProperty(type = "string")
+                    ),
+                    required = listOf("projectDir")
+                )
             )
         )
     }

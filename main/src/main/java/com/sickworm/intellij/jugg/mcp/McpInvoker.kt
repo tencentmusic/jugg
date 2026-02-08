@@ -73,24 +73,24 @@ class McpInvoker(
                 message = "MCP runtime is not initialized.",
             )
 
-        if (request.toolName == "restart_app") {
-            logger.debug("[MCP][INVOKER] handling restart_app")
-            val restartResult = runtime.restartApp(request.arguments["serial"] as? String)
-            return if (restartResult.status == McpToolStatus.ERROR) {
-                resultMapper.toolError(
-                    id = id,
-                    errorCode = restartResult.errorCode ?: McpErrorCode.MCP_INTERNAL_ERROR,
-                    message = restartResult.message,
-                    data = restartResult.data,
-                )
-            } else {
-                resultMapper.toolSuccess(id = id, toolResult = restartResult)
+        val toolResult = when (request.toolName) {
+            "restart_app" -> {
+                logger.debug("[MCP][INVOKER] handling restart_app")
+                runtime.restartApp(request.arguments["serial"] as? String)
             }
-        }
-
-        return resultMapper.toolSuccess(
-            id = id,
-            toolResult = McpToolResult(
+            "compile" -> {
+                logger.debug("[MCP][INVOKER] handling compile")
+                runtime.compile()
+            }
+            "deploy" -> {
+                logger.debug("[MCP][INVOKER] handling deploy")
+                runtime.deploy()
+            }
+            "clean_reinstall" -> {
+                logger.debug("[MCP][INVOKER] handling clean_reinstall")
+                runtime.cleanReinstall()
+            }
+            else -> McpToolResult(
                 status = McpToolStatus.OK,
                 message = "${request.toolName} executed successfully.",
                 data = mapOf(
@@ -101,7 +101,18 @@ class McpInvoker(
                 artifacts = emptyList(),
                 errorCode = null,
             )
-        )
+        }
+
+        return if (toolResult.status == McpToolStatus.ERROR) {
+            resultMapper.toolError(
+                id = id,
+                errorCode = toolResult.errorCode ?: McpErrorCode.MCP_INTERNAL_ERROR,
+                message = toolResult.message,
+                data = toolResult.data,
+            )
+        } else {
+            resultMapper.toolSuccess(id = id, toolResult = toolResult)
+        }
     }
 
     companion object {

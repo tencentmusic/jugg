@@ -60,6 +60,36 @@ class McpInvokerTest {
                     )
                 }
             }
+
+            override fun compile(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "compile executed successfully.",
+                    data = mapOf("isCompileSuccess" to true),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            override fun deploy(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "deploy executed successfully.",
+                    data = mapOf("isDeploySuccess" to true),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            override fun cleanReinstall(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "clean_reinstall executed successfully.",
+                    data = mapOf("cleanAndReinstall" to true),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
         }
     }
 
@@ -179,5 +209,68 @@ class McpInvokerTest {
             McpJsonRpcRequest(id = 201, method = McpJsonRpc.Method.ResourcesList, params = emptyMap<String, Any>())
         )
         Assert.assertNull(resources.error)
+    }
+
+    @Test
+    fun testCompileToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 5,
+                params = mapOf(
+                    "name" to "compile",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.content.first().text.contains("compile executed successfully"))
+    }
+
+    @Test
+    fun testDeployToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 6,
+                params = mapOf(
+                    "name" to "deploy",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.content.first().text.contains("deploy executed successfully"))
+    }
+
+    @Test
+    fun testCleanReinstallToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 7,
+                params = mapOf(
+                    "name" to "clean_reinstall",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.content.first().text.contains("clean_reinstall executed successfully"))
     }
 }
