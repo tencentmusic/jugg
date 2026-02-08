@@ -30,6 +30,13 @@ data class McpJsonRpcSuccessResponse(
     val result: Any? = null,
 )
 
+data class McpJsonRpcResponse(
+    val jsonrpc: String = McpJsonRpc.Version,
+    val id: Any? = null,
+    val result: Any? = null,
+    val error: McpJsonRpcError? = null,
+)
+
 data class McpJsonRpcError(
     val code: Int,
     val message: String,

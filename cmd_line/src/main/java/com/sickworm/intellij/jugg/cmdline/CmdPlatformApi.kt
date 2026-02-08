@@ -1,11 +1,14 @@
 package com.sickworm.intellij.jugg.cmdline
 
+import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.git.IFileMatcher
 import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
+import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.rpc.RpcRequest
@@ -67,7 +70,15 @@ class CmdPlatformApi : IPlatformApi {
         TODO("Cmd line not support")
     }
 
+    override fun toDeviceAdb(device: IDevice): IDeviceAdb? {
+        return null
+    }
+
     override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean {
+        TODO("Cmd line not support")
+    }
+
+    override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
         TODO("Cmd line not support")
     }
 

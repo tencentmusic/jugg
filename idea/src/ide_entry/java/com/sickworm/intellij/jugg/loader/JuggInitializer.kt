@@ -82,5 +82,15 @@ object JuggInitializer {
         return instanceSet[projectDir]?.juggManager
     }
 
+    @Synchronized
+    fun getInitializedProjectDirs(): List<String> {
+        return instanceSet.keys.toList().sorted()
+    }
+
+    @Synchronized
+    fun isProjectInitialized(projectDir: String): Boolean {
+        return instanceSet.containsKey(projectDir)
+    }
+
     private val Project.bashPathOrDefault get() = basePath ?: "null"
 }

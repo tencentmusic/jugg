@@ -26,6 +26,12 @@ class IdeaDeviceAdb(
     override val api: Int
         get() = device.version.apiLevel
 
+    override val serial: String
+        get() = device.serialNumber
+
+    override val isOnline: Boolean
+        get() = device.isOnline
+
     private val loggerWrapper = LogWrapper(logger).also {
         it.alwaysLogAsDebug(true)
         it.allowVerbose(true)

@@ -8,6 +8,10 @@ interface IDeviceAdb {
 
     val api: Int
 
+    val serial: String
+
+    val isOnline: Boolean
+
     fun execAdbShellCmd(cmd: String): String
 
     fun push(from: File, to: String): Boolean

@@ -13,6 +13,10 @@ class CmdAdb(loggerArg: Logger): IDeviceAdb {
 
     override val api: Int = 30
 
+    override val serial: String = "mock_serial"
+
+    override val isOnline: Boolean = true
+
     override fun execAdbShellCmd(cmd: String): String {
         logger.debug("adb in:  adb shell $cmd") // two spaces to align adb out
         val process = Runtime.getRuntime().exec(arrayOf("/bin/bash", "-c", "adb shell \"$cmd\""))

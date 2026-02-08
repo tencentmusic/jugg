@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.android.ddmlib.IDevice
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.JavaSdk
@@ -7,6 +8,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.git.FileMatcher
@@ -17,6 +19,8 @@ import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
@@ -119,6 +123,10 @@ class IdeaPlatformApi : IPlatformApi {
         return AsDeployerCompat.ideVersion.toString()
     }
 
+    override fun toDeviceAdb(device: IDevice): IDeviceAdb? {
+        return IdeaDeviceAdb(device, Logger.getInstance("IdeaDeviceAdb"))
+    }
+
     override fun isHasRelaunchActivityIssues(device: IDeviceAdb, logger: Logger): Boolean {
         // Android 15 has problem with relaunch activity
         val isAndroid15 = device.api >= 35
@@ -129,6 +137,39 @@ class IdeaPlatformApi : IPlatformApi {
                 "isAndroid15: $isAndroid15, " +
                 "isBelowAndroidStudioMeerkat: $isBelowAndroidStudioMeerkat")
         return isHasRelaunchActivityIssues
+    }
+
+    override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
+        val projectDir = (request.params as? Map<*, *>)
+            ?.let { params ->
+                @Suppress("UNCHECKED_CAST")
+                val args = params["arguments"] as? Map<String, Any?>
+                args?.get("projectDir") as? String
+            }
+            ?: return McpJsonRpcResponse(
+                id = request.id,
+                result = com.sickworm.intellij.jugg.mcp.McpToolResult(
+                    status = com.sickworm.intellij.jugg.mcp.McpToolStatus.ERROR,
+                    message = "invoke_mcp failed. Reason: projectDir is required.",
+                    data = emptyMap<String, Any>(),
+                    artifacts = emptyList(),
+                    errorCode = com.sickworm.intellij.jugg.mcp.McpErrorCode.MCP_INVALID_PARAMS,
+                )
+            )
+
+        val juggManager = JuggInitializer.getManager(projectDir)
+            ?: return McpJsonRpcResponse(
+                id = request.id,
+                result = com.sickworm.intellij.jugg.mcp.McpToolResult(
+                    status = com.sickworm.intellij.jugg.mcp.McpToolStatus.ERROR,
+                    message = "invoke_mcp failed. Reason: project is not initialized.",
+                    data = emptyMap<String, Any>(),
+                    artifacts = emptyList(),
+                    errorCode = com.sickworm.intellij.jugg.mcp.McpErrorCode.MCP_PROJECT_NOT_INITIALIZED,
+                )
+            )
+
+        return juggManager.invokeMcp(request)
     }
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {

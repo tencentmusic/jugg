@@ -38,6 +38,9 @@ import com.sickworm.intellij.jugg.ide.ui.DirectorySelector
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
+import com.sickworm.intellij.jugg.mcp.McpInvoker
+import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
+import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.rpc.RpcCaller
 import com.sickworm.intellij.jugg.rpc.RpcRequest
 import com.sickworm.intellij.jugg.rpc.RpcResponse
@@ -84,6 +87,7 @@ class JuggManager @TestOnly constructor(
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
+    private val mcpInvoker: McpInvoker = McpInvoker(pathManager.projectDir.absolutePath),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
     constructor(
@@ -597,6 +601,10 @@ class JuggManager @TestOnly constructor(
 
     override fun call(rpcRequest: RpcRequest): RpcResponse {
         return RpcCaller(this, gitFileChangesDetector).call(rpcRequest)
+    }
+
+    override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
+        return mcpInvoker.invokeMcp(request)
     }
 
     private fun reInitOnCompileContextUpdate() {
