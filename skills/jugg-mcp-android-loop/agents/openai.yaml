@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jugg MCP Android Loop"
+  short_description: "Run Android MCP compile/deploy/verify closed loop."
+  default_prompt: "Use Jugg MCP to execute an end-to-end Android loop: compile/deploy, restart app, collect verification artifacts, and return a pass/fail summary."
