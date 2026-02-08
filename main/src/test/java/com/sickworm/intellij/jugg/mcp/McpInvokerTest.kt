@@ -130,6 +130,26 @@ class McpInvokerTest {
                     errorCode = null,
                 )
             }
+
+            override fun appStart(serial: String?, packageName: String?, activity: String?): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "app_start executed successfully.",
+                    data = mapOf("serial" to serial, "packageName" to packageName, "activity" to activity),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            override fun tap(serial: String?, x: Int?, y: Int?): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "tap executed successfully.",
+                    data = mapOf("serial" to serial, "x" to x, "y" to y),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
         }
     }
 
@@ -385,6 +405,46 @@ class McpInvokerTest {
                 params = mapOf(
                     "name" to "layout_dump",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testAppStartToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 12,
+                params = mapOf(
+                    "name" to "app_start",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "activity" to ".MainActivity")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testTapToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 13,
+                params = mapOf(
+                    "name" to "tap",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "x" to 100, "y" to 200)
                 )
             )
         )

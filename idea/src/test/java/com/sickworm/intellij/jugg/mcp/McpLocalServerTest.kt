@@ -106,6 +106,8 @@ class McpLocalServerTest {
             Assert.assertTrue(names.contains("screenshot"))
             Assert.assertTrue(names.contains("record"))
             Assert.assertTrue(names.contains("layout_dump"))
+            Assert.assertTrue(names.contains("app_start"))
+            Assert.assertTrue(names.contains("tap"))
         }
     }
 

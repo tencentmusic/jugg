@@ -91,8 +91,28 @@ class IdeaDeviceAdb(
                     return execAdbShellCmd(cmd, retryCount = retryCount + 1)
                 }
             }
-            throw e
+            logger.warn("invoke execAdbShellCmd failed, fallback to adb cli", e)
+            return execAdbShellCmdByCli(cmd)
         }
+    }
+
+    private fun execAdbShellCmdByCli(cmd: String): String {
+        val adbBin = findAdbExecutablePath()
+        val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "shell", cmd))
+        val normalOutput = String(process.inputStream.readAllBytes())
+        val errorOutput = String(process.errorStream.readAllBytes())
+        process.waitFor()
+        val merged = buildString {
+            append(normalOutput)
+            if (errorOutput.isNotEmpty()) {
+                if (normalOutput.isNotEmpty()) {
+                    append("\n")
+                }
+                append(errorOutput)
+            }
+        }.trim()
+        logger.debug("adb(cli) out: $merged")
+        return merged
     }
 
     private fun killAdbProcess() {
@@ -122,14 +142,35 @@ class IdeaDeviceAdb(
     override fun pull(from: String, to: File): Boolean {
         return try {
             to.parentFile?.mkdirs()
-            val process = Runtime.getRuntime().exec(arrayOf("adb", "-s", serial, "pull", from, to.path))
-            process.waitFor()
-            val exitCode = process.exitValue()
-            exitCode == 0
+            device.pullFile(from, to.path)
+            true
         } catch (e: Exception) {
-            logger.warn("adb pull failed, from: $from, to: $to", e)
-            false
+            logger.warn("adb pull by ddmlib failed, fallback to adb cli. from: $from, to: $to", e)
+            try {
+                val adbBin = findAdbExecutablePath()
+                val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "pull", from, to.path))
+                process.waitFor()
+                process.exitValue() == 0
+            } catch (e2: Exception) {
+                logger.warn("adb pull fallback failed, from: $from, to: $to", e2)
+                false
+            }
         }
+    }
+
+    private fun findAdbExecutablePath(): String {
+        val androidHomeCandidates = listOf(
+            System.getenv("ANDROID_HOME"),
+            System.getenv("ANDROID_SDK_ROOT"),
+        ).filterNotNull()
+
+        androidHomeCandidates.forEach { home ->
+            val path = File(home, "platform-tools/adb")
+            if (path.exists()) {
+                return path.absolutePath
+            }
+        }
+        return "adb"
     }
 
     override fun getDefaultLaunchActivity(apkFile: File): String? {

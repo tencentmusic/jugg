@@ -9,6 +9,8 @@ description: Run a closed-loop Android engineering workflow through Jugg MCP, in
 
 Execute deterministic Android compile-and-verify loops via Jugg MCP so the agent can complete tasks without manual IDE clicking.
 
+Strongly prefer MCP tools and avoid direct external adb commands.
+
 ## Quick Start
 
 - Run `python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py --project-dir <ABS_PROJECT_DIR>`.
@@ -26,7 +28,7 @@ Execute deterministic Android compile-and-verify loops via Jugg MCP so the agent
 6. Execute build path:
    - `compile` + `deploy` (default)
    - or `clean_reinstall` (explicit mode)
-7. Execute runtime action: `restart_app`.
+7. Execute runtime actions via MCP: `app_start` then `tap`.
 8. Collect verification artifacts:
    - `screenshot`
    - `layout_dump`
@@ -39,6 +41,7 @@ Execute deterministic Android compile-and-verify loops via Jugg MCP so the agent
 - Switch to `--mode clean_reinstall` when incremental path is unstable.
 - If `compile`/`deploy` fails and `--fallback-clean-reinstall` is set, auto-run `clean_reinstall`.
 - Treat missing devices as hard failure (error code `MCP_NO_DEVICE`).
+- Strongly prefer MCP-only execution (`app_start`, `tap`, `layout_dump`, `screenshot`, `record`) and avoid raw adb in normal flow.
 
 ## Output Contract
 

@@ -11,14 +11,19 @@ PORT_START = 12320
 PORT_END = 12329
 
 
-def post_json(url: str, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Tuple[int, Optional[Dict[str, Any]], str]:
+def post_json(
+    url: str,
+    payload: Dict[str, Any],
+    headers: Optional[Dict[str, str]] = None,
+    timeout_sec: int = 300,
+) -> Tuple[int, Optional[Dict[str, Any]], str]:
     data = json.dumps(payload).encode("utf-8")
     request_headers = {"Content-Type": "application/json"}
     if headers:
         request_headers.update(headers)
     req = urllib.request.Request(url=url, data=data, headers=request_headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as response:
             status = response.getcode()
             body = response.read().decode("utf-8") if response else ""
             parsed = json.loads(body) if body.strip() else None
@@ -52,8 +57,9 @@ def probe_endpoint(port: Optional[int]) -> str:
 
 
 class McpRunner:
-    def __init__(self, endpoint: str):
+    def __init__(self, endpoint: str, timeout_sec: int = 300):
         self.endpoint = endpoint
+        self.timeout_sec = timeout_sec
         self._id = 100
         self.summary: Dict[str, Any] = {
             "ok": False,
@@ -84,7 +90,12 @@ class McpRunner:
                 "clientInfo": {"name": "jugg-mcp-loop", "version": "1.0.0"}
             }
         }
-        status, parsed, body = post_json(self.endpoint, payload, headers={"MCP-Protocol-Version": "2025-06-18"})
+        status, parsed, body = post_json(
+            self.endpoint,
+            payload,
+            headers={"MCP-Protocol-Version": "2025-06-18"},
+            timeout_sec=self.timeout_sec,
+        )
         ok = status == 200 and isinstance(parsed, dict) and parsed.get("error") is None
         self._record_step("initialize", ok, "ok" if ok else f"failed: {body}")
         if not ok:
@@ -95,7 +106,7 @@ class McpRunner:
             "method": "notifications/initialized",
             "params": {}
         }
-        n_status, _, n_body = post_json(self.endpoint, notify_payload)
+        n_status, _, n_body = post_json(self.endpoint, notify_payload, timeout_sec=self.timeout_sec)
         n_ok = n_status in (200, 202)
         self._record_step("notifications/initialized", n_ok, "ok" if n_ok else f"failed: {n_body}")
         return n_ok
@@ -106,7 +117,7 @@ class McpRunner:
             "id": self._next_id(),
             "method": "tools/list",
             "params": {}
-        })
+        }, timeout_sec=self.timeout_sec)
         ok = status == 200 and isinstance(parsed, dict) and parsed.get("error") is None
         self._record_step("tools/list", ok, "ok" if ok else f"failed: {body}")
         return ok
@@ -120,7 +131,7 @@ class McpRunner:
                 "name": name,
                 "arguments": arguments,
             }
-        })
+        }, timeout_sec=self.timeout_sec)
         if status != 200 or not isinstance(parsed, dict):
             return False, f"http={status}, body={body}", {}, []
 
@@ -141,10 +152,15 @@ class McpRunner:
 
         return is_ok, msg, structured, artifacts
 
+    def tools_call_required(self, name: str, arguments: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any], List[str]]:
+        ok, msg, structured, artifacts = self.tools_call(name, arguments)
+        self._record_step(name, ok, msg, {"artifacts": artifacts} if artifacts else None)
+        return ok, msg, structured, artifacts
+
 
 def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
     endpoint = probe_endpoint(args.port)
-    runner = McpRunner(endpoint)
+    runner = McpRunner(endpoint, timeout_sec=args.timeout_sec)
     runner.summary["mode"] = args.mode
 
     if not runner.initialize():
@@ -153,8 +169,7 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
     if not runner.tools_list():
         return runner.summary
 
-    ok, msg, _, _ = runner.tools_call("list_projects", {"projectDir": args.project_dir})
-    runner._record_step("list_projects", ok, msg)
+    ok, msg, _, _ = runner.tools_call_required("list_projects", {"projectDir": args.project_dir})
     if not ok:
         return runner.summary
 
@@ -165,15 +180,12 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
 
     build_ok = True
     if args.mode == "clean_reinstall":
-        ok, msg, _, _ = runner.tools_call("clean_reinstall", {"projectDir": args.project_dir})
-        runner._record_step("clean_reinstall", ok, msg)
+        ok, msg, _, _ = runner.tools_call_required("clean_reinstall", {"projectDir": args.project_dir})
         build_ok = ok
     else:
-        ok_compile, msg_compile, _, _ = runner.tools_call("compile", {"projectDir": args.project_dir})
-        runner._record_step("compile", ok_compile, msg_compile)
+        ok_compile, msg_compile, _, _ = runner.tools_call_required("compile", {"projectDir": args.project_dir})
 
-        ok_deploy, msg_deploy, _, _ = runner.tools_call("deploy", {"projectDir": args.project_dir})
-        runner._record_step("deploy", ok_deploy, msg_deploy)
+        ok_deploy, msg_deploy, _, _ = runner.tools_call_required("deploy", {"projectDir": args.project_dir})
 
         build_ok = ok_compile and ok_deploy
         if (not build_ok) and args.fallback_clean_reinstall:
@@ -184,11 +196,17 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
     if not build_ok:
         return runner.summary
 
-    restart_args: Dict[str, Any] = {"projectDir": args.project_dir}
+    app_start_args: Dict[str, Any] = {"projectDir": args.project_dir, "activity": args.start_activity}
     if args.serial:
-        restart_args["serial"] = args.serial
-    ok, msg, _, _ = runner.tools_call("restart_app", restart_args)
-    runner._record_step("restart_app", ok, msg)
+        app_start_args["serial"] = args.serial
+    ok, msg, _, _ = runner.tools_call_required("app_start", app_start_args)
+    if not ok:
+        return runner.summary
+
+    tap_args: Dict[str, Any] = {"projectDir": args.project_dir, "x": args.tap_x, "y": args.tap_y}
+    if args.serial:
+        tap_args["serial"] = args.serial
+    ok, msg, _, _ = runner.tools_call_required("tap", tap_args)
     if not ok:
         return runner.summary
 
@@ -233,6 +251,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fallback-clean-reinstall", action="store_true", help="Fallback to clean_reinstall when compile/deploy fails")
     parser.add_argument("--with-record", action="store_true", help="Also run record for verification")
     parser.add_argument("--record-duration", type=int, default=10, help="Record duration seconds (1..180)")
+    parser.add_argument("--timeout-sec", type=int, default=300, help="HTTP timeout seconds per MCP call")
+    parser.add_argument("--start-activity", default=".MainActivity", help="Activity for MCP app_start")
+    parser.add_argument("--tap-x", type=int, default=540, help="Tap x for MCP tap")
+    parser.add_argument("--tap-y", type=int, default=530, help="Tap y for MCP tap")
     return parser.parse_args()
 
 

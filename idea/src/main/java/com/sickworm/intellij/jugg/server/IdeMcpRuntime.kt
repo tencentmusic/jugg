@@ -334,6 +334,81 @@ class IdeMcpRuntime(
         }
     }
 
+    override fun appStart(serial: String?, packageName: String?, activity: String?): McpToolResult {
+        val selected = resolveOnlineDevice(serial)
+            ?: return noDeviceResult("app_start")
+        val adb = selected.adb
+
+        return try {
+            val resolvedPackageName = packageName ?: deployTargetManager.getPackageNameOrNull()
+                ?: return internalErrorResult("app_start", "packageName is required when deploy target is unavailable")
+            val activityPart = when {
+                activity.isNullOrBlank() -> ".MainActivity"
+                activity.startsWith(".") -> activity
+                activity.startsWith(resolvedPackageName) -> activity.removePrefix(resolvedPackageName)
+                else -> ".${activity.substringAfterLast('.')}"
+            }
+            val component = "$resolvedPackageName/$activityPart"
+            adb.execAdbShellCmd("am start -n $component")
+
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "app_start executed successfully. ${selected.messageDetail}",
+                data = mapOf(
+                    "device" to mapOf(
+                        "serial" to adb.serial,
+                        "name" to adb.displayName,
+                        "isOnline" to adb.isOnline,
+                    ),
+                    "packageName" to resolvedPackageName,
+                    "activity" to activityPart,
+                    "component" to component,
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            internalErrorResult("app_start", e.message ?: "unknown error")
+        }
+    }
+
+    override fun tap(serial: String?, x: Int?, y: Int?): McpToolResult {
+        val selected = resolveOnlineDevice(serial)
+            ?: return noDeviceResult("tap")
+        val adb = selected.adb
+
+        if (x == null || y == null) {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "tap failed. Reason: x and y are required.",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            )
+        }
+
+        return try {
+            adb.execAdbShellCmd("input tap $x $y")
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "tap executed successfully. ${selected.messageDetail}",
+                data = mapOf(
+                    "device" to mapOf(
+                        "serial" to adb.serial,
+                        "name" to adb.displayName,
+                        "isOnline" to adb.isOnline,
+                    ),
+                    "x" to x,
+                    "y" to y,
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            internalErrorResult("tap", e.message ?: "unknown error")
+        }
+    }
+
     private data class SelectedAdb(
         val adb: com.sickworm.intellij.jugg.deploy.IDeviceAdb,
         val messageDetail: String,

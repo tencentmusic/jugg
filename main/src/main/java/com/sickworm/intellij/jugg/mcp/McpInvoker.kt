@@ -107,6 +107,24 @@ class McpInvoker(
                 logger.debug("[MCP][INVOKER] handling layout_dump")
                 runtime.layoutDump(request.arguments["serial"] as? String)
             }
+            "app_start" -> {
+                logger.debug("[MCP][INVOKER] handling app_start")
+                runtime.appStart(
+                    serial = request.arguments["serial"] as? String,
+                    packageName = request.arguments["packageName"] as? String,
+                    activity = request.arguments["activity"] as? String,
+                )
+            }
+            "tap" -> {
+                logger.debug("[MCP][INVOKER] handling tap")
+                val x = (request.arguments["x"] as? Number)?.toInt()
+                val y = (request.arguments["y"] as? Number)?.toInt()
+                runtime.tap(
+                    serial = request.arguments["serial"] as? String,
+                    x = x,
+                    y = y,
+                )
+            }
             else -> McpToolResult(
                 status = McpToolStatus.OK,
                 message = "${request.toolName} executed successfully.",

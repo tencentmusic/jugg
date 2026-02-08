@@ -113,6 +113,44 @@ class McpToolRegistry {
                     ),
                     required = listOf("projectDir")
                 )
+            ),
+            McpToolDefinition(
+                name = "app_start",
+                description = "Start app activity on target device",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to McpJsonSchemaProperty(type = "string"),
+                        "serial" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional. If absent or invalid, fallback to selected device."
+                        ),
+                        "packageName" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional. If absent, use current Jugg package name."
+                        ),
+                        "activity" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional. Supports short form (.MainActivity) or full class name."
+                        )
+                    ),
+                    required = listOf("projectDir")
+                )
+            ),
+            McpToolDefinition(
+                name = "tap",
+                description = "Tap screen coordinate on target device",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to McpJsonSchemaProperty(type = "string"),
+                        "serial" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional. If absent or invalid, fallback to selected device."
+                        ),
+                        "x" to McpJsonSchemaProperty(type = "number"),
+                        "y" to McpJsonSchemaProperty(type = "number"),
+                    ),
+                    required = listOf("projectDir", "x", "y")
+                )
             )
         )
     }
