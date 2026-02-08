@@ -22,11 +22,39 @@ object ForceGradleCompileHelper {
     var isForceGradleCompileNextTime = false
     var isCleanAndReinstallNextTime = false
 
-    fun executeGradleCompile(juggManager: JuggManager) {
+    fun executeGradleCompile(
+        juggManager: JuggManager,
+        autoConfirm: Boolean = false,
+        useCleanAndReinstall: Boolean = false,
+    ) {
         val project = juggManager.project
         val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
         val isJuggConfiguration = currentConfiguration?.configuration is JuggRunConfiguration
-        juggManager.logger.debug("executeGradleCompile selected: $currentConfiguration, isJuggConfiguration:$isJuggConfiguration")
+        juggManager.logger.debug(
+            "executeGradleCompile selected: $currentConfiguration, " +
+                "isJuggConfiguration:$isJuggConfiguration, autoConfirm:$autoConfirm, useCleanAndReinstall:$useCleanAndReinstall"
+        )
+
+        if (autoConfirm) {
+            if (useCleanAndReinstall) {
+                isCleanAndReinstallNextTime = true
+                if (isJuggConfiguration) {
+                    tryRunFirstConfiguration(juggManager)
+                } else if (currentConfiguration != null) {
+                    ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
+                } else {
+                    tryRunFirstConfiguration(juggManager)
+                }
+            } else {
+                isForceGradleCompileNextTime = true
+                if (isJuggConfiguration && currentConfiguration != null) {
+                    ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
+                } else {
+                    tryRunFirstConfiguration(juggManager)
+                }
+            }
+            return
+        }
 
         var content = "Jugg is going to compile the project using gradle. Continue?"
         if (!isJuggConfiguration) {
@@ -71,7 +99,8 @@ object ForceGradleCompileHelper {
                     tryRunFirstConfiguration(juggManager)
                 } else {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
-                }            }
+                }
+            }
             else -> {
                 // no-op
             }

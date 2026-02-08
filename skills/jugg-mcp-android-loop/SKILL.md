@@ -13,10 +13,27 @@ Strongly prefer MCP tools and avoid direct external adb commands.
 
 ## Quick Start
 
-- Run `python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py --project-dir <ABS_PROJECT_DIR>`.
+- Run `python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py --project-dir <ABS_PROJECT_DIR> --fallback-clean-reinstall`.
 - Add `--serial <device_serial>` to pin a device.
 - Add `--mode clean_reinstall` when you need a strong fallback path.
 - For team rollout, run `bash skills/jugg-mcp-android-loop/scripts/install_skill.sh --force` then `python3 skills/jugg-mcp-android-loop/scripts/setup_mcp_clients.py --all`.
+
+## Recommended Command Templates
+
+One-line (copy/paste):
+
+`python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py --project-dir <ABS_PROJECT_DIR> --fallback-clean-reinstall --start-activity .MainActivity --tap-x 540 --tap-y 530 --pre-tap-delay-sec 2.0 --tap-repeat 2 --tap-interval-sec 1.5`
+
+Multi-line (readable):
+
+```bash
+python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
+  --project-dir <ABS_PROJECT_DIR> \
+  --fallback-clean-reinstall \
+  --start-activity .MainActivity \
+  --tap-x 540 --tap-y 530 \
+  --pre-tap-delay-sec 2.0 --tap-repeat 2 --tap-interval-sec 1.5
+```
 
 ## Workflow
 
@@ -35,13 +52,37 @@ Strongly prefer MCP tools and avoid direct external adb commands.
    - optional `record`
 9. Return a machine-readable summary with pass/fail, step results, and artifact paths.
 
+## Failure-first Rules
+
+When compile/deploy fails, follow this strict order:
+
+1. **Parse error first**: read MCP `structuredContent.message` and `structuredContent.data` for root-cause clues.
+2. **Try deterministic diagnosis**: classify known categories (project not initialized / no device / source compile error / manifest/resource merge issue / deploy failure).
+3. **Use auto downgrade only when allowed**:
+   - if current run already configured fallback (for example `--fallback-clean-reinstall`) or
+   - if prior conversation explicitly allows automatic downgrade.
+4. **Stop and confirm with user** when root cause is still unclear and no approved fallback exists.
+
+Do not silently loop retries without diagnosis.
+
 ## Decision Rules
 
 - Prefer `--mode compile_deploy` for fast iteration.
 - Switch to `--mode clean_reinstall` when incremental path is unstable.
-- If `compile`/`deploy` fails and `--fallback-clean-reinstall` is set, auto-run `clean_reinstall`.
+- If `compile`/`deploy` fails and `--fallback-clean-reinstall` is set, script will internally try `force_gradle_compile` (if available), retry `compile`/`deploy`, then fallback to `clean_reinstall`.
 - Treat missing devices as hard failure (error code `MCP_NO_DEVICE`).
 - Strongly prefer MCP-only execution (`app_start`, `tap`, `layout_dump`, `screenshot`, `record`) and avoid raw adb in normal flow.
+
+## Required Capabilities (Next Implementation)
+
+This skill relies on two capabilities that should be implemented in MCP/tooling:
+
+1. **Compile/deploy error passthrough to MCP client**
+   - MCP response should expose structured failure details (not only generic failed message).
+   - Agent can diagnose from response payload directly.
+2. **Downgrade tool(s)**
+   - Provide explicit downgrade path/tool (for example clean-reinstall fallback toolchain).
+   - Agent executes downgrade automatically only under approved policy (see Failure-first Rules).
 
 ## Output Contract
 

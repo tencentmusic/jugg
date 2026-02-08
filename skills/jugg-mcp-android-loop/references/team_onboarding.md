@@ -160,3 +160,21 @@ python3 skills/jugg-mcp-android-loop/scripts/jugg_mcp_loop.py \
 ## 8) 交付给 Agent 的一句话
 
 “Use `jugg-mcp-android-loop` skill and run a full MCP-only compile/deploy/verify loop on project `<projectDir>` (use `app_start` + `tap`), then return pass/fail and artifact paths.”
+
+---
+
+## 9) 编译失败处理策略（团队统一）
+
+当闭环脚本出现编译/部署失败时，按以下顺序处理：
+
+1. 先看 MCP 返回错误信息：重点看 `steps[]` 对应失败步骤的 `message`。
+2. 先做原因排查：
+   - 工程未初始化
+   - 设备不可用
+   - 源码编译错误（未解析符号、语法、导入）
+   - Manifest/资源合并问题
+   - deploy 阶段失败
+3. 如果原因不明确，且没有明确允许自动降级：**停止自动执行并与提需求人确认**。
+4. 如果已明确允许自动降级（比如命令带 `--fallback-clean-reinstall`）：优先执行 `force_gradle_compile`（若工具可用），重试 `compile`/`deploy`，仍失败再执行 `clean_reinstall`。
+
+说明：后续会增强两项能力（MCP 错误透传、降级 tools），使上述策略可完全自动化执行。

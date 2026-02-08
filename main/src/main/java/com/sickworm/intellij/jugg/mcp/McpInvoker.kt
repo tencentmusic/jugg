@@ -90,6 +90,10 @@ class McpInvoker(
                 logger.debug("[MCP][INVOKER] handling clean_reinstall")
                 runtime.cleanReinstall()
             }
+            "force_gradle_compile" -> {
+                logger.debug("[MCP][INVOKER] handling force_gradle_compile")
+                runtime.forceGradleCompile()
+            }
             "device_list" -> {
                 logger.debug("[MCP][INVOKER] handling device_list")
                 runtime.deviceList()

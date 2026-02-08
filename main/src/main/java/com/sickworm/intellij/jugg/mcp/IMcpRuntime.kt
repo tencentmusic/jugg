@@ -5,6 +5,7 @@ interface IMcpRuntime {
     fun compile(): McpToolResult
     fun deploy(): McpToolResult
     fun cleanReinstall(): McpToolResult
+    fun forceGradleCompile(): McpToolResult
     fun deviceList(): McpToolResult
     fun screenshot(serial: String?): McpToolResult
     fun record(

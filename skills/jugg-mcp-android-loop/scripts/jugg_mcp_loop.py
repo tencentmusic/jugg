@@ -5,7 +5,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 PORT_START = 12320
 PORT_END = 12329
@@ -63,6 +63,7 @@ class McpRunner:
         self.endpoint = endpoint
         self.timeout_sec = timeout_sec
         self._id = 100
+        self.available_tools: Set[str] = set()
         self.summary: Dict[str, Any] = {
             "ok": False,
             "endpoint": endpoint,
@@ -80,6 +81,9 @@ class McpRunner:
         if extra:
             item.update(extra)
         self.summary["steps"].append(item)
+
+    def has_tool(self, tool_name: str) -> bool:
+        return tool_name in self.available_tools
 
     def initialize(self) -> bool:
         payload = {
@@ -121,8 +125,18 @@ class McpRunner:
             "params": {}
         }, timeout_sec=self.timeout_sec)
         ok = status == 200 and isinstance(parsed, dict) and parsed.get("error") is None
-        self._record_step("tools/list", ok, "ok" if ok else f"failed: {body}")
-        return ok
+        if ok:
+            tools = (parsed.get("result") or {}).get("tools") if isinstance(parsed.get("result"), dict) else []
+            names = []
+            if isinstance(tools, list):
+                for item in tools:
+                    if isinstance(item, dict) and isinstance(item.get("name"), str):
+                        names.append(item["name"])
+            self.available_tools = set(names)
+            self._record_step("tools/list", True, "ok", {"tools": names})
+            return True
+        self._record_step("tools/list", False, f"failed: {body}")
+        return False
 
     def tools_call(
         self,
@@ -266,6 +280,31 @@ def run_loop(args: argparse.Namespace) -> Dict[str, Any]:
         ok_deploy, _, _, _ = runner.tools_call_required("deploy", {"projectDir": args.project_dir})
 
         build_ok = ok_compile and ok_deploy
+
+        if (not build_ok) and args.fallback_clean_reinstall:
+            if runner.has_tool("force_gradle_compile"):
+                ok_force, msg_force, _, _ = runner.tools_call(
+                    "force_gradle_compile",
+                    {"projectDir": args.project_dir},
+                )
+                runner._record_step("force_gradle_compile(fallback)", ok_force, msg_force)
+                if ok_force:
+                    ok_compile_retry, msg_compile_retry, _, _ = runner.tools_call(
+                        "compile", {"projectDir": args.project_dir}
+                    )
+                    runner._record_step("compile(retry_after_force)", ok_compile_retry, msg_compile_retry)
+                    ok_deploy_retry, msg_deploy_retry, _, _ = runner.tools_call(
+                        "deploy", {"projectDir": args.project_dir}
+                    )
+                    runner._record_step("deploy(retry_after_force)", ok_deploy_retry, msg_deploy_retry)
+                    build_ok = ok_compile_retry and ok_deploy_retry
+            else:
+                runner._record_step(
+                    "force_gradle_compile(fallback)",
+                    False,
+                    "skip: tool not available on current MCP runtime",
+                )
+
         if (not build_ok) and args.fallback_clean_reinstall:
             ok_clean, msg_clean, _, _ = runner.tools_call("clean_reinstall", {"projectDir": args.project_dir})
             runner._record_step("clean_reinstall(fallback)", ok_clean, msg_clean)

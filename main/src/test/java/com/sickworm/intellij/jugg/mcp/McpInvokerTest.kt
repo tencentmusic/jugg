@@ -91,6 +91,16 @@ class McpInvokerTest {
                 )
             }
 
+            override fun forceGradleCompile(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "force_gradle_compile executed successfully.",
+                    data = mapOf("triggered" to true),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
             override fun deviceList(): McpToolResult {
                 return McpToolResult(
                     status = McpToolStatus.OK,

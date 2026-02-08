@@ -59,6 +59,16 @@ class McpToolRegistry {
                 )
             ),
             McpToolDefinition(
+                name = "force_gradle_compile",
+                description = "Downgrade path: trigger ForceGradleCompile fallback workflow",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to McpJsonSchemaProperty(type = "string")
+                    ),
+                    required = listOf("projectDir")
+                )
+            ),
+            McpToolDefinition(
                 name = "device_list",
                 description = "List connected Android devices",
                 inputSchema = McpJsonSchemaObject(

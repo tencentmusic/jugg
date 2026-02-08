@@ -604,7 +604,7 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        McpRuntimeHolder.runtime = IdeMcpRuntime(project, deployTargetManager)
+        McpRuntimeHolder.runtime = IdeMcpRuntime(project, deployTargetManager, this)
         return mcpInvoker.invokeMcp(request)
     }
 

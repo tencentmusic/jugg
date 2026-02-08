@@ -1,10 +1,10 @@
 package com.sickworm.intellij.jugg.server
 
 import com.android.ddmlib.IDevice
-import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
@@ -20,9 +20,9 @@ import java.util.Locale
 class IdeMcpRuntime(
     private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
+    private val juggManager: JuggManager,
 ) : IMcpRuntime {
 
-    private val gson = Gson()
 
     override fun restartApp(serial: String?): McpToolResult {
         val targetDevice = deployTargetManager.getConnectedDevices().find { it.serialNumber == serial }
@@ -78,119 +78,75 @@ class IdeMcpRuntime(
 
     override fun compile(): McpToolResult {
         val runResponse = runByRpc()
+        val payload = parseRunPayload(runResponse.result)
         if (runResponse.status != RpcResult.OK) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "compile failed. Reason: ${runResponse.result}",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
+            return buildRpcFailureResult("compile", runResponse.result, payload.detail)
         }
-
-        val runResultObject = parseRunResult(runResponse.result)
-            ?: return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "compile failed. Reason: invalid run result payload.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
-
-        val isCompileSuccess = runResultObject.get("isCompileSuccess")?.asBoolean ?: false
-        val message = if (isCompileSuccess) {
-            "compile executed successfully."
-        } else {
-            "compile failed. Reason: compile stage not successful."
-        }
-
-        return McpToolResult(
-            status = if (isCompileSuccess) McpToolStatus.OK else McpToolStatus.ERROR,
-            message = message,
-            data = mapOf(
-                "runResult" to runResultObject,
-            ),
-            artifacts = emptyList(),
-            errorCode = if (isCompileSuccess) null else McpErrorCode.MCP_INTERNAL_ERROR,
+        return buildRunToolResult(
+            toolName = "compile",
+            success = payload.runResult?.get("isCompileSuccess")?.asBoolean == true,
+            successMessage = "compile executed successfully.",
+            defaultFailureMessage = "compile failed. Reason: compile stage not successful.",
+            runResultObject = payload.runResult,
+            detail = payload.detail,
+            extraData = emptyMap(),
         )
     }
 
     override fun deploy(): McpToolResult {
         val runResponse = runByRpc()
+        val payload = parseRunPayload(runResponse.result)
         if (runResponse.status != RpcResult.OK) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "deploy failed. Reason: ${runResponse.result}",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
+            return buildRpcFailureResult("deploy", runResponse.result, payload.detail)
         }
-
-        val runResultObject = parseRunResult(runResponse.result)
-            ?: return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "deploy failed. Reason: invalid run result payload.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
-
-        val isDeploySuccess = runResultObject.get("isDeploySuccess")?.asBoolean ?: false
-        val message = if (isDeploySuccess) {
-            "deploy executed successfully."
-        } else {
-            "deploy failed. Reason: deploy stage not successful."
-        }
-
-        return McpToolResult(
-            status = if (isDeploySuccess) McpToolStatus.OK else McpToolStatus.ERROR,
-            message = message,
-            data = mapOf(
-                "runResult" to runResultObject,
-            ),
-            artifacts = emptyList(),
-            errorCode = if (isDeploySuccess) null else McpErrorCode.MCP_INTERNAL_ERROR,
+        return buildRunToolResult(
+            toolName = "deploy",
+            success = payload.runResult?.get("isDeploySuccess")?.asBoolean == true,
+            successMessage = "deploy executed successfully.",
+            defaultFailureMessage = "deploy failed. Reason: deploy stage not successful.",
+            runResultObject = payload.runResult,
+            detail = payload.detail,
+            extraData = emptyMap(),
         )
     }
 
     override fun cleanReinstall(): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
         val runResponse = runByRpc()
+        val payload = parseRunPayload(runResponse.result)
         if (runResponse.status != RpcResult.OK) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "clean_reinstall failed. Reason: ${runResponse.result}",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
+            return buildRpcFailureResult("clean_reinstall", runResponse.result, payload.detail)
         }
 
-        val runResultObject = parseRunResult(runResponse.result)
-            ?: return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "clean_reinstall failed. Reason: invalid run result payload.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
+        val runResultObject = payload.runResult
+        val isSuccess = (runResultObject?.get("isCompileSuccess")?.asBoolean ?: false) &&
+            (runResultObject?.get("isDeploySuccess")?.asBoolean ?: false)
 
-        val isSuccess = (runResultObject.get("isCompileSuccess")?.asBoolean ?: false) &&
-            (runResultObject.get("isDeploySuccess")?.asBoolean ?: false)
-
-        return McpToolResult(
-            status = if (isSuccess) McpToolStatus.OK else McpToolStatus.ERROR,
-            message = if (isSuccess) "clean_reinstall executed successfully." else "clean_reinstall failed.",
-            data = mapOf(
-                "runResult" to runResultObject,
-                "cleanAndReinstall" to true,
-            ),
-            artifacts = emptyList(),
-            errorCode = if (isSuccess) null else McpErrorCode.MCP_INTERNAL_ERROR,
+        return buildRunToolResult(
+            toolName = "clean_reinstall",
+            success = isSuccess,
+            successMessage = "clean_reinstall executed successfully.",
+            defaultFailureMessage = "clean_reinstall failed.",
+            runResultObject = runResultObject,
+            detail = payload.detail,
+            extraData = mapOf("cleanAndReinstall" to true),
         )
     }
 
+    override fun forceGradleCompile(): McpToolResult {
+        return try {
+            ForceGradleCompileHelper.executeGradleCompile(juggManager, autoConfirm = true)
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "force_gradle_compile executed successfully.",
+                data = mapOf("triggered" to true),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            internalErrorResult("force_gradle_compile", e.message ?: "unknown error")
+        }
+    }
     override fun deviceList(): McpToolResult {
         val selectedSerials = deployTargetManager.getSelectedDevices()
             .mapNotNull { PlatformApi.toDeviceAdb(it)?.serial }
@@ -575,24 +531,93 @@ class IdeMcpRuntime(
         )
     }
 
-    private fun runByRpc() = JuggInitializer.getManager(project)
-        ?.call(
-            RpcRequest(
-                cmd = RpcCommand.RUN,
-                projectDir = project.basePath,
-                args = mapOf("isRpcMode" to true),
-            )
+    private fun runByRpc() = juggManager.call(
+        RpcRequest(
+            cmd = RpcCommand.RUN,
+            projectDir = project.basePath,
+            args = mapOf("isRpcMode" to true),
         )
-        ?: com.sickworm.intellij.jugg.rpc.RpcResponse(
-            status = RpcResult.ErrorInvalidProjectDir,
-            result = "Project is not initialized with Jugg.",
-        )
+    )
 
-    private fun parseRunResult(rawResult: Any?): JsonObject? {
-        val resultText = rawResult as? String ?: return null
-        val root = JsonParser.parseString(resultText).asJsonObject
-        return root.getAsJsonObject("runResult")
+    private fun parseRunPayload(rawResult: Any?): RunPayload {
+        val resultText = rawResult as? String ?: return RunPayload(null, "")
+        return try {
+            val root = JsonParser.parseString(resultText).asJsonObject
+            val runResult = root.getAsJsonObject("runResult")
+            val detail = if (root.has("detail") && !root.get("detail").isJsonNull) {
+                root.get("detail").asString
+            } else {
+                ""
+            }
+            RunPayload(runResult, detail)
+        } catch (e: Exception) {
+            RunPayload(null, "")
+        }
     }
+
+    private fun buildRpcFailureResult(toolName: String, rpcResult: Any?, detail: String): McpToolResult {
+        val reason = buildString {
+            append(rpcResult?.toString() ?: "unknown rpc error")
+            if (detail.isNotBlank()) {
+                append("\n")
+                append(detail)
+            }
+        }
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "$toolName failed. Reason: $reason",
+            data = mapOf("detail" to detail),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+        )
+    }
+
+    private fun buildRunToolResult(
+        toolName: String,
+        success: Boolean,
+        successMessage: String,
+        defaultFailureMessage: String,
+        runResultObject: JsonObject?,
+        detail: String,
+        extraData: Map<String, Any>,
+    ): McpToolResult {
+        if (runResultObject == null) {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "$toolName failed. Reason: invalid run result payload.",
+                data = if (detail.isBlank()) emptyMap() else mapOf("detail" to detail),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            )
+        }
+
+        val failureMessage = if (detail.isBlank()) {
+            defaultFailureMessage
+        } else {
+            "$defaultFailureMessage\n$detail"
+        }
+
+        val data = mutableMapOf<String, Any>(
+            "runResult" to runResultObject,
+        )
+        if (detail.isNotBlank()) {
+            data["detail"] = detail
+        }
+        data.putAll(extraData)
+
+        return McpToolResult(
+            status = if (success) McpToolStatus.OK else McpToolStatus.ERROR,
+            message = if (success) successMessage else failureMessage,
+            data = data,
+            artifacts = emptyList(),
+            errorCode = if (success) null else McpErrorCode.MCP_INTERNAL_ERROR,
+        )
+    }
+
+    private data class RunPayload(
+        val runResult: JsonObject?,
+        val detail: String,
+    )
 
     private val IDevice.mcpDeviceInfo: McpDeviceInfo
        get() {
