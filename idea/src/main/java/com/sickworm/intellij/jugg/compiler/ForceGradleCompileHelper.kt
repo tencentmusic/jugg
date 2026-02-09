@@ -107,9 +107,9 @@ class ForceGradleCompileHelper(
             ConfirmResult.LEFT -> {
                 isCleanAndReinstallNextTime = true
                 if (isJuggConfiguration) {
-                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
-                } else {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
+                } else {
+                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
                 }
             }
             else -> {
