@@ -30,7 +30,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "compile",
-                description = "Compile project by Jugg",
+                description = "Compile modified source files by Jugg. Use to quick check file changes is compilable.",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
@@ -40,7 +40,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "deploy",
-                description = "Deploy project by Jugg",
+                description = "Compile and deploy all changes by Jugg. Use to let your file changes take effect on App.",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
@@ -50,7 +50,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "clean_reinstall",
-                description = "Force clean and reinstall by Jugg",
+                description = "Force clean and reinstall App by Jugg",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
@@ -60,7 +60,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "force_gradle_compile",
-                description = "Downgrade path: trigger ForceGradleCompile fallback workflow",
+                description = "Downgrade path: trigger to fallback to Gradle build instead of Jugg incremental build.",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
