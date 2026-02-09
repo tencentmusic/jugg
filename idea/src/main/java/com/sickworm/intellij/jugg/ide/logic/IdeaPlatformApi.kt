@@ -11,27 +11,16 @@ import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.IdeaDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.deploy.run.IdeVersion
-import com.sickworm.intellij.jugg.git.FileMatcher
-import com.sickworm.intellij.jugg.git.GitManager
-import com.sickworm.intellij.jugg.git.IFileMatcher
-import com.sickworm.intellij.jugg.git.IGitManager
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.loader.JuggInitializer
-import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
-import com.sickworm.intellij.jugg.mcp.McpInvoker
-import com.sickworm.intellij.jugg.mcp.McpProjectInfo
-import com.sickworm.intellij.jugg.mcp.McpToolResult
-import com.sickworm.intellij.jugg.mcp.McpToolStatus
-import com.sickworm.intellij.jugg.mcp.McpJsonRpc
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.mcp.IdeMcpRuntime
+import com.sickworm.intellij.jugg.mcp.IdeaMcpRuntime
 
 class IdeaPlatformApi : IPlatformApi {
 
@@ -143,7 +132,7 @@ class IdeaPlatformApi : IPlatformApi {
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        return IdeMcpRuntime.invokeMcp(request)
+        return IdeaMcpRuntime.invokeMcp(request)
     }
 
 }

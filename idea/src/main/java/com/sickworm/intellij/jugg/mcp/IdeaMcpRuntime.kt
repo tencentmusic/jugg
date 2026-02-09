@@ -5,21 +5,23 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.openapi.project.Project
-import com.sickworm.intellij.jugg.JuggManager
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.ide.logic.JuggConfigurationRunner
+import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.util.Locale
 import kotlin.collections.get
 
-class IdeMcpRuntime(
+class IdeaMcpRuntime(
     private val project: Project,
     private val deployTargetManager: IDeployTargetManager,
-    private val juggManager: JuggManager,
+    private val forceGradleCompileHelper: ForceGradleCompileHelper,
+    private val juggConfigurationRunner: JuggConfigurationRunner,
 ) : IMcpRuntime {
 
 
@@ -76,7 +78,7 @@ class IdeMcpRuntime(
     }
 
     override fun compile(): McpToolResult {
-        val runResponse = runByMcp()
+        val runResponse = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
         val payload = parseRunPayload(runResponse)
         if (!runResponse.isSuccess) {
             return buildRunFailureResult("compile", runResponse.errorMessage, payload.detail)
@@ -93,7 +95,7 @@ class IdeMcpRuntime(
     }
 
     override fun deploy(): McpToolResult {
-        val runResponse = runByMcp()
+        val runResponse = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
         val payload = parseRunPayload(runResponse)
         if (!runResponse.isSuccess) {
             return buildRunFailureResult("deploy", runResponse.errorMessage, payload.detail)
@@ -111,7 +113,7 @@ class IdeMcpRuntime(
 
     override fun cleanReinstall(): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
-        val runResponse = runByMcp()
+        val runResponse = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
         val payload = parseRunPayload(runResponse)
         if (!runResponse.isSuccess) {
             return buildRunFailureResult("clean_reinstall", runResponse.errorMessage, payload.detail)
@@ -134,7 +136,7 @@ class IdeMcpRuntime(
 
     override fun forceGradleCompile(): McpToolResult {
         return try {
-            ForceGradleCompileHelper.executeGradleCompile(juggManager, autoConfirm = true)
+            forceGradleCompileHelper.executeGradleCompile(autoConfirm = true)
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = "force_gradle_compile executed successfully.",
@@ -529,8 +531,6 @@ class IdeMcpRuntime(
             errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
         )
     }
-
-    private fun runByMcp() = juggManager.runFirstConfiguration(isRpcMode = true)
 
     private fun parseRunPayload(runResult: JuggRunInvocationResult): RunPayload {
         val resultObject = runResult.runResult ?: return RunPayload(null, runResult.detail)

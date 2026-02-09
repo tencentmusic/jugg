@@ -1,49 +1,35 @@
 package com.sickworm.intellij.jugg
 
-import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationFactory
-import com.intellij.execution.filters.TextConsoleBuilderFactory
-import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
-import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.ide.*
-import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
-import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.*
-import com.sickworm.intellij.jugg.logger.JuggLogger
-import com.sickworm.intellij.jugg.logger.TimeLogger
-import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.server.JuggServer
-import com.sickworm.intellij.jugg.project.*
-import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
-import com.sickworm.intellij.jugg.project.dependency.create
-import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
 import com.sickworm.intellij.jugg.ide.ui.ReportConfirmDialog
 import com.sickworm.intellij.jugg.ide.ui.ReportProgressDialog
-import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
-import com.sickworm.intellij.jugg.mcp.McpInvoker
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
-import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
-import com.sickworm.intellij.jugg.mcp.McpRuntimeHolder
-import com.sickworm.intellij.jugg.mcp.JuggRunInvocationResult
-import com.sickworm.intellij.jugg.mcp.JuggRunInvoker
-import com.sickworm.intellij.jugg.mcp.IdeMcpRuntime
+import com.sickworm.intellij.jugg.logger.JuggLogger
+import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.mcp.*
+import com.sickworm.intellij.jugg.project.*
+import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
+import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
+import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
+import com.sickworm.intellij.jugg.project.dependency.create
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
+import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
@@ -88,6 +74,14 @@ class JuggManager @TestOnly constructor(
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
     private val mcpInvoker: McpInvoker = McpInvoker(pathManager.projectDir.absolutePath),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
+
+    private val juggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
+        deployHistoryManager, juggRunningTaskStatusManager,
+        JuggRunningTaskCreator(), gitFileChangesDetector,
+        logger)
+    private val forceGradleCompileHelper = ForceGradleCompileHelper(project, juggConfigurationRunner,
+        deployFileManager, taskRunnerManager,
+        compileContextManager, logger)
 
     constructor(
         project2: Project,
@@ -162,7 +156,7 @@ class JuggManager @TestOnly constructor(
         if (isUpdated) {
             reInitOnCompileContextUpdate()
             dependencyChangeManager.onEndSyncing(isFromIde = true, true, compileContextManager.compileContext)
-            if (!isCompiling) {
+            if (!juggConfigurationRunner.isCompiling) {
                 warmUpCompile()
                 launch {
                     // do it async to let warmUpCompile run
@@ -365,27 +359,6 @@ class JuggManager @TestOnly constructor(
         }
     }
 
-    @Volatile
-    private var currentTask: JuggRunningTask? = null
-    private val isCompiling: Boolean get() = currentTask?.isRunning == true
-
-    private fun cancelCurrentTask(processHandler: IProcessHandler, onFinish: () -> Unit) {
-        val currentTask = currentTask
-        if (currentTask == null) {
-            logger.debug("Current task is null")
-            onFinish()
-            return
-        }
-        if (!currentTask.isRunning) {
-            logger.debug("Current task is not running")
-            onFinish()
-            return
-        }
-        logger.warn("Canceling task...")
-        processHandler.notifyTextAvailable("Waiting last task finishing... \n\n", ProcessOutputType.STDOUT)
-        currentTask.cancel(onFinish)
-    }
-
     override fun runTask(options: JuggRunConfigurationOptions): ExecutionResult {
         val compileUiHandler = JuggCompileUiHandler(project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
@@ -393,53 +366,7 @@ class JuggManager @TestOnly constructor(
             options.toCompileOptions(pathManager),
             logger
         )
-        return runTask(options, compileUiHandler)
-    }
-
-    fun runTask(options: JuggRunConfigurationOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
-        if (ForceGradleCompileHelper.isCleanAndReinstallNextTime) {
-            forceReInstallNextTime()
-        }
-        val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
-        val processHandler = SimpleProcessHandler()
-        consoleView.attachToProcess(processHandler)
-        processHandler.startNotify()
-        compileUiHandler.processHandler = processHandler
-
-        cancelCurrentTask(processHandler) {
-            val task = createRunningTask(options.toCompileOptions(pathManager), compileUiHandler)
-            ProgressManager.getInstance().run(task)
-        }
-        ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
-        ForceGradleCompileHelper.isForceGradleCompileNextTime = false
-        return DefaultExecutionResult(consoleView, processHandler)
-    }
-
-    private fun createRunningTask(
-        options: JuggGradleCompileOptions,
-        compileUiHandler: CompileUiHandler,
-    ): JuggRunningTask {
-        logger.debug("Create running task: ${options.toSafeString()}")
-
-        val startCompileTime = System.currentTimeMillis()
-        val initIncrementalCompileTask = task@{
-            // do it async
-            fun action() {
-                BaseBuildCommandHelper(pathManager).recordBaseBuildCmd(options)
-                initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
-            }
-            runTaskSafe("Init Incremental Compile", ::action)
-        }
-        val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
-            juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
-            compileUiHandler,
-        )
-        currentTask = task
-
-        // try reload custom config if changed
-        loadCustomConfig()
-
-        return task
+        return juggConfigurationRunner.runTask(options, compileUiHandler)
     }
 
     @TestOnly
@@ -510,7 +437,7 @@ class JuggManager @TestOnly constructor(
 
     override fun gradleCompile() {
         logger.debug("[action] gradleCompile")
-        ForceGradleCompileHelper.executeGradleCompile(this)
+        forceGradleCompileHelper.executeGradleCompile()
     }
 
     override fun restartApp() {
@@ -520,15 +447,7 @@ class JuggManager @TestOnly constructor(
     }
 
     fun forceReInstallNextTime() {
-        // clear lastDeployOverlayIds to force re-reinstall
-        deployHistoryManager.isCleanAndReinstall = true
-        juggRunningTaskStatusManager.resetHasRun()
-    }
-
-    fun exportIncrementalApk(dialog: DialogWrapper) {
-        logger.debug("exportIncrementalApk")
-        ExportIncrementalApkHelper(project, taskRunnerManager, deployFileManager, logger)
-            .exportIncrementalApk(dialog, compileContextManager.compileContext)
+        juggConfigurationRunner.forceReInstallNextTime()
     }
 
     private fun copyGeneratedSourceToLocal() {
@@ -599,12 +518,8 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        McpRuntimeHolder.runtime = IdeMcpRuntime(project, deployTargetManager, this)
+        McpRuntimeHolder.runtime = IdeaMcpRuntime(project, deployTargetManager, forceGradleCompileHelper, juggConfigurationRunner)
         return mcpInvoker.invokeMcp(request)
-    }
-
-    fun runFirstConfiguration(isRpcMode: Boolean): JuggRunInvocationResult {
-        return JuggRunInvoker(this, gitFileChangesDetector).runFirstConfiguration(isRpcMode)
     }
 
     private fun reInitOnCompileContextUpdate() {
@@ -670,5 +585,35 @@ class JuggManager @TestOnly constructor(
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
         coroutineScope.cancel()
+    }
+
+    private inner class JuggRunningTaskCreator : IJuggRunningTaskCreator {
+        override fun create(
+            options: JuggRunConfigurationOptions,
+            compileUiHandler: CompileUiHandler
+        ): JuggRunningTask {
+            val options = options.toCompileOptions(pathManager)
+            logger.debug("Create running task: ${options.toSafeString()}")
+
+            val startCompileTime = System.currentTimeMillis()
+            val initIncrementalCompileTask = task@{
+                // do it async
+                fun action() {
+                    BaseBuildCommandHelper(pathManager).recordBaseBuildCmd(options)
+                    initIncrementalCompileAfterFullBuild(startCompileTime, options.isRemoteCompile)
+                }
+                runTaskSafe("Init Incremental Compile", ::action)
+            }
+            val task = JuggRunningTask(options, project, juggServer, deployTargetManager, dependencyChangeManager,
+                juggRunningTaskStatusManager, deployHistoryManager, juggCompilerHelper, juggDeployerHelper, initIncrementalCompileTask,
+                compileUiHandler,
+            )
+
+            // try reload custom config if changed
+            loadCustomConfig()
+
+            return task
+        }
+
     }
 }

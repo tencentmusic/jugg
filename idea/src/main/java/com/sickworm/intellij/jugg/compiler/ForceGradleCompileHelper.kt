@@ -4,30 +4,43 @@ import com.intellij.execution.ProgramRunnerUtil
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.executors.DefaultRunExecutor
-import com.sickworm.intellij.jugg.JuggManager
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.deploy.DeployFileManager
+import com.sickworm.intellij.jugg.deploy.run.ExportIncrementalApkHelper
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
+import com.sickworm.intellij.jugg.ide.logic.JuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.TaskRunnerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-object ForceGradleCompileHelper {
+class ForceGradleCompileHelper(
+    private val project: Project,
+    private val juggConfigurationRunner: JuggConfigurationRunner,
+    private val deployFileManager: DeployFileManager,
+    private val taskRunnerManager: TaskRunnerManager,
+    private val compileContextManager: CompileContextManager,
+    private val logger: Logger,
+) {
 
-    var isForceGradleCompileNextTime = false
-    var isCleanAndReinstallNextTime = false
+    companion object {
+        var isForceGradleCompileNextTime = false
+        var isCleanAndReinstallNextTime = false
+    }
 
     fun executeGradleCompile(
-        juggManager: JuggManager,
         autoConfirm: Boolean = false,
         useCleanAndReinstall: Boolean = false,
     ) {
-        val project = juggManager.project
         val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
         val isJuggConfiguration = currentConfiguration?.configuration is JuggRunConfiguration
-        juggManager.logger.debug(
+        logger.debug(
             "executeGradleCompile selected: $currentConfiguration, " +
                 "isJuggConfiguration:$isJuggConfiguration, autoConfirm:$autoConfirm, useCleanAndReinstall:$useCleanAndReinstall"
         )
@@ -36,18 +49,18 @@ object ForceGradleCompileHelper {
             if (useCleanAndReinstall) {
                 isCleanAndReinstallNextTime = true
                 if (isJuggConfiguration) {
-                    tryRunFirstConfiguration(juggManager)
+                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
                 } else if (currentConfiguration != null) {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
                 } else {
-                    tryRunFirstConfiguration(juggManager)
+                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
                 }
             } else {
                 isForceGradleCompileNextTime = true
                 if (isJuggConfiguration && currentConfiguration != null) {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration, DefaultRunExecutor.getRunExecutorInstance())
                 } else {
-                    tryRunFirstConfiguration(juggManager)
+                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
                 }
             }
             return
@@ -55,7 +68,7 @@ object ForceGradleCompileHelper {
 
         var content = "Jugg is going to compile the project using gradle. Continue?"
         if (!isJuggConfiguration) {
-            val currentRunConfigurationList = RunManager.getInstance(juggManager.project)
+            val currentRunConfigurationList = RunManager.getInstance(project)
                 .getConfigurationSettingsList(JuggConfigurationType::class.java)
             @Suppress("UNCHECKED_CAST")
             val runConfiguration = (currentRunConfigurationList.firstOrNull()?.configuration
@@ -77,7 +90,8 @@ object ForceGradleCompileHelper {
             leftButtonText = "Clean And Reinstall",
             linkActions = listOf(
                 CommonConfirmDialog.CustomLinkAction("Export incremental APK") {
-                    juggManager.exportIncrementalApk(it)
+                    ExportIncrementalApkHelper(project, taskRunnerManager, deployFileManager, logger)
+                        .exportIncrementalApk(it, compileContextManager.compileContext)
                 }
             )
         )
@@ -87,13 +101,13 @@ object ForceGradleCompileHelper {
                 if (isJuggConfiguration) {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
                 } else {
-                    tryRunFirstConfiguration(juggManager)
+                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
                 }
             }
             ConfirmResult.LEFT -> {
                 isCleanAndReinstallNextTime = true
                 if (isJuggConfiguration) {
-                    tryRunFirstConfiguration(juggManager)
+                    tryRunFirstConfiguration(juggConfigurationRunner, logger)
                 } else {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
                 }
@@ -104,12 +118,12 @@ object ForceGradleCompileHelper {
         }
     }
 
-    private fun tryRunFirstConfiguration(juggManager: JuggManager) {
+    private fun tryRunFirstConfiguration(juggConfigurationRunner: JuggConfigurationRunner, logger: Logger) {
         CoroutineScope(Dispatchers.IO).launch {
-            val result = juggManager.runFirstConfiguration(isRpcMode = false)
+            val result = juggConfigurationRunner.runFirstConfiguration(isRpcMode = false)
             if (!result.isSuccess) {
                 val errorMessage = result.errorMessage ?: "Unknown error"
-                juggManager.logger.debug("tryRunFirstConfiguration failed: $errorMessage")
+                logger.debug("tryRunFirstConfiguration failed: $errorMessage")
                 CommonConfirmDialog.showAndGetResult(
                     "Run failed", "Error: $errorMessage",
                     okButtonText = "Close"
