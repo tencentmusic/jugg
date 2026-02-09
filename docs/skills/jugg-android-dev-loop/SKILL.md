@@ -1,0 +1,179 @@
+---
+name: jugg-android-dev-loop
+description: Teach Agent to use Jugg MCP tools directly for deterministic Android modify/verify closed-loop. No runner scripts needed.
+---
+
+# Jugg MCP Android Dev Loop
+
+## Objective
+
+Teach agent to reliably finish Android engineering tasks with a deterministic loop:
+
+- modify (if needed) -> deploy -> observe -> validate -> iterate
+- return structured evidence (`status/errorCode/data/artifacts`)
+- stop safely on unknown/high-risk failures
+
+Strongly prefer MCP tools and avoid direct external adb commands in normal flow.
+
+## Prerequisites
+
+Before starting the closed-loop, ensure:
+
+1. **Jugg is initialized** — the project appears in `list_projects` output.
+2. **MCP server is reachable** — jugg-mcp is available.
+3. **Device is connected** — at least one online device/emulator visible in `device_list`.
+
+## Core Workflow (5-Step Closed-Loop SOP)
+
+```
+Step 1: list_projects             → confirm projectDir
+Step 2: device_list               → confirm online device
+Step 3: compile_and_deploy        → build and push artifacts to device
+Step 4: app_start + tap           → launch app and interact
+Step 5: screenshot/layout_dump    → collect verification evidence
+```
+
+### Step 1: Confirm Project
+
+Call `list_projects` (no arguments). Pick the matching `projectDir` from the response.
+
+### Step 2: Confirm Device
+
+Call `device_list` with `projectDir`. Verify at least one device has `isOnline=true`. Use `serial` from response for subsequent device-targeting calls.
+
+### Step 3: Build and Deploy
+
+- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to device.
+- **Compile-only path**: `compile_only` with `projectDir` — when no device is available or you only need to verify compilation.
+- **Strong fallback**: `force_gradle_compile` with `projectDir` when incremental compile or deploy state is corrupted by Jugg.
+
+### Step 4: Runtime Actions
+
+- `app_start` with `projectDir` (and optional `activity`, `packageName`, `serial`).
+- `tap` with `projectDir`, `x`, `y` for UI interaction.
+- Use `layout_dump` before `tap` to discover element coordinates.
+
+### Step 5: Collect Evidence
+
+- `screenshot` for visual proof.
+- `layout_dump` for structural verification.
+- Optional: `record` for video trace with in-record app_start + tap.
+
+## Hard Guardrails
+
+- Max autonomous retries: `3` (same failure category).
+- Unknown failure category: stop and ask user.
+- Potentially destructive change (manifest/signing/gradle-wide refactor): ask user before apply.
+- Never claim success without artifact evidence.
+
+## Decision Rules
+
+- Prefer `compile_and_deploy` for normal iteration (compiles then deploys).
+- Use `compile_only` when no device is connected or only compilation check is needed.
+- Switch to `clean_reinstall_apk` when incremental deploy state is corrupted or signatures mismatch.
+- If `compile_and_deploy` fails, Agent tries `force_gradle_compile` -> retry `compile_and_deploy` -> `clean_reinstall_apk`.
+- Treat missing devices as hard failure (errorCode `MCP_NO_DEVICE`).
+- Strongly prefer MCP-only execution and avoid raw adb in normal flow.
+
+## MCP Response Format
+
+All MCP tools return `structuredContent` with this shape (aligned with `McpToolResult`):
+
+```json
+{
+  "status": "OK | ERROR",
+  "message": "concise human-readable message",
+  "data": { /* tool-specific structured payload */ },
+  "artifacts": [{"type": "image", "path": "/abs/path.png"}],
+  "errorCode": "MCP_INTERNAL_ERROR | null"
+}
+```
+
+Fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `"OK"` \| `"ERROR"` | Whether the tool call succeeded |
+| `message` | `string` | Human-readable result or error description |
+| `data` | `object` | Tool-specific structured data for next decision |
+| `artifacts` | `array` | File artifacts produced (each has `type` and `path`) |
+| `errorCode` | `string \| null` | Stable error code on failure; `null` on success |
+
+## Error Codes Quick Reference
+
+| Error Code | Meaning | Agent Action |
+|-----------|---------|-------------|
+| `MCP_PROJECT_NOT_INITIALIZED` | Project not opened/initialized in IDE | Ask user to open project |
+| `MCP_NO_DEVICE` | No online device connected | Ask user to connect device |
+| `MCP_INVALID_PARAMS` | Bad tool arguments | Fix arguments and retry |
+| `MCP_TOOL_NOT_FOUND` | Tool name not recognized | Check available tools |
+| `MCP_INTERNAL_ERROR` | Internal runtime failure | Try fallback path |
+| `MCP_INVALID_JSON_RPC` | Malformed JSON-RPC request | Fix request format |
+| `MCP_METHOD_NOT_SUPPORTED` | Unsupported MCP method | Use supported method |
+
+## Failure Handling Strategy
+
+When compile/deploy fails, follow this strict order:
+
+1. **Parse error first**: read `structuredContent.message`, `structuredContent.data`, and `structuredContent.errorCode` for root-cause clues.
+2. **Try deterministic diagnosis**: match against known error patterns in `references/error_patterns.md`.
+3. **Use auto downgrade when applicable**:
+   - `compile_and_deploy` fails -> `force_gradle_compile` -> retry
+   - Still fails -> `clean_reinstall_apk`
+   - `clean_reinstall_apk` fails -> stop and report
+4. **Stop and confirm with user** when root cause is still unclear.
+
+Do not silently loop retries without diagnosis.
+
+## State Machine (SOP)
+
+Use this lightweight state machine for all tasks:
+
+- `IDLE -> ANALYZING -> MODIFYING -> COMPILING -> DEPLOYING -> OBSERVING -> VALIDATING`
+- failure branch: `ANY -> RECOVERING -> (resume previous state or stop)`
+
+Detailed transitions and per-state allowed actions:
+
+- `references/state_machine.md`
+
+## Atomic Tool Cards
+
+Per-tool decision guidance for direct MCP calls:
+
+- `references/tool_cards.md`
+
+Each card defines:
+
+- when to use
+- required/optional input schema
+- success output for next step
+- failure category and recovery
+
+## Error Pattern Library
+
+Use/extend known patterns before free-form fixes:
+
+- `references/error_patterns.md`
+
+Rules:
+
+- known pattern + low-risk fix: auto apply
+- unknown pattern or confidence < `0.8`: ask user before large changes
+- always append latest pattern outcome into response summary
+
+## Examples
+
+Step-by-step examples of common scenarios:
+
+- `examples/01_fix_compile_error.md` — compile error diagnosis and auto-fix
+- `examples/02_ui_change_verify.md` — UI modification with layout_dump + tap + screenshot verification
+- `examples/03_deploy_fallback.md` — deploy failure with automatic downgrade chain
+
+## Resources
+
+### references/
+
+- `references/closed_loop.md`: execution policy and troubleshooting guidance.
+- `references/state_machine.md`: lightweight state machine and transition rules.
+- `references/tool_cards.md`: atomic tool usage cards.
+- `references/error_patterns.md`: known failure signatures and fix strategies.

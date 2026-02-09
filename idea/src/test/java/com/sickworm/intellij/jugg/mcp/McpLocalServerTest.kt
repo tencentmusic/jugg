@@ -99,9 +99,9 @@ class McpLocalServerTest {
             }
             Assert.assertTrue(names.contains("list_projects"))
             Assert.assertTrue(names.contains("restart_app"))
-            Assert.assertTrue(names.contains("compile"))
-            Assert.assertTrue(names.contains("deploy"))
-            Assert.assertTrue(names.contains("clean_reinstall"))
+            Assert.assertTrue(names.contains("compile_only"))
+            Assert.assertTrue(names.contains("compile_and_deploy"))
+            Assert.assertTrue(names.contains("clean_reinstall_apk"))
             Assert.assertTrue(names.contains("force_gradle_compile"))
             Assert.assertTrue(names.contains("device_list"))
             Assert.assertTrue(names.contains("screenshot"))

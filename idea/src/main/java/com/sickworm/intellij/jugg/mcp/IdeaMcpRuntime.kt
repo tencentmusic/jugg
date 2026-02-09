@@ -77,16 +77,16 @@ class IdeaMcpRuntime(
     }
 
     override fun compile(): McpToolResult {
-        return deploy("compile")
+        return deploy("compile_only")
     }
 
     override fun deploy(): McpToolResult {
-        return deploy("deploy")
+        return deploy("compile_and_deploy")
     }
 
     override fun cleanReinstall(): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
-        return deploy("clean_reinstall")
+        return deploy("clean_reinstall_apk")
     }
 
     private fun deploy(toolName: String): McpToolResult {

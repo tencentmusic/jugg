@@ -8,17 +8,30 @@ data class McpToolDefinition(
     val name: String,
     val description: String,
     val inputSchema: McpJsonSchemaObject,
+    val outputSchema: McpJsonSchemaObject? = null,
 )
 
 data class McpJsonSchemaObject(
     val type: String = "object",
+    val description: String? = null,
     val properties: Map<String, McpJsonSchemaProperty> = emptyMap(),
     val required: List<String> = emptyList(),
+    val additionalProperties: Boolean? = null,
 )
 
 data class McpJsonSchemaProperty(
     val type: String,
     val description: String? = null,
+    val default: Any? = null,
+    val minimum: Double? = null,
+    val maximum: Double? = null,
+    val `enum`: List<Any>? = null,
+    val examples: List<Any>? = null,
+    val pattern: String? = null,
+    val properties: Map<String, McpJsonSchemaProperty>? = null,
+    val required: List<String>? = null,
+    val items: McpJsonSchemaProperty? = null,
+    val additionalProperties: Boolean? = null,
 )
 
 data class McpToolCallParams(

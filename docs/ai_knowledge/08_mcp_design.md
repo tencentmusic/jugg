@@ -43,7 +43,7 @@
 ### 2.4 通用设备选择规则（DeviceSelectionResolver）
 
 适用范围：
-- 所有涉及设备执行的 MCP 工具（`restart_app`、`deploy`、`clean_reinstall`、`screenshot`、`record`、`layout_dump` 等）。
+- 所有涉及设备执行的 MCP 工具（`restart_app`、`compile_and_deploy`、`clean_reinstall_apk`、`screenshot`、`record`、`layout_dump` 等）。
 
 输入：
 - `serial`（可选）

@@ -78,16 +78,16 @@ class McpInvoker(
                 logger.debug("[MCP][INVOKER] handling restart_app")
                 runtime.restartApp(request.arguments["serial"] as? String)
             }
-            "compile" -> {
-                logger.debug("[MCP][INVOKER] handling compile")
+            "compile_only" -> {
+                logger.debug("[MCP][INVOKER] handling compile_only")
                 runtime.compile()
             }
-            "deploy" -> {
-                logger.debug("[MCP][INVOKER] handling deploy")
+            "compile_and_deploy" -> {
+                logger.debug("[MCP][INVOKER] handling compile_and_deploy")
                 runtime.deploy()
             }
-            "clean_reinstall" -> {
-                logger.debug("[MCP][INVOKER] handling clean_reinstall")
+            "clean_reinstall_apk" -> {
+                logger.debug("[MCP][INVOKER] handling clean_reinstall_apk")
                 runtime.cleanReinstall()
             }
             "force_gradle_compile" -> {

@@ -2,7 +2,7 @@
 
 > 更新时间: 2026-02-08  
 > 传输协议: MCP Streamable HTTP + JSON-RPC 2.0  
-> 当前工具: `list_projects`, `restart_app`, `compile`, `deploy`, `clean_reinstall`, `device_list`, `app_start`, `tap`, `screenshot`, `record`, `layout_dump`
+> 当前工具: `list_projects`, `restart_app`, `compile_only`, `compile_and_deploy`, `clean_reinstall_apk`, `force_gradle_compile`, `device_list`, `app_start`, `tap`, `screenshot`, `record`, `layout_dump`
 
 ---
 
@@ -84,21 +84,21 @@
 - `serial` 非法：回落 selected device。
 - 无可用设备：返回 `MCP_NO_DEVICE`。
 
-### 4.3 `compile`
+### 4.3 `compile_only`
 
-- 作用：触发一次 Jugg 编译流程。
+- 作用：仅执行 Jugg 增量编译，不部署到设备。用于编译检查或无设备场景。
 - 参数：
   - `projectDir`（必填）
 
-### 4.4 `deploy`
+### 4.4 `compile_and_deploy`
 
-- 作用：触发一次 Jugg 部署流程。
+- 作用：先编译，成功后部署到设备。正常迭代的默认路径。
 - 参数：
   - `projectDir`（必填）
 
-### 4.5 `clean_reinstall`
+### 4.5 `clean_reinstall_apk`
 
-- 作用：触发 clean + reinstall 流程后执行编译部署。
+- 作用：清除应用数据并重新安装 APK（Jugg 存储在 code_cache 中的增量部署文件会重新部署）。
 - 参数：
   - `projectDir`（必填）
 
