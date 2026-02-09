@@ -11,8 +11,6 @@ import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.rpc.RpcRequest
-import com.sickworm.intellij.jugg.rpc.RpcResponse
 import java.io.File
 
 class CmdPlatformApi : IPlatformApi {
@@ -79,10 +77,6 @@ class CmdPlatformApi : IPlatformApi {
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        TODO("Cmd line not support")
-    }
-
-    override fun call(rpcRequest: RpcRequest): RpcResponse {
         TODO("Cmd line not support")
     }
 }

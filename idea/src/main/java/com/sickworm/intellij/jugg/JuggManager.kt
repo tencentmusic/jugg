@@ -40,10 +40,9 @@ import com.sickworm.intellij.jugg.mcp.McpInvoker
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.mcp.McpRuntimeHolder
-import com.sickworm.intellij.jugg.rpc.RpcCaller
-import com.sickworm.intellij.jugg.rpc.RpcRequest
-import com.sickworm.intellij.jugg.rpc.RpcResponse
-import com.sickworm.intellij.jugg.server.IdeMcpRuntime
+import com.sickworm.intellij.jugg.mcp.JuggRunInvocationResult
+import com.sickworm.intellij.jugg.mcp.JuggRunInvoker
+import com.sickworm.intellij.jugg.mcp.IdeMcpRuntime
 import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
@@ -599,13 +598,13 @@ class JuggManager @TestOnly constructor(
         dialog.show()
     }
 
-    override fun call(rpcRequest: RpcRequest): RpcResponse {
-        return RpcCaller(this, gitFileChangesDetector).call(rpcRequest)
-    }
-
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
         McpRuntimeHolder.runtime = IdeMcpRuntime(project, deployTargetManager, this)
         return mcpInvoker.invokeMcp(request)
+    }
+
+    fun runFirstConfiguration(isRpcMode: Boolean): JuggRunInvocationResult {
+        return JuggRunInvoker(this, gitFileChangesDetector).runFirstConfiguration(isRpcMode)
     }
 
     private fun reInitOnCompileContextUpdate() {

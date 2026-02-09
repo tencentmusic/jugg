@@ -9,8 +9,6 @@ import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.rpc.RpcRequest
-import com.sickworm.intellij.jugg.rpc.RpcResponse
 
 class TestPlatformApi : IPlatformApi {
     override fun showDialog(
@@ -72,10 +70,6 @@ class TestPlatformApi : IPlatformApi {
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        TODO("Not yet implemented")
-    }
-
-    override fun call(rpcRequest: RpcRequest): RpcResponse {
         TODO("Not yet implemented")
     }
 }

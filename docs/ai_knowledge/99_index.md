@@ -124,7 +124,7 @@
 - **AAPT2 调用**: [05_utilities.md](05_utilities.md) → Aapt2DaemonInvoker
 - **Git 集成**: [05_utilities.md](05_utilities.md) → GitManager
 - **日志系统**: [05_utilities.md](05_utilities.md) → JuggLogger
-- **RPC 通信**: [05_utilities.md](05_utilities.md) → RpcLocalServer
+- **MCP 通信**: [05_utilities.md](05_utilities.md) → McpLocalServer
 - **远程编译**: [05_utilities.md](05_utilities.md) → JuggServer
 ---
 

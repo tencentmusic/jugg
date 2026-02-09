@@ -1,6 +1,5 @@
-package com.sickworm.intellij.jugg.rpc
+package com.sickworm.intellij.jugg.mcp
 
-import com.google.gson.Gson
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.executors.DefaultRunExecutor
@@ -17,58 +16,48 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.project.GitFileChangesDetector
 import javax.swing.SwingUtilities
 
+class JuggRunInvoker(
+    private val juggManager: JuggManager,
+    private val gitFileChangesDetector: GitFileChangesDetector,
+) {
 
-class RpcCaller(private val juggManager: JuggManager, private val gitFileChangesDetector: GitFileChangesDetector) {
-
-    fun call(rpcRequest: RpcRequest): RpcResponse {
-        return when (rpcRequest.cmd) {
-            RpcCommand.ECHO -> echo(rpcRequest)
-            RpcCommand.RUN -> run(rpcRequest)
-            else -> notSupport(rpcRequest)
-        }
-    }
-
-    private fun echo(rpcRequest: RpcRequest): RpcResponse {
-        return RpcResponse(
-            status = RpcResult.OK,
-            result = Gson().toJson(rpcRequest)
-        )
-    }
-
-    @Suppress("UNUSED_PARAMETER")
-    private fun run(rpcRequest: RpcRequest): RpcResponse {
+    fun runFirstConfiguration(isRpcMode: Boolean): JuggRunInvocationResult {
         val currentRunConfigurationList = RunManager.getInstance(juggManager.project)
             .getConfigurationSettingsList(JuggConfigurationType::class.java)
         @Suppress("UNCHECKED_CAST")
         val runConfiguration = (currentRunConfigurationList.firstOrNull()?.configuration
                 as? RunConfigurationBase<JuggRunConfigurationOptions>)
-        if (runConfiguration == null) {
-            return RpcResponse(RpcResult.ErrorInternalServerError, "Run configuration not found.")
-        }
+            ?: return JuggRunInvocationResult(
+                isSuccess = false,
+                errorMessage = "Run configuration not found.",
+            )
 
         val state = runConfiguration.state
-            ?: return RpcResponse(RpcResult.ErrorInternalServerError, "Run configuration state is null.")
+            ?: return JuggRunInvocationResult(
+                isSuccess = false,
+                errorMessage = "Run configuration state is null.",
+            )
 
         var runResultFinal: RunResult? = null
-        val isRpcMode = rpcRequest.args?.get("isRpcMode") as? Boolean ?: true
         val waitLock = Object()
-        val compileUiHandler = object : JuggCompileUiHandler(juggManager.project,
+        val compileUiHandler = object : JuggCompileUiHandler(
+            juggManager.project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = isRpcMode,
             state.toCompileOptions(juggManager.pathManager),
-            juggManager.logger
+            juggManager.logger,
         ) {
             override fun onEnd(runResult: RunResult) {
                 synchronized(waitLock) {
+                    runResultFinal = runResult
                     waitLock.notify()
                 }
-                runResultFinal = runResult
             }
         }
-        val logCollector = LogCollector()
+
+        val logCollector = RunLogCollector()
         JuggLogger.listenProjectLog(juggManager.project, logCollector)
         if (isRpcMode) {
-            // not modify files in IDE, needs to update changed files first
             gitFileChangesDetector.updateChangedFiles()
         }
 
@@ -76,8 +65,10 @@ class RpcCaller(private val juggManager: JuggManager, private val gitFileChanges
             val executor = DefaultRunExecutor.getRunExecutorInstance()
             val executionResult = juggManager.runTask(state, compileUiHandler)
             val descriptor = RunContentDescriptor(
-                executionResult.executionConsole, executionResult.processHandler,
-                executionResult.executionConsole.component, runConfiguration.name
+                executionResult.executionConsole,
+                executionResult.processHandler,
+                executionResult.executionConsole.component,
+                runConfiguration.name,
             )
             RunContentManager.getInstance(juggManager.project).showRunContent(executor, descriptor)
         }
@@ -87,14 +78,18 @@ class RpcCaller(private val juggManager: JuggManager, private val gitFileChanges
         }
         JuggLogger.stopListenProjectLog(juggManager.project, logCollector)
 
-        val result = mapOf(
-            "runResult" to runResultFinal,
-            "detail" to logCollector.getAllLogs(),
+        return JuggRunInvocationResult(
+            isSuccess = true,
+            runResult = runResultFinal,
+            detail = logCollector.getAllLogs(),
         )
-        return RpcResponse(RpcResult.OK, Gson().toJson(result))
-    }
-
-    private fun notSupport(rpcRequest: RpcRequest): RpcResponse {
-        return RpcResponse(RpcResult.ErrorMethodNotAllowed, "Command not supported: ${rpcRequest.cmd}.")
     }
 }
+
+data class JuggRunInvocationResult(
+    val isSuccess: Boolean,
+    val runResult: RunResult? = null,
+    val detail: String = "",
+    val errorMessage: String? = null,
+)
+

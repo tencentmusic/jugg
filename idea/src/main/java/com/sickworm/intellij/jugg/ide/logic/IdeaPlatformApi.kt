@@ -31,10 +31,7 @@ import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
-import com.sickworm.intellij.jugg.rpc.RpcRequest
-import com.sickworm.intellij.jugg.rpc.RpcResponse
-import com.sickworm.intellij.jugg.rpc.RpcResult
-import com.sickworm.intellij.jugg.server.IdeMcpRuntime
+import com.sickworm.intellij.jugg.mcp.IdeMcpRuntime
 
 class IdeaPlatformApi : IPlatformApi {
 
@@ -147,15 +144,6 @@ class IdeaPlatformApi : IPlatformApi {
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
         return IdeMcpRuntime.invokeMcp(request)
-    }
-
-    override fun call(rpcRequest: RpcRequest): RpcResponse {
-        val projectDir = rpcRequest.projectDir ?:
-           return RpcResponse(RpcResult.ErrorInvalidProjectDir, "Argument projectDir not specific")
-
-        val juggManager = JuggInitializer.getManager(projectDir)
-            ?: return RpcResponse(RpcResult.ErrorInvalidProjectDir, "Project not initialized with Jugg, please wait for a while.")
-        return juggManager.call(rpcRequest)
     }
 
 }

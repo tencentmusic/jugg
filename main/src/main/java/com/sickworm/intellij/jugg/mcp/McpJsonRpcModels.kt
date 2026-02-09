@@ -26,6 +26,7 @@ object McpJsonRpc {
     }
 }
 
+/** CAN NOT HOT_RELOAD. UPDATE NEEDS isNeedReinstall */
 data class McpJsonRpcRequest(
     val jsonrpc: String = McpJsonRpc.Version,
     val id: Any? = null,
@@ -33,6 +34,7 @@ data class McpJsonRpcRequest(
     val params: Any? = null,
 )
 
+/** CAN NOT HOT_RELOAD. UPDATE NEEDS isNeedReinstall */
 /** TOOLS CALL DO NOT CREATE DIRECTLY. USE [McpResultMapper] */
 data class McpJsonRpcResponse(
     val jsonrpc: String = McpJsonRpc.Version,

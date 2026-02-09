@@ -7,7 +7,6 @@ import com.intellij.openapi.project.ProjectManager
 import com.sickworm.intellij.jugg.ide.SyncEvent
 import com.sickworm.intellij.jugg.ide.IJuggManagerCaller
 import com.sickworm.intellij.jugg.mcp.McpLocalServer
-import com.sickworm.intellij.jugg.rpc.RpcLocalServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -52,7 +51,6 @@ object JuggInitializer {
         instance?.release()
 
         if (instanceSet.isEmpty()) {
-            RpcLocalServer.stop()
             McpLocalServer.stop()
         }
     }

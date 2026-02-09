@@ -1,21 +1,20 @@
-package com.sickworm.intellij.jugg.server
+package com.sickworm.intellij.jugg.mcp
 
 import com.android.ddmlib.IDevice
+import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.JuggManager
-import com.sickworm.intellij.jugg.platform.PlatformApi
-import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
-import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
-import com.sickworm.intellij.jugg.rpc.RpcCommand
-import com.sickworm.intellij.jugg.rpc.RpcRequest
-import com.sickworm.intellij.jugg.rpc.RpcResult
-import com.sickworm.intellij.jugg.loader.JuggInitializer
-import com.sickworm.intellij.jugg.mcp.*
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
+import com.sickworm.intellij.jugg.loader.JuggInitializer
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.util.Locale
+import kotlin.collections.get
 
 class IdeMcpRuntime(
     private val project: Project,
@@ -77,10 +76,10 @@ class IdeMcpRuntime(
     }
 
     override fun compile(): McpToolResult {
-        val runResponse = runByRpc()
-        val payload = parseRunPayload(runResponse.result)
-        if (runResponse.status != RpcResult.OK) {
-            return buildRpcFailureResult("compile", runResponse.result, payload.detail)
+        val runResponse = runByMcp()
+        val payload = parseRunPayload(runResponse)
+        if (!runResponse.isSuccess) {
+            return buildRunFailureResult("compile", runResponse.errorMessage, payload.detail)
         }
         return buildRunToolResult(
             toolName = "compile",
@@ -94,10 +93,10 @@ class IdeMcpRuntime(
     }
 
     override fun deploy(): McpToolResult {
-        val runResponse = runByRpc()
-        val payload = parseRunPayload(runResponse.result)
-        if (runResponse.status != RpcResult.OK) {
-            return buildRpcFailureResult("deploy", runResponse.result, payload.detail)
+        val runResponse = runByMcp()
+        val payload = parseRunPayload(runResponse)
+        if (!runResponse.isSuccess) {
+            return buildRunFailureResult("deploy", runResponse.errorMessage, payload.detail)
         }
         return buildRunToolResult(
             toolName = "deploy",
@@ -112,10 +111,10 @@ class IdeMcpRuntime(
 
     override fun cleanReinstall(): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
-        val runResponse = runByRpc()
-        val payload = parseRunPayload(runResponse.result)
-        if (runResponse.status != RpcResult.OK) {
-            return buildRpcFailureResult("clean_reinstall", runResponse.result, payload.detail)
+        val runResponse = runByMcp()
+        val payload = parseRunPayload(runResponse)
+        if (!runResponse.isSuccess) {
+            return buildRunFailureResult("clean_reinstall", runResponse.errorMessage, payload.detail)
         }
 
         val runResultObject = payload.runResult
@@ -437,7 +436,7 @@ class IdeMcpRuntime(
     }
 
     private data class SelectedAdb(
-        val adb: com.sickworm.intellij.jugg.deploy.IDeviceAdb,
+        val adb: IDeviceAdb,
         val messageDetail: String,
     )
 
@@ -505,7 +504,7 @@ class IdeMcpRuntime(
         return commands.joinToString(" ; ")
     }
     private fun formatShellSec(value: Double): String {
-        return String.format(Locale.US, "%.2f", value.coerceAtLeast(0.0))
+        return String.Companion.format(Locale.US, "%.2f", value.coerceAtLeast(0.0))
     }
 
     private fun safeName(value: String): String {
@@ -531,33 +530,16 @@ class IdeMcpRuntime(
         )
     }
 
-    private fun runByRpc() = juggManager.call(
-        RpcRequest(
-            cmd = RpcCommand.RUN,
-            projectDir = project.basePath,
-            args = mapOf("isRpcMode" to true),
-        )
-    )
+    private fun runByMcp() = juggManager.runFirstConfiguration(isRpcMode = true)
 
-    private fun parseRunPayload(rawResult: Any?): RunPayload {
-        val resultText = rawResult as? String ?: return RunPayload(null, "")
-        return try {
-            val root = JsonParser.parseString(resultText).asJsonObject
-            val runResult = root.getAsJsonObject("runResult")
-            val detail = if (root.has("detail") && !root.get("detail").isJsonNull) {
-                root.get("detail").asString
-            } else {
-                ""
-            }
-            RunPayload(runResult, detail)
-        } catch (e: Exception) {
-            RunPayload(null, "")
-        }
+    private fun parseRunPayload(runResult: JuggRunInvocationResult): RunPayload {
+        val resultObject = runResult.runResult ?: return RunPayload(null, runResult.detail)
+        return RunPayload(JsonParser.parseString(Gson().toJson(resultObject)).asJsonObject, runResult.detail)
     }
 
-    private fun buildRpcFailureResult(toolName: String, rpcResult: Any?, detail: String): McpToolResult {
+    private fun buildRunFailureResult(toolName: String, runErrorMessage: String?, detail: String): McpToolResult {
         val reason = buildString {
-            append(rpcResult?.toString() ?: "unknown rpc error")
+            append(runErrorMessage ?: "unknown run error")
             if (detail.isNotBlank()) {
                 append("\n")
                 append(detail)

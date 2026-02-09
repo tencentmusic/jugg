@@ -10,9 +10,6 @@ import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
-import com.sickworm.intellij.jugg.rpc.RpcCommand
-import com.sickworm.intellij.jugg.rpc.RpcRequest
-import com.sickworm.intellij.jugg.rpc.RpcResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -108,19 +105,13 @@ object ForceGradleCompileHelper {
     }
 
     private fun tryRunFirstConfiguration(juggManager: JuggManager) {
-        val rpcRequest = RpcRequest(
-            cmd = RpcCommand.RUN,
-            projectDir = juggManager.pathManager.projectDir.absolutePath,
-            args = mapOf(
-                "isRpcMode" to false,
-            )
-        )
         CoroutineScope(Dispatchers.IO).launch {
-            val response = juggManager.call(rpcRequest)
-            if (response.status != RpcResult.OK) {
-                juggManager.logger.debug("tryRunFirstConfiguration failed: $response")
+            val result = juggManager.runFirstConfiguration(isRpcMode = false)
+            if (!result.isSuccess) {
+                val errorMessage = result.errorMessage ?: "Unknown error"
+                juggManager.logger.debug("tryRunFirstConfiguration failed: $errorMessage")
                 CommonConfirmDialog.showAndGetResult(
-                    "Run failed", "Error: $response",
+                    "Run failed", "Error: $errorMessage",
                     okButtonText = "Close"
                 )
             }

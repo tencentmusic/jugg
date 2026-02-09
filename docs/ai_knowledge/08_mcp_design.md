@@ -318,7 +318,7 @@ Client
 
 ## 九、与历史 RPC 的关系
 
-- `IJuggManagerCaller.call` 视为历史入口，保持不改。
+- `IJuggManagerCaller.call` 已移除；统一通过 MCP 入口与 `JuggManager.runFirstConfiguration` 直连运行能力。
 - MCP 通过 `invokeMcp` 建立新入口，不与历史命令枚举强耦合。
 - 可复用底层能力（`JuggManager`、`IDeployTargetManager`），但不复用历史 RPC 协议结构。
 

@@ -36,15 +36,15 @@
   2) 依赖解析走 GradleProjectInfoReader，确保 Gradle 可用。
   3) 部署阶段调用 AsDeployerCompat/设备接口。
 
-## 4. 自定义 RPC 命令
+## 4. 自定义 MCP 工具
 - 文档参考: `05_utilities.md`
-- 关键类: `RpcCommand`, `RpcLocalServer`
-- 路径: `rpc/`
-- 示例/用法指向: `RpcCommand` 枚举定义与 `RpcLocalServer` 注册逻辑（同目录文件）。
+- 关键类: `McpToolRegistry`, `McpLocalServer`, `IdeMcpRuntime`
+- 路径: `mcp/`, `idea/src/main/java/com/sickworm/intellij/jugg/server/`
+- 示例/用法指向: `McpToolRegistry` 工具注册与 `IdeMcpRuntime` 实现（同目录文件）。
 - 步骤:
-  1) 在 `RpcCommand` 中新增枚举/指令。
-  2) 在 `RpcLocalServer` 注册处理逻辑。
-  3) 确认客户端调用与协议版本匹配。
+  1) 在 `McpToolRegistry` 中新增工具定义与参数 schema。
+  2) 在 `IMcpRuntime` / `IdeMcpRuntime` 中新增工具处理逻辑。
+  3) 通过 `McpLocalServer` 校验客户端调用与协议版本。
 
 ## 5. 远程编译/服务端对接
 - 文档参考: `05_utilities.md`

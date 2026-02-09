@@ -1,11 +1,11 @@
-package com.sickworm.intellij.jugg.rpc
+package com.sickworm.intellij.jugg.mcp
 
 import com.intellij.openapi.diagnostic.Logger
 import org.apache.log4j.Level
 import java.util.concurrent.ConcurrentLinkedQueue
 
 @Suppress("UNUSED_PARAMETER")
-class LogCollector : Logger() {
+class RunLogCollector : Logger() {
 
     private val logs = ConcurrentLinkedQueue<String>()
 
@@ -15,8 +15,6 @@ class LogCollector : Logger() {
 
     private fun addLog(level: String, message: String, throwable: Throwable? = null) {
         logs.offer("[$level] $message")
-        
-        // 限制日志数量，避免内存溢出
         if (logs.size > 100000) {
             logs.poll()
         }
@@ -60,3 +58,4 @@ class LogCollector : Logger() {
     override fun setLevel(level: Level) {
     }
 }
+
