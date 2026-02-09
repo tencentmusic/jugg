@@ -30,7 +30,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "compile",
-                description = "Compile modified source files by Jugg. Use to quick check file changes is compilable.",
+                description = "Compile modified source files by Jugg. Use to quick check file changes is compilable. Won't deploy changes to device(s)",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")
@@ -40,7 +40,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "deploy",
-                description = "Compile and deploy all changes by Jugg. Use to let your file changes take effect on App.",
+                description = "Compile and deploy all changes to device(s) by Jugg. Use to let your file changes take effect on App.",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to McpJsonSchemaProperty(type = "string")

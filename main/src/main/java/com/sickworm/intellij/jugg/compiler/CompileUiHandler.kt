@@ -17,6 +17,7 @@ import java.io.File
  */
 interface CompileUiHandler {
     var isForceGradleCompile: Boolean
+    val isSkipDeploy: Boolean
     val isCanceled: Boolean
     var processHandler: IProcessHandler // injected
     var progressIndicator: ProgressIndicator // injected
@@ -42,6 +43,7 @@ interface CompileUiHandler {
     companion object {
         val DEFAULT = object : CompileUiHandler {
             override var isForceGradleCompile: Boolean = false
+            override val isSkipDeploy: Boolean = false
             override val isCanceled: Boolean = false
             override var processHandler: IProcessHandler = IProcessHandler.DEFAULT
             override var progressIndicator: ProgressIndicator = DumbProgressIndicator()

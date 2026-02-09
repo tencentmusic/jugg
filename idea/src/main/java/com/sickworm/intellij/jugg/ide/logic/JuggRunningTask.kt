@@ -162,6 +162,11 @@ class JuggRunningTask(
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = false, isDeploySuccess = false)
         }
 
+        if (compileUiHandler.isSkipDeploy) {
+            logger.info("Skip deploy.")
+            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true, isDeploySuccess = false)
+        }
+
         if (!deployTargetManager.hasDevice) {
             val deployType = if (compileTaskResult.isGradleCompile) {
                 "installing"

@@ -89,7 +89,7 @@ class JuggConfigurationRunner(
         juggRunningTaskStatusManager.resetHasRun()
     }
 
-    fun runFirstConfiguration(isRpcMode: Boolean): JuggRunInvocationResult {
+    fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false): JuggRunInvocationResult {
         val currentRunConfigurationList = RunManager.getInstance(project)
             .getConfigurationSettingsList(JuggConfigurationType::class.java)
         @Suppress("UNCHECKED_CAST")
@@ -112,8 +112,9 @@ class JuggConfigurationRunner(
             project,
             isForceGradleCompile = ForceGradleCompileHelper.isForceGradleCompileNextTime,
             isRpcMode = isRpcMode,
-            state.toCompileOptions(pathManager),
-            logger,
+            juggGradleCompileOptions = state.toCompileOptions(pathManager),
+            logger = logger,
+            isSkipDeploy = isSkipDeploy,
         ) {
             override fun onEnd(runResult: RunResult) {
                 synchronized(waitLock) {

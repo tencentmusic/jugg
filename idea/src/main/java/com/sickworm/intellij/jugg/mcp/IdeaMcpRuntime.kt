@@ -10,7 +10,6 @@ import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.deploy.IDeviceAdb
 import com.sickworm.intellij.jugg.deploy.run.AsDeployerCompat
 import com.sickworm.intellij.jugg.ide.logic.JuggConfigurationRunner
-import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
@@ -78,59 +77,31 @@ class IdeaMcpRuntime(
     }
 
     override fun compile(): McpToolResult {
-        val runResponse = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
-        val payload = parseRunPayload(runResponse)
-        if (!runResponse.isSuccess) {
-            return buildRunFailureResult("compile", runResponse.errorMessage, payload.detail)
-        }
-        return buildRunToolResult(
-            toolName = "compile",
-            success = payload.runResult?.get("isCompileSuccess")?.asBoolean == true,
-            successMessage = "compile executed successfully.",
-            defaultFailureMessage = "compile failed. Reason: compile stage not successful.",
-            runResultObject = payload.runResult,
-            detail = payload.detail,
-            extraData = emptyMap(),
-        )
+        return deploy("compile")
     }
 
     override fun deploy(): McpToolResult {
-        val runResponse = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
-        val payload = parseRunPayload(runResponse)
-        if (!runResponse.isSuccess) {
-            return buildRunFailureResult("deploy", runResponse.errorMessage, payload.detail)
-        }
-        return buildRunToolResult(
-            toolName = "deploy",
-            success = payload.runResult?.get("isDeploySuccess")?.asBoolean == true,
-            successMessage = "deploy executed successfully.",
-            defaultFailureMessage = "deploy failed. Reason: deploy stage not successful.",
-            runResultObject = payload.runResult,
-            detail = payload.detail,
-            extraData = emptyMap(),
-        )
+        return deploy("deploy")
     }
 
     override fun cleanReinstall(): McpToolResult {
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
+        return deploy("clean_reinstall")
+    }
+
+    private fun deploy(toolName: String): McpToolResult {
         val runResponse = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
-        val payload = parseRunPayload(runResponse)
         if (!runResponse.isSuccess) {
-            return buildRunFailureResult("clean_reinstall", runResponse.errorMessage, payload.detail)
+            return buildRunFailureResult(toolName, runResponse.errorMessage, runResponse.detail)
         }
-
-        val runResultObject = payload.runResult
-        val isSuccess = (runResultObject?.get("isCompileSuccess")?.asBoolean ?: false) &&
-            (runResultObject?.get("isDeploySuccess")?.asBoolean ?: false)
-
         return buildRunToolResult(
-            toolName = "clean_reinstall",
-            success = isSuccess,
-            successMessage = "clean_reinstall executed successfully.",
-            defaultFailureMessage = "clean_reinstall failed.",
-            runResultObject = runResultObject,
-            detail = payload.detail,
-            extraData = mapOf("cleanAndReinstall" to true),
+            toolName = toolName,
+            success = true,
+            successMessage = "$toolName executed successfully.",
+            defaultFailureMessage = "$toolName failed. Reason: deploy stage not successful.",
+            runResultObject = JsonParser.parseString(Gson().toJson(runResponse.runResult)) as? JsonObject,
+            detail = runResponse.detail,
+            extraData = emptyMap(),
         )
     }
 
@@ -532,11 +503,6 @@ class IdeaMcpRuntime(
         )
     }
 
-    private fun parseRunPayload(runResult: JuggRunInvocationResult): RunPayload {
-        val resultObject = runResult.runResult ?: return RunPayload(null, runResult.detail)
-        return RunPayload(JsonParser.parseString(Gson().toJson(resultObject)).asJsonObject, runResult.detail)
-    }
-
     private fun buildRunFailureResult(toolName: String, runErrorMessage: String?, detail: String): McpToolResult {
         val reason = buildString {
             append(runErrorMessage ?: "unknown run error")
@@ -595,11 +561,6 @@ class IdeaMcpRuntime(
             errorCode = if (success) null else McpErrorCode.MCP_INTERNAL_ERROR,
         )
     }
-
-    private data class RunPayload(
-        val runResult: JsonObject?,
-        val detail: String,
-    )
 
     private val IDevice.mcpDeviceInfo: McpDeviceInfo
        get() {

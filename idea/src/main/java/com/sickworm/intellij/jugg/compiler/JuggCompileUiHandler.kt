@@ -25,6 +25,7 @@ open class JuggCompileUiHandler(
     logger: Logger,
     override var processHandler: IProcessHandler = IProcessHandler.DEFAULT,
     override var progressIndicator: ProgressIndicator = DumbProgressIndicator.INSTANCE,
+    override val isSkipDeploy: Boolean = false,
 ) : CompileUiHandler {
 
     private val logger = logger.getInstance("JuggCompileUiHandler")
