@@ -22,6 +22,7 @@ import com.android.tools.deployer.ClassRedefiner
 import com.android.tools.deployer.Deployer.InstallMode
 import com.android.tools.deployer.DeployerException
 import com.android.tools.deployer.InstallOptions
+import com.android.tools.deployer.UIService
 import com.android.tools.idea.flags.StudioFlags
 import com.android.tools.idea.run.IdeService
 import com.google.common.base.Stopwatch
@@ -31,6 +32,7 @@ import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.containers.ContainerUtil
 import com.sickworm.intellij.jugg.apk.ApkInfo
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -57,13 +59,27 @@ class JuggDeployTask(
         val adb = AdbClient(device, logger)
         val ideService = IdeService(project)
         val adbInstaller = AsDeployerCompat.getInstaller(installPathProvider.compute(), adb, logger)
+        val uiService = object : UIService {
+            override fun prompt(message: String): Boolean {
+                if (launchContext.compileUiHandler.shouldAutoConfirmDeployPrompt(message)) {
+                    logger.warning("Deploy prompt auto-confirmed by compile ui handler: %s", message)
+                    return true
+                }
+                return ideService.prompt(message)
+            }
+
+            override fun message(message: String) {
+                launchContext.compileUiHandler.onDeployUiMessage(message)
+                ideService.message(message)
+            }
+        }
 
         val deployType = if (type == AndroidDeployType.INSTALL) "Install" else "Apply Changes"
         val deployer = JuggDeployer(
             adb,
             JuggDeploymentService,
             adbInstaller,
-            ideService,
+            uiService,
             launchContext.exceptOverlayIds,
             launchContext.isSkipExceptOverlayCheck,
             logger
@@ -226,6 +242,7 @@ class LaunchContext(
     val device: IDevice,
     val exceptOverlayIds: Map<String, String>,
     val isSkipExceptOverlayCheck: Boolean,
+    val compileUiHandler: CompileUiHandler,
 ) {
     var launchApp: Boolean = false
     var killBeforeLaunch: Boolean = false

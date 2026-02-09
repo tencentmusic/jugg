@@ -275,7 +275,16 @@ class JuggRunningTask(
             indicator.text = "Deploying changes$suffix..."
         }
 
-        val deployTaskResult = juggDeployHelper.deploy(DeployOptions(device, isLastDevice, processHandler, indicator, compileTaskResult.isGradleCompile))
+        val deployTaskResult = juggDeployHelper.deploy(
+            DeployOptions(
+                device = device,
+                isLastDevice = isLastDevice,
+                processHandler = processHandler,
+                indicator = indicator,
+                isInstall = compileTaskResult.isGradleCompile,
+                compileUiHandler = compileUiHandler,
+            )
+        )
         detailMap["deploy_failed_reason"] = deployTaskResult.failedReason ?: ""
         detailMap["deploy_type"] = deployTaskResult.deployType?.toString() ?: ""
         detailMap["cost_time_except_check"] = deployTaskResult.costTimeExceptCheck.toString()

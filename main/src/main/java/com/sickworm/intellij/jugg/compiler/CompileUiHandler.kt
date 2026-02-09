@@ -32,6 +32,9 @@ interface CompileUiHandler {
     fun listenCancelAction(listener: (() -> Unit)?)
     fun notifyByBalloon(text: String)
 
+    fun shouldAutoConfirmDeployPrompt(message: String): Boolean = false
+    fun onDeployUiMessage(message: String) = Unit
+
     fun onEnd(runResult: RunResult) = Unit
 
     fun cancel()

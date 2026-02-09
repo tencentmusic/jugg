@@ -12,6 +12,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Computable
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.IncrementalDeployHelper
 import com.sickworm.intellij.jugg.compiler.jarDexFileName
 import com.sickworm.intellij.jugg.deploy.*
@@ -52,7 +53,12 @@ class JuggDeployerHelper(
 
     private var isRunning = false
 
-    private fun runTask(device: IDevice, data: JuggDeployData, isSkipExceptOverlayCheck: Boolean = false): LaunchResult = synchronized(runTaskLock) {
+    private fun runTask(
+        device: IDevice,
+        data: JuggDeployData,
+        isSkipExceptOverlayCheck: Boolean = false,
+        compileUiHandler: CompileUiHandler,
+    ): LaunchResult = synchronized(runTaskLock) {
         logger.debug("runTask start, isRunning: $isRunning")
         isRunning = true
 
@@ -93,7 +99,12 @@ class JuggDeployerHelper(
                     "classes: ${splitData.newClasses.size + splitData.hotFixModifiedClasses.size + splitData.hotReloadModifiedClasses.size}, " +
                     "overlays: ${splitData.overlays.size}")
             val isSliceSkipExceptOverlayCheck = isSkipExceptOverlayCheck || i != 0
-            val launchContext = LaunchContext(device, deployHistoryManager.lastDeployOverlayIds, isSliceSkipExceptOverlayCheck)
+            val launchContext = LaunchContext(
+                device = device,
+                exceptOverlayIds = deployHistoryManager.lastDeployOverlayIds,
+                isSkipExceptOverlayCheck = isSliceSkipExceptOverlayCheck,
+                compileUiHandler = compileUiHandler,
+            )
             val task = JuggDeployTask(project, installPathProvider, androidDeployType, splitData)
             launchResult = task.run(launchContext)
             if (!launchResult.success) {
@@ -246,7 +257,7 @@ class JuggDeployerHelper(
                     logger.info("Installing APK...\n${apkFiles.joinToString("\n")}")
                 }
                 deployData = JuggDeployData.forInstall(apks)
-                val launchResult = runTask(deployOptions.device, deployData)
+                val launchResult = runTask(deployOptions.device, deployData, compileUiHandler = deployOptions.compileUiHandler)
                 if (deployOptions.isLastDevice) {
                     logger.debug("Installing finished, update info after install.")
                     deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
@@ -293,6 +304,7 @@ class JuggDeployerHelper(
                             isNeedTryDeyDeployFirst = !isNeedReinstallApk,
                             isInstallUpdateApk = isNeedReinstallApk,
                             isSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck,
+                            compileUiHandler = deployOptions.compileUiHandler,
                         )
                         if (!isSuccess) {
                             logger.info("Try recover deploy state failed.")
@@ -325,7 +337,7 @@ class JuggDeployerHelper(
                     logger.info("It's first time to push overlays(full push), it may takes more times to resolved.")
                 }
                 val finalIsSkipExceptOverlayCheck = deployOptions.isSkipExceptOverlayCheck || isRecoverWithReinstall
-                val launchResult = runTask(device, deployData, finalIsSkipExceptOverlayCheck)
+                val launchResult = runTask(device, deployData, finalIsSkipExceptOverlayCheck, compileUiHandler = deployOptions.compileUiHandler)
 
                 if (deployOptions.isLastDevice) {
                     logger.debug("Deploying finished, update info after deploy.")
@@ -411,7 +423,7 @@ class JuggDeployerHelper(
         }
 
         val deployData = JuggDeployData.forInstall(apks)
-        val launchResult = runTask(deployOptions.device, deployData)
+        val launchResult = runTask(deployOptions.device, deployData, compileUiHandler = deployOptions.compileUiHandler)
         if (deployOptions.isLastDevice) {
             logger.debug("Installing finished, update info after install.")
             deployHistoryManager.lastDeployOverlayIds = launchResult.overlayIds
@@ -529,7 +541,13 @@ class JuggDeployerHelper(
                 }
             }
             if (!isRetryDirectly) {
-                val (isSuccess, _) = recoverDeployState(deployOptions.device, deployOptions.indicator, isNeedTryDeyDeployFirst, deployOptions.isSkipExceptOverlayCheck)
+                val (isSuccess, _) = recoverDeployState(
+                    deployOptions.device,
+                    deployOptions.indicator,
+                    isNeedTryDeyDeployFirst,
+                    deployOptions.isSkipExceptOverlayCheck,
+                    compileUiHandler = deployOptions.compileUiHandler,
+                )
                 if (!isSuccess) {
                     logger.info("Try recover deploy state failed on retry.")
                     return DeployTaskResult(isSuccess = false, costTime = System.currentTimeMillis() - deployOptions.startTime,
@@ -603,6 +621,7 @@ class JuggDeployerHelper(
         isNeedTryDeyDeployFirst: Boolean,
         isSkipExceptOverlayCheck: Boolean,
         isInstallUpdateApk: Boolean = false,
+        compileUiHandler: CompileUiHandler,
     ): Pair<Boolean, Boolean> {
         if (!isInstallUpdateApk) {
             logger.info("App not ready to deploy, recover deploy state from history.")
@@ -623,7 +642,7 @@ class JuggDeployerHelper(
 
         // dry deploy first, if success, no need to reinstall and recover
         if (isNeedTryDeyDeployFirst && !isCleanAndReinstall) {
-            val isSuccess = tryDryDeploy(device, isSkipExceptOverlayCheck)
+            val isSuccess = tryDryDeploy(device, isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
             if (isSuccess) {
                 logger.info("Deploy state matched, no need reinstall app.")
                 return true to false
@@ -647,7 +666,7 @@ class JuggDeployerHelper(
         logger.debug("going to install apks: ${deployData.apks.flatMap { it.files }.map { it.apkFile }}")
 
         val costTime = measureTimeMillis {
-            runTask(device, deployData)
+            runTask(device, deployData, compileUiHandler = compileUiHandler)
         }
         logger.info("Reinstalling app finished, cost ${costTime}ms.")
 
@@ -666,7 +685,11 @@ class JuggDeployerHelper(
     /**
      * @return isSuccess
      */
-    private fun tryDryDeploy(device: IDevice, isSkipExceptOverlayCheck: Boolean): Boolean {
+    private fun tryDryDeploy(
+        device: IDevice,
+        isSkipExceptOverlayCheck: Boolean,
+        compileUiHandler: CompileUiHandler,
+    ): Boolean {
         logger.info("Start app and waiting app deployable.")
         if (!deployTargetManager.restartApp(device)) {
             logger.debug("Try start app failed")
@@ -682,7 +705,7 @@ class JuggDeployerHelper(
         logger.info("Device online, try dry deploy.")
         return try {
             val dryDeployData = JuggDeployData.forDryDeploy(deployTargetManager.getApks())
-            runTask(device, dryDeployData, isSkipExceptOverlayCheck = isSkipExceptOverlayCheck)
+            runTask(device, dryDeployData, isSkipExceptOverlayCheck = isSkipExceptOverlayCheck, compileUiHandler = compileUiHandler)
             true
         } catch (e: Exception) {
             val reason = e.message ?: e.cause?.message ?: "null"

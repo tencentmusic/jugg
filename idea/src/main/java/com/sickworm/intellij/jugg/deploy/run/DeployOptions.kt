@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.run
 
 import com.android.ddmlib.IDevice
 import com.intellij.openapi.progress.ProgressIndicator
+import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
 
 data class DeployOptions(
@@ -11,6 +12,7 @@ data class DeployOptions(
     val indicator: ProgressIndicator? = null,
     val isInstall: Boolean = false,
     val isWarmUp: Boolean = false,
+    val compileUiHandler: CompileUiHandler = CompileUiHandler.DEFAULT,
     val retryReason: String? = null,
     val isSkipExceptOverlayCheck: Boolean = false,
     val retryDeployData: JuggDeployData? = null,

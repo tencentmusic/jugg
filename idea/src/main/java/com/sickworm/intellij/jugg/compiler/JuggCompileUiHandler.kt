@@ -81,6 +81,21 @@ open class JuggCompileUiHandler(
         JuggRunningTask.notifyByBalloon(project, text)
     }
 
+    override fun shouldAutoConfirmDeployPrompt(message: String): Boolean {
+        if (isRpcMode) {
+            logger.warn("The device already has an application with the same package but a different signature.")
+            logger.warn("Uninstall and reinstall directly for in MCP mode.")
+            return true
+        }
+        return false
+    }
+
+    override fun onDeployUiMessage(message: String) {
+        if (isRpcMode) {
+            logger.debug("MCP deploy ui message: $message")
+        }
+    }
+
     override fun cancel() {
         return processHandler.detachProcess()
     }
