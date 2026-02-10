@@ -43,18 +43,19 @@ When compile/deploy fails, use this sequence:
 
 Agent decision flow for automatic downgrade:
 
-1. `compile_and_deploy` fails -> try `force_gradle_compile`
-2. `force_gradle_compile` succeeds -> retry `compile_and_deploy`
-3. Still fails -> try `clean_reinstall_apk`
-4. `clean_reinstall_apk` fails -> stop and report to user with full diagnosis
+1. `compile_and_deploy` fails -> retry `compile_and_deploy` (up to 3 consecutive attempts)
+2. If all 3 attempts fail -> try `force_gradle_compile` (heavy fallback)
+3. `force_gradle_compile` succeeds -> retry `compile_and_deploy`
+4. Still fails -> try `clean_reinstall_apk`
+5. `clean_reinstall_apk` fails -> stop and report to user with full diagnosis
 
-Avoid unbounded retry loops. Each downgrade step is attempted once.
+Avoid unbounded retry loops. `force_gradle_compile` is allowed only after 3 consecutive `compile_and_deploy` failures.
 
 ## Failure Handling
 
 - `MCP_PROJECT_NOT_INITIALIZED`: ensure IDE project is opened and Jugg initialized.
 - `MCP_NO_DEVICE`: connect device/emulator, re-check `device_list`.
-- `MCP_INTERNAL_ERROR` during incremental path: try `force_gradle_compile`, then `clean_reinstall_apk`.
+- `MCP_INTERNAL_ERROR` during incremental path: retry `compile_and_deploy` up to 3 times, then try `force_gradle_compile`, then `clean_reinstall_apk`.
 - `MCP_INVALID_PARAMS`: verify tool arguments against schema and retry.
 
 ## Agent Response Template

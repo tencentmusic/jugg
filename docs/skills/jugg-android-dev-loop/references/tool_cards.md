@@ -31,7 +31,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - When to use: no device connected, or only need to verify compilation passes.
 - Success output: `status="OK"`, optional build artifact info.
 - On failure: parse `message` and `data` for root cause; classify (`SOURCE_ERROR`, `RESOURCE_MERGE`, `MANIFEST_MERGE`, `MCP_INTERNAL_ERROR`).
-- Fallback: `force_gradle_compile` -> retry `compile_only`.
+- Fallback: retry `compile_only` up to 3 times first; only then use `force_gradle_compile` -> retry `compile_only`.
 
 ## `compile_and_deploy`
 
@@ -40,7 +40,11 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - When to use: normal development — code changes must take effect on device.
 - Success output: `status="OK"`.
 - On failure: classify (`SOURCE_ERROR`, `INSTALL_CONFLICT`, `SIGNATURE_MISMATCH`, `MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`).
-- Fallback: `clean_reinstall_apk` when policy allows.
+- Fallback order:
+  1) retry `compile_and_deploy` up to 3 consecutive attempts,
+  2) then `force_gradle_compile` (heavy fallback),
+  3) retry `compile_and_deploy`,
+  4) then `clean_reinstall_apk` when policy allows.
 
 ## `clean_reinstall_apk`
 
@@ -53,9 +57,11 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 ## `force_gradle_compile`
 
 - Purpose: Gradle fallback compile when Jugg incremental build repeatedly fails.
+- Cost note: very heavy operation; can be 100x+ slower than `compile_and_deploy`.
 - Required input: `projectDir`.
 - Success output: `status="OK"`, `data.triggered=true`.
 - On failure: stop and report; do not retry `force_gradle_compile` itself.
+- Usage rule: only invoke after 3 consecutive `compile_and_deploy` failures.
 
 ## `app_start`
 
@@ -116,3 +122,17 @@ Each MCP tool returns `structuredContent` with these fields:
 - `data`: structured payload for next decision (tool-specific)
 - `artifacts`: array of `{type, path}` objects (absolute paths)
 - `errorCode`: stable error code string or `null` on success
+
+## `layout_dump` Practical Notes
+
+- If XML is a single line, use `rg "<text>|resource-id|bounds" <dump.xml>` to locate target node quickly.
+- Prefer locating target with `resource-id` first, then `text`, then `bounds` center for `tap`.
+- After any XML edit, do not trust patch success alone; require `layout_dump` node presence before recording.
+
+## `record` Compact Guidance
+
+- Default: skip `record`; use `screenshot + layout_dump` for static end-state checks.
+- Prefer `record` for time-based behavior: animation, navigation, async changes, transient UI, multi-step flows.
+- Must `record` when user explicitly asks for video evidence.
+- Heuristic: prove **how** -> record; prove **what** -> optional.
+- Anti-static minimum: start page confirmed, one valid tap in-record, short capture (`5~8s`), post-record screenshot.

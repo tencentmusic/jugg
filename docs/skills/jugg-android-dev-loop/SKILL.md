@@ -51,7 +51,7 @@ If no device is online:
 
 - **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to device.
 - **Compile-only path**: `compile_only` with `projectDir` — when no device is available or you only need to verify compilation.
-- **Strong fallback**: `force_gradle_compile` with `projectDir` when incremental compile or deploy state is corrupted by Jugg.
+- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries.
 
 ### Step 4: Runtime Actions
 
@@ -82,13 +82,15 @@ After task verification is complete:
 - Never claim success without artifact evidence.
 - For `start_emulator`, never treat unit-test pass as runtime success; require runtime evidence (`adb devices` online or `device_list` online device).
 - Never reuse stale final artifacts: `build/mcp_fetch/final` must be emptied before copy.
+- `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures.
 
 ## Decision Rules
 
 - Prefer `compile_and_deploy` for normal iteration (compiles then deploys).
 - Use `compile_only` when no device is connected or only compilation check is needed.
 - Switch to `clean_reinstall_apk` when incremental deploy state is corrupted or signatures mismatch.
-- If `compile_and_deploy` fails, Agent tries `force_gradle_compile` -> retry `compile_and_deploy` -> `clean_reinstall_apk`.
+- If `compile_and_deploy` fails, retry `compile_and_deploy` up to 3 times first.
+- Only after 3 consecutive failures, Agent may try `force_gradle_compile` -> retry `compile_and_deploy` -> `clean_reinstall_apk`.
 - Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): attempt first-local-emulator startup once, then ask user if none is available or startup fails.
 - Strongly prefer MCP-only execution and avoid raw adb in normal flow.
 
@@ -135,7 +137,8 @@ When compile/deploy fails, follow this strict order:
 1. **Parse error first**: read `structuredContent.message`, `structuredContent.data`, and `structuredContent.errorCode` for root-cause clues.
 2. **Try deterministic diagnosis**: match against known error patterns in `references/error_patterns.md`.
 3. **Use auto downgrade when applicable**:
-   - `compile_and_deploy` fails -> `force_gradle_compile` -> retry
+   - `compile_and_deploy` fails -> retry `compile_and_deploy` (up to 3 consecutive attempts)
+   - still failing after 3 retries -> `force_gradle_compile` -> retry `compile_and_deploy`
    - Still fails -> `clean_reinstall_apk`
    - `clean_reinstall_apk` fails -> stop and report
 4. **Stop and confirm with user** when root cause is still unclear.

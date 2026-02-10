@@ -161,3 +161,31 @@ When using a pattern, always include in response:
 - `auto_applied`
 - `retry_count`
 - `result`
+
+## Session Notes
+
+```yaml
+- id: xml_regex_patch_miss
+  stage: compile
+  signature:
+    includes: ["patch success", "expected view id not found", "layout_dump missing node"]
+  diagnosis: regex/text-replace patch reported success but did not land intended XML node
+  fix_strategy: rewrite_target_xml_and_verify_node
+  fix_scope: low
+  confidence_hint: 0.89
+  auto_apply: true
+  next_action_on_success: compile_and_deploy_then_layout_dump_verify
+  next_action_on_failure: ask_user_for_layout_structure_decision
+
+- id: layout_dump_single_line
+  stage: observe
+  signature:
+    includes: ["layout_dump executed successfully", "xml one line", "bounds="]
+  diagnosis: layout dump may be emitted as a single-line XML, hard to read manually
+  fix_strategy: grep_by_text_or_resource_id_then_extract_bounds
+  fix_scope: low
+  confidence_hint: 0.95
+  auto_apply: true
+  next_action_on_success: tap_with_center_point_then_screenshot
+  next_action_on_failure: fallback_to_manual_screenshot_and_user_confirm
+```

@@ -13,16 +13,17 @@ PORT=""
 
 usage() {
   cat <<USAGE
-用法:
+Usage:
   tools/mcp_smoke.sh --project-dir <abs_path> [--serial <device_serial>] [--port <mcp_port>]
 
-示例:
+Examples:
   tools/mcp_smoke.sh --project-dir /Users/me/workspace/jugg_f1
   tools/mcp_smoke.sh --project-dir /Users/me/workspace/jugg_f1 --serial emulator-5554
   tools/mcp_smoke.sh --project-dir /Users/me/workspace/jugg_f1 --port 12320
 
-说明:
-  - 需要 IDE 内 Jugg 已初始化该 projectDir（MCP server 生命周期跟随 JuggInitializer）。
+Notes:
+  - Jugg must already be initialized for this projectDir in IDE (MCP server lifecycle follows JuggInitializer).
+  - If --project-dir is not provided, read from env var jugg_project_dir.
   - MCP endpoint: http://localhost:<port>/mcp
 USAGE
 }
@@ -46,7 +47,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "未知参数: $1" >&2
+      echo "Unknown argument: $1" >&2
       usage
       exit 1
       ;;
@@ -54,13 +55,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$PROJECT_DIR" ]]; then
-  echo "错误: --project-dir 必填" >&2
+  PROJECT_DIR="$(printenv 'jugg_project_dir' || true)"
+fi
+
+if [[ -z "$PROJECT_DIR" ]]; then
+  echo "Error: --project-dir is required (or set env var jugg_project_dir)" >&2
   usage
   exit 1
 fi
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
-  echo "错误: projectDir 不存在: $PROJECT_DIR" >&2
+  echo "Error: projectDir does not exist: $PROJECT_DIR" >&2
   exit 1
 fi
 
@@ -87,14 +92,14 @@ probe_port() {
 
 if [[ -z "$PORT" ]]; then
   if ! PORT="$(probe_port)"; then
-    echo "错误: 未探测到 MCP 端口（12320..12329）。请确认 IDE 已启动且 Jugg 已初始化项目。" >&2
+    echo "Error: MCP port not found in 12320..12329. Ensure IDE is running and Jugg has initialized the project." >&2
     exit 1
   fi
 fi
 
 BASE_URL="http://localhost:${PORT}/mcp"
 
-echo "[mcp-smoke] 使用端点: $BASE_URL"
+echo "[mcp-smoke] endpoint: $BASE_URL"
 echo "[mcp-smoke] projectDir: $PROJECT_DIR"
 if [[ -n "$SERIAL" ]]; then
   echo "[mcp-smoke] serial: $SERIAL"
@@ -132,4 +137,4 @@ post_json "$BASE_URL" "$RESTART_PAYLOAD"
 
 echo
 echo
-echo "[mcp-smoke] 完成"
+echo "[mcp-smoke] done"

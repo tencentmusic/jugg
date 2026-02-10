@@ -121,3 +121,11 @@ Artifacts:
   - layout_dump: /Users/dev/MyApp/build/jugg/mcp_fetch/layout_dump/layout_emulator-5554_1707500001000.xml
   - screenshot: /Users/dev/MyApp/build/jugg/mcp_fetch/screenshot/screenshot_emulator-5554_1707500002000.png
 ```
+
+## Record Decision Checklist
+
+- Static end-state validation: prefer `screenshot + layout_dump`; skip recording by default.
+- Time-based behavior validation (animation/navigation/async/transient UI/multi-step flow): recording is recommended.
+- User explicitly asks for video: recording is required.
+- Quick rule: prove process (**how**) -> record; prove final state (**what**) -> recording optional.
+- Minimal recording template: return to start page -> locate target -> `record(5~8s, preTapDelaySec=1~2, tapRepeat=1)` -> post-record screenshot.

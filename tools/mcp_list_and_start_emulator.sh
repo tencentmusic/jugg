@@ -15,18 +15,19 @@ WAIT_SEC="45"
 
 usage() {
   cat <<USAGE
-用法:
+Usage:
   tools/mcp_list_and_start_emulator.sh --project-dir <abs_path> [--avd-name <name>] [--wait-sec <0..300>] [--port <mcp_port>]
 
-示例:
+Examples:
   tools/mcp_list_and_start_emulator.sh --project-dir /Users/me/workspace/jugg_f1
   tools/mcp_list_and_start_emulator.sh --project-dir /Users/me/workspace/jugg_f1 --avd-name Pixel_8_API_35
   tools/mcp_list_and_start_emulator.sh --project-dir /Users/me/workspace/jugg_f1 --wait-sec 90
 
-说明:
-  - 需要 IDE 内 Jugg 已初始化该 projectDir。
+Notes:
+  - Jugg must already be initialized for this projectDir in IDE.
+  - If --project-dir is not provided, read from env var jugg_project_dir.
   - endpoint: http://localhost:<port>/mcp
-  - 未传 --avd-name 时，交由 MCP start_emulator 默认策略（通常选择第一条 AVD）。
+  - If --avd-name is omitted, start_emulator default strategy is used (usually first AVD).
 USAGE
 }
 
@@ -53,7 +54,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "未知参数: $1" >&2
+      echo "Unknown argument: $1" >&2
       usage
       exit 1
       ;;
@@ -61,23 +62,27 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$PROJECT_DIR" ]]; then
-  echo "错误: --project-dir 必填" >&2
+  PROJECT_DIR="$(printenv 'jugg_project_dir' || true)"
+fi
+
+if [[ -z "$PROJECT_DIR" ]]; then
+  echo "Error: --project-dir is required (or set env var jugg_project_dir)" >&2
   usage
   exit 1
 fi
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
-  echo "错误: projectDir 不存在: $PROJECT_DIR" >&2
+  echo "Error: projectDir does not exist: $PROJECT_DIR" >&2
   exit 1
 fi
 
 if ! [[ "$WAIT_SEC" =~ ^[0-9]+$ ]]; then
-  echo "错误: --wait-sec 必须是整数" >&2
+  echo "Error: --wait-sec must be an integer" >&2
   exit 1
 fi
 
 if (( WAIT_SEC < 0 || WAIT_SEC > 300 )); then
-  echo "错误: --wait-sec 取值范围必须是 0..300" >&2
+  echo "Error: --wait-sec must be in range 0..300" >&2
   exit 1
 fi
 
@@ -109,14 +114,14 @@ probe_port() {
 
 if [[ -z "$PORT" ]]; then
   if ! PORT="$(probe_port)"; then
-    echo "错误: 未探测到 MCP 端口（12320..12329）。请确认 IDE 已启动且 Jugg 已初始化项目。" >&2
+    echo "Error: MCP port not found in 12320..12329. Ensure IDE is running and Jugg has initialized the project." >&2
     exit 1
   fi
 fi
 
 BASE_URL="http://localhost:${PORT}/mcp"
 
-echo "[mcp-start-emulator] 使用端点: $BASE_URL"
+echo "[mcp-start-emulator] endpoint: $BASE_URL"
 echo "[mcp-start-emulator] projectDir: $PROJECT_DIR"
 if [[ -n "$AVD_NAME" ]]; then
   echo "[mcp-start-emulator] avdName: $AVD_NAME"
@@ -161,5 +166,4 @@ post_json "$BASE_URL" "$START_PAYLOAD"
 
 echo
 echo
-echo "[mcp-start-emulator] 完成"
-
+echo "[mcp-start-emulator] done"
