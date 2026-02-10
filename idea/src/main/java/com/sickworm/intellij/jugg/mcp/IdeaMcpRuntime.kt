@@ -587,8 +587,9 @@ class IdeaMcpRuntime(
         return when {
             activity.isNullOrBlank() -> ".MainActivity"
             activity.startsWith(".") -> activity
-            activity.startsWith(resolvedPackageName) -> activity.removePrefix(resolvedPackageName)
-            else -> ".${activity.substringAfterLast('.')}"
+            activity.startsWith("$resolvedPackageName.") -> activity.removePrefix(resolvedPackageName)
+            activity.contains(".") -> activity
+            else -> ".$activity"
         }
     }
 
