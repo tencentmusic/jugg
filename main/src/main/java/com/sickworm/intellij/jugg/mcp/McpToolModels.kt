@@ -34,11 +34,6 @@ data class McpJsonSchemaProperty(
     val additionalProperties: Boolean? = null,
 )
 
-data class McpToolCallParams(
-    val name: String,
-    val arguments: Map<String, Any?> = emptyMap(),
-)
-
 data class McpArtifact(
     val type: String,
     val path: String,
@@ -50,7 +45,20 @@ data class McpToolResult(
     val data: Any? = emptyMap<String, Any>(),
     val artifacts: List<McpArtifact> = emptyList(),
     val errorCode: String? = null,
-)
+) {
+
+    companion object {
+        fun internalErrorResult(toolName: String, reason: String): McpToolResult {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "$toolName failed. Reason: $reason.",
+                data = emptyMap<String, Any>(),
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+            )
+        }
+    }
+}
 
 data class McpToolCallResult(
     val content: List<McpContentItem>,

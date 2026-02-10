@@ -52,4 +52,7 @@ interface IPlatformApi {
 
     fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse
 
+    fun getInitializedProjectDirs(): List<File>
+
+    fun executeGradleCompile(autoConfirm: Boolean = false, useCleanAndReinstall: Boolean = false)
 }

@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.deploy.run.*
 import com.sickworm.intellij.jugg.gradle.compile.BaseBuildCommandHelper
 import com.sickworm.intellij.jugg.ide.*
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.ide.logic.*
 import com.sickworm.intellij.jugg.ide.ui.CheckUpdateHandler
@@ -72,16 +73,17 @@ class JuggManager @TestOnly constructor(
     private val juggCompilerHelper: JuggCompilerHelper = JuggCompilerHelper(project, pathManager, juggServer, deployTargetManager, deployStateManager, deployFileManager, deployHistoryManager, juggRunningTaskStatusManager, compileContextManager, fileChangesHandler, dependencyChangeManager, gradleProjectInfoLocalFetchManager),
     private val customConfigManager: CustomConfigManager = CustomConfigManager(pathManager.configDir, JuggLogger.getInstance(project, "CustomConfigManager")),
     private val ideSyncProblemResolver: IdeSyncProblemResolver = IdeSyncProblemResolver(project),
-    private val mcpInvoker: McpInvoker = McpInvoker(pathManager.projectDir.absolutePath),
     ): IJuggManagerCaller, Disposable, CoroutineScope by coroutineScope {
 
-    private val juggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
+    private val juggConfigurationRunner: IJuggConfigurationRunner = JuggConfigurationRunner(project, pathManager,
         deployHistoryManager, juggRunningTaskStatusManager,
         JuggRunningTaskCreator(), gitFileChangesDetector,
         logger)
-    private val forceGradleCompileHelper = ForceGradleCompileHelper(project, juggConfigurationRunner,
+    private val forceGradleCompileHelper: ForceGradleCompileHelper = IdeaForceGradleCompileHelper(project, juggConfigurationRunner,
         deployFileManager, taskRunnerManager,
         compileContextManager, logger)
+    private val mcpInvoker: McpInvoker = McpInvoker(pathManager.projectDir.absolutePath,
+        IdeaMcpRuntime(project, deployTargetManager, forceGradleCompileHelper, juggConfigurationRunner))
 
     constructor(
         project2: Project,
@@ -366,7 +368,7 @@ class JuggManager @TestOnly constructor(
             options.toCompileOptions(pathManager),
             logger
         )
-        return juggConfigurationRunner.runTask(options, compileUiHandler)
+        return juggConfigurationRunner.runTask(options.toCompileOptions(pathManager), compileUiHandler)
     }
 
     @TestOnly
@@ -518,7 +520,6 @@ class JuggManager @TestOnly constructor(
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
-        McpRuntimeHolder.runtime = IdeaMcpRuntime(project, deployTargetManager, forceGradleCompileHelper, juggConfigurationRunner)
         return mcpInvoker.invokeMcp(request)
     }
 
@@ -589,10 +590,9 @@ class JuggManager @TestOnly constructor(
 
     private inner class JuggRunningTaskCreator : IJuggRunningTaskCreator {
         override fun create(
-            options: JuggRunConfigurationOptions,
+            options: JuggGradleCompileOptions,
             compileUiHandler: CompileUiHandler
         ): JuggRunningTask {
-            val options = options.toCompileOptions(pathManager)
             logger.debug("Create running task: ${options.toSafeString()}")
 
             val startCompileTime = System.currentTimeMillis()

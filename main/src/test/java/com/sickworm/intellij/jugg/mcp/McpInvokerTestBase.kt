@@ -9,6 +9,20 @@ abstract class McpInvokerTestBase {
     @Before
     fun setUpRuntime() {
         McpRuntimeHolder.runtime = object : IMcpRuntime {
+            override fun listProjects(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "list_projects executed successfully.",
+                    data = mapOf(
+                        "projects" to listOf(
+                            McpProjectInfo(projectDir = "/tmp/projectA", initialized = true)
+                        )
+                    ),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
             override fun restartApp(serial: String?): McpToolResult {
                 return when (serial) {
                     null -> McpToolResult(

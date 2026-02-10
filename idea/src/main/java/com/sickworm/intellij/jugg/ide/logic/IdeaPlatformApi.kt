@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.deploy.run.IdeVersion
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.ui.UserAndPasswordInputDialog
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
+import com.sickworm.intellij.jugg.loader.JuggInitializer
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
@@ -21,6 +22,7 @@ import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.dependency.DependencyChangeDialogHelper
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import com.sickworm.intellij.jugg.mcp.IdeaMcpRuntime
+import java.io.File
 
 class IdeaPlatformApi : IPlatformApi {
 
@@ -135,4 +137,11 @@ class IdeaPlatformApi : IPlatformApi {
         return IdeaMcpRuntime.invokeMcp(request)
     }
 
+    override fun getInitializedProjectDirs(): List<File> {
+        return JuggInitializer.getInitializedProjectDirs().map { File(it) }
+    }
+
+    override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
+
+    }
 }

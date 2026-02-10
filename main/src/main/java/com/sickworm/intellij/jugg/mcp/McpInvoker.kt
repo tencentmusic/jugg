@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger
 
 class McpInvoker(
     currentProjectDir: String,
+    private val runtime: IMcpRuntime,
     private val toolRegistry: McpToolRegistry = McpToolRegistry(),
     private val resultMapper: McpResultMapper = McpResultMapper(),
 ) {
@@ -66,131 +67,15 @@ class McpInvoker(
 
     private fun handleToolsCall(id: Any?, request: McpValidationResult.ToolsCall): McpJsonRpcResponse {
         logger.debug("[MCP][INVOKER] tools/call name=${request.toolName}, projectDir=${request.projectDir}")
-        val runtime = McpRuntimeHolder.runtime
+        val action = toolRegistry.getAction(request.toolName)
             ?: return resultMapper.toolError(
                 id = id,
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-                message = "MCP runtime is not initialized.",
+                errorCode = McpErrorCode.MCP_TOOL_NOT_FOUND,
+                message = "Tool not found: ${request.toolName}",
             )
 
-        val toolResult = when (request.toolName) {
-            "restart_app" -> {
-                logger.debug("[MCP][INVOKER] handling restart_app")
-                runtime.restartApp(request.arguments["serial"] as? String)
-            }
-            "emulator_list" -> {
-                logger.debug("[MCP][INVOKER] handling emulator_list")
-                runtime.emulatorList()
-            }
-            "start_emulator" -> {
-                logger.debug("[MCP][INVOKER] handling start_emulator")
-                val waitForDeviceSec = (request.arguments["waitForDeviceSec"] as? Number)?.toInt()
-                runtime.startEmulator(
-                    avdName = request.arguments["avdName"] as? String,
-                    waitForDeviceSec = waitForDeviceSec,
-                )
-            }
-            "compile_only" -> {
-                logger.debug("[MCP][INVOKER] handling compile_only")
-                runtime.compile()
-            }
-            "compile_and_deploy" -> {
-                logger.debug("[MCP][INVOKER] handling compile_and_deploy")
-                runtime.deploy()
-            }
-            "clean_reinstall_apk" -> {
-                logger.debug("[MCP][INVOKER] handling clean_reinstall_apk")
-                runtime.cleanReinstall()
-            }
-            "force_gradle_compile" -> {
-                logger.debug("[MCP][INVOKER] handling force_gradle_compile")
-                runtime.forceGradleCompile()
-            }
-            "device_list" -> {
-                logger.debug("[MCP][INVOKER] handling device_list")
-                runtime.deviceList()
-            }
-            "screenshot" -> {
-                logger.debug("[MCP][INVOKER] handling screenshot")
-                runtime.screenshot(request.arguments["serial"] as? String)
-            }
-            "record" -> {
-                logger.debug("[MCP][INVOKER] handling record")
-                val durationSec = (request.arguments["durationSec"] as? Number)?.toInt()
-                val tapX = (request.arguments["tapX"] as? Number)?.toInt()
-                val tapY = (request.arguments["tapY"] as? Number)?.toInt()
-                val tapRepeat = (request.arguments["tapRepeat"] as? Number)?.toInt()
-                val preTapDelaySec = (request.arguments["preTapDelaySec"] as? Number)?.toDouble()
-                val tapIntervalSec = (request.arguments["tapIntervalSec"] as? Number)?.toDouble()
-                val recordStartDelaySec = (request.arguments["recordStartDelaySec"] as? Number)?.toDouble()
-                runtime.record(
-                    serial = request.arguments["serial"] as? String,
-                    durationSec = durationSec,
-                    packageName = request.arguments["packageName"] as? String,
-                    activity = request.arguments["activity"] as? String,
-                    tapX = tapX,
-                    tapY = tapY,
-                    preTapDelaySec = preTapDelaySec,
-                    tapRepeat = tapRepeat,
-                    tapIntervalSec = tapIntervalSec,
-                    recordStartDelaySec = recordStartDelaySec,
-                )
-            }
-            "layout_dump" -> {
-                logger.debug("[MCP][INVOKER] handling layout_dump")
-                runtime.layoutDump(request.arguments["serial"] as? String)
-            }
-            "start_app" -> {
-                logger.debug("[MCP][INVOKER] handling start_app")
-                runtime.startApp(
-                    serial = request.arguments["serial"] as? String,
-                    packageName = request.arguments["packageName"] as? String,
-                )
-            }
-            "start_activity" -> {
-                logger.debug("[MCP][INVOKER] handling start_activity")
-                @Suppress("UNCHECKED_CAST")
-                val categories = request.arguments["categories"] as? List<String>
-                @Suppress("UNCHECKED_CAST")
-                val flags = (request.arguments["flags"] as? List<*>)?.mapNotNull { it?.toString() }
-                @Suppress("UNCHECKED_CAST")
-                val extras = request.arguments["extras"] as? Map<String, Any?>
-                val user = (request.arguments["user"] as? Number)?.toInt()
-                runtime.startActivity(
-                    serial = request.arguments["serial"] as? String,
-                    packageName = request.arguments["packageName"] as? String,
-                    activity = request.arguments["activity"] as? String,
-                    action = request.arguments["action"] as? String,
-                    categories = categories,
-                    data = request.arguments["data"] as? String,
-                    mimeType = request.arguments["mimeType"] as? String,
-                    flags = flags,
-                    extras = extras,
-                    user = user,
-                )
-            }
-            "tap" -> {
-                logger.debug("[MCP][INVOKER] handling tap")
-                val x = (request.arguments["x"] as? Number)?.toInt()
-                val y = (request.arguments["y"] as? Number)?.toInt()
-                runtime.tap(
-                    serial = request.arguments["serial"] as? String,
-                    x = x,
-                    y = y,
-                )
-            }
-            else -> McpToolResult(
-                status = McpToolStatus.OK,
-                message = "${request.toolName} executed successfully.",
-                data = mapOf(
-                    "tool" to request.toolName,
-                    "projectDir" to request.projectDir,
-                    "arguments" to request.arguments,
-                ),
-                artifacts = emptyList(),
-                errorCode = null,
-            )
-        }
+        logger.debug("[MCP][INVOKER] handling ${action.toolName}")
+        val toolResult = action.execute(request.arguments, runtime)
 
         return if (toolResult.status == McpToolStatus.ERROR) {
             resultMapper.toolError(
@@ -205,6 +90,6 @@ class McpInvoker(
     }
 
     companion object {
-        val globalMcpInvoker = McpInvoker("")
+        val globalMcpInvoker = McpInvoker("", DumbMcpRuntime)
     }
 }

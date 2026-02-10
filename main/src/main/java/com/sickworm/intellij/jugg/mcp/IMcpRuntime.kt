@@ -1,45 +1,25 @@
 package com.sickworm.intellij.jugg.mcp
 
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
+
 interface IMcpRuntime {
-    fun restartApp(serial: String?): McpToolResult
-    fun emulatorList(): McpToolResult
-    fun startEmulator(avdName: String?, waitForDeviceSec: Int?): McpToolResult
-    fun compile(): McpToolResult
-    fun deploy(): McpToolResult
-    fun cleanReinstall(): McpToolResult
-    fun forceGradleCompile(): McpToolResult
-    fun deviceList(): McpToolResult
-    fun screenshot(serial: String?): McpToolResult
-    fun record(
-        serial: String?,
-        durationSec: Int?,
-        packageName: String?,
-        activity: String?,
-        tapX: Int?,
-        tapY: Int?,
-        preTapDelaySec: Double?,
-        tapRepeat: Int?,
-        tapIntervalSec: Double?,
-        recordStartDelaySec: Double?,
-    ): McpToolResult
-    fun layoutDump(serial: String?): McpToolResult
-    fun startApp(serial: String?, packageName: String?): McpToolResult
-    fun startActivity(
-        serial: String?,
-        packageName: String?,
-        activity: String?,
-        action: String?,
-        categories: List<String>?,
-        data: String?,
-        mimeType: String?,
-        flags: List<String>?,
-        extras: Map<String, Any?>?,
-        user: Int?,
-    ): McpToolResult
-    fun tap(serial: String?, x: Int?, y: Int?): McpToolResult
+    val project: Project
+    val deployTargetManager: IDeployTargetManager
+    val forceGradleCompileHelper: ForceGradleCompileHelper
+    val juggConfigurationRunner: IJuggConfigurationRunner
 }
 
 object McpRuntimeHolder {
     @Volatile
     var runtime: IMcpRuntime? = null
+}
+
+object DumbMcpRuntime : IMcpRuntime {
+    override val project: Project = error("Dumb MCP runtime is not initialized.")
+    override val deployTargetManager: IDeployTargetManager = error("Dumb MCP runtime is not initialized.")
+    override val forceGradleCompileHelper: ForceGradleCompileHelper = error("Dumb MCP runtime is not initialized.")
+    override val juggConfigurationRunner: IJuggConfigurationRunner = error("Dumb MCP runtime is not initialized.")
 }

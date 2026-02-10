@@ -21,6 +21,7 @@ import com.sickworm.intellij.jugg.deploy.IJuggRunningTaskStatusManager
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.IProcessHandler
+import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.ide.ui.SimpleProcessHandler
 import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.mcp.RunLogCollector
@@ -39,14 +40,14 @@ class JuggConfigurationRunner(
     private val juggRunningTaskCreator: IJuggRunningTaskCreator,
     private val gitFileChangesDetector: GitFileChangesDetector,
     private val logger: Logger,
-) {
+) : IJuggConfigurationRunner {
 
-    val isCompiling: Boolean get() = currentTask?.isRunning == true
+    override val isCompiling: Boolean get() = currentTask?.isRunning == true
 
     @Volatile
     private var currentTask: JuggRunningTask? = null
 
-    fun runTask(options: JuggRunConfigurationOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
+    override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
         if (ForceGradleCompileHelper.isCleanAndReinstallNextTime) {
             forceReInstallNextTime()
         }
@@ -83,13 +84,13 @@ class JuggConfigurationRunner(
         currentTask.cancel(onFinish)
     }
 
-    fun forceReInstallNextTime() {
+    override fun forceReInstallNextTime() {
         // clear lastDeployOverlayIds to force re-reinstall
         deployHistoryManager.isCleanAndReinstall = true
         juggRunningTaskStatusManager.resetHasRun()
     }
 
-    fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false): JuggRunInvocationResult {
+    override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
         val currentRunConfigurationList = RunManager.getInstance(project)
             .getConfigurationSettingsList(JuggConfigurationType::class.java)
         @Suppress("UNCHECKED_CAST")
@@ -132,7 +133,7 @@ class JuggConfigurationRunner(
 
         SwingUtilities.invokeLater {
             val executor = DefaultRunExecutor.getRunExecutorInstance()
-            val executionResult = runTask(state, compileUiHandler)
+            val executionResult = runTask(state.toCompileOptions(pathManager), compileUiHandler)
             val descriptor = RunContentDescriptor(
                 executionResult.executionConsole,
                 executionResult.processHandler,

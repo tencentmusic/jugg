@@ -12,7 +12,7 @@ import com.sickworm.intellij.jugg.ide.JuggConfigurationType
 import com.sickworm.intellij.jugg.ide.JuggRunConfiguration
 import com.sickworm.intellij.jugg.ide.JuggRunConfigurationOptions
 import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
-import com.sickworm.intellij.jugg.ide.logic.JuggConfigurationRunner
+import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.project.CompileContextManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
@@ -20,23 +20,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class ForceGradleCompileHelper(
+class IdeaForceGradleCompileHelper(
     private val project: Project,
-    private val juggConfigurationRunner: JuggConfigurationRunner,
+    private val juggConfigurationRunner: IJuggConfigurationRunner,
     private val deployFileManager: DeployFileManager,
     private val taskRunnerManager: TaskRunnerManager,
     private val compileContextManager: CompileContextManager,
     private val logger: Logger,
-) {
+) : ForceGradleCompileHelper() {
 
-    companion object {
-        var isForceGradleCompileNextTime = false
-        var isCleanAndReinstallNextTime = false
-    }
-
-    fun executeGradleCompile(
-        autoConfirm: Boolean = false,
-        useCleanAndReinstall: Boolean = false,
+    override fun executeGradleCompile(
+        autoConfirm: Boolean,
+        useCleanAndReinstall: Boolean,
     ) {
         val currentConfiguration = RunManager.getInstance(project).selectedConfiguration
         val isJuggConfiguration = currentConfiguration?.configuration is JuggRunConfiguration
@@ -97,7 +92,7 @@ class ForceGradleCompileHelper(
         )
         when (confirmResult) {
             ConfirmResult.POSITIVE -> {
-                isForceGradleCompileNextTime = true
+                ForceGradleCompileHelper.isForceGradleCompileNextTime = true
                 if (isJuggConfiguration) {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
                 } else {
@@ -105,7 +100,7 @@ class ForceGradleCompileHelper(
                 }
             }
             ConfirmResult.LEFT -> {
-                isCleanAndReinstallNextTime = true
+                ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
                 if (isJuggConfiguration) {
                     ProgramRunnerUtil.executeConfiguration(currentConfiguration!!, DefaultRunExecutor.getRunExecutorInstance())
                 } else {
@@ -118,7 +113,7 @@ class ForceGradleCompileHelper(
         }
     }
 
-    private fun tryRunFirstConfiguration(juggConfigurationRunner: JuggConfigurationRunner, logger: Logger) {
+    private fun tryRunFirstConfiguration(juggConfigurationRunner: IJuggConfigurationRunner, logger: Logger) {
         CoroutineScope(Dispatchers.IO).launch {
             val result = juggConfigurationRunner.runFirstConfiguration(isRpcMode = false)
             if (!result.isSuccess) {
