@@ -42,7 +42,7 @@ open class JuggCompileUiHandler(
 
     override fun confirmFallbackWhenNoFileChanges(): ConfirmResult {
         if (isRpcMode) {
-            return ConfirmResult.CANCEL
+            return ConfirmResult.NEGATIVE
         }
         return CommonConfirmDialog.showAndGetOrCancel(
             title = "Confirm Fallback to Gradle",
