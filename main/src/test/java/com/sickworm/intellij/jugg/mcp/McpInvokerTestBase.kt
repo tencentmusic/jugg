@@ -45,6 +45,45 @@ abstract class McpInvokerTestBase {
                 }
             }
 
+            override fun emulatorList(): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "emulator_list executed successfully.",
+                    data = mapOf(
+                        "avds" to listOf(
+                            mapOf("name" to "Pixel_8_API_35", "isRunning" to false),
+                            mapOf("name" to "Pixel_6_API_34", "isRunning" to true, "serial" to "emulator-5554"),
+                        )
+                    ),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            override fun startEmulator(avdName: String?, waitForDeviceSec: Int?): McpToolResult {
+                if (avdName == "missing") {
+                    return McpToolResult(
+                        status = McpToolStatus.ERROR,
+                        message = "start_emulator failed. Reason: AVD 'missing' not found.",
+                        data = emptyMap<String, Any>(),
+                        artifacts = emptyList(),
+                        errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+                    )
+                }
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "start_emulator executed successfully.",
+                    data = mapOf(
+                        "avdName" to (avdName ?: "Pixel_8_API_35"),
+                        "emulatorSerial" to "emulator-5554",
+                        "started" to true,
+                        "waitedSec" to (waitForDeviceSec ?: 0),
+                    ),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
             override fun compile(): McpToolResult {
                 return McpToolResult(
                     status = McpToolStatus.OK,

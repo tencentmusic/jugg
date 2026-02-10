@@ -2,7 +2,7 @@
 
 > 更新时间: 2026-02-08  
 > 传输协议: MCP Streamable HTTP + JSON-RPC 2.0  
-> 当前工具: `list_projects`, `restart_app`, `compile_only`, `compile_and_deploy`, `clean_reinstall_apk`, `force_gradle_compile`, `device_list`, `app_start`, `tap`, `screenshot`, `record`, `layout_dump`
+> 当前工具: `list_projects`, `restart_app`, `emulator_list`, `start_emulator`, `compile_only`, `compile_and_deploy`, `clean_reinstall_apk`, `force_gradle_compile`, `device_list`, `app_start`, `tap`, `screenshot`, `record`, `layout_dump`
 
 ---
 
@@ -84,38 +84,64 @@
 - `serial` 非法：回落 selected device。
 - 无可用设备：返回 `MCP_NO_DEVICE`。
 
-### 4.3 `compile_only`
+### 4.3 `emulator_list`
+
+- 作用：列出本机 Android SDK 下可用 AVD 列表，用于调用 `start_emulator` 前选择机型。
+- 参数：
+  - `projectDir`（必填）
+
+返回说明：
+- `data.avds[]`：AVD 列表
+  - `name`：AVD 名称
+  - `isRunning`：当前是否检测为运行中
+  - `serial`：运行中时可能返回对应 emulator serial
+
+### 4.4 `start_emulator`
+
+- 作用：启动 Android Emulator（AVD 虚拟机），用于无可用设备时拉起测试设备。
+- 参数：
+  - `projectDir`（必填）
+  - `avdName`（可选，缺失时默认使用 `emulator -list-avds` 第一项）
+  - `waitForDeviceSec`（可选，默认 `45`，范围 `0..300`）
+
+返回说明：
+- `data.avdName`：实际启动的 AVD 名称
+- `data.started`：是否已发起启动
+- `data.waitedSec`：等待在线设备检测的秒数
+- `data.emulatorSerial`：若在等待窗口内检测到新在线模拟器，则返回该 serial
+
+### 4.5 `compile_only`
 
 - 作用：仅执行 Jugg 增量编译，不部署到设备。用于编译检查或无设备场景。
 - 参数：
   - `projectDir`（必填）
 
-### 4.4 `compile_and_deploy`
+### 4.6 `compile_and_deploy`
 
 - 作用：先编译，成功后部署到设备。正常迭代的默认路径。
 - 参数：
   - `projectDir`（必填）
 
-### 4.5 `clean_reinstall_apk`
+### 4.7 `clean_reinstall_apk`
 
 - 作用：清除应用数据并重新安装 APK（Jugg 存储在 code_cache 中的增量部署文件会重新部署）。
 - 参数：
   - `projectDir`（必填）
 
-### 4.6 `device_list`
+### 4.8 `device_list`
 
 - 作用：返回当前 connected device 列表及 selected 标记。
 - 参数：
   - `projectDir`（必填）
 
-### 4.7 `screenshot`
+### 4.9 `screenshot`
 
 - 作用：对目标设备执行截图并回传本地产物路径。
 - 参数：
   - `projectDir`（必填）
   - `serial`（可选，缺失/非法时回落 selected device）
 
-### 4.8 `record`
+### 4.10 `record`
 
 - 作用：对目标设备录屏并回传本地产物路径。
 - 参数：
@@ -123,14 +149,14 @@
   - `serial`（可选，缺失/非法时回落 selected device）
   - `durationSec`（可选，默认 `10`，范围 `1..180`）
 
-### 4.9 `layout_dump`
+### 4.11 `layout_dump`
 
 - 作用：导出当前 UI 层级 XML 并回传本地产物路径。
 - 参数：
   - `projectDir`（必填）
   - `serial`（可选，缺失/非法时回落 selected device）
 
-### 4.10 `app_start`
+### 4.12 `app_start`
 
 - 作用：启动指定 Activity（或默认主 Activity）。
 - 参数：
@@ -139,7 +165,7 @@
   - `packageName`（可选，默认使用当前 Jugg 目标包名）
   - `activity`（可选，支持 `.MainActivity` 或全限定名）
 
-### 4.11 `tap`
+### 4.13 `tap`
 
 - 作用：在目标设备执行坐标点击。
 - 参数：
@@ -148,7 +174,7 @@
   - `x`（必填）
   - `y`（必填）
 
-### 4.12 产物目录
+### 4.14 产物目录
 
 - 所有 fetch 类型工具统一写入：`$PROJECT_DIR/build/jugg/mcp_fetch/<tool>/`
 - 当前包含子目录：`screenshot/`、`record/`、`layout_dump/`

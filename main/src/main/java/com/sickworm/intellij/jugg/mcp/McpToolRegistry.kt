@@ -96,6 +96,81 @@ class McpToolRegistry {
                 outputSchema = baseOutputSchema,
             ),
             McpToolDefinition(
+                name = "emulator_list",
+                description = "List available Android Virtual Devices (AVDs) from host Android SDK emulator. Use before start_emulator to choose a valid avdName. Side effects: none.",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to projectDirProperty,
+                    ),
+                    required = listOf("projectDir"),
+                    additionalProperties = false,
+                ),
+                outputSchema = baseOutputSchema.copy(
+                    properties = baseOutputSchema.properties + mapOf(
+                        "data" to McpJsonSchemaProperty(
+                            type = "object",
+                            properties = mapOf(
+                                "avds" to McpJsonSchemaProperty(
+                                    type = "array",
+                                    items = McpJsonSchemaProperty(
+                                        type = "object",
+                                        properties = mapOf(
+                                            "name" to McpJsonSchemaProperty(type = "string"),
+                                            "isRunning" to McpJsonSchemaProperty(type = "boolean"),
+                                            "serial" to McpJsonSchemaProperty(type = "string"),
+                                        ),
+                                        required = listOf("name", "isRunning"),
+                                        additionalProperties = false,
+                                    )
+                                )
+                            ),
+                            required = listOf("avds"),
+                            additionalProperties = false,
+                        )
+                    )
+                ),
+            ),
+            McpToolDefinition(
+                name = "start_emulator",
+                description = "Start an Android emulator (AVD) process from host environment. Use when no suitable emulator is online before deploy/verification. Avoid when a usable online device already exists. Side effects: launches emulator process on host and may change connected device list.",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to projectDirProperty,
+                        "avdName" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional AVD name. If absent, fallback to first available AVD from `emulator -list-avds`.",
+                            pattern = "^\\S.*$",
+                            examples = listOf("Pixel_8_API_35"),
+                        ),
+                        "waitForDeviceSec" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional max wait seconds for a newly booted emulator to appear as online device.",
+                            default = 45,
+                            minimum = 0.0,
+                            maximum = 300.0,
+                            examples = listOf(0, 45, 120),
+                        ),
+                    ),
+                    required = listOf("projectDir"),
+                    additionalProperties = false,
+                ),
+                outputSchema = baseOutputSchema.copy(
+                    properties = baseOutputSchema.properties + mapOf(
+                        "data" to McpJsonSchemaProperty(
+                            type = "object",
+                            properties = mapOf(
+                                "avdName" to McpJsonSchemaProperty(type = "string"),
+                                "emulatorSerial" to McpJsonSchemaProperty(type = "string"),
+                                "started" to McpJsonSchemaProperty(type = "boolean"),
+                                "waitedSec" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
+                            ),
+                            required = listOf("avdName", "started", "waitedSec"),
+                            additionalProperties = false,
+                        )
+                    )
+                ),
+            ),
+            McpToolDefinition(
                 name = "compile_only",
                 description = "Compile modified source files with Jugg incremental build without deploying to device. Use when you want to validate that code compiles successfully, or when no device is connected. Avoid when changes must take effect on device. Side effects: build only, no deploy and no app restart.",
                 inputSchema = McpJsonSchemaObject(

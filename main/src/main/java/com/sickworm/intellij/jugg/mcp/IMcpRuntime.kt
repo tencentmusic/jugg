@@ -2,6 +2,8 @@ package com.sickworm.intellij.jugg.mcp
 
 interface IMcpRuntime {
     fun restartApp(serial: String?): McpToolResult
+    fun emulatorList(): McpToolResult
+    fun startEmulator(avdName: String?, waitForDeviceSec: Int?): McpToolResult
     fun compile(): McpToolResult
     fun deploy(): McpToolResult
     fun cleanReinstall(): McpToolResult

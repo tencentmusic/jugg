@@ -6,8 +6,9 @@ set -euo pipefail
 # 1) initialize
 # 2) notifications/initialized
 # 3) tools/list
-# 4) tools/call device_list
-# 5) tools/call screenshot
+# 4) tools/call emulator_list
+# 5) tools/call device_list
+# 6) tools/call screenshot
 
 PROJECT_DIR=""
 SERIAL=""
@@ -126,24 +127,33 @@ post_json "$BASE_URL" "$TOOLS_LIST_PAYLOAD"
 
 echo
 echo
-echo "== 4) tools/call device_list =="
+echo "== 4) tools/call emulator_list =="
+EMULATOR_LIST_PAYLOAD="$(cat <<JSON
+{"jsonrpc":"2.0","id":1002,"method":"tools/call","params":{"name":"emulator_list","arguments":{"projectDir":"$PROJECT_DIR"}}}
+JSON
+)"
+post_json "$BASE_URL" "$EMULATOR_LIST_PAYLOAD"
+
+echo
+echo
+echo "== 5) tools/call device_list =="
 DEVICE_LIST_PAYLOAD="$(cat <<JSON
-{"jsonrpc":"2.0","id":1002,"method":"tools/call","params":{"name":"device_list","arguments":{"projectDir":"$PROJECT_DIR"}}}
+{"jsonrpc":"2.0","id":1003,"method":"tools/call","params":{"name":"device_list","arguments":{"projectDir":"$PROJECT_DIR"}}}
 JSON
 )"
 post_json "$BASE_URL" "$DEVICE_LIST_PAYLOAD"
 
 echo
 echo
-echo "== 5) tools/call screenshot =="
+echo "== 6) tools/call screenshot =="
 if [[ -n "$SERIAL" ]]; then
   SCREENSHOT_PAYLOAD="$(cat <<JSON
-{"jsonrpc":"2.0","id":1003,"method":"tools/call","params":{"name":"screenshot","arguments":{"projectDir":"$PROJECT_DIR","serial":"$SERIAL"}}}
+{"jsonrpc":"2.0","id":1004,"method":"tools/call","params":{"name":"screenshot","arguments":{"projectDir":"$PROJECT_DIR","serial":"$SERIAL"}}}
 JSON
 )"
 else
   SCREENSHOT_PAYLOAD="$(cat <<JSON
-{"jsonrpc":"2.0","id":1003,"method":"tools/call","params":{"name":"screenshot","arguments":{"projectDir":"$PROJECT_DIR"}}}
+{"jsonrpc":"2.0","id":1004,"method":"tools/call","params":{"name":"screenshot","arguments":{"projectDir":"$PROJECT_DIR"}}}
 JSON
 )"
 fi
@@ -152,4 +162,3 @@ post_json "$BASE_URL" "$SCREENSHOT_PAYLOAD"
 echo
 echo
 echo "[mcp-e2e] 完成"
-

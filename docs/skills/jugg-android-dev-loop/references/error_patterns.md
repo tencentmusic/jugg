@@ -114,6 +114,42 @@ Use this library to constrain auto-fix behavior.
   auto_apply: false
   next_action_on_success: redeploy_and_observe
   next_action_on_failure: ask_user_with_stack_summary
+
+- id: ide_port_drift_multi_studio
+  stage: compile
+  signature:
+    includes: ["MCP_PROJECT_NOT_INITIALIZED", "list_projects", "project not found"]
+  diagnosis: multiple Android Studio instances cause Jugg MCP to bind to a different IDE port/project context
+  fix_strategy: verify_single_target_ide_and_port_binding
+  fix_scope: low
+  confidence_hint: 0.92
+  auto_apply: false
+  next_action_on_success: rerun_list_projects_then_compile_and_deploy
+  next_action_on_failure: ask_user_to_close_extra_ide_or_switch_target
+
+- id: mcp_no_device_try_first_emulator
+  stage: deploy
+  signature:
+    includes: ["MCP_NO_DEVICE", "device_list", "devices: []"]
+  diagnosis: no online device; try booting first local AVD before asking user
+  fix_strategy: start_first_local_avd_then_retry_device_list
+  fix_scope: low
+  confidence_hint: 0.95
+  auto_apply: true
+  next_action_on_success: compile_and_deploy
+  next_action_on_failure: ask_user_to_prepare_device
+
+- id: start_emulator_mock_success_not_real_boot
+  stage: observe
+  signature:
+    includes: ["testStartEmulatorToolCallSuccess", "start_emulator executed successfully", "adb devices empty"]
+  diagnosis: unit test may use mocked IMcpRuntime and only verifies response contract, not real AVD boot
+  fix_strategy: require_runtime_evidence_after_start_emulator
+  fix_scope: low
+  confidence_hint: 0.98
+  auto_apply: true
+  next_action_on_success: continue_with_compile_and_deploy
+  next_action_on_failure: mark_as_false_positive_and_request_environment_check
 ```
 
 ## Reporting Format

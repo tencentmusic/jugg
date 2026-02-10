@@ -78,6 +78,18 @@ class McpInvoker(
                 logger.debug("[MCP][INVOKER] handling restart_app")
                 runtime.restartApp(request.arguments["serial"] as? String)
             }
+            "emulator_list" -> {
+                logger.debug("[MCP][INVOKER] handling emulator_list")
+                runtime.emulatorList()
+            }
+            "start_emulator" -> {
+                logger.debug("[MCP][INVOKER] handling start_emulator")
+                val waitForDeviceSec = (request.arguments["waitForDeviceSec"] as? Number)?.toInt()
+                runtime.startEmulator(
+                    avdName = request.arguments["avdName"] as? String,
+                    waitForDeviceSec = waitForDeviceSec,
+                )
+            }
             "compile_only" -> {
                 logger.debug("[MCP][INVOKER] handling compile_only")
                 runtime.compile()

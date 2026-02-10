@@ -22,7 +22,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Purpose: check available target devices before deploy.
 - Required input: `projectDir`.
 - Success output: non-empty device list with `serial`, `name`, `isOnline`, `api`, `isSelected`.
-- On failure: `MCP_NO_DEVICE`; stop and ask user to connect emulator/phone.
+- On failure: `MCP_NO_DEVICE`; try start-first-local-emulator once, then rerun `device_list`. If still empty, stop and ask user to connect emulator/phone.
 
 ## `compile_only`
 
@@ -88,6 +88,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Optional input: `serial`.
 - Success output: absolute screenshot path in `artifacts`.
 - On failure: collect at least `layout_dump`; if both fail => validation fail.
+- Final staging rule: when task is accepted, clear `${projectDir}/build/mcp_fetch/final` and copy final screenshot as `final_screenshot.png`.
 
 ## `layout_dump`
 
@@ -96,6 +97,15 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Optional input: `serial`.
 - Success output: absolute dump path in `artifacts`.
 - On failure: require `screenshot` success; if none exists => validation fail.
+
+## Final Artifacts
+
+- Purpose: prevent user confusion from stale outputs.
+- Required action: clear `${projectDir}/build/mcp_fetch/final` before any copy.
+- Required files:
+  - final screenshot -> `final_screenshot.png`
+  - final recording -> `final_record.mp4`
+- Optional: also copy source timestamped files for traceability.
 
 ## Output Contract (Per MCP Tool Response)
 

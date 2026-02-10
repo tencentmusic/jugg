@@ -188,4 +188,24 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("\"errorCode\":\"MCP_NO_DEVICE\""))
     }
+
+    @Test
+    fun testStartEmulatorInvalidAvd() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 10,
+                params = mapOf(
+                    "name" to "start_emulator",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "avdName" to "missing")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+    }
 }

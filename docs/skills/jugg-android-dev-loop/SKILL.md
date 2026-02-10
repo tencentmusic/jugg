@@ -41,6 +41,12 @@ Call `list_projects` (no arguments). Pick the matching `projectDir` from the res
 
 Call `device_list` with `projectDir`. Verify at least one device has `isOnline=true`. Use `serial` from response for subsequent device-targeting calls.
 
+If no device is online:
+
+1. Try to start the first available local Android emulator (AVD) once.
+2. Wait for device boot and rerun `device_list`.
+3. If still no device, stop and ask user to prepare a device.
+
 ### Step 3: Build and Deploy
 
 - **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to device.
@@ -59,12 +65,23 @@ Call `device_list` with `projectDir`. Verify at least one device has `isOnline=t
 - `layout_dump` for structural verification.
 - Optional: `record` for video trace with in-record app_start + tap.
 
+### Step 6: Final Artifact Staging
+
+After task verification is complete:
+
+1. Fully clear `${projectDir}/build/mcp_fetch/final` first.
+2. Copy the final screenshot and final recording into that directory.
+3. Keep stable filenames (`final_screenshot.png`, `final_record.mp4`) to avoid ambiguity.
+4. Optionally keep original timestamped filenames in the same directory for traceability.
+
 ## Hard Guardrails
 
 - Max autonomous retries: `3` (same failure category).
 - Unknown failure category: stop and ask user.
 - Potentially destructive change (manifest/signing/gradle-wide refactor): ask user before apply.
 - Never claim success without artifact evidence.
+- For `start_emulator`, never treat unit-test pass as runtime success; require runtime evidence (`adb devices` online or `device_list` online device).
+- Never reuse stale final artifacts: `build/mcp_fetch/final` must be emptied before copy.
 
 ## Decision Rules
 
@@ -72,7 +89,7 @@ Call `device_list` with `projectDir`. Verify at least one device has `isOnline=t
 - Use `compile_only` when no device is connected or only compilation check is needed.
 - Switch to `clean_reinstall_apk` when incremental deploy state is corrupted or signatures mismatch.
 - If `compile_and_deploy` fails, Agent tries `force_gradle_compile` -> retry `compile_and_deploy` -> `clean_reinstall_apk`.
-- Treat missing devices as hard failure (errorCode `MCP_NO_DEVICE`).
+- Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): attempt first-local-emulator startup once, then ask user if none is available or startup fails.
 - Strongly prefer MCP-only execution and avoid raw adb in normal flow.
 
 ## MCP Response Format
