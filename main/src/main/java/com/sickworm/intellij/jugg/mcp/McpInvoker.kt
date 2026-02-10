@@ -140,12 +140,33 @@ class McpInvoker(
                 logger.debug("[MCP][INVOKER] handling layout_dump")
                 runtime.layoutDump(request.arguments["serial"] as? String)
             }
-            "app_start" -> {
-                logger.debug("[MCP][INVOKER] handling app_start")
-                runtime.appStart(
+            "start_app" -> {
+                logger.debug("[MCP][INVOKER] handling start_app")
+                runtime.startApp(
+                    serial = request.arguments["serial"] as? String,
+                    packageName = request.arguments["packageName"] as? String,
+                )
+            }
+            "start_activity" -> {
+                logger.debug("[MCP][INVOKER] handling start_activity")
+                @Suppress("UNCHECKED_CAST")
+                val categories = request.arguments["categories"] as? List<String>
+                @Suppress("UNCHECKED_CAST")
+                val flags = (request.arguments["flags"] as? List<*>)?.mapNotNull { it?.toString() }
+                @Suppress("UNCHECKED_CAST")
+                val extras = request.arguments["extras"] as? Map<String, Any?>
+                val user = (request.arguments["user"] as? Number)?.toInt()
+                runtime.startActivity(
                     serial = request.arguments["serial"] as? String,
                     packageName = request.arguments["packageName"] as? String,
                     activity = request.arguments["activity"] as? String,
+                    action = request.arguments["action"] as? String,
+                    categories = categories,
+                    data = request.arguments["data"] as? String,
+                    mimeType = request.arguments["mimeType"] as? String,
+                    flags = flags,
+                    extras = extras,
+                    user = user,
                 )
             }
             "tap" -> {

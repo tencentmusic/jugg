@@ -190,7 +190,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testAppStartToolCallSuccess() {
+    fun testStartAppToolCallSuccess() {
         val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
         initialize(invoker)
         val response = invoker.invokeMcp(
@@ -198,8 +198,63 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 13,
                 params = mapOf(
-                    "name" to "app_start",
+                    "name" to "start_app",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testStartActivityToolCallSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 17,
+                params = mapOf(
+                    "name" to "start_activity",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "activity" to ".MainActivity")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testStartActivityWithIntentArgsSuccess() {
+        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        initialize(invoker)
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 18,
+                params = mapOf(
+                    "name" to "start_activity",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "packageName" to "com.example.myapplication",
+                        "activity" to ".MainActivity",
+                        "action" to "android.intent.action.VIEW",
+                        "categories" to listOf("android.intent.category.DEFAULT"),
+                        "data" to "app://detail/123",
+                        "mimeType" to "text/plain",
+                        "flags" to listOf("0x10000000"),
+                        "extras" to mapOf(
+                            "from" to "mcp",
+                            "count" to 3,
+                            "debug" to true,
+                        ),
+                        "user" to 0,
+                    )
                 )
             )
         )

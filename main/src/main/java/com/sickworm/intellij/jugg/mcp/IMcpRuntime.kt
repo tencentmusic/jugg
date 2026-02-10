@@ -23,7 +23,19 @@ interface IMcpRuntime {
         recordStartDelaySec: Double?,
     ): McpToolResult
     fun layoutDump(serial: String?): McpToolResult
-    fun appStart(serial: String?, packageName: String?, activity: String?): McpToolResult
+    fun startApp(serial: String?, packageName: String?): McpToolResult
+    fun startActivity(
+        serial: String?,
+        packageName: String?,
+        activity: String?,
+        action: String?,
+        categories: List<String>?,
+        data: String?,
+        mimeType: String?,
+        flags: List<String>?,
+        extras: Map<String, Any?>?,
+        user: Int?,
+    ): McpToolResult
     fun tap(serial: String?, x: Int?, y: Int?): McpToolResult
 }
 

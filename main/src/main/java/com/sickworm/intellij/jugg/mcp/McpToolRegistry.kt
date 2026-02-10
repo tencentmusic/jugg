@@ -293,7 +293,7 @@ class McpToolRegistry {
             ),
             McpToolDefinition(
                 name = "record",
-                description = "Record device screen video, with optional app_start and tap actions during recording. Use when you need reproducible visual traces. Avoid for a single-frame check where screenshot is enough. Side effects: may launch app and inject taps if configured.",
+                description = "Record device screen video, with optional start_activity and tap actions during recording. Use when you need reproducible visual traces. Avoid for a single-frame check where screenshot is enough. Side effects: may launch activity and inject taps if configured.",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to projectDirProperty,
@@ -308,13 +308,13 @@ class McpToolRegistry {
                         ),
                         "packageName" to McpJsonSchemaProperty(
                             type = "string",
-                            description = "Optional package for app_start action during recording.",
+                            description = "Optional package for start_activity action during recording.",
                             pattern = "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$",
                             examples = listOf("com.example.app"),
                         ),
                         "activity" to McpJsonSchemaProperty(
                             type = "string",
-                            description = "Optional activity for app_start action. Supports short form (.MainActivity) or full class name.",
+                            description = "Optional activity for start_activity action. Supports short form (.MainActivity) or full class name.",
                             pattern = "^\\.?[A-Za-z_][A-Za-z0-9_$.]*$",
                             examples = listOf(".MainActivity", "com.example.app.MainActivity"),
                         ),
@@ -330,7 +330,7 @@ class McpToolRegistry {
                         ),
                         "preTapDelaySec" to McpJsonSchemaProperty(
                             type = "number",
-                            description = "Optional delay after app_start before first tap.",
+                            description = "Optional delay after start_activity before first tap.",
                             default = 0,
                             minimum = 0.0,
                             maximum = 30.0,
@@ -351,7 +351,7 @@ class McpToolRegistry {
                         ),
                         "recordStartDelaySec" to McpJsonSchemaProperty(
                             type = "number",
-                            description = "Optional delay after recording starts before app_start.",
+                            description = "Optional delay after recording starts before start_activity.",
                             default = 0,
                             minimum = 0.0,
                             maximum = 30.0,
@@ -406,8 +406,41 @@ class McpToolRegistry {
                 ),
             ),
             McpToolDefinition(
-                name = "app_start",
-                description = "Start app on target device, optionally with explicit package and activity. Use when app must be brought to foreground before interaction. Avoid when app is already in expected state and restart is unnecessary. Side effects: launches activity and changes app foreground state.",
+                name = "start_app",
+                description = "Start app on target device using default main activity. Use when app must be brought to foreground quickly. Avoid when explicit non-default activity is required. Side effects: launches app main activity and changes app foreground state.",
+                inputSchema = McpJsonSchemaObject(
+                    properties = mapOf(
+                        "projectDir" to projectDirProperty,
+                        "serial" to serialProperty,
+                        "packageName" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional package name. If absent, uses current Jugg package name.",
+                            pattern = "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$",
+                            examples = listOf("com.example.app"),
+                        )
+                    ),
+                    required = listOf("projectDir"),
+                    additionalProperties = false,
+                ),
+                outputSchema = baseOutputSchema.copy(
+                    properties = baseOutputSchema.properties + mapOf(
+                        "data" to McpJsonSchemaProperty(
+                            type = "object",
+                            properties = mapOf(
+                                "device" to deviceProperty,
+                                "packageName" to McpJsonSchemaProperty(type = "string"),
+                                "activity" to McpJsonSchemaProperty(type = "string"),
+                                "component" to McpJsonSchemaProperty(type = "string"),
+                            ),
+                            required = listOf("device", "packageName", "activity", "component"),
+                            additionalProperties = false,
+                        )
+                    )
+                ),
+            ),
+            McpToolDefinition(
+                name = "start_activity",
+                description = "Start a specific activity on target device, optionally with explicit package and activity. Use when precise activity navigation is required before interaction. Avoid when default app entry is sufficient (use start_app). Side effects: launches specified activity and changes app foreground state.",
                 inputSchema = McpJsonSchemaObject(
                     properties = mapOf(
                         "projectDir" to projectDirProperty,
@@ -423,6 +456,41 @@ class McpToolRegistry {
                             description = "Optional activity name. Supports short form (.MainActivity) or full class name.",
                             pattern = "^\\.?[A-Za-z_][A-Za-z0-9_$.]*$",
                             examples = listOf(".MainActivity", "com.example.app.MainActivity"),
+                        ),
+                        "action" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional intent action for am start -a.",
+                            examples = listOf("android.intent.action.VIEW"),
+                        ),
+                        "categories" to McpJsonSchemaProperty(
+                            type = "array",
+                            description = "Optional intent categories for am start -c.",
+                            items = McpJsonSchemaProperty(type = "string"),
+                        ),
+                        "data" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional intent data URI for am start -d.",
+                            examples = listOf("app://detail/123", "https://example.com"),
+                        ),
+                        "mimeType" to McpJsonSchemaProperty(
+                            type = "string",
+                            description = "Optional MIME type for am start -t.",
+                            examples = listOf("text/plain", "image/*"),
+                        ),
+                        "flags" to McpJsonSchemaProperty(
+                            type = "array",
+                            description = "Optional intent flags for am start -f. Accepts numeric or symbolic values as strings.",
+                            items = McpJsonSchemaProperty(type = "string"),
+                        ),
+                        "extras" to McpJsonSchemaProperty(
+                            type = "object",
+                            description = "Optional extras object. Supports scalar values (string/number/boolean) and array of string/number values.",
+                            additionalProperties = true,
+                        ),
+                        "user" to McpJsonSchemaProperty(
+                            type = "number",
+                            description = "Optional android user id for am start --user.",
+                            minimum = 0.0,
                         )
                     ),
                     required = listOf("projectDir"),

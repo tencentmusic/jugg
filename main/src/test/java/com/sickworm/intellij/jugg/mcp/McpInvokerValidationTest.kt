@@ -35,7 +35,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 2,
                 params = mapOf(
-                    "name" to "app_start",
+                    "name" to "start_activity",
                     "arguments" to mapOf(
                         "projectDir" to "/tmp/projectA",
                         "packageName" to "invalid-package-name"

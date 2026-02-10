@@ -99,7 +99,7 @@ Use this library to constrain auto-fix behavior.
   fix_scope: medium
   confidence_hint: 0.94
   auto_apply: true
-  next_action_on_success: app_start
+  next_action_on_success: start_app
   next_action_on_failure: ask_user_for_signing_policy
 
 - id: runtime_fatal_exception

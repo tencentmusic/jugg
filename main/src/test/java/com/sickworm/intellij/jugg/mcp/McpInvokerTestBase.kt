@@ -175,11 +175,43 @@ abstract class McpInvokerTestBase {
                 )
             }
 
-            override fun appStart(serial: String?, packageName: String?, activity: String?): McpToolResult {
+            override fun startApp(serial: String?, packageName: String?): McpToolResult {
                 return McpToolResult(
                     status = McpToolStatus.OK,
-                    message = "app_start executed successfully.",
-                    data = mapOf("serial" to serial, "packageName" to packageName, "activity" to activity),
+                    message = "start_app executed successfully.",
+                    data = mapOf("serial" to serial, "packageName" to packageName, "activity" to ".MainActivity"),
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            override fun startActivity(
+                serial: String?,
+                packageName: String?,
+                activity: String?,
+                action: String?,
+                categories: List<String>?,
+                data: String?,
+                mimeType: String?,
+                flags: List<String>?,
+                extras: Map<String, Any?>?,
+                user: Int?,
+            ): McpToolResult {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = "start_activity executed successfully.",
+                    data = mapOf(
+                        "serial" to serial,
+                        "packageName" to packageName,
+                        "activity" to activity,
+                        "action" to action,
+                        "categories" to categories,
+                        "data" to data,
+                        "mimeType" to mimeType,
+                        "flags" to flags,
+                        "extras" to extras,
+                        "user" to user,
+                    ),
                     artifacts = emptyList(),
                     errorCode = null,
                 )

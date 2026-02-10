@@ -33,7 +33,7 @@
 - `MODIFYING`: apply focused patch only; avoid broad refactor without confirmation
 - `COMPILING`: `compile_and_deploy` (default), `compile_only` (no device), or `force_gradle_compile` (fallback)
 - `DEPLOYING`: `compile_and_deploy`, `clean_reinstall_apk`
-- `OBSERVING`: `app_start`, `tap`, `screenshot`, `layout_dump`, optional `record`
+- `OBSERVING`: `start_app`, `tap`, `screenshot`, `layout_dump`, optional `record`
 - `RECOVERING`: `force_gradle_compile`, retry `compile_and_deploy`, then `clean_reinstall_apk`
 
 ## Retry Budget

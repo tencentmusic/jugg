@@ -487,21 +487,74 @@ class IdeaMcpRuntime(
         }
     }
 
-    override fun appStart(serial: String?, packageName: String?, activity: String?): McpToolResult {
+    override fun startApp(serial: String?, packageName: String?): McpToolResult {
         val selected = resolveOnlineDevice(serial)
-            ?: return noDeviceResult("app_start")
+            ?: return noDeviceResult("start_app")
         val adb = selected.adb
 
         return try {
             val resolvedPackageName = packageName ?: deployTargetManager.getPackageNameOrNull()
-                ?: return internalErrorResult("app_start", "packageName is required when deploy target is unavailable")
-            val activityPart = normalizeActivity(activity, resolvedPackageName)
-            val component = "$resolvedPackageName/$activityPart"
+                ?: return internalErrorResult("start_app", "packageName is required when deploy target is unavailable")
+            val component = "$resolvedPackageName/.MainActivity"
             adb.execAdbShellCmd("am start -n $component")
 
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "app_start executed successfully. ${selected.messageDetail}",
+                message = "start_app executed successfully. ${selected.messageDetail}",
+                data = mapOf(
+                    "device" to mapOf(
+                        "serial" to adb.serial,
+                        "name" to adb.displayName,
+                        "isOnline" to adb.isOnline,
+                    ),
+                    "packageName" to resolvedPackageName,
+                    "activity" to ".MainActivity",
+                    "component" to component,
+                ),
+                artifacts = emptyList(),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            internalErrorResult("start_app", e.message ?: "unknown error")
+        }
+    }
+
+    override fun startActivity(
+        serial: String?,
+        packageName: String?,
+        activity: String?,
+        action: String?,
+        categories: List<String>?,
+        data: String?,
+        mimeType: String?,
+        flags: List<String>?,
+        extras: Map<String, Any?>?,
+        user: Int?,
+    ): McpToolResult {
+        val selected = resolveOnlineDevice(serial)
+            ?: return noDeviceResult("start_activity")
+        val adb = selected.adb
+
+        return try {
+            val resolvedPackageName = packageName ?: deployTargetManager.getPackageNameOrNull()
+                ?: return internalErrorResult("start_activity", "packageName is required when deploy target is unavailable")
+            val activityPart = normalizeActivity(activity, resolvedPackageName)
+            val component = "$resolvedPackageName/$activityPart"
+            val command = buildStartActivityCommand(
+                component = component,
+                action = action,
+                categories = categories,
+                data = data,
+                mimeType = mimeType,
+                flags = flags,
+                extras = extras,
+                user = user,
+            )
+            adb.execAdbShellCmd(command)
+
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "start_activity executed successfully. ${selected.messageDetail}",
                 data = mapOf(
                     "device" to mapOf(
                         "serial" to adb.serial,
@@ -511,12 +564,13 @@ class IdeaMcpRuntime(
                     "packageName" to resolvedPackageName,
                     "activity" to activityPart,
                     "component" to component,
+                    "command" to command,
                 ),
                 artifacts = emptyList(),
                 errorCode = null,
             )
         } catch (e: Exception) {
-            internalErrorResult("app_start", e.message ?: "unknown error")
+            internalErrorResult("start_activity", e.message ?: "unknown error")
         }
     }
 
@@ -625,6 +679,67 @@ class IdeaMcpRuntime(
 
         commands += "wait \$REC_PID"
         return commands.joinToString(" ; ")
+    }
+
+    private fun buildStartActivityCommand(
+        component: String,
+        action: String?,
+        categories: List<String>?,
+        data: String?,
+        mimeType: String?,
+        flags: List<String>?,
+        extras: Map<String, Any?>?,
+        user: Int?,
+    ): String {
+        val args = mutableListOf("am", "start", "-n", component)
+        if (!action.isNullOrBlank()) {
+            args += listOf("-a", action)
+        }
+        categories.orEmpty().forEach { category ->
+            if (category.isNotBlank()) {
+                args += listOf("-c", category)
+            }
+        }
+        if (!data.isNullOrBlank()) {
+            args += listOf("-d", data)
+        }
+        if (!mimeType.isNullOrBlank()) {
+            args += listOf("-t", mimeType)
+        }
+        flags.orEmpty().forEach { flag ->
+            if (flag.isNotBlank()) {
+                args += listOf("-f", flag)
+            }
+        }
+        if (user != null) {
+            args += listOf("--user", user.toString())
+        }
+
+        extras.orEmpty().forEach { (key, value) ->
+            when (value) {
+                null -> Unit
+                is String -> args += listOf("--es", key, value)
+                is Boolean -> args += listOf("--ez", key, value.toString())
+                is Int -> args += listOf("--ei", key, value.toString())
+                is Long -> args += listOf("--el", key, value.toString())
+                is Float -> args += listOf("--ef", key, value.toString())
+                is Double -> args += listOf("--ef", key, value.toString())
+                is Number -> args += listOf("--el", key, value.toLong().toString())
+                is List<*> -> {
+                    if (value.all { it is String }) {
+                        args += listOf("--esa", key, value.joinToString(",") { it as String })
+                    } else if (value.all { it is Number }) {
+                        args += listOf("--eia", key, value.joinToString(",") { (it as Number).toInt().toString() })
+                    }
+                }
+            }
+        }
+
+        return args.joinToString(" ") { quoteShell(it) }
+    }
+
+    private fun quoteShell(value: String): String {
+        return "'" + value.replace("'", "'\\''") + "'"
     }
     private fun formatShellSec(value: Double): String {
         return String.Companion.format(Locale.US, "%.2f", value.coerceAtLeast(0.0))

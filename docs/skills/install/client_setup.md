@@ -77,10 +77,10 @@ Config file: `~/.gemini/settings.json`
 
 ```bash
 # Follow docs/skills/jugg-android-dev-loop/SKILL.md and use MCP tools directly:
-# list_projects -> device_list -> compile_and_deploy -> app_start/tap -> screenshot/layout_dump
+# list_projects -> device_list -> compile_and_deploy -> start_app/tap -> screenshot/layout_dump
 ```
 
 ## MCP-only Recommendation
 
-- Strongly prefer MCP tools for runtime and verification: `app_start`, `tap`, `layout_dump`, `screenshot`, `record`.
+- Strongly prefer MCP tools for runtime and verification: `start_app`, `tap`, `layout_dump`, `screenshot`, `record`.
 - Avoid direct external adb commands in normal closed-loop flow.

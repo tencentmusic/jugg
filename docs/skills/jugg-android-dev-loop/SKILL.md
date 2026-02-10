@@ -29,7 +29,7 @@ Before starting the closed-loop, ensure:
 Step 1: list_projects             → confirm projectDir
 Step 2: device_list               → confirm online device
 Step 3: compile_and_deploy        → build and push artifacts to device
-Step 4: app_start + tap           → launch app and interact
+Step 4: start_app + tap                → launch app and interact
 Step 5: screenshot/layout_dump    → collect verification evidence
 ```
 
@@ -55,7 +55,8 @@ If no device is online:
 
 ### Step 4: Runtime Actions
 
-- `app_start` with `projectDir` (and optional `activity`, `packageName`, `serial`).
+- `start_app` with `projectDir` (and optional `packageName`, `serial`) for default entry. This is the default runtime path.
+- `start_activity` is advanced-only and should not be the default in this skill flow.
 - `tap` with `projectDir`, `x`, `y` for UI interaction.
 - Use `layout_dump` before `tap` to discover element coordinates.
 
@@ -63,7 +64,7 @@ If no device is online:
 
 - `screenshot` for visual proof.
 - `layout_dump` for structural verification.
-- Optional: `record` for video trace with in-record app_start + tap.
+- Optional: `record` for video trace with in-record start_app + tap.
 
 ### Step 6: Final Artifact Staging
 

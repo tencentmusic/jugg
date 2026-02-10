@@ -2,7 +2,7 @@
 
 > 更新时间: 2026-02-08  
 > 传输协议: MCP Streamable HTTP + JSON-RPC 2.0  
-> 当前工具: `list_projects`, `restart_app`, `emulator_list`, `start_emulator`, `compile_only`, `compile_and_deploy`, `clean_reinstall_apk`, `force_gradle_compile`, `device_list`, `app_start`, `tap`, `screenshot`, `record`, `layout_dump`
+> 当前工具: `list_projects`, `restart_app`, `emulator_list`, `start_emulator`, `compile_only`, `compile_and_deploy`, `clean_reinstall_apk`, `force_gradle_compile`, `device_list`, `start_app`, `start_activity`, `tap`, `screenshot`, `record`, `layout_dump`
 
 ---
 
@@ -156,16 +156,32 @@
   - `projectDir`（必填）
   - `serial`（可选，缺失/非法时回落 selected device）
 
-### 4.12 `app_start`
+### 4.12 `start_app`
+
+- 作用：启动应用默认入口 Activity（通常是主页面）。
+- 参数：
+  - `projectDir`（必填）
+  - `serial`（可选，缺失/非法时回落 selected device）
+  - `packageName`（可选，默认使用当前 Jugg 目标包名）
+
+### 4.13 `start_activity`
 
 - 作用：启动指定 Activity（或默认主 Activity）。
+- 注意：仅在你明确知道目标页面所需的 intent 上下文/参数（action、data、extras 等）时使用；不确定时优先使用 `start_app`。
 - 参数：
   - `projectDir`（必填）
   - `serial`（可选，缺失/非法时回落 selected device）
   - `packageName`（可选，默认使用当前 Jugg 目标包名）
   - `activity`（可选，支持 `.MainActivity` 或全限定名）
+  - `action`（可选，对应 `am start -a`）
+  - `categories`（可选，字符串数组，对应重复 `-c`）
+  - `data`（可选，对应 `-d`）
+  - `mimeType`（可选，对应 `-t`）
+  - `flags`（可选，字符串数组，对应重复 `-f`）
+  - `extras`（可选，对应 `--e*`，支持 string/number/boolean 及 string/number 数组）
+  - `user`（可选，对应 `--user`）
 
-### 4.13 `tap`
+### 4.14 `tap`
 
 - 作用：在目标设备执行坐标点击。
 - 参数：
@@ -174,7 +190,7 @@
   - `x`（必填）
   - `y`（必填）
 
-### 4.14 产物目录
+### 4.15 产物目录
 
 - 所有 fetch 类型工具统一写入：`$PROJECT_DIR/build/jugg/mcp_fetch/<tool>/`
 - 当前包含子目录：`screenshot/`、`record/`、`layout_dump/`
@@ -339,7 +355,7 @@ curl -s -X POST "http://localhost:12320/mcp" \
   }'
 ```
 
-### 5.10 tools/call - app_start
+### 5.10 tools/call - start_app
 
 ```bash
 curl -s -X POST "http://localhost:12320/mcp" \
@@ -349,7 +365,26 @@ curl -s -X POST "http://localhost:12320/mcp" \
     "id":8,
     "method":"tools/call",
     "params":{
-      "name":"app_start",
+      "name":"start_app",
+      "arguments":{
+        "projectDir":"/abs/path/to/project",
+        "serial":"emulator-5554"
+      }
+    }
+  }'
+```
+
+### 5.11 tools/call - start_activity
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":8,
+    "method":"tools/call",
+    "params":{
+      "name":"start_activity",
       "arguments":{
         "projectDir":"/abs/path/to/project",
         "serial":"emulator-5554",
@@ -359,7 +394,7 @@ curl -s -X POST "http://localhost:12320/mcp" \
   }'
 ```
 
-### 5.11 tools/call - tap
+### 5.12 tools/call - tap
 
 ```bash
 curl -s -X POST "http://localhost:12320/mcp" \
@@ -392,7 +427,7 @@ curl -s -X POST "http://localhost:12320/mcp" \
 - `MCP_NO_DEVICE`：无可用设备
 - `MCP_INTERNAL_ERROR`：内部错误
 
-推荐：Agent 执行自动化流程时优先使用 MCP 工具链（`app_start`、`tap`、`layout_dump`、`screenshot`、`record`），避免直接调用外部 adb。
+推荐：Agent 执行自动化流程时优先使用 MCP 工具链（`start_activity`、`tap`、`layout_dump`、`screenshot`、`record`），避免直接调用外部 adb。
 
 ---
 
@@ -466,4 +501,4 @@ for p in {12320..12329}; do curl -s "http://localhost:${p}/mcp" -X POST -H "Cont
 - 若返回 `Server not initialized. Call initialize first.`：说明客户端未先发 `initialize`。
 - `list_projects` 不校验 `projectDir`，会直接返回当前 IDE 已初始化项目集合。
 - `screenshot`/`record`/`layout_dump` 依赖设备在线与 adb 可用，失败时可先检查 `device_list`。
-- 自动点击建议：先 `app_start`，再调用 `tap`，必要时增加短暂延时和重复点击（例如 2 次）提升稳定性。
+- 自动点击建议：先 `start_activity`，再调用 `tap`，必要时增加短暂延时和重复点击（例如 2 次）提升稳定性。

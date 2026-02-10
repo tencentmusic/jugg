@@ -63,13 +63,14 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - On failure: stop and report; do not retry `force_gradle_compile` itself.
 - Usage rule: only invoke after 3 consecutive `compile_and_deploy` failures.
 
-## `app_start`
+## `start_activity`
 
-- Purpose: start target activity for runtime verification.
+- Purpose: advanced explicit activity start for runtime verification.
 - Required input: `projectDir`.
 - Optional input: `serial`, `packageName`, `activity`.
+- Safety note: use this only when you clearly know the required launch intent context/params; otherwise prefer `start_app`.
 - Success output: `status="OK"` with `packageName`, `activity`, `component` in data.
-- On failure: classify as `APP_START_FAIL`; verify package/activity mapping.
+- On failure: classify as `START_ACTIVITY_FAIL`; verify package/activity mapping.
 
 ## `tap`
 
@@ -81,11 +82,11 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 ## `record`
 
-- Purpose: record device screen video, optionally with in-record app_start + tap actions.
+- Purpose: record device screen video, optionally with in-record start_app + tap actions.
 - Required input: `projectDir`.
 - Optional input: `serial`, `durationSec` (default 10, range 1-180), `packageName`, `activity`, `tapX`+`tapY` (must be provided together), `preTapDelaySec`, `tapRepeat` (default 1), `tapIntervalSec`, `recordStartDelaySec`.
 - Success output: recording artifact path in `artifacts`.
-- On failure: one retry allowed, then degrade to `app_start` + `tap` + `screenshot`.
+- On failure: one retry allowed, then degrade to `start_app` + `tap` + `screenshot`.
 
 ## `screenshot`
 

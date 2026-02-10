@@ -96,13 +96,13 @@ import com.example.utils.formatUserName
 
 ### 7. App start
 
-**Call:** `app_start` with `projectDir: "/Users/dev/MyApp"`
+**Call:** `start_app` with `projectDir: "/Users/dev/MyApp"`
 
 **Response:**
 ```json
 {
   "status": "OK",
-  "message": "app_start executed successfully. Using selected device: emulator-5554.",
+  "message": "start_app executed successfully. Using selected device: emulator-5554.",
   "data": {
     "device": {"serial": "emulator-5554", "name": "Pixel_6_API_34", "isOnline": true},
     "packageName": "com.example.myapp",
