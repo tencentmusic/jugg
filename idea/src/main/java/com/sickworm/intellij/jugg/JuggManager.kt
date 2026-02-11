@@ -6,6 +6,7 @@ import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.sickworm.intellij.jugg.compiler.*
@@ -589,10 +590,10 @@ class JuggManager @TestOnly constructor(
     }
 
     private inner class JuggRunningTaskCreator : IJuggRunningTaskCreator {
-        override fun create(
+        override fun createAndRun(
             options: JuggGradleCompileOptions,
             compileUiHandler: CompileUiHandler
-        ): JuggRunningTask {
+        ): IJuggRunningTask {
             logger.debug("Create running task: ${options.toSafeString()}")
 
             val startCompileTime = System.currentTimeMillis()
@@ -611,6 +612,7 @@ class JuggManager @TestOnly constructor(
 
             // try reload custom config if changed
             loadCustomConfig()
+            ProgressManager.getInstance().run(task)
 
             return task
         }

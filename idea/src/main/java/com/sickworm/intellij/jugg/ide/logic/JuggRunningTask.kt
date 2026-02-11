@@ -49,7 +49,7 @@ class JuggRunningTask(
     private val initIncrementalCompileTask: () -> Unit,
     private val compileUiHandler: CompileUiHandler,
     private val logger: Logger = JuggLogger.getInstance(project, "JuggRunningTask"),
-) : Task.Backgroundable(project, "Running Jugg...") {
+) : Task.Backgroundable(project, "Running Jugg..."), IJuggRunningTask {
 
     private val processHandler: IProcessHandler get() = compileUiHandler.processHandler
 
@@ -58,7 +58,7 @@ class JuggRunningTask(
         override fun stopped() { }
     }
 
-    var isRunning: Boolean = false
+    override var isRunning: Boolean = false
         private set
 
     override fun run(indicator: ProgressIndicator) {
@@ -351,7 +351,7 @@ class JuggRunningTask(
     @Volatile
     private var onFinishListener: (() -> Unit)? = null
 
-    fun cancel(onFinishListener: () -> Unit) {
+    override fun cancel(onFinishListener: () -> Unit) {
         if (isRunning) {
             this.onFinishListener = onFinishListener
             logger.debug("Try canceling process...")

@@ -10,7 +10,6 @@ import com.intellij.execution.process.ProcessOutputType
 import com.intellij.execution.ui.RunContentDescriptor
 import com.intellij.execution.ui.RunContentManager
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
@@ -45,7 +44,7 @@ class JuggConfigurationRunner(
     override val isCompiling: Boolean get() = currentTask?.isRunning == true
 
     @Volatile
-    private var currentTask: JuggRunningTask? = null
+    private var currentTask: IJuggRunningTask? = null
 
     override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler): ExecutionResult {
         if (ForceGradleCompileHelper.isCleanAndReinstallNextTime) {
@@ -58,9 +57,7 @@ class JuggConfigurationRunner(
         compileUiHandler.processHandler = processHandler
 
         cancelCurrentTask(processHandler) {
-            val task = juggRunningTaskCreator.create(options, compileUiHandler)
-            currentTask = task
-            ProgressManager.getInstance().run(task)
+            currentTask = juggRunningTaskCreator.createAndRun(options, compileUiHandler)
         }
         ForceGradleCompileHelper.isCleanAndReinstallNextTime = false
         ForceGradleCompileHelper.isForceGradleCompileNextTime = false
