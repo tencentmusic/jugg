@@ -7,8 +7,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testToolsCallParamsRequired() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -25,8 +24,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testToolNameRequired() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -45,8 +43,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testToolNotFound() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -66,8 +63,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testProjectDirRequiredForNormalTools() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -87,8 +83,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testProjectNotInitialized() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -107,31 +102,8 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testRuntimeNotInitialized() {
-        McpRuntimeHolder.runtime = null
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 6,
-                params = mapOf(
-                    "name" to "compile_only",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
-                ),
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("runtime is not initialized"))
-    }
-
-    @Test
     fun testRestartAppFallbackWhenSerialMissing() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -150,8 +122,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testRestartAppFallbackWhenSerialInvalid() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -170,8 +141,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testRestartAppNoDevice() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -191,8 +161,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
     @Test
     fun testStartEmulatorInvalidAvd() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,

@@ -16,13 +16,13 @@ class IdeaMcpRuntime(
     companion object {
         fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
             if (request.method != McpJsonRpc.Method.ToolsCall) {
-                val response = McpInvoker.globalMcpInvoker.invokeMcp(request)
+                val response = McpBaseInvoker.mcpBaseInvoker.invokeMcp(request)
                 return response
             }
 
             val toolName = (request.params as? Map<*, *>)?.get("name") as? String
             if (toolName == "list_projects") {
-                return McpInvoker.globalMcpInvoker.invokeMcp(request)
+                return McpBaseInvoker.mcpBaseInvoker.invokeMcp(request)
             }
 
             val projectDir = (request.params as? Map<*, *>)

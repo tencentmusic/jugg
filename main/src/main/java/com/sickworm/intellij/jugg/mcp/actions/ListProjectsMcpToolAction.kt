@@ -49,7 +49,7 @@ class ListProjectsMcpToolAction : McpToolAction {
         return listProjectsAction()
     }
 
-    private fun listProjectsAction(): McpToolResult {
+    fun listProjectsAction(): McpToolResult {
         return McpToolResult(
             status = McpToolStatus.OK,
             message = "list_projects executed successfully.",

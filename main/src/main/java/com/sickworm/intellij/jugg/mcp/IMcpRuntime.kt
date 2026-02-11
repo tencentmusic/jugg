@@ -12,14 +12,7 @@ interface IMcpRuntime {
     val juggConfigurationRunner: IJuggConfigurationRunner
 }
 
-object McpRuntimeHolder {
-    @Volatile
-    var runtime: IMcpRuntime? = null
+interface IMcpInvoker {
+    fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse
 }
 
-object DumbMcpRuntime : IMcpRuntime {
-    override val project: Project = error("Dumb MCP runtime is not initialized.")
-    override val deployTargetManager: IDeployTargetManager = error("Dumb MCP runtime is not initialized.")
-    override val forceGradleCompileHelper: ForceGradleCompileHelper = error("Dumb MCP runtime is not initialized.")
-    override val juggConfigurationRunner: IJuggConfigurationRunner = error("Dumb MCP runtime is not initialized.")
-}

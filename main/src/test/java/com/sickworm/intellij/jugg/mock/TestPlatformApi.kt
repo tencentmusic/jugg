@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpJsonRpcRequest
 import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
+import java.io.File
 
 class TestPlatformApi : IPlatformApi {
     override fun showDialog(
@@ -70,6 +71,14 @@ class TestPlatformApi : IPlatformApi {
     }
 
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
+        TODO("Not yet implemented")
+    }
+
+    override fun getInitializedProjectDirs(): List<File> {
+        return listOf(TestGlobal.projectRootDir)
+    }
+
+    override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
         TODO("Not yet implemented")
     }
 }

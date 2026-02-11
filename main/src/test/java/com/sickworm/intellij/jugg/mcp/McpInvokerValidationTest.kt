@@ -7,8 +7,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
     fun testRecordRejectWhenDurationOutOfRange() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -28,8 +27,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
     fun testAppStartRejectWhenPackagePatternInvalid() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -52,8 +50,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
     fun testTapRejectUnknownArgument() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -78,8 +75,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
     fun testRecordApplyDefaultDurationSec() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -99,8 +95,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
     fun testListProjectsRejectUnknownArgument() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,

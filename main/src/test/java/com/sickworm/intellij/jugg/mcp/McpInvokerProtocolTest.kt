@@ -7,7 +7,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
     @Test
     fun testInitializeSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        val invoker = newBaseInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 id = 100,
@@ -25,7 +25,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
     @Test
     fun testInvalidJsonRpcVersion() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        val invoker = newBaseInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 jsonrpc = "1.0",
@@ -41,7 +41,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
     @Test
     fun testNotificationsInitializedAck() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        val invoker = newBaseInvoker()
         initialize(invoker)
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -56,7 +56,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
     @Test
     fun testPingSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        val invoker = newBaseInvoker()
         initialize(invoker)
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -71,7 +71,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
     @Test
     fun testToolsListWithoutInitializeIsAllowedInInvoker() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        val invoker = newBaseInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsList,
@@ -85,7 +85,7 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
 
     @Test
     fun testPromptsAndResourcesList() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
+        val invoker = newBaseInvoker()
         initialize(invoker)
 
         val prompts = invoker.invokeMcp(

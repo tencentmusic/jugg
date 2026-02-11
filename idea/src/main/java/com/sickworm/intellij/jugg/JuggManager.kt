@@ -82,7 +82,7 @@ class JuggManager @TestOnly constructor(
     private val forceGradleCompileHelper: ForceGradleCompileHelper = IdeaForceGradleCompileHelper(project, juggConfigurationRunner,
         deployFileManager, taskRunnerManager,
         compileContextManager, logger)
-    private val mcpInvoker: McpInvoker = McpInvoker(pathManager.projectDir.absolutePath,
+    private val mcpInvoker: McpToolInvoker = McpToolInvoker(pathManager.projectDir.absolutePath,
         IdeaMcpRuntime(project, deployTargetManager, forceGradleCompileHelper, juggConfigurationRunner))
 
     constructor(

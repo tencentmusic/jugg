@@ -1,6 +1,11 @@
 package com.sickworm.intellij.jugg.mcp
 
-import org.junit.After
+import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
+import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
+import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
+import com.sickworm.intellij.jugg.mcp.actions.McpToolAction
+import com.sickworm.intellij.jugg.mcp.actions.McpToolActionRegistry
 import org.junit.Assert
 import org.junit.Before
 
@@ -9,8 +14,28 @@ abstract class McpInvokerTestBase {
     @Before
     fun setUpRuntime() {
         McpRuntimeHolder.runtime = object : IMcpRuntime {
-            override fun listProjects(): McpToolResult {
-                return McpToolResult(
+            override val project: Project
+                get() = TODO("Not yet implemented")
+            override val deployTargetManager: IDeployTargetManager
+                get() = TODO("Not yet implemented")
+            override val forceGradleCompileHelper: ForceGradleCompileHelper
+                get() = TODO("Not yet implemented")
+            override val juggConfigurationRunner: IJuggConfigurationRunner
+                get() = TODO("Not yet implemented")
+        }
+    }
+
+    protected fun newBaseInvoker(): IMcpInvoker {
+        return McpBaseInvoker()
+    }
+
+    protected fun newToolInvoker(currentProjectDir: String = "/tmp/projectA"): IMcpInvoker {
+        val definitionByName = McpToolActionRegistry.defaultActions().associateBy { it.toolName }
+        fun def(name: String): McpToolDefinition = definitionByName.getValue(name).definition
+
+        val fakeActions = listOf(
+            fakeAction("list_projects", def("list_projects")) { _ ->
+                McpToolResult(
                     status = McpToolStatus.OK,
                     message = "list_projects executed successfully.",
                     data = mapOf(
@@ -21,10 +46,9 @@ abstract class McpInvokerTestBase {
                     artifacts = emptyList(),
                     errorCode = null,
                 )
-            }
-
-            override fun restartApp(serial: String?): McpToolResult {
-                return when (serial) {
+            },
+            fakeAction("restart_app", def("restart_app")) { arguments ->
+                when (arguments["serial"] as? String) {
                     null -> McpToolResult(
                         status = McpToolStatus.OK,
                         message = "restart_app executed successfully. Serial not provided; selected device 'emulator-5554' is used.",
@@ -51,16 +75,15 @@ abstract class McpInvokerTestBase {
 
                     else -> McpToolResult(
                         status = McpToolStatus.OK,
-                        message = "restart_app executed successfully. Device selected by serial: $serial.",
-                        data = mapOf("device" to McpDeviceInfo(serial = serial, name = "Specified", isOnline = true)),
+                        message = "restart_app executed successfully. Device selected by serial: ${arguments["serial"]}.",
+                        data = mapOf("device" to McpDeviceInfo(serial = arguments["serial"] as String, name = "Specified", isOnline = true)),
                         artifacts = emptyList(),
                         errorCode = null,
                     )
                 }
-            }
-
-            override fun emulatorList(): McpToolResult {
-                return McpToolResult(
+            },
+            fakeAction("emulator_list", def("emulator_list")) { _ ->
+                McpToolResult(
                     status = McpToolStatus.OK,
                     message = "emulator_list executed successfully.",
                     data = mapOf(
@@ -72,183 +95,127 @@ abstract class McpInvokerTestBase {
                     artifacts = emptyList(),
                     errorCode = null,
                 )
-            }
-
-            override fun startEmulator(avdName: String?, waitForDeviceSec: Int?): McpToolResult {
+            },
+            fakeAction("start_emulator", def("start_emulator")) { arguments ->
+                val avdName = arguments["avdName"] as? String
                 if (avdName == "missing") {
-                    return McpToolResult(
+                    McpToolResult(
                         status = McpToolStatus.ERROR,
                         message = "start_emulator failed. Reason: AVD 'missing' not found.",
                         data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
                         errorCode = McpErrorCode.MCP_INVALID_PARAMS,
                     )
+                } else {
+                    McpToolResult(
+                        status = McpToolStatus.OK,
+                        message = "start_emulator executed successfully.",
+                        data = mapOf(
+                            "avdName" to (avdName ?: "Pixel_8_API_35"),
+                            "emulatorSerial" to "emulator-5554",
+                            "started" to true,
+                            "waitedSec" to ((arguments["waitForDeviceSec"] as? Number)?.toInt() ?: 0),
+                        ),
+                        artifacts = emptyList(),
+                        errorCode = null,
+                    )
                 }
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "start_emulator executed successfully.",
-                    data = mapOf(
-                        "avdName" to (avdName ?: "Pixel_8_API_35"),
-                        "emulatorSerial" to "emulator-5554",
-                        "started" to true,
-                        "waitedSec" to (waitForDeviceSec ?: 0),
+            },
+            fakeAction("compile_only", def("compile_only")) { _ ->
+                McpToolResult(McpToolStatus.OK, "compile_only executed successfully.", mapOf("isCompileSuccess" to true), emptyList(), null)
+            },
+            fakeAction("compile_and_deploy", def("compile_and_deploy")) { _ ->
+                McpToolResult(McpToolStatus.OK, "compile_and_deploy executed successfully.", mapOf("isDeploySuccess" to true), emptyList(), null)
+            },
+            fakeAction("clean_reinstall_apk", def("clean_reinstall_apk")) { _ ->
+                McpToolResult(McpToolStatus.OK, "clean_reinstall_apk executed successfully.", mapOf("cleanAndReinstall" to true), emptyList(), null)
+            },
+            fakeAction("force_gradle_compile", def("force_gradle_compile")) { _ ->
+                McpToolResult(McpToolStatus.OK, "force_gradle_compile executed successfully.", mapOf("triggered" to true), emptyList(), null)
+            },
+            fakeAction("device_list", def("device_list")) { _ ->
+                McpToolResult(McpToolStatus.OK, "device_list executed successfully.", mapOf("devices" to emptyList<Map<String, Any?>>()), emptyList(), null)
+            },
+            fakeAction("screenshot", def("screenshot")) { arguments ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "screenshot executed successfully.",
+                    mapOf("serial" to arguments["serial"]),
+                    listOf(McpArtifact(type = "image", path = "/tmp/a.png")),
+                    null,
+                )
+            },
+            fakeAction("record", def("record")) { arguments ->
+                val duration = (arguments["durationSec"] as? Number)?.toInt() ?: 10
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "record executed successfully.",
+                    mapOf("serial" to arguments["serial"], "durationSec" to duration),
+                    listOf(McpArtifact(type = "video", path = "/tmp/a.mp4")),
+                    null,
+                )
+            },
+            fakeAction("layout_dump", def("layout_dump")) { arguments ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "layout_dump executed successfully.",
+                    mapOf("serial" to arguments["serial"]),
+                    listOf(McpArtifact(type = "xml", path = "/tmp/a.xml")),
+                    null,
+                )
+            },
+            fakeAction("start_app", def("start_app")) { arguments ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "start_app executed successfully.",
+                    mapOf(
+                        "serial" to arguments["serial"],
+                        "packageName" to arguments["packageName"],
+                        "activity" to ".MainActivity",
                     ),
-                    artifacts = emptyList(),
-                    errorCode = null,
+                    emptyList(),
+                    null,
                 )
-            }
-
-            override fun compile(): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "compile_only executed successfully.",
-                    data = mapOf("isCompileSuccess" to true),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-
-            override fun deploy(): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "compile_and_deploy executed successfully.",
-                    data = mapOf("isDeploySuccess" to true),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-
-            override fun cleanReinstall(): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "clean_reinstall_apk executed successfully.",
-                    data = mapOf("cleanAndReinstall" to true),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-
-            override fun forceGradleCompile(): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "force_gradle_compile executed successfully.",
-                    data = mapOf("triggered" to true),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-
-            override fun deviceList(): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "device_list executed successfully.",
-                    data = mapOf("devices" to emptyList<Map<String, Any?>>()),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-
-            override fun screenshot(serial: String?): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "screenshot executed successfully.",
-                    data = mapOf("serial" to serial),
-                    artifacts = listOf(McpArtifact(type = "image", path = "/tmp/a.png")),
-                    errorCode = null,
-                )
-            }
-
-            override fun record(
-                serial: String?,
-                durationSec: Int?,
-                packageName: String?,
-                activity: String?,
-                tapX: Int?,
-                tapY: Int?,
-                preTapDelaySec: Double?,
-                tapRepeat: Int?,
-                tapIntervalSec: Double?,
-                recordStartDelaySec: Double?,
-            ): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "record executed successfully.",
-                    data = mapOf("serial" to serial, "durationSec" to durationSec),
-                    artifacts = listOf(McpArtifact(type = "video", path = "/tmp/a.mp4")),
-                    errorCode = null,
-                )
-            }
-
-            override fun layoutDump(serial: String?): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "layout_dump executed successfully.",
-                    data = mapOf("serial" to serial),
-                    artifacts = listOf(McpArtifact(type = "xml", path = "/tmp/a.xml")),
-                    errorCode = null,
-                )
-            }
-
-            override fun startApp(serial: String?, packageName: String?): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "start_app executed successfully.",
-                    data = mapOf("serial" to serial, "packageName" to packageName, "activity" to ".MainActivity"),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-
-            override fun startActivity(
-                serial: String?,
-                packageName: String?,
-                activity: String?,
-                action: String?,
-                categories: List<String>?,
-                data: String?,
-                mimeType: String?,
-                flags: List<String>?,
-                extras: Map<String, Any?>?,
-                user: Int?,
-            ): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "start_activity executed successfully.",
-                    data = mapOf(
-                        "serial" to serial,
-                        "packageName" to packageName,
-                        "activity" to activity,
-                        "action" to action,
-                        "categories" to categories,
-                        "data" to data,
-                        "mimeType" to mimeType,
-                        "flags" to flags,
-                        "extras" to extras,
-                        "user" to user,
+            },
+            fakeAction("start_activity", def("start_activity")) { arguments ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "start_activity executed successfully.",
+                    mapOf(
+                        "serial" to arguments["serial"],
+                        "packageName" to arguments["packageName"],
+                        "activity" to arguments["activity"],
+                        "action" to arguments["action"],
+                        "categories" to arguments["categories"],
+                        "data" to arguments["data"],
+                        "mimeType" to arguments["mimeType"],
+                        "flags" to arguments["flags"],
+                        "extras" to arguments["extras"],
+                        "user" to arguments["user"],
                     ),
-                    artifacts = emptyList(),
-                    errorCode = null,
+                    emptyList(),
+                    null,
                 )
-            }
+            },
+            fakeAction("tap", def("tap")) { arguments ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "tap executed successfully.",
+                    mapOf("serial" to arguments["serial"], "x" to arguments["x"], "y" to arguments["y"]),
+                    emptyList(),
+                    null,
+                )
+            },
+        )
 
-            override fun tap(serial: String?, x: Int?, y: Int?): McpToolResult {
-                return McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "tap executed successfully.",
-                    data = mapOf("serial" to serial, "x" to x, "y" to y),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            }
-        }
+        return McpToolInvoker(
+            currentProjectDir = currentProjectDir,
+            runtime = McpRuntimeHolder.runtime,
+            toolRegistry = McpToolRegistry(McpToolActionRegistry(fakeActions)),
+        )
     }
 
-    @After
-    fun tearDownRuntime() {
-        McpRuntimeHolder.runtime = null
-    }
-
-    protected fun initialize(invoker: McpInvoker) {
+    protected fun initialize(invoker: IMcpInvoker) {
         val initResponse = invoker.invokeMcp(
             McpJsonRpcRequest(
                 id = 100,
@@ -261,5 +228,20 @@ abstract class McpInvokerTestBase {
             )
         )
         Assert.assertNull(initResponse.error)
+    }
+
+    private fun fakeAction(
+        name: String,
+        definition: McpToolDefinition,
+        executeFn: (Map<String, Any?>) -> McpToolResult,
+    ): McpToolAction {
+        return object : McpToolAction {
+            override val toolName: String = name
+            override val definition: McpToolDefinition = definition
+
+            override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+                return executeFn(arguments)
+            }
+        }
     }
 }

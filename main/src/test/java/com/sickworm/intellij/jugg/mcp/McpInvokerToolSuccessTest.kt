@@ -1,5 +1,7 @@
 package com.sickworm.intellij.jugg.mcp
 
+import com.sickworm.intellij.jugg.mock.TestPlatformApi
+import com.sickworm.intellij.jugg.platform.PlatformApi
 import org.junit.Assert
 import org.junit.Test
 
@@ -7,8 +9,8 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testListProjectsAcceptedWithoutProjectDir() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newBaseInvoker()
+        PlatformApi.impl = TestPlatformApi()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -28,8 +30,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testCompileToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -49,8 +50,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testDeployToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -70,8 +70,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testCleanReinstallToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -91,8 +90,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testForceGradleCompileToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -111,8 +109,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testDeviceListToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -131,8 +128,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testScreenshotToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -151,8 +147,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testRecordToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -171,8 +166,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testLayoutDumpToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -191,8 +185,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testStartAppToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -211,8 +204,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testStartActivityToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -231,8 +223,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testStartActivityWithIntentArgsSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -266,8 +257,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testTapToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -286,8 +276,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testStartEmulatorToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
@@ -307,8 +296,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
 
     @Test
     fun testEmulatorListToolCallSuccess() {
-        val invoker = McpInvoker(currentProjectDir = "/tmp/projectA")
-        initialize(invoker)
+        val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
