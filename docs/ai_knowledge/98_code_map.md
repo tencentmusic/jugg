@@ -14,7 +14,7 @@
 | compiler | JuggCompiler, BaseCompiler, CompileTask | compiler/core | 编译调度与任务编排 | 稳定 | 2025-01-20 |
 | compiler | JavaCompiler, KotlinCompiler, DexCompiler | compiler/source | 源码/字节码/DEX 编译 | 稳定 | 2025-01-20 |
 | compiler | ResourceCompiler, Aapt2Invoker | compiler/resource | AAPT2 资源编译与调用 | 稳定 | 2025-01-20 |
-| compiler | DataBindingCompiler, ViewBindingCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
+| compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
 | compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
 | compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
 | deploy | JuggDeployer, DeployFileManager | deploy/core | 部署调度、文件准备 | 稳定 | 2025-01-20 |

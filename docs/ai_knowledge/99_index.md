@@ -21,7 +21,7 @@
 | [02_compile_core.md](02_compile_core.md) | 编译系统核心架构 | `JuggCompiler`, `BaseCompiler`, `CompileTask` |
 | [02_compile_source.md](02_compile_source.md) | 源码编译器 | `JavaCompiler`, `KotlinCompiler`, `DexCompiler` |
 | [02_compile_resource.md](02_compile_resource.md) | 资源编译器 | `ResourceCompiler`, `Aapt2Invoker` |
-| [02_compile_databinding.md](02_compile_databinding.md) | DataBinding/ViewBinding | `DataBindingCompiler`, `ViewBindingCompiler` |
+| [02_compile_databinding.md](02_compile_databinding.md) | DataBinding/ViewBinding | `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` |
 | [02_compile_manifest_obfuscation.md](02_compile_manifest_obfuscation.md) | Manifest 和混淆 | `ManifestCompiler`, `ObfuscationCompiler` |
 | [02_compile_custom_ui.md](02_compile_custom_ui.md) | 自定义编译器和 UI | `CustomCompilerManager`, `CompileUiHandler` |
 
@@ -63,8 +63,8 @@
 - **Kotlin 编译**: [02_compile_source.md](02_compile_source.md) → KotlinCompiler
 - **Dex 编译**: [02_compile_source.md](02_compile_source.md) → DexCompiler
 - **资源编译**: [02_compile_resource.md](02_compile_resource.md) → ResourceCompiler
-- **DataBinding**: [02_compile_databinding.md](02_compile_databinding.md) → DataBindingCompiler
-- **ViewBinding**: [02_compile_databinding.md](02_compile_databinding.md) → ViewBindingCompiler
+- **DataBinding**: [02_compile_databinding.md](02_compile_databinding.md) → DataBindingGenMapperCompiler
+- **ViewBinding**: [02_compile_databinding.md](02_compile_databinding.md) → DataBindingGenBaseClassesCompiler
 - **Manifest**: [02_compile_manifest_obfuscation.md](02_compile_manifest_obfuscation.md) → ManifestCompiler
 - **混淆支持**: [02_compile_manifest_obfuscation.md](02_compile_manifest_obfuscation.md) → ObfuscationCompiler
 - **自定义编译器**: [02_compile_custom_ui.md](02_compile_custom_ui.md) → CustomCompilerManager

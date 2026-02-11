@@ -15,8 +15,19 @@ import kotlin.test.assertTrue
 
 class DataBindingCompileTest {
 
+    private val javaBaseDir get() = File(assetsAndroidDir, "app/src/main/java")
+    private val resBaseDir get() = File(assetsAndroidDir, "app/src/main/res")
+
+    private val javaActivityFile get() = File(javaBaseDir,
+        "com/sickworm/jugg/demo/testcase/databinding/DataBindingJavaDemoActivity.java")
+    private val kotlinActivityFile get() = File(javaBaseDir,
+        "com/sickworm/jugg/demo/testcase/databinding/DataBindingKotlinDemoActivity.kt")
+    private val javaLayoutFile get() = File(resBaseDir, "layout/activity_data_binding_java_demo.xml")
+    private val kotlinLayoutFile get() = File(resBaseDir, "layout/activity_data_binding_kotlin_demo.xml")
+
     @Before
     fun setUp() {
+        AssembleAndroidProjectOnce.forceRecompile()
         buildDir.deleteRecursively()
     }
 
@@ -195,7 +206,194 @@ class DataBindingCompileTest {
         compileXmlIncludeNewXmlDataBinding()
     }
 
+    @Test
+    fun reproduceReportCaseE_javaRenameClassWithoutXmlTypeShouldCompileFailed() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        withPatchedFiles(
+            javaActivityFile to javaActivityFile.readText()
+                .replace("binding.setUser(new User(\"Jugg User\", 25));", "binding.setUser(new Profile(\"Jugg User\", 25));")
+                .replace("public static class User {", "public static class Profile {")
+                .replace("public User(String name, int age)", "public Profile(String name, int age)")
+        ) {
+            val task = CompileTask(
+                listOf(CompileFile(CompileFile.Type.Java, javaActivityFile, javaBaseDir, context.modules.values.first())),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+            val result = JuggCompiler(context, mockParentDisposable).compile(task)
+            assertFailed(result, "DataBindingJavaDemoActivity.java")
+        }
+    }
+
+    @Test
+    fun reproduceReportCaseF_kotlinRenameClassWithoutXmlTypeShouldCompileFailed() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        withPatchedFiles(
+            kotlinActivityFile to kotlinActivityFile.readText()
+                .replace("binding.user = User(\"John\", 44)", "binding.user = Profile(\"John\", 44)")
+                .replace("data class User(", "data class Profile(")
+        ) {
+            val task = CompileTask(
+                listOf(CompileFile(CompileFile.Type.Kotlin, kotlinActivityFile, javaBaseDir, context.modules.values.first())),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+            val result = JuggCompiler(context, mockParentDisposable).compile(task)
+            assertFailed(result, "DataBindingKotlinDemoActivity.kt")
+        }
+    }
+
+    @Test
+    fun reproduceReportCaseG_javaAndKotlinRenameClassWithXmlTypeStillCompileFailed() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        withPatchedFiles(
+            javaActivityFile to javaActivityFile.readText()
+                .replace("binding.setUser(new User(\"Jugg User\", 25));", "binding.setUser(new Profile(\"Jugg User\", 25));")
+                .replace("public static class User {", "public static class Profile {")
+                .replace("public User(String name, int age)", "public Profile(String name, int age)"),
+            kotlinActivityFile to kotlinActivityFile.readText()
+                .replace("binding.user = User(\"John\", 44)", "binding.user = Profile(\"John\", 44)")
+                .replace("data class User(", "data class Profile("),
+            javaLayoutFile to javaLayoutFile.readText()
+                .replace("DataBindingJavaDemoActivity.User", "DataBindingJavaDemoActivity.Profile"),
+            kotlinLayoutFile to kotlinLayoutFile.readText()
+                .replace("DataBindingKotlinDemoActivity.User", "DataBindingKotlinDemoActivity.Profile"),
+        ) {
+            val module = context.modules.values.first()
+            val task = CompileTask(
+                listOf(
+                    CompileFile(CompileFile.Type.Java, javaActivityFile, javaBaseDir, module),
+                    CompileFile(CompileFile.Type.Kotlin, kotlinActivityFile, javaBaseDir, module),
+                    CompileFile(CompileFile.Type.Resource, javaLayoutFile, resBaseDir, module),
+                    CompileFile(CompileFile.Type.Resource, kotlinLayoutFile, resBaseDir, module),
+                ),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+            val result = JuggCompiler(context, mockParentDisposable).compile(task)
+            assertFailed(result, "DataBinding")
+        }
+    }
+
+    @Test
+    fun reproduceReportCaseA_javaRenameFieldOnlyCompileSuccessButBindingImplStale() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        val stableContext = context
+        val module = stableContext.modules.values.first()
+
+        val resourceTask = makeTask(javaLayoutFile)
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(stableContext, mockParentDisposable)
+        val baseResult = baseClassCompiler.compile(resourceTask)
+        assertTrue(baseResult.isAllSuccess)
+        val mapperCompiler = DataBindingGenMapperCompiler(stableContext, mockParentDisposable)
+        val mapperResult = mapperCompiler.compile(resourceTask)
+        assertTrue(mapperResult.isAllSuccess)
+
+        val bindingImplPath = "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.java"
+        val bindingImplFile = CompileHelper.javaOutputDir.resolve(bindingImplPath)
+        val beforeContent = bindingImplFile.readText()
+        assertTrue(beforeContent.contains("name"), "unexpected baseline binding impl: $bindingImplPath")
+
+        withPatchedFiles(
+            javaActivityFile to javaActivityFile.readText()
+                .replace("public final String name;", "public final String displayName;")
+                .replace("public User(String name, int age)", "public User(String displayName, int age)")
+                .replace("this.name = name;", "this.displayName = displayName;")
+        ) {
+            val sourceTask = CompileTask(
+                listOf(CompileFile(CompileFile.Type.Java, javaActivityFile, javaBaseDir, module)),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+            val result = JuggCompiler(stableContext, mockParentDisposable).compile(sourceTask)
+            assertTrue(result.isAllSuccess, "expected source-only incremental compile success")
+            assertTrue(result.outputs.none { it.file.name.contains("ActivityDataBindingJavaDemoBindingImpl") },
+                "unexpected databinding impl regenerated: ${result.outputs.joinToString { it.file.name }}")
+
+            val afterContent = bindingImplFile.readText()
+            assertTrue(afterContent.contains("name"), "binding impl should still reference old name")
+            assertTrue(!afterContent.contains("displayName"), "binding impl should not contain displayName")
+        }
+    }
+
+    @Test
+    fun reproduceReportCaseC_kotlinRenameFieldOnlyCompileSuccessButBindingImplStale() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        val stableContext = context
+        val module = stableContext.modules.values.first()
+
+        val resourceTask = makeTask(kotlinLayoutFile)
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(stableContext, mockParentDisposable)
+        val baseResult = baseClassCompiler.compile(resourceTask)
+        assertTrue(baseResult.isAllSuccess)
+        val mapperCompiler = DataBindingGenMapperCompiler(stableContext, mockParentDisposable)
+        val mapperResult = mapperCompiler.compile(resourceTask)
+        assertTrue(mapperResult.isAllSuccess)
+
+        val bindingImplPath = "com/example/myapplication/databinding/ActivityDataBindingKotlinDemoBindingImpl.java"
+        val bindingImplFile = CompileHelper.javaOutputDir.resolve(bindingImplPath)
+        val beforeContent = bindingImplFile.readText()
+        assertTrue(beforeContent.contains("getName()") || beforeContent.contains("name"),
+            "unexpected baseline binding impl: $bindingImplPath")
+
+        withPatchedFiles(
+            kotlinActivityFile to kotlinActivityFile.readText()
+                .replace("val name: String,", "val displayName: String,")
+        ) {
+            val sourceTask = CompileTask(
+                listOf(CompileFile(CompileFile.Type.Kotlin, kotlinActivityFile, javaBaseDir, module)),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+            val result = JuggCompiler(stableContext, mockParentDisposable).compile(sourceTask)
+            assertTrue(result.isAllSuccess, "expected source-only incremental compile success")
+            assertTrue(result.outputs.none { it.file.name.contains("ActivityDataBindingKotlinDemoBindingImpl") },
+                "unexpected databinding impl regenerated: ${result.outputs.joinToString { it.file.name }}")
+
+            val afterContent = bindingImplFile.readText()
+            assertTrue(afterContent.contains("getName()") || afterContent.contains("name"),
+                "binding impl should still reference old name")
+            assertTrue(!afterContent.contains("displayName"), "binding impl should not contain displayName")
+        }
+    }
+
     companion object {
+
+        private fun withPatchedFiles(vararg patches: Pair<File, String>, block: () -> Unit) {
+            val backup = patches.associate { (file, _) -> file to if (file.exists()) file.readText() else null }
+            try {
+                patches.forEach { (file, newContent) ->
+                    file.parentFile?.mkdirs()
+                    file.writeText(newContent)
+                }
+                block()
+            } finally {
+                backup.forEach { (file, oldContent) ->
+                    when (oldContent) {
+                        null -> if (file.exists()) file.delete()
+                        else -> file.writeText(oldContent)
+                    }
+                }
+            }
+        }
+
+        private fun assertFailed(result: CompileResult, keyword: String) {
+            assertTrue(!result.isAllSuccess, "expected compile failed, but success")
+            val allErrors = result.failedFiles.joinToString("\n") {
+                "${it.file.file.name}: ${it.getFailure().errorMessages}"
+            }
+            assertTrue(allErrors.contains(keyword), "expected error contains '$keyword', actual:\n$allErrors")
+        }
 
         private fun makeTask(vararg files: File): CompileTask {
             return CompileHelper.makeTask(*files)

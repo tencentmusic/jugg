@@ -456,7 +456,7 @@ private fun getOutput(task: CompileTask, argsManager: DataBindingArgsManager, mo
 | **Mapper 代理** | 生成 Mapper 代理类 |
 | **Include 分析** | 分析布局 include 关系 |
 
-**支持类型**: `Resource`
+**支持类型**: 基类默认（未显式覆写 `supportedTypes`）
 
 ### 4.2 编译流程
 
@@ -921,8 +921,8 @@ private fun findLayoutInfoFileByLayoutName(layoutName: String, parentFileName: S
 |--------|------|
 | **仅处理变更文件** | 仅处理变更的布局文件 |
 | **增量 Mapper** | 避免重新编译所有布局 |
-| **Classpath 缓存** | 缓存 DataBinding Classpath |
-| **并发处理** | 支持并发处理多个布局文件 |
+| **Classpath 聚合** | 聚合父模块依赖并补充 databinding-adapters setter_store |
+| **串行处理** | 以顺序流程处理布局与 include 递归 |
 
 ---
 

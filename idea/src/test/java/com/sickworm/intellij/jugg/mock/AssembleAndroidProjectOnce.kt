@@ -28,6 +28,11 @@ object AssembleAndroidProjectOnce {
         hasAssemble = true
     }
 
+    fun forceRecompile() {
+        hasAssemble = false
+        ensure()
+    }
+
     fun getProjectInfo(): JuggProjectInfo {
         ensure()
         return serializer.load()!!
