@@ -473,12 +473,12 @@ class DeployHistoryDb(
 
         remainFiles.forEach { file ->
             var lastBuildCommitId: String? = null
-            val gitRootDir = file.file.findClosestParent(gitDirToHashMap.keys)
-            if (gitRootDir != null) {
-                lastBuildCommitId = gitDirToHashMap[gitRootDir]
+            val rootDir = file.file.findClosestParent(gitDirToHashMap.keys)
+            if (rootDir != null) {
+                lastBuildCommitId = gitDirToHashMap[rootDir]
             }
 
-            if (lastBuildCommitId == null || gitRootDir == null) {
+            if (lastBuildCommitId == null || rootDir == null) {
                 logger.debug("getLastBuildFile for $file, lastBuildCommitId is null, which should not happen.")
                 result.add(file to null)
                 return@forEach
@@ -487,7 +487,7 @@ class DeployHistoryDb(
             val lastBuildFile = File(buildFilesDir, file.file.pathKey)
             logger.debug("getLastBuildFile, $lastBuildFile exists: ${lastBuildFile.exists()}")
             if (!lastBuildFile.exists()) {
-                val isSuccess = GitManager(gitRootDir)
+                val isSuccess = GitManager.createGitManagerAndTrySearchParent(rootDir)
                     .getLastCommitFileContent(lastBuildCommitId, file.file, lastBuildFile)
                 logger.debug("getLastBuildFile, getLastCommitFileContent exists: $isSuccess")
             }
