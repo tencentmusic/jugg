@@ -1,3 +1,12 @@
+- version: 3.0.0
+  date: 2026.02.11
+  isNeedReinstall: true
+  updates:
+    - supports MCP and associated skills allows AI coding agents to independently bridge the gap between development and validation in a rapid closed loop
+    - supports incremental compilation on release APK with R8 minify and AabResGuard
+    - fixes could cause the IDE to stuck for some time, during initialization after downgrade completion
+    - improve databinding compile compatibility
+
 - version: 2.6.16
   date: 2026.01.22
   isNeedReinstall: true

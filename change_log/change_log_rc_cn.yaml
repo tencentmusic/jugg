@@ -1,3 +1,12 @@
+- version: 3.0.0
+  date: 2026.02.11
+  isNeedReinstall: true
+  updates:
+    - 支持 mcp 和配套 skills，让 AI coding agent 可以独立快速完成开发到验收闭环
+    - 支持 release APK 增量编译，支持 R8 混淆和 AabResGuard 资源混淆
+    - 修复降级完成后初始化时容易出现 IDE 卡主一段时间的问题，现在改为独立进程完成 APK 字节码解析
+    - 提高 databinding 部分场景的编译兼容性，如同时修改数据类和 XML 时会编译失败，工程使用 Kotlin 1.7 版本会编译失败等
+
 - version: 2.6.16
   date: 2026.01.22
   isNeedReinstall: true
