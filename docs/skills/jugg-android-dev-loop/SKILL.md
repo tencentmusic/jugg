@@ -79,19 +79,17 @@ After task verification is complete:
 
 - Max autonomous retries: `3` (same failure category).
 - Unknown failure category: stop and ask user.
-- Potentially destructive change (manifest/signing/gradle-wide refactor): ask user before apply.
 - Never claim success without artifact evidence.
-- For `start_emulator`, never treat unit-test pass as runtime success; require runtime evidence (`adb devices` online or `device_list` online device).
 - Never reuse stale final artifacts: `build/mcp_fetch/final` must be emptied before copy.
-- `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures.
+- `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures, unless user says "fallback compile".
 
 ## Decision Rules
 
 - Prefer `compile_and_deploy` for normal iteration (compiles then deploys).
 - Use `compile_only` when no device is connected or only compilation check is needed.
-- Switch to `clean_reinstall_apk` when incremental deploy state is corrupted or signatures mismatch.
-- If `compile_and_deploy` fails, retry `compile_and_deploy` up to 3 times first.
-- Only after 3 consecutive failures, Agent may try `force_gradle_compile` -> retry `compile_and_deploy` -> `clean_reinstall_apk`.
+- Use `clean_reinstall_apk` when you need to clear app data.
+- If `compile_and_deploy` fails, autonomous retry `compile_and_deploy` up to 3 times first.
+- Only after 3 consecutive failures and still crash / no effects are observed, agent may try `force_gradle_compile`.
 - Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): attempt first-local-emulator startup once, then ask user if none is available or startup fails.
 - Strongly prefer MCP-only execution and avoid raw adb in normal flow.
 
