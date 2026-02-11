@@ -50,23 +50,10 @@
 |------|------|--------|
 | [05_utilities.md](05_utilities.md) | 辅助模块 | `ApkFileModifier`, `GitManager`, `JuggLogger` |
 
-#### 任务手册 (1 个文档)
-| 文档 | 说明 |
-|------|------|
-| [07_cookbook.md](07_cookbook.md) | 常见任务速查 |
-
 #### 代码索引 (1 个文档)
 | 文档 | 说明 |
 |------|------|
 | [98_code_map.md](98_code_map.md) | 代码路径速查表 |
-
-### 📖 其他文档
-
-| 文档 | 说明 |
-|------|------|
-| [06_evolution.md](06_evolution.md) | 演进历史 |
-| [99_index.md](99_index.md) | 本文档 |
----
 
 ## 🔍 按功能查找
 

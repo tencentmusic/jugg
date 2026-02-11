@@ -10,10 +10,6 @@
 
 **Jugg** 是一个基于 Android Studio / IntelliJ IDEA 的 Android 增量部署插件。它的核心目标是：**跳过 Gradle 构建，以极快的速度将代码和资源更新到正在运行的 App 中**。
 
-### 项目名称由来
-
-> "Life is short, Jugg it!" — 人生苦短，Jugg 一下。
-
 ### 核心价值
 
 | 传统方式 | Jugg 方式 |
@@ -141,48 +137,7 @@
 
 ---
 
-## 六、版本历史概要
-
-| 版本 | 发布时间 | 重要特性 |
-|------|---------|---------|
-| 1.0.0 | 2023.09 | 首个正式版本 |
-| 1.1.x | 2023.10-12 | Windows 支持、资源编译优化 |
-| 1.2.x | 2024.01-07 | Git Worktree、Kotlin 1.9、文件回滚检测 |
-| 2.0.x | 2024.10 | Android 11 以下支持、依赖库增量编译、Manifest 增量 |
-| 2.1.0 | 2025.02 | 插件热更新、ARM 原生资源编译 |
-| 2.2.0 | 2025.05 | Compose 支持、@Parcelize、多版本 AS 兼容 |
-| 2.3.0 | 2025.08 | Java 21、远程编译服务器 |
-| 2.4.0 | 2025.10 | 命令行支持、KMM Compose |
-| 2.5.0 | 2025.11 | DataBinding/ViewBinding、Dynamic Feature |
-| 2.6.13 | 2025.12 | 导出增量 APK、AppComponentFactory、CI 构建 |
-
-> 完整版本历史见 [change_log](../../change_log/change_log_cn.html)
-
----
-
-## 七、快速开始
-
-### 7.1 安装插件
-
-1. 打开 Android Studio
-2. Settings → Plugins → Marketplace
-3. 搜索 "Jugg" 并安装
-4. 重启 IDE
-
-### 7.2 配置运行
-
-1. 插件会自动创建 Jugg 运行配置
-2. 或手动创建：Run → Edit Configurations → + → Jugg
-3. 配置编译命令和输出 APK 路径
-
-### 7.3 开始使用
-
-1. 首次运行：点击 Run 按钮，执行 Gradle 全量构建
-2. 后续运行：修改代码后点击 Run，享受极速编译
-
----
-
-## 八、相关链接
+## 六、相关链接
 
 - [演示视频](https://www.bilibili.com/video/BV1W3411C7PU/)
 - [更新日志](../../change_log/change_log_cn.html)
