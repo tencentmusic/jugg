@@ -1,0 +1,232 @@
+package com.sickworm.intellij.jugg.mcp.actions
+
+import com.sickworm.intellij.jugg.deploy.IDeviceAdb
+import com.sickworm.intellij.jugg.mcp.DeviceSelectionResolver
+import com.sickworm.intellij.jugg.mcp.DeviceSelectionResult
+import com.sickworm.intellij.jugg.mcp.IMcpRuntime
+import com.sickworm.intellij.jugg.mcp.McpArtifact
+import com.sickworm.intellij.jugg.mcp.McpErrorCode
+import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
+import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
+import com.sickworm.intellij.jugg.mcp.McpToolDefinition
+import com.sickworm.intellij.jugg.mcp.McpToolResult
+import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.platform.PlatformApi
+import java.io.File
+
+class ActivityStackMcpToolAction : McpToolAction {
+    override val toolName: String = "activity_stack"
+
+    override val definition: McpToolDefinition = McpToolDefinition(
+        name = toolName,
+        description = "Return current Activity stack from target device. Use when AI needs runtime page context before taking UI actions. Side effects: read-only dumpsys call and local text artifact write.",
+        inputSchema = McpJsonSchemaObject(
+            properties = mapOf(
+                "projectDir" to McpToolSchemas.projectDirProperty,
+                "serial" to McpToolSchemas.serialProperty,
+            ),
+            required = listOf("projectDir"),
+            additionalProperties = false,
+        ),
+        outputSchema = McpToolSchemas.baseOutputSchema.copy(
+            properties = McpToolSchemas.baseOutputSchema.properties + mapOf(
+                "data" to McpJsonSchemaProperty(
+                    type = "object",
+                    properties = mapOf(
+                        "device" to McpToolSchemas.deviceProperty,
+                        "topActivity" to McpJsonSchemaProperty(type = "string"),
+                        "activities" to McpJsonSchemaProperty(
+                            type = "array",
+                            items = McpJsonSchemaProperty(type = "string")
+                        ),
+                        "dumpFile" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.txt$"),
+                        "sourceCommand" to McpJsonSchemaProperty(type = "string"),
+                    ),
+                    required = listOf("device", "activities", "dumpFile", "sourceCommand"),
+                    additionalProperties = false,
+                )
+            )
+        ),
+    )
+
+    override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
+        return activityStackAction(runtime, arguments["serial"] as? String)
+    }
+
+    private fun activityStackAction(runtime: IMcpRuntime, serial: String?): McpToolResult {
+        val selected = resolveOnlineDevice(runtime, serial)
+            ?: return noDeviceResult("activity_stack")
+        val adb = selected.adb
+        val sourceCommand = "dumpsys activity activities"
+
+        return try {
+            val dumpOutput = adb.execAdbShellCmd(sourceCommand)
+            if (dumpOutput.isBlank()) {
+                return McpToolResult.internalErrorResult("activity_stack", "empty dumpsys output")
+            }
+
+            val toolDir = ensureToolDir(runtime, "activity_stack")
+                ?: return McpToolResult.internalErrorResult("activity_stack", "failed to prepare artifact directory")
+            val dumpFile = File(toolDir, "activity_stack_${safeName(adb.serial)}_${System.currentTimeMillis()}.txt")
+            dumpFile.writeText(dumpOutput)
+
+            val parsedEntries = parseActivityEntries(dumpOutput)
+            val topContext = findTopContext(dumpOutput, parsedEntries)
+            val activities = buildActivitiesTopToBottom(topContext, parsedEntries)
+
+            val data = mutableMapOf<String, Any>(
+                "device" to mapOf(
+                    "serial" to adb.serial,
+                    "name" to adb.displayName,
+                    "isOnline" to adb.isOnline,
+                ),
+                "activities" to activities,
+                "dumpFile" to dumpFile.absolutePath,
+                "sourceCommand" to sourceCommand,
+            )
+            if (!topContext.activity.isNullOrBlank()) {
+                data["topActivity"] = topContext.activity
+            }
+
+            McpToolResult(
+                status = McpToolStatus.OK,
+                message = "activity_stack executed successfully. ${selected.messageDetail}",
+                data = data,
+                artifacts = listOf(McpArtifact(type = "text", path = dumpFile.absolutePath)),
+                errorCode = null,
+            )
+        } catch (e: Exception) {
+            McpToolResult.internalErrorResult("activity_stack", e.message ?: "unknown error")
+        }
+    }
+
+    private data class ActivityEntry(
+        val stackIndex: Int,
+        val histIndex: Int,
+        val taskId: Int,
+        val component: String,
+        val line: String,
+    )
+
+    private data class TopContext(
+        val activity: String?,
+        val taskId: Int?,
+    )
+
+    private fun parseActivityEntries(dumpOutput: String): List<ActivityEntry> {
+        val taskRegex = Regex("Task\\{[^#]*#(\\d+)")
+        val histRegex = Regex("Hist\\s+#(\\d+)")
+        val inlineTaskRegex = Regex("\\bt(\\d+)\\b")
+        val componentRegex = Regex("([a-zA-Z][a-zA-Z0-9_.$]*(?:\\.[a-zA-Z0-9_.$]+)+/[a-zA-Z0-9_.$]+)")
+
+        var currentTaskId = -1
+        val entries = mutableListOf<ActivityEntry>()
+        dumpOutput.lineSequence().forEachIndexed { index, rawLine ->
+            val line = rawLine.trim()
+            taskRegex.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { currentTaskId = it }
+            val shouldParse = line.contains("ActivityRecord{") ||
+                line.contains("Hist #") ||
+                line.contains("topResumedActivity") ||
+                line.contains("mResumedActivity") ||
+                line.contains("mFocusedActivity")
+            if (!shouldParse) {
+                return@forEachIndexed
+            }
+
+            val histIndex = histRegex.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
+            val inlineTaskId = inlineTaskRegex.find(line)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val resolvedTaskId = inlineTaskId ?: currentTaskId
+            componentRegex.findAll(line).forEach { componentMatch ->
+                entries += ActivityEntry(
+                    stackIndex = index,
+                    histIndex = histIndex,
+                    taskId = resolvedTaskId,
+                    component = componentMatch.groupValues[1],
+                    line = line.take(600),
+                )
+            }
+        }
+
+        return entries
+    }
+
+    private fun findTopContext(dumpOutput: String, parsedEntries: List<ActivityEntry>): TopContext {
+        val componentRegex = Regex("([a-zA-Z][a-zA-Z0-9_.$]*(?:\\.[a-zA-Z0-9_.$]+)+/[a-zA-Z0-9_.$]+)")
+        val inlineTaskRegex = Regex("\\bt(\\d+)\\b")
+        val priorityKeywords = listOf("topResumedActivity", "mResumedActivity", "mFocusedActivity")
+        for (keyword in priorityKeywords) {
+            val line = dumpOutput.lineSequence().firstOrNull { it.contains(keyword) }
+            val activity = line?.let { componentRegex.find(it)?.groupValues?.getOrNull(1) }
+            if (!activity.isNullOrBlank()) {
+                val taskId = line.let { inlineTaskRegex.find(it)?.groupValues?.getOrNull(1)?.toIntOrNull() }
+                    ?: parsedEntries.firstOrNull { it.component == activity && it.taskId > 0 }?.taskId
+                return TopContext(activity = activity, taskId = taskId)
+            }
+        }
+
+        val fallbackTop = parsedEntries.firstOrNull()
+        return TopContext(activity = fallbackTop?.component, taskId = fallbackTop?.taskId?.takeIf { it > 0 })
+    }
+
+    private fun buildActivitiesTopToBottom(topContext: TopContext, parsedEntries: List<ActivityEntry>): List<String> {
+        val candidates = if (topContext.taskId != null && topContext.taskId > 0) {
+            parsedEntries.filter { it.taskId == topContext.taskId }
+        } else {
+            parsedEntries
+        }
+
+        val ordered = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+
+        if (!topContext.activity.isNullOrBlank() && seen.add(topContext.activity)) {
+            ordered += topContext.activity
+        }
+
+        candidates.forEach { entry ->
+            if (seen.add(entry.component)) {
+                ordered += entry.component
+            }
+        }
+        return ordered
+    }
+
+    private data class SelectedAdb(
+        val adb: IDeviceAdb,
+        val messageDetail: String,
+    )
+
+    private fun resolveOnlineDevice(runtime: IMcpRuntime, serial: String?): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(serial, runtime.deployTargetManager)
+        if (selectionResult !is DeviceSelectionResult.Selected) {
+            return null
+        }
+        val adb = PlatformApi.toDeviceAdb(selectionResult.device) ?: return null
+        if (!adb.isOnline) {
+            return null
+        }
+        return SelectedAdb(adb = adb, messageDetail = selectionResult.messageDetail)
+    }
+
+    private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
+        val projectDir = runtime.project.basePath ?: return null
+        val dir = File(projectDir, "build/jugg/mcp_fetch/$toolName")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
+    private fun safeName(value: String): String {
+        return value.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+    }
+
+    private fun noDeviceResult(toolName: String): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "$toolName failed. Reason: No connected device is available.",
+            data = emptyMap<String, Any>(),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_NO_DEVICE,
+        )
+    }
+}

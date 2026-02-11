@@ -184,6 +184,29 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
+    fun testActivityStackToolCallSuccess() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 19,
+                params = mapOf(
+                    "name" to "activity_stack",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        val data = result.structuredContent["data"] as Map<*, *>
+        Assert.assertEquals("com.example.app/.MainActivity", data["topActivity"])
+        val activities = data["activities"] as List<*>
+        Assert.assertFalse(activities.isEmpty())
+    }
+
+    @Test
     fun testStartAppToolCallSuccess() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(

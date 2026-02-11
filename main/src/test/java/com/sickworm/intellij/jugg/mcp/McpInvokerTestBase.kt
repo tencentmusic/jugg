@@ -164,6 +164,19 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
+            fakeAction("activity_stack", def("activity_stack")) { arguments ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "activity_stack executed successfully.",
+                    mapOf(
+                        "serial" to arguments["serial"],
+                        "topActivity" to "com.example.app/.MainActivity",
+                        "activities" to listOf("com.example.app/.MainActivity", "com.example.app/.DetailActivity"),
+                    ),
+                    listOf(McpArtifact(type = "text", path = "/tmp/activity_stack.txt")),
+                    null,
+                )
+            },
             fakeAction("start_app", def("start_app")) { arguments ->
                 McpToolResult(
                     McpToolStatus.OK,

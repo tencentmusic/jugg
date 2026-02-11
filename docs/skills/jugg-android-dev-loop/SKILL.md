@@ -23,14 +23,16 @@ Before starting the closed-loop, ensure:
 2. **MCP server is reachable** — jugg-mcp is available.
 3. **Device is connected** — at least one online device/emulator visible in `device_list`.
 
-## Core Workflow (5-Step Closed-Loop SOP)
+## Core Workflow (6-Step Closed-Loop SOP)
 
 ```
 Step 1: list_projects             → confirm projectDir
 Step 2: device_list               → confirm online device
 Step 3: compile_and_deploy        → build and push artifacts to device
-Step 4: start_app + tap                → launch app and interact
-Step 5: screenshot/layout_dump    → collect verification evidence
+Step 4: start_app + tap           → launch app and interact
+Step 5: layout_dump/activity_stack/screenshot/record    → collect verification evidence.
+    -> back to Step 3 if something is wrong.
+Step 6: final_artifact_staging    → save final screenshot or recording for user
 ```
 
 ### Step 1: Confirm Project
@@ -62,8 +64,11 @@ If no device is online:
 
 ### Step 5: Collect Evidence
 
-- `screenshot` for visual proof.
+> Tools from light to heavy.
+
+- `activity_stack` for activity state verification (`data.activities` is a component string array ordered top -> bottom; full details stay in `dumpFile`).
 - `layout_dump` for structural verification.
+- `screenshot` for visual proof.
 - Optional: `record` for video trace with in-record start_app + tap.
 
 ### Step 6: Final Artifact Staging

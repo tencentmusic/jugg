@@ -32,6 +32,7 @@ class McpToolActionRegistry(
                 ScreenshotMcpToolAction(),
                 RecordMcpToolAction(),
                 LayoutDumpMcpToolAction(),
+                ActivityStackMcpToolAction(),
                 StartAppMcpToolAction(),
                 StartActivityMcpToolAction(),
                 TapMcpToolAction(),
@@ -39,4 +40,3 @@ class McpToolActionRegistry(
         }
     }
 }
-

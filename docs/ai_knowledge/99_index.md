@@ -249,18 +249,11 @@
 | **AAPT2** | Android 资源打包工具 | [02_compile_resource.md](02_compile_resource.md) |
 | **Kotlin Compiler** | Kotlin 编译器 | [02_compile_source.md](02_compile_source.md) |
 
----
+### 其他文件
 
-## 📞 联系方式
-
-如有问题或建议，请通过以下方式联系：
-
-- **GitHub Issues**: https://github.com/SickWorm/ARRTI/issues
-- **Email**: (见 GitHub Profile)
-
----
-
-**最后更新**: 2025-01-20
-**文档版本**: v1.0
-**总文档数**: 15 个
-**总代码覆盖**: 236/346 文件 (68.2%)
+| 文件            | 说明         | 文档                               |
+|---------------|------------|----------------------------------|
+| `docs/task`   | 任务计划存放位置   | [docs/task](../../docs/task)     |
+| `docs/skills` | skill 存放位置 | [docs/skills](../../docs/skills) |
+| `tools`       | 工具脚本存放位置   | [tools](../../tools)             |
+| `change_log`  | 改动日志存放位置   | [tools](../../change_log)        |

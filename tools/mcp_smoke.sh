@@ -6,6 +6,7 @@ set -euo pipefail
 # - Call tools/list
 # - Call tools/call list_projects
 # - Call tools/call restart_app (optional --serial)
+# - Call tools/call activity_stack (optional --serial)
 
 PROJECT_DIR=""
 SERIAL=""
@@ -134,6 +135,22 @@ JSON
 )"
 fi
 post_json "$BASE_URL" "$RESTART_PAYLOAD"
+
+echo
+echo
+echo "== 4) tools/call activity_stack =="
+if [[ -n "$SERIAL" ]]; then
+  ACTIVITY_STACK_PAYLOAD="$(cat <<JSON
+{"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"activity_stack","arguments":{"projectDir":"$PROJECT_DIR","serial":"$SERIAL"}}}
+JSON
+)"
+else
+  ACTIVITY_STACK_PAYLOAD="$(cat <<JSON
+{"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"activity_stack","arguments":{"projectDir":"$PROJECT_DIR"}}}
+JSON
+)"
+fi
+post_json "$BASE_URL" "$ACTIVITY_STACK_PAYLOAD"
 
 echo
 echo

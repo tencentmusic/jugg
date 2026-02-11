@@ -105,6 +105,14 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Success output: absolute dump path in `artifacts`.
 - On failure: require `screenshot` success; if none exists => validation fail.
 
+## `activity_stack`
+
+- Purpose: capture current runtime Activity stack and top activity for page-awareness decisions.
+- Required input: `projectDir`.
+- Optional input: `serial`.
+- Success output: `data.topActivity`, `data.activities` (component string array from top to bottom), and a full raw dump text path in `artifacts`.
+- On failure: classify by `errorCode` (`MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`); fallback to `start_app` + `layout_dump` for coarse context.
+
 ## Final Artifacts
 
 - Purpose: prevent user confusion from stale outputs.
