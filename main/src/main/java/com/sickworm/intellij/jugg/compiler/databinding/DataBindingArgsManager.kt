@@ -11,7 +11,7 @@ import java.io.File
  */
 class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: ModuleInfo) {
 
-    val isJava = !isUseKaptForDataBinding(moduleInfo) // use apt if databinding not in kapt deps
+    var isJava = isKaAptRetryAptSuccess || !isUseKaptForDataBinding(moduleInfo)
     val isUseAndroidX = true // just leave it true
     val isUseViewBinding = isUseViewBinding(moduleInfo)
     val isUseDataBinding = isUseDataBinding(moduleInfo)
@@ -69,8 +69,8 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
 
     // trigger file
     val dataBindingPreProcessorSources get() = dir(tempCompileDir, "other/data_binding_trigger/${moduleInfo.buildVariant}")
-    val dataBindingKaptProcessorTrigger get() = file(dataBindingPreProcessorSources, "$packagePath/DataBindingInfo.java")
-    val dataBindingKaptSourceTrigger get() = file(dataBindingPreProcessorSources, "$packagePath/DataBindingTrigger.kt")
+    val dataBindingAptSourceTrigger get() = file(dataBindingPreProcessorSources, "$packagePath/DataBindingInfo.java")
+    val dataBindingKaptSourceTrigger get() = file(dataBindingPreProcessorSources, "$packagePath/DataBindingInfo.kt")
 
     // mapper
     val dataBindingMapperRelativePath = "$packagePath/DataBinderMapperImpl.java"
@@ -117,6 +117,9 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     }
 
     companion object {
+
+        var isKaAptRetryAptSuccess = false
+
         private val dataBindingKaptDependencyHints = listOf(
             "databinding-compiler",
             "databinding-compiler-common",
@@ -124,6 +127,7 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
         )
 
         fun isUseKaptForDataBinding(moduleInfo: ModuleInfo): Boolean {
+            // use apt if databinding not in kapt deps, otherwise kapt
             return moduleInfo.kaptDependencies.any { dependency ->
                 dataBindingKaptDependencyHints.any { hint -> dependency.file.path.contains(hint) }
             }
@@ -168,5 +172,15 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
             if (!xmlFile.exists()) return false
             return xmlFile.readText().contains("<layout")
         }
+    }
+
+    fun isTriggerFile(file: File): Boolean {
+        if (file == dataBindingKaptSourceTrigger) {
+            return true
+        }
+        if (file == dataBindingAptSourceTrigger) {
+            return true
+        }
+        return false
     }
 }

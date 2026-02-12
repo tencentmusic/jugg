@@ -42,7 +42,6 @@ class SourceCompiler(
         val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, context, logger)
             .processDataBindingMapper(task, module)
         if (!dataBindingMapperResult.isAllSuccess) {
-            logger.warn("DataBinding Mapper generation failed")
             return dataBindingMapperResult.failedAll(task, "DataBinding Mapper generation failed")
         }
         // Compile DataBinding generated Java files (XXXBindingImpl, BR, DataBinderMapper, etc.)

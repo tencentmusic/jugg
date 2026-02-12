@@ -26,6 +26,10 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
     private lateinit var argsManager: DataBindingArgsManager
 
+    init {
+        DataBindingArgsManager.isKaAptRetryAptSuccess = false
+    }
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         argsManager = DataBindingArgsManager(context, module)
         if (!argsManager.isUseDataBinding) {
@@ -328,33 +332,31 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
                 subContext, module, aptTask, logger, options
             )
         } else {
-            val extraJavaSourceDir = prepareJavaSourceDirForKapt(task, subContext)
-            val javaSourceDirs = mutableListOf<File>().apply {
-                add(argsManager.dataBindingSourcesOutputDir)
-                if (extraJavaSourceDir != null) {
-                    add(extraJavaSourceDir)
-                }
-            }
             val options = KotlinCompilerInvoker.Options(
                 isEnableKapt = true,
                 isCanAutoRetry = false,
                 kaptOptions = apOptions,
                 kaptDependencies = classpath.aptDependencies,
                 kotlinPlugins = classpath.kotlinPlugins,
-                javaSourceDirs = javaSourceDirs, // include latest java sources to avoid stale read
+                // Restrict java source roots for databinding kapt to avoid duplicate generated classes
+                // from app/build/generated/source/kapt* being compiled again.
+                javaSourceDirs = listOf(argsManager.dataBindingSourcesOutputDir),
             )
-            val firstResult = KotlinCompilerInvoker.currentInstance.compile(
+            aptResult = KotlinCompilerInvoker.currentInstance.compile(
                 subContext, module, aptTask, logger, options
             )
-            aptResult = if (firstResult.isAllSuccess) {
-                firstResult
-            } else {
-                // allow one retry for kapt, fallback to embedded kotlin compiler
-                logger.warn("Kapt failed once, retry with embedded Kotlin compiler")
-                val retryOptions = options.copy(forceUseEmbeddedKotlinCompiler = true)
-                KotlinCompilerInvoker.currentInstance.compile(
-                    subContext, module, aptTask, logger, retryOptions
-                )
+            if (!aptResult.isAllSuccess) {
+                // TODO detect specific error
+                // allow one retry for kapt
+                logger.warn("Kapt failed, retry with apt once")
+                argsManager.isJava = true
+                DataBindingGenBaseClassesCompiler.generateAnnotationProcessorTrigger(argsManager)
+                val aptTriggerFile = CompileFile(CompileFile.Type.Java,
+                    argsManager.dataBindingAptSourceTrigger, argsManager.dataBindingPreProcessorSources, context.tempModule)
+                val aptTask = CompileTask(task.files + aptTriggerFile, task.outputDir, task)
+                runAnnotationProcessor(aptTask, module) // exception will throw if failed
+                DataBindingArgsManager.isKaAptRetryAptSuccess = true
+                return
             }
         }
         if (!aptResult.isAllSuccess) {
@@ -364,21 +366,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             throw RuntimeException("No annotation process task output")
         }
         logger.debug("runAnnotationProcessor apt output: ${aptResult.outputs.joinToString(", ") { it.file.name }}")
-    }
-
-    private fun prepareJavaSourceDirForKapt(task: CompileTask, subContext: ICompileContext): File? {
-        val javaFiles = task.files.filter { it.type == CompileFile.Type.Java }
-        if (javaFiles.isEmpty()) {
-            return null
-        }
-        val tempJavaSourceDir = File(subContext.tempCompileDir, "kapt_java_sources")
-        tempJavaSourceDir.clearDir()
-        javaFiles.forEach { javaFile ->
-            val targetFile = javaFile.file.changeBaseDir(javaFile.baseDir, tempJavaSourceDir)
-            targetFile.parentFile.mkdirs()
-            javaFile.file.copyTo(targetFile, overwrite = true)
-        }
-        return tempJavaSourceDir
     }
 
     /**

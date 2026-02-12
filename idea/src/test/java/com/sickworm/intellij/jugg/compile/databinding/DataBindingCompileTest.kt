@@ -1,8 +1,10 @@
 package com.sickworm.intellij.jugg.compile.databinding
 
 import android.databinding.tool.ext.toCamelCase
+import com.jetbrains.rd.util.first
 import com.sickworm.intellij.jugg.compile.CompileHelper
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenBaseClassesCompiler
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.mock.*
@@ -10,6 +12,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -27,8 +30,10 @@ class DataBindingCompileTest {
 
     @Before
     fun setUp() {
-        AssembleAndroidProjectOnce.forceRecompile()
+        AssembleAndroidProjectOnce.forceRecompile(isNeedClean = false)
         buildDir.deleteRecursively()
+        context.tempModule.buildPathInfo.buildDir.deleteRecursively()
+        CompileHelper.outputDir.deleteRecursively()
     }
 
     @Test
@@ -41,32 +46,35 @@ class DataBindingCompileTest {
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
-            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java",
+//            "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBinding.java",
+            "com/example/myapplication/DataBindingInfo.kt",
             "layout/activity_data_binding_java_demo.xml",
         ))
 
+        val bindingTask = createBindingTask(compileTask, result)
         val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-        val result2 = mapperCompiler.compile(compileTask)
+        val result2 = mapperCompiler.compile(bindingTask)
         assertTrue(result2.isAllSuccess)
         checkDataBindingOutputs(compileTask, result2, 1)
+        assertFallback()
     }
 
     @Test
     fun testXmlIncludeNodeViewBinding() {
         val compileTask = makeTask(
-            File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_include.xml"),
+            File(assetsAndroidDir, "app/src/main/res/layout/activity_view_binding_include.xml"),
         )
 
         val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
         val result = baseClassCompiler.compile(compileTask)
         assertTrue(result.isAllSuccess)
         checkOutputFiles(result, listOf(
-            "com/example/myapplication/databinding/ActivityDataBindingIncludeBinding.java",
-            "layout/activity_data_binding_include.xml",
+            "com/example/myapplication/databinding/ActivityViewBindingIncludeBinding.java",
+            "layout/activity_view_binding_include.xml",
         ))
 
         checkInclude(
-            "com/example/myapplication/databinding/ActivityDataBindingIncludeBinding.java",
+            "com/example/myapplication/databinding/ActivityViewBindingIncludeBinding.java",
             "TestLayoutBinding",
             "includeTestLayout",
         )
@@ -143,15 +151,17 @@ class DataBindingCompileTest {
             val result = baseClassCompiler.compile(compileTask)
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
-                "com/example/myapplication/databinding/ActivityDataBindingNewBinding.java",
+//                "com/example/myapplication/databinding/ActivityDataBindingNewBinding.java",
+                "com/example/myapplication/DataBindingInfo.kt",
                 "layout/activity_data_binding_new.xml",
             ))
 
             val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-            val result2 = mapperCompiler.compile(compileTask)
+            val result2 = mapperCompiler.compile(createBindingTask(compileTask, result))
             assertTrue(result2.isAllSuccess)
             checkDataBindingOutputs(compileTask, result2, 1)
             context.deployedFiles.addAll(result2.outputs)
+            assertFallback()
         }
 
         fun compileNewXml2DataBinding() {
@@ -163,15 +173,18 @@ class DataBindingCompileTest {
             val result = baseClassCompiler.compile(compileTask)
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
-                "com/example/myapplication/databinding/ActivityDataBindingNew2Binding.java",
+//                "com/example/myapplication/databinding/ActivityDataBindingNew2Binding.java",
+                "com/example/myapplication/DataBindingInfo.kt",
                 "layout/activity_data_binding_new2.xml",
             ))
 
             val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-            val result2 = mapperCompiler.compile(compileTask)
+            val result2 = mapperCompiler.compile(createBindingTask(compileTask, result))
             assertTrue(result2.isAllSuccess)
             checkDataBindingOutputs(compileTask, result2, 1)
             context.deployedFiles.addAll(result2.outputs)
+            assertFalse(DataBindingArgsManager.isKaAptRetryAptSuccess)
+            assertFallback()
         }
 
         fun compileXmlIncludeNewXmlDataBinding() {
@@ -183,27 +196,30 @@ class DataBindingCompileTest {
             val result = baseClassCompiler.compile(compileTask)
             assertTrue(result.isAllSuccess)
             checkOutputFiles(result, listOf(
-                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.java",
+//                "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.java",
+                "com/example/myapplication/DataBindingInfo.kt",
                 "layout/activity_data_binding_old_include.xml",
+            ))
+
+            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+            val result2 = mapperCompiler.compile(createBindingTask(compileTask, result))
+            assertTrue(result2.isAllSuccess)
+            checkDataBindingOutputs(compileTask, result2, 1, listOf(
+                "com/example/myapplication/databinding/ActivityDataBindingIncludeBindingImpl.java" // include node
             ))
             checkInclude(
                 "com/example/myapplication/databinding/ActivityDataBindingOldIncludeBinding.java",
                 "ActivityDataBindingIncludeBinding",
                 "includeTestLayout",
             )
-
-            val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
-            val result2 = mapperCompiler.compile(compileTask)
-            assertTrue(result2.isAllSuccess)
-            checkDataBindingOutputs(compileTask, result2, 1, listOf(
-                "com/example/myapplication/databinding/ActivityDataBindingIncludeBindingImpl.java" // include node
-            ))
             context.deployedFiles.addAll(result2.outputs)
+            assertFallback()
         }
 
         compileNewXmlDataBinding()
         compileNewXml2DataBinding()
         compileXmlIncludeNewXmlDataBinding()
+        assertFallback()
     }
 
     @Test
@@ -225,6 +241,7 @@ class DataBindingCompileTest {
             val result = JuggCompiler(context, mockParentDisposable).compile(task)
             assertFailed(result, "DataBindingJavaDemoActivity.java")
         }
+        assertFallback()
     }
 
     @Test
@@ -245,8 +262,10 @@ class DataBindingCompileTest {
             val result = JuggCompiler(context, mockParentDisposable).compile(task)
             assertFailed(result, "DataBindingKotlinDemoActivity.kt")
         }
+        assertFallback()
     }
 
+    // assumed failed on this case. databinding is a thing of the past.
     @Test
     fun reproduceReportCaseG_javaAndKotlinRenameClassWithXmlTypeStillCompileFailed() {
         clearBuild()
@@ -279,6 +298,7 @@ class DataBindingCompileTest {
             val result = JuggCompiler(context, mockParentDisposable).compile(task)
             assertFailed(result, "DataBinding")
         }
+        assertFallback()
     }
 
     @Test
@@ -294,7 +314,8 @@ class DataBindingCompileTest {
         val baseResult = baseClassCompiler.compile(resourceTask)
         assertTrue(baseResult.isAllSuccess)
         val mapperCompiler = DataBindingGenMapperCompiler(stableContext, mockParentDisposable)
-        val mapperResult = mapperCompiler.compile(resourceTask)
+        val bindingTask = createBindingTask(resourceTask, baseResult)
+        val mapperResult = mapperCompiler.compile(bindingTask)
         assertTrue(mapperResult.isAllSuccess)
 
         val bindingImplPath = "com/example/myapplication/databinding/ActivityDataBindingJavaDemoBindingImpl.java"
@@ -322,6 +343,7 @@ class DataBindingCompileTest {
             assertTrue(afterContent.contains("name"), "binding impl should still reference old name")
             assertTrue(!afterContent.contains("displayName"), "binding impl should not contain displayName")
         }
+        assertFallback()
     }
 
     @Test
@@ -336,8 +358,10 @@ class DataBindingCompileTest {
         val baseClassCompiler = DataBindingGenBaseClassesCompiler(stableContext, mockParentDisposable)
         val baseResult = baseClassCompiler.compile(resourceTask)
         assertTrue(baseResult.isAllSuccess)
+
+        val bindingTask = createBindingTask(resourceTask, baseResult)
         val mapperCompiler = DataBindingGenMapperCompiler(stableContext, mockParentDisposable)
-        val mapperResult = mapperCompiler.compile(resourceTask)
+        val mapperResult = mapperCompiler.compile(bindingTask)
         assertTrue(mapperResult.isAllSuccess)
 
         val bindingImplPath = "com/example/myapplication/databinding/ActivityDataBindingKotlinDemoBindingImpl.java"
@@ -365,6 +389,11 @@ class DataBindingCompileTest {
                 "binding impl should still reference old name")
             assertTrue(!afterContent.contains("displayName"), "binding impl should not contain displayName")
         }
+        assertFallback()
+    }
+
+    open fun assertFallback() {
+        assertFalse(DataBindingArgsManager.isKaAptRetryAptSuccess)
     }
 
     companion object {
@@ -409,14 +438,13 @@ class DataBindingCompileTest {
         private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
             expect.forEach { expectFilePath ->
                 val isJava = expectFilePath.endsWith(".java")
-                val outputDir = if (isJava) CompileHelper.javaOutputDir else CompileHelper.xmlOutputDir
-                val outputType = if (isJava) CompileOutput.Type.Java else CompileOutput.Type.ResXml
-                val expectFile = File(outputDir, expectFilePath)
-                val outputFile = compileResult.outputs.find { it.file == expectFile }
-                assertTrue(outputFile != null, "File $expectFile does not exist in output")
-                assertTrue(outputFile.file.exists(), "File $expectFile does not exist")
-                assertEquals(outputDir, outputFile.baseDir, "File $expectFile is not in correct baseDir")
-                assertEquals(outputType, outputFile.type, "File $expectFile has incorrect type")
+                val isKotlin = expectFilePath.endsWith(".kt")
+                val outputType = if (isJava) CompileOutput.Type.Java else if (isKotlin) CompileOutput.Type.Kotlin else CompileOutput.Type.ResXml
+                val outputFile = compileResult.outputs.find { it.relativeFile.path == expectFilePath }
+                assertTrue(outputFile != null,
+                    "File $expectFilePath does not exist in output, all outputs: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
+                assertTrue(outputFile.file.exists(), "File $expectFilePath does not exist")
+                assertEquals(outputType, outputFile.type, "File $expectFilePath has incorrect type")
             }
             assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, " +
                     "but got ${compileResult.outputs.size}: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
@@ -441,6 +469,17 @@ class DataBindingCompileTest {
                 "com/example/myapplication/DataBinderMapperImpl_Inc_$incTimes.java",
             )
             checkOutputFiles(compileResult, base + outputFiles + additionalOutput)
+        }
+
+        private fun createBindingTask(task: CompileTask, result: CompileResult): CompileTask {
+            return CompileTask(
+                task.files + listOf(
+                    result.outputs.find { it.type == CompileOutput.Type.Kotlin || it.type == CompileOutput.Type.Java }!!
+                        .toCompileFile(context.modules.first().value)!!
+                ),
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
         }
     }
 }

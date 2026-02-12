@@ -124,7 +124,7 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
             // Return DataBinding trigger file and split XML files
             generateAnnotationProcessorTrigger(argsManager)
             val triggerFile = if (argsManager.isJava) {
-                CompileOutput(CompileOutput.Type.Java, argsManager.dataBindingKaptProcessorTrigger, argsManager.dataBindingPreProcessorSources, relativeModule = module)
+                CompileOutput(CompileOutput.Type.Java, argsManager.dataBindingAptSourceTrigger, argsManager.dataBindingPreProcessorSources, relativeModule = module)
             } else {
                 CompileOutput(CompileOutput.Type.Kotlin, argsManager.dataBindingKaptSourceTrigger, argsManager.dataBindingPreProcessorSources, relativeModule = module)
             }
@@ -179,32 +179,35 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
         )
     }
 
-    /**
-     * Create DataBindingInfo.java and DataBindingTrigger.kt
-     */
-    private fun generateAnnotationProcessorTrigger(argsManager: DataBindingArgsManager) {
-        if (argsManager.isJava) {
-            val triggerFile = argsManager.dataBindingKaptProcessorTrigger
-            triggerFile.parentFile.mkdirs()
-            val annotation = if (argsManager.isUseAndroidX) "androidx.databinding.BindingBuildInfo" else "android.databinding.BindingBuildInfo"
-            val classString = StringBuilder()
-                .appendLine("package ${argsManager.packageName};")
-                .appendLine("@$annotation")
-                .appendLine("public class DataBindingInfo {}")
-            triggerFile.writeText(classString.toString())
-            if (!triggerFile.exists()) {
-                throw RuntimeException("trigger file not exist: $triggerFile")
-            }
-        } else {
-            val ktSourceTriggerFile = argsManager.dataBindingKaptSourceTrigger
-            ktSourceTriggerFile.parentFile.mkdirs()
-            val content = StringBuilder()
-                .appendLine("package ${argsManager.packageName}")
-                .appendLine("class DataBindingIncTrigger {}")
-            ktSourceTriggerFile.writeText(content.toString())
-            if (!ktSourceTriggerFile.exists()) {
-                throw RuntimeException("ktSourceTriggerFile file not exist: $ktSourceTriggerFile")
+    companion object {
+        /**
+         * Create DataBindingInfo.java and DataBindingTrigger.kt
+         */
+        fun generateAnnotationProcessorTrigger(argsManager: DataBindingArgsManager) {
+            if (argsManager.isJava) {
+                val triggerFile = argsManager.dataBindingAptSourceTrigger
+                triggerFile.parentFile.mkdirs()
+                val annotation = if (argsManager.isUseAndroidX) "androidx.databinding.BindingBuildInfo" else "android.databinding.BindingBuildInfo"
+                val classString = StringBuilder()
+                    .appendLine("package ${argsManager.packageName};")
+                    .appendLine("@$annotation")
+                    .appendLine("public class DataBindingInfo {}")
+                triggerFile.writeText(classString.toString())
+                if (!triggerFile.exists()) {
+                    throw RuntimeException("trigger file not exist: $triggerFile")
+                }
+            } else {
+                val ktSourceTriggerFile = argsManager.dataBindingKaptSourceTrigger
+                ktSourceTriggerFile.parentFile.mkdirs()
+                val content = StringBuilder()
+                    .appendLine("package ${argsManager.packageName}")
+                    .appendLine("class DataBindingIncTrigger {}")
+                ktSourceTriggerFile.writeText(content.toString())
+                if (!ktSourceTriggerFile.exists()) {
+                    throw RuntimeException("ktSourceTriggerFile file not exist: $ktSourceTriggerFile")
+                }
             }
         }
     }
+
 }

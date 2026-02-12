@@ -19,18 +19,20 @@ object AssembleAndroidProjectOnce {
     private val gradleProjectInfoFile = JuggPathManager(projectInfo.projectRoot).gradleProjectInfoFile
     private val serializer = ProjectInfoSerializer(gradleProjectInfoFile, logger)
 
-    fun ensure() {
+    fun ensure(isNeedClean: Boolean = true) {
         logger.debug("ensure assemble, hasAssemble: $hasAssemble")
         if (!hasAssemble) {
-            GradleBuildHelper.clean()
+            if (isNeedClean) {
+                GradleBuildHelper.clean()
+            }
             GradleBuildHelper.appAssembleDebug(scriptFile.absolutePath)
         }
         hasAssemble = true
     }
 
-    fun forceRecompile() {
+    fun forceRecompile(isNeedClean: Boolean) {
         hasAssemble = false
-        ensure()
+        ensure(isNeedClean)
     }
 
     fun getProjectInfo(): JuggProjectInfo {

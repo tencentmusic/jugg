@@ -138,7 +138,7 @@ class KotlinCompilerInvoker {
             .filter { !disablePlugins.contains(it) && !tryDisablePlugins.contains(it) }
 
         val pluginArgs = mutableListOf<String>()
-        if (kotlinCompile.isUseProjectCompiler) {
+        if (kotlinCompile.isUseProjectCompiler || options.forceUseEmbeddedKotlinCompiler) {
             // if we use project compiler, we can use project plugins
             kotlinPlugins.forEach {
                 pluginArgs.add("-Xplugin=${it.path}")
@@ -240,13 +240,14 @@ class KotlinCompilerInvoker {
         val kspArgs = kspArgsManager.handleKspArgs()
         val composeArgs = handleComposeArgs(options, kotlinExtensions, kotlinPlugins, logger)
 
-        @Suppress("IfThenToElvis")
-        val javaSourceRoots = if (options.javaSourceDirs != null) {
+        var javaSourceRoots = if (options.javaSourceDirs != null) {
+            // Explicit javaSourceDirs means caller wants a constrained source-root set.
             options.javaSourceDirs
         } else {
-            (module.sourceDirs + context.getGeneratedSourcePaths(module)).filter {
-                it.exists()
-            }
+            module.sourceDirs + context.getGeneratedSourcePaths(module)
+        }
+        javaSourceRoots = javaSourceRoots.filter {
+            it.exists()
         }
 
         var jvmTarget = tryProperJvmTarget ?: properJvmTarget
@@ -290,7 +291,7 @@ class KotlinCompilerInvoker {
         )).toMutableList()
         if (!kotlinCompile.isUseProjectCompiler) {
             // use embedded compiler, we need to set the language version
-            compileArgs.addAll(listOf("-language-version", guessKotlinVersionForEmbedded(module, logger)))
+            compileArgs.addAll(listOf("-language-version", "1.9"))
         }
 
         var classPathArgs = listOf<String>()

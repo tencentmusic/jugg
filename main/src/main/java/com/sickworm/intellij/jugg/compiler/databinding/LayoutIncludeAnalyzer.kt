@@ -25,6 +25,9 @@ class LayoutIncludeAnalyzer(
             // convert to layout info files
             var layoutInfoFiles = mutableListOf<File>()
             compileDataBindingXmlFiles.forEach { file ->
+                if (argsManager.isTriggerFile(file.file)) {
+                    return@forEach
+                }
                 val subLayoutInfoFiles = findLayoutInfoFileByLayoutName(file.file.nameWithoutExtension)
                 if (subLayoutInfoFiles.isEmpty()) {
                     logger.warn("Can not find layout info file for layout file: $file")

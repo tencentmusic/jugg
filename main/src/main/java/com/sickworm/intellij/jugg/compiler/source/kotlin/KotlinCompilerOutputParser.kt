@@ -52,7 +52,7 @@ class KotlinCompilerOutputParser(
                 if (isCompileSuccess) {
                     Result.success(file)
                 } else {
-                    Result.failure(CompileError(file, listOf(-1L to "no output and compile failed")))
+                    Result.failure(CompileError(file, listOf(-1L to "compile failed")))
                 }
             }
         }

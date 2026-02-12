@@ -4,8 +4,11 @@ package com.sickworm.intellij.jugg.compiler.databinding
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.jar.JarFile
 
 object DataBindingClasspathHelper {
 
@@ -22,6 +25,8 @@ object DataBindingClasspathHelper {
     )
 
     private val databindingAdapterDependency = "databinding-adapters"
+    private const val annotationProcessorServicePath = "META-INF/services/javax.annotation.processing.Processor"
+    private val processorJarCache = ConcurrentHashMap<String, Boolean>()
 
     fun getClasspath(isApt: Boolean, context: ICompileContext, module: ModuleInfo, logger: Logger): Classpath {
         val modules = context.getParentModules(module, true)
@@ -32,20 +37,21 @@ object DataBindingClasspathHelper {
             modules.flatMap { it.kaptDependencies }.toMutableList()
         }
 
-        val missingDependencies = databindingDependencies.filter { dependency ->
-            return@filter dependencies.none { it.file.path.contains(dependency) }
-        }
-        if (missingDependencies.isNotEmpty()) {
-            logger.debug("DataBindingClasspathHelper missingDependencies: $missingDependencies")
-            throw IllegalStateException("DataBinding apt not found, missing dependencies: $missingDependencies. " +
-                    "Fallback to gradle once may fix this issue.")
-        }
-
         val adapterDependency = modules
             .flatMap { it.libraryDependencies }
             .find { it.isJar && it.file.path.contains(databindingAdapterDependency) }
         if (adapterDependency != null) {
             dependencies.add(adapterDependency)
+        }
+        val filteredDependencies = filterNonDataBindingAnnotationProcessor(dependencies, logger)
+
+        val missingDependencies = databindingDependencies.filter { dependency ->
+            return@filter filteredDependencies.none { it.file.path.contains(dependency) }
+        }
+        if (missingDependencies.isNotEmpty()) {
+            logger.debug("DataBindingClasspathHelper missingDependencies: $missingDependencies")
+            throw IllegalStateException("DataBinding apt not found, missing dependencies: $missingDependencies. " +
+                    "Fallback to gradle once may fix this issue.")
         }
         // ~/.gradle/caches/transforms-3/37ceb468e4faf5883fcae514a0e5195b/transformed/databinding-adapters-7.2.2/
         // data-binding/androidx.databinding.library.baseAdapters-setter_store.json
@@ -65,10 +71,43 @@ object DataBindingClasspathHelper {
         }
 
         return Classpath(
-            dependencies.map { it.file },
+            filteredDependencies.map { it.file },
             if (kaptPlugin == null) emptyList() else listOf(kaptPlugin),
             adapterJson
         )
+    }
+
+    private fun filterNonDataBindingAnnotationProcessor(
+        dependencies: List<LibraryDependency>,
+        logger: Logger
+    ): List<LibraryDependency> {
+        val removedProcessorJars = mutableListOf<String>()
+        return dependencies.filter { dependency ->
+            val file = dependency.file
+            if (!isAnnotationProcessorJar(file)) return@filter true
+            val isDataBindingProcessor = databindingDependencies.any { hint -> file.path.contains(hint) }
+            if (!isDataBindingProcessor) {
+                removedProcessorJars.add(file.path)
+            }
+            isDataBindingProcessor
+        }.also {
+            if (removedProcessorJars.isNotEmpty()) {
+                logger.debug("DataBindingClasspathHelper filtered non-databinding processors: $removedProcessorJars")
+            }
+        }
+    }
+
+    private fun isAnnotationProcessorJar(file: File): Boolean {
+        if (!file.exists() || !file.isFile || file.extension != "jar") {
+            return false
+        }
+        val path = file.absolutePath
+        processorJarCache[path]?.let { return it }
+        val isProcessor = runCatching {
+            JarFile(file).use { jar -> jar.getEntry(annotationProcessorServicePath) != null }
+        }.getOrDefault(false)
+        processorJarCache[path] = isProcessor
+        return isProcessor
     }
 
 }
