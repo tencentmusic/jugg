@@ -5,6 +5,7 @@ import com.intellij.execution.configurations.*
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.components.BaseState
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -43,10 +44,16 @@ class JuggRunConfiguration(
     private var lastSetObj: Any? = null
 
     private fun ensureSetAllowSelectDevice() {
-        if (lastSetObj !== get()) {
-            // map will recreate
-            AsDeployerCompat.setAllowSelectDevice(this)
-            lastSetObj = get()
+        try {
+            if (lastSetObj !== userMap) {
+                // map will recreate
+                AsDeployerCompat.setAllowSelectDevice(this)
+                lastSetObj = userMap
+            }
+        } catch (e: Throwable) {
+            // error in panda for get()
+            // java.lang.NoSuchMethodError: 'java.lang.Object com.sickworm.intellij.jugg.ide.JuggRunConfiguration.get()'
+            Logger.getInstance("JuggRunConfiguration").warn("ensureSetAllowSelectDevice", e)
         }
     }
 }
