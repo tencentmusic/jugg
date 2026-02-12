@@ -1,3 +1,8 @@
+- version: 3.0.1
+  date: 2026.02.12
+  updates:
+    - fix untracked file rollbacks on first time compile
+
 - version: 3.0.0
   date: 2026.02.11
   isNeedReinstall: true
