@@ -25,6 +25,13 @@ open class GitManagerTest {
         }
         val commitFile = File(gitManager.rootDir, "commit_file.txt")
         commitFile.delete()
+        // cleanup files created by filterChangedFiles tests
+        File(gitManager.rootDir, "untracked_1.txt").delete()
+        File(gitManager.rootDir, "untracked_2.txt").delete()
+        File(gitManager.rootDir, "tracked_file.txt").delete()
+        File(gitManager.rootDir, "tracked_mixed.txt").delete()
+        File(gitManager.rootDir, "untracked_mixed.txt").delete()
+        File(gitManager.rootDir, "untracked_dir").deleteRecursively()
         gitManager.deleteGit()
     }
 
@@ -138,5 +145,132 @@ open class GitManagerTest {
 
         commitFile.delete()
         gitManager.deleteGit()
+    }
+
+    @Test
+    fun testFilterChangedFilesReturnsUntrackedFiles() {
+        testInit()
+        gitManager.addAllAndCommit("initial commit")
+        val commitHash = gitManager.getLastCommitHash()
+        assertNotNull(commitHash)
+
+        // create untracked files (not git added)
+        val untrackedFile1 = File(gitManager.rootDir, "untracked_1.txt")
+        val untrackedFile2 = File(gitManager.rootDir, "untracked_2.txt")
+        untrackedFile1.writeText("untracked content 1")
+        untrackedFile2.writeText("untracked content 2")
+
+        try {
+            val result = gitManager.filterChangedFiles(
+                commitHash,
+                listOf(untrackedFile1, untrackedFile2)
+            )
+            assertEquals(
+                listOf(untrackedFile1, untrackedFile2).sortedBy { it.name },
+                result.sortedBy { it.name }
+            )
+        } finally {
+            untrackedFile1.delete()
+            untrackedFile2.delete()
+        }
+    }
+
+    @Test
+    fun testFilterChangedFilesIncludesModifiedTrackedFiles() {
+        testInit()
+        gitManager.addAllAndCommit("initial commit")
+        val commitHash = gitManager.getLastCommitHash()
+        assertNotNull(commitHash)
+
+        // create a file and commit it (tracked + committed)
+        val trackedFile = File(gitManager.rootDir, "tracked_file.txt")
+        trackedFile.writeText("tracked content")
+        gitManager.addAllAndCommit("add tracked file")
+
+        // modify the tracked file (modified but still tracked)
+        trackedFile.writeText("modified content")
+
+        try {
+            val result = gitManager.filterChangedFiles(commitHash, listOf(trackedFile))
+            // modified tracked file should be returned (uncommittedChanges includes it)
+            assertEquals(listOf(trackedFile), result)
+        } finally {
+            trackedFile.delete()
+        }
+    }
+
+    @Test
+    fun testFilterChangedFilesMixedTrackedAndUntracked() {
+        testInit()
+        gitManager.addAllAndCommit("initial commit")
+        val commitHash = gitManager.getLastCommitHash()
+        assertNotNull(commitHash)
+
+        // tracked file
+        val trackedFile = File(gitManager.rootDir, "tracked_mixed.txt")
+        trackedFile.writeText("tracked")
+        gitManager.addAllAndCommit("add tracked")
+
+        // modify tracked file
+        trackedFile.writeText("modified tracked")
+
+        // untracked file
+        val untrackedFile = File(gitManager.rootDir, "untracked_mixed.txt")
+        untrackedFile.writeText("untracked")
+
+        try {
+            val result = gitManager.filterChangedFiles(
+                commitHash,
+                listOf(trackedFile, untrackedFile)
+            )
+            // both modified tracked file and untracked file should be returned
+            assertEquals(
+                listOf(trackedFile, untrackedFile).sortedBy { it.name },
+                result.sortedBy { it.name }
+            )
+        } finally {
+            trackedFile.delete()
+            untrackedFile.delete()
+        }
+    }
+
+    @Test
+    fun testFilterChangedFilesUntrackedDirectory() {
+        testInit()
+        gitManager.addAllAndCommit("initial commit")
+        val commitHash = gitManager.getLastCommitHash()
+        assertNotNull(commitHash)
+
+        // create an untracked directory with files
+        val untrackedDir = File(gitManager.rootDir, "untracked_dir")
+        untrackedDir.mkdirs()
+        val fileInDir1 = File(untrackedDir, "file_in_dir_1.txt")
+        val fileInDir2 = File(untrackedDir, "file_in_dir_2.txt")
+        fileInDir1.writeText("content 1")
+        fileInDir2.writeText("content 2")
+
+        try {
+            val result = gitManager.filterChangedFiles(
+                commitHash,
+                listOf(fileInDir1, fileInDir2)
+            )
+            assertEquals(
+                listOf(fileInDir1, fileInDir2).sortedBy { it.name },
+                result.sortedBy { it.name }
+            )
+        } finally {
+            untrackedDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testFilterChangedFilesEmptyList() {
+        testInit()
+        gitManager.addAllAndCommit("initial commit")
+        val commitHash = gitManager.getLastCommitHash()
+        assertNotNull(commitHash)
+
+        val result = gitManager.filterChangedFiles(commitHash, emptyList())
+        assertEquals(emptyList(), result)
     }
 }

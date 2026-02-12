@@ -46,6 +46,8 @@ interface IGitManager {
 
     /**
      * git diff [commitHash] [files]
+     * +
+     * git untracked files (including files inside untracked directories)
      */
     fun filterChangedFiles(commitHash: String, files: List<File>): List<File>
 

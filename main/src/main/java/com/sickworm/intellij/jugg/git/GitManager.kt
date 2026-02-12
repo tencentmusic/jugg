@@ -203,16 +203,28 @@ class GitManager (
     }
 
     override fun filterChangedFiles(commitHash: String, files: List<File>): List<File> {
+        if (files.isEmpty()) {
+            return emptyList()
+        }
+        val relativePaths = files.map { file ->
+            file.relativeToOrSelf(rootDir).path.replace('\\', '/')
+        }
         val diff = IndexDiff(repository, commitHash, FileTreeIterator(repository))
         diff.setIgnoreSubmoduleMode(SubmoduleWalk.IgnoreSubmoduleMode.ALL)
-        diff.setFilter(PathFilterGroup.createFromStrings(files.map { file ->
-            file.relativeToOrSelf(rootDir).path.replace('\\', '/')
-        }))
+        diff.setFilter(PathFilterGroup.createFromStrings(relativePaths))
         diff.diff()
         val status = Status(diff)
-        return status.uncommittedChanges.map {
-            File(rootDir, it)
+
+        val changedFiles = status.uncommittedChanges.map { File(rootDir, it) }
+        val untrackedFiles = status.untracked.map { File(rootDir, it) }
+        val untrackedDirs = status.untrackedFolders
+        val filesInUntrackedDirs = files.filter { file ->
+            val relPath = file.relativeToOrSelf(rootDir).path.replace('\\', '/')
+            untrackedDirs.any { dir ->
+                relPath.startsWith("$dir/") || relPath == dir
+            }
         }
+        return (changedFiles + untrackedFiles + filesInUntrackedDirs).distinct()
     }
 
     override fun getLastCommitFileContent(commitId: String, file: File, outputFile: File): Boolean {

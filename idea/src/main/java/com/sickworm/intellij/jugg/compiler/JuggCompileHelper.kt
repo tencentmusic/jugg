@@ -217,8 +217,10 @@ class JuggCompilerHelper(
                     }
                     val rollbackFiles = deployHistoryManager.filterUnchangedFiles(uncompiledFiles.map { it.file })
                     if (rollbackFiles.isNotEmpty()) {
-                        logger.debug("Found ${rollbackFiles.size} files rollback, files: ${rollbackFiles.map { it.name }}")
+                        logger.debug("Found files rollback, size: ${rollbackFiles.size}, files: ${rollbackFiles.map { it.name }}")
                         deployFileManager.removeChangedFile(rollbackFiles)
+                    } else {
+                        logger.debug("No files rollback.")
                     }
                     val costTime = System.currentTimeMillis() - startTime
 
