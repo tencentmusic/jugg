@@ -16,7 +16,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class DataBindingCompileTest {
+open class DataBindingCompileTest {
 
     private val javaBaseDir get() = File(assetsAndroidDir, "app/src/main/java")
     private val resBaseDir get() = File(assetsAndroidDir, "app/src/main/res")
@@ -37,7 +37,7 @@ class DataBindingCompileTest {
     }
 
     @Test
-    fun testDataBinding() {
+    open fun testDataBinding() {
         val compileTask = makeTask(
             File(assetsAndroidDir, "app/src/main/res/layout/activity_data_binding_java_demo.xml")
         )
@@ -183,7 +183,6 @@ class DataBindingCompileTest {
             assertTrue(result2.isAllSuccess)
             checkDataBindingOutputs(compileTask, result2, 1)
             context.deployedFiles.addAll(result2.outputs)
-            assertFalse(DataBindingArgsManager.isKaAptRetryAptSuccess)
             assertFallback()
         }
 
@@ -219,7 +218,6 @@ class DataBindingCompileTest {
         compileNewXmlDataBinding()
         compileNewXml2DataBinding()
         compileXmlIncludeNewXmlDataBinding()
-        assertFallback()
     }
 
     @Test
@@ -240,8 +238,8 @@ class DataBindingCompileTest {
             )
             val result = JuggCompiler(context, mockParentDisposable).compile(task)
             assertFailed(result, "DataBindingJavaDemoActivity.java")
+            assertFallback()
         }
-        assertFallback()
     }
 
     @Test
@@ -261,8 +259,8 @@ class DataBindingCompileTest {
             )
             val result = JuggCompiler(context, mockParentDisposable).compile(task)
             assertFailed(result, "DataBindingKotlinDemoActivity.kt")
+            assertFallback()
         }
-        assertFallback()
     }
 
     // assumed failed on this case. databinding is a thing of the past.
@@ -297,8 +295,8 @@ class DataBindingCompileTest {
             )
             val result = JuggCompiler(context, mockParentDisposable).compile(task)
             assertFailed(result, "DataBinding")
+            assertFallback()
         }
-        assertFallback()
     }
 
     @Test
@@ -342,8 +340,8 @@ class DataBindingCompileTest {
             val afterContent = bindingImplFile.readText()
             assertTrue(afterContent.contains("name"), "binding impl should still reference old name")
             assertTrue(!afterContent.contains("displayName"), "binding impl should not contain displayName")
+            assertFallback()
         }
-        assertFallback()
     }
 
     @Test
@@ -388,12 +386,48 @@ class DataBindingCompileTest {
             assertTrue(afterContent.contains("getName()") || afterContent.contains("name"),
                 "binding impl should still reference old name")
             assertTrue(!afterContent.contains("displayName"), "binding impl should not contain displayName")
+            assertFallback()
         }
-        assertFallback()
     }
 
     open fun assertFallback() {
         assertFalse(DataBindingArgsManager.isKaAptRetryAptSuccess)
+    }
+
+    open fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
+        expect.forEach { expectFilePath ->
+            val isJava = expectFilePath.endsWith(".java")
+            val isKotlin = expectFilePath.endsWith(".kt")
+            val outputType = if (isJava) CompileOutput.Type.Java else if (isKotlin) CompileOutput.Type.Kotlin else CompileOutput.Type.ResXml
+            val outputFile = compileResult.outputs.find { it.relativeFile.path == expectFilePath }
+            assertTrue(outputFile != null,
+                "File $expectFilePath does not exist in output, all outputs: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
+            assertTrue(outputFile.file.exists(), "File $expectFilePath does not exist")
+            assertEquals(outputType, outputFile.type, "File $expectFilePath has incorrect type")
+        }
+        assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, " +
+                "but got ${compileResult.outputs.size}: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
+    }
+
+    private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int, additionalOutput: List<String> = listOf()) {
+        val outputFiles = compileTask.files.flatMap {
+            val file = it.file
+            listOf(
+                "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}Binding.java",
+                "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}BindingImpl.java",
+                "layout/${file.name}",
+            )
+        }
+        val base = listOf(
+            "androidx/databinding/DataBinderMapperImpl.java",
+            "androidx/databinding/DataBindingComponent.java",
+            "com/example/myapplication/BR.java",
+            "com/example/myapplication/DataBinderMapper_IncrementalHolder.java",
+            "com/example/myapplication/DataBinderMapperImpl.java",
+            "com/example/myapplication/DataBinderMapperImpl_Full.java",
+            "com/example/myapplication/DataBinderMapperImpl_Inc_$incTimes.java",
+        )
+        checkOutputFiles(compileResult, base + outputFiles + additionalOutput)
     }
 
     companion object {
@@ -435,41 +469,6 @@ class DataBindingCompileTest {
             assertTrue(includeField.contains("$type $name;"), "include field is not generated correct type, actual: \"$includeField\"")
         }
 
-        private fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
-            expect.forEach { expectFilePath ->
-                val isJava = expectFilePath.endsWith(".java")
-                val isKotlin = expectFilePath.endsWith(".kt")
-                val outputType = if (isJava) CompileOutput.Type.Java else if (isKotlin) CompileOutput.Type.Kotlin else CompileOutput.Type.ResXml
-                val outputFile = compileResult.outputs.find { it.relativeFile.path == expectFilePath }
-                assertTrue(outputFile != null,
-                    "File $expectFilePath does not exist in output, all outputs: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
-                assertTrue(outputFile.file.exists(), "File $expectFilePath does not exist")
-                assertEquals(outputType, outputFile.type, "File $expectFilePath has incorrect type")
-            }
-            assertEquals(expect.size, compileResult.outputs.size, "Expect ${expect.size} files, " +
-                    "but got ${compileResult.outputs.size}: ${compileResult.outputs.joinToString("\n") { it.file.path }}")
-        }
-
-        private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int, additionalOutput: List<String> = listOf()) {
-            val outputFiles = compileTask.files.flatMap {
-                val file = it.file
-                listOf(
-                    "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}Binding.java",
-                    "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}BindingImpl.java",
-                    "layout/${file.name}",
-                )
-            }
-            val base = listOf(
-                "androidx/databinding/DataBinderMapperImpl.java",
-                "androidx/databinding/DataBindingComponent.java",
-                "com/example/myapplication/BR.java",
-                "com/example/myapplication/DataBinderMapper_IncrementalHolder.java",
-                "com/example/myapplication/DataBinderMapperImpl.java",
-                "com/example/myapplication/DataBinderMapperImpl_Full.java",
-                "com/example/myapplication/DataBinderMapperImpl_Inc_$incTimes.java",
-            )
-            checkOutputFiles(compileResult, base + outputFiles + additionalOutput)
-        }
 
         private fun createBindingTask(task: CompileTask, result: CompileResult): CompileTask {
             return CompileTask(

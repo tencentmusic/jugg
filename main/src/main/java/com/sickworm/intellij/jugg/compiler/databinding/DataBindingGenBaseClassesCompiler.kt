@@ -25,6 +25,10 @@ class DataBindingGenBaseClassesCompiler(context: ICompileContext, parent: Dispos
 
     override val supportedTypes: List<CompileFile.Type> = listOf(CompileFile.Type.Resource)
 
+    init {
+        DataBindingArgsManager.isKaAptRetryAptSuccess = false
+    }
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         if (task.files.isEmpty()) {
             return CompileResult(task, emptyList(), emptyList())

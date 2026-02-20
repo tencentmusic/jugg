@@ -26,10 +26,6 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
 
     private lateinit var argsManager: DataBindingArgsManager
 
-    init {
-        DataBindingArgsManager.isKaAptRetryAptSuccess = false
-    }
-
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         argsManager = DataBindingArgsManager(context, module)
         if (!argsManager.isUseDataBinding) {

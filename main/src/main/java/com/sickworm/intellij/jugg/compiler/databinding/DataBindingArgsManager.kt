@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.databinding
 import com.sickworm.intellij.jugg.compiler.CompilerUtils
 import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import org.jetbrains.annotations.TestOnly
 import java.io.File
 
 /**
@@ -119,6 +120,15 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     companion object {
 
         var isKaAptRetryAptSuccess = false
+            get() {
+                if (isForceUseAptInTest != null) {
+                    return isForceUseAptInTest!!
+                }
+                return field
+            }
+
+        // test only
+        var isForceUseAptInTest: Boolean? = null
 
         private val dataBindingKaptDependencyHints = listOf(
             "databinding-compiler",

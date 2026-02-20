@@ -10,14 +10,17 @@ import com.sickworm.intellij.jugg.compiler.Result
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.logger.TimeLogger
+import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
 class SourceDataBindingProcessor(
     private val dataBindingGenMapperCompiler: DataBindingGenMapperCompiler,
     private val context: ICompileContext,
-    private val logger: Logger,
+    loggerArg: Logger,
 ) {
+
+    private val logger: Logger = loggerArg.getInstance("SourceDataBindingProcessor")
 
     /**
      * Process DataBinding Mapper generation after source code compilation
@@ -46,7 +49,7 @@ class SourceDataBindingProcessor(
             return CompileResult(task, emptyList(), emptyList())
         }
 
-        logger.info("Processing DataBinding Mapper generation for module ${module.name}...")
+        logger.info("Processing data binding...")
         logger.debug("Found ${layoutInfoFiles.size} layout info files")
         TimeLogger.start("databinding_mapper")
 
