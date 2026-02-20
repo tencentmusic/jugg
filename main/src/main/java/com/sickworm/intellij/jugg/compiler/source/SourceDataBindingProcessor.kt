@@ -37,7 +37,7 @@ class SourceDataBindingProcessor(
      */
     fun processDataBindingMapper(task: CompileTask, module: ModuleInfo): CompileResult {
         val argsManager = DataBindingArgsManager(context, module)
-        val isNeedProcessDataBinding = task.files.all {
+        val isNeedProcessDataBinding = task.files.any {
             it.file == argsManager.dataBindingKaptSourceTrigger
                 || it.file == argsManager.dataBindingAptSourceTrigger
         }
@@ -72,15 +72,13 @@ class SourceDataBindingProcessor(
             TimeLogger.end("databinding_mapper", logger)
 
             if (!result.isAllSuccess) {
-                logger.warn("DataBinding Mapper generation failed for module ${module.name}.")
-            } else {
-                logger.info("DataBinding Mapper generation completed for module ${module.name}.")
+                logger.warn("Processing data binding failed.")
             }
 
             return result
         } catch (e: Exception) {
             TimeLogger.end("databinding_mapper", logger)
-            logger.warn("DataBinding Mapper generation exception: ${e.message}", e)
+            logger.warn("Processing data binding failed with exception: ${e.message}", e)
             return CompileResult(
                 task,
                 task.files.map { Result.failure(CompileError(it, listOf(-1L to "DataBinding Mapper generation failed: ${e.message}"))) },
