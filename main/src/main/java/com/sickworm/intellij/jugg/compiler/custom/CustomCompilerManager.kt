@@ -12,6 +12,9 @@ import java.net.URLClassLoader
 import java.security.MessageDigest
 import java.util.*
 
+/**
+ * CustomCompilerManager coordinates custom workflows.
+ */
 class CustomCompilerManager(
     private val projectDir: File,
     private val customCompilerDir: File,

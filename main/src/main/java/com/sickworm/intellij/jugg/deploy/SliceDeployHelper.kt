@@ -7,6 +7,9 @@ import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
 import java.lang.reflect.Type
 
+/**
+ * SliceDeployHelper provides helper utilities for slice deploy.
+ */
 class SliceDeployHelper(
     logger: Logger,
 ) {
@@ -56,6 +59,9 @@ class SliceDeployHelper(
     }
 }
 
+/**
+ * SliceDeployRecord carries displayName, firstSliceSize, and sliceSize.
+ */
 data class SliceDeployRecord(
     /** format: "${model} ${manufacturer}" */
     val displayName: String?,

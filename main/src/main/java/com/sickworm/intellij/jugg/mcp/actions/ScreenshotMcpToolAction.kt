@@ -14,6 +14,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
+/**
+ * ScreenshotMcpToolAction implements MCP tool `screenshot` and converts request arguments into tool execution and MCP result payloads.
+ */
 class ScreenshotMcpToolAction : McpToolAction {
     override val toolName: String = "screenshot"
 
@@ -78,6 +81,9 @@ class ScreenshotMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * SelectedAdb carries adb and messageDetail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

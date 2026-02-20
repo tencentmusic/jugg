@@ -13,6 +13,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * JuggRemoteCompileApplier calls remote-apply endpoints and maps JSON responses
+ * to [InteractionProcessFlow]/[InteractionStep] with fail-safe null on network errors.
+ */
 class JuggRemoteCompileApplier(logger: Logger) {
 
     private val logger = logger.getInstance("JuggRemoteCompileApplier")

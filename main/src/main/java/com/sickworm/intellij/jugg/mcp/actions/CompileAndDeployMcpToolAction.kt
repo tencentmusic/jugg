@@ -12,6 +12,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import java.nio.file.Files
 
+/**
+ * CompileAndDeployMcpToolAction implements MCP tool `compile_and_deploy` and converts request arguments into tool execution and MCP result payloads.
+ */
 class CompileAndDeployMcpToolAction : McpToolAction {
     override val toolName: String = "compile_and_deploy"
 

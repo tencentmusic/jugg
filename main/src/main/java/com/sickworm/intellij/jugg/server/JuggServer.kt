@@ -34,13 +34,9 @@ import java.util.zip.ZipOutputStream
 
 
 /**
- * Server API for Jugg
- * 1. report event to jugg backend
- * 2. check update
- * 3. upload logs
- * 4. popup action
- * 5. get run configuration templates
- * 6. get project custom config
+ * JuggServer coordinates plugin-to-backend interactions including event reporting, update checks, log upload, and remote config retrieval.
+ * Collaboration: Uses [JuggServerChooser] for server failover, [OkHttpClient] for HTTP requests, [JuggSettings]/[PluginInfoReader] for runtime metadata, and [PlatformApi] for host-side integration.
+ * Data Contract: Request identity is derived from [projectId], [username], and [requestToken]; [afterFullCompile] increments [sessionId], and [onCompile] increments [sessionSubId].
  */
 class JuggServer(
     private val projectName: String,
@@ -416,6 +412,9 @@ class JuggServer(
 }
 
 
+/**
+ * ReportEventData carries version, ideVersion, username, and projectId.
+ */
 data class ReportEventData(
     @SerializedName("version")
     var version: String,
@@ -439,6 +438,9 @@ data class ReportEventData(
     constructor() : this("", "", "", "", "", "", true, 0, null)
 }
 
+/**
+ * UploadResult carries isSuccess, errorMessage, and reportId.
+ */
 data class UploadResult(
     val isSuccess: Boolean,
     val errorMessage: String?,

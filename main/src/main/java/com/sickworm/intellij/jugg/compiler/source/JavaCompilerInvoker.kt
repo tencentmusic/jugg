@@ -11,6 +11,9 @@ import java.io.File
 import javax.tools.*
 import javax.tools.JavaCompiler
 
+/**
+ * JavaCompilerInvoker invokes java operations and maps outputs/errors.
+ */
 class JavaCompilerInvoker {
 
     private var compiler: JavaCompiler = getJavaCompiler(Logger.getInstance(JavaCompilerInvoker::class.java))
@@ -19,6 +22,9 @@ class JavaCompilerInvoker {
     private var hasRecreateAfterInternalError = false
     private var isSourceTargetVersionNotSupport: Boolean = false
 
+    /**
+     * Options carries isEnableApt, isAptOnly, isCanAutoRetry, and encoding.
+     */
     data class Options(
         val isEnableApt: Boolean = JuggSettings.isEnableApt,
         val isAptOnly: Boolean = false, // if true, only run annotation processing, don't compile
@@ -249,6 +255,9 @@ class JavaCompilerInvoker {
         )
     }
 
+    /**
+     * JavaCompileItem binds one source file, compiler file object, and collected diagnostics.
+     */
     private class JavaCompileItem(
         val file: CompileFile,
         val fileObject: JavaFileObject,

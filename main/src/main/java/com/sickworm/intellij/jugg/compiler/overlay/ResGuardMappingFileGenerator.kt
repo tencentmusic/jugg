@@ -5,6 +5,9 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import java.io.File
 
+/**
+ * ResGuardMappingFileGenerator generates res guard mapping output.
+ */
 class ResGuardMappingFileGenerator(
     private val logger: Logger,
 ) {

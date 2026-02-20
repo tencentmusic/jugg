@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+/**
+ * Reflector wraps reflection-based read/invoke/new-instance operations with null-safe fallbacks.
+ */
 class Reflector(val value: Any?) {
 
     val valueString: String? get() = value?.toString()
@@ -81,6 +84,9 @@ class Reflector(val value: Any?) {
         }
     }
 
+    /**
+     * Value binds an argument with an explicit JVM class when reflective type inference is ambiguous.
+     */
     class Value(val clazz: Class<*>, val value: Any?)
 
     companion object {

@@ -18,6 +18,11 @@ import com.sickworm.intellij.jugg.project.data.SigningConfig
 import java.io.File
 import java.util.zip.ZipFile
 
+/**
+ * BaseCompileContext builds and serves compile-time project context (modules, APK metadata, temp dirs, generated outputs, and desugar info) for compiler stages.
+ * Collaboration: Resolves module-to-apk ownership via [ModuleApkBelongsUtils], exposes deployed/custom compiler state from [DeployFileManager] and [CustomCompilerManager], and provides inputs consumed by compiler/deploy flows through [ICompileContext].
+ * Data Contract: [androidJar] is derived from suggested platform api in [modules]; [tempModule] is a synthetic module rooted at [tempModuleDir]; [dynamicFeatureModules] is initialized before [applicationModule] to keep module selection consistent.
+ */
 class BaseCompileContext(
     override val logger: Logger,
     override var tempCompileDir: File,

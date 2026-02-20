@@ -41,6 +41,9 @@ interface ISshCommand {
         getCommand(isNeedSetChineseLanguage, isWindows)
 }
 
+/**
+ * Shared command wrapper that appends a normalized completion marker and exit-code parser.
+ */
 abstract class BaseSshCommand : ISshCommand {
 
     abstract val baseCommand: String
@@ -76,5 +79,4 @@ abstract class BaseSshCommand : ISshCommand {
         return null
     }
 }
-
 

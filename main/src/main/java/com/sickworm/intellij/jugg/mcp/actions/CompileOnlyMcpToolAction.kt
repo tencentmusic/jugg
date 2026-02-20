@@ -5,6 +5,9 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 
+/**
+ * CompileOnlyMcpToolAction implements MCP tool `compile_only` and converts request arguments into tool execution and MCP result payloads.
+ */
 class CompileOnlyMcpToolAction : McpToolAction {
     override val toolName: String = "compile_only"
 

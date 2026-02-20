@@ -9,6 +9,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * ListProjectsMcpToolAction implements MCP tool `list_projects` and converts request arguments into tool execution and MCP result payloads.
+ */
 class ListProjectsMcpToolAction : McpToolAction {
     override val toolName: String = "list_projects"
 

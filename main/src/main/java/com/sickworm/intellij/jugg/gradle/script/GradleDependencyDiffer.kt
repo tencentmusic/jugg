@@ -9,6 +9,9 @@ import groovy.json.JsonBuilder
 import org.gradle.api.*
 import java.io.File
 
+/**
+ * GradleDependencyDiffer computes gradle dependency differences.
+ */
 class GradleDependencyDiffer(
     private val rootProject: Project,
     private val projectInfo: JuggProjectInfo,

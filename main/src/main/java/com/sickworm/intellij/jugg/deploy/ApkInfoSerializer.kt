@@ -9,6 +9,9 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import java.io.File
 import java.lang.reflect.Type
 
+/**
+ * ApkInfoSerializer serializes and deserializes apk models.
+ */
 class ApkInfoSerializer {
 
     fun serialize(juggRootDir: File, apkInfos: List<ApkInfo>): String {
@@ -22,6 +25,9 @@ class ApkInfoSerializer {
         return apkInfos.map { it.toApkInfo(juggRootDir) }
     }
 
+    /**
+     * ApkInfoJsonData is the JSON-friendly form of [ApkInfo] for persistence.
+     */
     private class ApkInfoJsonData(
         val files: List<ApkFileUnitJsonData>,
         val applicationId: String
@@ -56,6 +62,9 @@ class ApkInfoSerializer {
         }
     }
 
+    /**
+     * ApkFileUnitJsonData carries moduleName, debuggable, and apkFilePath.
+     */
     private class ApkFileUnitJsonData(
         val moduleName: String,
         val debuggable: Boolean?,

@@ -7,6 +7,9 @@ import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 
 
+/**
+ * ManifestDiffer computes manifest differences.
+ */
 class ManifestDiffer {
 
     fun diff(changedManifestFile: ChangedManifestFile): ManifestDiffResult {
@@ -150,6 +153,9 @@ class ManifestDiffer {
     }
 }
 
+/**
+ * ManifestNodeMatcher pairs nodes between new/old manifests using each node's unique key.
+ */
 class ManifestNodeMatcher(
     private val newNodes: NodeList,
     private val oldNodes: NodeList?,
@@ -194,12 +200,18 @@ class ManifestNodeMatcher(
     }
 }
 
+/**
+ * ChangedManifestFile carries newFile, oldFile, and placeHolders.
+ */
 data class ChangedManifestFile(
     val newFile: File,
     val oldFile: File?,
     val placeHolders: Map<String, String>? = null,
 )
 
+/**
+ * ManifestDiffResult wraps one changed manifest file and its computed diff tree.
+ */
 class ManifestDiffResult(
     private val changedManifestFile: ChangedManifestFile,
     val diffElement: DiffElement,
@@ -215,6 +227,9 @@ class ManifestDiffResult(
                 "\ndiffElement=isEmpty: ${diffElement.isNothingToUpdate}, content:\n${diffElement.toXmlString()}"
     }
 
+    /**
+     * DiffElement records attribute/child changes for one XML node.
+     */
     class DiffElement(
         val node: Element,
         val isNewNode: Boolean,

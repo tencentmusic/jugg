@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import java.io.File
 
+/**
+ * ClassSourceReader reads class source data.
+ */
 class ClassSourceReader(
     private val classFile: File,
 ) {

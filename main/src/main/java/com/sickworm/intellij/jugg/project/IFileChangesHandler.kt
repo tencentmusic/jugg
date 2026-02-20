@@ -19,6 +19,9 @@ interface IFileChangesHandler {
     fun updateBuildFileRules(rules: List<String>, doNotIgnoreModulePaths: List<String>)
 }
 
+/**
+ * ChangedFile carries type, file, baseDir, and module.
+ */
 data class ChangedFile(
     val type: CompileFile.Type,
     val file: File,

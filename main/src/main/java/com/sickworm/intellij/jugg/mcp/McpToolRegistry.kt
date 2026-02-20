@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.mcp
 import com.sickworm.intellij.jugg.mcp.actions.McpToolAction
 import com.sickworm.intellij.jugg.mcp.actions.McpToolActionRegistry
 
+/**
+ * McpToolRegistry registers and looks up mcp tool handlers.
+ */
 class McpToolRegistry(
     private val actionRegistry: McpToolActionRegistry = McpToolActionRegistry(),
 ) {

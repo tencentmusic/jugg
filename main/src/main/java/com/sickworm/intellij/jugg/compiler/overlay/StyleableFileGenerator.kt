@@ -14,6 +14,9 @@ import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+/**
+ * StyleableFileGenerator generates styleable output.
+ */
 class StyleableFileGenerator(
     private val logger: Logger,
 ) {
@@ -163,6 +166,9 @@ class StyleableFileGenerator(
     }
 }
 
+/**
+ * InputStreamProvider abstracts input-stream access from zip entries or plain files.
+ */
 private interface InputStreamProvider {
 
     fun use(runnable: (InputStream) -> Unit)
@@ -188,11 +194,17 @@ private interface InputStreamProvider {
 
 }
 
+/**
+ * Styleables carries name and attrs.
+ */
 private class Styleables(
     val name: String,
     val attrs: MutableList<String>,
 )
 
+/**
+ * StyleablesMerger merges styleable arrays/attrs collected from class files.
+ */
 private class StyleablesMerger(private val logger: Logger) {
 
     private val styleables = mutableMapOf<String, Styleables>()

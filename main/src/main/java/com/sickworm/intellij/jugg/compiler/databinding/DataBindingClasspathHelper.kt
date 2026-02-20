@@ -10,8 +10,14 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.jar.JarFile
 
+/**
+ * DataBindingClasspathHelper resolves and filters DataBinding/KAPT classpath inputs for incremental compilation.
+ */
 object DataBindingClasspathHelper {
 
+    /**
+     * Classpath carries aptDependencies, kotlinPlugins, and adapterJson.
+     */
     data class Classpath(
         val aptDependencies: List<File>,
         val kotlinPlugins: List<File>,

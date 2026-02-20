@@ -54,6 +54,9 @@ class JuggPathManager(
     }
 }
 
+/**
+ * LocalClasspathStoragePathManager defines stable directories used to store classpath/APK artifacts for local compile workflows.
+ */
 class LocalClasspathStoragePathManager(
     val rootDir: File,
 ) {

@@ -5,6 +5,9 @@ import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker.O
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * KspArgsManager carries module, context, and options.
+ */
 data class KspArgsManager(
     val module: ModuleInfo,
     val context: ICompileContext,

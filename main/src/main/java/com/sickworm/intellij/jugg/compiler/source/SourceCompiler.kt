@@ -11,6 +11,9 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * SourceCompiler coordinates Java/Kotlin/DataBinding source compilation per module and hands class outputs to downstream dex/minify stages.
+ */
 class SourceCompiler(
     context: ICompileContext,
     parent: Disposable,

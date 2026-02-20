@@ -9,6 +9,9 @@ fun printException(e: Throwable) {
     }
 }
 
+/**
+ * Utils stores Kotlin-1.4-compatible helper functions used by Gradle scripts.
+ */
 object Utils {
 
     // for compat with Kotlin 1.4 in readProjectInfo.gradle.kts

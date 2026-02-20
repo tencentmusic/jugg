@@ -15,6 +15,9 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.util.Locale
 
+/**
+ * RecordMcpToolAction implements MCP tool `record` and converts request arguments into tool execution and MCP result payloads.
+ */
 class RecordMcpToolAction : McpToolAction {
     override val toolName: String = "record"
 
@@ -239,6 +242,9 @@ class RecordMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * SelectedAdb carries adb and messageDetail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

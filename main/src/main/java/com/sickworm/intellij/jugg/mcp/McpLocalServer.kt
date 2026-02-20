@@ -13,6 +13,9 @@ import java.net.BindException
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 
+/**
+ * McpLocalServer hosts the local MCP HTTP endpoint, validates protocol headers, and routes JSON-RPC requests to tool handlers.
+ */
 object McpLocalServer {
     private const val PORT_START = 12320
     private const val PORT_END = 12329
@@ -78,6 +81,10 @@ object McpLocalServer {
         return actualPort
     }
 
+    /**
+     * McpRequestHandler processes one HTTP exchange:
+     * origin/protocol checks, JSON-RPC parsing, method dispatch, and error mapping.
+     */
     private class McpRequestHandler : HttpHandler {
         override fun handle(exchange: HttpExchange) {
             try {

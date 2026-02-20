@@ -13,6 +13,9 @@ import org.gradle.api.provider.Property
 import java.io.File
 import java.io.PrintWriter
 
+/**
+ * GradleApplicationInjector wires manifest/runtime dependency hooks into Android application variants.
+ */
 class GradleApplicationInjector(
     private val rootProject: Project,
 ) {

@@ -12,6 +12,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * TapMcpToolAction implements MCP tool `tap` and converts request arguments into tool execution and MCP result payloads.
+ */
 class TapMcpToolAction : McpToolAction {
     override val toolName: String = "tap"
 
@@ -92,6 +95,9 @@ class TapMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * SelectedAdb carries adb and messageDetail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

@@ -8,6 +8,9 @@ import com.sickworm.intellij.jugg.project.JuggInternalException
 import java.lang.StringBuilder
 import java.util.*
 
+/**
+ * ClassNodeComparator computes class differences.
+ */
 class ClassNodeComparator(
     private val oldClassNode: ClassNode,
     private val newClassNode: ClassNode,
@@ -96,6 +99,9 @@ class ClassNodeComparator(
     }
 }
 
+/**
+ * ClassNodeDiffResult carries className, modifiedParentClass, addedInterfaces, and deletedInterfaces.
+ */
 class ClassNodeDiffResult(
     val className: String,
 

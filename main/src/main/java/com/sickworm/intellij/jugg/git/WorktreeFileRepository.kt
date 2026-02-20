@@ -4,6 +4,11 @@ import org.eclipse.jgit.internal.storage.file.FileRepository
 import org.eclipse.jgit.lib.*
 import java.io.File
 
+/**
+ * WorktreeFileRepository wrapper that redirects HEAD ref operations to the worktree-local HEAD file.
+ * Collaboration: Constructed by [WorktreeRepositoryBuilder.build] and used by [GitManager] when operating inside git worktrees.
+ * Data Contract: Only `HEAD` refs are redirected; non-HEAD refs are passed through to the original [RefDatabase].
+ */
 class WorktreeFileRepository(
     builder: BaseRepositoryBuilder<*, *>,
     private val worktreeGitDir: File,

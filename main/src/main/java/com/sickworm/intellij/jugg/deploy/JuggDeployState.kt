@@ -46,6 +46,9 @@ data class JuggDeployState(
         )
     }
 
+    /**
+     * State represents readiness progression from blocked/building to deploy-ready.
+     */
     enum class State {
         NOTHING_CAN_DO,
         GRADLE_BUILDING,

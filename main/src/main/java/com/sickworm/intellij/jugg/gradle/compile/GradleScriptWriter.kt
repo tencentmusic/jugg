@@ -5,6 +5,9 @@ import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.JuggPathManager
 
+/**
+ * GradleScriptWriter writes gradle script output.
+ */
 class GradleScriptWriter(
     private val pathManager: JuggPathManager,
     private val logger: Logger,

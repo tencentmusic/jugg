@@ -9,6 +9,9 @@ import com.sickworm.intellij.jugg.server.protocols.ProjectCustomConfig
 import java.io.File
 import java.util.zip.ZipFile
 
+/**
+ * Loads, caches, and applies project-level custom config, including embedded-APK expansion.
+ */
 class CustomConfigManager(
     private val configDir: File,
     private val logger: Logger,

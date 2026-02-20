@@ -7,6 +7,11 @@ import com.sickworm.intellij.jugg.apk.manifest.ManifestActivityInfo
 import java.io.File
 import java.util.zip.ZipFile
 
+/**
+ * ApkReader AndroidManifest and resource-table information from one APK artifact.
+ * Collaboration: Used by [ApkInfoReader.createApkInfo], delegating manifest parsing to [BinaryXmlParser.parseBinaryFromStream] and resource dump to [Aapt2DaemonInvoker.invoke].
+ * Data Contract: [getManifest] caches a parsed [ManifestActivityInfo], and [parse] returns null when dump output cannot be parsed safely.
+ */
 class ApkReader(
     private val apkFile: File,
     private val logger: Logger

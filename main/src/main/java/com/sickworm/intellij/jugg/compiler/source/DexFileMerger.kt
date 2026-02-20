@@ -5,6 +5,9 @@ import com.android.tools.r8.origin.Origin
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
+/**
+ * DexFileMerger invokes D8 to merge multiple dex files into one output directory.
+ */
 class DexFileMerger(
     private val logger: Logger,
 ) {

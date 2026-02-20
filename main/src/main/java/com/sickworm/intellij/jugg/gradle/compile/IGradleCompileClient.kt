@@ -8,6 +8,10 @@ import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResultSet
 import java.io.File
 import kotlin.jvm.Throws
 
+/**
+ * GradleCompileResult represents one Gradle compile attempt result, including success/cancel state, output APKs, and failure reason.
+ * Data Contract: [failed] uses [compileOutputFile] = [File("")] as a placeholder value; callers must branch by [isSuccess] before consuming output paths.
+ */
 data class GradleCompileResult(
     val isSuccess: Boolean,
     val isCanceled: Boolean,
@@ -30,6 +34,10 @@ data class GradleCompileResult(
     }
 }
 
+/**
+ * IGradleCompileClient defines a unified local/remote Gradle compile contract, including login, compile, output fetching, classpath fetching, and cancellation.
+ * Data Contract: [login] must complete before compile/fetch calls; [cancelAction] should be safe to invoke at any time.
+ */
 interface IGradleCompileClient : Disposable {
 
     var terminalOutputListener: TerminalOutputListener
@@ -48,6 +56,9 @@ interface IGradleCompileClient : Disposable {
 
     fun cancelAction(isByUser: Boolean)
 
+    /**
+     * TerminalOutputListener abstracts stdout/stderr/progress callbacks during Gradle command execution.
+     */
     interface TerminalOutputListener {
 
         val possibleErrorLog: List<String> get() = emptyList()
@@ -75,6 +86,9 @@ interface IGradleCompileClient : Disposable {
         }
     }
 
+    /**
+     * Error centralizes normalized result/error codes returned by Gradle compile clients.
+     */
     object Error {
         const val SUCCESS = 0
         const val ERROR_NO_RESULT = -1000

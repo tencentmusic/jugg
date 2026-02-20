@@ -9,7 +9,9 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 
 /**
- * Find out which apk a module belongs to.
+ * ModuleApkBelongsUtils resolves module-to-APK ownership across base and dynamic-feature APK artifacts.
+ * Collaboration: Reads split metadata from merged manifests via [XmlParser.parse], enriches per-apk state in [ApkModuleBelongsData], and returns mapping consumed by compile/deploy flows.
+ * Data Contract: [tempModule] always maps to the base APK (or first APK fallback when base is missing), and unresolved modules fall back to base APK for robustness.
  */
 object ModuleApkBelongsUtils {
 
@@ -145,6 +147,9 @@ object ModuleApkBelongsUtils {
         return result.toList()
     }
 
+    /**
+     * ApkModuleBelongsData working item for one APK while resolving module-to-APK ownership in [ModuleApkBelongsUtils.getModuleApkBelongs].
+     */
     private class ApkModuleBelongsData(
         var apkFileUnit: ApkFileUnit,
         var featureGeneratedModule: ModuleInfo? = null,

@@ -7,6 +7,9 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 
+/**
+ * BaseCompiler provides the shared compile template (pre-checks, custom compiler hooks, per-module execution, and result aggregation) for concrete compilers.
+ */
 abstract class BaseCompiler(val context: ICompileContext, parent: Disposable): ICompiler {
 
     open val isNeedOutputDirEmpty: Boolean = false

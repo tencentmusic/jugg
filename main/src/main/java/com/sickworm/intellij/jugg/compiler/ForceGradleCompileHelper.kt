@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.compiler
 
+/**
+ * Triggers one-shot Gradle fallback compile and optional clean-reinstall flow.
+ */
 abstract class ForceGradleCompileHelper {
 
     companion object {

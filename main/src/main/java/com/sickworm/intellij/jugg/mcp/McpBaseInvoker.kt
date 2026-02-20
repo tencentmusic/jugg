@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.mcp
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.mcp.actions.ListProjectsMcpToolAction
 
+/**
+ * McpBaseInvoker invokes mcp operations and maps outputs/errors.
+ */
 class McpBaseInvoker(
     private val toolRegistry: McpToolRegistry = McpToolRegistry(),
     private val resultMapper: McpResultMapper = McpResultMapper(),

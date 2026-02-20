@@ -13,6 +13,9 @@ import com.sickworm.intellij.jugg.org.objectweb.asm.*
 import com.sickworm.intellij.jugg.deploy.packageNameToPath
 import java.io.File
 
+/**
+ * DexPackageRenamer rewrites dex/class package prefixes for overlay relocation.
+ */
 class DexPackageRenamer(private val dexFile: File, private val newPackageName: String) {
 
     fun generate(dexOutputDir: File, classPathDir: File): Pair<File, File> {
@@ -32,6 +35,9 @@ class DexPackageRenamer(private val dexFile: File, private val newPackageName: S
     }
 }
 
+/**
+ * ChangePackageWriter writes change package output.
+ */
 private class ChangePackageWriter(
     private val newPackageName:  String,
     private val writer: DexFileWriter = DexFileWriter()

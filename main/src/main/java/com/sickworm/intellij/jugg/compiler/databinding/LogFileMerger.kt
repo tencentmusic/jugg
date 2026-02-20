@@ -6,6 +6,9 @@ import java.io.File
 import android.databinding.tool.store.ResourceBundle
 
 @Suppress("unused")
+/**
+ * LogFileMerger merges incremental DataBinding class-info logs into one persisted log file.
+ */
 class LogFileMerger(private val origin: File) {
 
     fun merge(folder: File) {

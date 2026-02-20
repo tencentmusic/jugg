@@ -190,6 +190,9 @@ class DexObfuscator(mappingReader: R8MappingReader) {
         )
     }
 
+    /**
+     * MappingStats carries classCount, fieldCount, and methodCount.
+     */
     data class MappingStats(
         val classCount: Int,
         val fieldCount: Int,

@@ -7,6 +7,9 @@ import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * Translates dependency-diff results into compile-ready changed/removed file sets.
+ */
 class DependencyDiffResultHelper(
     private val logger: Logger,
     private val tempModule: ModuleInfo,

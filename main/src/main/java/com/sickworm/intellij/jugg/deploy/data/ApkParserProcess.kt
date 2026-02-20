@@ -114,6 +114,9 @@ object ApkParserProcess {
         return result
     }
 
+    /**
+     * DiffBean carries apkEntries and diffResult.
+     */
     private data class DiffBean(
         val apkEntries: ApkEntries,
         val diffResult: ParsedApkDiffResult,
@@ -157,6 +160,9 @@ object ApkParserProcess {
     }
 
     // DTO classes for serialization
+    /**
+     * ApkFileUnitDto carries applicationId, moduleName, debuggable, and apkFilePath.
+     */
     private data class ApkFileUnitDto(
         val applicationId: String,
         val moduleName: String,
@@ -164,6 +170,9 @@ object ApkParserProcess {
         val apkFilePath: String
     )
 
+    /**
+     * ParsedApkUpdateResultDto carries isSuccess, errorMessage, apkFilePath, and addedClasses.
+     */
     private data class ParsedApkUpdateResultDto(
         val isSuccess: Boolean,
         val errorMessage: String?,

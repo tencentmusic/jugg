@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.server.protocols
 
+/**
+ * RunConfigurationTemplate carries templateName, compileCommand, outputApkName, and isRemoteCompile.
+ */
 data class RunConfigurationTemplate(
     val templateName: String,
     val compileCommand: String?,

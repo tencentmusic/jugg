@@ -14,6 +14,9 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * SourceDataBindingProcessor triggers DataBinding mapper generation after source compilation.
+ */
 class SourceDataBindingProcessor(
     private val dataBindingGenMapperCompiler: DataBindingGenMapperCompiler,
     private val context: ICompileContext,

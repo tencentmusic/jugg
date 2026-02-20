@@ -7,6 +7,9 @@ import java.io.File
 import java.io.InputStreamReader
 import java.util.*
 
+/**
+ * CompilerUtils hosts file/process helpers shared by compiler and build-path workflows.
+ */
 object CompilerUtils {
 
     fun matchGradleDir(dirSelectInOrder: List<File>,

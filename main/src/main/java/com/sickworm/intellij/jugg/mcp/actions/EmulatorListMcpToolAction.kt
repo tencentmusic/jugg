@@ -12,6 +12,9 @@ import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+/**
+ * EmulatorListMcpToolAction implements MCP tool `emulator_list` and converts request arguments into tool execution and MCP result payloads.
+ */
 class EmulatorListMcpToolAction : McpToolAction {
     companion object {
         private const val HOST_ERROR_MAX_CHARS = 300
@@ -100,6 +103,9 @@ class EmulatorListMcpToolAction : McpToolAction {
         )
     }
 
+    /**
+     * HostCommandResult carries exitCode, stdout, and stderr.
+     */
     private data class HostCommandResult(
         val exitCode: Int,
         val stdout: String,

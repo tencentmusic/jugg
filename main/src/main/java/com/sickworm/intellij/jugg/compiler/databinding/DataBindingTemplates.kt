@@ -2,6 +2,10 @@ package com.sickworm.intellij.jugg.compiler.databinding
 
 import java.io.File
 
+/**
+ * DataBindingTemplates provides Java source templates used to build incremental
+ * DataBinding mapper wrappers.
+ */
 class DataBindingTemplates(isUseAndroidX: Boolean) {
 
     fun generateFullMapperFile(originMapperFile: File, fullMapperFile: File) {
@@ -14,7 +18,6 @@ class DataBindingTemplates(isUseAndroidX: Boolean) {
 package _package_name_holder_;
 
 import androidx.databinding.DataBinderMapper;
-
 public class DataBinderMapper_IncrementalHolder {
     public static DataBinderMapper[] get() {
         return new DataBinderMapper[] {
@@ -28,7 +31,6 @@ public class DataBinderMapper_IncrementalHolder {
 package _package_name_holder_;
 
 import android.databinding.DataBinderMapper;
-
 public class DataBinderMapper_IncrementalHolder {
     public static DataBinderMapper[] get() {
         return new DataBinderMapper[] {
@@ -51,7 +53,6 @@ import android.view.View;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-
 public class DataBinderMapperImpl extends DataBinderMapper {
     private final _package_name_holder_.DataBinderMapperImpl_Full origin = new _package_name_holder_.DataBinderMapperImpl_Full();
     private final DataBinderMapper[] incDataBinderMapperArray = DataBinderMapper_IncrementalHolder.get();
@@ -133,7 +134,6 @@ import android.view.View;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-
 public class DataBinderMapperImpl extends DataBinderMapper {
     private final _package_name_holder_.DataBinderMapperImpl_Full origin = new _package_name_holder_.DataBinderMapperImpl_Full();
     private final DataBinderMapper[] incDataBinderMapperArray = DataBinderMapper_IncrementalHolder.get();

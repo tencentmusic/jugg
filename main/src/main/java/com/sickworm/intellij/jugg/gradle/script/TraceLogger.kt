@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.gradle.script
 
 
+/**
+ * TraceLogger records scoped timing traces for Gradle-side script execution.
+ */
 object TraceLogger {
 
     @Suppress("MemberVisibilityCanBePrivate")

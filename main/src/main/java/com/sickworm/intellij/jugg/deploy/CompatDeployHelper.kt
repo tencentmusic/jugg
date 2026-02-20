@@ -10,6 +10,9 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import java.lang.reflect.Type
 
+/**
+ * CompatDeployHelper provides helper utilities for compat deploy.
+ */
 class CompatDeployHelper(
     logger: Logger,
 ) {
@@ -107,6 +110,9 @@ class CompatDeployHelper(
 
 }
 
+/**
+ * CompatDeployRecord carries displayName and applications.
+ */
 data class CompatDeployRecord(
     /** format: "${model} ${manufacturer}" */
     val displayName: String?,

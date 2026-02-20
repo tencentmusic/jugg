@@ -156,6 +156,9 @@ class RJavaFixer(private val logger: Logger) {
     }
 }
 
+/**
+ * RJavaData stores parsed `R.java` lines and class sections for split-rewrite decisions.
+ */
 private class RJavaData(
     /** each line content of R.java */
     val lines: List<String>,
@@ -172,6 +175,9 @@ private class RJavaData(
 
 }
 
+/**
+ * RClassData carries name, classDeclareLine, and fieldLines.
+ */
 private class RClassData(
     val name: String,
     val classDeclareLine: Int,
@@ -193,6 +199,9 @@ private class RClassData(
     }
 }
 
+/**
+ * RRewriteData carries rewriteLines, removeLines, and newLines.
+ */
 private class RRewriteData(
     val rewriteLines: Map<Int, String>,
     val removeLines: Set<Int>,

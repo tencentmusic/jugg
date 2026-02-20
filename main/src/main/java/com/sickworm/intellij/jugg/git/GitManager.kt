@@ -24,6 +24,11 @@ import java.io.IOException
 import java.nio.charset.Charset
 
 
+/**
+ * GitManager-backed repository service for change detection and commit-content queries.
+ * Collaboration: Instantiated directly or through [createGitManagerAndTrySearchParent], and delegates worktree repository creation to [WorktreeRepositoryBuilder].
+ * Data Contract: [rootDir] is the working root; APIs return safe fallbacks (null/false/empty) when repository state is unavailable.
+ */
 class GitManager (
     override val rootDir: File,
 ): IGitManagerEx {

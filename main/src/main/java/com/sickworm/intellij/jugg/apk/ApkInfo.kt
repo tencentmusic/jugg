@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.apk
 import java.io.File
 import java.security.MessageDigest
 
+/**
+ * ApkInfo split APK artifacts under one application id for downstream deploy and analysis steps.
+ */
 data class ApkInfo(
     val files: List<ApkFileUnit>,
     val applicationId: String
@@ -16,6 +19,10 @@ data class ApkInfo(
     ) : this(listOf(ApkFileUnit(applicationId, "", true, file)), applicationId)
 }
 
+/**
+ * ApkFileUnit one physical base/feature APK file with helpers for split-aware path and package derivation.
+ * Data Contract: Empty [moduleName] means base APK, non-empty [moduleName] means feature APK.
+ */
 data class ApkFileUnit(val applicationId: String, val moduleName: String, val debuggable: Boolean, val apkFile: File) {
 
     val isBaseApk get() = moduleName.isEmpty()
@@ -40,4 +47,3 @@ data class ApkFileUnit(val applicationId: String, val moduleName: String, val de
         private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
     }
 }
-

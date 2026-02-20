@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.deploy
 
 import java.io.File
 
+/**
+ * IDeviceAdb abstracts device-level adb operations required by deploy workflows.
+ */
 interface IDeviceAdb {
 
     val displayName: String?

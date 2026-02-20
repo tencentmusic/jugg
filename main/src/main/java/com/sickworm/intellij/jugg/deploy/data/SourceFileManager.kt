@@ -11,6 +11,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 
+/**
+ * Maintains source-file -> class-name index and self-heals SQLite state on corruption/aging.
+ */
 class SourceFileManager(
     projectDir: File,
     dbDir: File,

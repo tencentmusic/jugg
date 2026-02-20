@@ -12,6 +12,10 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * StartAppMcpToolAction implements MCP tool `start_app` and converts request arguments into tool execution and MCP result payloads.
+ * Data Contract: Resolves package name from request or deploy target manager; launch component is fixed to `.MainActivity`; returns MCP tool error when package or online device is unavailable.
+ */
 class StartAppMcpToolAction : McpToolAction {
     override val toolName: String = "start_app"
 
@@ -81,6 +85,9 @@ class StartAppMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * Resolved online adb target plus user-facing selection detail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

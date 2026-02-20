@@ -13,7 +13,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.CRC32
 import java.util.zip.ZipFile
 
-/** Used to parse everything I need in Apk */
+/**
+ * ApkParser parses APK dex/overlay entries into class graph and reference indexes used by deploy impact analysis.
+ */
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApkParser: CoroutineScope by CoroutineScope(
@@ -163,6 +165,9 @@ class ApkParser: CoroutineScope by CoroutineScope(
     }
 }
 
+/**
+ * JuggFileInfo carries name and checksum.
+ */
 data class JuggFileInfo(
     val name: String,
     val checksum: Long
@@ -178,12 +183,18 @@ val String.isDexEntry get() = this.startsWith("classes") && this.endsWith(".dex"
 val String.isResEntry get() = this.startsWith("res/") || this == "resources.arsc" // use '/' for it's the path in zip
 val String.isAssetEntry get() = this.startsWith("assets/") // use '/' for it's the path in zip
 
+/**
+ * ApkEntries carries apkFile, dexFiles, and overlayFiles.
+ */
 data class ApkEntries(
     val apkFile: File,
     val dexFiles: Map<String, JuggFileInfo>,
     val overlayFiles: Map<String, JuggFileInfo>,
 )
 
+/**
+ * ParsedDex carries classDeployItems, methodRefs, fieldRefs, and subclassRefs.
+ */
 data class ParsedDex(
     val classDeployItems: List<ClassDeployItem>,
     val methodRefs: Map<MethodNode, List<String>>,

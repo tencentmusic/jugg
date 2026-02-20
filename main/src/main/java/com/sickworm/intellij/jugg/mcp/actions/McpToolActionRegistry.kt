@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.mcp.actions
 
+/**
+ * McpToolActionRegistry registers and looks up mcp tool handlers.
+ */
 class McpToolActionRegistry(
     actions: List<McpToolAction> = defaultActions(),
 ) {

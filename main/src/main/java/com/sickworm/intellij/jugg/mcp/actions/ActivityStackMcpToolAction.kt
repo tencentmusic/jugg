@@ -14,6 +14,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
+/**
+ * ActivityStackMcpToolAction implements MCP tool `activity_stack` and converts request arguments into tool execution and MCP result payloads.
+ */
 class ActivityStackMcpToolAction : McpToolAction {
     override val toolName: String = "activity_stack"
 
@@ -93,6 +96,9 @@ class ActivityStackMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * ActivityEntry carries stackIndex, histIndex, taskId, and component.
+     */
     private data class ActivityEntry(
         val stackIndex: Int,
         val histIndex: Int,
@@ -101,6 +107,9 @@ class ActivityStackMcpToolAction : McpToolAction {
         val line: String,
     )
 
+    /**
+     * TopContext carries activity and taskId.
+     */
     private data class TopContext(
         val activity: String?,
         val taskId: Int?,
@@ -183,6 +192,9 @@ class ActivityStackMcpToolAction : McpToolAction {
         return ordered
     }
 
+    /**
+     * SelectedAdb carries adb and messageDetail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

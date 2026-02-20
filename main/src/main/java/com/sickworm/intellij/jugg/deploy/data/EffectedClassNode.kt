@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.deploy.data
 
+/**
+ * EffectedClassNode carries className, sourceFileName, effectedByClasses, and effectedType.
+ */
 data class EffectedClassNode(
     val className: String,
     val sourceFileName: String,
@@ -10,6 +13,9 @@ data class EffectedClassNode(
         const val SOURCE_NOT_FOUND = "source_not_found"
     }
 
+    /**
+     * EffectedType marks whether follow-up work should recompile source or re-dex class bytes.
+     */
     enum class EffectedType {
         SOURCE, // need recompile source file
         CLASS, // need to redex class file

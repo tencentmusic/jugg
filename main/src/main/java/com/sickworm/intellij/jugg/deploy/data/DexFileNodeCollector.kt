@@ -13,6 +13,9 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 
+/**
+ * DexFileNodeCollector walks dex instructions and collects class/method/field/subclass reference indexes.
+ */
 class DexFileNodeCollector(
     private val dexFileName: String,
     private val classes: ConcurrentHashMap<String, ClassNode>,

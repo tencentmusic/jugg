@@ -4,6 +4,9 @@ import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
 
+/**
+ * Wraps frequently used adb shell commands for app lifecycle and runtime diagnostics.
+ */
 class AdbCmdHelper(
     private val adb: IDeviceAdb,
     loggerArg: Logger,

@@ -12,7 +12,9 @@ import java.io.*
 import java.util.*
 
 /**
- * invoke aapt2-inclink with custom build
+ * Aapt2DaemonInvoker owns the embedded `aapt2 daemon` process lifecycle and command execution.
+ * Collaboration: Initializes platform binary paths through [getEmbeddedAapt2], delegates stream parsing to [OutputReader], and returns [Aapt2Result] to APK/resource parsing callers.
+ * Data Contract: [invoke] lazily initializes the daemon when needed; [init] requires the first daemon line to be `Ready` and throws [JuggInternalException.startAapt2DaemonFailed] otherwise.
  */
 class Aapt2DaemonInvoker(
     parentLogger: Logger,
@@ -72,6 +74,10 @@ class Aapt2DaemonInvoker(
         }
     }
 
+    /**
+     * OutputReader collects daemon stdout/stderr and assembles one [Aapt2Result] per command cycle.
+     * Data Contract: [read] snapshots and clears [outputBuilder], and stderr scanning stops when `Done` is read.
+     */
     private class OutputReader(
         private val inputStream: InputStream,
         private val errorStream: InputStream,

@@ -19,6 +19,11 @@ import java.util.zip.CRC32
 import java.util.zip.ZipInputStream
 import kotlin.io.path.exists
 
+/**
+ * ApkFileModifier applies in-place APK file updates and optional align/sign/replace steps.
+ * Collaboration: Used by [ResourceApkModifier.incrementalUpdateResourceApk] and incremental deploy flows, delegating shell execution to [CmdExecutor.invoke].
+ * Data Contract: [addFile] appends path-content pairs, and [insertAndResign] performs update -> align -> sign -> replace on the target APK.
+ */
 class ApkFileModifier(
     private val apkFile: File,
     private val signConfig: SigningConfig,

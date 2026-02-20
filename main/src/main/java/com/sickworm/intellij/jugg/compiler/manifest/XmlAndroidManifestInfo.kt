@@ -2,6 +2,10 @@ package com.sickworm.intellij.jugg.compiler.manifest
 
 import java.io.File
 
+/**
+ * XmlAndroidManifestInfo is a minimal manifest model used by Gradle-side logic,
+ * currently extracting only the package name.
+ */
 class XmlAndroidManifestInfo {
 
     var packageName: String? = null

@@ -18,6 +18,11 @@ package com.sickworm.intellij.jugg.apk.manifest;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * IntentFilter intent-filter model for manifest activity parsing.
+ * Collaboration: Populated by NodeActivity during XML traversal and queried by activity launch-matching checks.
+ * Data Contract: Stores unique action/category names in in-memory sets.
+ */
 public class IntentFilter {
   private Set<String> myActions = new HashSet();
   private Set<String> myCategories = new HashSet();

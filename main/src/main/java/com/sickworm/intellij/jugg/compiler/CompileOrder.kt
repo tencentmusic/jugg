@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.compiler
 
+/**
+ * CompileOrder defines order ranges used to place compiler stages in the incremental pipeline.
+ */
 object CompileOrder {
     const val NO_ORDER = ICompiler.NO_ORDER
 

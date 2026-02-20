@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.gradle.compile
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.project.JuggPathManager
 
+/**
+ * Persists and reloads the last full-build command used for baseline compile fallback.
+ */
 class BaseBuildCommandHelper(pathManager: JuggPathManager) {
 
     private val recordFile = pathManager.baseBuildCmdFile

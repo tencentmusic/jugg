@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.mcp
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
+/**
+ * McpResultMapper converts runtime/tool outcomes into MCP-compliant JSON-RPC payload models.
+ */
 class McpResultMapper {
 
     private fun normalizeId(id: Any?): Any? {

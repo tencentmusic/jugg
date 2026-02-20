@@ -22,6 +22,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
+/**
+ * BinaryXmlParser Android binary XML chunks into lightweight XML/manifest models.
+ * Collaboration: Called by ApkReader manifest-loading flow and materializes XmlNode plus ManifestActivityInfo objects.
+ * Data Contract: Expects a top-level XmlChunk and throws when binary XML structure is incomplete or invalid.
+ */
 public class BinaryXmlParser {
 
   @NotNull
@@ -89,4 +94,3 @@ public class BinaryXmlParser {
   }
 
 }
-

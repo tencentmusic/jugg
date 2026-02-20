@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.gradle.script
 
+/**
+ * VersionResolver compares semantic-like version strings for update decisions.
+ */
 object VersionResolver {
 
     fun isNewerVersion(version: String, oldVersion: String?): Boolean {

@@ -1,6 +1,11 @@
 package com.sickworm.intellij.jugg.apk
 
 
+/**
+ * BuildToolsVersionComparator wrapper for Android build-tools version folder names.
+ * Collaboration: Used by [ApkFileModifier] to pick the latest usable build-tools directory.
+ * Data Contract: [compareTo] compares numeric tokens split by `.`, `_rc`, and `-rc`, with non-numeric tokens treated as `-1`.
+ */
 class BuildToolsVersionComparator(
     private val versionString: String,
 ): Comparable<BuildToolsVersionComparator> {

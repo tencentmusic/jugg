@@ -8,6 +8,9 @@ import com.sickworm.intellij.jugg.compiler.oldRes
 import com.sickworm.intellij.jugg.gradle.compile.crc32
 import java.io.File
 
+/**
+ * DirToFileMapHelper expands changed resource directories into file-level maps with old/new filtering.
+ */
 object DirToFileMapHelper {
 
     fun createDirToResFileMap(compileFiles: List<CompileFile>, logger: Logger): Map<File, List<File>> {

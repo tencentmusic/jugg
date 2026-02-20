@@ -23,6 +23,11 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * ManifestActivityInfo AndroidManifest model focused on package, split, debuggable, and activity entries.
+ * Collaboration: Created by BinaryXmlParser.parseBinaryFromStream, populated via parseNode, and consumed by APK/deploy activity selection logic.
+ * Data Contract: packageName defaults to empty string; featureSplit and debuggable may remain null when absent.
+ */
 public class ManifestActivityInfo {
 
   private List<NodeActivity> myActivities;

@@ -3,10 +3,16 @@ package com.sickworm.intellij.jugg.project.data
 import java.io.File
 import java.util.zip.CRC32
 
+/**
+ * Root project snapshot used by compile/deploy planning.
+ */
 data class JuggProjectInfo(
     val modules: Map<String, ModuleInfo>,
 )
 
+/**
+ * Gradle module snapshot used to resolve sources, manifests, classpaths, and dependencies.
+ */
 data class ModuleInfo(
     val name: String, // unique name with parent module name
     val moduleType: Type,
@@ -54,6 +60,9 @@ data class ModuleInfo(
 
     val moduleStdPath: String get() = moduleRootDir.relativeTo(projectRootDir).path.replace("\\", "/")
 
+    /**
+     * Type enumerates supported Gradle module categories.
+     */
     enum class Type {
         Application,
         Library,
@@ -98,6 +107,9 @@ data class ModuleInfo(
     }
 }
 
+/**
+ * Resolves AGP-compatible build output paths for one module/build variant.
+ */
 data class ModuleBuildPathInfo(
     /** project root dir */
     val projectRootDir: File,
@@ -240,6 +252,9 @@ data class ModuleBuildPathInfo(
     }
 }
 
+/**
+ * One resolved library artifact with lightweight file fingerprint helpers.
+ */
 data class LibraryDependency(
     val name: String,
     val file: File,
@@ -326,6 +341,9 @@ data class LibraryDependency(
     }
 }
 
+/**
+ * Reference to another module by module name.
+ */
 data class ModuleDependency(
     val moduleName: String,
 ) : Dependency {
@@ -335,17 +353,26 @@ data class ModuleDependency(
     }
 }
 
+/**
+ * Run-configuration options for one Android module.
+ */
 data class AndroidRunConfig(
     val moduleName: String,
     val variants: List<Variant>,
     val signingConfigList: List<SigningConfig>,
 )
 
+/**
+ * Build variant descriptor and optional signing-config name.
+ */
 data class Variant(
     val name: String,
     val signingConfigName: String?,
 )
 
+/**
+ * Signing material and flags for APK signing tasks.
+ */
 data class SigningConfig(
     val configName: String,
     val keystore: File?,
@@ -372,4 +399,7 @@ data class SigningConfig(
     }
 }
 
+/**
+ * Dependency is a marker interface for dependency model entries.
+ */
 interface Dependency

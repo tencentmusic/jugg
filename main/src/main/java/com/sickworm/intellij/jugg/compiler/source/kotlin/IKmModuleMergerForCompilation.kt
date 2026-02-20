@@ -4,6 +4,9 @@ import com.intellij.openapi.diagnostic.Logger
 import kotlinx.metadata.jvm.JvmMetadataVersion
 import java.io.File
 
+/**
+ * IKmModuleMergerForCompilation loads, merges, and saves `.kotlin_module` metadata for incremental Kotlin builds.
+ */
 interface IKmModuleMergerForCompilation {
 
     fun loadAndMerge()

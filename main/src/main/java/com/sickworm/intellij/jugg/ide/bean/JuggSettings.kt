@@ -9,6 +9,11 @@ import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
 import kotlin.reflect.KProperty
 
+/**
+ * JuggSettings stores persisted and effective settings that control Jugg compile/deploy behavior.
+ * Collaboration: Fields are persisted through [PropertiesDelegate], then consumed by IDE/server/compiler/deploy flows.
+ * Data Contract: Persisted entries are keyed under `jugg.*`; `final*` getters expose effective switches composed from base flags.
+ */
 object JuggSettings {
 
     private val propertiesComponent get() = PropertiesComponent.getInstance()
@@ -143,6 +148,10 @@ private fun PropertiesComponent.delegate(keyName: String? = null, defaultValue: 
     return PropertiesDelegate(this, keyName, defaultValue)
 }
 
+/**
+ * PropertiesDelegate property delegate that bridges Kotlin properties to [PropertiesComponent] key-value storage.
+ * Data Contract: Supports Int/Float/Boolean/Long/String only; unsupported types throw [IllegalArgumentException].
+ */
 private class PropertiesDelegate(
     private val propertiesComponent: PropertiesComponent,
     /** property key，use KProperty.name if not specific，KProperty.name is the name of variable and won't change if use proguard */

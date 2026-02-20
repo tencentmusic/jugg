@@ -5,6 +5,9 @@ import com.sickworm.intellij.jugg.gradle.script.Reflector
 import com.sickworm.intellij.jugg.gradle.script.get
 import java.io.File
 
+/**
+ * KotlinConstRefReader reads kotlin const ref data.
+ */
 class KotlinConstRefReader(
     private val logger: Logger,
 ) {

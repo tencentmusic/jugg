@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.deploy.data
 import java.io.File
 
 
+/**
+ * ParsedApkDiffResult carries apkFile, updatedApkInfos, addedOverlayFiles, and removedOverlayFiles.
+ */
 data class ParsedApkDiffResult(
     val apkFile: File,
 
@@ -48,6 +51,9 @@ data class ParsedApkDiffResult(
     }
 }
 
+/**
+ * ParsedApkUpdateResult carries isSuccess, errorMessage, diffResult, and addedClasses.
+ */
 data class ParsedApkUpdateResult(
     val isSuccess: Boolean,
     val errorMessage: String?,

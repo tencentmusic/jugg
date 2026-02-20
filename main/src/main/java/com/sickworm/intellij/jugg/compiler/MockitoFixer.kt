@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.compiler
 
 import java.io.File
 
+/**
+ * MockitoFixer applies environment workarounds for known Mockito/ByteBuddy startup issues.
+ */
 object MockitoFixer {
 
     fun tryFix() {

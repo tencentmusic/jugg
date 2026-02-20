@@ -16,6 +16,11 @@ import com.sickworm.intellij.jugg.project.dependency.convertToAbsolutePath
 import java.io.File
 
 
+/**
+ * LocalGradleCompileClient runs configured Gradle commands on the local machine and collects APK/classpath/dependency-diff outputs.
+ * Collaboration: Executes shell commands through [CmdExecutor], runs [CompileProjectCommand]/[FindOutputCommand], and serializes build-path/dependency snapshots via [ProjectInfoSerializer] and [DependencyDiffResultSet].
+ * Data Contract: [login] must be called before compile operations; [compileAndFetchResult] returns failed results when Gradle command exits non-zero or expected APK outputs cannot be resolved.
+ */
 class LocalGradleCompileClient(
     private val projectDir: File,
     private val localClasspathStorageDir: File,

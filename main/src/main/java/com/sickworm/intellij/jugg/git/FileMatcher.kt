@@ -4,6 +4,11 @@ import org.eclipse.jgit.ignore.FastIgnoreRule
 import org.eclipse.jgit.ignore.IgnoreNode
 import java.io.File
 
+/**
+ * FileMatcher gitignore-style rules against files and relative paths.
+ * Collaboration: Implements [IFileMatcher], initialized via [init], and consumed by callers through [isMatch].
+ * Data Contract: [rootDir] is optional; matching returns `false` when relative-path conversion fails.
+ */
 class FileMatcher : IFileMatcher {
 
     private var node = IgnoreNode()

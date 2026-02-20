@@ -17,6 +17,9 @@ import kotlin.math.max
 import kotlin.use
 
 
+/**
+ * DeployDataDatabaseSqLiteHelper provides helper utilities for deploy sq lite.
+ */
 class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
@@ -1412,6 +1415,9 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
     }
 }
 
+/**
+ * MethodNodeDb carries classId, name, and desc.
+ */
 private data class MethodNodeDb(
     val classId: Int,
     val name: String,

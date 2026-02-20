@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.compiler
 
 import java.io.File
 
+/**
+ * CompileTaskResult carries isSuccess, isGradleCompile, isCanFallback, and costTime.
+ */
 data class CompileTaskResult(
     val isSuccess: Boolean,
     val isGradleCompile: Boolean,
@@ -42,6 +45,9 @@ data class CompileTaskResult(
     }
 }
 
+/**
+ * ExportIncrementalApkResult carries isSuccess, apkFiles, and failedReason.
+ */
 data class ExportIncrementalApkResult(
     val isSuccess: Boolean,
     val apkFiles: List<File>,

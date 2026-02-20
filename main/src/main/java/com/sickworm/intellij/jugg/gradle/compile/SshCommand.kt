@@ -9,6 +9,9 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 import kotlin.math.max
 
+/**
+ * Base command for `ft sync` flows with iFT-specific prompt handling and result normalization.
+ */
 abstract class IftSyncCommand : BaseSshCommand() {
 
     /**
@@ -64,6 +67,9 @@ abstract class IftSyncCommand : BaseSshCommand() {
     }
 }
 
+/**
+ * Creates a remote directory before upload/download commands.
+ */
 class MkDirCommand(
     path: String,
 ) : BaseSshCommand() {
@@ -72,6 +78,9 @@ class MkDirCommand(
 
 }
 
+/**
+ * Pushes project files to the remote workspace with rsync include/exclude rules.
+ */
 class SyncFileCommand(
     localProjectIftPath: String,
     remoteProjectPath: String,
@@ -97,6 +106,9 @@ class SyncFileCommand(
     }
 }
 
+/**
+ * Runs remote Gradle compile command and injects Jugg-specific init/config parameters.
+ */
 open class CompileProjectCommand(
     private val compileCommand: String,
     private val projectPath: String,
@@ -149,6 +161,9 @@ open class CompileProjectCommand(
     }
 }
 
+/**
+ * Locates one APK output path on the remote machine and captures it from terminal output.
+ */
 class FindOutputCommand(
     remoteProjectPath: String,
     outputApkNameOrPath: String
@@ -184,6 +199,9 @@ class FindOutputCommand(
     }
 }
 
+/**
+ * Downloads one APK artifact from remote workspace to local output directory.
+ */
 class FetchOutputCommand(
     outputApkPath: String,
     remoteToLocalClasspathPath: String,
@@ -193,6 +211,9 @@ class FetchOutputCommand(
 
 }
 
+/**
+ * Downloads selected build outputs (classpath/resources/manifests) from remote workspace.
+ */
 open class FetchClasspathCommand(
     private val remoteProjectPath: String,
     private val remoteToLocalClasspathPath: String,
@@ -232,6 +253,9 @@ open class FetchClasspathCommand(
 }
 
 
+/**
+ * Syncs build-output directories between local roots using rsync-compatible include filters.
+ */
 class SyncLocalClasspathCommand(
     private val sourcePath: File,
     private val destPath: File,
@@ -276,6 +300,9 @@ class SyncLocalClasspathCommand(
     }
 }
 
+/**
+ * Runs a dry-run Gradle command to collect dependency-diff metadata for incremental deploy.
+ */
 class DiffLibraryChangesCommand(
     projectPath: String,
     initGradleFileRelativePath: String,
@@ -289,6 +316,9 @@ class DiffLibraryChangesCommand(
     localProjectPath = localProjectPath,
 )
 
+/**
+ * Fetches only changed dependency artifacts from remote workspace.
+ */
 class FetchChangedLibraryCommand(
     remoteProjectPath: String,
     remoteToLocalClasspathPath: String,

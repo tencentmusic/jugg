@@ -4,6 +4,9 @@ import com.android.ddmlib.IDevice
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * DeviceSelectionResolver resolves device selection decisions.
+ */
 class DeviceSelectionResolver {
 
     fun resolve(deployTargetManager: IDeployTargetManager): DeviceSelectionResult {
@@ -27,11 +30,20 @@ class DeviceSelectionResolver {
     }
 }
 
+/**
+ * DeviceSelectionResult carries device, reason, and messageDetail.
+ */
 sealed class DeviceSelectionResult {
+    /**
+     * Selected carries device, reason, and messageDetail.
+     */
     data class Selected(
         val device: IDevice,
     ) : DeviceSelectionResult()
 
+    /**
+     * NoDevice carries messageDetail.
+     */
     data class NoDevice(
         val messageDetail: String,
     ) : DeviceSelectionResult()

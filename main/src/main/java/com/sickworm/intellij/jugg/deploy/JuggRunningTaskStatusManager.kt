@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.deploy
 
+/**
+ * IJuggRunningTaskStatusManager tracks first-run state across deploy executions and devices.
+ */
 interface IJuggRunningTaskStatusManager {
 
     fun isFirstTimeRun(runningDevice: String? = null): Boolean
@@ -10,6 +13,9 @@ interface IJuggRunningTaskStatusManager {
 
 }
 
+/**
+ * Tracks whether current deploy loop is the first run, scoped by selected device.
+ */
 class JuggRunningTaskStatusManager : IJuggRunningTaskStatusManager {
 
     private var isFirstTimeRun: Boolean = true

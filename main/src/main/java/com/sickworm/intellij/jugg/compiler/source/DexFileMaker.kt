@@ -6,6 +6,9 @@ import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
 
+/**
+ * DexFileMaker invokes D8 to compile class/jar inputs into dex output for incremental workflows.
+ */
 class DexFileMaker(private val logger: Logger) {
 
     fun dex(outputDir: File,

@@ -12,6 +12,11 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 
+/**
+ * ResourceApkModifier creates and updates a resource-only APK payload for overlay deployment.
+ * Collaboration: Converts [DeployItem] overlays into ZIP content and delegates incremental patching to [ApkFileModifier.addFile] and [ApkFileModifier.updateDirectly].
+ * Data Contract: [createResourceApk] requires at least one overlay entry; [toDeployItems] exports a single asset item named [BuildConfig.RESOURCE_APK_NAME].
+ */
 class ResourceApkModifier(
     private val originApkPath: String,
     private val resourceApkFile: File,

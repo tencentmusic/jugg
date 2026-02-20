@@ -3,6 +3,9 @@ package com.sickworm.intellij.jugg.compiler
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 
+/**
+ * ModuleCompileOrderUtils computes module compile order from module dependency relationships.
+ */
 object ModuleCompileOrderUtils {
 
     fun getModuleCompileOrders(modules: Map<String, ModuleInfo>, tempModule: ModuleInfo, logger: Logger): List<ModuleInfo> {

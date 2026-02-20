@@ -6,6 +6,9 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 
+/**
+ * CleanReinstallApkMcpToolAction implements MCP tool `clean_reinstall_apk` and converts request arguments into tool execution and MCP result payloads.
+ */
 class CleanReinstallApkMcpToolAction : McpToolAction {
     override val toolName: String = "clean_reinstall_apk"
 

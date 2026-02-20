@@ -9,6 +9,9 @@ import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
 
+/**
+ * KotlinCompilerOutputParser parses kotlin output into structured models.
+ */
 class KotlinCompilerOutputParser(
     private val files: List<CompileFile>,
     private val logger: Logger
@@ -242,6 +245,9 @@ class KotlinCompilerOutputParser(
         handleCurrentMessage()
     }
 
+    /**
+     * MessageType classifies parsed compiler-output frames for logging/error/output routing.
+     */
     private enum class MessageType {
         LOGGING,
         WARNING,
@@ -265,6 +271,9 @@ class KotlinCompilerOutputParser(
         }
     }
 
+    /**
+     * MetadataVersionError carries message, metadataFile, actualVersion, and expectVersion.
+     */
     data class MetadataVersionError(
         val message: String,
         val metadataFile: File,

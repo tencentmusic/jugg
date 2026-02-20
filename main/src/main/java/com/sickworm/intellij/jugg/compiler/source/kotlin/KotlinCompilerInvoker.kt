@@ -15,6 +15,9 @@ import java.io.ObjectOutputStream
 import java.util.*
 import kotlin.collections.filter
 
+/**
+ * KotlinCompilerInvoker invokes kotlin operations and maps outputs/errors.
+ */
 class KotlinCompilerInvoker {
 
     private var hasRetryCompile = false
@@ -78,6 +81,9 @@ class KotlinCompilerInvoker {
         }
     }
 
+    /**
+     * Options carries isEnableKapt, isNeedKotlinAndroidExtensions, isNeedCompileCompose, and rPackageName.
+     */
     data class Options(
         val isEnableKapt: Boolean = false,
         val isNeedKotlinAndroidExtensions: Boolean = false,

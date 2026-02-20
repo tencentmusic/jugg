@@ -8,6 +8,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * DeviceListMcpToolAction implements MCP tool `device_list` and converts request arguments into tool execution and MCP result payloads.
+ */
 class DeviceListMcpToolAction : McpToolAction {
     override val toolName: String = "device_list"
 

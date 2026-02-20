@@ -2,6 +2,11 @@ package com.sickworm.intellij.jugg.ide.bean
 
 import com.intellij.openapi.util.Key
 
+/**
+ * IProcessHandler for process output routing and cancellation handling.
+ * Collaboration: Consumed by running-task/compile flows, with [DEFAULT] providing a no-op fallback implementation.
+ * Data Contract: [DEFAULT] keeps cancellation flags unset and all lifecycle callbacks no-op.
+ */
 interface IProcessHandler {
 
     var isCanceledByNextTask: Boolean

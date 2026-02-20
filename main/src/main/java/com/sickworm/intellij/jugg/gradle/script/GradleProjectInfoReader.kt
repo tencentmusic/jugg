@@ -12,6 +12,9 @@ import org.gradle.api.file.FileCollection
 import org.gradle.internal.component.local.model.OpaqueComponentArtifactIdentifier
 import java.io.File
 
+/**
+ * GradleProjectInfoReader reads gradle project data.
+ */
 class GradleProjectInfoReader(
     private val rootProject: Project,
     private val lastProjectInfo: JuggProjectInfoSerialize?,
@@ -724,6 +727,9 @@ class GradleProjectInfoReader(
         return true
     }
 
+    /**
+     * SimpleArtifactFilter configures artifact views to resolve one specific Gradle artifact type.
+     */
     private class SimpleArtifactFilter(private val artifactType: String) : Action<ArtifactView.ViewConfiguration> {
         @Suppress("ObjectLiteralToLambda")
         @Override

@@ -8,6 +8,9 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 
+/**
+ * Base rsync command with SSH argument assembly and password-safe logging.
+ */
 abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathList: List<String>): BaseSshCommand() {
 
     private val keyPathArguments = if (keyPathList.isEmpty()) "" else keyPathList.joinToString(" ") { "-i $it" }
@@ -64,6 +67,9 @@ abstract class RsyncCommand(val password: String?, remoteSshPort: Int, keyPathLi
     }
 }
 
+/**
+ * Uploads project files to remote workspace through rsync.
+ */
 class RsyncSyncFileCommand(
     password: String?,
     remoteSshPort: Int,
@@ -77,6 +83,9 @@ class RsyncSyncFileCommand(
     override val baseCommand: String = """${RsyncCompatibleHelper.rsyncPath} $sshArguments $rsyncArguments $localProjectIftPath $remoteProjectPath"""
 }
 
+/**
+ * Downloads remote APK output files to local classpath directory.
+ */
 class RsyncFetchOutputCommand(
     password: String?,
     remoteSshPort: Int,
@@ -89,6 +98,9 @@ class RsyncFetchOutputCommand(
 
 }
 
+/**
+ * Downloads selected remote build outputs (classes/resources/manifests) by include filters.
+ */
 open class RsyncFetchClasspathCommand(
     password: String?,
     remoteSshPort: Int,
@@ -110,6 +122,9 @@ open class RsyncFetchClasspathCommand(
     }
 }
 
+/**
+ * Downloads only changed library artifacts from remote workspace.
+ */
 class RsyncFetchChangedLibraryCommand(
     password: String?,
     remoteSshPort: Int,

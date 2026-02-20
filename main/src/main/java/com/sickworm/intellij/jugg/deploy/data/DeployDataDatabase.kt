@@ -18,7 +18,7 @@ import java.util.zip.ZipFile
 
 
 /**
- * Manage parsed apk data.
+ * IDeployDataDatabase defines APK-parsing persistence and impact-query APIs used by deploy planning.
  */
 interface IDeployDataDatabase {
 
@@ -53,6 +53,11 @@ interface IDeployDataDatabase {
     fun isEnableDesugared(): Boolean
 }
 
+/**
+ * DeployDataDatabase manages per-application deploy databases, parses APK updates, and answers class/method/field impact queries.
+ * Collaboration: Builds and queries app-scoped SQLite state via [DeployDataDatabaseSqLiteHelper], parses APK deltas via [ApkParserProcessLauncher]/[ApkParser], and tracks already deployed overlays in [IncrementalDeployDataDatabase].
+ * Data Contract: [init] groups inputs by [ApkInfo.applicationId] and keeps one `.db` per app id; stale database files are removed after successful init; all public entrypoints are synchronized to avoid concurrent mutation.
+ */
 class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : IDeployDataDatabase {
 
     private var apks = listOf<ApkInfo>()
@@ -165,6 +170,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         return result
     }
 
+    /**
+     * DiffBean carries apkEntries and diffResult.
+     */
     private data class DiffBean(
         val apkEntries: ApkEntries,
         val diffResult: ParsedApkDiffResult,
@@ -363,6 +371,9 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
     }
 }
 
+/**
+ * IncrementalDeployDataDatabase keeps the in-memory snapshot of deployed classes/overlays and updates reference indexes after each deploy.
+ */
 class IncrementalDeployDataDatabase(private val logger: Logger) {
 
     val deployedClasses: MutableMap<String, ClassNode> = mutableMapOf()

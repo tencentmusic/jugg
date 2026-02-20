@@ -9,6 +9,11 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 private val Project.instanceKey get() = basePath ?: "null"
 
+/**
+ * JuggLogger and dispatcher for project-scoped and global loggers.
+ * Collaboration: Callers acquire loggers through [getInstance]/[getGlobalLogger], while lifecycle is managed with [register] and [unregister].
+ * Data Contract: Each project key maps to one [ProjectLogHolder]; unregistered keys fail fast in `ensureKey`.
+ */
 object JuggLogger {
 
     fun getInstance(project: Project, tag: String): Logger {
@@ -130,6 +135,9 @@ object JuggLogger {
         throw IllegalAccessException("project [$logKey] not registered")
     }
 
+    /**
+     * ProjectLogHolder stores file logger and dispatcher resources for one project key.
+     */
     private class ProjectLogHolder(
         val fileLogger: FileLogger,
         val logDispatcher: LogDispatcher,

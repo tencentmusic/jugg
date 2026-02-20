@@ -23,6 +23,9 @@ interface IJuggJvmtiAgentManager {
 
 }
 
+/**
+ * JuggJvmtiAgentManager manages JVMTI agent push/setup/attach/cleanup in app sandboxes for compatibility deploy flows.
+ */
 class JuggJvmtiAgentManager(private val adb: IDeviceAdb, loggerArg: Logger) : IJuggJvmtiAgentManager {
 
     private val logger = loggerArg.getInstance("JuggJvmtiAgentManager")

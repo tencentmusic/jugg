@@ -7,6 +7,9 @@ import groovy.json.JsonSlurper
 import java.io.File
 
 
+/**
+ * ProjectInfoSerializerInGradle persists and restores compact project info within Gradle scripts.
+ */
 class ProjectInfoSerializerInGradle(private val dataFile: File) {
 
     @Synchronized

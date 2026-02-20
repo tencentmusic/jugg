@@ -6,6 +6,9 @@ import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * BuildPathInfoSerializer serializes and deserializes build path models.
+ */
 class BuildPathInfoSerializer(private val dataFile: File, private val logger: Logger) {
 
     companion object {
@@ -41,11 +44,18 @@ class BuildPathInfoSerializer(private val dataFile: File, private val logger: Lo
         }
     }
 
+    /**
+     * BuildPathInfo is the on-disk payload wrapper with schema [version]
+     * and per-module path entries.
+     */
     class BuildPathInfo(
         val version: Int,
         val modulePathInfos: Map<String, BuildPathInfoArgs>
     )
 
+    /**
+     * BuildPathInfoArgs is the serialized DTO form of [ModuleBuildPathInfo].
+     */
     class BuildPathInfoArgs(
         val projectRootDir: String,
         val moduleRootDir: String,
@@ -69,4 +79,3 @@ class BuildPathInfoSerializer(private val dataFile: File, private val logger: Lo
         }
     }
 }
-

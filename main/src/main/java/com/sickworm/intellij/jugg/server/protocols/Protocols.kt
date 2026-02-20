@@ -5,8 +5,14 @@ package com.sickworm.intellij.jugg.server.protocols
 import kotlinx.serialization.Serializable
 
 @Suppress("PropertyName", "unused")
+/**
+ * EventData carries version, ide_version, username, and project_id.
+ */
 data class EventData(val version: String, val ide_version: String, val username: String, val project_id: String, val session_id: String, val action: String, val is_success: Boolean, val cost_time: Int, val detail: String?)
 
+/**
+ * VersionData carries latestVersion, isNeedUpgrade, downloadUrl, and templateList.
+ */
 data class VersionData(
     val latestVersion: String,
     val isNeedUpgrade: Boolean,
@@ -22,6 +28,9 @@ data class VersionData(
     }
 }
 
+/**
+ * ProjectCustomConfig carries servers, buildFileList, buildFileRules, and dontFilterIgnoredFileRules.
+ */
 data class ProjectCustomConfig(
     val servers: List<ServerRule>? = null,
     @Deprecated("use buildFileRules after Jugg 2.0.1")
@@ -41,6 +50,9 @@ data class ProjectCustomConfig(
 )
 
 @Serializable
+/**
+ * ModuleCustomConfig carries moduleStdPath, customClasspath, customSyncFilePath, and isDoNotIgnored.
+ */
 data class ModuleCustomConfig(
     val moduleStdPath: String, // platform independent path
     /** sync and add these path to classpath */
@@ -51,6 +63,9 @@ data class ModuleCustomConfig(
     val isDoNotIgnored: Boolean,
 )
 
+/**
+ * NotificationData carries title, content, buttonText, and jumpUrl.
+ */
 data class NotificationData(
     val title: String,
     val content: String,
@@ -59,11 +74,17 @@ data class NotificationData(
     val isSticky: Boolean,
 )
 
+/**
+ * ServerRule carries url and checkReachableHost.
+ */
 data class ServerRule(
     val url: String,
     val checkReachableHost: String?,
 )
 
+/**
+ * HotUpdateData carries isNeedUpdate, targetVersion, updateInfo, and jarFileInfos.
+ */
 data class HotUpdateData(
     val isNeedUpdate: Boolean,
     val targetVersion: String,
@@ -72,18 +93,27 @@ data class HotUpdateData(
     val isNeedReinstall: Boolean,
 )
 
+/**
+ * JarFileInfo carries uniqueName, url, and md5.
+ */
 data class JarFileInfo(
     val uniqueName: String,
     val url: String,
     val md5: String,
 )
 
+/**
+ * CustomCompilerInfo carries jarFileName, path, and md5.
+ */
 data class CustomCompilerInfo(
     val jarFileName: String,
     val path: String,
     val md5: String,
 )
 
+/**
+ * InteractionProcessFlow carries stepList, firstStep, token, and quitUrl.
+ */
 data class InteractionProcessFlow(
     val stepList: List<InteractionStepDesc>,
     val firstStep: InteractionStep,
@@ -91,10 +121,16 @@ data class InteractionProcessFlow(
     val quitUrl: String,
 )
 
+/**
+ * InteractionStepDesc carries stepName.
+ */
 data class InteractionStepDesc(
     val stepName: String,
 )
 
+/**
+ * InteractionStep carries stepName, title, htmlText, and nextStepUrl.
+ */
 data class InteractionStep(
     val stepName: String,
     val title: String,
@@ -107,6 +143,9 @@ data class InteractionStep(
     val remoteServerInfo: RemoteServerInfo? = null,
 )
 
+/**
+ * RemoteServerInfo carries remoteSshUser, remoteSshPassword, remoteSshIp, and remoteSshPort.
+ */
 data class RemoteServerInfo(
     val remoteSshUser: String?,
     val remoteSshPassword: String?,

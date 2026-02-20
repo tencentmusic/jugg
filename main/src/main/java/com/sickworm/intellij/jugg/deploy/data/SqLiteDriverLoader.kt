@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.intellij.openapi.diagnostic.Logger
 
+/**
+ * SqLiteDriverLoader lazily loads the SQLite JDBC driver once per process.
+ */
 object SqLiteDriverLoader {
 
     private var isLoaded = false

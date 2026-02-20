@@ -7,6 +7,9 @@ import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 
+/**
+ * Decides JVMTI agent push/attach timing and compatibility fallback flags per deploy run.
+ */
 class JuggJvmtiAgentManagerHelper(loggerArg: Logger) {
 
     private val logger = loggerArg.getInstance("JuggJvmtiAgentManagerHelper")

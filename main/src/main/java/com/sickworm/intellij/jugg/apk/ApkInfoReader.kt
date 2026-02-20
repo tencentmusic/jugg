@@ -4,6 +4,11 @@ import com.android.tools.deployer.model.Apk
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
+/**
+ * ApkInfoReader normalized APK metadata from compiled APK outputs.
+ * Collaboration: Reads manifest fields via [ApkReader.getManifest] and emits [ApkInfo]/[ApkFileUnit] for compile/deploy pipelines.
+ * Data Contract: [createApkInfo] groups files by application id and keeps original input order in its output list.
+ */
 class ApkInfoReader(
     private val logger: Logger,
 ) {

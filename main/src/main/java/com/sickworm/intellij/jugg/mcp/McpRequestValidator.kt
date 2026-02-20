@@ -1,5 +1,9 @@
 package com.sickworm.intellij.jugg.mcp
 
+/**
+ * McpRequestValidator validates incoming MCP JSON-RPC requests:
+ * method routing, tool existence, schema checks, defaults, and project authorization.
+ */
 class McpRequestValidator(
     private val currentProjectDir: String,
     private val toolRegistry: McpToolRegistry,
@@ -200,15 +204,27 @@ class McpRequestValidator(
     }
 }
 
+/**
+ * McpValidationResult models request-validation outcomes before tool execution.
+ */
 sealed class McpValidationResult {
+    /**
+     * ToolsList means the request is a valid `tools/list`.
+     */
     data object ToolsList : McpValidationResult()
 
+    /**
+     * ToolsCall carries normalized tool-call data ready for invocation.
+     */
     data class ToolsCall(
         val toolName: String,
         val arguments: Map<String, Any?>,
         val projectDir: String,
     ) : McpValidationResult()
 
+    /**
+     * Invalid carries normalized validation failure details for MCP and JSON-RPC layers.
+     */
     data class Invalid(
         val errorCode: String,
         val message: String,

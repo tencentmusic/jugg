@@ -10,6 +10,9 @@ import com.sickworm.intellij.jugg.project.data.JuggProjectInfoSerialize
 import java.io.File
 
 
+/**
+ * ProjectInfoSerializer serializes and deserializes project models.
+ */
 class ProjectInfoSerializer(val dataFile: File, private val logger: Logger) {
 
     private var memoryCache: JuggProjectInfo? = null

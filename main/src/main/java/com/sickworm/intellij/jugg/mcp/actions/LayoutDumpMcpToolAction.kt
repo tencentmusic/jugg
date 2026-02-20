@@ -14,6 +14,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import java.io.File
 
+/**
+ * LayoutDumpMcpToolAction implements MCP tool `layout_dump` and converts request arguments into tool execution and MCP result payloads.
+ */
 class LayoutDumpMcpToolAction : McpToolAction {
     override val toolName: String = "layout_dump"
 
@@ -78,6 +81,9 @@ class LayoutDumpMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * SelectedAdb carries adb and messageDetail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

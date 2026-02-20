@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.project
 
 import java.util.jar.Manifest
 
+/**
+ * PluginInfoReader reads plugin metadata from `META-INF/JUGG_PLUGIN_INFO.MF`.
+ */
 object PluginInfoReader {
 
     private val juggPluginInfoManifest: Manifest? by lazy {

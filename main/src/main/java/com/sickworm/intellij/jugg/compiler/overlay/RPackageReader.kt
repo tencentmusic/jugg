@@ -4,6 +4,9 @@ import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 
+/**
+ * RPackageReader reads package data.
+ */
 class RPackageReader(private val manifestFile: File, private val logger: Logger) {
 
     fun readPackageName(): String? {

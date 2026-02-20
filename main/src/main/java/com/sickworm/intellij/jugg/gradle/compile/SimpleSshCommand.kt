@@ -2,6 +2,9 @@ package com.sickworm.intellij.jugg.gradle.compile
 
 import com.intellij.openapi.diagnostic.Logger
 
+/**
+ * Lightweight SSH command wrapper with optional output filtering and secure-log masking.
+ */
 class SimpleSshCommand(
     override val baseCommand: String,
     private val outputFilter: ((String, Boolean) -> Boolean)? = null,

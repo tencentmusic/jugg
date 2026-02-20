@@ -4,6 +4,9 @@ import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 
+/**
+ * JavaCompiler compiles Java sources for a module through JavaCompilerInvoker and participates in source-stage hook ordering.
+ */
 class JavaCompiler(
     context: ICompileContext,
     parent: Disposable,

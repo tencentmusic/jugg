@@ -13,7 +13,7 @@ import com.sickworm.intellij.jugg.deploy.outerClassName
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 
 /**
- * Final data that going to deploy to the device.
+ * JuggDeployData is the finalized deploy payload sent to device-side apply logic.
  */
 data class JuggDeployData(
     /** application apks */
@@ -188,6 +188,9 @@ data class JuggDeployData(
         )
     }
 
+    /**
+     * DeployType describes which deployment strategy should be used for this payload.
+     */
     enum class DeployType {
         INSTALL,
         EMBEDDED,
@@ -198,6 +201,9 @@ data class JuggDeployData(
     }
 }
 
+/**
+ * DeployItem is one deployable artifact entry (class/resource/asset/native) with target APK metadata.
+ */
 open class DeployItem(
     val name: String,
     val type: CompileOutput.Type,
@@ -222,6 +228,10 @@ open class DeployItem(
     }
 }
 
+/**
+ * ClassDeployItem pairs one class-type [DeployItem] with parsed class nodes
+ * for dex-splitting and impact decisions.
+ */
 class ClassDeployItem(
     val deployItem: DeployItem,
     val classNodes: List<ClassNode>

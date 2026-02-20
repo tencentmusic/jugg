@@ -7,6 +7,9 @@ import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
 
 
+/**
+ * JarFileMaker packages class directories/files into jar artifacts for downstream tooling.
+ */
 class JarFileMaker {
 
     @Throws(IOException::class)

@@ -628,6 +628,9 @@ class DeployFileManager(
     private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
 }
 
+/**
+ * RecompileFiles groups source files/classes/deploy payload that must be recompiled and redexed during compatibility retries.
+ */
 class RecompileFiles(
     val effectedSourceFiles: List<File>,
     val redexClasses: List<ChangedFile>,

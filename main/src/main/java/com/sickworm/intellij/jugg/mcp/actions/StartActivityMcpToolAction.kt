@@ -12,6 +12,9 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 
+/**
+ * StartActivityMcpToolAction implements MCP tool `start_activity` and converts request arguments into tool execution and MCP result payloads.
+ */
 class StartActivityMcpToolAction : McpToolAction {
     override val toolName: String = "start_activity"
 
@@ -160,6 +163,9 @@ class StartActivityMcpToolAction : McpToolAction {
         }
     }
 
+    /**
+     * SelectedAdb carries adb and messageDetail.
+     */
     private data class SelectedAdb(
         val adb: IDeviceAdb,
     )

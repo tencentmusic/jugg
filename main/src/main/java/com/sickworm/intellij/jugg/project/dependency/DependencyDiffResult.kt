@@ -6,6 +6,9 @@ import com.sickworm.intellij.jugg.project.data.JuggProjectInfo
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 
 
+/**
+ * DependencyDiffResultSet carries diffResult and diffResultWithFull.
+ */
 data class DependencyDiffResultSet(
     /** use to display diff */
     val diffResult: DependencyDiffResult,
@@ -23,6 +26,9 @@ data class DependencyDiffResultSet(
     }
 }
 
+/**
+ * DependencyDiffResult carries currentBuildDependencies, lastBuildDependencies, addedLibraries, and removedLibraries.
+ */
 data class DependencyDiffResult(
     val currentBuildDependencies: JuggProjectInfo,
     val lastBuildDependencies: JuggProjectInfo,
@@ -199,6 +205,9 @@ data class DependencyDiffResult(
     }
 }
 
+/**
+ * UpdatedLibraryDependency carries dependency and oldDependency.
+ */
 data class UpdatedLibraryDependency(
     val dependency: LibraryDependencySet?,
     val oldDependency: LibraryDependencySet?,
@@ -207,6 +216,9 @@ data class UpdatedLibraryDependency(
     val isContentUpdate: Boolean get() = dependency?.version == oldDependency?.version && oldDependency != null
 }
 
+/**
+ * LibraryDependencySet carries declaration and libraries.
+ */
 data class LibraryDependencySet(
     val declaration: String,
     val libraries: List<LibraryDependency>,

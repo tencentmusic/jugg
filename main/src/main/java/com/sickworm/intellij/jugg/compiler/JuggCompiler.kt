@@ -11,6 +11,11 @@ import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompilerInvoker
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * JuggCompiler coordinates end-to-end incremental compilation by sequencing source/resource/asset/native/manifest stages and merging stage outputs.
+ * Collaboration: Delegates stage execution to [AssetOverlayCompiler], [ResourceOverlayCompiler], [SourceCompiler], [DexCompiler], and [RDexForSubmoduleCompiler], then returns one merged [CompileResult].
+ * Data Contract: [supportedTypes] defines accepted input kinds; [doCompile] checks cancel/failure after each stage and short-circuits with [CompileTask.toCancelResult] or [CompileResult.quickFailedOthers].
+ */
 class JuggCompiler(
     context: ICompileContext,
     parent: Disposable,

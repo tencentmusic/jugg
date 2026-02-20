@@ -4,6 +4,10 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.data.LibraryDependency
 import java.util.*
 
+/**
+ * JuggProjectInfoLibraryMerger resolves library dependency deltas between base and fetched snapshots,
+ * including version updates, missing files, and local artifact content changes.
+ */
 class JuggProjectInfoLibraryMerger(private val logger: Logger) {
 
     init {
@@ -114,6 +118,9 @@ class JuggProjectInfoLibraryMerger(private val logger: Logger) {
     }
 }
 
+/**
+ * LibraryMergeWrapper caches normalized merge keys and file-existence state for one dependency.
+ */
 private data class LibraryMergeWrapper(
     /**
      * Library dependency info

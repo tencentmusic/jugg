@@ -16,8 +16,9 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
- * Extract from JuggCompileHelper.
- * Compile with JuggCompiler with strategy of recompile and retry.
+ * IncrementalCompilerHelper orchestrates one incremental compile loop, including retry/recompile decisions and deploy-state updates.
+ * Collaboration: Delegates compilation to [JuggCompiler.compile], tracks staged outputs through [DeployFileManager], and resolves follow-up impacts via [IFileChangesHandler] and [IDependencyMissingResolver].
+ * Data Contract: [compile] exits early when [CompileStatusHolder.isShouldCancel] is true, updates undeployed-file state on the first round, and only enters effect-detection retry logic after a successful compile round.
  */
 class IncrementalCompilerHelper(
     private val compiler: JuggCompiler,
@@ -274,6 +275,9 @@ class IncrementalCompilerHelper(
         return null
     }
 
+    /**
+     * CompileLoopStatus carries compiledFilesThisTime and isRetry.
+     */
     class CompileLoopStatus(
         /** used for avoid recompilation dead loop */
         var compiledFilesThisTime: List<ChangedFile> = emptyList(),
@@ -282,4 +286,3 @@ class IncrementalCompilerHelper(
         val isFirstRoundCompile get() = compiledFilesThisTime.isEmpty()
     }
 }
-

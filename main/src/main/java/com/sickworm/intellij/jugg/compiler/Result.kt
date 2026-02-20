@@ -1,6 +1,9 @@
 package com.sickworm.intellij.jugg.compiler
 
 @Suppress("UNCHECKED_CAST")
+/**
+ * Result stores either a success payload or a failure payload in one container.
+ */
 class Result<Success, Failure> constructor(
     val isSuccess: Boolean,
     success: Success?,

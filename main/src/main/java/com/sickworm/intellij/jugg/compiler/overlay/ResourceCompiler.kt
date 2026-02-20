@@ -226,6 +226,9 @@ class ResourceCompiler(
         aapt2Invoker.release()
     }
 
+    /**
+     * ResCompileSet carries originTask, compileFileMap, and outputDir.
+     */
     data class ResCompileSet(
         val originTask: CompileTask,
         val compileFileMap: Map<CompileFile, List<File>>,

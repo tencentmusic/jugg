@@ -4,6 +4,11 @@ import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.lib.BaseRepositoryBuilder
 import java.io.File
 
+/**
+ * WorktreeRepositoryBuilder builder that wires index/head paths for git worktree repositories.
+ * Collaboration: Used by [GitManager] to construct [WorktreeFileRepository] when `commondir` indicates worktree mode.
+ * Data Contract: [setWorktreeGitDir] enables worktree behavior; [build] falls back to base implementation when unset.
+ */
 class WorktreeRepositoryBuilder : BaseRepositoryBuilder<WorktreeRepositoryBuilder, WorktreeFileRepository>() {
 
     private var worktreeGitDir: File? = null

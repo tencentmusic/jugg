@@ -36,6 +36,10 @@ interface IJuggProjectInfoMerger {
     fun afterLocalFetch(projectInfoSerialize: List<ProjectInfoSerializer>): JuggProjectInfoMergeResult
 }
 
+/**
+ * JuggProjectInfoMerger merges IDE and Gradle snapshots into one project model,
+ * reconciles module-name mismatches, and decides whether dependency data should be refreshed.
+ */
 class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
 
     private val logger = loggerArg.getInstance("JuggProjectInfoMerger")
@@ -305,6 +309,9 @@ class JuggProjectInfoMerger(loggerArg: Logger): IJuggProjectInfoMerger {
     }
 }
 
+/**
+ * JuggProjectInfoMergeResult carries mergedInfo, isNeedUpdateDependency, _mergeItems, and _mergeLibraryItems.
+ */
 data class JuggProjectInfoMergeResult(
     val mergedInfo: JuggProjectInfo?,
     val isNeedUpdateDependency: Boolean,

@@ -101,6 +101,9 @@ class JuggProjectInfoSerialize(
 }
 
 
+/**
+ * ModuleInfoSerialize stores one module plus dependency-index references in serialized project snapshots.
+ */
 class ModuleInfoSerialize(
     val moduleInfoExceptLibraries: ModuleInfo,
     val libraryDependencies: List<Int>?,

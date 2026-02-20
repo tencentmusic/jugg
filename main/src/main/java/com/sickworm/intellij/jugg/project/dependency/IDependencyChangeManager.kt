@@ -7,7 +7,7 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import java.io.File
 
 /**
- * Used to manage the change of dependencies for library incremental compilation & deployment.
+ * IDependencyChangeManager coordinates dependency-diff detection and follow-up compile/deploy decisions.
  */
 interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
@@ -23,6 +23,9 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 
     fun getRemovedLibraryFiles(): List<ChangedFile>
 
+    /**
+     * ChangeStatus represents dependency-change handling stages from clean to rebuild/incremental.
+     */
     enum class ChangeStatus {
         NO_CHANGE,
         CHANGED_NOT_SYNCED,
@@ -34,6 +37,9 @@ interface IDependencyChangeManager: IDependencyChangeManagerEventCallback {
 }
 
 
+/**
+ * IDependencyChangeManagerEventCallback reports sync/build lifecycle events from dependency change handling.
+ */
 interface IDependencyChangeManagerEventCallback {
 
     fun onUpdateChangedBuildFiles(files: List<File>)
@@ -52,4 +58,3 @@ interface IDependencyChangeManagerEventCallback {
 fun IDependencyChangeManager.Companion.create(logger: Logger): IDependencyChangeManager {
     return DependencyChangeManagerByGradle(logger)
 }
-

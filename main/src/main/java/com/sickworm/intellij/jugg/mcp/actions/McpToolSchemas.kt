@@ -4,6 +4,9 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 
+/**
+ * McpToolSchemas centralizes reusable JSON-schema fragments for MCP tool definitions.
+ */
 object McpToolSchemas {
     val projectDirProperty = McpJsonSchemaProperty(
         type = "string",

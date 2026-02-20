@@ -1,5 +1,8 @@
 package com.sickworm.intellij.jugg.mcp
 
+/**
+ * McpErrorCode defines domain error-code identifiers for MCP tool failures.
+ */
 object McpErrorCode {
     const val MCP_INVALID_JSON_RPC = "MCP_INVALID_JSON_RPC"
     const val MCP_METHOD_NOT_SUPPORTED = "MCP_METHOD_NOT_SUPPORTED"

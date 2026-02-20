@@ -2,6 +2,11 @@ package com.sickworm.intellij.jugg.mcp
 
 import com.intellij.openapi.diagnostic.Logger
 
+/**
+ * McpToolInvoker validates MCP JSON-RPC requests, dispatches tool actions, and maps execution results to JSON-RPC responses.
+ * Collaboration: Uses [McpRequestValidator] for protocol/argument validation, resolves executors from [McpToolRegistry], and serializes success/error payloads through [McpResultMapper].
+ * Data Contract: Every request is validated before dispatch; missing tools map to [McpErrorCode.MCP_TOOL_NOT_FOUND]; action results with [McpToolStatus.ERROR] are always converted to tool-error responses.
+ */
 class McpToolInvoker(
     currentProjectDir: String,
     private val runtime: IMcpRuntime,

@@ -12,6 +12,9 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 
+/**
+ * XmlParser parses xml into structured models.
+ */
 class XmlParser {
 
     fun parse(xmlFile: File): XmlNode {
@@ -33,6 +36,9 @@ class XmlParser {
     }
 }
 
+/**
+ * XmlNode wraps a manifest XML element and helper operations for printing/querying.
+ */
 class XmlNode(
     val node: Element
 ) {

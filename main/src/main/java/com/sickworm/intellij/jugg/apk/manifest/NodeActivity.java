@@ -21,6 +21,11 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * NodeActivity one <activity>/<activity-alias> node with resolved names and parsed intent filters.
+ * Collaboration: Built by ManifestActivityInfo.parseApplication and queried by default-activity resolution through hasAction/hasCategory/getRealActivityQname.
+ * Data Contract: Short class names are resolved against packageName and parsed intent-filter children are stored in myIntentFilters.
+ */
 public class NodeActivity {
 
   protected String myName = "";

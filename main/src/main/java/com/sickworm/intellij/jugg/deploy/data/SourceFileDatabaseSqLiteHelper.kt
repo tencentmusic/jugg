@@ -7,6 +7,9 @@ import java.io.File
 import java.sql.DriverManager
 import java.sql.ResultSet
 
+/**
+ * SourceFileDatabaseSqLiteHelper provides helper utilities for source sq lite.
+ */
 class SourceFileDatabaseSqLiteHelper(private val projectDir: File, private val dbFile: File, private val logger: Logger) {
 
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"

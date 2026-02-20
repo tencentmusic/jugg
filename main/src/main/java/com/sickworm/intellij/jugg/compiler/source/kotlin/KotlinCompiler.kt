@@ -8,6 +8,9 @@ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 
+/**
+ * KotlinCompiler compiles Kotlin sources (including KSP/KAPT related paths when enabled) and returns class/java outputs for downstream stages.
+ */
 class KotlinCompiler(
     context: ICompileContext,
     parent: Disposable,

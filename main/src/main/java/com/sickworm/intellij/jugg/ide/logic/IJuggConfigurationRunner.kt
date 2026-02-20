@@ -6,7 +6,7 @@ import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 
 /**
- * All about click RUN button.
+ * IJuggConfigurationRunner defines the run-trigger workflow for compile/deploy execution from IDE actions.
  */
 interface IJuggConfigurationRunner {
 
@@ -19,6 +19,10 @@ interface IJuggConfigurationRunner {
     fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean = false): JuggRunInvocationResult
 }
 
+/**
+ * JuggRunInvocationResult models the outcome of [IJuggConfigurationRunner.runFirstConfiguration].
+ * Data Contract: [runResult] and [errorMessage] default to null, [detail] defaults to an empty string, and [isSuccess] is the only required field.
+ */
 data class JuggRunInvocationResult(
     val isSuccess: Boolean,
     val runResult: RunResult? = null,

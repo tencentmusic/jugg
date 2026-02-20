@@ -10,6 +10,9 @@ import java.io.File
 import java.util.zip.ZipFile
 import kotlin.system.measureTimeMillis
 
+/**
+ * DexCompiler converts changed class/jar inputs into dex artifacts and performs jar-level class diffing before dexing.
+ */
 class DexCompiler(
     context: ICompileContext,
     parent: Disposable,

@@ -16,6 +16,11 @@ import java.io.File
 import java.io.InputStream
 import java.io.PrintStream
 
+/**
+ * RemoteGradleCompileClient manages SSH-based Gradle compilation and synchronizes build outputs/dependency changes back to local.
+ * Collaboration: Establishes SSH sessions via JSch, executes remote commands through [CmdExecutor]/[SshCommand], and synchronizes artifacts with [RsyncCommand] plus local deserialization helpers in [LocalGradleCompileClient].
+ * Data Contract: [login] initializes/refreshes SSH channel state before build commands; authentication falls back across password and discovered key paths; login failures reset session fields and throw [JuggException.loginToRemoteFailed].
+ */
 class RemoteGradleCompileClient(
     private val project: Project,
     private val isRemoteWindows: Boolean = false,

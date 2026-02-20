@@ -14,6 +14,10 @@ import com.sickworm.intellij.jugg.mcp.McpJsonRpcResponse
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
 import java.io.File
 
+/**
+ * IPlatformApi abstraction boundary for UI, device, environment, and gradle integration calls.
+ * Collaboration: Implemented by host-layer adapters and consumed through [PlatformApi] delegation in core modules.
+ */
 interface IPlatformApi {
 
     fun showDialog(

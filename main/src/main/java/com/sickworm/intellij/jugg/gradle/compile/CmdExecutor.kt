@@ -9,6 +9,10 @@ import java.io.PrintStream
 import java.nio.charset.Charset
 
 
+/**
+ * CmdExecutor runs shell/expect commands for Gradle and SSH flows, streams filtered output
+ * to logger/listeners, and supports cancellation via [release].
+ */
 class CmdExecutor(
     private val logger: Logger,
     /** only use to print to other place e.g. running terminal */
