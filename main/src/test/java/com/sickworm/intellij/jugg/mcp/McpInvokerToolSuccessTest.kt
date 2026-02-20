@@ -46,6 +46,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
         Assert.assertTrue(result.content.first().text.contains("compile_only executed successfully"))
+        Assert.assertFalse(result.content.first().text.contains("structuredContent="))
     }
 
     @Test
@@ -135,7 +136,7 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
                 id = 10,
                 params = mapOf(
                     "name" to "screenshot",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "serial" to "emulator-5554")
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
         )
@@ -295,45 +296,5 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
         Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-    }
-
-    @Test
-    fun testStartEmulatorToolCallSuccess() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 15,
-                params = mapOf(
-                    "name" to "start_emulator",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "avdName" to "Pixel_8_API_35", "waitForDeviceSec" to 20)
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        Assert.assertTrue(result.content.first().text.contains("start_emulator executed successfully"))
-    }
-
-    @Test
-    fun testEmulatorListToolCallSuccess() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 16,
-                params = mapOf(
-                    "name" to "emulator_list",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
-        Assert.assertTrue(result.content.first().text.contains("emulator_list executed successfully"))
     }
 }

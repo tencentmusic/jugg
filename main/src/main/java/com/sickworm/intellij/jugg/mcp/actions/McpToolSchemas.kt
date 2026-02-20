@@ -12,24 +12,6 @@ object McpToolSchemas {
         examples = listOf("/Users/you/IdeaProjects/demo"),
     )
 
-    val serialProperty = McpJsonSchemaProperty(
-        type = "string",
-        description = "Optional target device serial. Prefer value from device_list. If absent or invalid, fallback to IDE-selected device.",
-        pattern = "^\\S+$",
-        examples = listOf("emulator-5554"),
-    )
-
-    val deviceProperty = McpJsonSchemaProperty(
-        type = "object",
-        properties = mapOf(
-            "serial" to McpJsonSchemaProperty(type = "string"),
-            "name" to McpJsonSchemaProperty(type = "string"),
-            "isOnline" to McpJsonSchemaProperty(type = "boolean"),
-        ),
-        required = listOf("serial", "name", "isOnline"),
-        additionalProperties = false,
-    )
-
     val baseOutputSchema = McpJsonSchemaObject(
         description = "Structured result returned via tools/call structuredContent.",
         properties = mapOf(
@@ -54,4 +36,3 @@ object McpToolSchemas {
         additionalProperties = false,
     )
 }
-

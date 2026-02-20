@@ -102,7 +102,7 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testRestartAppFallbackWhenSerialMissing() {
+    fun testRestartAppSuccessWithDefaultSelection() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -117,16 +117,37 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
 
         val result = response.result as McpToolCallResult
         Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("Serial not provided"))
+        Assert.assertTrue(result.content.first().text.contains("restart_app executed successfully"))
     }
 
     @Test
-    fun testRestartAppFallbackWhenSerialInvalid() {
-        val invoker = newToolInvoker()
+    fun testRestartAppNoDevice() {
+        val invoker = newToolInvoker(currentProjectDir = "/tmp/projectNoDevice")
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 8,
+                params = mapOf(
+                    "name" to "restart_app",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectNoDevice")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("No connected device is available"))
+        Assert.assertFalse(result.content.first().text.contains("structuredContent="))
+    }
+
+    @Test
+    fun testRestartAppRejectSerialArgument() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 9,
                 params = mapOf(
                     "name" to "restart_app",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "serial" to "invalid")
@@ -135,46 +156,8 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertTrue(result.content.first().text.contains("fallback to selected device"))
-    }
-
-    @Test
-    fun testRestartAppNoDevice() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 9,
-                params = mapOf(
-                    "name" to "restart_app",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "serial" to "none")
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
-        Assert.assertTrue(result.isError)
-        Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("\"errorCode\":\"MCP_NO_DEVICE\""))
-    }
-
-    @Test
-    fun testStartEmulatorInvalidAvd() {
-        val invoker = newToolInvoker()
-        val response = invoker.invokeMcp(
-            McpJsonRpcRequest(
-                method = McpJsonRpc.Method.ToolsCall,
-                id = 10,
-                params = mapOf(
-                    "name" to "start_emulator",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "avdName" to "missing")
-                )
-            )
-        )
-
-        val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): serial"))
     }
 }

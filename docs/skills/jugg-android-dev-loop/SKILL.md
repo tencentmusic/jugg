@@ -9,60 +9,47 @@ description: Teach Agent to use Jugg MCP tools directly for deterministic Androi
 
 Teach agent to reliably finish Android engineering tasks with a deterministic loop:
 
-- modify (if needed) -> deploy -> observe -> validate -> iterate
+- modify (if needed) -> build/deploy -> observe -> validate -> iterate
 - return structured evidence (`status/errorCode/data/artifacts`)
 - stop safely on unknown/high-risk failures
 
 Strongly prefer MCP tools and avoid direct external adb commands in normal flow.
 
-## Prerequisites
-
-Before starting the closed-loop, ensure:
-
-1. **Jugg is initialized** — the project appears in `list_projects` output.
-2. **MCP server is reachable** — jugg-mcp is available.
-3. **Device is connected** — at least one online device/emulator visible in `device_list`.
-
-## Core Workflow (6-Step Closed-Loop SOP)
+## Core Workflow (5-Step Closed-Loop SOP)
 
 ```
-Step 1: list_projects             → confirm projectDir
-Step 2: device_list               → confirm online device
-Step 3: compile_and_deploy        → build and push artifacts to device
-Step 4: start_app + tap           → launch app and interact
-Step 5: layout_dump/activity_stack/screenshot/record    → collect verification evidence.
-    -> back to Step 3 if something is wrong.
-Step 6: final_artifact_staging    → save final screenshot or recording for user
+Step 1: Modify sources(not using jugg-mcp)
+Step 2: compile_and_deploy        → build and deploy (default)
+Step 3: start_app + tap           → launch app and interact (when runtime verification is required)
+Step 4: layout_dump/activity_stack/screenshot/record    → collect verification evidence.
+    -> back to Step 1 if something is wrong.
+Step 5: final_artifact_staging    → save final screenshot or recording for user
 ```
 
-### Step 1: Confirm Project
+### Step 1: Modify sources
 
-Call `list_projects` (no arguments). Pick the matching `projectDir` from the response.
+The agent modifies the necessary source code files based on the tasks submitted by the user.
 
-### Step 2: Confirm Device
+### Step 2: Build and Deploy
 
-Call `device_list` with `projectDir`. Verify at least one device has `isOnline=true`. Use `serial` from response for subsequent device-targeting calls.
-
-If no device is online:
-
-1. Try to start the first available local Android emulator (AVD) once.
-2. Wait for device boot and rerun `device_list`.
-3. If still no device, stop and ask user to prepare a device.
-
-### Step 3: Build and Deploy
-
-- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to device.
+- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to default selected device.
 - **Compile-only path**: `compile_only` with `projectDir` — when no device is available or you only need to verify compilation.
 - **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries.
 
-### Step 4: Runtime Actions
+If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 
-- `start_app` with `projectDir` (and optional `packageName`, `serial`) for default entry. This is the default runtime path.
+1. stop automatic flow;
+2. ask user whether to start/connect a device;
+3. if user only needs compilation verification, continue with `compile_only`.
+
+### Step 3: Runtime Actions
+
+- `start_app` with `projectDir` (and optional `packageName`) for default entry. This is the default runtime path.
 - `start_activity` is advanced-only and should not be the default in this skill flow.
 - `tap` with `projectDir`, `x`, `y` for UI interaction.
 - Use `layout_dump` before `tap` to discover element coordinates.
 
-### Step 5: Collect Evidence
+### Step 4: Collect Evidence
 
 > Tools from light to heavy.
 
@@ -71,7 +58,7 @@ If no device is online:
 - `screenshot` for visual proof.
 - Optional: `record` for video trace with in-record start_app + tap.
 
-### Step 6: Final Artifact Staging
+### Step 5: Final Artifact Staging
 
 After task verification is complete:
 
@@ -91,11 +78,11 @@ After task verification is complete:
 ## Decision Rules
 
 - Prefer `compile_and_deploy` for normal iteration (compiles then deploys).
-- Use `compile_only` when no device is connected or only compilation check is needed.
+- Use `compile_only` when only compilation check is needed.
 - Use `clean_reinstall_apk` when you need to clear app data.
 - If `compile_and_deploy` fails, autonomous retry `compile_and_deploy` up to 3 times first.
 - Only after 3 consecutive failures and still crash / no effects are observed, agent may try `force_gradle_compile`.
-- Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): attempt first-local-emulator startup once, then ask user if none is available or startup fails.
+- Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): stop and ask user to prepare a device.
 - Strongly prefer MCP-only execution and avoid raw adb in normal flow.
 
 ## MCP Response Format
@@ -127,7 +114,7 @@ Fields:
 | Error Code | Meaning | Agent Action |
 |-----------|---------|-------------|
 | `MCP_PROJECT_NOT_INITIALIZED` | Project not opened/initialized in IDE | Ask user to open project |
-| `MCP_NO_DEVICE` | No online device connected | Ask user to connect device |
+| `MCP_NO_DEVICE` | No online device connected | Ask user to connect/start device |
 | `MCP_INVALID_PARAMS` | Bad tool arguments | Fix arguments and retry |
 | `MCP_TOOL_NOT_FOUND` | Tool name not recognized | Check available tools |
 | `MCP_INTERNAL_ERROR` | Internal runtime failure | Try fallback path |
@@ -148,17 +135,6 @@ When compile/deploy fails, follow this strict order:
 4. **Stop and confirm with user** when root cause is still unclear.
 
 Do not silently loop retries without diagnosis.
-
-## State Machine (SOP)
-
-Use this lightweight state machine for all tasks:
-
-- `IDLE -> ANALYZING -> MODIFYING -> COMPILING -> DEPLOYING -> OBSERVING -> VALIDATING`
-- failure branch: `ANY -> RECOVERING -> (resume previous state or stop)`
-
-Detailed transitions and per-state allowed actions:
-
-- `references/state_machine.md`
 
 ## Atomic Tool Cards
 
@@ -198,6 +174,5 @@ Step-by-step examples of common scenarios:
 ### references/
 
 - `references/closed_loop.md`: execution policy and troubleshooting guidance.
-- `references/state_machine.md`: lightweight state machine and transition rules.
 - `references/tool_cards.md`: atomic tool usage cards.
 - `references/error_patterns.md`: known failure signatures and fix strategies.

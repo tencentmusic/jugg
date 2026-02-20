@@ -21,7 +21,6 @@ class TapMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "serial" to McpToolSchemas.serialProperty,
                 "x" to McpJsonSchemaProperty(
                     type = "number",
                     description = "X coordinate in device screen space.",
@@ -43,11 +42,10 @@ class TapMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "device" to McpToolSchemas.deviceProperty,
                         "x" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
                         "y" to McpJsonSchemaProperty(type = "number", minimum = 0.0),
                     ),
-                    required = listOf("device", "x", "y"),
+                    required = listOf("x", "y"),
                     additionalProperties = false,
                 )
             )
@@ -57,14 +55,13 @@ class TapMcpToolAction : McpToolAction {
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         return tapAction(
             runtime,
-            serial = arguments["serial"] as? String,
             x = (arguments["x"] as? Number)?.toInt(),
             y = (arguments["y"] as? Number)?.toInt(),
         )
     }
 
-    private fun tapAction(runtime: IMcpRuntime, serial: String?, x: Int?, y: Int?): McpToolResult {
-        val selected = resolveOnlineDevice(runtime, serial)
+    private fun tapAction(runtime: IMcpRuntime, x: Int?, y: Int?): McpToolResult {
+        val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("tap")
         val adb = selected.adb
 
@@ -82,13 +79,8 @@ class TapMcpToolAction : McpToolAction {
             adb.execAdbShellCmd("input tap $x $y")
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "tap executed successfully. ${selected.messageDetail}",
+                message = "tap executed successfully.",
                 data = mapOf(
-                    "device" to mapOf(
-                        "serial" to adb.serial,
-                        "name" to adb.displayName,
-                        "isOnline" to adb.isOnline,
-                    ),
                     "x" to x,
                     "y" to y,
                 ),
@@ -102,11 +94,10 @@ class TapMcpToolAction : McpToolAction {
 
     private data class SelectedAdb(
         val adb: IDeviceAdb,
-        val messageDetail: String,
     )
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, serial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(serial, runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
@@ -114,7 +105,7 @@ class TapMcpToolAction : McpToolAction {
         if (!adb.isOnline) {
             return null
         }
-        return SelectedAdb(adb = adb, messageDetail = selectionResult.messageDetail)
+        return SelectedAdb(adb = adb)
     }
 
     private fun noDeviceResult(toolName: String): McpToolResult {

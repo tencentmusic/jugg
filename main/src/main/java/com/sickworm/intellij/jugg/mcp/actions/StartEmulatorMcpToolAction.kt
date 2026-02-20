@@ -13,6 +13,10 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 class StartEmulatorMcpToolAction : McpToolAction {
+    companion object {
+        private const val HOST_ERROR_MAX_CHARS = 300
+    }
+
     override val toolName: String = "start_emulator"
 
     override val definition: McpToolDefinition = McpToolDefinition(
@@ -58,32 +62,22 @@ class StartEmulatorMcpToolAction : McpToolAction {
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         val waitForDeviceSec = (arguments["waitForDeviceSec"] as? Number)?.toInt()
         return startEmulatorAction(
-            runtime,
             avdName = arguments["avdName"] as? String,
             waitForDeviceSec = waitForDeviceSec,
         )
     }
 
-    private fun startEmulatorAction(runtime: IMcpRuntime, avdName: String?, waitForDeviceSec: Int?): McpToolResult {
+    private fun startEmulatorAction(avdName: String?, waitForDeviceSec: Int?): McpToolResult {
         val resolvedWaitSec = (waitForDeviceSec ?: 45).coerceIn(0, 300)
         val adbBin = findAdbExecutablePath()
         val emulatorBin = findEmulatorExecutablePath()
 
-        if (emulatorBin == null) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "start_emulator failed. Reason: emulator executable not found in Android SDK.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
-            )
-        }
-
         val avdListResult = runHostCommand(listOf(emulatorBin, "-list-avds"), 10)
         if (avdListResult.exitCode != 0) {
+            val hostErrorSummary = summarizeHostError(avdListResult.stderr.ifBlank { avdListResult.stdout })
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "start_emulator failed. Reason: unable to list AVDs. ${avdListResult.stderr.ifBlank { avdListResult.stdout }}",
+                message = "start_emulator failed. Reason: unable to list AVDs. $hostErrorSummary",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -119,9 +113,10 @@ class StartEmulatorMcpToolAction : McpToolAction {
         val beforeSerials = queryOnlineEmulatorSerials(adbBin)
         val startResult = runHostCommand(listOf(emulatorBin, "-avd", resolvedAvd), 5, detach = true)
         if (startResult.exitCode != 0) {
+            val hostErrorSummary = summarizeHostError(startResult.stderr.ifBlank { startResult.stdout })
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "start_emulator failed. Reason: failed to launch emulator process. ${startResult.stderr.ifBlank { startResult.stdout }}",
+                message = "start_emulator failed. Reason: failed to launch emulator process. $hostErrorSummary",
                 data = mapOf("avdName" to resolvedAvd),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -175,6 +170,20 @@ class StartEmulatorMcpToolAction : McpToolAction {
         val stdout: String,
         val stderr: String,
     )
+
+    private fun summarizeHostError(output: String): String {
+        if (output.isBlank()) {
+            return "unknown host error"
+        }
+        val normalized = output.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(" ")
+        if (normalized.length <= HOST_ERROR_MAX_CHARS) {
+            return normalized
+        }
+        return normalized.take(HOST_ERROR_MAX_CHARS) + "...[truncated]"
+    }
 
     private fun runHostCommand(command: List<String>, timeoutSec: Long, detach: Boolean = false): HostCommandResult {
         return try {

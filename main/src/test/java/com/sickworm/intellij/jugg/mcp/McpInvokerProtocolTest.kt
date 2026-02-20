@@ -84,6 +84,27 @@ class McpInvokerProtocolTest : McpInvokerTestBase() {
     }
 
     @Test
+    fun testToolsListReturnsCompactSchemas() {
+        val invoker = newBaseInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsList,
+                id = 1000,
+                params = emptyMap<String, Any>(),
+            )
+        )
+
+        Assert.assertNull(response.error)
+        val tools = (response.result as McpToolsListResult).tools
+        val compileTool = tools.first { it.name == "compile_only" }
+        Assert.assertNull(compileTool.outputSchema)
+        val projectDirProperty = compileTool.inputSchema.properties["projectDir"]
+        Assert.assertNotNull(projectDirProperty)
+        Assert.assertNull(projectDirProperty?.description)
+        Assert.assertNull(projectDirProperty?.examples)
+    }
+
+    @Test
     fun testPromptsAndResourcesList() {
         val invoker = newBaseInvoker()
         initialize(invoker)

@@ -21,7 +21,6 @@ class StartActivityMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "serial" to McpToolSchemas.serialProperty,
                 "packageName" to McpJsonSchemaProperty(
                     type = "string",
                     description = "Optional package name. If absent, uses current Jugg target package.",
@@ -78,12 +77,12 @@ class StartActivityMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "device" to McpToolSchemas.deviceProperty,
                         "packageName" to McpJsonSchemaProperty(type = "string"),
                         "activity" to McpJsonSchemaProperty(type = "string"),
                         "component" to McpJsonSchemaProperty(type = "string"),
+                        "command" to McpJsonSchemaProperty(type = "string"),
                     ),
-                    required = listOf("device", "packageName", "activity", "component"),
+                    required = listOf("packageName", "activity", "component", "command"),
                     additionalProperties = false,
                 )
             )
@@ -99,7 +98,6 @@ class StartActivityMcpToolAction : McpToolAction {
         val extras = arguments["extras"] as? Map<String, Any?>
         return startActivityAction(
             runtime,
-            serial = arguments["serial"] as? String,
             packageName = arguments["packageName"] as? String,
             activity = arguments["activity"] as? String,
             action = arguments["action"] as? String,
@@ -114,7 +112,6 @@ class StartActivityMcpToolAction : McpToolAction {
 
     private fun startActivityAction(
         runtime: IMcpRuntime,
-        serial: String?,
         packageName: String?,
         activity: String?,
         action: String?,
@@ -125,7 +122,7 @@ class StartActivityMcpToolAction : McpToolAction {
         extras: Map<String, Any?>?,
         user: Int?,
     ): McpToolResult {
-        val selected = resolveOnlineDevice(runtime, serial)
+        val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("start_activity")
         val adb = selected.adb
 
@@ -148,13 +145,8 @@ class StartActivityMcpToolAction : McpToolAction {
 
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "start_activity executed successfully. ${selected.messageDetail}",
+                message = "start_activity executed successfully.",
                 data = mapOf(
-                    "device" to mapOf(
-                        "serial" to adb.serial,
-                        "name" to adb.displayName,
-                        "isOnline" to adb.isOnline,
-                    ),
                     "packageName" to resolvedPackageName,
                     "activity" to activityPart,
                     "component" to component,
@@ -170,11 +162,10 @@ class StartActivityMcpToolAction : McpToolAction {
 
     private data class SelectedAdb(
         val adb: IDeviceAdb,
-        val messageDetail: String,
     )
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, serial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(serial, runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
@@ -182,7 +173,7 @@ class StartActivityMcpToolAction : McpToolAction {
         if (!adb.isOnline) {
             return null
         }
-        return SelectedAdb(adb = adb, messageDetail = selectionResult.messageDetail)
+        return SelectedAdb(adb = adb)
     }
 
     private fun normalizeActivity(activity: String?, resolvedPackageName: String): String {

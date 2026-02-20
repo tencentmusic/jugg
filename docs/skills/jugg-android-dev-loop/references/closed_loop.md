@@ -6,11 +6,9 @@ Agent directly calls Jugg MCP tools to complete the Android compile/deploy/verif
 
 ## Required MCP Steps
 
-1. **`list_projects`** — confirm valid `projectDir` from IDE.
-2. **`device_list`** — ensure at least one online device is available.
-3. **Build + Deploy** — `compile_and_deploy` (default path: compiles then deploys) or `clean_reinstall_apk` (strong fallback: uninstalls app, clears Jugg code_cache patches, full reinstall). Use `compile_only` when no device is available or only compilation check is needed.
-4. **Runtime actions** — `start_app` then `tap` for UI interaction.
-5. **Verification artifacts** — `screenshot` and/or `layout_dump` (optional `record`).
+1. **Build + Deploy** — `compile_and_deploy` (default path: compiles then deploys) or `clean_reinstall_apk` (strong fallback: uninstalls app, clears Jugg code_cache patches, full reinstall). Use `compile_only` when only compilation check is needed.
+2. **Runtime actions** — `start_app` then `tap` for UI interaction.
+3. **Verification artifacts** — `screenshot` and/or `layout_dump` (optional `record`).
 
 ## Pass Criteria
 
@@ -54,7 +52,7 @@ Avoid unbounded retry loops. `force_gradle_compile` is allowed only after 3 cons
 ## Failure Handling
 
 - `MCP_PROJECT_NOT_INITIALIZED`: ensure IDE project is opened and Jugg initialized.
-- `MCP_NO_DEVICE`: connect device/emulator, re-check `device_list`.
+- `MCP_NO_DEVICE`: stop and ask user to connect/start device; if runtime is not required, switch to `compile_only`.
 - `MCP_INTERNAL_ERROR` during incremental path: retry `compile_and_deploy` up to 3 times, then try `force_gradle_compile`, then `clean_reinstall_apk`.
 - `MCP_INVALID_PARAMS`: verify tool arguments against schema and retry.
 

@@ -24,7 +24,6 @@ class RecordMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "serial" to McpToolSchemas.serialProperty,
                 "durationSec" to McpJsonSchemaProperty(
                     type = "number",
                     description = "Optional recording duration in seconds.",
@@ -91,7 +90,6 @@ class RecordMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "device" to McpToolSchemas.deviceProperty,
                         "durationSec" to McpJsonSchemaProperty(type = "number", minimum = 1.0, maximum = 180.0),
                         "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.mp4$"),
                         "packageName" to McpJsonSchemaProperty(type = "string"),
@@ -106,7 +104,7 @@ class RecordMcpToolAction : McpToolAction {
                             additionalProperties = false,
                         ),
                     ),
-                    required = listOf("device", "durationSec", "file"),
+                    required = listOf("durationSec", "file"),
                     additionalProperties = false,
                 )
             )
@@ -116,7 +114,6 @@ class RecordMcpToolAction : McpToolAction {
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
         return recordAction(
             runtime,
-            serial = arguments["serial"] as? String,
             durationSec = (arguments["durationSec"] as? Number)?.toInt(),
             packageName = arguments["packageName"] as? String,
             activity = arguments["activity"] as? String,
@@ -131,7 +128,6 @@ class RecordMcpToolAction : McpToolAction {
 
     private fun recordAction(
         runtime: IMcpRuntime,
-        serial: String?,
         durationSec: Int?,
         packageName: String?,
         activity: String?,
@@ -142,7 +138,7 @@ class RecordMcpToolAction : McpToolAction {
         tapIntervalSec: Double?,
         recordStartDelaySec: Double?,
     ): McpToolResult {
-        val selected = resolveOnlineDevice(runtime, serial)
+        val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("record")
         val adb = selected.adb
         val toolDir = ensureToolDir(runtime, "record")
@@ -164,7 +160,7 @@ class RecordMcpToolAction : McpToolAction {
         val clampedTapRepeat = (tapRepeat ?: 1).coerceIn(1, 8)
         val clampedTapInterval = (tapIntervalSec ?: 1.0).coerceIn(0.0, 8.0)
 
-        val fileName = "record_${safeName(adb.serial)}_${System.currentTimeMillis()}.mp4"
+        val fileName = "record_${System.currentTimeMillis()}.mp4"
         val localFile = File(toolDir, fileName)
         val remoteDir = "/sdcard/Download/jugg_mcp"
         val remoteFile = "$remoteDir/$fileName"
@@ -229,13 +225,8 @@ class RecordMcpToolAction : McpToolAction {
 
                 McpToolResult(
                     status = McpToolStatus.OK,
-                    message = "record executed successfully. ${selected.messageDetail}",
+                    message = "record executed successfully.",
                     data = mapOf(
-                        "device" to mapOf(
-                            "serial" to adb.serial,
-                            "name" to adb.displayName,
-                            "isOnline" to adb.isOnline,
-                        ),
                         "durationSec" to clampedDurationSec,
                         "file" to localFile.absolutePath,
                     ) + extraData,
@@ -250,11 +241,10 @@ class RecordMcpToolAction : McpToolAction {
 
     private data class SelectedAdb(
         val adb: IDeviceAdb,
-        val messageDetail: String,
     )
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, serial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(serial, runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
@@ -262,7 +252,7 @@ class RecordMcpToolAction : McpToolAction {
         if (!adb.isOnline) {
             return null
         }
-        return SelectedAdb(adb = adb, messageDetail = selectionResult.messageDetail)
+        return SelectedAdb(adb = adb)
     }
 
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
@@ -320,10 +310,6 @@ class RecordMcpToolAction : McpToolAction {
 
     private fun formatShellSec(value: Double): String {
         return String.Companion.format(Locale.US, "%.2f", value.coerceAtLeast(0.0))
-    }
-
-    private fun safeName(value: String): String {
-        return value.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
     }
 
     private fun noDeviceResult(toolName: String): McpToolResult {

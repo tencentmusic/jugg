@@ -13,6 +13,10 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 class EmulatorListMcpToolAction : McpToolAction {
+    companion object {
+        private const val HOST_ERROR_MAX_CHARS = 300
+    }
+
     override val toolName: String = "emulator_list"
 
     override val definition: McpToolDefinition = McpToolDefinition(
@@ -52,16 +56,17 @@ class EmulatorListMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return emulatorListAction(runtime)
+        return emulatorListAction()
     }
 
-    private fun emulatorListAction(runtime: IMcpRuntime): McpToolResult {
+    private fun emulatorListAction(): McpToolResult {
         val emulatorBin = findEmulatorExecutablePath()
         val avdListResult = runHostCommand(listOf(emulatorBin, "-list-avds"), 10)
         if (avdListResult.exitCode != 0) {
+            val hostErrorSummary = summarizeHostError(avdListResult.stderr.ifBlank { avdListResult.stdout })
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "emulator_list failed. Reason: unable to list AVDs. ${avdListResult.stderr.ifBlank { avdListResult.stdout }}",
+                message = "emulator_list failed. Reason: unable to list AVDs. $hostErrorSummary",
                 data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
@@ -100,6 +105,20 @@ class EmulatorListMcpToolAction : McpToolAction {
         val stdout: String,
         val stderr: String,
     )
+
+    private fun summarizeHostError(output: String): String {
+        if (output.isBlank()) {
+            return "unknown host error"
+        }
+        val normalized = output.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(" ")
+        if (normalized.length <= HOST_ERROR_MAX_CHARS) {
+            return normalized
+        }
+        return normalized.take(HOST_ERROR_MAX_CHARS) + "...[truncated]"
+    }
 
     private fun runHostCommand(command: List<String>, timeoutSec: Long, detach: Boolean = false): HostCommandResult {
         return try {

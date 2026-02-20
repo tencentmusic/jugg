@@ -13,7 +13,6 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: restart the app process without reinstall.
 - Required input: `projectDir`.
-- Optional input: `serial`.
 - Success output: `status="OK"`.
 - On failure: classify by `errorCode` (`MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`).
 
@@ -22,7 +21,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Purpose: check available target devices before deploy.
 - Required input: `projectDir`.
 - Success output: non-empty device list with `serial`, `name`, `isOnline`, `api`, `isSelected`.
-- On failure: `MCP_NO_DEVICE`; try start-first-local-emulator once, then rerun `device_list`. If still empty, stop and ask user to connect emulator/phone.
+- On failure: stop and ask user to connect/start device manually.
 
 ## `compile_only`
 
@@ -67,7 +66,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: advanced explicit activity start for runtime verification.
 - Required input: `projectDir`.
-- Optional input: `serial`, `packageName`, `activity`.
+- Optional input: `packageName`, `activity`.
 - Safety note: use this only when you clearly know the required launch intent context/params; otherwise prefer `start_app`.
 - Success output: `status="OK"` with `packageName`, `activity`, `component` in data.
 - On failure: classify as `START_ACTIVITY_FAIL`; verify package/activity mapping.
@@ -76,7 +75,6 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: deterministic UI trigger for post-launch flow.
 - Required input: `projectDir`, `x`, `y`.
-- Optional input: `serial`.
 - Success output: `status="OK"`.
 - On failure: retry within budget using delay/interval tuning.
 
@@ -84,7 +82,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: record device screen video, optionally with in-record start_app + tap actions.
 - Required input: `projectDir`.
-- Optional input: `serial`, `durationSec` (default 10, range 1-180), `packageName`, `activity`, `tapX`+`tapY` (must be provided together), `preTapDelaySec`, `tapRepeat` (default 1), `tapIntervalSec`, `recordStartDelaySec`.
+- Optional input: `durationSec` (default 10, range 1-180), `packageName`, `activity`, `tapX`+`tapY` (must be provided together), `preTapDelaySec`, `tapRepeat` (default 1), `tapIntervalSec`, `recordStartDelaySec`.
 - Success output: recording artifact path in `artifacts`.
 - On failure: one retry allowed, then degrade to `start_app` + `tap` + `screenshot`.
 
@@ -92,7 +90,6 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: visual proof for final validation.
 - Required input: `projectDir`.
-- Optional input: `serial`.
 - Success output: absolute screenshot path in `artifacts`.
 - On failure: collect at least `layout_dump`; if both fail => validation fail.
 - Final staging rule: when task is accepted, clear `${projectDir}/build/mcp_fetch/final` and copy final screenshot as `final_screenshot.png`.
@@ -101,7 +98,6 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: UI hierarchy evidence and structural verification.
 - Required input: `projectDir`.
-- Optional input: `serial`.
 - Success output: absolute dump path in `artifacts`.
 - On failure: require `screenshot` success; if none exists => validation fail.
 
@@ -109,7 +105,6 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: capture current runtime Activity stack and top activity for page-awareness decisions.
 - Required input: `projectDir`.
-- Optional input: `serial`.
 - Success output: `data.topActivity`, `data.activities` (component string array from top to bottom), and a full raw dump text path in `artifacts`.
 - On failure: classify by `errorCode` (`MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`); fallback to `start_app` + `layout_dump` for coarse context.
 

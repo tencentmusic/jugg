@@ -47,11 +47,11 @@ Use this library to constrain auto-fix behavior.
   signature:
     includes: ["MCP_NO_DEVICE", "no device"]
   diagnosis: no online target device
-  fix_strategy: connect_or_boot_device
+  fix_strategy: ask_user_prepare_device_or_use_compile_only
   fix_scope: low
   confidence_hint: 0.99
   auto_apply: false
-  next_action_on_success: rerun_device_list_then_deploy
+  next_action_on_success: rerun_compile_and_deploy_after_user_ready
   next_action_on_failure: ask_user_to_prepare_device
 
 - id: gradle_unresolved_symbol
@@ -127,29 +127,6 @@ Use this library to constrain auto-fix behavior.
   next_action_on_success: rerun_list_projects_then_compile_and_deploy
   next_action_on_failure: ask_user_to_close_extra_ide_or_switch_target
 
-- id: mcp_no_device_try_first_emulator
-  stage: deploy
-  signature:
-    includes: ["MCP_NO_DEVICE", "device_list", "devices: []"]
-  diagnosis: no online device; try booting first local AVD before asking user
-  fix_strategy: start_first_local_avd_then_retry_device_list
-  fix_scope: low
-  confidence_hint: 0.95
-  auto_apply: true
-  next_action_on_success: compile_and_deploy
-  next_action_on_failure: ask_user_to_prepare_device
-
-- id: start_emulator_mock_success_not_real_boot
-  stage: observe
-  signature:
-    includes: ["testStartEmulatorToolCallSuccess", "start_emulator executed successfully", "adb devices empty"]
-  diagnosis: unit test may use mocked IMcpRuntime and only verifies response contract, not real AVD boot
-  fix_strategy: require_runtime_evidence_after_start_emulator
-  fix_scope: low
-  confidence_hint: 0.98
-  auto_apply: true
-  next_action_on_success: continue_with_compile_and_deploy
-  next_action_on_failure: mark_as_false_positive_and_request_environment_check
 ```
 
 ## Reporting Format

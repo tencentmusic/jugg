@@ -23,7 +23,6 @@ class ActivityStackMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -33,7 +32,6 @@ class ActivityStackMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "device" to McpToolSchemas.deviceProperty,
                         "topActivity" to McpJsonSchemaProperty(type = "string"),
                         "activities" to McpJsonSchemaProperty(
                             type = "array",
@@ -42,7 +40,7 @@ class ActivityStackMcpToolAction : McpToolAction {
                         "dumpFile" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.txt$"),
                         "sourceCommand" to McpJsonSchemaProperty(type = "string"),
                     ),
-                    required = listOf("device", "activities", "dumpFile", "sourceCommand"),
+                    required = listOf("activities", "dumpFile", "sourceCommand"),
                     additionalProperties = false,
                 )
             )
@@ -50,11 +48,11 @@ class ActivityStackMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return activityStackAction(runtime, arguments["serial"] as? String)
+        return activityStackAction(runtime)
     }
 
-    private fun activityStackAction(runtime: IMcpRuntime, serial: String?): McpToolResult {
-        val selected = resolveOnlineDevice(runtime, serial)
+    private fun activityStackAction(runtime: IMcpRuntime): McpToolResult {
+        val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("activity_stack")
         val adb = selected.adb
         val sourceCommand = "dumpsys activity activities"
@@ -67,7 +65,7 @@ class ActivityStackMcpToolAction : McpToolAction {
 
             val toolDir = ensureToolDir(runtime, "activity_stack")
                 ?: return McpToolResult.internalErrorResult("activity_stack", "failed to prepare artifact directory")
-            val dumpFile = File(toolDir, "activity_stack_${safeName(adb.serial)}_${System.currentTimeMillis()}.txt")
+            val dumpFile = File(toolDir, "activity_stack_${System.currentTimeMillis()}.txt")
             dumpFile.writeText(dumpOutput)
 
             val parsedEntries = parseActivityEntries(dumpOutput)
@@ -75,11 +73,6 @@ class ActivityStackMcpToolAction : McpToolAction {
             val activities = buildActivitiesTopToBottom(topContext, parsedEntries)
 
             val data = mutableMapOf<String, Any>(
-                "device" to mapOf(
-                    "serial" to adb.serial,
-                    "name" to adb.displayName,
-                    "isOnline" to adb.isOnline,
-                ),
                 "activities" to activities,
                 "dumpFile" to dumpFile.absolutePath,
                 "sourceCommand" to sourceCommand,
@@ -90,7 +83,7 @@ class ActivityStackMcpToolAction : McpToolAction {
 
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "activity_stack executed successfully. ${selected.messageDetail}",
+                message = "activity_stack executed successfully.",
                 data = data,
                 artifacts = listOf(McpArtifact(type = "text", path = dumpFile.absolutePath)),
                 errorCode = null,
@@ -192,11 +185,10 @@ class ActivityStackMcpToolAction : McpToolAction {
 
     private data class SelectedAdb(
         val adb: IDeviceAdb,
-        val messageDetail: String,
     )
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, serial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(serial, runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
@@ -204,7 +196,7 @@ class ActivityStackMcpToolAction : McpToolAction {
         if (!adb.isOnline) {
             return null
         }
-        return SelectedAdb(adb = adb, messageDetail = selectionResult.messageDetail)
+        return SelectedAdb(adb = adb)
     }
 
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
@@ -214,10 +206,6 @@ class ActivityStackMcpToolAction : McpToolAction {
             dir.mkdirs()
         }
         return dir
-    }
-
-    private fun safeName(value: String): String {
-        return value.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
     }
 
     private fun noDeviceResult(toolName: String): McpToolResult {

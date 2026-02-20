@@ -1,8 +1,9 @@
 package com.sickworm.intellij.jugg.mcp.actions
 
 import com.android.ddmlib.IDevice
+import com.sickworm.intellij.jugg.mcp.DeviceSelectionResolver
+import com.sickworm.intellij.jugg.mcp.DeviceSelectionResult
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
-import com.sickworm.intellij.jugg.mcp.McpDeviceInfo
 import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
@@ -18,7 +19,6 @@ class RestartAppMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -27,47 +27,17 @@ class RestartAppMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return restartAppAction(runtime, arguments["serial"] as? String)
+        return restartAppAction(runtime)
     }
 
-    private fun restartAppAction(runtime: IMcpRuntime, serial: String?): McpToolResult {
-        val targetDevice = runtime.deployTargetManager.getConnectedDevices().find { it.serialNumber == serial }
-        if (targetDevice == null && !serial.isNullOrEmpty()) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "restart_app failed. Reason: No device found for serial: $serial.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_NO_DEVICE,
-            )
-        }
-        val targetDevices = if (targetDevice == null) {
-            runtime.deployTargetManager.getSelectedDevices()
-        } else {
-            listOf(targetDevice)
-        }
-        if (targetDevices.isEmpty()) {
-            return McpToolResult(
-                status = McpToolStatus.ERROR,
-                message = "restart_app failed. Reason: No connected devices.",
-                data = emptyMap<String, Any>(),
-                artifacts = emptyList(),
-                errorCode = McpErrorCode.MCP_NO_DEVICE,
-            )
-        }
-
-        var isSuccess = true
-        targetDevices.forEach { device ->
-            val result = runtime.deployTargetManager.restartApp(device)
-            isSuccess = isSuccess && result
-        }
+    private fun restartAppAction(runtime: IMcpRuntime): McpToolResult {
+        val targetDevice = resolveOnlineDevice(runtime) ?: return noDeviceResult()
+        val isSuccess = runtime.deployTargetManager.restartApp(targetDevice)
         if (!isSuccess) {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
-                message = "restart_app failed. Reason: Failed to restart app on some devices. Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log\"",
-                data = mapOf(
-                    "devices" to targetDevices.map { it.mcpDeviceInfo }
-                ),
+                message = "restart_app failed. Reason: Failed to restart app. Please check log in \\\$PROJECT_DIR/build/jugg/log/compile_latest.log\"",
+                data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
             )
@@ -82,12 +52,21 @@ class RestartAppMcpToolAction : McpToolAction {
         )
     }
 
-    private val IDevice.mcpDeviceInfo: McpDeviceInfo
-        get() {
-            return McpDeviceInfo(
-                serial = this.serialNumber,
-                name = this.name,
-                isOnline = this.isOnline,
-            )
+    private fun resolveOnlineDevice(runtime: IMcpRuntime): IDevice? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
+        if (selectionResult !is DeviceSelectionResult.Selected) {
+            return null
         }
+        return selectionResult.device
+    }
+
+    private fun noDeviceResult(): McpToolResult {
+        return McpToolResult(
+            status = McpToolStatus.ERROR,
+            message = "restart_app failed. Reason: No connected device is available.",
+            data = emptyMap<String, Any>(),
+            artifacts = emptyList(),
+            errorCode = McpErrorCode.MCP_NO_DEVICE,
+        )
+    }
 }

@@ -1,12 +1,9 @@
 package com.sickworm.intellij.jugg.mcp
 
-import com.google.gson.Gson
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 class McpResultMapper {
-
-    private val gson = Gson()
 
     private fun normalizeId(id: Any?): Any? {
         return when (id) {
@@ -16,13 +13,44 @@ class McpResultMapper {
         }
     }
 
-    private fun composeToolText(message: String, structured: Map<String, Any?>): String {
-        val structuredJson = gson.toJson(structured)
-        return if (message.isBlank()) {
-            structuredJson
-        } else {
-            "$message\nstructuredContent=$structuredJson"
+    private fun composeToolText(message: String, status: String): String {
+        if (message.isNotBlank()) {
+            return message
         }
+        return if (status == McpToolStatus.ERROR) "Tool execution failed." else "Tool executed successfully."
+    }
+
+    private fun compactSchemaObject(schema: McpJsonSchemaObject): McpJsonSchemaObject {
+        return McpJsonSchemaObject(
+            type = schema.type,
+            properties = schema.properties.mapValues { (_, property) -> compactSchemaProperty(property) },
+            required = schema.required,
+            additionalProperties = schema.additionalProperties,
+        )
+    }
+
+    private fun compactSchemaProperty(property: McpJsonSchemaProperty): McpJsonSchemaProperty {
+        return McpJsonSchemaProperty(
+            type = property.type,
+            default = property.default,
+            minimum = property.minimum,
+            maximum = property.maximum,
+            `enum` = property.`enum`,
+            pattern = property.pattern,
+            properties = property.properties?.mapValues { (_, nested) -> compactSchemaProperty(nested) },
+            required = property.required,
+            items = property.items?.let { compactSchemaProperty(it) },
+            additionalProperties = property.additionalProperties,
+        )
+    }
+
+    private fun compactToolDefinition(tool: McpToolDefinition): McpToolDefinition {
+        return McpToolDefinition(
+            name = tool.name,
+            description = tool.description,
+            inputSchema = compactSchemaObject(tool.inputSchema),
+            outputSchema = null,
+        )
     }
 
     fun initialize(id: Any?): McpJsonRpcResponse {
@@ -65,7 +93,8 @@ class McpResultMapper {
     }
 
     fun toolsList(id: Any?, tools: List<McpToolDefinition>): McpJsonRpcResponse {
-        return McpJsonRpcResponse(id = normalizeId(id), result = McpToolsListResult(tools = tools))
+        val compactTools = tools.map { compactToolDefinition(it) }
+        return McpJsonRpcResponse(id = normalizeId(id), result = McpToolsListResult(tools = compactTools))
     }
 
     fun toolSuccess(id: Any?, toolResult: McpToolResult): McpJsonRpcResponse {
@@ -80,7 +109,7 @@ class McpResultMapper {
             id = normalizeId(id),
             result = McpToolCallResult(
                 content = listOf(
-                    McpContentItem(text = composeToolText(toolResult.message, structured))
+                    McpContentItem(text = composeToolText(toolResult.message, toolResult.status))
                 ),
                 isError = false,
                 structuredContent = structured,
@@ -100,7 +129,7 @@ class McpResultMapper {
             id = normalizeId(id),
             result = McpToolCallResult(
                 content = listOf(
-                    McpContentItem(text = composeToolText(message, structured))
+                    McpContentItem(text = composeToolText(message, McpToolStatus.ERROR))
                 ),
                 isError = true,
                 structuredContent = structured,

@@ -48,74 +48,20 @@ abstract class McpInvokerTestBase {
                 )
             },
             fakeAction("restart_app", def("restart_app")) { arguments ->
-                when (arguments["serial"] as? String) {
-                    null -> McpToolResult(
-                        status = McpToolStatus.OK,
-                        message = "restart_app executed successfully. Serial not provided; selected device 'emulator-5554' is used.",
-                        data = mapOf("device" to McpDeviceInfo(serial = "emulator-5554", name = "Pixel", isOnline = true)),
-                        artifacts = emptyList(),
-                        errorCode = null,
-                    )
-
-                    "invalid" -> McpToolResult(
-                        status = McpToolStatus.OK,
-                        message = "restart_app executed successfully. Serial 'invalid' is invalid; fallback to selected device 'emulator-5554'.",
-                        data = mapOf("device" to McpDeviceInfo(serial = "emulator-5554", name = "Pixel", isOnline = true)),
-                        artifacts = emptyList(),
-                        errorCode = null,
-                    )
-
-                    "none" -> McpToolResult(
+                val projectDir = arguments["projectDir"] as? String
+                if (projectDir == "/tmp/projectNoDevice") {
+                    McpToolResult(
                         status = McpToolStatus.ERROR,
                         message = "restart_app failed. Reason: No connected device is available.",
                         data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
                         errorCode = McpErrorCode.MCP_NO_DEVICE,
                     )
-
-                    else -> McpToolResult(
-                        status = McpToolStatus.OK,
-                        message = "restart_app executed successfully. Device selected by serial: ${arguments["serial"]}.",
-                        data = mapOf("device" to McpDeviceInfo(serial = arguments["serial"] as String, name = "Specified", isOnline = true)),
-                        artifacts = emptyList(),
-                        errorCode = null,
-                    )
-                }
-            },
-            fakeAction("emulator_list", def("emulator_list")) { _ ->
-                McpToolResult(
-                    status = McpToolStatus.OK,
-                    message = "emulator_list executed successfully.",
-                    data = mapOf(
-                        "avds" to listOf(
-                            mapOf("name" to "Pixel_8_API_35", "isRunning" to false),
-                            mapOf("name" to "Pixel_6_API_34", "isRunning" to true, "serial" to "emulator-5554"),
-                        )
-                    ),
-                    artifacts = emptyList(),
-                    errorCode = null,
-                )
-            },
-            fakeAction("start_emulator", def("start_emulator")) { arguments ->
-                val avdName = arguments["avdName"] as? String
-                if (avdName == "missing") {
-                    McpToolResult(
-                        status = McpToolStatus.ERROR,
-                        message = "start_emulator failed. Reason: AVD 'missing' not found.",
-                        data = emptyMap<String, Any>(),
-                        artifacts = emptyList(),
-                        errorCode = McpErrorCode.MCP_INVALID_PARAMS,
-                    )
                 } else {
                     McpToolResult(
                         status = McpToolStatus.OK,
-                        message = "start_emulator executed successfully.",
-                        data = mapOf(
-                            "avdName" to (avdName ?: "Pixel_8_API_35"),
-                            "emulatorSerial" to "emulator-5554",
-                            "started" to true,
-                            "waitedSec" to ((arguments["waitForDeviceSec"] as? Number)?.toInt() ?: 0),
-                        ),
+                        message = "restart_app executed successfully.",
+                        data = emptyMap<String, Any>(),
                         artifacts = emptyList(),
                         errorCode = null,
                     )
@@ -134,13 +80,29 @@ abstract class McpInvokerTestBase {
                 McpToolResult(McpToolStatus.OK, "force_gradle_compile executed successfully.", mapOf("triggered" to true), emptyList(), null)
             },
             fakeAction("device_list", def("device_list")) { _ ->
-                McpToolResult(McpToolStatus.OK, "device_list executed successfully.", mapOf("devices" to emptyList<Map<String, Any?>>()), emptyList(), null)
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "device_list executed successfully.",
+                    mapOf(
+                        "devices" to listOf(
+                            mapOf(
+                                "serial" to "emulator-5554",
+                                "name" to "Pixel_6_API_34",
+                                "isOnline" to true,
+                                "api" to 34,
+                                "isSelected" to true,
+                            )
+                        )
+                    ),
+                    emptyList(),
+                    null,
+                )
             },
-            fakeAction("screenshot", def("screenshot")) { arguments ->
+            fakeAction("screenshot", def("screenshot")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
                     "screenshot executed successfully.",
-                    mapOf("serial" to arguments["serial"]),
+                    mapOf("file" to "/tmp/a.png"),
                     listOf(McpArtifact(type = "image", path = "/tmp/a.png")),
                     null,
                 )
@@ -150,54 +112,59 @@ abstract class McpInvokerTestBase {
                 McpToolResult(
                     McpToolStatus.OK,
                     "record executed successfully.",
-                    mapOf("serial" to arguments["serial"], "durationSec" to duration),
+                    mapOf("durationSec" to duration, "file" to "/tmp/a.mp4"),
                     listOf(McpArtifact(type = "video", path = "/tmp/a.mp4")),
                     null,
                 )
             },
-            fakeAction("layout_dump", def("layout_dump")) { arguments ->
+            fakeAction("layout_dump", def("layout_dump")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
                     "layout_dump executed successfully.",
-                    mapOf("serial" to arguments["serial"]),
+                    mapOf("file" to "/tmp/a.xml"),
                     listOf(McpArtifact(type = "xml", path = "/tmp/a.xml")),
                     null,
                 )
             },
-            fakeAction("activity_stack", def("activity_stack")) { arguments ->
+            fakeAction("activity_stack", def("activity_stack")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
                     "activity_stack executed successfully.",
                     mapOf(
-                        "serial" to arguments["serial"],
                         "topActivity" to "com.example.app/.MainActivity",
                         "activities" to listOf("com.example.app/.MainActivity", "com.example.app/.DetailActivity"),
+                        "dumpFile" to "/tmp/activity_stack.txt",
+                        "sourceCommand" to "dumpsys activity activities",
                     ),
                     listOf(McpArtifact(type = "text", path = "/tmp/activity_stack.txt")),
                     null,
                 )
             },
             fakeAction("start_app", def("start_app")) { arguments ->
+                val packageName = arguments["packageName"] as? String ?: "com.example.app"
                 McpToolResult(
                     McpToolStatus.OK,
                     "start_app executed successfully.",
                     mapOf(
-                        "serial" to arguments["serial"],
-                        "packageName" to arguments["packageName"],
+                        "packageName" to packageName,
                         "activity" to ".MainActivity",
+                        "component" to "$packageName/.MainActivity",
                     ),
                     emptyList(),
                     null,
                 )
             },
             fakeAction("start_activity", def("start_activity")) { arguments ->
+                val packageName = arguments["packageName"] as? String ?: "com.example.app"
+                val activity = arguments["activity"] as? String ?: ".MainActivity"
                 McpToolResult(
                     McpToolStatus.OK,
                     "start_activity executed successfully.",
                     mapOf(
-                        "serial" to arguments["serial"],
-                        "packageName" to arguments["packageName"],
-                        "activity" to arguments["activity"],
+                        "packageName" to packageName,
+                        "activity" to activity,
+                        "component" to "$packageName/$activity",
+                        "command" to "am start -n $packageName/$activity",
                         "action" to arguments["action"],
                         "categories" to arguments["categories"],
                         "data" to arguments["data"],
@@ -214,7 +181,7 @@ abstract class McpInvokerTestBase {
                 McpToolResult(
                     McpToolStatus.OK,
                     "tap executed successfully.",
-                    mapOf("serial" to arguments["serial"], "x" to arguments["x"], "y" to arguments["y"]),
+                    mapOf("x" to arguments["x"], "y" to arguments["y"]),
                     emptyList(),
                     null,
                 )

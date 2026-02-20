@@ -22,8 +22,6 @@ class McpToolActionRegistry(
             return listOf(
                 ListProjectsMcpToolAction(),
                 RestartAppMcpToolAction(),
-                EmulatorListMcpToolAction(),
-                StartEmulatorMcpToolAction(),
                 CompileOnlyMcpToolAction(),
                 CompileAndDeployMcpToolAction(),
                 CleanReinstallApkMcpToolAction(),

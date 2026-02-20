@@ -23,7 +23,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "serial" to McpToolSchemas.serialProperty,
             ),
             required = listOf("projectDir"),
             additionalProperties = false,
@@ -33,10 +32,9 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "device" to McpToolSchemas.deviceProperty,
                         "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.xml$"),
                     ),
-                    required = listOf("device", "file"),
+                    required = listOf("file"),
                     additionalProperties = false,
                 )
             )
@@ -44,17 +42,17 @@ class LayoutDumpMcpToolAction : McpToolAction {
     )
 
     override fun execute(arguments: Map<String, Any?>, runtime: IMcpRuntime): McpToolResult {
-        return layoutDumpAction(runtime, arguments["serial"] as? String)
+        return layoutDumpAction(runtime)
     }
 
-    private fun layoutDumpAction(runtime: IMcpRuntime, serial: String?): McpToolResult {
-        val selected = resolveOnlineDevice(runtime, serial)
+    private fun layoutDumpAction(runtime: IMcpRuntime): McpToolResult {
+        val selected = resolveOnlineDevice(runtime)
             ?: return noDeviceResult("layout_dump")
         val adb = selected.adb
         val toolDir = ensureToolDir(runtime, "layout_dump")
             ?: return McpToolResult.internalErrorResult("layout_dump", "failed to prepare artifact directory")
 
-        val fileName = "layout_${safeName(adb.serial)}_${System.currentTimeMillis()}.xml"
+        val fileName = "layout_${System.currentTimeMillis()}.xml"
         val localFile = File(toolDir, fileName)
         val remoteDir = "/sdcard/Download/jugg_mcp"
         val remoteFile = "$remoteDir/$fileName"
@@ -68,13 +66,8 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "layout_dump executed successfully. ${selected.messageDetail}",
+                message = "layout_dump executed successfully.",
                 data = mapOf(
-                    "device" to mapOf(
-                        "serial" to adb.serial,
-                        "name" to adb.displayName,
-                        "isOnline" to adb.isOnline,
-                    ),
                     "file" to localFile.absolutePath,
                 ),
                 artifacts = listOf(McpArtifact(type = "xml", path = localFile.absolutePath)),
@@ -87,11 +80,10 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
     private data class SelectedAdb(
         val adb: IDeviceAdb,
-        val messageDetail: String,
     )
 
-    private fun resolveOnlineDevice(runtime: IMcpRuntime, serial: String?): SelectedAdb? {
-        val selectionResult = DeviceSelectionResolver().resolve(serial, runtime.deployTargetManager)
+    private fun resolveOnlineDevice(runtime: IMcpRuntime): SelectedAdb? {
+        val selectionResult = DeviceSelectionResolver().resolve(runtime.deployTargetManager)
         if (selectionResult !is DeviceSelectionResult.Selected) {
             return null
         }
@@ -99,7 +91,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
         if (!adb.isOnline) {
             return null
         }
-        return SelectedAdb(adb = adb, messageDetail = selectionResult.messageDetail)
+        return SelectedAdb(adb = adb)
     }
 
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
@@ -109,10 +101,6 @@ class LayoutDumpMcpToolAction : McpToolAction {
             dir.mkdirs()
         }
         return dir
-    }
-
-    private fun safeName(value: String): String {
-        return value.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
     }
 
     private fun noDeviceResult(toolName: String): McpToolResult {

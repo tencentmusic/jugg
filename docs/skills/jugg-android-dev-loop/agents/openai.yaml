@@ -6,11 +6,9 @@ interface:
 
     ## Core Workflow (always follow this order)
 
-    1. `list_projects` — confirm projectDir.
-    2. `device_list` — confirm online device.
-    3. `compile_and_deploy` — compile and deploy (default path). Use `compile_only` when no device or compile check only. Fallback: `force_gradle_compile` then `clean_reinstall_apk`.
-    4. `start_app` + `tap` — launch app and interact.
-    5. `screenshot` / `layout_dump` — collect verification evidence.
+    1. `compile_and_deploy` — compile and deploy (default path). Use `compile_only` when compile check only. Fallback: `force_gradle_compile` then `clean_reinstall_apk`.
+    2. `start_app` + `tap` — launch app and interact (runtime verification needed only).
+    3. `screenshot` / `layout_dump` — collect verification evidence.
 
     ## MCP Response Format
 
@@ -32,4 +30,5 @@ interface:
     ## Failure Handling
 
     compile_and_deploy fails → force_gradle_compile → retry → clean_reinstall_apk → stop and report.
+    compile_and_deploy with `MCP_NO_DEVICE` → stop and ask user to start/connect device, or switch to compile_only.
     Always parse errorCode before deciding next action.
