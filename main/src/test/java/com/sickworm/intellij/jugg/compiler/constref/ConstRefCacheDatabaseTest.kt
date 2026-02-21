@@ -5,12 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 
-class ConstRefCacheDatabaseTest {
+class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should query effected files by changed constant definition`() {
-        val dbDir = Files.createTempDirectory("const_ref_db").toFile()
+        val dbDir = createTempDirectory("const_ref_db")
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
         val constantsPath = File(dbDir, "Constants.kt").toStdPath()
@@ -54,7 +53,7 @@ class ConstRefCacheDatabaseTest {
 
     @Test
     fun `should exclude file definitions when requested`() {
-        val dbDir = Files.createTempDirectory("const_ref_db_exclude").toFile()
+        val dbDir = createTempDirectory("const_ref_db_exclude")
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
         val constantsPath = File(dbDir, "Constants.kt").toStdPath()
@@ -102,7 +101,7 @@ class ConstRefCacheDatabaseTest {
 
     @Test
     fun `should allow same class and const name from different files`() {
-        val dbDir = Files.createTempDirectory("const_ref_db_unique").toFile()
+        val dbDir = createTempDirectory("const_ref_db_unique")
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
         val debugPath = File(dbDir, "debug/Constants.kt").toStdPath()

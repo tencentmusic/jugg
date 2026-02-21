@@ -9,12 +9,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 
-class ConstRefSchedulerTest {
+class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should analyze pending files and return effected files`() {
-        val rootDir = Files.createTempDirectory("const_ref_scheduler").toFile()
+        val rootDir = createTempDirectory("const_ref_scheduler")
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -69,7 +68,7 @@ class ConstRefSchedulerTest {
 
     @Test
     fun `should cleanup deleted file references`() {
-        val rootDir = Files.createTempDirectory("const_ref_scheduler_delete").toFile()
+        val rootDir = createTempDirectory("const_ref_scheduler_delete")
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -112,7 +111,7 @@ class ConstRefSchedulerTest {
 
     @Test
     fun `should keep effected files when const is downgraded to val`() {
-        val rootDir = Files.createTempDirectory("const_ref_scheduler_downgrade").toFile()
+        val rootDir = createTempDirectory("const_ref_scheduler_downgrade")
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """

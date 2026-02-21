@@ -8,12 +8,11 @@ import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 
-class ConstRefIntegrationTest {
+class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should detect effected files on cold start after full scan becomes ready`() {
-        val rootDir = Files.createTempDirectory("const_ref_integration").toFile()
+        val rootDir = createTempDirectory("const_ref_integration")
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """

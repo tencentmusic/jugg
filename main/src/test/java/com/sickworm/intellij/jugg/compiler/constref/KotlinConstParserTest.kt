@@ -5,12 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 
-class KotlinConstParserTest {
+class KotlinConstParserTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should parse kotlin constant definitions`() {
-        val rootDir = Files.createTempDirectory("kotlin_const_defs").toFile()
+        val rootDir = createTempDirectory("kotlin_const_defs")
         val constantsFile = File(rootDir, "Config.kt").apply {
             writeText(
                 """
@@ -49,7 +48,7 @@ class KotlinConstParserTest {
 
     @Test
     fun `should parse kotlin constant references with imports`() {
-        val rootDir = Files.createTempDirectory("kotlin_const_refs").toFile()
+        val rootDir = createTempDirectory("kotlin_const_refs")
         val constantsFile = File(rootDir, "Config.kt").apply {
             writeText(
                 """
@@ -103,7 +102,7 @@ class KotlinConstParserTest {
 
     @Test
     fun `should parse kotlin top level const references from package asterisk import`() {
-        val rootDir = Files.createTempDirectory("kotlin_const_refs_pkg_asterisk").toFile()
+        val rootDir = createTempDirectory("kotlin_const_refs_pkg_asterisk")
         val constantsFile = File(rootDir, "TopConsts.kt").apply {
             writeText(
                 """

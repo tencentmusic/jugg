@@ -5,12 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 
-class JavaConstParserTest {
+class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should parse java constant definitions including nested class`() {
-        val rootDir = Files.createTempDirectory("java_const_defs").toFile()
+        val rootDir = createTempDirectory("java_const_defs")
         val constantsFile = File(rootDir, "Constants.java").apply {
             writeText(
                 """
@@ -37,7 +36,7 @@ class JavaConstParserTest {
 
     @Test
     fun `should parse java constant references for field access and static imports`() {
-        val rootDir = Files.createTempDirectory("java_const_refs").toFile()
+        val rootDir = createTempDirectory("java_const_refs")
         val constantsFile = File(rootDir, "Constants.java").apply {
             writeText(
                 """
@@ -82,7 +81,7 @@ class JavaConstParserTest {
 
     @Test
     fun `should parse java annotation constants`() {
-        val rootDir = Files.createTempDirectory("java_annotation_const_defs").toFile()
+        val rootDir = createTempDirectory("java_annotation_const_defs")
         val constantsFile = File(rootDir, "Flags.java").apply {
             writeText(
                 """
