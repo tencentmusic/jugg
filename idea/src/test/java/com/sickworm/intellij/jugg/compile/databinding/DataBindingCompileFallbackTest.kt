@@ -30,7 +30,7 @@ class DataBindingCompileFallbackTest : DataBindingCompileTest() {
 
     override fun checkOutputFiles(compileResult: CompileResult, expect: List<String>) {
         super.checkOutputFiles(compileResult, expect.map {
-            it.replace("com/example/myapplication/DataBindingInfo.kt", "com/example/myapplication/DataBindingInfo.java")
+            it.replace("DataBindingInfo.kt", "DataBindingInfo.java")
         })
     }
 }

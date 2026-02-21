@@ -55,6 +55,7 @@ class DataBindingArgsManager(val context: ICompileContext, val moduleInfo: Modul
     val dataBindingDependencyArtifacts get() = dir(tempCompileDir, "other/kapt/dependency_artifacts") // v1ArtifactsFolder? set the same will override and compile failed
     val dataBindingArtifactFolder get() = dir(tempCompileDir, "other/kapt/base_class_log_artifact") // artifactFolder? set the same will override and compile failed
     val dataBindingAarOutDir get() = dir(tempCompileDir, "intermediates/data_binding_artifact/${moduleInfo.buildVariant}/kapt${moduleInfo.buildVariant.camel}Kotlin") // output setter_store.json
+    val dataBindingExportClassListOutFile get() = file(tempCompileDir, "intermediates/data_binding_export_class_list/${moduleInfo.buildVariant}/kapt${moduleInfo.buildVariant.camel}Kotlin")
     val dataBindingBaseFeatureInfoDir get() = dir(tempCompileDir, "intermediates/base_feature_info") // no output
     val dataBindingKaptOutputDir get() = "other/kapt/output"
 

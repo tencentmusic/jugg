@@ -79,4 +79,12 @@ class CmdPlatformApi : IPlatformApi {
     override fun invokeMcp(request: McpJsonRpcRequest): McpJsonRpcResponse {
         TODO("Cmd line not support")
     }
+
+    override fun getInitializedProjectDirs(): List<File> {
+        return emptyList()
+    }
+
+    override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
+        TODO("Cmd line not support")
+    }
 }

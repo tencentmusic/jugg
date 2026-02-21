@@ -20,6 +20,8 @@ open class DataBindingCompileTest {
 
     private val javaBaseDir get() = File(assetsAndroidDir, "app/src/main/java")
     private val resBaseDir get() = File(assetsAndroidDir, "app/src/main/res")
+    private val library1JavaBaseDir get() = File(assetsAndroidDir, "library1/src/main/java")
+    private val library1ResBaseDir get() = File(assetsAndroidDir, "library1/src/main/res")
 
     private val javaActivityFile get() = File(javaBaseDir,
         "com/sickworm/jugg/demo/testcase/databinding/DataBindingJavaDemoActivity.java")
@@ -27,6 +29,11 @@ open class DataBindingCompileTest {
         "com/sickworm/jugg/demo/testcase/databinding/DataBindingKotlinDemoActivity.kt")
     private val javaLayoutFile get() = File(resBaseDir, "layout/activity_data_binding_java_demo.xml")
     private val kotlinLayoutFile get() = File(resBaseDir, "layout/activity_data_binding_kotlin_demo.xml")
+    private val library1JavaLayoutFile get() = File(library1ResBaseDir, "layout/activity_data_binding_java_demo_library1.xml")
+    private val library1KotlinActivityFile get() = File(
+        library1JavaBaseDir,
+        "com/sickworm/jugg/demo/testcase/databinding/library1/DataBindingKotlinDemoActivityLibrary1.kt")
+    private val library1KotlinLayoutFile get() = File(library1ResBaseDir, "layout/activity_data_binding_kotlin_demo_library1.xml")
 
     @Before
     fun setUp() {
@@ -56,6 +63,54 @@ open class DataBindingCompileTest {
         val result2 = mapperCompiler.compile(bindingTask)
         assertTrue(result2.isAllSuccess)
         checkDataBindingOutputs(compileTask, result2, 1)
+        assertFallback()
+    }
+
+    @Test
+    fun reproduceReportCaseH_libraryModuleDataBindingLayoutCompileShouldSuccess() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        val compileTask = makeTask("library1", library1ResBaseDir, library1JavaLayoutFile)
+
+        val baseClassCompiler = DataBindingGenBaseClassesCompiler(context, mockParentDisposable)
+        val result = baseClassCompiler.compile(compileTask)
+        assertTrue(result.isAllSuccess)
+        checkOutputFiles(result, listOf(
+            "com/example/library1/DataBindingInfo.kt",
+            "layout/activity_data_binding_java_demo_library1.xml",
+        ))
+
+        val bindingTask = createBindingTask(compileTask, result)
+        val mapperCompiler = DataBindingGenMapperCompiler(context, mockParentDisposable)
+        val result2 = mapperCompiler.compile(bindingTask)
+        assertTrue(result2.isAllSuccess)
+        checkDataBindingOutputs(compileTask, result2, 1)
+        assertFallback()
+    }
+
+    @Test
+    fun reproduceReportCaseI_libraryModuleKotlinSourceWithDataBindingShouldCompileSuccess() {
+        clearBuild()
+        CompileHelper.outputDir.clearDir()
+
+        val module = context.modules["library1"]
+            ?: throw IllegalStateException("module not found: library1, all: ${context.modules.keys}")
+        val compileTask = CompileTask(
+            files = listOf(
+                CompileFile(CompileFile.Type.Kotlin, library1KotlinActivityFile, library1JavaBaseDir, module),
+                CompileFile(CompileFile.Type.Resource, library1KotlinLayoutFile, library1ResBaseDir, module),
+            ),
+            CompileHelper.outputDir,
+            CompileStatusHolder.DEFAULT,
+        )
+
+        val result = JuggCompiler(context, mockParentDisposable).compile(compileTask)
+        assertTrue(result.isAllSuccess, "expected library module kotlin databinding compile success")
+        assertTrue(result.outputs.any { it.relativeFile.path.endsWith("DataBindingKotlinDemoActivityLibrary1.dex") },
+            "expected kotlin source dex output, actual: ${result.outputs.joinToString { it.relativeFile.path }}")
+        assertTrue(result.outputs.any { it.relativeFile.path.endsWith("activity_data_binding_kotlin_demo_library1.xml") },
+            "expected databinding layout output, actual: ${result.outputs.joinToString { it.relativeFile.path }}")
         assertFallback()
     }
 
@@ -410,22 +465,32 @@ open class DataBindingCompileTest {
     }
 
     private fun checkDataBindingOutputs(compileTask: CompileTask, compileResult: CompileResult, incTimes: Int, additionalOutput: List<String> = listOf()) {
+        val module = compileTask.files.first().module
+        val packagePath = (context.getModulePackageName(module)
+            ?: throw IllegalStateException("module package name not found for ${module.name}"))
+            .replace(".", "/")
+        val commonMapperOutputs = if (module.moduleType == com.sickworm.intellij.jugg.project.data.ModuleInfo.Type.Library) {
+            listOf("androidx/databinding/DataBindingComponent.java")
+        } else {
+            listOf(
+                "androidx/databinding/DataBinderMapperImpl.java",
+                "androidx/databinding/DataBindingComponent.java",
+            )
+        }
         val outputFiles = compileTask.files.flatMap {
             val file = it.file
             listOf(
-                "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}Binding.java",
-                "com/example/myapplication/databinding/${file.nameWithoutExtension.toCamelCase()}BindingImpl.java",
+                "$packagePath/databinding/${file.nameWithoutExtension.toCamelCase()}Binding.java",
+                "$packagePath/databinding/${file.nameWithoutExtension.toCamelCase()}BindingImpl.java",
                 "layout/${file.name}",
             )
         }
-        val base = listOf(
-            "androidx/databinding/DataBinderMapperImpl.java",
-            "androidx/databinding/DataBindingComponent.java",
-            "com/example/myapplication/BR.java",
-            "com/example/myapplication/DataBinderMapper_IncrementalHolder.java",
-            "com/example/myapplication/DataBinderMapperImpl.java",
-            "com/example/myapplication/DataBinderMapperImpl_Full.java",
-            "com/example/myapplication/DataBinderMapperImpl_Inc_$incTimes.java",
+        val base = commonMapperOutputs + listOf(
+            "$packagePath/BR.java",
+            "$packagePath/DataBinderMapper_IncrementalHolder.java",
+            "$packagePath/DataBinderMapperImpl.java",
+            "$packagePath/DataBinderMapperImpl_Full.java",
+            "$packagePath/DataBinderMapperImpl_Inc_$incTimes.java",
         )
         checkOutputFiles(compileResult, base + outputFiles + additionalOutput)
     }
@@ -462,6 +527,23 @@ open class DataBindingCompileTest {
             return CompileHelper.makeTask(*files)
         }
 
+        private fun makeTask(moduleName: String, baseDir: File, vararg files: File): CompileTask {
+            val module = context.modules[moduleName]
+                ?: throw IllegalStateException("module not found: $moduleName, all: ${context.modules.keys}")
+            return CompileTask(
+                files.map {
+                    CompileFile(
+                        CompileFile.Type.Resource,
+                        it,
+                        baseDir,
+                        module
+                    )
+                },
+                CompileHelper.outputDir,
+                CompileStatusHolder.DEFAULT,
+            )
+        }
+
         private fun checkInclude(file: String, type: String, name: String) {
             val javaContent = CompileHelper.javaOutputDir.resolve(file).readLines()
             val includeField = javaContent.find { it.contains("$name;") }
@@ -471,10 +553,11 @@ open class DataBindingCompileTest {
 
 
         private fun createBindingTask(task: CompileTask, result: CompileResult): CompileTask {
+            val module = task.files.firstOrNull()?.module!!
             return CompileTask(
                 task.files + listOf(
                     result.outputs.find { it.type == CompileOutput.Type.Kotlin || it.type == CompileOutput.Type.Java }!!
-                        .toCompileFile(context.modules.first().value)!!
+                        .toCompileFile(module)!!
                 ),
                 CompileHelper.outputDir,
                 CompileStatusHolder.DEFAULT,

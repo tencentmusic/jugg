@@ -60,15 +60,43 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
     }
 
     private fun createFieldsMapFromBrFile(brFile: File): MutableMap<String, String> {
-        val lastFieldsMap = LinkedHashMap<String, String>()
-        brFile.forEachLine {
-            if (it.trim().startsWith("public static final int")) {
-                val content = it.trim().replace("public static final int", "").trim().replace(";", "")
-                val splits = content.split(" = ")
-                lastFieldsMap[splits[0]] = splits[1]
-            }
+        // Keep declaration order stable to generate deterministic BR output.
+        val fields = LinkedHashMap<String, String>()
+
+        // Matches both:
+        // - public static int user = 1;
+        // - public static final int user = 1;
+        val brFieldPattern = Regex(
+            """^public\s+static(?:\s+final)?\s+int\s+([A-Za-z0-9_]+)\s*=\s*([^;]+);$"""
+        )
+
+        brFile.forEachLine { rawLine ->
+            val line = rawLine.trim()
+            val parsed = parseBrFieldDeclaration(line, brFieldPattern) ?: return@forEachLine
+            fields[parsed.name] = parsed.value
         }
-        return lastFieldsMap
+
+        return fields
+    }
+
+    private data class BrFieldDeclaration(
+        val name: String,
+        val value: String,
+    )
+
+    /**
+     * Parse one BR constant declaration from a single line.
+     * Returns null for non-field lines (package/import/class/empty lines, etc.).
+     */
+    private fun parseBrFieldDeclaration(
+        line: String,
+        brFieldPattern: Regex,
+    ): BrFieldDeclaration? {
+        val match = brFieldPattern.matchEntire(line) ?: return null
+        return BrFieldDeclaration(
+            name = match.groupValues[1].trim(),
+            value = match.groupValues[2].trim(),
+        )
     }
 
     /**
@@ -378,6 +406,7 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
             "android.databinding.minApi" to module.minSdkVersion.toString(),
             "android.databinding.classLogDir" to argsManager.dataBindingArtifactFolder.path,
             "android.databinding.aarOutDir" to argsManager.dataBindingAarOutDir.path,
+            "android.databinding.exportClassListOutFile" to argsManager.dataBindingExportClassListOutFile.path,
             "android.databinding.enableDebugLogs" to "1",
             "android.databinding.dependencyArtifactsDir" to argsManager.dataBindingDependencyArtifacts.path,
             "android.databinding.sdkDir" to context.androidHome.path,
