@@ -45,7 +45,7 @@ class JavaConstParser(
         return definitions
     }
 
-    fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionIndex): List<ConstReference> {
+    fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionLookup): List<ConstReference> {
         if (sourceFile.extension != "java" || !sourceFile.exists()) {
             return emptyList()
         }
@@ -165,7 +165,7 @@ class JavaConstParser(
         sourcePath: String,
         fqClassName: String,
         constName: String,
-        definitionIndex: ConstDefinitionIndex,
+        definitionIndex: ConstDefinitionLookup,
         references: MutableSet<ConstReference>,
     ) {
         definitionIndex.findByClassAndConst(fqClassName, constName)

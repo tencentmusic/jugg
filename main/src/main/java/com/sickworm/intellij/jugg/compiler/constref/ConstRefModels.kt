@@ -37,61 +37,164 @@ internal data class OwnerImportContext(
     val packageAsteriskImports: Set<String>,
 )
 
-class ConstDefinitionIndex(definitions: Collection<ConstDefinition>) {
-    private val definitionsByClassAndConst: Map<String, Map<String, List<ConstDefinition>>>
-    private val definitionsByConstName: Map<String, List<ConstDefinition>>
-    private val definitionsByPackageAndConst: Map<String, Map<String, List<ConstDefinition>>>
-    private val classesBySimpleName: Map<String, Set<String>>
-    private val classNames: Set<String>
+interface ConstDefinitionLookup {
+    fun hasConstName(constName: String): Boolean
+    fun hasClass(fqClassName: String): Boolean
+    fun hasDefinition(fqClassName: String, constName: String): Boolean
+    fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition>
+    fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition>
+    fun findClassBySimpleName(simpleName: String): Set<String>
+}
+
+class ConstDefinitionIndex(
+    definitions: Collection<ConstDefinition> = emptyList(),
+) : ConstDefinitionLookup {
+    private val definitionsByFilePath = mutableMapOf<String, List<ConstDefinition>>()
+    private val definitionsByClassAndConst = mutableMapOf<String, MutableMap<String, MutableList<ConstDefinition>>>()
+    private val definitionsByConstName = mutableMapOf<String, MutableList<ConstDefinition>>()
+    private val definitionsByPackageAndConst = mutableMapOf<String, MutableMap<String, MutableList<ConstDefinition>>>()
+    private val classesBySimpleName = mutableMapOf<String, MutableSet<String>>()
+    private val classNames = mutableSetOf<String>()
+    private val classDefinitionCount = mutableMapOf<String, Int>()
 
     init {
-        definitionsByClassAndConst = definitions
-            .groupBy { it.fqClassName }
-            .mapValues { (_, defs) -> defs.groupBy { it.constName } }
-        definitionsByConstName = definitions.groupBy { it.constName }
-        definitionsByPackageAndConst = definitions
-            .groupBy { it.packageName }
-            .mapValues { (_, defs) -> defs.groupBy { it.constName } }
-        classNames = definitions.map { it.fqClassName }.toSet()
-
-        val simpleNameMap = mutableMapOf<String, MutableSet<String>>()
-        definitions.forEach { definition ->
-            val fqClassName = definition.fqClassName
-            val packageName = definition.packageName
-            val classPart = if (packageName.isBlank()) {
-                fqClassName
-            } else {
-                fqClassName.removePrefix("$packageName.")
+        definitions
+            .groupBy { it.filePath }
+            .forEach { (filePath, fileDefinitions) ->
+                replaceFileDefinitions(filePath, fileDefinitions)
             }
-            simpleNameMap.getOrPut(classPart) { mutableSetOf() }.add(fqClassName)
-            val leafName = classPart.substringAfterLast('.')
-            simpleNameMap.getOrPut(leafName) { mutableSetOf() }.add(fqClassName)
-        }
-        classesBySimpleName = simpleNameMap
     }
 
-    fun hasConstName(constName: String): Boolean {
+    fun replaceFileDefinitions(filePath: String, definitions: List<ConstDefinition>) {
+        definitionsByFilePath.remove(filePath)?.forEach { removeDefinition(it) }
+        if (definitions.isEmpty()) {
+            return
+        }
+        val normalizedDefinitions = definitions.toList()
+        definitionsByFilePath[filePath] = normalizedDefinitions
+        normalizedDefinitions.forEach { addDefinition(it) }
+    }
+
+    fun removeFileDefinitions(filePath: String) {
+        replaceFileDefinitions(filePath, emptyList())
+    }
+
+    override fun hasConstName(constName: String): Boolean {
         return definitionsByConstName.containsKey(constName)
     }
 
-    fun hasClass(fqClassName: String): Boolean {
+    override fun hasClass(fqClassName: String): Boolean {
         return classNames.contains(fqClassName)
     }
 
-    fun hasDefinition(fqClassName: String, constName: String): Boolean {
+    override fun hasDefinition(fqClassName: String, constName: String): Boolean {
         return definitionsByClassAndConst[fqClassName]?.containsKey(constName) == true
     }
 
-    fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition> {
-        return definitionsByClassAndConst[fqClassName]?.get(constName).orEmpty()
+    override fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition> {
+        return definitionsByClassAndConst[fqClassName]?.get(constName)?.toList().orEmpty()
     }
 
-    fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition> {
-        return definitionsByPackageAndConst[packageName]?.get(constName).orEmpty()
+    override fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition> {
+        return definitionsByPackageAndConst[packageName]?.get(constName)?.toList().orEmpty()
     }
 
-    fun findClassBySimpleName(simpleName: String): Set<String> {
-        return classesBySimpleName[simpleName].orEmpty()
+    override fun findClassBySimpleName(simpleName: String): Set<String> {
+        return classesBySimpleName[simpleName]?.toSet().orEmpty()
+    }
+
+    private fun addDefinition(definition: ConstDefinition) {
+        definitionsByClassAndConst
+            .getOrPut(definition.fqClassName) { mutableMapOf() }
+            .getOrPut(definition.constName) { mutableListOf() }
+            .add(definition)
+
+        definitionsByConstName
+            .getOrPut(definition.constName) { mutableListOf() }
+            .add(definition)
+
+        definitionsByPackageAndConst
+            .getOrPut(definition.packageName) { mutableMapOf() }
+            .getOrPut(definition.constName) { mutableListOf() }
+            .add(definition)
+
+        val previousCount = classDefinitionCount[definition.fqClassName] ?: 0
+        classDefinitionCount[definition.fqClassName] = previousCount + 1
+        if (previousCount == 0) {
+            registerClass(definition)
+        }
+    }
+
+    private fun removeDefinition(definition: ConstDefinition) {
+        definitionsByClassAndConst[definition.fqClassName]?.let { constMap ->
+            constMap[definition.constName]?.let { definitions ->
+                definitions.remove(definition)
+                if (definitions.isEmpty()) {
+                    constMap.remove(definition.constName)
+                }
+            }
+            if (constMap.isEmpty()) {
+                definitionsByClassAndConst.remove(definition.fqClassName)
+            }
+        }
+
+        definitionsByConstName[definition.constName]?.let { definitions ->
+            definitions.remove(definition)
+            if (definitions.isEmpty()) {
+                definitionsByConstName.remove(definition.constName)
+            }
+        }
+
+        definitionsByPackageAndConst[definition.packageName]?.let { packageMap ->
+            packageMap[definition.constName]?.let { definitions ->
+                definitions.remove(definition)
+                if (definitions.isEmpty()) {
+                    packageMap.remove(definition.constName)
+                }
+            }
+            if (packageMap.isEmpty()) {
+                definitionsByPackageAndConst.remove(definition.packageName)
+            }
+        }
+
+        val currentCount = classDefinitionCount[definition.fqClassName] ?: return
+        if (currentCount <= 1) {
+            classDefinitionCount.remove(definition.fqClassName)
+            unregisterClass(definition)
+        } else {
+            classDefinitionCount[definition.fqClassName] = currentCount - 1
+        }
+    }
+
+    private fun registerClass(definition: ConstDefinition) {
+        classNames += definition.fqClassName
+        val classPart = classPart(definition)
+        classesBySimpleName.getOrPut(classPart) { mutableSetOf() } += definition.fqClassName
+        classesBySimpleName.getOrPut(classPart.substringAfterLast('.')) { mutableSetOf() } += definition.fqClassName
+    }
+
+    private fun unregisterClass(definition: ConstDefinition) {
+        classNames.remove(definition.fqClassName)
+        val classPart = classPart(definition)
+        removeClassSimpleName(classPart, definition.fqClassName)
+        removeClassSimpleName(classPart.substringAfterLast('.'), definition.fqClassName)
+    }
+
+    private fun removeClassSimpleName(simpleName: String, fqClassName: String) {
+        classesBySimpleName[simpleName]?.let { classNames ->
+            classNames.remove(fqClassName)
+            if (classNames.isEmpty()) {
+                classesBySimpleName.remove(simpleName)
+            }
+        }
+    }
+
+    private fun classPart(definition: ConstDefinition): String {
+        return if (definition.packageName.isBlank()) {
+            definition.fqClassName
+        } else {
+            definition.fqClassName.removePrefix("${definition.packageName}.")
+        }
     }
 }
 
@@ -102,7 +205,7 @@ internal fun resolveOwnerCandidates(
     constName: String,
     packageName: String,
     importContext: OwnerImportContext,
-    definitionIndex: ConstDefinitionIndex,
+    definitionIndex: ConstDefinitionLookup,
 ): Set<String> {
     if (!ownerTextRegex.matches(ownerText)) {
         return emptySet()

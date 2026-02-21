@@ -83,7 +83,7 @@ class KotlinConstParser(
         return definitions
     }
 
-    fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionIndex): List<ConstReference> {
+    fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionLookup): List<ConstReference> {
         if (sourceFile.extension != "kt" || !sourceFile.exists()) {
             return emptyList()
         }
@@ -265,7 +265,7 @@ class KotlinConstParser(
         sourcePath: String,
         fqClassName: String,
         constName: String,
-        definitionIndex: ConstDefinitionIndex,
+        definitionIndex: ConstDefinitionLookup,
         references: MutableSet<ConstReference>,
     ) {
         definitionIndex.findByClassAndConst(fqClassName, constName)
@@ -286,7 +286,7 @@ class KotlinConstParser(
         val explicitConstImports: MutableMap<String, MutableSet<String>> = mutableMapOf(),
     )
 
-    private fun buildImportContext(ktFile: KtFile, definitionIndex: ConstDefinitionIndex): KotlinImportContext {
+    private fun buildImportContext(ktFile: KtFile, definitionIndex: ConstDefinitionLookup): KotlinImportContext {
         val context = KotlinImportContext()
         ktFile.importDirectives.forEach { importDirective ->
             val importedFqName = importDirective.importedFqName?.asString() ?: return@forEach

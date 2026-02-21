@@ -11,34 +11,61 @@ class ConstRefAnalyzer(
     private val kotlinConstParser = KotlinConstParser(logger.getInstance("KotlinConstParser"))
 
     fun analyze(files: Collection<File>, baseDefinitions: Collection<ConstDefinition>): Map<String, FileConstParseResult> {
-        val sourceFiles = files
-            .asSequence()
-            .filter { it.exists() && isSupportedSourceFile(it) }
-            .distinctBy { it.toStdPath() }
-            .toList()
+        val sourceFiles = normalizeSourceFiles(files)
         if (sourceFiles.isEmpty()) {
             return emptyMap()
         }
 
-        val definitionsByFile = mutableMapOf<String, List<ConstDefinition>>()
-        sourceFiles.forEach { sourceFile ->
-            val filePath = sourceFile.toStdPath()
-            definitionsByFile[filePath] = parseDefinitions(sourceFile)
+        val definitionsByFile = parseDefinitions(sourceFiles)
+        val definitionIndex = ConstDefinitionIndex(baseDefinitions)
+        definitionsByFile.forEach { (filePath, definitions) ->
+            definitionIndex.replaceFileDefinitions(filePath, definitions)
         }
-
-        val allDefinitions = baseDefinitions + definitionsByFile.values.flatten()
-        val definitionIndex = ConstDefinitionIndex(allDefinitions)
+        val referencesByFile = parseReferences(sourceFiles, definitionIndex)
 
         return sourceFiles.associate { sourceFile ->
             val filePath = sourceFile.toStdPath()
-            val definitions = definitionsByFile[filePath].orEmpty()
-            val references = parseReferences(sourceFile, definitionIndex)
-            filePath to FileConstParseResult(definitions, references)
+            filePath to FileConstParseResult(
+                definitions = definitionsByFile[filePath].orEmpty(),
+                references = referencesByFile[filePath].orEmpty(),
+            )
+        }
+    }
+
+    fun parseDefinitions(files: Collection<File>): Map<String, List<ConstDefinition>> {
+        val sourceFiles = normalizeSourceFiles(files)
+        if (sourceFiles.isEmpty()) {
+            return emptyMap()
+        }
+        return sourceFiles.associate { sourceFile ->
+            sourceFile.toStdPath() to parseDefinitions(sourceFile)
+        }
+    }
+
+    fun parseReferences(
+        files: Collection<File>,
+        definitionIndex: ConstDefinitionLookup,
+    ): Map<String, List<ConstReference>> {
+        val sourceFiles = normalizeSourceFiles(files)
+        if (sourceFiles.isEmpty()) {
+            return emptyMap()
+        }
+        return sourceFiles.associate { sourceFile ->
+            sourceFile.toStdPath() to parseReferences(sourceFile, definitionIndex)
         }
     }
 
     fun dispose() {
         kotlinConstParser.dispose()
+    }
+
+    private fun normalizeSourceFiles(files: Collection<File>): List<File> {
+        val sourceFiles = files
+            .asSequence()
+            .filter { it.exists() && isSupportedSourceFile(it) }
+            .distinctBy { it.toStdPath() }
+            .toList()
+        return sourceFiles
     }
 
     private fun parseDefinitions(sourceFile: File): List<ConstDefinition> {
@@ -49,7 +76,7 @@ class ConstRefAnalyzer(
         }
     }
 
-    private fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionIndex): List<ConstReference> {
+    private fun parseReferences(sourceFile: File, definitionIndex: ConstDefinitionLookup): List<ConstReference> {
         return when (sourceFile.extension) {
             "java" -> javaConstParser.parseReferences(sourceFile, definitionIndex)
             "kt" -> kotlinConstParser.parseReferences(sourceFile, definitionIndex)

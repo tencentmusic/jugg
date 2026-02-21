@@ -24,6 +24,9 @@ class ConstRefScheduler(
     private val pendingFiles = linkedSetOf<String>()
     private val analyzedAt = mutableMapOf<String, Long>()
     private val removedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
+    private val cachedDefinitionsByFile = mutableMapOf<String, List<ConstDefinition>>()
+    private val definitionIndex = ConstDefinitionIndex()
+    private var definitionIndexInitialized = false
     private val trackedSourceDirs = mutableListOf<String>()
     private val fullScanReadySourceDirs = mutableSetOf<String>()
     private var scheduledJob: Job? = null
@@ -48,6 +51,12 @@ class ConstRefScheduler(
             analyzedAt.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             removedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             notifyStateChangedLocked()
+        }
+        analysisMutex.withLock {
+            if (definitionIndexInitialized) {
+                removeDefinitionsFromIndexLocked(stdPath)
+                removeDefinitionsByPrefixFromIndexLocked("$stdPath/")
+            }
         }
         if (isSourceFile(stdPath)) {
             database.removeFile(stdPath)
@@ -227,11 +236,13 @@ class ConstRefScheduler(
             return
         }
         analysisMutex.withLock {
+            ensureDefinitionIndexInitializedLocked()
             val existingFiles = mutableListOf<File>()
             files.distinctBy { it.toStdPath() }.forEach { file ->
                 val path = file.toStdPath()
                 if (!file.exists()) {
                     database.removeFile(path)
+                    removeDefinitionsFromIndexLocked(path)
                     clearRemovedDefinitionKeys(path)
                     markAnalyzed(path)
                 } else if (isSourceFile(path)) {
@@ -268,21 +279,33 @@ class ConstRefScheduler(
                 return
             }
 
-            val changedPaths = changedFiles.map { it.toStdPath() }.toSet()
-            val previousDefinitionsByPath = database.getDefinitionsByFiles(changedPaths)
-                .groupBy { it.filePath }
-            val baseDefinitions = database.getAllDefinitions(excludeFilePaths = changedPaths)
-            val parseResultMap = analyzer.analyze(changedFiles, baseDefinitions)
+            val previousDefinitionsByPath = changedFiles.associate { file ->
+                val path = file.toStdPath()
+                path to cachedDefinitionsByFile[path].orEmpty()
+            }
+            val parsedDefinitionsByPath = analyzer.parseDefinitions(changedFiles)
             changedFiles.forEach { file ->
                 val path = file.toStdPath()
-                val parseResult = parseResultMap[path] ?: FileConstParseResult.EMPTY
-                val removedKeys = buildRemovedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), parseResult.definitions)
+                val definitions = parsedDefinitionsByPath[path].orEmpty()
+                if (definitions.isEmpty()) {
+                    cachedDefinitionsByFile.remove(path)
+                } else {
+                    cachedDefinitionsByFile[path] = definitions
+                }
+                definitionIndex.replaceFileDefinitions(path, definitions)
+            }
+            val parsedReferencesByPath = analyzer.parseReferences(changedFiles, definitionIndex)
+            changedFiles.forEach { file ->
+                val path = file.toStdPath()
+                val definitions = parsedDefinitionsByPath[path].orEmpty()
+                val references = parsedReferencesByPath[path].orEmpty()
+                val removedKeys = buildRemovedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), definitions)
                 database.upsertFileAnalysis(
                     filePath = path,
                     lastModified = file.lastModified(),
                     checksum = checksumMap[path] ?: calculateChecksum(file),
-                    definitions = parseResult.definitions,
-                    references = parseResult.references,
+                    definitions = definitions,
+                    references = references,
                 )
                 updateRemovedDefinitionKeys(path, removedKeys)
                 markAnalyzed(path)
@@ -321,6 +344,34 @@ class ConstRefScheduler(
             }
         }
         return crc32.value
+    }
+
+    private fun ensureDefinitionIndexInitializedLocked() {
+        if (definitionIndexInitialized) {
+            return
+        }
+        cachedDefinitionsByFile.clear()
+        database.getAllDefinitions()
+            .groupBy { it.filePath }
+            .forEach { (filePath, definitions) ->
+                cachedDefinitionsByFile[filePath] = definitions
+                definitionIndex.replaceFileDefinitions(filePath, definitions)
+            }
+        definitionIndexInitialized = true
+    }
+
+    private fun removeDefinitionsFromIndexLocked(filePath: String) {
+        cachedDefinitionsByFile.remove(filePath)
+        definitionIndex.removeFileDefinitions(filePath)
+    }
+
+    private fun removeDefinitionsByPrefixFromIndexLocked(prefixPath: String) {
+        val pathsToRemove = cachedDefinitionsByFile.keys
+            .filter { it.startsWith(prefixPath) }
+            .toList()
+        pathsToRemove.forEach { path ->
+            removeDefinitionsFromIndexLocked(path)
+        }
     }
 
     private fun markAnalyzed(path: String) {
