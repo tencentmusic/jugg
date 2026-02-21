@@ -111,9 +111,6 @@ object JuggSettings {
 
     var isIgnoreWontCompileModules: Boolean by propertiesComponent.delegate(defaultValue = false)
 
-    var isEnableApt: Boolean = false
-    var isEnableKsp: Boolean = false
-
     /**
      * Use this for Jugg run configuration arguments if first set.
      */

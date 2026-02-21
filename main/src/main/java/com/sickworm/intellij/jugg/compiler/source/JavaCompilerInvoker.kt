@@ -26,7 +26,7 @@ class JavaCompilerInvoker {
      * Options carries isEnableApt, isAptOnly, isCanAutoRetry, and encoding.
      */
     data class Options(
-        val isEnableApt: Boolean = JuggSettings.isEnableApt,
+        val isEnableApt: Boolean = false,
         val isAptOnly: Boolean = false, // if true, only run annotation processing, don't compile
         val isCanAutoRetry: Boolean = true,
         val encoding: String = "UTF-8",

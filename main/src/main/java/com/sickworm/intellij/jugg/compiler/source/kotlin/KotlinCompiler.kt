@@ -198,7 +198,7 @@ class KotlinCompiler(
 
         TimeLogger.end("analyzeSource", logger)
         return KotlinCompilerInvoker.Options(
-            JuggSettings.isEnableApt,
+            false,
             isNeedKotlinAndroidExtensions,
             isNeedCompileCompose,
             rPackageName,
