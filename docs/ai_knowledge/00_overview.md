@@ -1,11 +1,5 @@
 # Jugg 项目概述
 
-> 文档版本: 1.0
-> 更新时间: 2025-01-20
-> 项目版本: 2.6.13
-
----
-
 ## 一、项目简介
 
 **Jugg** 是一个基于 Android Studio / IntelliJ IDEA 的 Android 增量部署插件。它的核心目标是：**跳过 Gradle 构建，以极快的速度将代码和资源更新到正在运行的 App 中**。
@@ -49,7 +43,7 @@
 ### 2.5 广泛兼容
 
 - **Android 版本**: 支持 Android 8.0 (API 26) ~ Android 15 (API 35)
-- **Android Studio 版本**: 支持 Bumblebee ~ Otter (Narwhal Feature Drop)
+- **Android Studio 版本**: 支持 Bumblebee ~ Panda
 - **Kotlin 版本**: 支持 Kotlin 1.4 ~ 2.2
 - **Gradle 版本**: 支持 Gradle 6.x ~ 8.x
 

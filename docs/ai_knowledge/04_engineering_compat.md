@@ -1,9 +1,5 @@
 # Jugg 技术文档 - 兼容层与辅助模块
 
-> 创建时间: 2025-01-20
-> 模块: `deploy_compat/`, `platform_compat/`, `cmd_line/`, `custom_compilers/`
-> 文件数: ~50 个
-
 ---
 
 ## 一、模块概述
@@ -23,7 +19,7 @@
 
 ### 2.1 设计目标
 
-Android Studio 从 Chipmunk (2021.2) 到 Otter (2025.2) 跨越了多个大版本，期间 Android Gradle Plugin (AGP) 和 IntelliJ Platform API 发生了大量变化。`deploy_compat` 模块通过**继承链 + Proxy 模式**实现了对多个版本的兼容。
+Android Studio 从 Chipmunk (2021.2) 到 Panda 跨越了多个大版本，期间 Android Gradle Plugin (AGP) 和 IntelliJ Platform API 发生了大量变化。`deploy_compat` 模块通过**继承链 + Proxy 模式**实现了对多个版本的兼容。
 
 ### 2.2 版本支持列表
 

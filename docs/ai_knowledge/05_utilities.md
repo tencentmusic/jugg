@@ -1,9 +1,5 @@
 # Jugg 技术文档 - 辅助模块
 
-> 创建时间: 2025-01-20
-> 模块: `main/apk/`, `main/aapt2/`, `main/git/`, `main/logger/`, `main/mcp/`, `main/server/`, `main/platform/`
-> 文件数: ~25 个
-
 ---
 
 ## 一、模块概述
@@ -16,7 +12,7 @@
 | `aapt2/` | AAPT2 工具调用 | 3 个 |
 | `git/` | Git 集成和文件变化检测 | 6 个 |
 | `logger/` | 日志系统 | 5 个 |
-| `mcp/` | MCP 通信 | 10+ 个 |
+| `mcp/` | MCP 通信（详见 `08_mcp_design.md` 和 `08_mcp_usage.md`） | 10+ 个 |
 | `server/` | 服务器和远程编译 | 4 个 |
 | `platform/` | 平台抽象层 | 2 个 |
 

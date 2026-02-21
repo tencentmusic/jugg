@@ -1,8 +1,5 @@
 # Jugg 技术文档 - 总索引
 
-> 创建时间: 2025-01-20
-> 最后更新: 2025-01-20
-> 文档版本: v1.0
 ---
 
 ## 📚 文档导航
@@ -49,6 +46,12 @@
 | 文档 | 说明 | 关键类 |
 |------|------|--------|
 | [05_utilities.md](05_utilities.md) | 辅助模块 | `ApkFileModifier`, `GitManager`, `JuggLogger` |
+
+#### MCP (2 个文档)
+| 文档 | 说明 | 关键类 |
+|------|------|--------|
+| [08_mcp_design.md](08_mcp_design.md) | MCP 架构设计 | `McpInvoker`, `McpToolRegistry`, `McpAction` |
+| [08_mcp_usage.md](08_mcp_usage.md) | MCP 工具使用说明 | 15 个 MCP 工具的参数与用法 |
 
 #### 代码索引 (1 个文档)
 | 文档 | 说明 |
@@ -111,8 +114,15 @@
 - **AAPT2 调用**: [05_utilities.md](05_utilities.md) → Aapt2DaemonInvoker
 - **Git 集成**: [05_utilities.md](05_utilities.md) → GitManager
 - **日志系统**: [05_utilities.md](05_utilities.md) → JuggLogger
-- **MCP 通信**: [05_utilities.md](05_utilities.md) → McpLocalServer
 - **远程编译**: [05_utilities.md](05_utilities.md) → JuggServer
+
+### MCP 相关
+
+- **MCP 架构设计**: [08_mcp_design.md](08_mcp_design.md) → McpInvoker, McpToolRegistry
+- **MCP 工具使用**: [08_mcp_usage.md](08_mcp_usage.md) → 工具参数、curl 示例、错误码
+- **设备管理**: [08_mcp_usage.md](08_mcp_usage.md) → device_list, start_emulator
+- **编译部署**: [08_mcp_usage.md](08_mcp_usage.md) → compile_and_deploy, clean_reinstall_apk
+- **UI 自动化**: [08_mcp_usage.md](08_mcp_usage.md) → screenshot, record, layout_dump, tap
 ---
 
 ## 🎓 学习路径
@@ -131,6 +141,8 @@
 2. **IDE 集成** → [04_engineering_ide.md](04_engineering_ide.md)
 3. **兼容层** → [04_engineering_compat.md](04_engineering_compat.md)
 4. **辅助模块** → [05_utilities.md](05_utilities.md)
+5. **MCP 设计** → [08_mcp_design.md](08_mcp_design.md)
+6. **MCP 使用** → [08_mcp_usage.md](08_mcp_usage.md)
 
 ### 深入研究路径
 
@@ -146,18 +158,19 @@
 
 ### 文档统计
 
-| 类型 | 数量 | 总大小 |
-|------|------|--------|
-| 概览文档 | 2 | ~6 KB |
-| 编译文档 | 6 | ~178 KB |
-| 部署文档 | 3 | ~96 KB |
-| 运行时文档 | 1 | ~6 KB |
-| 工程文档 | 3 | ~84 KB |
-| 辅助文档 | 1 | ~25 KB |
-| 任务手册 | 1 | ~6 KB |
-| 代码索引 | 1 | ~6 KB |
-| 演进文档 | 1 | ~15 KB |
-| **总计** | **21** | **~430 KB** |
+| 类型 | 数量 | 说明 |
+|------|------|------|
+| 概览文档 | 2 | overview, architecture |
+| 编译文档 | 6 | compile_* 系列 |
+| 部署文档 | 3 | deploy_* 系列 |
+| 运行时文档 | 1 | runtime_jvmti |
+| 工程文档 | 3 | engineering_* 系列 |
+| 辅助文档 | 1 | utilities |
+| MCP 文档 | 2 | mcp_design, mcp_usage |
+| AI 使用指引 | 1 | ai_usage |
+| 代码索引 | 1 | code_map |
+| 总索引 | 1 | index |
+| **总计** | **21** | |
 
 ### 代码覆盖
 
@@ -195,12 +208,13 @@
 
 ### 文件命名
 
-- `00-09`: 概览和架构
-- `10-29`: 核心模块
-- `30-49`: 工程化
-- `50-69`: 辅助模块
-- `70-89`: 其他
-- `90-99`: 索引和附录
+- `00-01`: 概览和架构
+- `02`: 编译系统 (`compile_*`)
+- `03`: 部署与运行时 (`deploy_*`, `runtime_*`)
+- `04`: 工程化 (`engineering_*`)
+- `05`: 辅助模块 (`utilities`)
+- `08`: MCP (`mcp_*`)
+- `97-99`: AI 使用指引、代码索引、总索引
 
 ### 章节结构
 
@@ -248,6 +262,7 @@
 | **JGit** | Git Java 实现 | [05_utilities.md](05_utilities.md) |
 | **AAPT2** | Android 资源打包工具 | [02_compile_resource.md](02_compile_resource.md) |
 | **Kotlin Compiler** | Kotlin 编译器 | [02_compile_source.md](02_compile_source.md) |
+| **MCP** | Model Context Protocol 工具链 | [08_mcp_usage.md](08_mcp_usage.md) |
 
 ### 其他文件
 

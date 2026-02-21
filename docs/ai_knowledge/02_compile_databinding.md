@@ -1,9 +1,5 @@
 # Jugg 编译系统 - DataBinding/ViewBinding 编译器
 
-> 文档版本: v1.0  
-> 创建时间: 2025-01-20  
-> 涵盖模块: main/compiler/databinding/*.kt (8个文件)
-
 ---
 
 ## 一、DataBinding/ViewBinding 概览

@@ -1,9 +1,5 @@
 # Jugg MCP 使用说明（Phase 1-3）
 
-> 更新时间: 2026-02-08  
-> 传输协议: MCP Streamable HTTP + JSON-RPC 2.0  
-> 当前工具: `list_projects`, `restart_app`, `emulator_list`, `start_emulator`, `compile_only`, `compile_and_deploy`, `clean_reinstall_apk`, `force_gradle_compile`, `device_list`, `start_app`, `start_activity`, `tap`, `screenshot`, `record`, `layout_dump`
-
 ---
 
 ## 一、服务信息

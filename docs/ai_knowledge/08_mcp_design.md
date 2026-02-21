@@ -1,9 +1,5 @@
 # Jugg 技术文档 - MCP 设计（Phase 1）
 
-> 创建时间: 2026-02-08  
-> 范围: `main/src/main/java/com/sickworm/intellij/jugg/mcp`（规划中）  
-> 状态: 设计稿（未实现）
-
 ---
 
 ## 一、目标与边界

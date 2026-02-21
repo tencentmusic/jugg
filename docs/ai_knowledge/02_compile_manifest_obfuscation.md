@@ -1,9 +1,5 @@
 # Jugg 编译系统 - Manifest 和混淆编译器
 
-> 文档版本: v1.0  
-> 创建时间: 2025-01-20  
-> 涵盖模块: main/compiler/manifest/*.kt + main/compiler/obfuscation/*.kt (9个文件)
-
 ---
 
 ## 一、Manifest 和混淆编译器概览

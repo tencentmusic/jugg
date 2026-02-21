@@ -1,9 +1,5 @@
 # Jugg 编译系统 - 自定义编译器和 UI
 
-> 文档版本: v1.0  
-> 创建时间: 2025-01-20  
-> 涵盖模块: main/compiler/custom/*.kt + main/compiler/ui/*.kt (4个文件)
-
 ---
 
 ## 一、自定义编译器和 UI 概览
