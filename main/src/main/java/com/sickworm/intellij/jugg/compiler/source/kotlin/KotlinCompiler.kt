@@ -137,6 +137,7 @@ class KotlinCompiler(
 
         var isNeedKotlinAndroidExtensions = false
         var isNeedCompileCompose = false
+        var isInKspWhiteList = false
 
         // Check features by checking import. It's not 100% accurate, but whatever.
         files.forEach root@{ file ->
@@ -158,6 +159,10 @@ class KotlinCompiler(
                         logger.debug("find androidx.compose import in $file")
                         isNeedCompileCompose = true
                     }
+                }
+                if (importContent.startsWith("com.tencent.kuikly.core.annotations.")) {
+                    // kuikly @Page
+                    isInKspWhiteList = true
                 }
             }
         }
@@ -202,7 +207,7 @@ class KotlinCompiler(
             isNeedKotlinAndroidExtensions,
             isNeedCompileCompose,
             rPackageName,
-            isEnableKsp = kspDependencies.isNotEmpty(),
+            isEnableKsp = isInKspWhiteList && kspDependencies.isNotEmpty(),
             isKspWithCompilation = isKspWithCompilation,
             isCanAutoRetry = true,
             kaptDependencies = module.kaptDependencies.map { it.file },
