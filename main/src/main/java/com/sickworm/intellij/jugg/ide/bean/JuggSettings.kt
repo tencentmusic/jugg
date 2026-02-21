@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.ide.bean
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intellij.ide.util.PropertiesComponent
-import com.sickworm.intellij.jugg.compiler.isMac
 import com.sickworm.intellij.jugg.compiler.isWindows
 import com.sickworm.intellij.jugg.server.protocols.RunConfigurationTemplate
 import com.sickworm.intellij.jugg.server.typeAdapter
@@ -124,7 +123,7 @@ object JuggSettings {
                         .registerTypeAdapter(String::class.java, RunConfigurationTemplate.typeAdapter)
                         .create()
                         .fromJson(defaultCompileSettingsJson, RunConfigurationTemplate::class.java)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // ignore
                 }
             }
@@ -162,6 +161,7 @@ private class PropertiesDelegate(
         return doGetValue(name, T::class.java) as T
     }
 
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "RemoveRedundantQualifierName")
     fun doGetValue(name: String, clazz: Class<*>): Any {
         return  when (clazz) {
             java.lang.Integer::class.java, Int::class.java -> propertiesComponent.getInt(name, (defaultValue as? Int?: 0))
@@ -181,6 +181,7 @@ private class PropertiesDelegate(
         doSetValue(name, T::class.java, i)
     }
 
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "RemoveRedundantQualifierName")
     fun <T> doSetValue(name: String, clazz: Class<*>, i: T) {
         return when (clazz) {
             java.lang.Integer::class.java, Int::class.java -> propertiesComponent.setValue(name, i as Int, (defaultValue as? Int?: 0))

@@ -52,7 +52,7 @@ class KotlinCompileTest {
             dependencyPaths = listOf(androidJar.absolutePath)
                     + "$assetsAndroidDir/app/build/intermediates/javac/debug/classes"
                     + "$assetsAndroidDir/app/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/R.jar"
-                    + LibraryParser().loadInTest()!!
+                    + LibraryParser().loadInTest()
         )
         ),
         stagingDir,
@@ -87,7 +87,7 @@ class KotlinCompileTest {
                     File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/ktsmartcast/ImplClass1.kt"),
                     File(assetsAndroidDir, "app/src/main/java/"),
                     mockModule,
-                    dependencyPaths = LibraryParser().loadInTest()!!,
+                    dependencyPaths = LibraryParser().loadInTest(),
                 )
             ),
             stagingDir,
@@ -105,7 +105,7 @@ class KotlinCompileTest {
                     File(assetsAndroidDir, "app/src/main/java/com/sickworm/jugg/demo/testcase/ktinternal/InvokeClass1.kt"),
                     File(assetsAndroidDir, "app/src/main/java/"),
                     mockModule,
-                    dependencyPaths = LibraryParser().loadInTest()!!,
+                    dependencyPaths = LibraryParser().loadInTest(),
                 )
             ),
             stagingDir,
