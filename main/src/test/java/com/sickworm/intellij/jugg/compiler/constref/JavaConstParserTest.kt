@@ -114,4 +114,39 @@ class JavaConstParserTest : ConstRefTempDirCleanupSupport() {
         val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
         assertEquals(setOf("com.example.Flags.MAX"), keys)
     }
+
+    @Test
+    fun `should ignore java constants in comments and string literals`() {
+        val rootDir = createTempDirectory("java_const_comment_string")
+        val constantsFile = File(rootDir, "Constants.java").apply {
+            writeText(
+                """
+                package com.example;
+
+                public class Constants {
+                    public static final int MAX = 10;
+                }
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+
+                public class User {
+                    // Constants.MAX should be ignored
+                    /* Constants.MAX should also be ignored */
+                    String onlyText = "Constants.MAX";
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = JavaConstParser(logger)
+        val definitions = parser.parseDefinitions(constantsFile)
+        val definitionIndex = ConstDefinitionIndex(definitions)
+        val references = parser.parseReferences(userFile, definitionIndex)
+        assertTrue(references.isEmpty())
+    }
 }

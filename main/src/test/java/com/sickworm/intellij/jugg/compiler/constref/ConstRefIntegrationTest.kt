@@ -63,4 +63,130 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             scope.cancel()
         }
     }
+
+    @Test
+    fun `should detect effected files when companion const changes`() {
+        val rootDir = createTempDirectory("const_ref_integration_companion")
+        val configFile = File(rootDir, "Config.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                class Config {
+                    companion object {
+                        const val DEFAULT = "old"
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+        val serviceFile = File(rootDir, "Service.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                val current = Config.DEFAULT
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefScheduler(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            coroutineScope = scope,
+        )
+        try {
+            scheduler.onFileSaved(configFile.absolutePath)
+            scheduler.onFileSaved(serviceFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(configFile.absolutePath, serviceFile.absolutePath), timeoutMs = 10_000L)
+
+            configFile.writeText(
+                """
+                package com.example
+
+                class Config {
+                    companion object {
+                        const val DEFAULT = "new"
+                    }
+                }
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(configFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(configFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(configFile.absolutePath))
+            assertEquals(setOf(serviceFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should not detect effected files when unrelated class changes`() {
+        val rootDir = createTempDirectory("const_ref_integration_unrelated")
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.MAX
+                val value = MAX
+                """.trimIndent()
+            )
+        }
+        val unrelatedFile = File(rootDir, "Unrelated.kt").apply {
+            writeText(
+                """
+                package com.example
+                class Unrelated {
+                    fun run() = 1
+                }
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefScheduler(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            coroutineScope = scope,
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.onFileSaved(unrelatedFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath, unrelatedFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+
+            unrelatedFile.writeText(
+                """
+                package com.example
+                class Unrelated {
+                    fun run() = 2
+                }
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(unrelatedFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(unrelatedFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(unrelatedFile.absolutePath))
+            assertEquals(emptySet<String>(), effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
 }

@@ -137,4 +137,37 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         assertTrue(definitions.any { it.filePath == debugPath && it.constValue == "10" })
         assertTrue(definitions.any { it.filePath == releasePath && it.constValue == "20" })
     }
+
+    @Test
+    fun `should update file last modified without changing checksum`() {
+        val dbDir = createTempDirectory("const_ref_db_update_last_modified")
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+
+        val filePath = File(dbDir, "Constants.kt").toStdPath()
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 100L,
+            checksum = 200L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "10",
+                )
+            ),
+            references = emptyList(),
+        )
+        val before = database.getFileCache(filePath)
+        assertEquals(100L, before?.lastModified)
+        assertEquals(200L, before?.checksum)
+
+        database.updateFileLastModified(filePath, 300L)
+
+        val after = database.getFileCache(filePath)
+        assertEquals(300L, after?.lastModified)
+        assertEquals(200L, after?.checksum)
+    }
 }

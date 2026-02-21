@@ -135,4 +135,51 @@ class KotlinConstParserTest : ConstRefTempDirCleanupSupport() {
             parser.dispose()
         }
     }
+
+    @Test
+    fun `should parse kotlin same package references without imports and ignore comments string`() {
+        val rootDir = createTempDirectory("kotlin_const_refs_same_package")
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                const val TOP = 10
+
+                class Config {
+                    companion object {
+                        const val DEFAULT = "ok"
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+        val serviceFile = File(rootDir, "Service.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                // TOP should be ignored in comment
+                private const val DESCRIPTION = "Config.DEFAULT and TOP in string"
+
+                fun read(): String {
+                    val a = TOP
+                    val b = Config.DEFAULT
+                    return "${'$'}a-${'$'}b-${'$'}DESCRIPTION"
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = KotlinConstParser(logger)
+        try {
+            val definitions = parser.parseDefinitions(constantsFile)
+            val definitionIndex = ConstDefinitionIndex(definitions)
+            val references = parser.parseReferences(serviceFile, definitionIndex)
+            val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
+            assertEquals(setOf("com.example.ConstantsKt.TOP", "com.example.Config.DEFAULT"), keys)
+        } finally {
+            parser.dispose()
+        }
+    }
 }
