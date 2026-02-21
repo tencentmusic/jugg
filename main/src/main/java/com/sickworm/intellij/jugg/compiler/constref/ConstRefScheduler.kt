@@ -6,12 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.CRC32
+import kotlin.concurrent.withLock
 
 class ConstRefScheduler(
     private val analyzer: ConstRefAnalyzer,
@@ -19,11 +17,15 @@ class ConstRefScheduler(
     private val logger: Logger,
     private val coroutineScope: CoroutineScope,
 ) {
+    private val maxAnalyzedHistory = 4096
     private val debounceMs = 250L
-    private val analysisMutex = Mutex()
+    private val analysisMutex = ReentrantLock()
     private val stateLock = Any()
     private val pendingFiles = linkedSetOf<String>()
     private val analyzedAt = mutableMapOf<String, Long>()
+    private val removedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
+    private val trackedSourceDirs = mutableListOf<String>()
+    private val fullScanReadySourceDirs = mutableSetOf<String>()
     private var scheduledJob: Job? = null
     private var runningJob: Job? = null
     private var fullScanJob: Job? = null
@@ -44,6 +46,8 @@ class ConstRefScheduler(
         synchronized(stateLock) {
             pendingFiles.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             analyzedAt.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
+            removedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
+            notifyStateChangedLocked()
         }
         if (isSourceFile(stdPath)) {
             database.removeFile(stdPath)
@@ -60,6 +64,7 @@ class ConstRefScheduler(
             return
         }
         val startAt = System.currentTimeMillis()
+        val deadlineAt = startAt + timeoutMs
         synchronized(stateLock) {
             targetPaths.forEach { path ->
                 if (File(path).exists()) {
@@ -68,51 +73,90 @@ class ConstRefScheduler(
                     analyzedAt[path] = startAt
                 }
             }
+            trimAnalyzedAtLocked()
             schedulePendingLocked(delayMs = 0L)
         }
-
-        runBlocking {
-            val isTimeout = withTimeoutOrNull(timeoutMs) {
-                while (true) {
-                    val done = synchronized(stateLock) {
-                        targetPaths.all { path ->
-                            !File(path).exists() || (analyzedAt[path] ?: 0L) >= startAt
-                        }
-                    }
-                    if (done) {
-                        break
-                    }
-                    delay(20L)
+        forceAnalyzePendingNow()
+        synchronized(stateLock) {
+            val relatedSourceDirs = resolveRelatedSourceDirsLocked(targetPaths)
+            while (true) {
+                val fileReady = targetPaths.all { path ->
+                    !File(path).exists() || (analyzedAt[path] ?: 0L) >= startAt
                 }
-            } == null
-            if (isTimeout) {
-                logger.warn("ConstRefScheduler.awaitAnalysis timeout(${timeoutMs}ms), targetPaths=$targetPaths")
+                val sourceReady = relatedSourceDirs.all { dir ->
+                    fullScanReadySourceDirs.contains(dir)
+                }
+                if (fileReady && sourceReady) {
+                    break
+                }
+
+                val remainMs = deadlineAt - System.currentTimeMillis()
+                if (remainMs <= 0L) {
+                    val unreadyPaths = targetPaths.filter { path ->
+                        File(path).exists() && (analyzedAt[path] ?: 0L) < startAt
+                    }
+                    val pendingSourceDirs = relatedSourceDirs.filterNot { fullScanReadySourceDirs.contains(it) }
+                    logger.warn(
+                        "ConstRefScheduler.awaitAnalysis timeout(${timeoutMs}ms), " +
+                            "targetPaths=$targetPaths, unreadyPaths=$unreadyPaths, pendingSourceDirs=$pendingSourceDirs"
+                    )
+                    break
+                }
+                try {
+                    waitStateChangedLocked(remainMs.coerceAtMost(200L))
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    logger.warn("ConstRefScheduler.awaitAnalysis interrupted, targetPaths=$targetPaths")
+                    break
+                }
             }
         }
     }
 
     fun initializeFullScan(sourceDirs: List<File>) {
+        val normalizedSourceDirs = sourceDirs
+            .asSequence()
+            .filter { it.exists() }
+            .map { it.toStdPath() }
+            .distinct()
+            .toList()
         synchronized(stateLock) {
+            trackedSourceDirs.clear()
+            trackedSourceDirs += normalizedSourceDirs
+            fullScanReadySourceDirs.clear()
             if (fullScanJob?.isActive == true) {
                 return
             }
             fullScanJob = coroutineScope.launch {
-                val sourceFiles = sourceDirs
-                    .asSequence()
-                    .filter { it.exists() }
-                    .flatMap { dir ->
-                        dir.listFilesRecursively().asSequence()
+                try {
+                    normalizedSourceDirs.forEach { sourceDirPath ->
+                        val sourceDir = File(sourceDirPath)
+                        val sourceFiles = sourceDir
+                            .listFilesRecursively()
+                            .asSequence()
+                            .filter { file -> file.isFile && isSourceFile(file.name) }
+                            .distinctBy { it.toStdPath() }
+                            .toList()
+                        if (sourceFiles.isNotEmpty()) {
+                            val startTime = System.currentTimeMillis()
+                            analyzeFiles(sourceFiles)
+                            val costTime = System.currentTimeMillis() - startTime
+                            logger.debug(
+                                "ConstRefScheduler full scan sourceDir finished, sourceDir=$sourceDirPath, " +
+                                    "files=${sourceFiles.size}, cost=${costTime}ms"
+                            )
+                        }
+                        synchronized(stateLock) {
+                            fullScanReadySourceDirs += sourceDirPath
+                            notifyStateChangedLocked()
+                        }
                     }
-                    .filter { file -> file.isFile && isSourceFile(file.name) }
-                    .distinctBy { it.toStdPath() }
-                    .toList()
-                if (sourceFiles.isEmpty()) {
-                    return@launch
+                } finally {
+                    synchronized(stateLock) {
+                        fullScanJob = null
+                        notifyStateChangedLocked()
+                    }
                 }
-                val startTime = System.currentTimeMillis()
-                analyzeFiles(sourceFiles)
-                val costTime = System.currentTimeMillis() - startTime
-                logger.debug("ConstRefScheduler full scan finished, files=${sourceFiles.size}, cost=${costTime}ms")
             }
         }
     }
@@ -126,7 +170,12 @@ class ConstRefScheduler(
             return emptyList()
         }
         val changedSet = changedPaths.toSet()
-        return database.getEffectedFiles(changedPaths)
+        val removedKeys = synchronized(stateLock) {
+            changedPaths.flatMap { removedDefinitionKeys[it].orEmpty() }.toSet()
+        }
+        val byCurrentDefinitions = database.getEffectedFiles(changedPaths)
+        val byRemovedDefinitions = database.getEffectedFilesByDefinitionKeys(removedKeys)
+        return (byCurrentDefinitions + byRemovedDefinitions)
             .filter { it.refFilePath !in changedSet && File(it.refFilePath).exists() }
             .distinctBy { "${it.refFilePath}|${it.defFqClassName}|${it.constName}" }
     }
@@ -150,8 +199,7 @@ class ConstRefScheduler(
         }
     }
 
-    private suspend fun analyzePending() {
-        val currentJob = kotlinx.coroutines.currentCoroutineContext()[Job]
+    private fun analyzePending() {
         val toAnalyze = synchronized(stateLock) {
             scheduledJob = null
             if (pendingFiles.isEmpty()) {
@@ -159,7 +207,7 @@ class ConstRefScheduler(
             }
             val files = pendingFiles.toList()
             pendingFiles.clear()
-            runningJob = currentJob
+            runningJob = null
             files
         }
         try {
@@ -174,7 +222,7 @@ class ConstRefScheduler(
         }
     }
 
-    private suspend fun analyzeFiles(files: List<File>) {
+    private fun analyzeFiles(files: List<File>) {
         if (files.isEmpty()) {
             return
         }
@@ -184,6 +232,7 @@ class ConstRefScheduler(
                 val path = file.toStdPath()
                 if (!file.exists()) {
                     database.removeFile(path)
+                    clearRemovedDefinitionKeys(path)
                     markAnalyzed(path)
                 } else if (isSourceFile(path)) {
                     existingFiles += file
@@ -197,13 +246,22 @@ class ConstRefScheduler(
             val changedFiles = mutableListOf<File>()
             existingFiles.forEach { file ->
                 val path = file.toStdPath()
-                val checksum = calculateChecksum(file)
-                checksumMap[path] = checksum
                 val cacheEntry = database.getFileCache(path)
-                if (cacheEntry != null && cacheEntry.lastModified == file.lastModified() && cacheEntry.checksum == checksum) {
+                val fileLastModified = file.lastModified()
+                if (cacheEntry != null && cacheEntry.lastModified == fileLastModified) {
+                    clearRemovedDefinitionKeys(path)
                     markAnalyzed(path)
                     return@forEach
                 }
+
+                val checksum = calculateChecksum(file)
+                if (cacheEntry != null && cacheEntry.checksum == checksum) {
+                    database.updateFileLastModified(path, fileLastModified)
+                    clearRemovedDefinitionKeys(path)
+                    markAnalyzed(path)
+                    return@forEach
+                }
+                checksumMap[path] = checksum
                 changedFiles += file
             }
             if (changedFiles.isEmpty()) {
@@ -211,11 +269,14 @@ class ConstRefScheduler(
             }
 
             val changedPaths = changedFiles.map { it.toStdPath() }.toSet()
+            val previousDefinitionsByPath = database.getDefinitionsByFiles(changedPaths)
+                .groupBy { it.filePath }
             val baseDefinitions = database.getAllDefinitions(excludeFilePaths = changedPaths)
             val parseResultMap = analyzer.analyze(changedFiles, baseDefinitions)
             changedFiles.forEach { file ->
                 val path = file.toStdPath()
                 val parseResult = parseResultMap[path] ?: FileConstParseResult.EMPTY
+                val removedKeys = buildRemovedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), parseResult.definitions)
                 database.upsertFileAnalysis(
                     filePath = path,
                     lastModified = file.lastModified(),
@@ -223,8 +284,27 @@ class ConstRefScheduler(
                     definitions = parseResult.definitions,
                     references = parseResult.references,
                 )
+                updateRemovedDefinitionKeys(path, removedKeys)
                 markAnalyzed(path)
             }
+        }
+    }
+
+    private fun forceAnalyzePendingNow() {
+        val toAnalyze = synchronized(stateLock) {
+            if (pendingFiles.isEmpty()) {
+                return
+            }
+            scheduledJob?.cancel()
+            scheduledJob = null
+            val files = pendingFiles.toList()
+            pendingFiles.clear()
+            files
+        }
+        try {
+            analyzeFiles(toAnalyze.map(::File))
+        } catch (t: Throwable) {
+            logger.warn("ConstRefScheduler.forceAnalyzePendingNow failed", t)
         }
     }
 
@@ -246,7 +326,69 @@ class ConstRefScheduler(
     private fun markAnalyzed(path: String) {
         synchronized(stateLock) {
             analyzedAt[path] = System.currentTimeMillis()
+            trimAnalyzedAtLocked()
+            notifyStateChangedLocked()
         }
+    }
+
+    private fun trimAnalyzedAtLocked() {
+        if (analyzedAt.size <= maxAnalyzedHistory) {
+            return
+        }
+        val removeCount = analyzedAt.size - (maxAnalyzedHistory / 2)
+        analyzedAt.entries
+            .sortedBy { it.value }
+            .take(removeCount)
+            .forEach { analyzedAt.remove(it.key) }
+    }
+
+    private fun clearRemovedDefinitionKeys(path: String) {
+        synchronized(stateLock) {
+            removedDefinitionKeys.remove(path)
+        }
+    }
+
+    private fun updateRemovedDefinitionKeys(path: String, keys: Set<Pair<String, String>>) {
+        synchronized(stateLock) {
+            if (keys.isEmpty()) {
+                removedDefinitionKeys.remove(path)
+            } else {
+                removedDefinitionKeys[path] = keys
+            }
+        }
+    }
+
+    private fun buildRemovedDefinitionKeys(
+        previousDefinitions: List<ConstDefinition>,
+        currentDefinitions: List<ConstDefinition>,
+    ): Set<Pair<String, String>> {
+        if (previousDefinitions.isEmpty()) {
+            return emptySet()
+        }
+        val oldKeys = previousDefinitions.map { it.fqClassName to it.constName }.toSet()
+        val currentKeys = currentDefinitions.map { it.fqClassName to it.constName }.toSet()
+        return oldKeys - currentKeys
+    }
+
+    private fun resolveRelatedSourceDirsLocked(targetPaths: List<String>): Set<String> {
+        if (trackedSourceDirs.isEmpty()) {
+            return emptySet()
+        }
+        return targetPaths.mapNotNull { path ->
+            trackedSourceDirs
+                .filter { sourceDir -> path == sourceDir || path.startsWith("$sourceDir/") }
+                .maxByOrNull { it.length }
+        }.toSet()
+    }
+
+    private fun notifyStateChangedLocked() {
+        @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+        (stateLock as java.lang.Object).notifyAll()
+    }
+
+    private fun waitStateChangedLocked(waitMs: Long) {
+        @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+        (stateLock as java.lang.Object).wait(waitMs)
     }
 
     private fun isSourceFile(path: String): Boolean {

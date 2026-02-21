@@ -99,4 +99,43 @@ class ConstRefCacheDatabaseTest {
         assertEquals(1, excludedDefinitions.size)
         assertTrue(excludedDefinitions.all { it.filePath == anotherPath })
     }
+
+    @Test
+    fun `should allow same class and const name from different files`() {
+        val dbDir = Files.createTempDirectory("const_ref_db_unique").toFile()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+
+        val debugPath = File(dbDir, "debug/Constants.kt").toStdPath()
+        val releasePath = File(dbDir, "release/Constants.kt").toStdPath()
+
+        val debugDefinition = ConstDefinition(
+            filePath = debugPath,
+            packageName = "com.example",
+            fqClassName = "com.example.ConstantsKt",
+            constName = "MAX",
+            constType = "Int",
+            constValue = "10",
+        )
+        val releaseDefinition = debugDefinition.copy(filePath = releasePath, constValue = "20")
+
+        database.upsertFileAnalysis(
+            filePath = debugPath,
+            lastModified = 1L,
+            checksum = 11L,
+            definitions = listOf(debugDefinition),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = releasePath,
+            lastModified = 2L,
+            checksum = 22L,
+            definitions = listOf(releaseDefinition),
+            references = emptyList(),
+        )
+
+        val definitions = database.getAllDefinitions()
+        assertEquals(2, definitions.size)
+        assertTrue(definitions.any { it.filePath == debugPath && it.constValue == "10" })
+        assertTrue(definitions.any { it.filePath == releasePath && it.constValue == "20" })
+    }
 }

@@ -109,4 +109,54 @@ class ConstRefSchedulerTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun `should keep effected files when const is downgraded to val`() {
+        val rootDir = Files.createTempDirectory("const_ref_scheduler_downgrade").toFile()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.MAX
+                val value = MAX
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefScheduler(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            coroutineScope = scope,
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath, userFile.absolutePath), timeoutMs = 10_000L)
+
+            constantsFile.writeText(
+                """
+                package com.example
+                val MAX = 2
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(setOf(userFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
 }

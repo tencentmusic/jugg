@@ -24,6 +24,10 @@ import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import java.io.File
 
+/**
+ * Not thread-safe. Callers must serialize access externally.
+ * The scheduler enforces this via a shared analysis mutex.
+ */
 class KotlinConstParser(
     private val logger: Logger,
 ) {
@@ -143,6 +147,13 @@ class KotlinConstParser(
                         addReference(sourcePath, fqClassName, constName, definitionIndex, references)
                     }
                 }
+                importContext.packageAsteriskImports.forEach { packageNameFromImport ->
+                    definitionIndex.findByPackageAndConst(packageNameFromImport, constName)
+                        .filter { it.fqClassName.endsWith("Kt") }
+                        .forEach { definition ->
+                            addReference(sourcePath, definition.fqClassName, constName, definitionIndex, references)
+                        }
+                }
                 definitionIndex.findByPackageAndConst(packageName, constName)
                     .filter { it.fqClassName.endsWith("Kt") }
                     .forEach { definition ->
@@ -234,6 +245,7 @@ class KotlinConstParser(
         return if (packageName.isBlank()) className else "$packageName.$className"
     }
 
+    // Lightweight fallback when type reference is absent. Precision is not required for const-ref matching.
     private fun inferTypeFromInitializer(initializer: String?): String {
         if (initializer == null) {
             return ""

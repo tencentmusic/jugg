@@ -10,6 +10,7 @@ class ConstRefCacheDatabase(
     private val dbFile: File,
     private val logger: Logger,
 ) {
+    private val maxDefinitionKeysPerQuery = 400
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
 
     init {
@@ -24,13 +25,6 @@ class ConstRefCacheDatabase(
             connection.createStatement().use { statement ->
                 statement.executeUpdate(
                     """
-                    PRAGMA foreign_keys=ON;
-                    PRAGMA journal_mode=WAL;
-                    PRAGMA synchronous=NORMAL;
-                    PRAGMA cache_size=-64000;
-                    PRAGMA temp_store=MEMORY;
-                    PRAGMA busy_timeout=5000;
-
                     CREATE TABLE IF NOT EXISTS file_cache (
                         file_path TEXT PRIMARY KEY,
                         last_modified INTEGER NOT NULL,
@@ -48,7 +42,8 @@ class ConstRefCacheDatabase(
                         const_value TEXT,
                         FOREIGN KEY (file_path) REFERENCES file_cache(file_path) ON DELETE CASCADE
                     );
-                    CREATE UNIQUE INDEX IF NOT EXISTS idx_const_def_unique ON const_definitions(fq_class_name, const_name);
+                    DROP INDEX IF EXISTS idx_const_def_unique;
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_const_def_unique ON const_definitions(file_path, fq_class_name, const_name);
                     CREATE INDEX IF NOT EXISTS idx_const_def_file ON const_definitions(file_path);
                     CREATE INDEX IF NOT EXISTS idx_const_def_package_const ON const_definitions(package_name, const_name);
 
@@ -174,6 +169,24 @@ class ConstRefCacheDatabase(
     }
 
     @Synchronized
+    fun updateFileLastModified(filePath: String, lastModified: Long) {
+        withConnection { connection ->
+            connection.prepareStatement(
+                """
+                UPDATE file_cache
+                SET last_modified = ?, analyzed_at = ?
+                WHERE file_path = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setLong(1, lastModified)
+                statement.setLong(2, System.currentTimeMillis())
+                statement.setString(3, filePath)
+                statement.executeUpdate()
+            }
+        }
+    }
+
+    @Synchronized
     fun removeFile(filePath: String) {
         withConnection { connection ->
             connection.prepareStatement("DELETE FROM file_cache WHERE file_path = ?").use { statement ->
@@ -248,22 +261,31 @@ class ConstRefCacheDatabase(
 
     @Synchronized
     fun getEffectedFilesByDefinitions(definitions: Collection<ConstDefinition>): List<EffectedConstRef> {
-        if (definitions.isEmpty()) {
+        val uniqueKeys = definitions.map { it.fqClassName to it.constName }.toSet()
+        return getEffectedFilesByDefinitionKeys(uniqueKeys)
+    }
+
+    @Synchronized
+    fun getEffectedFilesByDefinitionKeys(definitionKeys: Collection<Pair<String, String>>): List<EffectedConstRef> {
+        val uniqueKeys = definitionKeys.toSet()
+        if (uniqueKeys.isEmpty()) {
             return emptyList()
         }
         return withConnection { connection ->
             val effectedSet = linkedSetOf<EffectedConstRef>()
-            val uniqueKeys = definitions.map { it.fqClassName to it.constName }.toSet()
-            connection.prepareStatement(
-                """
-                SELECT ref_file_path, def_fq_class_name, const_name
-                FROM const_references
-                WHERE def_fq_class_name = ? AND const_name = ?
+            uniqueKeys.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+                val whereClause = chunk.joinToString(" OR ") { "(def_fq_class_name = ? AND const_name = ?)" }
+                val sql = """
+                    SELECT ref_file_path, def_fq_class_name, const_name
+                    FROM const_references
+                    WHERE $whereClause
                 """.trimIndent()
-            ).use { statement ->
-                uniqueKeys.forEach { (fqClassName, constName) ->
-                    statement.setString(1, fqClassName)
-                    statement.setString(2, constName)
+                connection.prepareStatement(sql).use { statement ->
+                    var paramIndex = 1
+                    chunk.forEach { (fqClassName, constName) ->
+                        statement.setString(paramIndex++, fqClassName)
+                        statement.setString(paramIndex++, constName)
+                    }
                     statement.executeQuery().use { resultSet ->
                         while (resultSet.next()) {
                             effectedSet += EffectedConstRef(
@@ -276,6 +298,24 @@ class ConstRefCacheDatabase(
                 }
             }
             effectedSet.toList()
+        }
+    }
+
+    private fun applyConnectionPragmas(connection: Connection) {
+        connection.createStatement().use { statement ->
+            statement.execute("PRAGMA foreign_keys=ON")
+            statement.execute("PRAGMA journal_mode=WAL")
+            statement.execute("PRAGMA synchronous=NORMAL")
+            statement.execute("PRAGMA cache_size=-64000")
+            statement.execute("PRAGMA temp_store=MEMORY")
+            statement.execute("PRAGMA busy_timeout=5000")
+        }
+    }
+
+    private inline fun <T> withConnection(block: (Connection) -> T): T {
+        DriverManager.getConnection(url).use { connection ->
+            applyConnectionPragmas(connection)
+            return block(connection)
         }
     }
 
@@ -292,13 +332,6 @@ class ConstRefCacheDatabase(
             )
         }
         return definitions
-    }
-
-    private inline fun <T> withConnection(block: (Connection) -> T): T {
-        SqLiteDriverLoader.load(logger)
-        DriverManager.getConnection(url).use { connection ->
-            return block(connection)
-        }
     }
 
     data class FileCacheEntry(

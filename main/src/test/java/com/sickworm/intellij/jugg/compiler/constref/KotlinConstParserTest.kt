@@ -100,4 +100,40 @@ class KotlinConstParserTest {
             parser.dispose()
         }
     }
+
+    @Test
+    fun `should parse kotlin top level const references from package asterisk import`() {
+        val rootDir = Files.createTempDirectory("kotlin_const_refs_pkg_asterisk").toFile()
+        val constantsFile = File(rootDir, "TopConsts.kt").apply {
+            writeText(
+                """
+                package com.example.constants
+
+                const val TOP = 10
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+
+                import com.example.constants.*
+
+                val value = TOP
+                """.trimIndent()
+            )
+        }
+
+        val parser = KotlinConstParser(logger)
+        try {
+            val definitions = parser.parseDefinitions(constantsFile)
+            val definitionIndex = ConstDefinitionIndex(definitions)
+            val references = parser.parseReferences(userFile, definitionIndex)
+            val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
+            assertEquals(setOf("com.example.constants.TopConstsKt.TOP"), keys)
+        } finally {
+            parser.dispose()
+        }
+    }
 }

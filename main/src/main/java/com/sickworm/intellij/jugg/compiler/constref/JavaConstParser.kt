@@ -3,6 +3,7 @@ package com.sickworm.intellij.jugg.compiler.constref
 import com.github.javaparser.JavaParser
 import com.github.javaparser.ParserConfiguration
 import com.github.javaparser.ast.CompilationUnit
+import com.github.javaparser.ast.body.AnnotationDeclaration
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 import com.github.javaparser.ast.body.FieldDeclaration
 import com.github.javaparser.ast.body.TypeDeclaration
@@ -153,9 +154,11 @@ class JavaConstParser(
     }
 
     private fun isInterfaceField(fieldDeclaration: FieldDeclaration, typeDeclaration: TypeDeclaration<*>): Boolean {
-        return typeDeclaration is ClassOrInterfaceDeclaration &&
-            typeDeclaration.isInterface &&
-            fieldDeclaration.isFinal
+        return when (typeDeclaration) {
+            is ClassOrInterfaceDeclaration -> typeDeclaration.isInterface && fieldDeclaration.isFinal
+            is AnnotationDeclaration -> fieldDeclaration.isFinal
+            else -> false
+        }
     }
 
     private fun addReference(

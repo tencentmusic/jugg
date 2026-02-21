@@ -79,4 +79,40 @@ class JavaConstParserTest {
         val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
         assertEquals(setOf("com.example.Constants.MAX", "com.example.Constants.MIN", "com.example.Constants.Inner.FLAG"), keys)
     }
+
+    @Test
+    fun `should parse java annotation constants`() {
+        val rootDir = Files.createTempDirectory("java_annotation_const_defs").toFile()
+        val constantsFile = File(rootDir, "Flags.java").apply {
+            writeText(
+                """
+                package com.example;
+
+                public @interface Flags {
+                    public static final int MAX = 7;
+                }
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.java").apply {
+            writeText(
+                """
+                package com.example;
+
+                public class User {
+                    int value = Flags.MAX;
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = JavaConstParser(logger)
+        val definitions = parser.parseDefinitions(constantsFile)
+        assertTrue(definitions.any { it.fqClassName == "com.example.Flags" && it.constName == "MAX" })
+
+        val definitionIndex = ConstDefinitionIndex(definitions)
+        val references = parser.parseReferences(userFile, definitionIndex)
+        val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
+        assertEquals(setOf("com.example.Flags.MAX"), keys)
+    }
 }
