@@ -93,6 +93,7 @@ dependencies {
 
     implementation "io.github.classgraph:classgraph:4.8.110"
     implementation 'com.github.mwiede:jsch:0.2.16'
+    implementation "com.github.javaparser:javaparser-core:3.17.0"
 
     // databinding 8.7.3, which use kotlin 1.9.20
     // only for jugg parsing, kapt will use project classpath

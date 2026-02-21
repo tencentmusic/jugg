@@ -29,7 +29,9 @@ class CmdLineContextManager(
 ) {
 
     val disposer = object : Disposable {
-        override fun dispose() = Unit
+        override fun dispose() {
+            deployFileManager.dispose()
+        }
     }
 
     val fileChangesHandler = FileChangesHandler(

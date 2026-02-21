@@ -29,6 +29,30 @@
 | MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction` | `mcp/actions/` | 工具注册与异步编译状态管理 |
 | 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 |
 
+| 模块 | 关键类/接口 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
+|------|-------------|----------|-----------|------|-----------|
+| compiler | JuggCompiler, BaseCompiler, CompileTask | compiler/core | 编译调度与任务编排 | 稳定 | 2025-01-20 |
+| compiler | JavaCompiler, KotlinCompiler, DexCompiler | compiler/source | 源码/字节码/DEX 编译 | 稳定 | 2025-01-20 |
+| compiler | ResourceCompiler, Aapt2Invoker | compiler/resource | AAPT2 资源编译与调用 | 稳定 | 2025-01-20 |
+| compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
+| compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
+| compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
+| compiler | ConstRefScheduler, ConstRefAnalyzer | compiler/constref | 编译期常量定义/引用分析与受影响源码查询 | 新增 | 2026-02-21 |
+| deploy | JuggDeployer, DeployFileManager | deploy/core | 部署调度、文件准备 | 稳定 | 2025-01-20 |
+| deploy | DeployDataGenerator, ClassNodeComparator | deploy/data | 类结构比较、影响分析 | 稳定 | 2026-02-01 |
+| deploy | DeployDataDatabase, IncrementalDeployDataDatabase | deploy/data | 双层数据库、引用索引 | 稳定 | 2026-02-01 |
+| deploy | InlineMethodDetector | deploy/data | 内联方法影响检测 | 稳定 | 2026-02-01 |
+| deploy | IncrementalDeployHelper, DeployHistoryManager | deploy/core | 增量部署与历史管理 | 稳定 | 2025-01-20 |
+| project | JuggProjectInfo, GradleProjectInfoReader | project | 项目信息读取/序列化 | 稳定 | 2025-01-20 |
+| project | DependencyResolver, LocalGradleCompileClient | project | 依赖解析与 Gradle 调用 | 稳定 | 2025-01-20 |
+| apk | ApkFileModifier | apk | APK 修改/签名 | 稳定 | 2025-01-20 |
+| aapt2 | Aapt2DaemonInvoker | aapt2 | AAPT2 守护进程调用 | 稳定 | 2025-01-20 |
+| git | GitManager | git | Git 集成 | 稳定 | 2025-01-20 |
+| logger | JuggLogger | logger | 日志体系 | 稳定 | 2025-01-20 |
+| mcp | McpLocalServer, McpInvoker | mcp | 本地 MCP/工具命令注册 | 稳定 | 2026-02-09 |
+| server | JuggServer | server | 远程编译/服务端 | 稳定 | 2025-01-20 |
+| platform | PlatformApi | platform | 平台 API 注入点 | 稳定 | 2025-01-20 |
+
 ---
 
 ## 2. IDE 层（`idea/src/main` + `idea/src/ide_entry`）

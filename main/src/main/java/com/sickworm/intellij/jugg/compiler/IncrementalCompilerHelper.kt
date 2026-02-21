@@ -47,6 +47,13 @@ class IncrementalCompilerHelper(
             CompileFile(it.type, it.file, it.baseDir, it.module, it.extraInfo)
         }
 
+        if (isFirstRoundCompile) {
+            val changedSourcePaths = undeployedFiles
+                .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+                .map { it.file.absolutePath }
+            deployFileManager.awaitConstRefAnalysis(changedSourcePaths)
+        }
+
         // do compile
         logger.debug("Compile files: ${compileFiles.map { it.file.absolutePath }}")
         logger.info("Compile files:\n${compileFiles.desc()}")

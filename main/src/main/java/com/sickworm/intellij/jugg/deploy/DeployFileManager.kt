@@ -6,6 +6,9 @@ import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
+import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
+import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
+import com.sickworm.intellij.jugg.compiler.constref.ConstRefScheduler
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
@@ -76,6 +79,13 @@ class DeployFileManager(
      */
     private val sourceFileManager = SourceFileManager(projectDir, databaseDir, logger.getInstance("SourceFileManager"))
 
+    private val constRefScheduler = ConstRefScheduler(
+        analyzer = ConstRefAnalyzer(logger.getInstance("ConstRefAnalyzer")),
+        database = ConstRefCacheDatabase(File(databaseDir, "const_ref.db"), logger.getInstance("ConstRefCacheDatabase")),
+        logger = logger.getInstance("ConstRefScheduler"),
+        coroutineScope = coroutineScope,
+    )
+
     private var moduleInfos: Map<String, ModuleInfo> = emptyMap()
 
     @Synchronized
@@ -105,6 +115,11 @@ class DeployFileManager(
 
         coroutineScope.launch {
             sourceFileManager.updateFiles(newFiles, emptyList())
+        }
+        files.filter {
+            it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
+        }.forEach {
+            constRefScheduler.onFileSaved(it.file.stdAbsPath)
         }
     }
 
@@ -138,6 +153,13 @@ class DeployFileManager(
         coroutineScope.launch {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
+        files.forEach {
+            constRefScheduler.onFileDeleted(it.stdAbsPath)
+        }
+    }
+
+    fun awaitConstRefAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L) {
+        constRefScheduler.awaitAnalysis(filePaths, timeoutMs)
     }
 
     @Synchronized
@@ -326,6 +348,7 @@ class DeployFileManager(
             it.sourceDirs
         }
         sourceFileManager.init(sourceDirs)
+        constRefScheduler.initializeFullScan(sourceDirs)
         deployDataGenerator.mappingFile = mappingFile
     }
 
@@ -350,9 +373,22 @@ class DeployFileManager(
                     "obfuscatedClasses: ${obfuscatedClasses.map { it.className }}")
         }
 
+        val changedSourcePaths = compiledFiles.values
+            .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+            .map { it.file.stdAbsPath }
+            .distinct()
+        val constRefEffectedFiles = constRefScheduler.getEffectedFiles(changedSourcePaths)
+        if (constRefEffectedFiles.isNotEmpty()) {
+            logger.debug("getRecompileFiles: constRef effected files=${constRefEffectedFiles.map { it.refFilePath }}")
+        }
+        val constRefEffectedSourceFiles = constRefEffectedFiles.mapNotNull {
+            File(it.refFilePath).takeIf(File::exists)
+        }.distinctBy { it.stdAbsPath }
+
         val startTime = System.currentTimeMillis()
+        val effectedSourceFiles = getEffectedSourceFiles(obfuscatedClasses.sources)
         val recompileFiles = RecompileFiles(
-            getEffectedSourceFiles(obfuscatedClasses.sources),
+            (effectedSourceFiles + constRefEffectedSourceFiles).distinctBy { it.stdAbsPath },
             getMissingMinifiedClassFiles(obfuscatedClasses.classes),
             juggDeployData,
         )
@@ -622,6 +658,10 @@ class DeployFileManager(
 
     fun isEnableDesugared(): Boolean {
         return deployDataGenerator.isEnableDesugared()
+    }
+
+    fun dispose() {
+        constRefScheduler.dispose()
     }
 
     // I have forgotten why I need both stdAbsPath and stdPath, but it seems to be ok to use stdAbsPath only.

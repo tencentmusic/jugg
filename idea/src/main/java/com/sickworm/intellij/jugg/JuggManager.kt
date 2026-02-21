@@ -586,6 +586,7 @@ class JuggManager @TestOnly constructor(
 
     override fun dispose() {
         logger.debug("project ${pathManager.projectDir} dispose")
+        deployFileManager.dispose()
         coroutineScope.cancel()
     }
 
