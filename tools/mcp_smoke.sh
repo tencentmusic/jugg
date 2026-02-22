@@ -25,7 +25,7 @@ Examples:
 Notes:
   - Jugg must already be initialized for this projectDir in IDE (MCP server lifecycle follows JuggInitializer).
   - If --project-dir is not provided, read from env var jugg_project_dir.
-  - MCP endpoint: http://localhost:<port>/mcp
+  - MCP endpoint: http://localhost:<port>/jugg-mcp
 USAGE
 }
 
@@ -79,7 +79,7 @@ post_json() {
 probe_port() {
   local p
   for p in $(seq 12320 12329); do
-    local url="http://localhost:${p}/mcp"
+    local url="http://localhost:${p}/jugg-mcp"
     local payload='{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
     if response="$(post_json "$url" "$payload" 2>/dev/null)"; then
       if [[ "$response" == *'"jsonrpc":"2.0"'* ]]; then
@@ -98,7 +98,7 @@ if [[ -z "$PORT" ]]; then
   fi
 fi
 
-BASE_URL="http://localhost:${PORT}/mcp"
+BASE_URL="http://localhost:${PORT}/jugg-mcp"
 
 echo "[mcp-smoke] endpoint: $BASE_URL"
 echo "[mcp-smoke] projectDir: $PROJECT_DIR"

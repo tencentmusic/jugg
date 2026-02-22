@@ -78,7 +78,7 @@ class McpLocalServerTest {
         """.trimIndent()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post(requestJson.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -131,7 +131,7 @@ class McpLocalServerTest {
         """.trimIndent()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post(requestJson.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -160,7 +160,7 @@ class McpLocalServerTest {
         """.trimIndent()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post(requestJson.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -187,7 +187,7 @@ class McpLocalServerTest {
         McpLocalServer.start()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .get()
             .build()
 
@@ -214,7 +214,7 @@ class McpLocalServerTest {
         """.trimIndent()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post(notificationJson.toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -229,7 +229,7 @@ class McpLocalServerTest {
         McpLocalServer.start()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post("{invalid json}".toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -247,7 +247,7 @@ class McpLocalServerTest {
         McpLocalServer.start()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .put("".toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -266,7 +266,7 @@ class McpLocalServerTest {
         doInitialize()
 
         val promptsRequest = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post("""
                 {"jsonrpc":"2.0","id":30,"method":"prompts/list","params":{}}
             """.trimIndent().toRequestBody("application/json".toMediaType()))
@@ -280,7 +280,7 @@ class McpLocalServerTest {
         }
 
         val resourcesRequest = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post("""
                 {"jsonrpc":"2.0","id":31,"method":"resources/list","params":{}}
             """.trimIndent().toRequestBody("application/json".toMediaType()))
@@ -311,7 +311,7 @@ class McpLocalServerTest {
         """.trimIndent()
 
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .addHeader("MCP-Protocol-Version", "2099-01-01")
             .post(requestJson.toRequestBody("application/json".toMediaType()))
             .build()
@@ -327,7 +327,7 @@ class McpLocalServerTest {
 
     private fun doInitialize() {
         val request = Request.Builder()
-            .url("http://localhost:${McpLocalServer.getPort()}/mcp")
+            .url("http://localhost:${McpLocalServer.getPort()}/jugg-mcp")
             .post(initializePayload.toRequestBody("application/json".toMediaType()))
             .build()
 

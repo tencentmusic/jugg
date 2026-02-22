@@ -8,7 +8,7 @@
 ## 一、服务信息
 
 - 服务端口范围：`12320..12329`
-- HTTP 路径：`/mcp`
+- HTTP 路径：`/jugg-mcp`
 - Content-Type：`application/json`
 - 生命周期：跟随 `JuggInitializer`（项目初始化时启动，全部释放后停止）
 
@@ -18,8 +18,8 @@
 
 - JSON-RPC 版本：`2.0`
 - MCP 生命周期：`initialize` → `notifications/initialized`
-- `POST /mcp`：请求/通知入口
-- `GET /mcp`：返回 `405 Method Not Allowed`
+- `POST /jugg-mcp`：请求/通知入口
+- `GET /jugg-mcp`：返回 `405 Method Not Allowed`
 - request（有 `id`）返回 `200`
 - notification（无 `id`）返回 `202`
 - 支持请求头：`MCP-Protocol-Version`（`2025-06-18`、`2025-11-25`）
@@ -84,22 +84,22 @@
 ### 5.1 Claude Code（HTTP 直连）
 
 ```bash
-claude mcp add --transport http jugg http://localhost:12320/mcp
+claude mcp add --transport http jugg-mcp http://localhost:12320/jugg-mcp
 claude mcp list
 ```
 
 ### 5.2 Codex CLI（URL 直连）
 
 ```bash
-codex mcp add jugg --url http://localhost:12320/mcp
+codex mcp add jugg-mcp --url http://localhost:12320/jugg-mcp
 codex mcp list
 ```
 
 或配置 `~/.codex/config.toml`：
 
 ```toml
-[mcp_servers.jugg]
-url = "http://localhost:12320/mcp"
+[mcp_servers."jugg-mcp"]
+url = "http://localhost:12320/jugg-mcp"
 ```
 
 ### 5.3 兼容回退（stdio -> HTTP）
@@ -109,9 +109,9 @@ url = "http://localhost:12320/mcp"
 ```json
 {
   "mcpServers": {
-    "jugg": {
+    "jugg-mcp": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:12320/mcp"]
+      "args": ["-y", "mcp-remote", "http://localhost:12320/jugg-mcp"]
     }
   }
 }

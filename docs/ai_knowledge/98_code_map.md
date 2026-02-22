@@ -24,7 +24,7 @@
 | project | DependencyChangeManagerByGradle, DependencyChangeManagerBySync | `project/dependency/` | 依赖差异解析 | 稳定 | 2026-02-22 |
 | gradle | GradleProjectInfoReader, GradleDependencyDiffer | `gradle/script/` | Gradle 侧信息读取与依赖比对 | 稳定 | 2026-02-22 |
 | gradle | LocalGradleCompileClient, CmdExecutor | `gradle/compile/` | 本地/远程 Gradle 编译调用 | 稳定 | 2026-02-22 |
-| mcp | McpLocalServer, McpToolInvoker, McpBaseInvoker, IMcpInvoker | `mcp/` | MCP 协议入口与请求路由 | 稳定 | 2026-02-22 |
+| mcp | McpLocalServer, McpToolInvoker, McpBaseInvoker, IMcpInvoker | `mcp/` | MCP 协议入口与请求路由（HTTP: `/jugg-mcp`） | 稳定 | 2026-02-22 |
 | mcp | CompileJobManager | `mcp/actions/` | 编译任务异步状态管理 | 稳定 | 2026-02-22 |
 | aapt2 | Aapt2DaemonInvoker | `aapt2/` | AAPT2 守护进程调用 | 稳定 | 2026-02-22 |
 | apk | ApkFileModifier | `apk/` | APK 修改/签名 | 稳定 | 2026-02-22 |

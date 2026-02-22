@@ -8,7 +8,7 @@ TARGET_ROOT="${CODEX_HOME:-$HOME/.codex}/skills"
 FORCE="true"
 INSTALL_MCP="true"
 MCP_CLIENT="auto"
-MCP_ENDPOINT="http://localhost:12320/mcp"
+MCP_ENDPOINT="http://localhost:12320/jugg-mcp"
 MCP_SERVER_NAME="jugg-mcp"
 
 log_status() {

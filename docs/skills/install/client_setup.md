@@ -12,7 +12,7 @@ bash docs/skills/install/install_mcp_and_skill.sh
 bash docs/skills/install/install_mcp_and_skill.sh \
   --with-mcp \
   --mcp-client auto \
-  --mcp-endpoint http://localhost:12320/mcp \
+  --mcp-endpoint http://localhost:12320/jugg-mcp \
   --mcp-server-name jugg-mcp
 ```
 
@@ -37,20 +37,20 @@ bash docs/skills/install/install_mcp_and_skill.sh --mcp-client all
 Preferred:
 
 ```bash
-codex mcp add jugg-mcp --url http://localhost:12320/mcp
+codex mcp add jugg-mcp --url http://localhost:12320/jugg-mcp
 ```
 
 Fallback (manual file): `~/.codex/config.toml`
 
 ```toml
 [mcp_servers."jugg-mcp"]
-url = "http://localhost:12320/mcp"
+url = "http://localhost:12320/jugg-mcp"
 ```
 
 ### Claude Code
 
 ```bash
-claude mcp add --transport http --scope user jugg-mcp http://localhost:12320/mcp
+claude mcp add --transport http --scope user jugg-mcp http://localhost:12320/jugg-mcp
 ```
 
 ### Gemini CLI
@@ -61,7 +61,7 @@ Config file: `~/.gemini/settings.json`
 {
   "mcpServers": {
     "jugg-mcp": {
-      "httpUrl": "http://localhost:12320/mcp"
+      "httpUrl": "http://localhost:12320/jugg-mcp"
     }
   }
 }

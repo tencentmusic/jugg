@@ -19,7 +19,7 @@ import java.util.concurrent.Executors
 object McpLocalServer {
     private const val PORT_START = 12320
     private const val PORT_END = 12329
-    private const val CONTEXT_PATH = "/mcp"
+    private const val CONTEXT_PATH = "/jugg-mcp"
 
     private const val HEADER_CONTENT_TYPE = "Content-Type"
     private const val HEADER_ORIGIN = "Origin"
