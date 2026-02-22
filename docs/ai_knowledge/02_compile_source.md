@@ -28,8 +28,8 @@ DexCompiler → Dex 文件
 | 编译器 | 输入类型 | 输出类型 | 职责 |
 |--------|---------|---------|------|
 | **SourceCompiler** | Java/Kotlin | Dex | 协调 Java/Kotlin 编译流程 |
-| **JavaCompiler** | Java | Class/Java | Java 源码编译，支持 APT |
-| **KotlinCompiler** | Kotlin | Class/Java/Kotlin | Kotlin 源码编译，支持 KAPT/KSP |
+| **JavaCompiler** | Java | Class/Java | Java 源码编译 |
+| **KotlinCompiler** | Kotlin | Class/Java/Kotlin | Kotlin 源码编译 |
 | **DexCompiler** | Class | Dex | Class 转 Dex，支持 Desugar |
 | **DexFileMaker** | - | - | D8 工具封装 |
 | **DexFileMerger** | Dex | Dex | Dex 文件合并 |
@@ -59,7 +59,7 @@ override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResu
     // 1. Kotlin 编译（必须先于 Java）
     val kotlinCompileResult = kotlinCompiler.compile(kotlinCompileTask)
     
-    // 2. Java 编译（包含 Kotlin APT 生成的 Java 文件）
+    // 2. Java 编译（处理 Java 源文件）
     val javaCompileResult = javaCompiler.compile(javaCompileTask)
     
     // 3. 混淆映射（如果开启混淆）
@@ -111,13 +111,13 @@ val otherOutputs = classCompileResult.outputs.filter {
 
 **定义位置**: `JavaCompiler.kt`
 
-| 特性 | 说明 |
-|------|------|
+| 特性 | 说明                                                              |
+|------|-----------------------------------------------------------------|
 | **编译器获取** | 优先使用 `ToolProvider.getSystemJavaCompiler()`，失败则反射获取 `JavacTool` |
-| **APT 支持** | 支持注解处理器（可通过 `JuggSettings.isEnableApt` 控制） |
-| **版本兼容** | 自动检测 source/target 版本不支持错误并重试 |
-| **错误重试** | 编译失败时自动重建编译器实例 |
-| **调试信息** | 默认生成调试信息（`-g`），包含局部变量名 |
+| **注解处理** | 仅支持白名单注解，其他默认关闭（使用 `-proc:none`）                                |
+| **版本兼容** | 自动检测 source/target 版本不支持错误并重试                                   |
+| **错误重试** | 编译失败时自动重建编译器实例                                                  |
+| **调试信息** | 默认生成调试信息（`-g`），包含局部变量名                                          |
 
 ### 3.2 编译参数
 
@@ -132,23 +132,10 @@ val options = mutableListOf(
 )
 ```
 
-**APT 参数**:
+**注解处理策略**:
 ```kotlin
-if (isEnableApt) {
-    options.addAll(listOf(
-        "-processorpath", annotationProcessorPath.joinToString(File.pathSeparator),
-        "-sourcepath", module.sourceDirs.joinToString(File.pathSeparator),
-    ))
-} else {
-    options.add("-proc:none") // 禁用注解处理
-}
-```
-
-**注解处理器选项**:
-```kotlin
-module.javaAnnotationProcessorOptions?.forEach { (key, value) ->
-    options.addAll(listOf("-A$key=\"$value\""))
-}
+// 默认禁用注解处理，避免 APT/KAPT 相关不确定性
+options.add("-proc:none")
 ```
 
 ### 3.3 错误处理
@@ -193,7 +180,7 @@ val outputs = task.outputDir.listFilesRecursively().map {
     if (it.extension == "class") {
         CompileOutput(CompileOutput.Type.Class, it, task.outputDir)
     } else if (it.extension == "java") {
-        CompileOutput(CompileOutput.Type.Java, it, task.outputDir) // APT 生成的 Java
+        CompileOutput(CompileOutput.Type.Java, it, task.outputDir) // Java 中间产物
     } else {
         // e.g. META-INF/service/xxx
         CompileOutput(CompileOutput.Type.Res, it, task.outputDir, apkPath)
@@ -230,12 +217,8 @@ override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResu
     // 1. 分析源码特性
     val options = analyzeSource(task.files.map { it.file }, module)
     
-    // 2. 选择编译模式
-    return if (options.isEnableKsp && !options.isKspWithCompilation) {
-        kspAndCompile(task, module, options) // KSP 单独编译
-    } else {
-        compile(task, module, options)       // 正常编译或 KSP 同步编译
-    }
+    // 2. 直接执行 Kotlin 编译
+    return compile(task, module, options)
 }
 ```
 
@@ -273,17 +256,17 @@ files.forEach root@{ file ->
 **数据结构**:
 ```kotlin
 data class Options(
-    val isEnableKapt: Boolean = false,                      // 启用 KAPT
+    val isEnableKapt: Boolean = false,                      // 保留字段，当前不启用
     val isNeedKotlinAndroidExtensions: Boolean = false,     // 需要 Kotlin Android Extensions
     val isNeedCompileCompose: Boolean = false,              // 需要编译 Compose
     val rPackageName: String? = null,                       // R 包名
     val isCanAutoRetry: Boolean = true,                     // 允许自动重试
-    val kaptOptions: Map<String, String> = emptyMap(),      // KAPT 选项
-    val kaptDependencies: List<File> = emptyList(),         // KAPT 依赖
+    val kaptOptions: Map<String, String> = emptyMap(),      // 保留字段，当前不启用
+    val kaptDependencies: List<File> = emptyList(),         // 保留字段，当前不启用
     val javaSourceDirs: List<File>? = null,                 // Java 源码目录
-    val isEnableKsp: Boolean = false,                       // 启用 KSP
-    val isKspWithCompilation: Boolean = true,               // KSP 与编译同步
-    val kspDependencies: List<File> = emptyList(),          // KSP 依赖
+    val isEnableKsp: Boolean = false,                       // 保留字段，当前固定为 false
+    val isKspWithCompilation: Boolean = true,               // 保留字段，当前不生效
+    val kspDependencies: List<File> = emptyList(),          // 保留字段，当前不生效
     val kotlinPlugins: List<File> = emptyList(),            // Kotlin 插件
     val kotlinExtensions: List<File> = emptyList(),         // Kotlin 扩展
 )
@@ -324,7 +307,7 @@ override fun warmUp() {
 |------|------|
 | **编译器管理** | 管理项目编译器和嵌入式编译器 |
 | **参数构建** | 构建 Kotlin 编译器参数 |
-| **插件管理** | 管理 Kotlin 插件（KAPT/KSP/Compose 等） |
+| **插件管理** | 管理 Kotlin 插件（Compose 等） |
 | **错误重试** | 自动检测并修复编译错误 |
 | **版本兼容** | 支持 Kotlin 1.4 ~ 2.2 |
 
@@ -1176,8 +1159,8 @@ companion object {
 
 | 插件 | 支持方式 |
 |------|---------|
-| **KAPT** | 完整支持，包括选项传递和产物收集 |
-| **KSP** | 支持单独编译和同步编译两种模式 |
+| **KAPT** | 预留参数结构，默认不启用 |
+| **KSP** | 已禁用，不进入编译流程 |
 | **Kotlin Android Extensions** | 自动检测 import 并启用 |
 | **Jetpack Compose** | 自动检测 import 并启用 |
 | **Parcelize** | 自动检测并处理 ClassCastException |

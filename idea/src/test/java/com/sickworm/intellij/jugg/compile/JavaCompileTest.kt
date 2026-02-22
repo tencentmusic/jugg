@@ -72,6 +72,9 @@ class JavaCompileTest {
         assertCompileResultJava(task, result)
     }
 
+    @Suppress("UnusedReceiverParameter")
+    val JuggSettings.isEnableApt get() = false
+
     @Test
     fun javaCompileWithARouter() {
         if (!JuggSettings.isEnableApt) {

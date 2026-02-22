@@ -159,8 +159,7 @@ class KotlinCompiler(
                         isNeedCompileCompose = true
                     }
                 }
-                if (importContent.startsWith("com.tencent.kuikly.core.annotations.")) {
-                    // kuikly @Page
+                if (importContent.startsWith("com.squareup.moshi.JsonClass")) {
                     isInKspWhiteList = true
                 }
             }

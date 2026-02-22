@@ -83,17 +83,17 @@
 
 ## 四、支持的文件类型
 
-| 文件类型 | 支持程度 | 备注 |
-|---------|---------|------|
-| Java 源文件 (.java) | ✅ 完全支持 | |
-| Kotlin 源文件 (.kt) | ✅ 完全支持 | 包括 Compose |
-| 资源文件 (res/) | ✅ 完全支持 | Layout, Drawable, Values 等 |
-| Assets 文件 | ✅ 完全支持 | |
-| Native 库 (.so) | ✅ 完全支持 | |
-| AndroidManifest.xml | ✅ 支持 | 部分修改需要重启 |
-| build.gradle | ⚠️ 部分支持 | 依赖变更需要确认 |
-| 注解处理 (APT/KAPT) | ❌ 不支持 | 需要降级到 Gradle |
-| 字节码插桩 | ❌ 不支持 | 需要降级到 Gradle |
+| 文件类型                | 支持程度     | 备注                         |
+|---------------------|----------|----------------------------|
+| Java 源文件 (.java)    | ✅ 完全支持   |                            |
+| Kotlin 源文件 (.kt)    | ✅ 完全支持   | 包括 Compose                 |
+| 资源文件 (res/)         | ✅ 完全支持   | Layout, Drawable, Values 等 |
+| Assets 文件           | ✅ 完全支持   |                            |
+| Native 库 (.so)      | ✅ 完全支持   |                            |
+| AndroidManifest.xml | ✅ 支持     | 部分修改需要重启                   |
+| build.gradle        | ⚠️ 部分支持  | 依赖变更需要确认                   |
+| 注解处理 (APT/KAPT/KSP) | ⚠️ 白名单支持 | 非白名单新增/修改需要降级到 Gradle      |
+| 字节码插桩               | ❌ 不支持    | 如需生效，需要降级到 Gradle          |
 
 ---
 

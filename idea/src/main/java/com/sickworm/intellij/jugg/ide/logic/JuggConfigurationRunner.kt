@@ -152,10 +152,3 @@ class JuggConfigurationRunner(
         )
     }
 }
-
-data class JuggRunInvocationResult(
-    val isSuccess: Boolean,
-    val runResult: RunResult? = null,
-    val detail: String = "",
-    val errorMessage: String? = null,
-)
