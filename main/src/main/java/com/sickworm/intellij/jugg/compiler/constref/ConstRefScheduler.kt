@@ -17,6 +17,7 @@ class ConstRefScheduler(
     private val logger: Logger,
     coroutineScope: CoroutineScope,
     private var backgroundTaskRunner: IBackgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope),
+    private val repoSharedFingerprintStore: RepoSharedFingerprintStore = RepoSharedFingerprintStore(logger),
 ) {
     private val maxAnalyzedHistory = 4096
     private val analysisMutex = ReentrantLock()
@@ -273,6 +274,8 @@ class ConstRefScheduler(
 
             val checksumMap = mutableMapOf<String, Long>()
             val changedFiles = mutableListOf<File>()
+            var sharedFingerprintHitCount = 0
+            var sharedFingerprintMissCount = 0
             existingFiles.forEach { file ->
                 val path = file.toStdPath()
                 val cacheEntry = database.getFileCache(path)
@@ -283,7 +286,11 @@ class ConstRefScheduler(
                     return@forEach
                 }
 
-                val checksum = calculateChecksum(file)
+                val checksum = resolveChecksumWithSharedFingerprint(
+                    file = file,
+                    onSharedHit = { sharedFingerprintHitCount++ },
+                    onSharedMiss = { sharedFingerprintMissCount++ },
+                )
                 if (cacheEntry != null && cacheEntry.checksum == checksum) {
                     database.updateFileLastModified(path, fileLastModified)
                     clearRemovedDefinitionKeys(path)
@@ -292,6 +299,12 @@ class ConstRefScheduler(
                 }
                 checksumMap[path] = checksum
                 changedFiles += file
+            }
+            if (sharedFingerprintHitCount > 0 || sharedFingerprintMissCount > 0) {
+                logger.debug(
+                    "ConstRefScheduler shared fingerprint stats, " +
+                        "hit=$sharedFingerprintHitCount, miss=$sharedFingerprintMissCount"
+                )
             }
             if (changedFiles.isEmpty()) {
                 return
@@ -368,6 +381,32 @@ class ConstRefScheduler(
         val editingFile = currentEditingFile ?: return
         pendingAnalyzeFiles += editingFile
         currentEditingFile = null
+    }
+
+    private fun resolveChecksumWithSharedFingerprint(
+        file: File,
+        onSharedHit: () -> Unit,
+        onSharedMiss: () -> Unit,
+    ): Long {
+        val sharedChecksum = try {
+            repoSharedFingerprintStore.findChecksum(file)
+        } catch (t: Throwable) {
+            logger.debug("resolveChecksumWithSharedFingerprint query failed, file=$file", t)
+            null
+        }
+        if (sharedChecksum != null) {
+            onSharedHit()
+            return sharedChecksum
+        }
+
+        onSharedMiss()
+        val checksum = calculateChecksum(file)
+        try {
+            repoSharedFingerprintStore.saveChecksum(file, checksum)
+        } catch (t: Throwable) {
+            logger.debug("resolveChecksumWithSharedFingerprint save failed, file=$file", t)
+        }
+        return checksum
     }
 
     private fun calculateChecksum(file: File): Long {
