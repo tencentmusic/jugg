@@ -2,6 +2,7 @@ package com.sickworm.intellij.jugg.deploy.data
 
 import com.googlecode.d2j.DexConstants
 import com.sickworm.intellij.jugg.compiler.*
+import com.sickworm.intellij.jugg.compiler.constref.EffectedConstRef
 import com.sickworm.intellij.jugg.compiler.source.DexCompiler
 import com.sickworm.intellij.jugg.compiler.source.SourceCompiler
 import com.sickworm.intellij.jugg.deploy.classNameToPath
@@ -17,6 +18,7 @@ import org.junit.Test
 import java.io.File
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DeployDataGeneratorTest {
@@ -500,6 +502,118 @@ class DeployDataGeneratorTest {
         assertEquals(11, deployData.newClasses.size)
         assertEquals(1, deployData.hotFixModifiedClasses.size)
         assertEquals(0, deployData.hotReloadModifiedClasses.size)
+    }
+
+    @Test
+    fun testConstRefProviderSkippedWhenRecompileCheckDisabled() {
+        val fakeProvider = FakeConstRefEffectProvider().apply {
+            effectedFiles = listOf(
+                EffectedConstRef(
+                    refFilePath = "/tmp/Invoker.kt",
+                    defFqClassName = "com.example.Consts",
+                    constName = "MAX",
+                )
+            )
+        }
+        val generator = DeployDataGenerator(logger, buildDir, fakeProvider)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val deployData = generator.buildDeployData(
+            parsedDex = abcParsedDexMock,
+            changedOverlays = emptyList(),
+            isNeedCheckRecompile = false,
+            constRefChangedSourcePaths = listOf("/tmp/Consts.kt"),
+        )
+
+        assertEquals(0, fakeProvider.ensureCallCount)
+        assertEquals(0, fakeProvider.getEffectedFilesCallCount)
+        assertTrue(deployData.constRefEffectedSourcePaths.isEmpty())
+    }
+
+    @Test
+    fun testConstRefProviderResultMergedWhenRecompileCheckEnabled() {
+        val fakeProvider = FakeConstRefEffectProvider().apply {
+            effectedFiles = listOf(
+                EffectedConstRef(
+                    refFilePath = "/tmp/InvokerA.kt",
+                    defFqClassName = "com.example.Consts",
+                    constName = "MAX",
+                ),
+                EffectedConstRef(
+                    refFilePath = "/tmp/InvokerB.kt",
+                    defFqClassName = "com.example.Consts",
+                    constName = "MAX",
+                ),
+            )
+        }
+        val generator = DeployDataGenerator(logger, buildDir, fakeProvider)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val deployData = generator.buildDeployData(
+            parsedDex = abcParsedDexMock,
+            changedOverlays = emptyList(),
+            isNeedCheckRecompile = true,
+            constRefChangedSourcePaths = listOf("/tmp/Consts.kt"),
+        )
+
+        assertEquals(1, fakeProvider.ensureCallCount)
+        assertEquals(1, fakeProvider.getEffectedFilesCallCount)
+        assertContentEquals(
+            listOf("/tmp/InvokerA.kt", "/tmp/InvokerB.kt").sorted(),
+            deployData.constRefEffectedSourcePaths.sorted(),
+        )
+    }
+
+    @Test
+    fun testConstRefProviderStillUsesCompletedResultWhenNotReady() {
+        val fakeProvider = FakeConstRefEffectProvider().apply {
+            readiness = ConstRefReadiness(
+                isReady = false,
+                unreadyPaths = listOf("/tmp/Consts.kt"),
+                pendingSourceDirs = listOf("/tmp/src"),
+            )
+            effectedFiles = listOf(
+                EffectedConstRef(
+                    refFilePath = "/tmp/Invoker.kt",
+                    defFqClassName = "com.example.Consts",
+                    constName = "MAX",
+                )
+            )
+        }
+        val generator = DeployDataGenerator(logger, buildDir, fakeProvider)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val deployData = generator.buildDeployData(
+            parsedDex = abcParsedDexMock,
+            changedOverlays = emptyList(),
+            isNeedCheckRecompile = true,
+            constRefChangedSourcePaths = listOf("/tmp/Consts.kt"),
+        )
+
+        assertEquals(1, fakeProvider.ensureCallCount)
+        assertEquals(1, fakeProvider.getEffectedFilesCallCount)
+        assertContentEquals(listOf("/tmp/Invoker.kt"), deployData.constRefEffectedSourcePaths)
+    }
+
+    @Test
+    fun testConstRefProviderFailureFallbackToEmptyResult() {
+        val fakeProvider = FakeConstRefEffectProvider().apply {
+            throwOnEnsure = IllegalStateException("ensure failed")
+            throwOnGetEffectedFiles = IllegalStateException("query failed")
+        }
+        val generator = DeployDataGenerator(logger, buildDir, fakeProvider)
+        generator.init(projectInfo.apkInfos, emptyList())
+
+        val deployData = generator.buildDeployData(
+            parsedDex = abcParsedDexMock,
+            changedOverlays = emptyList(),
+            isNeedCheckRecompile = true,
+            constRefChangedSourcePaths = listOf("/tmp/Consts.kt"),
+        )
+
+        assertEquals(1, fakeProvider.ensureCallCount)
+        assertEquals(1, fakeProvider.getEffectedFilesCallCount)
+        assertFalse(deployData.constRefEffectedSourcePaths.isNotEmpty())
     }
 
     private val ParsedApk.toParsedDex: ParsedDex

@@ -4,7 +4,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.locks.ReentrantLock
@@ -18,10 +17,10 @@ class ConstRefScheduler(
     private val coroutineScope: CoroutineScope,
 ) {
     private val maxAnalyzedHistory = 4096
-    private val debounceMs = 250L
     private val analysisMutex = ReentrantLock()
     private val stateLock = Any()
-    private val pendingFiles = linkedSetOf<String>()
+    private val pendingAnalyzeFiles = linkedSetOf<String>()
+    private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
     private val removedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
     private val cachedDefinitionsByFile = mutableMapOf<String, List<ConstDefinition>>()
@@ -39,15 +38,18 @@ class ConstRefScheduler(
             return
         }
         synchronized(stateLock) {
-            pendingFiles += stdPath
-            schedulePendingLocked(delayMs = debounceMs)
+            movePreviousEditingFileToPendingLocked(stdPath)
+            currentEditingFile = stdPath
         }
     }
 
     fun onFileDeleted(filePath: String) {
         val stdPath = File(filePath).toStdPath()
         synchronized(stateLock) {
-            pendingFiles.removeIf { it == stdPath || it.startsWith("$stdPath/") }
+            pendingAnalyzeFiles.removeIf { it == stdPath || it.startsWith("$stdPath/") }
+            if (currentEditingFile == stdPath || currentEditingFile?.startsWith("$stdPath/") == true) {
+                currentEditingFile = null
+            }
             analyzedAt.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             removedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             notifyStateChangedLocked()
@@ -75,15 +77,16 @@ class ConstRefScheduler(
         val startAt = System.currentTimeMillis()
         val deadlineAt = startAt + timeoutMs
         synchronized(stateLock) {
+            flushCurrentEditingFileLocked()
             targetPaths.forEach { path ->
                 if (File(path).exists()) {
-                    pendingFiles += path
+                    pendingAnalyzeFiles += path
                 } else {
                     analyzedAt[path] = startAt
                 }
             }
             trimAnalyzedAtLocked()
-            schedulePendingLocked(delayMs = 0L)
+            schedulePendingLocked()
         }
         forceAnalyzePendingNow()
         synchronized(stateLock) {
@@ -198,12 +201,9 @@ class ConstRefScheduler(
         analyzer.dispose()
     }
 
-    private fun schedulePendingLocked(delayMs: Long) {
+    private fun schedulePendingLocked() {
         scheduledJob?.cancel()
         scheduledJob = coroutineScope.launch {
-            if (delayMs > 0L) {
-                delay(delayMs)
-            }
             analyzePending()
         }
     }
@@ -211,11 +211,11 @@ class ConstRefScheduler(
     private fun analyzePending() {
         val toAnalyze = synchronized(stateLock) {
             scheduledJob = null
-            if (pendingFiles.isEmpty()) {
+            if (pendingAnalyzeFiles.isEmpty()) {
                 return
             }
-            val files = pendingFiles.toList()
-            pendingFiles.clear()
+            val files = pendingAnalyzeFiles.toList()
+            pendingAnalyzeFiles.clear()
             runningJob = null
             files
         }
@@ -224,8 +224,8 @@ class ConstRefScheduler(
         } finally {
             synchronized(stateLock) {
                 runningJob = null
-                if (pendingFiles.isNotEmpty()) {
-                    schedulePendingLocked(0L)
+                if (pendingAnalyzeFiles.isNotEmpty()) {
+                    schedulePendingLocked()
                 }
             }
         }
@@ -315,13 +315,13 @@ class ConstRefScheduler(
 
     private fun forceAnalyzePendingNow() {
         val toAnalyze = synchronized(stateLock) {
-            if (pendingFiles.isEmpty()) {
+            if (pendingAnalyzeFiles.isEmpty()) {
                 return
             }
             scheduledJob?.cancel()
             scheduledJob = null
-            val files = pendingFiles.toList()
-            pendingFiles.clear()
+            val files = pendingAnalyzeFiles.toList()
+            pendingAnalyzeFiles.clear()
             files
         }
         try {
@@ -329,6 +329,21 @@ class ConstRefScheduler(
         } catch (t: Throwable) {
             logger.warn("ConstRefScheduler.forceAnalyzePendingNow failed", t)
         }
+    }
+
+    private fun movePreviousEditingFileToPendingLocked(nextEditingFile: String) {
+        val previousEditingFile = currentEditingFile ?: return
+        if (previousEditingFile == nextEditingFile) {
+            return
+        }
+        pendingAnalyzeFiles += previousEditingFile
+        schedulePendingLocked()
+    }
+
+    private fun flushCurrentEditingFileLocked() {
+        val editingFile = currentEditingFile ?: return
+        pendingAnalyzeFiles += editingFile
+        currentEditingFile = null
     }
 
     private fun calculateChecksum(file: File): Long {
