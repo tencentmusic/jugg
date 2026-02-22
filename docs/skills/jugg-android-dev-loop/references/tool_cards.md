@@ -37,13 +37,16 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Purpose: compile source files then deploy changed artifacts to device. This is the default path for normal iteration.
 - Required input: `projectDir`.
 - When to use: normal development — code changes must take effect on device.
-- Success output: `status="OK"`.
+- Success output:
+  - Immediate final: `data.isFinal=true` with `data.status=success|failed|canceled`（通常带 `runResult`）
+  - Long task: `data.isFinal=false`, `data.status=running`, and `data.jobId`
 - On failure: classify (`SOURCE_ERROR`, `INSTALL_CONFLICT`, `SIGNATURE_MISMATCH`, `MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`).
 - Fallback order:
   1) retry `compile_and_deploy` up to 3 consecutive attempts,
   2) then `force_gradle_compile` (heavy fallback),
   3) retry `compile_and_deploy`,
   4) then `clean_reinstall_apk` when policy allows.
+- Follow-up rule: if `isFinal=false`, poll `get_compile_status(jobId)` until terminal.
 
 ## `clean_reinstall_apk`
 
@@ -59,7 +62,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Cost note: very heavy operation; can be 100x+ slower than `compile_and_deploy`.
 - Required input: `projectDir`.
 - Success output:
-  - Immediate final: `data.isFinal=true`, `data.status=success|failed`
+  - Immediate final: `data.isFinal=true`, `data.status=success|failed|canceled`
   - Long task: `data.isFinal=false`, `data.status=running`, and `data.jobId`
 - On failure: stop and report; do not retry `force_gradle_compile` itself.
 - Usage rule: only invoke after 3 consecutive `compile_and_deploy` failures.
@@ -68,7 +71,7 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 ## `get_compile_status`
 
-- Purpose: query async status for `force_gradle_compile`.
+- Purpose: query async status for compile tools that returned `isFinal=false` (`force_gradle_compile` / `compile_and_deploy`).
 - Required input: `projectDir`, `jobId`.
 - Success output: `data.status` in `running|success|failed|canceled|unknown`, plus `executionType`.
 - When to stop polling: `status` becomes `success|failed|canceled|unknown`.

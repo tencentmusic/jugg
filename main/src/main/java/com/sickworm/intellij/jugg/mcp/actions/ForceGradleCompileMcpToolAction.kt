@@ -33,7 +33,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
                         "executionType" to McpJsonSchemaProperty(type = "string", `enum` = listOf("local", "remote")),
                         "logPath" to McpJsonSchemaProperty(type = "string"),
                         "isFinal" to McpJsonSchemaProperty(type = "boolean"),
-                        "status" to McpJsonSchemaProperty(type = "string", `enum` = listOf("running", "success", "failed")),
+                        "status" to McpJsonSchemaProperty(type = "string", `enum` = listOf("running", "success", "failed", "canceled")),
                         "triggered" to McpJsonSchemaProperty(type = "boolean"),
                     ),
                     required = listOf("accepted", "jobId", "executionType", "logPath", "isFinal", "status", "triggered"),
@@ -49,7 +49,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
 
     private fun forceGradleCompileAction(runtime: IMcpRuntime): McpToolResult {
         return try {
-            val trigger = GradleCompileJobManager.trigger(runtime)
+            val trigger = CompileJobManager.triggerForceGradleCompile(runtime)
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = trigger.message,

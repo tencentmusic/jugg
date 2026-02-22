@@ -6,7 +6,7 @@ interface:
 
     ## Core Workflow (always follow this order)
 
-    1. `compile_and_deploy` — compile and deploy (default path). Use `compile_only` when compile check only. Fallback: `force_gradle_compile` (poll `get_compile_status` when needed) then `clean_reinstall_apk`.
+    1. `compile_and_deploy` — compile and deploy (default path). If it returns `isFinal=false`, poll `get_compile_status(jobId)` to terminal. Use `compile_only` when compile check only. Fallback: `force_gradle_compile` (poll `get_compile_status` when needed) then `clean_reinstall_apk`.
     2. `start_app` + `tap` — launch app and interact (runtime verification needed only).
     3. `screenshot` / `layout_dump` — collect verification evidence.
 
@@ -29,6 +29,7 @@ interface:
 
     ## Failure Handling
 
+    compile_and_deploy returns `isFinal=false` → poll `get_compile_status(jobId)` first, then continue by terminal status.
     compile_and_deploy fails → force_gradle_compile (if `isFinal=false`, poll `get_compile_status`) → retry → clean_reinstall_apk → stop and report.
     force_gradle_compile final failed → inspect `${projectDir}/build/jugg/log/compile_latest.log`.
     compile_and_deploy with `MCP_NO_DEVICE` → stop and ask user to start/connect device, or switch to compile_only.

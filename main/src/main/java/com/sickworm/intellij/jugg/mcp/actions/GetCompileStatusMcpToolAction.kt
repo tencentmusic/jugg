@@ -13,11 +13,11 @@ class GetCompileStatusMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Query compile job status by jobId. Use this after force_gradle_compile returns isFinal=false.",
+        description = "Query compile job status by jobId. Use this after compile-related tools return isFinal=false.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
-                "jobId" to McpJsonSchemaProperty(type = "string", description = "Compile job ID returned by force_gradle_compile."),
+                "jobId" to McpJsonSchemaProperty(type = "string", description = "Compile job ID returned by async compile tools."),
             ),
             required = listOf("projectDir", "jobId"),
             additionalProperties = false,
@@ -51,7 +51,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                 errorCode = McpErrorCode.MCP_INVALID_PARAMS,
             )
         }
-        val state = GradleCompileJobManager.getStatus(jobId)
+        val state = CompileJobManager.getStatus(jobId)
         val data = mutableMapOf<String, Any?>(
             "jobId" to state.jobId,
             "status" to state.status,

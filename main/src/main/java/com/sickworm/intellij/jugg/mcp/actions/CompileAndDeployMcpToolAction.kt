@@ -39,16 +39,59 @@ class CompileAndDeployMcpToolAction : McpToolAction {
         private const val DETAIL_PREVIEW_MAX_CHARS = 1024
 
         fun deployAction(runtime: IMcpRuntime, toolName: String, isSkipDeploy: Boolean = false): McpToolResult {
-            val runResponse = runtime.juggConfigurationRunner.runFirstConfiguration(isRpcMode = true, isSkipDeploy = isSkipDeploy)
+            val trigger = CompileJobManager.triggerJuggCompile(
+                runtime = runtime,
+                isSkipDeploy = isSkipDeploy,
+            )
+            val jobMetaData = buildJobMetaData(trigger)
+            if (!trigger.isFinal) {
+                return McpToolResult(
+                    status = McpToolStatus.OK,
+                    message = trigger.message,
+                    data = jobMetaData,
+                    artifacts = emptyList(),
+                    errorCode = null,
+                )
+            }
+
+            val runResponse = trigger.finalResult?.runInvocationResult
+            if (runResponse == null) {
+                return buildRunFailureResult(
+                    toolName = toolName,
+                    runErrorMessage = "missing final run result",
+                    detail = "",
+                    extraData = jobMetaData,
+                )
+            }
             if (!runResponse.isSuccess) {
-                return buildRunFailureResult(toolName, runResponse.errorMessage, runResponse.detail)
+                return buildRunFailureResult(
+                    toolName = toolName,
+                    runErrorMessage = runResponse.errorMessage,
+                    detail = runResponse.detail,
+                    extraData = jobMetaData,
+                )
             }
             return buildRunToolResult(
                 toolName = toolName,
-                successMessage = "$toolName executed successfully.",
+                successMessage = if (trigger.status == "success") {
+                    "$toolName executed successfully."
+                } else {
+                    "$toolName finished with status=${trigger.status}."
+                },
                 runResultObject = JsonParser.parseString(Gson().toJson(runResponse.runResult)) as? JsonObject,
                 detail = runResponse.detail,
-                extraData = emptyMap(),
+                extraData = jobMetaData,
+            )
+        }
+
+        private fun buildJobMetaData(trigger: CompileJobTriggerResult): Map<String, Any> {
+            return mapOf(
+                "accepted" to trigger.accepted,
+                "jobId" to trigger.jobId,
+                "executionType" to trigger.executionType,
+                "logPath" to trigger.logPath,
+                "isFinal" to trigger.isFinal,
+                "status" to trigger.status,
             )
         }
 
@@ -118,11 +161,17 @@ class CompileAndDeployMcpToolAction : McpToolAction {
             }
         }
 
-        private fun buildRunFailureResult(toolName: String, runErrorMessage: String?, detail: String): McpToolResult {
+        private fun buildRunFailureResult(
+            toolName: String,
+            runErrorMessage: String?,
+            detail: String,
+            extraData: Map<String, Any> = emptyMap(),
+        ): McpToolResult {
             val detailResult = resolveDetailResult(toolName, detail)
             val reason = runErrorMessage ?: "unknown run error"
             val data = mutableMapOf<String, Any>()
             attachDetailData(data, detailResult)
+            data.putAll(extraData)
             val message = if (detailResult.hasDetail) {
                 "$toolName failed. Reason: $reason. See data.detail and artifacts for logs."
             } else {
@@ -148,6 +197,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 val detailResult = resolveDetailResult(toolName, detail)
                 val data = mutableMapOf<String, Any>()
                 attachDetailData(data, detailResult)
+                data.putAll(extraData)
                 val message = if (detailResult.hasDetail) {
                     "$toolName failed. Reason: invalid run result payload. See data.detail and artifacts for logs."
                 } else {

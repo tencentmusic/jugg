@@ -29,7 +29,7 @@ class CompileOnlyMcpToolAction : McpToolAction {
     }
 
     private fun compileAction(runtime: IMcpRuntime): McpToolResult {
-        return CompileAndDeployMcpToolAction.deployAction(runtime, "compile_only")
+        return CompileAndDeployMcpToolAction.deployAction(runtime, "compile_only", isSkipDeploy = true)
     }
 
 }
