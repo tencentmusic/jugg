@@ -133,15 +133,22 @@ class KotlinConstParser(
                     super.visitReferenceExpression(expression)
                     return
                 }
-                val constName = nameExpression.getReferencedName()
-                if (!definitionIndex.hasConstName(constName)) {
+                val referenceName = nameExpression.getReferencedName()
+                val importedConstTargets = importContext.explicitConstImports[referenceName].orEmpty()
+                val hasDirectConst = definitionIndex.hasConstName(referenceName)
+                if (!hasDirectConst && importedConstTargets.isEmpty()) {
                     super.visitReferenceExpression(expression)
                     return
                 }
 
-                importContext.explicitConstImports[constName].orEmpty().forEach { fqClassName ->
-                    addReference(sourcePath, fqClassName, constName, definitionIndex, references)
+                importedConstTargets.forEach { target ->
+                    addReference(sourcePath, target.fqClassName, target.constName, definitionIndex, references)
                 }
+                if (!hasDirectConst) {
+                    super.visitReferenceExpression(expression)
+                    return
+                }
+                val constName = referenceName
                 importContext.classAsteriskImports.forEach { fqClassName ->
                     if (definitionIndex.hasDefinition(fqClassName, constName)) {
                         addReference(sourcePath, fqClassName, constName, definitionIndex, references)
@@ -283,7 +290,12 @@ class KotlinConstParser(
         val explicitClassImports: MutableMap<String, String> = mutableMapOf(),
         val packageAsteriskImports: MutableSet<String> = mutableSetOf(),
         val classAsteriskImports: MutableSet<String> = mutableSetOf(),
-        val explicitConstImports: MutableMap<String, MutableSet<String>> = mutableMapOf(),
+        val explicitConstImports: MutableMap<String, MutableSet<ImportedConstTarget>> = mutableMapOf(),
+    )
+
+    private data class ImportedConstTarget(
+        val fqClassName: String,
+        val constName: String,
     )
 
     private fun buildImportContext(ktFile: KtFile, definitionIndex: ConstDefinitionLookup): KotlinImportContext {
@@ -308,13 +320,19 @@ class KotlinConstParser(
 
             val owner = importedFqName.substringBeforeLast('.', "")
             if (owner.isNotBlank() && definitionIndex.hasDefinition(owner, importedName)) {
-                context.explicitConstImports.getOrPut(bindName) { mutableSetOf() } += owner
+                context.explicitConstImports.getOrPut(bindName) { mutableSetOf() } += ImportedConstTarget(
+                    fqClassName = owner,
+                    constName = importedName,
+                )
                 return@forEach
             }
 
             if (owner.isNotBlank()) {
                 definitionIndex.findByPackageAndConst(owner, importedName).forEach { definition ->
-                    context.explicitConstImports.getOrPut(bindName) { mutableSetOf() } += definition.fqClassName
+                    context.explicitConstImports.getOrPut(bindName) { mutableSetOf() } += ImportedConstTarget(
+                        fqClassName = definition.fqClassName,
+                        constName = importedName,
+                    )
                 }
             }
         }

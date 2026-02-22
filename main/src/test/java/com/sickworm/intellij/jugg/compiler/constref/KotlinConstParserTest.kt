@@ -101,6 +101,53 @@ class KotlinConstParserTest : ConstRefTempDirCleanupSupport() {
     }
 
     @Test
+    fun `should parse kotlin constant references with alias imports`() {
+        val rootDir = createTempDirectory("kotlin_const_refs_alias")
+        val constantsFile = File(rootDir, "Config.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                const val TOP = 10
+
+                class Config {
+                    companion object {
+                        const val DEFAULT = "ok"
+                    }
+                }
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example.user
+
+                import com.example.TOP as ALIAS_TOP
+                import com.example.Config.DEFAULT as ALIAS_DEFAULT
+
+                fun useAlias(): String {
+                    val a = ALIAS_TOP
+                    val b = ALIAS_DEFAULT
+                    return "${'$'}a-${'$'}b"
+                }
+                """.trimIndent()
+            )
+        }
+
+        val parser = KotlinConstParser(logger)
+        try {
+            val definitions = parser.parseDefinitions(constantsFile)
+            val definitionIndex = ConstDefinitionIndex(definitions)
+            val references = parser.parseReferences(userFile, definitionIndex)
+            val keys = references.map { "${it.defFqClassName}.${it.constName}" }.toSet()
+            assertEquals(setOf("com.example.ConfigKt.TOP", "com.example.Config.DEFAULT"), keys)
+        } finally {
+            parser.dispose()
+        }
+    }
+
+    @Test
     fun `should parse kotlin top level const references from package asterisk import`() {
         val rootDir = createTempDirectory("kotlin_const_refs_pkg_asterisk")
         val constantsFile = File(rootDir, "TopConsts.kt").apply {
