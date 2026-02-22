@@ -191,6 +191,52 @@
 - 所有 fetch 类型工具统一写入：`$PROJECT_DIR/build/jugg/mcp_fetch/<tool>/`
 - 当前包含子目录：`screenshot/`、`record/`、`layout_dump/`
 
+### 4.16 `force_gradle_compile`（Adaptive Response）
+
+- 作用：重度 Gradle 回退编译入口；使用 25 秒软超时自适应返回，避免长编译阻塞 MCP。
+- 参数：
+  - `projectDir`（必填）
+- 返回 `data` 关键字段：
+  - `accepted`：是否受理
+  - `jobId`：编译任务 ID（唯一标识）
+  - `executionType`：`local|remote`
+  - `logPath`：固定 `build/jugg/log/compile_latest.log`
+  - `isFinal`：是否已在当前调用内拿到终态
+  - `status`：`running|success|failed`
+  - `triggered`：兼容旧调用方（等价于 `accepted`）
+- 约定：
+  - `isFinal=false` 时，必须调用 `get_compile_status(jobId)` 继续查询
+  - 成功/失败判定以 `get_compile_status(jobId)` 为准
+
+### 4.17 `get_compile_status`
+
+- 作用：按 `jobId` 查询编译状态。
+- 参数：
+  - `projectDir`（必填）
+  - `jobId`（必填）
+- 返回 `data` 字段：
+  - `jobId`
+  - `status`：`running|success|failed|canceled|unknown`
+  - `executionType`：`local|remote`
+  - `finishedAt`（完成时返回）
+  - `message`
+
+### 4.18 `request_remote_ssh_info`
+
+- 作用：低频敏感工具，仅用于人工远端排障所需 SSH 登录信息获取。
+- 参数：
+  - `projectDir`（必填）
+  - `reason`（必填）
+  - `userConsent`（必填，必须为 `true`）
+  - `requestedBy`（可选，审计调用方标识）
+- 安全与审计约束：
+  - 未获得用户明确同意，不得调用
+  - 调用时 IDE 必须二次确认（Allow/Deny）
+  - 审计记录写入 `build/jugg/log/ssh_info_audit.log`
+- 返回：
+  - 成功：返回 SSH 登录信息与 `auditId`
+  - 拒绝/不满足条件：返回 ERROR，并带 `auditId`
+
 ---
 
 ## 五、curl 示例
@@ -406,6 +452,64 @@ curl -s -X POST "http://localhost:12320/mcp" \
         "serial":"emulator-5554",
         "x":540,
         "y":530
+      }
+    }
+  }'
+```
+
+### 5.13 tools/call - force_gradle_compile
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":10,
+    "method":"tools/call",
+    "params":{
+      "name":"force_gradle_compile",
+      "arguments":{
+        "projectDir":"/abs/path/to/project"
+      }
+    }
+  }'
+```
+
+### 5.14 tools/call - get_compile_status
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":11,
+    "method":"tools/call",
+    "params":{
+      "name":"get_compile_status",
+      "arguments":{
+        "projectDir":"/abs/path/to/project",
+        "jobId":"<from_force_gradle_compile>"
+      }
+    }
+  }'
+```
+
+### 5.15 tools/call - request_remote_ssh_info
+
+```bash
+curl -s -X POST "http://localhost:12320/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":12,
+    "method":"tools/call",
+    "params":{
+      "name":"request_remote_ssh_info",
+      "arguments":{
+        "projectDir":"/abs/path/to/project",
+        "reason":"Need manual remote troubleshooting",
+        "userConsent":true,
+        "requestedBy":"agent"
       }
     }
   }'

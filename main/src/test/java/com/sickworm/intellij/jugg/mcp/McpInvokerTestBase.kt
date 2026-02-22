@@ -79,6 +79,37 @@ abstract class McpInvokerTestBase {
             fakeAction("force_gradle_compile", def("force_gradle_compile")) { _ ->
                 McpToolResult(McpToolStatus.OK, "force_gradle_compile executed successfully.", mapOf("triggered" to true), emptyList(), null)
             },
+            fakeAction("get_compile_status", def("get_compile_status")) { arguments ->
+                val jobId = arguments["jobId"] as? String ?: "job-unknown"
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "get_compile_status executed successfully.",
+                    mapOf(
+                        "jobId" to jobId,
+                        "status" to "success",
+                        "executionType" to "local",
+                        "message" to "done",
+                    ),
+                    emptyList(),
+                    null,
+                )
+            },
+            fakeAction("request_remote_ssh_info", def("request_remote_ssh_info")) { _ ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "request_remote_ssh_info executed successfully.",
+                    mapOf(
+                        "auditId" to "audit-1",
+                        "user" to "root",
+                        "ip" to "127.0.0.1",
+                        "port" to 22,
+                        "password" to "",
+                        "sshLoginCommand" to "ssh root@127.0.0.1 -p 22",
+                    ),
+                    emptyList(),
+                    null,
+                )
+            },
             fakeAction("device_list", def("device_list")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,

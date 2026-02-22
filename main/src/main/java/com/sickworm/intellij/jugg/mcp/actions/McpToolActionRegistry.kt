@@ -29,6 +29,8 @@ class McpToolActionRegistry(
                 CompileAndDeployMcpToolAction(),
                 CleanReinstallApkMcpToolAction(),
                 ForceGradleCompileMcpToolAction(),
+                GetCompileStatusMcpToolAction(),
+                RequestRemoteSshInfoMcpToolAction(),
                 DeviceListMcpToolAction(),
                 ScreenshotMcpToolAction(),
                 RecordMcpToolAction(),

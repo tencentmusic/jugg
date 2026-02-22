@@ -26,7 +26,7 @@
 | aapt2 | Aapt2DaemonInvoker | aapt2 | AAPT2 守护进程调用 | 稳定 | 2025-01-20 |
 | git | GitManager | git | Git 集成 | 稳定 | 2025-01-20 |
 | logger | JuggLogger | logger | 日志体系 | 稳定 | 2025-01-20 |
-| mcp | McpLocalServer, McpInvoker | mcp | 本地 MCP/工具命令注册 | 稳定 | 2026-02-09 |
+| mcp | McpLocalServer, McpInvoker, GradleCompileJobManager | mcp | 本地 MCP/工具命令注册、force_gradle_compile 异步任务状态 | 稳定 | 2026-02-22 |
 | server | JuggServer | server | 远程编译/服务端 | 稳定 | 2025-01-20 |
 | platform | PlatformApi | platform | 平台 API 注入点 | 稳定 | 2025-01-20 |
 

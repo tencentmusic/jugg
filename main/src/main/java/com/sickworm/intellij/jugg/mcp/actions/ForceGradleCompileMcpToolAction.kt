@@ -28,9 +28,15 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
+                        "accepted" to McpJsonSchemaProperty(type = "boolean"),
+                        "jobId" to McpJsonSchemaProperty(type = "string"),
+                        "executionType" to McpJsonSchemaProperty(type = "string", `enum` = listOf("local", "remote")),
+                        "logPath" to McpJsonSchemaProperty(type = "string"),
+                        "isFinal" to McpJsonSchemaProperty(type = "boolean"),
+                        "status" to McpJsonSchemaProperty(type = "string", `enum` = listOf("running", "success", "failed")),
                         "triggered" to McpJsonSchemaProperty(type = "boolean"),
                     ),
-                    required = listOf("triggered"),
+                    required = listOf("accepted", "jobId", "executionType", "logPath", "isFinal", "status", "triggered"),
                     additionalProperties = false,
                 )
             )
@@ -43,11 +49,20 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
 
     private fun forceGradleCompileAction(runtime: IMcpRuntime): McpToolResult {
         return try {
-            runtime.forceGradleCompileHelper.executeGradleCompile(autoConfirm = true)
+            val trigger = GradleCompileJobManager.trigger(runtime)
             McpToolResult(
                 status = McpToolStatus.OK,
-                message = "force_gradle_compile executed successfully.",
-                data = mapOf("triggered" to true),
+                message = trigger.message,
+                data = mapOf(
+                    "accepted" to trigger.accepted,
+                    "jobId" to trigger.jobId,
+                    "executionType" to trigger.executionType,
+                    "logPath" to trigger.logPath,
+                    "isFinal" to trigger.isFinal,
+                    "status" to trigger.status,
+                    // keep old field for compatibility with old callers.
+                    "triggered" to trigger.accepted,
+                ),
                 artifacts = emptyList(),
                 errorCode = null,
             )

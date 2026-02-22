@@ -34,7 +34,7 @@ The agent modifies the necessary source code files based on the tasks submitted 
 
 - **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to default selected device.
 - **Compile-only path**: `compile_only` with `projectDir` — when no device is available or you only need to verify compilation.
-- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries.
+- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` until terminal.
 
 If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 
@@ -74,6 +74,7 @@ After task verification is complete:
 - Never claim success without artifact evidence.
 - Never reuse stale final artifacts: `build/mcp_fetch/final` must be emptied before copy.
 - `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures, unless user says "fallback compile".
+- For `force_gradle_compile`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
 
 ## Decision Rules
 
@@ -129,10 +130,11 @@ When compile/deploy fails, follow this strict order:
 2. **Try deterministic diagnosis**: match against known error patterns in `references/error_patterns.md`.
 3. **Use auto downgrade when applicable**:
    - `compile_and_deploy` fails -> retry `compile_and_deploy` (up to 3 consecutive attempts)
-   - still failing after 3 retries -> `force_gradle_compile` -> retry `compile_and_deploy`
+   - still failing after 3 retries -> `force_gradle_compile` (poll `get_compile_status`) -> retry `compile_and_deploy`
    - Still fails -> `clean_reinstall_apk`
    - `clean_reinstall_apk` fails -> stop and report
 4. **Stop and confirm with user** when root cause is still unclear.
+5. For `status=failed` from `get_compile_status`, inspect `${projectDir}/build/jugg/log/compile_latest.log`.
 
 Do not silently loop retries without diagnosis.
 

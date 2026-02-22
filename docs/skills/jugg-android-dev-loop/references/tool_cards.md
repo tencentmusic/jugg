@@ -58,9 +58,20 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Purpose: Gradle fallback compile when Jugg incremental build repeatedly fails.
 - Cost note: very heavy operation; can be 100x+ slower than `compile_and_deploy`.
 - Required input: `projectDir`.
-- Success output: `status="OK"`, `data.triggered=true`.
+- Success output:
+  - Immediate final: `data.isFinal=true`, `data.status=success|failed`
+  - Long task: `data.isFinal=false`, `data.status=running`, and `data.jobId`
 - On failure: stop and report; do not retry `force_gradle_compile` itself.
 - Usage rule: only invoke after 3 consecutive `compile_and_deploy` failures.
+- Follow-up rule: if `isFinal=false`, poll `get_compile_status(jobId)` until `success|failed|canceled`.
+- Troubleshooting: when final status is `failed`, read `${projectDir}/build/jugg/log/compile_latest.log`.
+
+## `get_compile_status`
+
+- Purpose: query async status for `force_gradle_compile`.
+- Required input: `projectDir`, `jobId`.
+- Success output: `data.status` in `running|success|failed|canceled|unknown`, plus `executionType`.
+- When to stop polling: `status` becomes `success|failed|canceled|unknown`.
 
 ## `start_activity`
 

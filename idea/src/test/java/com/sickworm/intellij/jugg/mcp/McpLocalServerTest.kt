@@ -105,6 +105,8 @@ class McpLocalServerTest {
             Assert.assertTrue(names.contains("compile_and_deploy"))
             Assert.assertTrue(names.contains("clean_reinstall_apk"))
             Assert.assertTrue(names.contains("force_gradle_compile"))
+            Assert.assertTrue(names.contains("get_compile_status"))
+            Assert.assertTrue(names.contains("request_remote_ssh_info"))
             Assert.assertTrue(names.contains("device_list"))
             Assert.assertTrue(names.contains("screenshot"))
             Assert.assertTrue(names.contains("record"))

@@ -6,6 +6,7 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.sickworm.intellij.jugg.compiler.ui.RunResult
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.run.ExportIncrementalApkHelper
 import com.sickworm.intellij.jugg.ide.JuggConfigurationType
@@ -15,7 +16,10 @@ import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.project.CompileContextManager
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
+import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,6 +30,7 @@ class IdeaForceGradleCompileHelper(
     private val deployFileManager: DeployFileManager,
     private val taskRunnerManager: TaskRunnerManager,
     private val compileContextManager: CompileContextManager,
+    private val pathManager: JuggPathManager,
     private val logger: Logger,
 ) : ForceGradleCompileHelper() {
 
@@ -113,6 +118,117 @@ class IdeaForceGradleCompileHelper(
         }
     }
 
+    override fun executeGradleCompileBlocking(
+        autoConfirm: Boolean,
+        useCleanAndReinstall: Boolean,
+    ): GradleCompileExecutionResult {
+        if (!autoConfirm) {
+            return GradleCompileExecutionResult(
+                status = "failed",
+                message = "executeGradleCompileBlocking requires autoConfirm=true.",
+            )
+        }
+        if (useCleanAndReinstall) {
+            ForceGradleCompileHelper.isCleanAndReinstallNextTime = true
+        } else {
+            ForceGradleCompileHelper.isForceGradleCompileNextTime = true
+        }
+        val result = juggConfigurationRunner.runFirstConfiguration(isRpcMode = true)
+        if (!result.isSuccess) {
+            return GradleCompileExecutionResult(
+                status = "failed",
+                message = result.errorMessage ?: "run configuration failed",
+            )
+        }
+        val runResult = result.runResult
+        if (runResult == null) {
+            return GradleCompileExecutionResult(
+                status = "failed",
+                message = "run result is empty.",
+            )
+        }
+        return toExecutionResult(runResult)
+    }
+
+    override fun resolveExecutionType(): String {
+        val options = resolveJuggRunConfigurationOptions() ?: return "local"
+        return if (options.isRemoteCompile) "remote" else "local"
+    }
+
+    override fun requestRemoteSshInfo(
+        requestedBy: String,
+        reason: String,
+    ): RemoteSshInfoResult {
+        val auditId = UUID.randomUUID().toString()
+        val options = resolveJuggRunConfigurationOptions()
+        if (options == null) {
+            writeSshAudit(
+                auditId = auditId,
+                requestedBy = requestedBy,
+                reason = reason,
+                confirmed = false,
+                outcome = "no_run_configuration",
+            )
+            return RemoteSshInfoResult(
+                approved = false,
+                message = "request_remote_ssh_info failed. Reason: Jugg run configuration not found.",
+                auditId = auditId,
+            )
+        }
+        if (!options.isRemoteCompile) {
+            writeSshAudit(
+                auditId = auditId,
+                requestedBy = requestedBy,
+                reason = reason,
+                confirmed = false,
+                outcome = "remote_compile_disabled",
+            )
+            return RemoteSshInfoResult(
+                approved = false,
+                message = "request_remote_ssh_info failed. Reason: current run configuration is not remote compile.",
+                auditId = auditId,
+            )
+        }
+        val confirmContent = buildString {
+            append("<html>Allow exposing remote SSH login info?<br/>")
+            append("Requester: ").append(requestedBy).append("<br/>")
+            append("Reason: ").append(reason).append("<br/>")
+            append("Target: ").append(options.remoteSshUser).append("@").append(options.remoteSshIp)
+                .append(":").append(options.remoteSshPort).append("</html>")
+        }
+        val confirmed = CommonConfirmDialog.showAndGetResult(
+            title = "Confirm Remote SSH Info Access",
+            content = confirmContent,
+            okButtonText = "Allow",
+            cancelButtonText = "Deny",
+        )
+        val outcome = if (confirmed) "approved" else "denied_by_user"
+        writeSshAudit(
+            auditId = auditId,
+            requestedBy = requestedBy,
+            reason = reason,
+            confirmed = confirmed,
+            outcome = outcome,
+        )
+        if (!confirmed) {
+            return RemoteSshInfoResult(
+                approved = false,
+                message = "request_remote_ssh_info failed. Reason: IDE confirmation denied by user.",
+                auditId = auditId,
+            )
+        }
+        return RemoteSshInfoResult(
+            approved = true,
+            message = "request_remote_ssh_info executed successfully.",
+            auditId = auditId,
+            user = options.remoteSshUser,
+            ip = options.remoteSshIp,
+            port = options.remoteSshPort,
+            password = options.remoteSshPassword,
+            sshLoginCommand = "ssh ${options.remoteSshUser}@${options.remoteSshIp} -p ${options.remoteSshPort}",
+        )
+    }
+
     private fun tryRunFirstConfiguration(juggConfigurationRunner: IJuggConfigurationRunner, logger: Logger) {
         CoroutineScope(Dispatchers.IO).launch {
             val result = juggConfigurationRunner.runFirstConfiguration(isRpcMode = false)
@@ -125,5 +241,63 @@ class IdeaForceGradleCompileHelper(
                 )
             }
         }
+    }
+
+    private fun resolveJuggRunConfigurationOptions(): JuggRunConfigurationOptions? {
+        val selected = RunManager.getInstance(project).selectedConfiguration?.configuration
+        if (selected is JuggRunConfiguration) {
+            return selected.state
+        }
+        val currentRunConfigurationList = RunManager.getInstance(project)
+            .getConfigurationSettingsList(JuggConfigurationType::class.java)
+        @Suppress("UNCHECKED_CAST")
+        val runConfiguration = (currentRunConfigurationList.firstOrNull()?.configuration
+                as? RunConfigurationBase<JuggRunConfigurationOptions>)
+        return runConfiguration?.state
+    }
+
+    private fun toExecutionResult(runResult: RunResult): GradleCompileExecutionResult {
+        val isSuccess = runResult.isCompileSuccess && runResult.isDeploySuccess
+        return if (isSuccess) {
+            GradleCompileExecutionResult(
+                status = "success",
+                message = "Gradle compile finished successfully.",
+            )
+        } else {
+            val status = if (runResult.isNeedResetHasRun) "canceled" else "failed"
+            GradleCompileExecutionResult(
+                status = status,
+                message = "Gradle compile finished with status=$status.",
+            )
+        }
+    }
+
+    private fun writeSshAudit(
+        auditId: String,
+        requestedBy: String,
+        reason: String,
+        confirmed: Boolean,
+        outcome: String,
+    ) {
+        val auditFile = pathManager.logDir.resolve("ssh_info_audit.log")
+        auditFile.parentFile?.mkdirs()
+        val line = buildString {
+            append("{")
+            append("\"auditId\":\"").append(auditId).append("\",")
+            append("\"requestedBy\":\"").append(escapeJson(requestedBy)).append("\",")
+            append("\"reason\":\"").append(escapeJson(reason)).append("\",")
+            append("\"confirmed\":").append(confirmed).append(",")
+            append("\"outcome\":\"").append(outcome).append("\",")
+            append("\"timestamp\":\"").append(Instant.now().toString()).append("\"")
+            append("}\n")
+        }
+        auditFile.appendText(line)
+    }
+
+    private fun escapeJson(raw: String): String {
+        return raw
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
     }
 }

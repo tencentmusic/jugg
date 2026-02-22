@@ -109,6 +109,48 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
+    fun testGetCompileStatusToolCallSuccess() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 81,
+                params = mapOf(
+                    "name" to "get_compile_status",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "jobId" to "job-1")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testRequestRemoteSshInfoToolCallSuccess() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 82,
+                params = mapOf(
+                    "name" to "request_remote_ssh_info",
+                    "arguments" to mapOf(
+                        "projectDir" to "/tmp/projectA",
+                        "reason" to "manual troubleshooting",
+                        "userConsent" to true,
+                    )
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
     fun testDeviceListToolCallSuccess() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(

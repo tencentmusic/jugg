@@ -11,4 +11,32 @@ abstract class ForceGradleCompileHelper {
     }
 
     abstract fun executeGradleCompile(autoConfirm: Boolean = false, useCleanAndReinstall: Boolean = false)
+
+    abstract fun executeGradleCompileBlocking(
+        autoConfirm: Boolean = true,
+        useCleanAndReinstall: Boolean = false,
+    ): GradleCompileExecutionResult
+
+    abstract fun resolveExecutionType(): String
+
+    abstract fun requestRemoteSshInfo(
+        requestedBy: String,
+        reason: String,
+    ): RemoteSshInfoResult
 }
+
+data class GradleCompileExecutionResult(
+    val status: String,
+    val message: String,
+)
+
+data class RemoteSshInfoResult(
+    val approved: Boolean,
+    val message: String,
+    val auditId: String,
+    val user: String? = null,
+    val ip: String? = null,
+    val port: Int? = null,
+    val password: String? = null,
+    val sshLoginCommand: String? = null,
+)
