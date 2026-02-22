@@ -18,6 +18,7 @@ import kotlin.system.measureTimeMillis
 class DeployDataGenerator(
     private val logger: Logger,
     databaseDir: File,
+    private val constRefEffectProvider: ConstRefEffectProvider = ConstRefEffectProvider.NO_OP,
 ) {
 
     var deployDataDatabase: IDeployDataDatabase = DeployDataDatabase(File(databaseDir, "apk"), logger.getInstance("DeployDataDatabase"))
@@ -34,12 +35,22 @@ class DeployDataGenerator(
         isNeedCheckRecompile: Boolean = true,
         isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
         isCompilingEffectedSourceFiles: Boolean = false,
+        constRefChangedSourcePaths: List<String> = emptyList(),
     ): JuggDeployData {
         val changedDex = items.filter { it.type == CompileOutput.Type.Dex }
         val parsedDex = ApkParser().parseDex(changedDex, isSkipOfficialClass = !isNeedCheckRecompileMinifyRemovedClass) // check official class minify
         val changedOverlays = items.filter { it.type == CompileOutput.Type.Res || it.type == CompileOutput.Type.Asset }
         val changedLibs = items.filter { it.type == CompileOutput.Type.NativeLib }
-        return buildDeployData(parsedDex, changedOverlays, changedLibs, isWarmUp, isNeedCheckRecompile, isNeedCheckRecompileMinifyRemovedClass, isCompilingEffectedSourceFiles)
+        return buildDeployData(
+            parsedDex = parsedDex,
+            changedOverlays = changedOverlays,
+            changedLibs = changedLibs,
+            isWarmUp = isWarmUp,
+            isNeedCheckRecompile = isNeedCheckRecompile,
+            isNeedCheckRecompileMinifyRemovedClass = isNeedCheckRecompileMinifyRemovedClass,
+            isCompilingEffectedSourceFiles = isCompilingEffectedSourceFiles,
+            constRefChangedSourcePaths = constRefChangedSourcePaths,
+        )
     }
 
     @TestOnly
@@ -50,6 +61,7 @@ class DeployDataGenerator(
                         isNeedCheckRecompile: Boolean = true,
                         isNeedCheckRecompileMinifyRemovedClass: Boolean = false,
                         isCompilingEffectedSourceFiles: Boolean = false,
+                        constRefChangedSourcePaths: List<String> = emptyList(),
     ): JuggDeployData {
         val startTime = System.currentTimeMillis()
 
@@ -156,6 +168,17 @@ class DeployDataGenerator(
         if (effectedSourceAndClassNodes.isNotEmpty()) {
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }
+        val constRefEffectedSourcePaths = if (isNeedCheckRecompile) {
+            constRefEffectProvider
+                .getEffectedFiles(constRefChangedSourcePaths)
+                .map { it.refFilePath }
+                .distinct()
+        } else {
+            emptyList()
+        }
+        if (constRefEffectedSourcePaths.isNotEmpty()) {
+            logger.debug("const ref effected source files: $constRefEffectedSourcePaths")
+        }
 
         val apks = deployDataDatabase.getApkInfos()
 
@@ -179,6 +202,7 @@ class DeployDataGenerator(
             overlays, parsedDex,
             isFullRes, isWarmUp,
             updateApkFiles = updateApkFiles,
+            constRefEffectedSourcePaths = constRefEffectedSourcePaths,
         )
 
         val costTime = System.currentTimeMillis() - startTime

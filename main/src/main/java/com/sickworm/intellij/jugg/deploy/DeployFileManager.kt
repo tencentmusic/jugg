@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.compiler.constref.ConstRefScheduler
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
+import com.sickworm.intellij.jugg.deploy.data.ConstRefEffectProvider
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
@@ -66,17 +67,6 @@ class DeployFileManager(
     private val deployedFiles = mutableMapOf<String, CompileOutput>()
 
     /**
-     * build [JuggDeployData]
-     */
-    private val deployDataGenerator = DeployDataGenerator(logger.getInstance("DeployDataGenerator"), databaseDir)
-
-    private val resourceApkGenerator = ResourceApkGenerator(
-        deployDataGenerator.deployDataDatabase,
-        databaseDir.resolve("resource_apks"),
-        logger,
-    )
-
-    /**
      * get source file by source file name in dex file
      */
     private val sourceFileManager = SourceFileManager(projectDir, databaseDir, logger.getInstance("SourceFileManager"))
@@ -87,6 +77,25 @@ class DeployFileManager(
         logger = logger.getInstance("ConstRefScheduler"),
         coroutineScope = coroutineScope,
         backgroundTaskRunner = backgroundTaskRunner,
+    )
+
+    private val constRefEffectProvider = object : ConstRefEffectProvider {
+        override fun getEffectedFiles(changedSourcePaths: Collection<String>) = constRefScheduler.getEffectedFiles(changedSourcePaths)
+    }
+
+    /**
+     * build [JuggDeployData]
+     */
+    private val deployDataGenerator = DeployDataGenerator(
+        logger = logger.getInstance("DeployDataGenerator"),
+        databaseDir = databaseDir,
+        constRefEffectProvider = constRefEffectProvider,
+    )
+
+    private val resourceApkGenerator = ResourceApkGenerator(
+        deployDataGenerator.deployDataDatabase,
+        databaseDir.resolve("resource_apks"),
+        logger,
     )
 
     private var moduleInfos: Map<String, ModuleInfo> = emptyMap()
@@ -376,10 +385,15 @@ class DeployFileManager(
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
+        val changedSourcePaths = compiledFiles.values
+            .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+            .map { it.file.stdAbsPath }
+            .distinct()
         val juggDeployData = deployDataGenerator.buildDeployData(deployItems,
             isNeedCheckRecompile = true,
             isNeedCheckRecompileMinifyRemovedClass = isMinified,
             isCompilingEffectedSourceFiles = isCompilingEffectedSourceFiles,
+            constRefChangedSourcePaths = changedSourcePaths,
         )
 
         val obfuscatedClasses = juggDeployData.effectedClassNodes.map {
@@ -391,16 +405,11 @@ class DeployFileManager(
                     "obfuscatedClasses: ${obfuscatedClasses.map { it.className }}")
         }
 
-        val changedSourcePaths = compiledFiles.values
-            .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
-            .map { it.file.stdAbsPath }
-            .distinct()
-        val constRefEffectedFiles = constRefScheduler.getEffectedFiles(changedSourcePaths)
-        if (constRefEffectedFiles.isNotEmpty()) {
-            logger.debug("getRecompileFiles: constRef effected files=${constRefEffectedFiles.map { it.refFilePath }}")
+        if (juggDeployData.constRefEffectedSourcePaths.isNotEmpty()) {
+            logger.debug("getRecompileFiles: constRef effected files=${juggDeployData.constRefEffectedSourcePaths}")
         }
-        val constRefEffectedSourceFiles = constRefEffectedFiles.mapNotNull {
-            File(it.refFilePath).takeIf(File::exists)
+        val constRefEffectedSourceFiles = juggDeployData.constRefEffectedSourcePaths.mapNotNull {
+            File(it).takeIf(File::exists)
         }.distinctBy { it.stdAbsPath }
 
         val startTime = System.currentTimeMillis()

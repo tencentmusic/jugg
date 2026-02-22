@@ -42,6 +42,8 @@ data class JuggDeployData(
     val isPushOverlayOnly: Boolean = false,
     /** is using compat deploy */
     val isCompatDeploy: Boolean = false,
+    /** source file paths effected by const reference change */
+    val constRefEffectedSourcePaths: List<String> = emptyList(),
 ) {
 
     val isEmpty get() = newClasses.isEmpty() &&
@@ -126,7 +128,10 @@ data class JuggDeployData(
             }
         }
         if (isFull) {
-            val effectedSourceFileNames: List<String> = effectedClassNodes.map { it.sourceFileName }.distinct()
+            val effectedSourceFileNames: List<String> = (
+                effectedClassNodes.map { it.sourceFileName } +
+                    constRefEffectedSourcePaths.map { it.substringAfterLast('/') }
+                ).distinct()
             if (effectedSourceFileNames.isNotEmpty()) {
                 builder.append("effected source files:\n    ")
                 builder.append(effectedSourceFileNames.toString())
