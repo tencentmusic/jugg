@@ -9,6 +9,7 @@ import java.io.File
 import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.CRC32
 import kotlin.concurrent.withLock
+import kotlin.coroutines.coroutineContext
 
 class ConstRefScheduler(
     private val analyzer: ConstRefAnalyzer,
@@ -28,9 +29,11 @@ class ConstRefScheduler(
     private var definitionIndexInitialized = false
     private val trackedSourceDirs = mutableListOf<String>()
     private val fullScanReadySourceDirs = mutableSetOf<String>()
-    private var scheduledJob: Job? = null
-    private var runningJob: Job? = null
-    private var fullScanJob: Job? = null
+    private val sceneTaskStates = mutableMapOf(
+        AnalyzeScene.FULL_SCAN to SceneTaskState(),
+        AnalyzeScene.FILE_CHANGE to SceneTaskState(),
+        AnalyzeScene.PRE_COMPILE to SceneTaskState(),
+    )
 
     fun onFileSaved(filePath: String) {
         val stdPath = File(filePath).toStdPath()
@@ -136,36 +139,29 @@ class ConstRefScheduler(
             trackedSourceDirs.clear()
             trackedSourceDirs += normalizedSourceDirs
             fullScanReadySourceDirs.clear()
-            if (fullScanJob?.isActive == true) {
+            if (isSceneActiveLocked(AnalyzeScene.FULL_SCAN)) {
                 return
             }
-            fullScanJob = coroutineScope.launch {
-                try {
-                    normalizedSourceDirs.forEach { sourceDirPath ->
-                        val sourceDir = File(sourceDirPath)
-                        val sourceFiles = sourceDir
-                            .listFilesRecursively()
-                            .asSequence()
-                            .filter { file -> file.isFile && isSourceFile(file.name) }
-                            .distinctBy { it.toStdPath() }
-                            .toList()
-                        if (sourceFiles.isNotEmpty()) {
-                            val startTime = System.currentTimeMillis()
-                            analyzeFiles(sourceFiles)
-                            val costTime = System.currentTimeMillis() - startTime
-                            logger.debug(
-                                "ConstRefScheduler full scan sourceDir finished, sourceDir=$sourceDirPath, " +
-                                    "files=${sourceFiles.size}, cost=${costTime}ms"
-                            )
-                        }
-                        synchronized(stateLock) {
-                            fullScanReadySourceDirs += sourceDirPath
-                            notifyStateChangedLocked()
-                        }
+            launchSceneTaskLocked(AnalyzeScene.FULL_SCAN) {
+                normalizedSourceDirs.forEach { sourceDirPath ->
+                    val sourceDir = File(sourceDirPath)
+                    val sourceFiles = sourceDir
+                        .listFilesRecursively()
+                        .asSequence()
+                        .filter { file -> file.isFile && isSourceFile(file.name) }
+                        .distinctBy { it.toStdPath() }
+                        .toList()
+                    if (sourceFiles.isNotEmpty()) {
+                        val startTime = System.currentTimeMillis()
+                        analyzeFiles(sourceFiles)
+                        val costTime = System.currentTimeMillis() - startTime
+                        logger.debug(
+                            "ConstRefScheduler full scan sourceDir finished, sourceDir=$sourceDirPath, " +
+                                "files=${sourceFiles.size}, cost=${costTime}ms"
+                        )
                     }
-                } finally {
                     synchronized(stateLock) {
-                        fullScanJob = null
+                        fullScanReadySourceDirs += sourceDirPath
                         notifyStateChangedLocked()
                     }
                 }
@@ -194,36 +190,33 @@ class ConstRefScheduler(
 
     fun dispose() {
         synchronized(stateLock) {
-            scheduledJob?.cancel()
-            runningJob?.cancel()
-            fullScanJob?.cancel()
+            sceneTaskStates.values.forEach {
+                it.scheduledJob?.cancel()
+                it.runningJob?.cancel()
+            }
         }
         analyzer.dispose()
     }
 
     private fun schedulePendingLocked() {
-        scheduledJob?.cancel()
-        scheduledJob = coroutineScope.launch {
+        launchSceneTaskLocked(AnalyzeScene.FILE_CHANGE) {
             analyzePending()
         }
     }
 
     private fun analyzePending() {
         val toAnalyze = synchronized(stateLock) {
-            scheduledJob = null
             if (pendingAnalyzeFiles.isEmpty()) {
                 return
             }
             val files = pendingAnalyzeFiles.toList()
             pendingAnalyzeFiles.clear()
-            runningJob = null
             files
         }
         try {
             analyzeFiles(toAnalyze.map(::File))
         } finally {
             synchronized(stateLock) {
-                runningJob = null
                 if (pendingAnalyzeFiles.isNotEmpty()) {
                     schedulePendingLocked()
                 }
@@ -314,12 +307,16 @@ class ConstRefScheduler(
     }
 
     private fun forceAnalyzePendingNow() {
+        if (!beginSyncScene(AnalyzeScene.PRE_COMPILE)) {
+            return
+        }
         val toAnalyze = synchronized(stateLock) {
             if (pendingAnalyzeFiles.isEmpty()) {
+                endSyncScene(AnalyzeScene.PRE_COMPILE)
                 return
             }
-            scheduledJob?.cancel()
-            scheduledJob = null
+            sceneTaskStates[AnalyzeScene.FILE_CHANGE]?.scheduledJob?.cancel()
+            sceneTaskStates[AnalyzeScene.FILE_CHANGE]?.scheduledJob = null
             val files = pendingAnalyzeFiles.toList()
             pendingAnalyzeFiles.clear()
             files
@@ -328,6 +325,8 @@ class ConstRefScheduler(
             analyzeFiles(toAnalyze.map(::File))
         } catch (t: Throwable) {
             logger.warn("ConstRefScheduler.forceAnalyzePendingNow failed", t)
+        } finally {
+            endSyncScene(AnalyzeScene.PRE_COMPILE)
         }
     }
 
@@ -457,7 +456,73 @@ class ConstRefScheduler(
         (stateLock as java.lang.Object).wait(waitMs)
     }
 
+    private fun launchSceneTaskLocked(scene: AnalyzeScene, action: () -> Unit) {
+        val sceneState = sceneTaskStates.getValue(scene)
+        sceneState.scheduledJob?.cancel()
+        sceneState.scheduledJob = coroutineScope.launch {
+            val runningJob = coroutineContext[Job] ?: return@launch
+            val shouldRun = synchronized(stateLock) {
+                val state = sceneTaskStates.getValue(scene)
+                state.scheduledJob = null
+                if (state.runningJob?.isActive == true) {
+                    return@synchronized false
+                }
+                state.runningJob = runningJob
+                true
+            }
+            if (!shouldRun) {
+                return@launch
+            }
+            try {
+                action()
+            } finally {
+                synchronized(stateLock) {
+                    val state = sceneTaskStates.getValue(scene)
+                    if (state.runningJob == runningJob) {
+                        state.runningJob = null
+                    }
+                    notifyStateChangedLocked()
+                }
+            }
+        }
+    }
+
+    private fun beginSyncScene(scene: AnalyzeScene): Boolean {
+        synchronized(stateLock) {
+            val state = sceneTaskStates.getValue(scene)
+            if (state.runningJob?.isActive == true) {
+                return false
+            }
+            state.runningJob = Job()
+            return true
+        }
+    }
+
+    private fun endSyncScene(scene: AnalyzeScene) {
+        synchronized(stateLock) {
+            val state = sceneTaskStates.getValue(scene)
+            state.runningJob = null
+            notifyStateChangedLocked()
+        }
+    }
+
+    private fun isSceneActiveLocked(scene: AnalyzeScene): Boolean {
+        val state = sceneTaskStates.getValue(scene)
+        return state.runningJob?.isActive == true || state.scheduledJob?.isActive == true
+    }
+
     private fun isSourceFile(path: String): Boolean {
         return path.endsWith(".java") || path.endsWith(".kt")
     }
+
+    private enum class AnalyzeScene {
+        FULL_SCAN,
+        FILE_CHANGE,
+        PRE_COMPILE,
+    }
+
+    private data class SceneTaskState(
+        var scheduledJob: Job? = null,
+        var runningJob: Job? = null,
+    )
 }

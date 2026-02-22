@@ -171,7 +171,7 @@ class IncrementalCompilerHelper(
                 if (compileStatusHolder.isShouldCancel) {
                     // revert file compile status, compile again next round
                     if (isFirstRoundCompile) {
-                        deployFileManager.addChangedFile(undeployedFiles)
+                        deployFileManager.rollbackChangedFile(undeployedFiles)
                         deployFileManager.clearStagingFiles()
                     }
                     return CompileTaskResult.incrementalFailed(false, "Compile canceled")

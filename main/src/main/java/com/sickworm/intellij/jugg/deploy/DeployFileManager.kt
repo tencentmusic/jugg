@@ -124,6 +124,15 @@ class DeployFileManager(
     }
 
     @Synchronized
+    fun rollbackChangedFile(files: List<ChangedFile>) {
+        logger.debug("rollback changed files after cancel, size: ${files.size}, paths: $files")
+        files.forEach {
+            uncompiledFiles[it.file.stdPath] = it
+            compiledFiles.remove(it.file.stdPath)
+        }
+    }
+
+    @Synchronized
     fun removeChangedFile(files: List<File>) {
         files.forEach { file ->
             uncompiledFiles.iterator().let { iterator ->
