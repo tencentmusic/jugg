@@ -20,17 +20,17 @@ class TaskRunnerManager(
     private val deployStateManager: DeployStateManager,
     private val juggServer: JuggServer,
     coroutineScope: CoroutineScope,
-): CoroutineScope by coroutineScope {
+): CoroutineScope by coroutineScope, IBackgroundTaskRunner {
 
     var currentIndicator: ProgressIndicator? = null
         private set
     private var retryInitDelayMill = 3_000L
 
-    fun runBackgroundSafe(jobName: String, action: Runnable): Job {
+    override fun runBackgroundSafe(jobName: String, action: Runnable): Job {
         return runBackgroundSafe(jobName, 0L, action)
     }
 
-    fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job {
+    override fun runBackgroundSafe(jobName: String, delayMs: Long, action: Runnable): Job {
         return launch {
             try {
                 if (delayMs > 0) {

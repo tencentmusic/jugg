@@ -24,9 +24,10 @@ import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
@@ -40,7 +41,8 @@ class DeployFileManager(
     private val logger: Logger,
     private val tmpDir: File,
     databaseDir: File,
-    private val coroutineScope: CoroutineScope,
+    coroutineScope: CoroutineScope,
+    private var backgroundTaskRunner: IBackgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope),
 ) {
 
     /**
@@ -84,6 +86,7 @@ class DeployFileManager(
         database = ConstRefCacheDatabase(File(databaseDir, "const_ref.db"), logger.getInstance("ConstRefCacheDatabase")),
         logger = logger.getInstance("ConstRefScheduler"),
         coroutineScope = coroutineScope,
+        backgroundTaskRunner = backgroundTaskRunner,
     )
 
     private var moduleInfos: Map<String, ModuleInfo> = emptyMap()
@@ -113,7 +116,7 @@ class DeployFileManager(
             compiledFiles.remove(it.file.stdPath)
         }
 
-        coroutineScope.launch {
+        backgroundTaskRunner.runBackgroundSafe("DeployFileManager#updateSourceFiles") {
             sourceFileManager.updateFiles(newFiles, emptyList())
         }
         files.filter {
@@ -159,12 +162,18 @@ class DeployFileManager(
             }
         }
 
-        coroutineScope.launch {
+        backgroundTaskRunner.runBackgroundSafe("DeployFileManager#removeSourceFiles") {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
         files.forEach {
             constRefScheduler.onFileDeleted(it.stdAbsPath)
         }
+    }
+
+    @Synchronized
+    fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
+        this.backgroundTaskRunner = backgroundTaskRunner
+        constRefScheduler.setBackgroundTaskRunner(backgroundTaskRunner)
     }
 
     fun awaitConstRefAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L) {

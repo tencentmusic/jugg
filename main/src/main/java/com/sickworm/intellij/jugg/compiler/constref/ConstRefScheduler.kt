@@ -2,20 +2,21 @@ package com.sickworm.intellij.jugg.compiler.constref
 
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
+import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
+import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.CRC32
 import kotlin.concurrent.withLock
-import kotlin.coroutines.coroutineContext
 
 class ConstRefScheduler(
     private val analyzer: ConstRefAnalyzer,
     private val database: ConstRefCacheDatabase,
     private val logger: Logger,
-    private val coroutineScope: CoroutineScope,
+    coroutineScope: CoroutineScope,
+    private var backgroundTaskRunner: IBackgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope),
 ) {
     private val maxAnalyzedHistory = 4096
     private val analysisMutex = ReentrantLock()
@@ -186,6 +187,10 @@ class ConstRefScheduler(
         return (byCurrentDefinitions + byRemovedDefinitions)
             .filter { it.refFilePath !in changedSet && File(it.refFilePath).exists() }
             .distinctBy { "${it.refFilePath}|${it.defFqClassName}|${it.constName}" }
+    }
+
+    fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
+        this.backgroundTaskRunner = backgroundTaskRunner
     }
 
     fun dispose() {
@@ -459,32 +464,35 @@ class ConstRefScheduler(
     private fun launchSceneTaskLocked(scene: AnalyzeScene, action: () -> Unit) {
         val sceneState = sceneTaskStates.getValue(scene)
         sceneState.scheduledJob?.cancel()
-        sceneState.scheduledJob = coroutineScope.launch {
-            val runningJob = coroutineContext[Job] ?: return@launch
+        lateinit var scheduledJob: Job
+        scheduledJob = backgroundTaskRunner.runBackgroundSafe("ConstRefScheduler#$scene") {
             val shouldRun = synchronized(stateLock) {
                 val state = sceneTaskStates.getValue(scene)
-                state.scheduledJob = null
+                if (state.scheduledJob == scheduledJob) {
+                    state.scheduledJob = null
+                }
                 if (state.runningJob?.isActive == true) {
                     return@synchronized false
                 }
-                state.runningJob = runningJob
+                state.runningJob = scheduledJob
                 true
             }
             if (!shouldRun) {
-                return@launch
+                return@runBackgroundSafe
             }
             try {
                 action()
             } finally {
                 synchronized(stateLock) {
                     val state = sceneTaskStates.getValue(scene)
-                    if (state.runningJob == runningJob) {
+                    if (state.runningJob == scheduledJob) {
                         state.runningJob = null
                     }
                     notifyStateChangedLocked()
                 }
             }
         }
+        sceneState.scheduledJob = scheduledJob
     }
 
     private fun beginSyncScene(scene: AnalyzeScene): Boolean {
