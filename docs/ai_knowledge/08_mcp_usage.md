@@ -51,7 +51,7 @@
 | `clean_reinstall_apk` | 卸载并重装 APK（清空数据） | `projectDir` | 无 |
 | `force_gradle_compile` | 触发 Gradle 回退编译（支持异步返回） | `projectDir` | 无 |
 | `get_compile_status` | 查询编译任务状态 | `projectDir`, `jobId` | 无 |
-| `request_remote_ssh_info` | 获取远端排障 SSH 信息（敏感） | `projectDir`, `reason`, `userConsent` | `requestedBy` |
+| `request_remote_ssh_info` | 获取远端排障 SSH 信息（需 userConsent + IDE 二次确认） | `projectDir`, `reason`, `userConsent` | `requestedBy` |
 | `device_list` | 获取设备列表与 selected 标记 | `projectDir` | 无 |
 | `screenshot` | 截图并返回产物路径 | `projectDir` | `serial` |
 | `record` | 录屏并返回产物路径 | `projectDir` | `serial`, `durationSec` |

@@ -13,13 +13,13 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Request remote SSH login info for manual remote troubleshooting. Must only be called after explicit user consent. IDE will show a second confirmation dialog and audit the action.",
+        description = "Request remote SSH login info for manual remote troubleshooting. Must only be called after explicit user consent. IDE will show a second confirmation dialog.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
                 "reason" to McpJsonSchemaProperty(type = "string", description = "Why remote SSH info is needed."),
                 "userConsent" to McpJsonSchemaProperty(type = "boolean", description = "Must be true if user explicitly agreed."),
-                "requestedBy" to McpJsonSchemaProperty(type = "string", description = "Requester identity for audit. Default: mcp_agent."),
+                "requestedBy" to McpJsonSchemaProperty(type = "string", description = "Requester identity for confirmation display. Default: mcp_agent."),
             ),
             required = listOf("projectDir", "reason", "userConsent"),
             additionalProperties = false,
@@ -29,14 +29,13 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "auditId" to McpJsonSchemaProperty(type = "string"),
                         "user" to McpJsonSchemaProperty(type = "string"),
                         "ip" to McpJsonSchemaProperty(type = "string"),
                         "port" to McpJsonSchemaProperty(type = "number"),
                         "password" to McpJsonSchemaProperty(type = "string"),
                         "sshLoginCommand" to McpJsonSchemaProperty(type = "string"),
                     ),
-                    required = listOf("auditId"),
+                    required = emptyList(),
                     additionalProperties = false,
                 )
             )
@@ -73,7 +72,7 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
             return McpToolResult(
                 status = McpToolStatus.ERROR,
                 message = info.message,
-                data = mapOf("auditId" to info.auditId),
+                data = emptyMap<String, Any>(),
                 artifacts = emptyList(),
                 errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
             )
@@ -82,7 +81,6 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
             status = McpToolStatus.OK,
             message = info.message,
             data = mapOf(
-                "auditId" to info.auditId,
                 "user" to info.user,
                 "ip" to info.ip,
                 "port" to info.port,

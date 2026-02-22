@@ -153,7 +153,6 @@ class CompileAndDeployMcpToolActionTest {
                     return RemoteSshInfoResult(
                         approved = false,
                         message = "not used in this test",
-                        auditId = "test-audit-id",
                     )
                 }
             }

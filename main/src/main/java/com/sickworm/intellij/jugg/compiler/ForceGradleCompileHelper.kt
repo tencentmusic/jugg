@@ -33,7 +33,6 @@ data class GradleCompileExecutionResult(
 data class RemoteSshInfoResult(
     val approved: Boolean,
     val message: String,
-    val auditId: String,
     val user: String? = null,
     val ip: String? = null,
     val port: Int? = null,

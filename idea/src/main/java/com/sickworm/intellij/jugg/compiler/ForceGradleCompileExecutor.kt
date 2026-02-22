@@ -16,10 +16,7 @@ import com.sickworm.intellij.jugg.ide.bean.ConfirmResult
 import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
 import com.sickworm.intellij.jugg.ide.ui.CommonConfirmDialog
 import com.sickworm.intellij.jugg.project.CompileContextManager
-import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.TaskRunnerManager
-import java.time.Instant
-import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,7 +27,6 @@ class IdeaForceGradleCompileHelper(
     private val deployFileManager: DeployFileManager,
     private val taskRunnerManager: TaskRunnerManager,
     private val compileContextManager: CompileContextManager,
-    private val pathManager: JuggPathManager,
     private val logger: Logger,
 ) : ForceGradleCompileHelper() {
 
@@ -159,34 +155,17 @@ class IdeaForceGradleCompileHelper(
         requestedBy: String,
         reason: String,
     ): RemoteSshInfoResult {
-        val auditId = UUID.randomUUID().toString()
         val options = resolveJuggRunConfigurationOptions()
         if (options == null) {
-            writeSshAudit(
-                auditId = auditId,
-                requestedBy = requestedBy,
-                reason = reason,
-                confirmed = false,
-                outcome = "no_run_configuration",
-            )
             return RemoteSshInfoResult(
                 approved = false,
                 message = "request_remote_ssh_info failed. Reason: Jugg run configuration not found.",
-                auditId = auditId,
             )
         }
         if (!options.isRemoteCompile) {
-            writeSshAudit(
-                auditId = auditId,
-                requestedBy = requestedBy,
-                reason = reason,
-                confirmed = false,
-                outcome = "remote_compile_disabled",
-            )
             return RemoteSshInfoResult(
                 approved = false,
                 message = "request_remote_ssh_info failed. Reason: current run configuration is not remote compile.",
-                auditId = auditId,
             )
         }
         val confirmContent = buildString {
@@ -202,25 +181,15 @@ class IdeaForceGradleCompileHelper(
             okButtonText = "Allow",
             cancelButtonText = "Deny",
         )
-        val outcome = if (confirmed) "approved" else "denied_by_user"
-        writeSshAudit(
-            auditId = auditId,
-            requestedBy = requestedBy,
-            reason = reason,
-            confirmed = confirmed,
-            outcome = outcome,
-        )
         if (!confirmed) {
             return RemoteSshInfoResult(
                 approved = false,
                 message = "request_remote_ssh_info failed. Reason: IDE confirmation denied by user.",
-                auditId = auditId,
             )
         }
         return RemoteSshInfoResult(
             approved = true,
             message = "request_remote_ssh_info executed successfully.",
-            auditId = auditId,
             user = options.remoteSshUser,
             ip = options.remoteSshIp,
             port = options.remoteSshPort,
@@ -272,32 +241,4 @@ class IdeaForceGradleCompileHelper(
         }
     }
 
-    private fun writeSshAudit(
-        auditId: String,
-        requestedBy: String,
-        reason: String,
-        confirmed: Boolean,
-        outcome: String,
-    ) {
-        val auditFile = pathManager.logDir.resolve("ssh_info_audit.log")
-        auditFile.parentFile?.mkdirs()
-        val line = buildString {
-            append("{")
-            append("\"auditId\":\"").append(auditId).append("\",")
-            append("\"requestedBy\":\"").append(escapeJson(requestedBy)).append("\",")
-            append("\"reason\":\"").append(escapeJson(reason)).append("\",")
-            append("\"confirmed\":").append(confirmed).append(",")
-            append("\"outcome\":\"").append(outcome).append("\",")
-            append("\"timestamp\":\"").append(Instant.now().toString()).append("\"")
-            append("}\n")
-        }
-        auditFile.appendText(line)
-    }
-
-    private fun escapeJson(raw: String): String {
-        return raw
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-    }
 }

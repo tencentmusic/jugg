@@ -99,7 +99,6 @@ abstract class McpInvokerTestBase {
                     McpToolStatus.OK,
                     "request_remote_ssh_info executed successfully.",
                     mapOf(
-                        "auditId" to "audit-1",
                         "user" to "root",
                         "ip" to "127.0.0.1",
                         "port" to 22,
