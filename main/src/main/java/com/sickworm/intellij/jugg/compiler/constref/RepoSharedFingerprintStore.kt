@@ -169,6 +169,12 @@ class RepoSharedFingerprintStore(
         val tailSize = headSize
         val headBytes = ByteArray(headSize)
         val tailBytes = ByteArray(tailSize)
+        val middleSize = if (fileSize > sampleSize.toLong() * 2) {
+            sampleSize
+        } else {
+            0
+        }
+        val middleBytes = ByteArray(middleSize)
         return try {
             RandomAccessFile(file, "r").use { raf ->
                 if (headSize > 0) {
@@ -176,11 +182,16 @@ class RepoSharedFingerprintStore(
                     val tailOffset = (fileSize - tailSize).coerceAtLeast(0L)
                     raf.seek(tailOffset)
                     raf.readFully(tailBytes)
+                    if (middleSize > 0) {
+                        val middleOffset = (fileSize - middleSize).coerceAtLeast(0L) / 2
+                        raf.seek(middleOffset)
+                        raf.readFully(middleBytes)
+                    }
                 }
             }
             ContentSignature(
                 fileSize = fileSize,
-                headChecksum = crc32(headBytes),
+                headChecksum = crc32(headBytes, middleBytes),
                 tailChecksum = crc32(tailBytes),
             )
         } catch (t: Throwable) {
@@ -189,9 +200,13 @@ class RepoSharedFingerprintStore(
         }
     }
 
-    private fun crc32(bytes: ByteArray): Long {
+    private fun crc32(vararg bytes: ByteArray): Long {
         val crc32 = CRC32()
-        crc32.update(bytes)
+        bytes.forEach { chunk ->
+            if (chunk.isNotEmpty()) {
+                crc32.update(chunk)
+            }
+        }
         return crc32.value
     }
 

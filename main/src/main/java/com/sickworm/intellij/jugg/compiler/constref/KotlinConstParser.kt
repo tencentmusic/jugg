@@ -148,23 +148,22 @@ class KotlinConstParser(
                     super.visitReferenceExpression(expression)
                     return
                 }
-                val constName = referenceName
                 importContext.classAsteriskImports.forEach { fqClassName ->
-                    if (definitionIndex.hasDefinition(fqClassName, constName)) {
-                        addReference(sourcePath, fqClassName, constName, definitionIndex, references)
+                    if (definitionIndex.hasDefinition(fqClassName, referenceName)) {
+                        addReference(sourcePath, fqClassName, referenceName, definitionIndex, references)
                     }
                 }
                 importContext.packageAsteriskImports.forEach { packageNameFromImport ->
-                    definitionIndex.findByPackageAndConst(packageNameFromImport, constName)
+                    definitionIndex.findByPackageAndConst(packageNameFromImport, referenceName)
                         .filter { it.fqClassName.endsWith("Kt") }
                         .forEach { definition ->
-                            addReference(sourcePath, definition.fqClassName, constName, definitionIndex, references)
+                            addReference(sourcePath, definition.fqClassName, referenceName, definitionIndex, references)
                         }
                 }
-                definitionIndex.findByPackageAndConst(packageName, constName)
+                definitionIndex.findByPackageAndConst(packageName, referenceName)
                     .filter { it.fqClassName.endsWith("Kt") }
                     .forEach { definition ->
-                        addReference(sourcePath, definition.fqClassName, constName, definitionIndex, references)
+                        addReference(sourcePath, definition.fqClassName, referenceName, definitionIndex, references)
                     }
 
                 super.visitReferenceExpression(expression)
