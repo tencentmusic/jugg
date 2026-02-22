@@ -13,6 +13,7 @@ import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.ConstRefEffectProvider
+import com.sickworm.intellij.jugg.deploy.data.ConstRefReadiness
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
@@ -80,6 +81,15 @@ class DeployFileManager(
     )
 
     private val constRefEffectProvider = object : ConstRefEffectProvider {
+        override fun ensureReadyForRecompile(changedSourcePaths: Collection<String>, timeoutMs: Long): ConstRefReadiness {
+            val readiness = constRefScheduler.ensureReadyForRecompile(changedSourcePaths, timeoutMs)
+            return ConstRefReadiness(
+                isReady = readiness.isReady,
+                unreadyPaths = readiness.unreadyPaths,
+                pendingSourceDirs = readiness.pendingSourceDirs,
+            )
+        }
+
         override fun getEffectedFiles(changedSourcePaths: Collection<String>) = constRefScheduler.getEffectedFiles(changedSourcePaths)
     }
 

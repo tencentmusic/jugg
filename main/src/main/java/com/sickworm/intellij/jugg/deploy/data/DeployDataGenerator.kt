@@ -169,10 +169,27 @@ class DeployDataGenerator(
             logger.debug("effected source and class nodes: $effectedSourceAndClassNodes")
         }
         val constRefEffectedSourcePaths = if (isNeedCheckRecompile) {
-            constRefEffectProvider
-                .getEffectedFiles(constRefChangedSourcePaths)
-                .map { it.refFilePath }
-                .distinct()
+            val readiness = try {
+                constRefEffectProvider.ensureReadyForRecompile(constRefChangedSourcePaths)
+            } catch (t: Throwable) {
+                logger.warn("const ref readiness check failed, fallback to completed cache only", t)
+                ConstRefReadiness(isReady = false)
+            }
+            if (!readiness.isReady) {
+                logger.warn(
+                    "const ref analysis not ready, fallback to completed cache only, " +
+                        "unreadyPaths=${readiness.unreadyPaths}, pendingSourceDirs=${readiness.pendingSourceDirs}"
+                )
+            }
+            try {
+                constRefEffectProvider
+                    .getEffectedFiles(constRefChangedSourcePaths)
+                    .map { it.refFilePath }
+                    .distinct()
+            } catch (t: Throwable) {
+                logger.warn("const ref effected files query failed, fallback to empty result", t)
+                emptyList()
+            }
         } else {
             emptyList()
         }

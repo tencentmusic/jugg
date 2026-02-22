@@ -70,13 +70,13 @@ class ConstRefScheduler(
         database.removeFilesByPrefix("$stdPath/")
     }
 
-    fun awaitAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L) {
+    fun awaitAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L): AnalysisReadiness {
         val targetPaths = filePaths
             .map { File(it).toStdPath() }
             .filter { isSourceFile(it) }
             .distinct()
         if (targetPaths.isEmpty()) {
-            return
+            return AnalysisReadiness.READY
         }
         val startAt = System.currentTimeMillis()
         val deadlineAt = startAt + timeoutMs
@@ -93,6 +93,7 @@ class ConstRefScheduler(
             schedulePendingLocked()
         }
         forceAnalyzePendingNow()
+        var readiness = AnalysisReadiness.READY
         synchronized(stateLock) {
             val relatedSourceDirs = resolveRelatedSourceDirsLocked(targetPaths)
             while (true) {
@@ -112,6 +113,11 @@ class ConstRefScheduler(
                         File(path).exists() && (analyzedAt[path] ?: 0L) < startAt
                     }
                     val pendingSourceDirs = relatedSourceDirs.filterNot { fullScanReadySourceDirs.contains(it) }
+                    readiness = AnalysisReadiness(
+                        isReady = false,
+                        unreadyPaths = unreadyPaths,
+                        pendingSourceDirs = pendingSourceDirs,
+                    )
                     logger.warn(
                         "ConstRefScheduler.awaitAnalysis timeout(${timeoutMs}ms), " +
                             "targetPaths=$targetPaths, unreadyPaths=$unreadyPaths, pendingSourceDirs=$pendingSourceDirs"
@@ -122,11 +128,25 @@ class ConstRefScheduler(
                     waitStateChangedLocked(remainMs.coerceAtMost(200L))
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
+                    val unreadyPaths = targetPaths.filter { path ->
+                        File(path).exists() && (analyzedAt[path] ?: 0L) < startAt
+                    }
+                    val pendingSourceDirs = relatedSourceDirs.filterNot { fullScanReadySourceDirs.contains(it) }
+                    readiness = AnalysisReadiness(
+                        isReady = false,
+                        unreadyPaths = unreadyPaths,
+                        pendingSourceDirs = pendingSourceDirs,
+                    )
                     logger.warn("ConstRefScheduler.awaitAnalysis interrupted, targetPaths=$targetPaths")
                     break
                 }
             }
         }
+        return readiness
+    }
+
+    fun ensureReadyForRecompile(filePaths: Collection<String>, timeoutMs: Long = 5000L): AnalysisReadiness {
+        return awaitAnalysis(filePaths.toList(), timeoutMs)
     }
 
     fun initializeFullScan(sourceDirs: List<File>) {
@@ -521,6 +541,16 @@ class ConstRefScheduler(
 
     private fun isSourceFile(path: String): Boolean {
         return path.endsWith(".java") || path.endsWith(".kt")
+    }
+
+    data class AnalysisReadiness(
+        val isReady: Boolean,
+        val unreadyPaths: List<String> = emptyList(),
+        val pendingSourceDirs: List<String> = emptyList(),
+    ) {
+        companion object {
+            val READY = AnalysisReadiness(isReady = true)
+        }
     }
 
     private enum class AnalyzeScene {
