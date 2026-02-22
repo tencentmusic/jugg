@@ -4,7 +4,7 @@
 
 在回答任何项目问题前，必须执行以下流程。
 
-### 1) 最小必读（每次会话）
+### 1) 新会话首次必读
 
 - [00_overview.md](docs/ai_knowledge/00_overview.md)
 - [97_ai_usage.md](docs/ai_knowledge/97_ai_usage.md)
