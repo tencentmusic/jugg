@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.compiler.constref
 
 import com.sickworm.intellij.jugg.mock.logger
+import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,7 +44,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            coroutineScope = scope,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -98,7 +99,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            coroutineScope = scope,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
@@ -165,7 +166,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
-            coroutineScope = scope,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
             repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
