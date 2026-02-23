@@ -24,14 +24,13 @@ import com.sickworm.intellij.jugg.deploy.data.sources
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.gradle.compile.isChild
+import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
-import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
-import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
@@ -45,6 +44,9 @@ class DeployFileManager(
     private var backgroundTaskRunner: IBackgroundTaskRunner,
     private val logger: Logger,
 ) {
+    private val isConstRefTasksEnabled: Boolean
+        get() = JuggSettings.isEnableConstRefTasks
+
 
     /**
      * uncompiled files. All operation must be thread-safe
@@ -95,6 +97,9 @@ class DeployFileManager(
 
     private val constRefEffectProvider = object : ConstRefEffectProvider {
         override fun ensureReadyForRecompile(changedSourcePaths: Collection<String>, timeoutMs: Long): ConstRefReadiness {
+            if (!isConstRefTasksEnabled) {
+                return ConstRefReadiness.READY
+            }
             val readiness = constRefScheduler.ensureReadyForRecompile(changedSourcePaths, timeoutMs)
             return ConstRefReadiness(
                 isReady = readiness.isReady,
@@ -103,7 +108,8 @@ class DeployFileManager(
             )
         }
 
-        override fun getEffectedFiles(changedSourcePaths: Collection<String>) = constRefScheduler.getEffectedFiles(changedSourcePaths)
+        override fun getEffectedFiles(changedSourcePaths: Collection<String>) =
+            if (!isConstRefTasksEnabled) emptyList() else constRefScheduler.getEffectedFiles(changedSourcePaths)
     }
 
     /**
@@ -154,7 +160,9 @@ class DeployFileManager(
         files.filter {
             it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin
         }.forEach {
-            constRefScheduler.onFileSaved(it.file.stdAbsPath)
+            if (isConstRefTasksEnabled) {
+                constRefScheduler.onFileSaved(it.file.stdAbsPath)
+            }
         }
     }
 
@@ -198,7 +206,9 @@ class DeployFileManager(
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
         }
         files.forEach {
-            constRefScheduler.onFileDeleted(it.stdAbsPath)
+            if (isConstRefTasksEnabled) {
+                constRefScheduler.onFileDeleted(it.stdAbsPath)
+            }
         }
     }
 
@@ -209,6 +219,9 @@ class DeployFileManager(
     }
 
     fun awaitConstRefAnalysis(filePaths: List<String>, timeoutMs: Long = 5000L) {
+        if (!isConstRefTasksEnabled) {
+            return
+        }
         constRefScheduler.awaitAnalysis(filePaths, timeoutMs)
     }
 
@@ -398,7 +411,9 @@ class DeployFileManager(
             it.sourceDirs
         }
         sourceFileManager.init(sourceDirs)
-        constRefScheduler.initializeFullScan(sourceDirs)
+        if (isConstRefTasksEnabled) {
+            constRefScheduler.initializeFullScan(sourceDirs)
+        }
         deployDataGenerator.mappingFile = mappingFile
     }
 

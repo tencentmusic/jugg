@@ -111,6 +111,12 @@ object JuggSettings {
     var isIgnoreWontCompileModules: Boolean by propertiesComponent.delegate(defaultValue = false)
 
     /**
+     * Master switch for const-ref analysis tasks.
+     * When disabled, Jugg will skip const-ref full scan/incremental analyze/readiness wait/effected-source query.
+     */
+    var isEnableConstRefTasks: Boolean = true
+
+    /**
      * Use this for Jugg run configuration arguments if first set.
      */
     var defaultCompileSettings: RunConfigurationTemplate
