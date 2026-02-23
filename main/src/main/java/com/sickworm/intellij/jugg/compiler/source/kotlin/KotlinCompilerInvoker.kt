@@ -322,7 +322,11 @@ class KotlinCompilerInvoker {
             logger.warn("Load and merge .kotlin_module failed, it may cause compile time error. Detail: ${e.message}")
         }
 
-        val outputParser = KotlinCompilerOutputParser(task.files, logger)
+        val outputParser = KotlinCompilerOutputParser(
+            files = task.files,
+            logger = logger,
+            forceCompilerOutputDebug = options.isEnableKapt,
+        )
         val exitCode = try {
             kotlinCompile.exec(outputParser.printStream, command.toTypedArray())
         } catch (e: Exception) {

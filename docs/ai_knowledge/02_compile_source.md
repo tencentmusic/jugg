@@ -40,6 +40,7 @@
 - `KotlinCompilerInvoker` 负责参数组装、插件参数、失败重试。  
 - `K2JVMCompilerIsolate` 负责隔离加载编译器 classpath。  
 - Kotlin 元数据问题由 `KotlinCompilerOutputParser` + `KmModuleMergerForCompilation` 辅助处理。
+- 当 `KotlinCompilerInvoker.Options.isEnableKapt=true` 时，`KotlinCompilerOutputParser` 会将编译器 `warning/error` 文本按 `debug` 记录（仍保留错误解析与失败判定）。
 
 ---
 
@@ -56,6 +57,7 @@
 - Kotlin 元数据不兼容：`KotlinCompilerOutputParser`。  
 - classpath 缺失：`K2JVMCompilerIsolate.checkClasspath` 与 `ModuleBuildPathInfo`。  
 - dex 合并异常：`DexFileMerger` 与 `IncrementalCompilerHelper.mergeDex`。
+- APT/KAPT 日志级别噪音：`JavaCompilerInvoker` 与 `KotlinCompilerOutputParser`（启用 APT/KAPT 时编译器输出默认降级为 `debug`）。
 
 ---
 

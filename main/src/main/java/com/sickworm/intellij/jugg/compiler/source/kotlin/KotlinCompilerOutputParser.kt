@@ -14,7 +14,8 @@ import java.io.PrintStream
  */
 class KotlinCompilerOutputParser(
     private val files: List<CompileFile>,
-    private val logger: Logger
+    private val logger: Logger,
+    private val forceCompilerOutputDebug: Boolean = false,
 ) {
 
     private val outputStream = object : OutputStream() {
@@ -101,7 +102,11 @@ class KotlinCompilerOutputParser(
             }
             MessageType.ERROR -> {
                 val parsedMessage = parseErrorMessage(message)
-                logger.warn(parsedMessage)
+                if (forceCompilerOutputDebug) {
+                    logger.debug(parsedMessage)
+                } else {
+                    logger.warn(parsedMessage)
+                }
             }
             MessageType.OUTPUT -> {
                 logger.debug(message)
@@ -222,14 +227,22 @@ class KotlinCompilerOutputParser(
             if (message.contains(".kotlin_module")) {
                 logger.debug("(.kotlin_module) Failed to parse output message with no source file: $message")
             } else {
-                logger.warn("Failed to parse output message with no source file: $message")
+                if (forceCompilerOutputDebug) {
+                    logger.debug("Failed to parse output message with no source file: $message")
+                } else {
+                    logger.warn("Failed to parse output message with no source file: $message")
+                }
             }
             // compat for parse output, it's ok to just read result code of KotlinCompiler
             sourceFile.add(File("unknown"))
         }
 
         if (outputFiles.isEmpty()) {
-            logger.warn("Failed to parse output message with no output file: $message")
+            if (forceCompilerOutputDebug) {
+                logger.debug("Failed to parse output message with no output file: $message")
+            } else {
+                logger.warn("Failed to parse output message with no output file: $message")
+            }
             return
         }
 

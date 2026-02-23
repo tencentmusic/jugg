@@ -112,6 +112,9 @@ class JavaCompilerInvoker {
             cmdOptions.add("-proc:none") // The javac -proc option can be used to disable annotation processing
         }
 
+        // APT processors may print normal progress as warning/error, keep these diagnostics at debug level.
+        val forceCompilerOutputDebug = options.isEnableApt
+
         // compile error listener
         var isCurrentSourceTargetVersionNotSupport = false
         val notSourceErrors = mutableListOf<Pair<Long, String>>() // e.g. apt classpath error
@@ -131,7 +134,11 @@ class JavaCompilerInvoker {
                 }
                 return@DiagnosticListener
             }
-            logger.warn(message)
+            if (forceCompilerOutputDebug) {
+                logger.debug("JavaCompiler output: [${diagnostic.kind}] $message")
+            } else {
+                logger.warn(message)
+            }
             item.errors.add(diagnostic.lineNumber to message)
         }
 
