@@ -1,57 +1,64 @@
-# AI 使用指引 (入口文档)
+# AI 使用指引（任务路由版）
 
-> 目的：避免 AI 一次性加载全量文档，指导检索顺序与策略。
-> 一致性提示：如文档与代码不一致，以代码为准；发现漂移请标记并更新 `98_code_map.md` 的状态/日期。
-
----
-
-## 推荐检索顺序
-1) **找路径/类名**：先查 `98_code_map.md`，用"模块/类 → 文件夹 → 职责"快速定位。
-2) **定位专题**：按模块需求跳到对应文档：
-   - 编译：`02_compile_*` 系列（core/source/resource/databinding/manifest/custom_ui）。
-   - 部署：`03_deploy_core.md`, `03_deploy_data_generator.md`, `03_deploy_complete.md`。
-   - 运行时/JVMTI：`03_runtime_jvmti.md`。
-   - 工程/IDE/兼容：`04_engineering_*` 系列。
-   - 辅助：`05_utilities.md`。
-   - MCP 设计与使用：`08_mcp_design.md`, `08_mcp_usage.md`。
-   - 总索引：`99_index.md`（补充目录/导航）。
-3) **不确定场景**：先看 `99_index.md` 查关键词/模块，再决定是否展开某一文档的相关小节。
-4) **判断是否已有接口/避免造轮子**：
-   - 查 `98_code_map.md` 的对应模块/类，确认已有入口（状态/日期）。
-   - 若需扩展，阅读对应专题文档的"扩展点/示例"小节；避免直接新增重复实现。
+> 最后核对：2026-02-23  
+> 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
-## 何时检索 / 不要一次性加载
-- 有明确类/模块名 → 只看 `98_code_map.md` + 对应专题文档的小节。
-- 仅需架构/全貌 → 读 `00_overview.md` 和 `01_architecture.md`，不要展开其它文档。
-- MCP 相关 → 读 `08_mcp_usage.md`（使用）或 `08_mcp_design.md`（架构设计）。
-- 不要：把全部 02/03/04/05/08 文档一次性放入上下文。
-> 如需确认接口可用性：优先按上述"判断是否已有接口"步骤检索，仍不确定时再检代码实现。
+## 1. 目标
+
+让 AI 用最小上下文完成任务：
+- 先定位路径与入口类
+- 再按任务类型读取最小专题
+- 最后必要时下钻到代码
 
 ---
 
-## 使用技巧（提示语）
-- 先列出"可能相关的文档名"，不要直接展开全文。
-- 针对类/模块：
-  - "根据 code_map 定位类 X 的文件路径，再阅读对应模块文档的相关小节。"
-- 针对任务：
-  - "如果是增量编译或部署问题，先查对应 compile/deploy 文档的相关条目。"
-- 版本/同步：如发现文档与代码不一致，优先以代码为准，并在回复中提示"文档可能滞后，请核对仓库最新状态"。
+## 2. 推荐检索顺序
+
+1. 先读 `98_code_map.md`：确定模块、目录和入口类。  
+2. 再读对应专题文档（`02/03/04/05/08`）。  
+3. 不确定时再读 `99_index.md` 做二次导航。  
+4. 发现文档与代码不一致：**立即以代码为准**，并记录待同步项。
 
 ---
 
-## PR/提交检查项（建议纳入模板）
-- [ ] 代码改动涉及新接口/路径，已更新 `98_code_map.md` 状态/日期。
-- [ ] 相关专题文档（02/03/04/05/08 系列）是否需补充"扩展点/用法"小节，已评估并处理。
-- [ ] 若文档未及时更新，已在回复/描述中标注"以代码为准，待同步"。
+## 3. 任务类型 -> 最小必读集
+
+| 任务类型 | 最小必读文档 | 代码入口（示例） |
+|----------|--------------|------------------|
+| 编译失败/回退策略 | `98_code_map.md`, `02_compile_core.md`, `02_compile_source.md` | `idea/.../JuggCompileHelper.kt`, `main/.../JuggCompiler.kt` |
+| 资源/Manifest/DataBinding 异常 | `98_code_map.md`, `02_compile_resource.md`, `02_compile_manifest_obfuscation.md`, `02_compile_databinding.md` | `compiler/overlay`, `compiler/manifest`, `compiler/databinding` |
+| 部署失败/热更策略 | `98_code_map.md`, `03_deploy_core.md`, `03_deploy_complete.md` | `idea/.../JuggDeployerHelper.kt`, `idea/.../JuggDeployer.kt` |
+| 影响分析/类变更传播 | `98_code_map.md`, `03_deploy_data_generator.md` | `deploy/data/DeployDataGenerator.kt` |
+| IDE 生命周期/运行配置 | `98_code_map.md`, `04_engineering_ide.md` | `idea/.../JuggManager.kt`, `JuggRunConfiguration.kt` |
+| Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
+| 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
+| MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_usage.md`, `08_mcp_design.md` | `mcp/McpToolInvoker.kt`, `mcp/actions/*` |
+| 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
 
 ---
 
-## 快速路标
-- 路径索引：`98_code_map.md`
-- 运行时/JVMTI：`03_runtime_jvmti.md`
-- MCP 使用：`08_mcp_usage.md`
-- MCP 设计：`08_mcp_design.md`
-- 总导航：`99_index.md`
-- 架构全貌：`00_overview.md`, `01_architecture.md`
+## 4. 检索策略（强约束）
+
+- 禁止一次性加载全量文档。
+- 先读目录型文档（`98/99`），后读专题型文档。
+- 每次只展开与当前任务直接相关的小节。
+- 涉及接口能力时，优先检查对应实现文件而非仅看文档描述。
+
+---
+
+## 5. 回答输出建议
+
+回答项目问题时建议包含：
+1. 已读取文档列表（文件名）。
+2. 依据小节定位（例如：`98_code_map.md` 某节）。
+3. 若需要继续深入，给出下一步文档链接。
+
+---
+
+## 6. 维护约定
+
+- 发生类名/路径变更：至少同步 `98_code_map.md`。
+- 新增公共入口能力：同步对应专题文档与 `99_index.md`。
+- 若暂未同步文档：在结论中标注“以代码为准”。

@@ -135,7 +135,10 @@ class McpInvokerErrorHandlingTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertTrue(result.isError)
+        // Business-level errors (tool executed but no devices found) use toolSuccess (isError=false),
+        // distinguishing success/failure via structuredContent.
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
         Assert.assertEquals(McpErrorCode.MCP_NO_DEVICE, result.structuredContent["errorCode"])
         Assert.assertTrue(result.content.first().text.contains("No connected device is available"))
         Assert.assertFalse(result.content.first().text.contains("structuredContent="))

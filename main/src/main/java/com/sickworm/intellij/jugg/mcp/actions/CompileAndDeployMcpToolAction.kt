@@ -212,6 +212,29 @@ class CompileAndDeployMcpToolAction : McpToolAction {
                 )
             }
 
+            val jobStatus = extraData["status"] as? String
+            val isRealSuccess = (jobStatus == "success")
+
+            // Compilation failed: returns ERROR with details
+            if (!isRealSuccess) {
+                val detailResult = resolveDetailResult(toolName, detail)
+                val data = mutableMapOf<String, Any>("runResult" to runResultObject)
+                attachDetailData(data, detailResult)
+                data.putAll(extraData)
+                val message = if (detailResult.hasDetail) {
+                    "$toolName finished with status=$jobStatus. See data.detail and artifacts for error info."
+                } else {
+                    "$toolName finished with status=$jobStatus."
+                }
+                return McpToolResult(
+                    status = McpToolStatus.ERROR,
+                    message = message,
+                    data = data,
+                    artifacts = detailResult.artifacts,
+                    errorCode = McpErrorCode.MCP_INTERNAL_ERROR,
+                )
+            }
+
             val data = mutableMapOf<String, Any>(
                 "runResult" to runResultObject,
             )

@@ -5,7 +5,7 @@ import com.intellij.openapi.diagnostic.Logger
 /**
  * McpToolInvoker validates MCP JSON-RPC requests, dispatches tool actions, and maps execution results to JSON-RPC responses.
  * Collaboration: Uses [McpRequestValidator] for protocol/argument validation, resolves executors from [McpToolRegistry], and serializes success/error payloads through [McpResultMapper].
- * Data Contract: Every request is validated before dispatch; missing tools map to [McpErrorCode.MCP_TOOL_NOT_FOUND]; action results with [McpToolStatus.ERROR] are always converted to tool-error responses.
+ * Data Contract: Every request is validated before dispatch; missing tools map to [McpErrorCode.MCP_TOOL_NOT_FOUND]; action results (including [McpToolStatus.ERROR]) are returned via toolSuccess (isError=false) so that structuredContent carries full artifacts and data, while protocol-level errors use toolError (isError=true).
  */
 class McpToolInvoker(
     currentProjectDir: String,
@@ -44,16 +44,11 @@ class McpToolInvoker(
             )
 
         val toolResult = action.execute(request.arguments, runtime)
-        return if (toolResult.status == McpToolStatus.ERROR) {
-            resultMapper.toolError(
-                id = id,
-                errorCode = toolResult.errorCode ?: McpErrorCode.MCP_INTERNAL_ERROR,
-                message = toolResult.message,
-                data = toolResult.data,
-            )
-        } else {
-            resultMapper.toolSuccess(id = id, toolResult = toolResult)
-        }
+        // Business-level errors (where the tool executed but results were unexpected) should consistently use
+        // toolSuccess, with success/failure distinguished via structuredContent.status.
+        // This prevents isError=true from causing the MCP client to display them as framework-level
+        // errors, while still preserving full data like artifacts.
+        return resultMapper.toolSuccess(id = id, toolResult = toolResult)
     }
 
 }

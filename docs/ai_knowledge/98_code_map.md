@@ -1,77 +1,85 @@
-# 代码路径速查表 (Code Map)
+# 代码路径速查表（Code Map）
 
-> 同步状态: 若代码与文档不一致，以代码为准。
-> 统计口径: 仅统计生产代码（`src/main` + `idea/src/ide_entry`），不含 `build/` 与 `src/test/`。
-
----
-
-## 一、核心层（main/src/main/java/com/sickworm/intellij/jugg）
-
-| 模块 | 关键类/接口 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
-|------|-------------|----------|-----------|------|-----------|
-| compiler | JuggCompiler, BaseCompiler, CompileTask | `compiler/` | 编译调度与任务编排 | 稳定 | 2026-02-22 |
-| compiler | JavaCompiler, KotlinCompiler, DexCompiler | `compiler/source/`, `compiler/source/kotlin/` | 源码/字节码/DEX 编译 | 稳定 | 2026-02-22 |
-| compiler | ResourceCompiler, ResourceOverlayCompiler | `compiler/overlay/` | 资源增量编译与 Overlay 处理 | 稳定 | 2026-02-22 |
-| compiler | AndroidManifestCompiler, ManifestDiffer | `compiler/manifest/` | Manifest 增量处理 | 稳定 | 2026-02-22 |
-| compiler | ClassMinifyCompiler, DexMinifyCompiler | `compiler/obfuscation/` | 混淆映射与类名还原处理 | 稳定 | 2026-02-22 |
-| compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | `compiler/databinding/` | DataBinding/ViewBinding 处理 | 稳定 | 2026-02-22 |
-| compiler | CustomCompilerManager, CompileUiHandler | `compiler/custom/`, `compiler/` | 自定义编译器扩展点与 UI 回调 | 稳定 | 2026-02-22 |
-| deploy | DeployFileManager, DeployHistoryManager | `deploy/` | 部署文件准备与历史管理 | 稳定 | 2026-02-22 |
-| deploy | DeployDataGenerator, ClassNodeComparator, InlineMethodDetector | `deploy/data/` | 类结构比较与影响分析 | 稳定 | 2026-02-22 |
-| deploy | DeployDataDatabase, IncrementalDeployDataDatabase | `deploy/data/` | 部署数据与增量索引数据库 | 稳定 | 2026-02-22 |
-| deploy | IncrementalDeployHelper | `compiler/` | 增量部署策略辅助 | 稳定 | 2026-02-22 |
-| project | JuggProjectInfo, ProjectInfoSerializer | `project/data/`, `project/` | 项目信息模型与序列化 | 稳定 | 2026-02-22 |
-| project | DependencyChangeManagerByGradle, DependencyChangeManagerBySync | `project/dependency/` | 依赖差异解析 | 稳定 | 2026-02-22 |
-| gradle | GradleProjectInfoReader, GradleDependencyDiffer | `gradle/script/` | Gradle 侧信息读取与依赖比对 | 稳定 | 2026-02-22 |
-| gradle | LocalGradleCompileClient, CmdExecutor | `gradle/compile/` | 本地/远程 Gradle 编译调用 | 稳定 | 2026-02-22 |
-| mcp | McpLocalServer, McpToolInvoker, McpBaseInvoker, IMcpInvoker | `mcp/` | MCP 协议入口与请求路由（HTTP: `/jugg-mcp`） | 稳定 | 2026-02-22 |
-| mcp | CompileJobManager | `mcp/actions/` | 编译任务异步状态管理 | 稳定 | 2026-02-22 |
-| aapt2 | Aapt2DaemonInvoker | `aapt2/` | AAPT2 守护进程调用 | 稳定 | 2026-02-22 |
-| apk | ApkFileModifier | `apk/` | APK 修改/签名 | 稳定 | 2026-02-22 |
-| git | GitManager | `git/` | Git 集成 | 稳定 | 2026-02-22 |
-| logger | JuggLogger | `logger/` | 日志体系 | 稳定 | 2026-02-22 |
-| server | JuggServer | `server/` | 远程编译/服务端能力 | 稳定 | 2026-02-22 |
-| platform | PlatformApi | `platform/` | 平台 API 注入点 | 稳定 | 2026-02-22 |
+> 最后核对：2026-02-23  
+> 口径：生产代码目录（不含 `build/` 与 `src/test/`）  
+> 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
 
-## 二、IDE 层（idea/src/main + idea/src/ide_entry）
+## 1. 核心层（`main/src/main/java/com/sickworm/intellij/jugg`）
 
-| 关键类 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
-|--------|----------|-----------|------|-----------|
-| JuggManager | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | IDE 侧核心管理器 | 稳定 | 2026-02-22 |
-| JuggLoader | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 插件加载与类加载隔离 | 稳定 | 2026-02-22 |
-| JuggRunConfiguration | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfiguration.kt` | 运行配置入口 | 稳定 | 2026-02-22 |
-| JuggHotUpdateManager | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggHotUpdateManager.kt` | 热更新管理 | 稳定 | 2026-02-22 |
-| JuggGradleSyncListener | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt` | Gradle Sync 事件监听 | 稳定 | 2026-02-22 |
-| FileChangesDetector | `idea/src/main/java/com/sickworm/intellij/jugg/project/FileChangesDetector.kt` | 文件变化检测 | 稳定 | 2026-02-22 |
-| DeployStateManager | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 部署状态机/策略 | 稳定 | 2026-02-22 |
-| JuggDeployer | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployer.kt` | install/codeSwap/fullSwap 核心部署器 | 稳定 | 2026-02-22 |
-| AsDeployerCompat | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | Android Studio 版本适配入口 | 稳定 | 2026-02-22 |
-
----
-
-## 三、兼容层与工具模块
-
-| 模块 | 关键类 | 文件路径 | 职责 | 状态 | 最近同步 |
-|------|--------|----------|------|------|-----------|
-| deploy_compat | IAsDeployerCompat, ChipmunkAsDeployerCompat 等 | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | 多版本 Android Studio Deploy API 兼容 | 稳定 | 2026-02-22 |
-| platform_compat | Logger/Project/Disposable 等兼容 API | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API Mock 与兼容桩 | 稳定 | 2026-02-22 |
-| cmd_line | CmdLine, BuildGradleBaseCommand, BuildIncrementalApkCommand | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | 无 IDE/CI 命令行入口 | 稳定 | 2026-02-22 |
-| custom_compilers | ExampleAssembleCustomCompiler 等 | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | 自定义编译器示例 | 稳定 | 2026-02-22 |
-| jvmti_agent | agent.cpp 等 | `jvmti_agent/` | JVMTI 热修复运行时 | 稳定 | 2026-02-22 |
+| 领域 | 关键类/接口 | 目录 | 说明 |
+|------|-------------|------|------|
+| 编译总控 | `JuggCompiler`, `IncrementalCompilerHelper`, `CompileOrder` | `compiler/` | 增量编译主流程、阶段顺序与循环重编译 |
+| 源码编译 | `SourceCompiler`, `JavaCompiler`, `KotlinCompiler`, `DexCompiler` | `compiler/source/`, `compiler/source/kotlin/` | Java/Kotlin 编译与 DEX 生成 |
+| 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler` | `compiler/overlay/` | res/manifest 编译与 aapt2 link |
+| DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` | `compiler/databinding/` | DataBinding/ViewBinding 增量处理 |
+| Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer` | `compiler/manifest/` | 清单差异合并 |
+| 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader` | `compiler/obfuscation/` | release 混淆映射一致性 |
+| 自定义编译器 | `CustomCompilerManager`, `ICompilerCreator` | `compiler/custom/` | SPI 扩展、远端下载 jar、动态装载 |
+| 编译 UI 协议 | `CompileUiHandler`, `RunResult`, `BuildChangesConfirmResult` | `compiler/`, `compiler/ui/` | 编译交互抽象（供 IDE/CLI） |
+| 部署文件管理 | `DeployFileManager`, `DeployHistoryManager` | `deploy/` | 变更文件、历史记录、staging 管理 |
+| 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data/` | 类结构变更传播和部署数据生成 |
+| 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run/` | 下发设备的部署数据结构 |
+| 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo` | `project/data/` | 模块、路径、依赖等快照 |
+| 依赖变更 | `DependencyChangeManagerByGradle`, `DependencyChangeManagerBySync` | `project/dependency/` | 依赖变更检测策略 |
+| Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script/` | 通过 Gradle 反射读取模块信息 |
+| Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile/` | 本地/远端 Gradle 构建执行 |
+| MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 |
+| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction` | `mcp/actions/` | 工具注册与异步编译状态管理 |
+| 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 |
 
 ---
 
-## 四、快速定位指南
+## 2. IDE 层（`idea/src/main` + `idea/src/ide_entry`）
 
-- 找类：先在本表按模块定位，再跳到对应目录。
-- 找流程：编译/部署流程见 `01_architecture.md` 与对应 `02/03` 专题文档。
-- MCP 入口：优先从 `McpToolInvoker` 与 `McpToolActionRegistry` 追工具执行链。
+| 入口 | 文件路径 | 说明 |
+|------|----------|------|
+| IDE 总管理器 | `idea/src/main/java/com/sickworm/intellij/jugg/JuggManager.kt` | 初始化、同步事件、MCP runtime 装配 |
+| 运行任务编排 | `idea/src/main/java/com/sickworm/intellij/jugg/ide/logic/JuggRunningTask.kt` | 编译与部署串联主流程 |
+| 编译入口 | `idea/src/main/java/com/sickworm/intellij/jugg/compiler/JuggCompileHelper.kt` | 增量/Gradle 回退判定 |
+| 部署入口 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployerHelper.kt` | 部署策略、recover、agent 协调 |
+| 核心部署器 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployer.kt` | install/codeSwap/fullSwap |
+| 部署状态 | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 设备状态与部署可行性 |
+| 插件加载 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggLoader.kt` | 类加载隔离与桥接 |
+| 初始化器 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/loader/JuggInitializer.kt` | 插件生命周期入口 |
+| 运行配置 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggRunConfiguration.kt` | run config 定义 |
+| Gradle Sync 监听 | `idea/src/ide_entry/java/com/sickworm/intellij/jugg/ide/JuggGradleSyncListener.kt` | Sync 事件上报 Jugg |
 
 ---
 
-## 五、维护约定
+## 3. 兼容层与扩展模块
 
-- 新增关键类/入口时，同步更新本表。
-- 类重命名或目录调整后，优先更新“关键类/文件路径”列。
+| 模块 | 目录 | 关键点 |
+|------|------|--------|
+| deploy_compat | `deploy_compat/*/src/main/java/com/sickworm/intellij/jugg/deploy/run/` | `IAsDeployerCompat` + 多版本实现（chipmunk/giraffe/hedgehog/iguana/meerkat/narwhal/narwhal_feature/otter） |
+| platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
+| cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
+| custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
+| jvmti_agent | `jvmti_agent/src/main/cpp/` | `native-lib.cpp`, `instrumenter.cc`, `native_callbacks.cc` |
+
+---
+
+## 4. MCP 工具定位（代码入口）
+
+- 工具注册：`main/src/main/java/com/sickworm/intellij/jugg/mcp/actions/McpToolActionRegistry.kt`  
+- schema 复用：`main/src/main/java/com/sickworm/intellij/jugg/mcp/actions/McpToolSchemas.kt`  
+- 协议入口：`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpLocalServer.kt`  
+- 校验与分发：`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpRequestValidator.kt`、`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpToolInvoker.kt`
+
+---
+
+## 5. 高频定位建议
+
+- 查“某能力是否已存在”：先 `98_code_map.md`，再对应目录搜索类名。  
+- 查“编译为何回退”：从 `JuggCompileHelper` -> `preprocessIncrementalCompile`。  
+- 查“部署失败恢复”：从 `JuggDeployerHelper.deploy` -> `recoverDeployState`。  
+- 查“MCP 参数规则”：从 tool action 的 `inputSchema` 和 `execute` 实现确认。
+
+---
+
+## 6. 维护约定
+
+- 新增入口类/关键工具后，优先同步本表。  
+- 路径或类名变更时，同步 `99_index.md` 的导航描述。  
+- 若本表滞后，回答中必须明确“以代码为准”。

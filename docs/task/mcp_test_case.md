@@ -155,13 +155,13 @@
 调用 `tap`，仅传入 `projectDir`，不传 `x` 和 `y`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
 **TC-22: 重启应用**
-调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 中包含 `deviceSerial` 和 `restarted=true`。
+调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。`restart_app` 不返回额外 data 字段（`data` 为空对象）。
 
-**TC-23: 重启应用 - 指定有效 serial**
-先通过 `device_list` 获取一个有效的 `serial`，然后调用 `restart_app`，传入该 `serial`，验证返回 `status` 为 `OK`，`message` 中包含 "Device selected by serial" 字样。
+**TC-23: 重启应用 - serial 参数不支持**
+`restart_app` 不接受 `serial` 参数（`additionalProperties=false`），因此传入 `serial` 会被 MCP 框架拦截返回 `MCP_INVALID_PARAMS`。本条用例由单元测试 `testRestartAppRejectSerialArgument` 覆盖。
 
-**TC-24: 重启应用 - serial 非法回落**
-调用 `restart_app`，传入 `serial="nonexistent-device-12345"`，验证返回 `status` 为 `OK`（回落成功），`message` 中包含 "invalid" 和 "fallback" 字样。
+**TC-24: 重启应用 - serial 回落（不适用）**
+`restart_app` 不支持 `serial` 参数，本条用例不适用。设备选择始终使用 IDE 当前选中的设备。
 
 ---
 
@@ -282,13 +282,13 @@
 ### 需要设备的工具（应返回 MCP_NO_DEVICE）
 
 **TC-44: 无设备 - compile_and_deploy**
-调用 `compile_and_deploy`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+调用 `compile_and_deploy`，传入有效 `projectDir`，验证工具能正常执行编译阶段。由于无设备，部署阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`，因为编译后部署失败）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
 **TC-45: 无设备 - force_gradle_compile**
-调用 `force_gradle_compile`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+调用 `force_gradle_compile`，传入有效 `projectDir`，验证工具能正常执行 Gradle 编译。`force_gradle_compile` 是纯编译操作，不依赖设备，应正常返回编译结果（`status` 为 `OK` 或编译失败的 `ERROR`），不应返回 `MCP_NO_DEVICE`。
 
 **TC-46: 无设备 - clean_reinstall_apk**
-调用 `clean_reinstall_apk`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+调用 `clean_reinstall_apk`，传入有效 `projectDir`，验证工具能正常执行编译阶段。由于无设备，重装阶段会失败，最终返回 `status` 为 `ERROR`，但 `errorCode` 不一定是 `MCP_NO_DEVICE`（可能是 `MCP_INTERNAL_ERROR`）。关键验证点：工具不应在编译前就因无设备而拒绝执行。
 
 **TC-47: 无设备 - restart_app**
 调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
@@ -323,7 +323,7 @@
 ## 十一、设备选择策略
 
 **TC-55: 不传 serial - 自动使用 selected device**
-调用任何需要设备的工具（如 `screenshot`），不传 `serial`，验证返回 `status` 为 `OK`，`message` 中包含 "Serial not provided; selected device" 的说明文案。
+调用任何需要设备的工具（如 `screenshot`），不传 `serial`，验证返回 `status` 为 `OK`，工具正常执行。注意：`message` 中不包含设备选择说明文案，设备选择细节不暴露在 MCP 响应中。
 
 **TC-56: 多设备环境 - 指定 serial**
 在连接了多台设备的环境下，通过 `device_list` 获取非 selected 的设备 serial，调用 `screenshot` 并指定该 serial，验证截图来自指定设备（可通过截图内容区分）。
@@ -342,7 +342,7 @@
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
 
 **TC-60: 返回结构一致性验证**
-对所有 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、`errorCode` 五个字段，不多不少。
+对所有 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、`errorCode`（成功时为 `null`）五个字段，不多不少。
 
 ---
 
@@ -388,10 +388,10 @@
 | # | 工具名称 | 需要设备 | 主要用途 |
 |---|---------|---------|---------|
 | 1 | `list_projects` | 否 | 列出 IDE 已初始化项目 |
-| 2 | `compile_and_deploy` | 是 | Jugg 增量编译 + 部署 |
+| 2 | `compile_and_deploy` | 否（编译不需要，部署需要） | Jugg 增量编译 + 部署 |
 | 3 | `compile_only` | 否 | 仅 Jugg 增量编译，不部署 |
-| 4 | `clean_reinstall_apk` | 是 | 卸载重装 APK（清数据） |
-| 5 | `force_gradle_compile` | 是 | Gradle 回退编译 |
+| 4 | `clean_reinstall_apk` | 否（编译不需要，重装需要） | 卸载重装 APK（清数据） |
+| 5 | `force_gradle_compile` | 否 | Gradle 回退编译 |
 | 6 | `get_compile_status` | 否 | 查询异步编译任务状态 |
 | 7 | `restart_app` | 是 | 重启应用 |
 | 8 | `device_list` | 否 | 列出已连接设备 |

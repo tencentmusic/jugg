@@ -60,6 +60,17 @@ class GetCompileStatusMcpToolAction : McpToolAction {
         )
         state.finishedAt?.let { data["finishedAt"] = it }
 
+        // Return ERROR when jobId does not exist.
+        if (state.status == "unknown") {
+            return McpToolResult(
+                status = McpToolStatus.ERROR,
+                message = "get_compile_status failed. Reason: Compile job not found for jobId=$jobId.",
+                data = data,
+                artifacts = emptyList(),
+                errorCode = McpErrorCode.MCP_INVALID_PARAMS,
+            )
+        }
+
         return McpToolResult(
             status = McpToolStatus.OK,
             message = "get_compile_status executed successfully.",

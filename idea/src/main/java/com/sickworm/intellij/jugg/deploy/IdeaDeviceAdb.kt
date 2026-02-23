@@ -46,8 +46,10 @@ class IdeaDeviceAdb(
 
     override fun execAdbShellScript(cmd: String): String {
         synchronized(IdeaDeviceAdb::class.java) {
-            logger.debug("adb script in: adb -s  shell ")
-            return execAdbShellCmdByCli(cmd)
+            logger.debug("adb script in: sh -c '...'")
+            // Escape single quotes and wrap with sh -c to support shell syntax (pipes, background processes, variables, etc.).
+            val escaped = cmd.replace("'", "'\\''")
+            return execAdbShellCmd("sh -c '$escaped'", retryCount = 0)
         }
     }
 
