@@ -312,9 +312,10 @@ class DataBindingGenMapperCompiler(context: ICompileContext, parent: Disposable)
         } else {
             task.files.filter { it.type == CompileFile.Type.Kotlin }
         }
+        val resource = task.files.filter { it.type == CompileFile.Type.Resource }
 
         TimeLogger.start("runAnnotationProcessor_findAllIncludePath")
-        val includeLayoutInfoFiles = LayoutIncludeAnalyzer(argsManager, logger).findAllIncludePath(task.files)
+        val includeLayoutInfoFiles = LayoutIncludeAnalyzer(argsManager, logger).findAllIncludePath(resource)
         logger.debug("runAnnotationProcessor includeLayoutInfoFiles: $includeLayoutInfoFiles")
         includeLayoutInfoFiles.forEach {
             val targetFile = it.changeBaseDir(it.parentFile, argsManager.tempDataBindingLayoutXmlDir)
