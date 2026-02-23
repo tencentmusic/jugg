@@ -15,9 +15,8 @@ class ConstRefScheduler(
     private val analyzer: ConstRefAnalyzer,
     private val database: ConstRefCacheDatabase,
     private val logger: Logger,
-    coroutineScope: CoroutineScope,
-    private var backgroundTaskRunner: IBackgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope),
-    private val repoSharedFingerprintStore: RepoSharedFingerprintStore = RepoSharedFingerprintStore(logger),
+    private var backgroundTaskRunner: IBackgroundTaskRunner,
+    private val repoSharedFingerprintStore: RepoSharedFingerprintStore,
 ) {
     private val maxAnalyzedHistory = 4096
     private val analysisMutex = ReentrantLock()
@@ -31,11 +30,16 @@ class ConstRefScheduler(
     private var definitionIndexInitialized = false
     private val trackedSourceDirs = mutableListOf<String>()
     private val fullScanReadySourceDirs = mutableSetOf<String>()
+    private val cacheCleaner = ConstRefCacheCleaner(logger)
     private val sceneTaskStates = mutableMapOf(
         AnalyzeScene.FULL_SCAN to SceneTaskState(),
         AnalyzeScene.FILE_CHANGE to SceneTaskState(),
         AnalyzeScene.PRE_COMPILE to SceneTaskState(),
     )
+
+    init {
+        scheduleCacheCleanup()
+    }
 
     fun onFileSaved(filePath: String) {
         val stdPath = File(filePath).toStdPath()
@@ -157,6 +161,7 @@ class ConstRefScheduler(
             .map { it.toStdPath() }
             .distinct()
             .toList()
+        database.registerPathHints(normalizedSourceDirs)
         synchronized(stateLock) {
             trackedSourceDirs.clear()
             trackedSourceDirs += normalizedSourceDirs
@@ -199,12 +204,13 @@ class ConstRefScheduler(
         if (changedPaths.isEmpty()) {
             return emptyList()
         }
+        database.registerPathHints(changedPaths)
         val changedSet = changedPaths.toSet()
         val removedKeys = synchronized(stateLock) {
             changedPaths.flatMap { removedDefinitionKeys[it].orEmpty() }.toSet()
         }
         val byCurrentDefinitions = database.getEffectedFiles(changedPaths)
-        val byRemovedDefinitions = database.getEffectedFilesByDefinitionKeys(removedKeys)
+        val byRemovedDefinitions = database.getEffectedFilesByDefinitionKeys(removedKeys, changedPaths)
         return (byCurrentDefinitions + byRemovedDefinitions)
             .filter { it.refFilePath !in changedSet && File(it.refFilePath).exists() }
             .distinctBy { "${it.refFilePath}|${it.defFqClassName}|${it.constName}" }
@@ -212,6 +218,7 @@ class ConstRefScheduler(
 
     fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
         this.backgroundTaskRunner = backgroundTaskRunner
+        scheduleCacheCleanup()
     }
 
     fun dispose() {
@@ -222,6 +229,12 @@ class ConstRefScheduler(
             }
         }
         analyzer.dispose()
+    }
+
+    private fun scheduleCacheCleanup() {
+        backgroundTaskRunner.runBackgroundSafe("ConstRefScheduler#cacheCleanup") {
+            cacheCleaner.cleanupIfNeeded(database, repoSharedFingerprintStore)
+        }
     }
 
     private fun schedulePendingLocked() {
@@ -255,6 +268,7 @@ class ConstRefScheduler(
             return
         }
         analysisMutex.withLock {
+            database.registerPathHints(files.map { it.toStdPath() })
             ensureDefinitionIndexInitializedLocked()
             val existingFiles = mutableListOf<File>()
             files.distinctBy { it.toStdPath() }.forEach { file ->
@@ -274,25 +288,23 @@ class ConstRefScheduler(
 
             val checksumMap = mutableMapOf<String, Long>()
             val changedFiles = mutableListOf<File>()
-            var sharedFingerprintHitCount = 0
-            var sharedFingerprintMissCount = 0
+            var mtimeHitCount = 0
+            var fingerprintHitCount = 0
+            var crcMissCount = 0
+            var analysisReuseHitCount = 0
             existingFiles.forEach { file ->
                 val path = file.toStdPath()
-                val cacheEntry = database.getFileCache(path)
                 val fileLastModified = file.lastModified()
-                if (cacheEntry != null && cacheEntry.lastModified == fileLastModified) {
-                    clearRemovedDefinitionKeys(path)
-                    markAnalyzed(path)
-                    return@forEach
-                }
 
-                val checksum = resolveChecksumWithSharedFingerprint(
+                val checksum = resolveChecksum(
                     file = file,
-                    onSharedHit = { sharedFingerprintHitCount++ },
-                    onSharedMiss = { sharedFingerprintMissCount++ },
+                    fileLastModified = fileLastModified,
+                    onMtimeHit = { mtimeHitCount++ },
+                    onFingerprintHit = { fingerprintHitCount++ },
+                    onCrcMiss = { crcMissCount++ },
                 )
-                if (cacheEntry != null && cacheEntry.checksum == checksum) {
-                    database.updateFileLastModified(path, fileLastModified)
+                if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
+                    analysisReuseHitCount++
                     clearRemovedDefinitionKeys(path)
                     markAnalyzed(path)
                     return@forEach
@@ -300,10 +312,11 @@ class ConstRefScheduler(
                 checksumMap[path] = checksum
                 changedFiles += file
             }
-            if (sharedFingerprintHitCount > 0 || sharedFingerprintMissCount > 0) {
+            if (mtimeHitCount > 0 || fingerprintHitCount > 0 || crcMissCount > 0 || analysisReuseHitCount > 0) {
                 logger.debug(
-                    "ConstRefScheduler shared fingerprint stats, " +
-                        "hit=$sharedFingerprintHitCount, miss=$sharedFingerprintMissCount"
+                    "ConstRefScheduler checksum resolve stats, " +
+                        "mtimeHit=$mtimeHitCount, fingerprintHit=$fingerprintHitCount, " +
+                        "crcMiss=$crcMissCount, analysisReuseHit=$analysisReuseHitCount"
                 )
             }
             if (changedFiles.isEmpty()) {
@@ -383,30 +396,45 @@ class ConstRefScheduler(
         currentEditingFile = null
     }
 
-    private fun resolveChecksumWithSharedFingerprint(
+    private fun resolveChecksum(
         file: File,
-        onSharedHit: () -> Unit,
-        onSharedMiss: () -> Unit,
+        fileLastModified: Long,
+        onMtimeHit: () -> Unit,
+        onFingerprintHit: () -> Unit,
+        onCrcMiss: () -> Unit,
     ): Long {
-        val sharedChecksum = try {
-            repoSharedFingerprintStore.findChecksum(file)
-        } catch (t: Throwable) {
-            logger.debug("resolveChecksumWithSharedFingerprint query failed, file=$file", t)
-            null
-        }
-        if (sharedChecksum != null) {
-            onSharedHit()
-            return sharedChecksum
+        val path = file.toStdPath()
+        database.getChecksumByLastModified(path, fileLastModified)?.let { checksum ->
+            onMtimeHit()
+            return checksum
         }
 
-        onSharedMiss()
+        queryChecksumFromSharedFingerprint(file)?.let { checksum ->
+            onFingerprintHit()
+            return checksum
+        }
+
+        onCrcMiss()
         val checksum = calculateChecksum(file)
+        saveChecksumToSharedFingerprint(file, checksum)
+        return checksum
+    }
+
+    private fun queryChecksumFromSharedFingerprint(file: File): Long? {
+        return try {
+            repoSharedFingerprintStore.findChecksum(file)
+        } catch (t: Throwable) {
+            logger.debug("queryChecksumFromSharedFingerprint failed, file=$file", t)
+            null
+        }
+    }
+
+    private fun saveChecksumToSharedFingerprint(file: File, checksum: Long) {
         try {
             repoSharedFingerprintStore.saveChecksum(file, checksum)
         } catch (t: Throwable) {
-            logger.debug("resolveChecksumWithSharedFingerprint save failed, file=$file", t)
+            logger.debug("saveChecksumToSharedFingerprint failed, file=$file", t)
         }
-        return checksum
     }
 
     private fun calculateChecksum(file: File): Long {
@@ -428,6 +456,7 @@ class ConstRefScheduler(
         if (definitionIndexInitialized) {
             return
         }
+        database.registerPathHints(trackedSourceDirs)
         cachedDefinitionsByFile.clear()
         database.getAllDefinitions()
             .groupBy { it.filePath }

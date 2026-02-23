@@ -13,6 +13,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should detect effected files on cold start after full scan becomes ready`() {
         val rootDir = createTempDirectory("const_ref_integration")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -43,6 +44,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.initializeFullScan(listOf(rootDir))
@@ -67,6 +69,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should detect effected files when companion const changes`() {
         val rootDir = createTempDirectory("const_ref_integration_companion")
+        File(rootDir, ".git").mkdirs()
         val configFile = File(rootDir, "Config.kt").apply {
             writeText(
                 """
@@ -96,6 +99,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(configFile.absolutePath)
@@ -127,6 +131,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should not detect effected files when unrelated class changes`() {
         val rootDir = createTempDirectory("const_ref_integration_unrelated")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -161,6 +166,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(constantsFile.absolutePath)

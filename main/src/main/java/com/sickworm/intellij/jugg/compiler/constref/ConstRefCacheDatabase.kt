@@ -5,13 +5,18 @@ import com.sickworm.intellij.jugg.deploy.data.SqLiteDriverLoader
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.ResultSet
 
+/**
+ * Persist and query const-ref analysis snapshots in a repo-relative/global sqlite database.
+ */
 class ConstRefCacheDatabase(
     private val dbFile: File,
     private val logger: Logger,
 ) {
     private val maxDefinitionKeysPerQuery = 400
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
+    private val repoRootByKey = mutableMapOf<String, String>()
 
     init {
         init()
@@ -21,64 +26,161 @@ class ConstRefCacheDatabase(
     fun init() {
         SqLiteDriverLoader.load(logger)
         dbFile.parentFile?.mkdirs()
+
+        var needRecreate = false
+        var recreateReason = ""
         withConnection { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeUpdate(
+            val schemaVersion = readSchemaVersion(connection)
+            val hasLegacySchema = tableExists(connection, "file_cache")
+            if (schemaVersion != DB_SCHEMA_VERSION && (schemaVersion != 0 || hasLegacySchema)) {
+                needRecreate = true
+                recreateReason = "schema_version=$schemaVersion legacy=$hasLegacySchema"
+            } else {
+                ensureSchema(connection)
+            }
+        }
+
+        if (!needRecreate) {
+            return
+        }
+        logger.warn("ConstRefCacheDatabase recreate db due to incompatible schema: $recreateReason")
+        recreateDatabase()
+    }
+
+    @Synchronized
+    fun registerPathHints(filePaths: Collection<String>) {
+        filePaths.forEach { filePath ->
+            resolveRepoIdentity(filePath)
+        }
+    }
+
+    @Synchronized
+    fun getChecksumByLastModified(filePath: String, lastModified: Long): Long? {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return null
+        return withConnection { connection ->
+            connection.prepareStatement(
+                """
+                SELECT m.checksum
+                FROM file_checksum_mtime_map m
+                INNER JOIN file_analysis_head h
+                    ON h.repo_key = m.repo_key
+                   AND h.relative_path = m.relative_path
+                   AND h.checksum = m.checksum
+                WHERE m.repo_key = ?
+                  AND m.relative_path = ?
+                  AND m.last_modified = ?
+                LIMIT 1
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, repoIdentity.repoKey)
+                statement.setString(2, repoIdentity.relativePath)
+                statement.setLong(3, lastModified)
+                statement.executeQuery().use { resultSet ->
+                    if (!resultSet.next()) {
+                        return@withConnection null
+                    }
+                    return@withConnection resultSet.getLong("checksum")
+                }
+            }
+        }
+    }
+
+    @Synchronized
+    fun hasFileAnalysis(filePath: String, checksum: Long): Boolean {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return false
+        return withConnection { connection ->
+            connection.prepareStatement(
+                """
+                SELECT 1
+                FROM file_analysis_head
+                WHERE repo_key = ?
+                  AND relative_path = ?
+                  AND checksum = ?
+                LIMIT 1
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, repoIdentity.repoKey)
+                statement.setString(2, repoIdentity.relativePath)
+                statement.setLong(3, checksum)
+                statement.executeQuery().use { resultSet ->
+                    resultSet.next()
+                }
+            }
+        }
+    }
+
+    @Synchronized
+    fun touchFileAnalysis(filePath: String, lastModified: Long, checksum: Long): Boolean {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return false
+        val nowMs = System.currentTimeMillis()
+        return withConnection { connection ->
+            connection.autoCommit = false
+            try {
+                val updatedRows = connection.prepareStatement(
                     """
-                    CREATE TABLE IF NOT EXISTS file_cache (
-                        file_path TEXT PRIMARY KEY,
-                        last_modified INTEGER NOT NULL,
-                        checksum INTEGER NOT NULL,
-                        analyzed_at INTEGER NOT NULL
-                    );
-
-                    CREATE TABLE IF NOT EXISTS const_definitions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        file_path TEXT NOT NULL,
-                        package_name TEXT NOT NULL,
-                        fq_class_name TEXT NOT NULL,
-                        const_name TEXT NOT NULL,
-                        const_type TEXT NOT NULL,
-                        const_value TEXT,
-                        FOREIGN KEY (file_path) REFERENCES file_cache(file_path) ON DELETE CASCADE
-                    );
-                    DROP INDEX IF EXISTS idx_const_def_unique;
-                    CREATE UNIQUE INDEX IF NOT EXISTS idx_const_def_unique ON const_definitions(file_path, fq_class_name, const_name);
-                    CREATE INDEX IF NOT EXISTS idx_const_def_file ON const_definitions(file_path);
-                    CREATE INDEX IF NOT EXISTS idx_const_def_package_const ON const_definitions(package_name, const_name);
-
-                    CREATE TABLE IF NOT EXISTS const_references (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        ref_file_path TEXT NOT NULL,
-                        def_fq_class_name TEXT NOT NULL,
-                        const_name TEXT NOT NULL,
-                        FOREIGN KEY (ref_file_path) REFERENCES file_cache(file_path) ON DELETE CASCADE
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_ref_def_class ON const_references(def_fq_class_name, const_name);
-                    CREATE INDEX IF NOT EXISTS idx_ref_file ON const_references(ref_file_path);
+                    UPDATE file_analysis_head
+                    SET last_access_at = ?
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                      AND checksum = ?
                     """.trimIndent()
+                ).use { statement ->
+                    statement.setLong(1, nowMs)
+                    statement.setString(2, repoIdentity.repoKey)
+                    statement.setString(3, repoIdentity.relativePath)
+                    statement.setLong(4, checksum)
+                    statement.executeUpdate()
+                }
+                if (updatedRows <= 0) {
+                    connection.rollback()
+                    return@withConnection false
+                }
+
+                upsertMtimeMap(
+                    connection = connection,
+                    repoKey = repoIdentity.repoKey,
+                    relativePath = repoIdentity.relativePath,
+                    lastModified = lastModified,
+                    checksum = checksum,
+                    updatedAt = nowMs,
                 )
+                connection.commit()
+                true
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
             }
         }
     }
 
     @Synchronized
     fun getFileCache(filePath: String): FileCacheEntry? {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return null
         return withConnection { connection ->
             connection.prepareStatement(
                 """
-                SELECT file_path, last_modified, checksum, analyzed_at
-                FROM file_cache
-                WHERE file_path = ?
+                SELECT m.last_modified, m.checksum, h.analyzed_at
+                FROM file_checksum_mtime_map m
+                INNER JOIN file_analysis_head h
+                    ON h.repo_key = m.repo_key
+                   AND h.relative_path = m.relative_path
+                   AND h.checksum = m.checksum
+                WHERE m.repo_key = ?
+                  AND m.relative_path = ?
+                ORDER BY m.updated_at DESC, m.last_modified DESC
+                LIMIT 1
                 """.trimIndent()
             ).use { statement ->
-                statement.setString(1, filePath)
+                statement.setString(1, repoIdentity.repoKey)
+                statement.setString(2, repoIdentity.relativePath)
                 statement.executeQuery().use { resultSet ->
                     if (!resultSet.next()) {
                         return@withConnection null
                     }
                     return@withConnection FileCacheEntry(
-                        filePath = resultSet.getString("file_path"),
+                        filePath = filePath,
                         lastModified = resultSet.getLong("last_modified"),
                         checksum = resultSet.getLong("checksum"),
                         analyzedAt = resultSet.getLong("analyzed_at"),
@@ -96,48 +198,72 @@ class ConstRefCacheDatabase(
         definitions: List<ConstDefinition>,
         references: List<ConstReference>,
     ) {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return
+        val nowMs = System.currentTimeMillis()
         withConnection { connection ->
             connection.autoCommit = false
             try {
                 connection.prepareStatement(
                     """
-                    INSERT INTO file_cache(file_path, last_modified, checksum, analyzed_at)
-                    VALUES(?, ?, ?, ?)
-                    ON CONFLICT(file_path)
-                    DO UPDATE SET last_modified=excluded.last_modified,
-                                  checksum=excluded.checksum,
-                                  analyzed_at=excluded.analyzed_at
+                    INSERT INTO file_analysis_head(repo_key, relative_path, checksum, analyzed_at, last_access_at)
+                    VALUES(?, ?, ?, ?, ?)
+                    ON CONFLICT(repo_key, relative_path, checksum)
+                    DO UPDATE SET analyzed_at = excluded.analyzed_at,
+                                  last_access_at = excluded.last_access_at
                     """.trimIndent()
                 ).use { statement ->
-                    statement.setString(1, filePath)
-                    statement.setLong(2, lastModified)
+                    statement.setString(1, repoIdentity.repoKey)
+                    statement.setString(2, repoIdentity.relativePath)
                     statement.setLong(3, checksum)
-                    statement.setLong(4, System.currentTimeMillis())
-                    statement.executeUpdate()
-                }
-
-                connection.prepareStatement("DELETE FROM const_definitions WHERE file_path = ?").use { statement ->
-                    statement.setString(1, filePath)
-                    statement.executeUpdate()
-                }
-                connection.prepareStatement("DELETE FROM const_references WHERE ref_file_path = ?").use { statement ->
-                    statement.setString(1, filePath)
+                    statement.setLong(4, nowMs)
+                    statement.setLong(5, nowMs)
                     statement.executeUpdate()
                 }
 
                 connection.prepareStatement(
                     """
-                    INSERT INTO const_definitions(file_path, package_name, fq_class_name, const_name, const_type, const_value)
-                    VALUES(?, ?, ?, ?, ?, ?)
+                    DELETE FROM const_definitions
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                      AND checksum = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setString(1, repoIdentity.repoKey)
+                    statement.setString(2, repoIdentity.relativePath)
+                    statement.setLong(3, checksum)
+                    statement.executeUpdate()
+                }
+                connection.prepareStatement(
+                    """
+                    DELETE FROM const_references
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                      AND checksum = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setString(1, repoIdentity.repoKey)
+                    statement.setString(2, repoIdentity.relativePath)
+                    statement.setLong(3, checksum)
+                    statement.executeUpdate()
+                }
+
+                connection.prepareStatement(
+                    """
+                    INSERT INTO const_definitions(
+                        repo_key, relative_path, checksum, package_name, fq_class_name, const_name, const_type, const_value
+                    )
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent()
                 ).use { statement ->
                     definitions.forEach { definition ->
-                        statement.setString(1, filePath)
-                        statement.setString(2, definition.packageName)
-                        statement.setString(3, definition.fqClassName)
-                        statement.setString(4, definition.constName)
-                        statement.setString(5, definition.constType)
-                        statement.setString(6, definition.constValue)
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, checksum)
+                        statement.setString(4, definition.packageName)
+                        statement.setString(5, definition.fqClassName)
+                        statement.setString(6, definition.constName)
+                        statement.setString(7, definition.constType)
+                        statement.setString(8, definition.constValue)
                         statement.addBatch()
                     }
                     statement.executeBatch()
@@ -145,19 +271,29 @@ class ConstRefCacheDatabase(
 
                 connection.prepareStatement(
                     """
-                    INSERT INTO const_references(ref_file_path, def_fq_class_name, const_name)
-                    VALUES(?, ?, ?)
+                    INSERT INTO const_references(repo_key, relative_path, checksum, def_fq_class_name, const_name)
+                    VALUES(?, ?, ?, ?, ?)
                     """.trimIndent()
                 ).use { statement ->
                     references.forEach { reference ->
-                        statement.setString(1, filePath)
-                        statement.setString(2, reference.defFqClassName)
-                        statement.setString(3, reference.constName)
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, repoIdentity.relativePath)
+                        statement.setLong(3, checksum)
+                        statement.setString(4, reference.defFqClassName)
+                        statement.setString(5, reference.constName)
                         statement.addBatch()
                     }
                     statement.executeBatch()
                 }
 
+                upsertMtimeMap(
+                    connection = connection,
+                    repoKey = repoIdentity.repoKey,
+                    relativePath = repoIdentity.relativePath,
+                    lastModified = lastModified,
+                    checksum = checksum,
+                    updatedAt = nowMs,
+                )
                 connection.commit()
             } catch (t: Throwable) {
                 connection.rollback()
@@ -170,57 +306,180 @@ class ConstRefCacheDatabase(
 
     @Synchronized
     fun updateFileLastModified(filePath: String, lastModified: Long) {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return
+        val nowMs = System.currentTimeMillis()
         withConnection { connection ->
-            connection.prepareStatement(
-                """
-                UPDATE file_cache
-                SET last_modified = ?, analyzed_at = ?
-                WHERE file_path = ?
-                """.trimIndent()
-            ).use { statement ->
-                statement.setLong(1, lastModified)
-                statement.setLong(2, System.currentTimeMillis())
-                statement.setString(3, filePath)
-                statement.executeUpdate()
+            val checksum = queryLatestChecksum(connection, repoIdentity.repoKey, repoIdentity.relativePath) ?: return@withConnection
+            connection.autoCommit = false
+            try {
+                upsertMtimeMap(
+                    connection = connection,
+                    repoKey = repoIdentity.repoKey,
+                    relativePath = repoIdentity.relativePath,
+                    lastModified = lastModified,
+                    checksum = checksum,
+                    updatedAt = nowMs,
+                )
+                connection.prepareStatement(
+                    """
+                    UPDATE file_analysis_head
+                    SET last_access_at = ?
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                      AND checksum = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setLong(1, nowMs)
+                    statement.setString(2, repoIdentity.repoKey)
+                    statement.setString(3, repoIdentity.relativePath)
+                    statement.setLong(4, checksum)
+                    statement.executeUpdate()
+                }
+                connection.commit()
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
             }
         }
     }
 
     @Synchronized
     fun removeFile(filePath: String) {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return
         withConnection { connection ->
-            connection.prepareStatement("DELETE FROM file_cache WHERE file_path = ?").use { statement ->
-                statement.setString(1, filePath)
-                statement.executeUpdate()
+            connection.autoCommit = false
+            try {
+                connection.prepareStatement(
+                    """
+                    DELETE FROM file_checksum_mtime_map
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setString(1, repoIdentity.repoKey)
+                    statement.setString(2, repoIdentity.relativePath)
+                    statement.executeUpdate()
+                }
+                connection.prepareStatement(
+                    """
+                    DELETE FROM file_analysis_head
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setString(1, repoIdentity.repoKey)
+                    statement.setString(2, repoIdentity.relativePath)
+                    statement.executeUpdate()
+                }
+                connection.commit()
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
             }
         }
     }
 
     @Synchronized
     fun removeFilesByPrefix(prefixPath: String) {
+        val repoIdentity = resolveRepoIdentity(prefixPath.removeSuffix("/")) ?: return
+        val relativePath = repoIdentity.relativePath.trim('/')
         withConnection { connection ->
-            connection.prepareStatement("DELETE FROM file_cache WHERE file_path LIKE ?").use { statement ->
-                statement.setString(1, "$prefixPath%")
-                statement.executeUpdate()
+            connection.autoCommit = false
+            try {
+                if (relativePath.isBlank()) {
+                    connection.prepareStatement(
+                        "DELETE FROM file_checksum_mtime_map WHERE repo_key = ?"
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        "DELETE FROM file_analysis_head WHERE repo_key = ?"
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.executeUpdate()
+                    }
+                } else {
+                    val likePattern = "$relativePath/%"
+                    connection.prepareStatement(
+                        """
+                        DELETE FROM file_checksum_mtime_map
+                        WHERE repo_key = ?
+                          AND (relative_path = ? OR relative_path LIKE ?)
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, relativePath)
+                        statement.setString(3, likePattern)
+                        statement.executeUpdate()
+                    }
+                    connection.prepareStatement(
+                        """
+                        DELETE FROM file_analysis_head
+                        WHERE repo_key = ?
+                          AND (relative_path = ? OR relative_path LIKE ?)
+                        """.trimIndent()
+                    ).use { statement ->
+                        statement.setString(1, repoIdentity.repoKey)
+                        statement.setString(2, relativePath)
+                        statement.setString(3, likePattern)
+                        statement.executeUpdate()
+                    }
+                }
+                connection.commit()
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
             }
         }
     }
 
     @Synchronized
     fun getAllDefinitions(excludeFilePaths: Set<String> = emptySet()): List<ConstDefinition> {
+        registerPathHints(excludeFilePaths)
+        val excludedIdentityKeys = excludeFilePaths
+            .mapNotNull { resolveRepoIdentity(it) }
+            .map { it.repoKey to it.relativePath }
+            .toSet()
+        val repoRoots = repoRootByKey.toMap()
+        if (repoRoots.isEmpty()) {
+            return emptyList()
+        }
+        val repoKeys = repoRoots.keys.toList()
         return withConnection { connection ->
-            val sql = buildString {
-                append("SELECT file_path, package_name, fq_class_name, const_name, const_type, const_value FROM const_definitions")
-                if (excludeFilePaths.isNotEmpty()) {
-                    append(" WHERE file_path NOT IN (${excludeFilePaths.joinToString(",") { "?" }})")
-                }
-            }
+            val repoPlaceholders = repoKeys.joinToString(",") { "?" }
+            val sql = """
+                WITH latest AS (
+                    SELECT repo_key,
+                           relative_path,
+                           checksum,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY repo_key, relative_path
+                               ORDER BY analyzed_at DESC, last_access_at DESC
+                           ) AS rank_num
+                    FROM file_analysis_head
+                    WHERE repo_key IN ($repoPlaceholders)
+                )
+                SELECT d.repo_key, d.relative_path, d.package_name, d.fq_class_name, d.const_name, d.const_type, d.const_value
+                FROM const_definitions d
+                INNER JOIN latest l
+                    ON l.repo_key = d.repo_key
+                   AND l.relative_path = d.relative_path
+                   AND l.checksum = d.checksum
+                WHERE l.rank_num = 1
+            """.trimIndent()
             connection.prepareStatement(sql).use { statement ->
-                excludeFilePaths.forEachIndexed { index, filePath ->
-                    statement.setString(index + 1, filePath)
+                repoKeys.forEachIndexed { index, repoKey ->
+                    statement.setString(index + 1, repoKey)
                 }
                 statement.executeQuery().use { resultSet ->
-                    buildDefinitions(resultSet)
+                    buildDefinitions(resultSet, repoRoots, excludedIdentityKeys)
                 }
             }
         }
@@ -228,68 +487,513 @@ class ConstRefCacheDatabase(
 
     @Synchronized
     fun getDefinitionsByFiles(filePaths: Collection<String>): List<ConstDefinition> {
-        val normalizedPaths = filePaths.distinct()
-        if (normalizedPaths.isEmpty()) {
+        val identities = filePaths
+            .mapNotNull { resolveRepoIdentity(it) }
+            .distinctBy { "${it.repoKey}|${it.relativePath}" }
+        if (identities.isEmpty()) {
             return emptyList()
         }
-        return withConnection { connection ->
-            val placeholders = normalizedPaths.joinToString(",") { "?" }
-            val sql = """
-                SELECT file_path, package_name, fq_class_name, const_name, const_type, const_value
-                FROM const_definitions
-                WHERE file_path IN ($placeholders)
-            """.trimIndent()
-            connection.prepareStatement(sql).use { statement ->
-                normalizedPaths.forEachIndexed { index, filePath ->
-                    statement.setString(index + 1, filePath)
-                }
-                statement.executeQuery().use { resultSet ->
-                    buildDefinitions(resultSet)
-                }
-            }
-        }
+        return loadLatestDefinitionsByIdentities(identities)
     }
 
     @Synchronized
     fun getEffectedFiles(changedFilePaths: Collection<String>): List<EffectedConstRef> {
-        val changedDefinitions = getDefinitionsByFiles(changedFilePaths)
+        val identities = changedFilePaths
+            .mapNotNull { resolveRepoIdentity(it) }
+            .distinctBy { "${it.repoKey}|${it.relativePath}" }
+        if (identities.isEmpty()) {
+            return emptyList()
+        }
+        val changedDefinitions = loadLatestDefinitionsByIdentities(identities)
         if (changedDefinitions.isEmpty()) {
             return emptyList()
         }
-        return getEffectedFilesByDefinitions(changedDefinitions)
+        val uniqueDefinitionKeys = changedDefinitions.map { it.fqClassName to it.constName }.toSet()
+        val repoKeys = identities.map { it.repoKey }.toSet()
+        return queryEffectedFilesByDefinitionKeys(uniqueDefinitionKeys, repoKeys)
     }
 
     @Synchronized
     fun getEffectedFilesByDefinitions(definitions: Collection<ConstDefinition>): List<EffectedConstRef> {
-        val uniqueKeys = definitions.map { it.fqClassName to it.constName }.toSet()
-        return getEffectedFilesByDefinitionKeys(uniqueKeys)
+        val uniqueDefinitionKeys = definitions.map { it.fqClassName to it.constName }.toSet()
+        if (uniqueDefinitionKeys.isEmpty()) {
+            return emptyList()
+        }
+        val repoKeys = definitions
+            .mapNotNull { resolveRepoIdentity(it.filePath) }
+            .map { it.repoKey }
+            .toSet()
+        return queryEffectedFilesByDefinitionKeys(uniqueDefinitionKeys, repoKeys)
     }
 
     @Synchronized
-    fun getEffectedFilesByDefinitionKeys(definitionKeys: Collection<Pair<String, String>>): List<EffectedConstRef> {
-        val uniqueKeys = definitionKeys.toSet()
-        if (uniqueKeys.isEmpty()) {
+    fun getEffectedFilesByDefinitionKeys(
+        definitionKeys: Collection<Pair<String, String>>,
+        scopeFilePaths: Collection<String> = emptyList(),
+    ): List<EffectedConstRef> {
+        val uniqueDefinitionKeys = definitionKeys.toSet()
+        if (uniqueDefinitionKeys.isEmpty()) {
+            return emptyList()
+        }
+        val repoKeys = scopeFilePaths
+            .mapNotNull { resolveRepoIdentity(it) }
+            .map { it.repoKey }
+            .toSet()
+        return queryEffectedFilesByDefinitionKeys(uniqueDefinitionKeys, repoKeys)
+    }
+
+    /**
+     * Execute ttl/retention cleanup with 24h throttle and optional force mode.
+     */
+    @Synchronized
+    fun cleanupIfNeeded(nowMs: Long = System.currentTimeMillis(), force: Boolean = false): CleanupResult {
+        val cleanupStats = withConnection { connection ->
+            val lastCleanupAt = readMetaLong(connection, META_LAST_CLEANUP_AT) ?: 0L
+            if (!force && nowMs - lastCleanupAt < CLEANUP_INTERVAL_MS) {
+                return@withConnection CleanupResult(
+                    executed = false,
+                    removedExpiredMtimeRows = 0,
+                    removedOverflowMtimeRows = 0,
+                    removedExpiredAnalysisRows = 0,
+                    removedOverflowAnalysisRows = 0,
+                    removedOrphanMtimeRows = 0,
+                    checkpointExecuted = false,
+                    vacuumExecuted = false,
+                )
+            }
+
+            connection.autoCommit = false
+            try {
+                val removedExpiredMtimeRows = executeDelete(
+                    connection = connection,
+                    sql = "DELETE FROM file_checksum_mtime_map WHERE updated_at < ?",
+                    params = arrayOf(nowMs - MTIME_MAP_TTL_MS),
+                )
+                val removedOverflowMtimeRows = executeDelete(
+                    connection = connection,
+                    sql = """
+                        DELETE FROM file_checksum_mtime_map
+                        WHERE rowid IN (
+                            SELECT rowid FROM (
+                                SELECT rowid,
+                                       ROW_NUMBER() OVER (
+                                           PARTITION BY repo_key, relative_path
+                                           ORDER BY updated_at DESC, last_modified DESC
+                                       ) AS rank_num
+                                FROM file_checksum_mtime_map
+                            ) ranked
+                            WHERE ranked.rank_num > ?
+                        )
+                    """.trimIndent(),
+                    params = arrayOf(MAX_MTIME_ENTRIES_PER_FILE),
+                )
+
+                val removedExpiredAnalysisRows = executeDelete(
+                    connection = connection,
+                    sql = "DELETE FROM file_analysis_head WHERE last_access_at < ?",
+                    params = arrayOf(nowMs - ANALYSIS_TTL_MS),
+                )
+                val removedOverflowAnalysisRows = executeDelete(
+                    connection = connection,
+                    sql = """
+                        DELETE FROM file_analysis_head
+                        WHERE rowid IN (
+                            SELECT rowid FROM (
+                                SELECT rowid,
+                                       ROW_NUMBER() OVER (
+                                           PARTITION BY repo_key, relative_path
+                                           ORDER BY last_access_at DESC, analyzed_at DESC
+                                       ) AS rank_num
+                                FROM file_analysis_head
+                            ) ranked
+                            WHERE ranked.rank_num > ?
+                        )
+                    """.trimIndent(),
+                    params = arrayOf(MAX_ANALYSIS_ENTRIES_PER_FILE),
+                )
+                val removedOrphanMtimeRows = executeDelete(
+                    connection = connection,
+                    sql = """
+                        DELETE FROM file_checksum_mtime_map
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM file_analysis_head
+                            WHERE file_analysis_head.repo_key = file_checksum_mtime_map.repo_key
+                              AND file_analysis_head.relative_path = file_checksum_mtime_map.relative_path
+                              AND file_analysis_head.checksum = file_checksum_mtime_map.checksum
+                        )
+                    """.trimIndent(),
+                    params = emptyArray(),
+                )
+
+                writeMetaLong(connection, META_LAST_CLEANUP_AT, nowMs)
+                connection.commit()
+                CleanupResult(
+                    executed = true,
+                    removedExpiredMtimeRows = removedExpiredMtimeRows,
+                    removedOverflowMtimeRows = removedOverflowMtimeRows,
+                    removedExpiredAnalysisRows = removedExpiredAnalysisRows,
+                    removedOverflowAnalysisRows = removedOverflowAnalysisRows,
+                    removedOrphanMtimeRows = removedOrphanMtimeRows,
+                    checkpointExecuted = false,
+                    vacuumExecuted = false,
+                )
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
+            }
+        }
+        if (!cleanupStats.executed) {
+            return cleanupStats
+        }
+
+        val maintenanceStats = runCheckpointAndVacuumIfNeeded(nowMs, force)
+        return cleanupStats.copy(
+            checkpointExecuted = maintenanceStats.checkpointExecuted,
+            vacuumExecuted = maintenanceStats.vacuumExecuted,
+        )
+    }
+
+    /**
+     * Import legacy project-local const-ref db (`build/jugg/database/const_ref.db`) into shared schema.
+     */
+    @Synchronized
+    fun importLegacyProjectDatabase(legacyDbFile: File): ImportResult {
+        if (!legacyDbFile.exists() || legacyDbFile.absolutePath == dbFile.absolutePath) {
+            return ImportResult(skipped = true, importedFiles = 0, importedDefinitions = 0, importedReferences = 0)
+        }
+        return runCatching {
+            DriverManager.getConnection("jdbc:sqlite:${legacyDbFile.absolutePath}").use { legacyConnection ->
+                if (!tableExists(legacyConnection, "file_cache")) {
+                    return@use ImportResult(
+                        skipped = true,
+                        importedFiles = 0,
+                        importedDefinitions = 0,
+                        importedReferences = 0,
+                    )
+                }
+                val fileRows = mutableListOf<LegacyFileRow>()
+                legacyConnection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT file_path, last_modified, checksum FROM file_cache").use { resultSet ->
+                        while (resultSet.next()) {
+                            fileRows += LegacyFileRow(
+                                filePath = resultSet.getString("file_path"),
+                                lastModified = resultSet.getLong("last_modified"),
+                                checksum = resultSet.getLong("checksum"),
+                            )
+                        }
+                    }
+                }
+                if (fileRows.isEmpty()) {
+                    return@use ImportResult(skipped = true, importedFiles = 0, importedDefinitions = 0, importedReferences = 0)
+                }
+
+                var importedFiles = 0
+                var importedDefinitions = 0
+                var importedReferences = 0
+                legacyConnection.prepareStatement(
+                    """
+                    SELECT package_name, fq_class_name, const_name, const_type, const_value
+                    FROM const_definitions
+                    WHERE file_path = ?
+                    """.trimIndent()
+                ).use { definitionStatement ->
+                    legacyConnection.prepareStatement(
+                        """
+                        SELECT def_fq_class_name, const_name
+                        FROM const_references
+                        WHERE ref_file_path = ?
+                        """.trimIndent()
+                    ).use { referenceStatement ->
+                        fileRows.forEach { row ->
+                            val definitions = mutableListOf<ConstDefinition>()
+                            definitionStatement.setString(1, row.filePath)
+                            definitionStatement.executeQuery().use { definitionResultSet ->
+                                while (definitionResultSet.next()) {
+                                    definitions += ConstDefinition(
+                                        filePath = row.filePath,
+                                        packageName = definitionResultSet.getString("package_name"),
+                                        fqClassName = definitionResultSet.getString("fq_class_name"),
+                                        constName = definitionResultSet.getString("const_name"),
+                                        constType = definitionResultSet.getString("const_type"),
+                                        constValue = definitionResultSet.getString("const_value"),
+                                    )
+                                }
+                            }
+
+                            val references = mutableListOf<ConstReference>()
+                            referenceStatement.setString(1, row.filePath)
+                            referenceStatement.executeQuery().use { referenceResultSet ->
+                                while (referenceResultSet.next()) {
+                                    references += ConstReference(
+                                        refFilePath = row.filePath,
+                                        defFqClassName = referenceResultSet.getString("def_fq_class_name"),
+                                        constName = referenceResultSet.getString("const_name"),
+                                    )
+                                }
+                            }
+
+                            upsertFileAnalysis(
+                                filePath = row.filePath,
+                                lastModified = row.lastModified,
+                                checksum = row.checksum,
+                                definitions = definitions,
+                                references = references,
+                            )
+                            importedFiles++
+                            importedDefinitions += definitions.size
+                            importedReferences += references.size
+                        }
+                    }
+                }
+                ImportResult(
+                    skipped = false,
+                    importedFiles = importedFiles,
+                    importedDefinitions = importedDefinitions,
+                    importedReferences = importedReferences,
+                )
+            }
+        }.onFailure { throwable ->
+            logger.warn(
+                "import legacy const-ref db failed, from=${legacyDbFile.absolutePath}, to=${dbFile.absolutePath}",
+                throwable,
+            )
+        }.getOrElse {
+            ImportResult(skipped = true, importedFiles = 0, importedDefinitions = 0, importedReferences = 0)
+        }
+    }
+
+    private fun recreateDatabase() {
+        runCatching {
+            dbFile.delete()
+            File("${dbFile.absolutePath}-wal").delete()
+            File("${dbFile.absolutePath}-shm").delete()
+        }.onFailure {
+            logger.warn("delete old const-ref db file failed, dbFile=${dbFile.absolutePath}", it)
+        }
+        withConnection { connection ->
+            ensureSchema(connection)
+        }
+    }
+
+    private fun ensureSchema(connection: Connection) {
+        connection.createStatement().use { statement ->
+            statement.executeUpdate(
+                """
+                CREATE TABLE IF NOT EXISTS file_checksum_mtime_map (
+                    repo_key TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    last_modified INTEGER NOT NULL,
+                    checksum INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    PRIMARY KEY (repo_key, relative_path, last_modified)
+                );
+                CREATE INDEX IF NOT EXISTS idx_mtime_map_updated ON file_checksum_mtime_map(updated_at);
+                CREATE INDEX IF NOT EXISTS idx_mtime_map_checksum ON file_checksum_mtime_map(repo_key, relative_path, checksum);
+
+                CREATE TABLE IF NOT EXISTS file_analysis_head (
+                    repo_key TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    checksum INTEGER NOT NULL,
+                    analyzed_at INTEGER NOT NULL,
+                    last_access_at INTEGER NOT NULL,
+                    PRIMARY KEY (repo_key, relative_path, checksum)
+                );
+                CREATE INDEX IF NOT EXISTS idx_analysis_head_access ON file_analysis_head(last_access_at);
+                CREATE INDEX IF NOT EXISTS idx_analysis_head_repo_file ON file_analysis_head(repo_key, relative_path);
+
+                CREATE TABLE IF NOT EXISTS const_definitions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    repo_key TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    checksum INTEGER NOT NULL,
+                    package_name TEXT NOT NULL,
+                    fq_class_name TEXT NOT NULL,
+                    const_name TEXT NOT NULL,
+                    const_type TEXT NOT NULL,
+                    const_value TEXT,
+                    FOREIGN KEY (repo_key, relative_path, checksum)
+                        REFERENCES file_analysis_head(repo_key, relative_path, checksum)
+                        ON DELETE CASCADE
+                );
+                DROP INDEX IF EXISTS idx_const_def_unique;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_const_def_unique
+                    ON const_definitions(repo_key, relative_path, checksum, fq_class_name, const_name);
+                CREATE INDEX IF NOT EXISTS idx_const_def_file_version
+                    ON const_definitions(repo_key, relative_path, checksum);
+                CREATE INDEX IF NOT EXISTS idx_const_def_repo_package_const
+                    ON const_definitions(repo_key, package_name, const_name);
+
+                CREATE TABLE IF NOT EXISTS const_references (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    repo_key TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    checksum INTEGER NOT NULL,
+                    def_fq_class_name TEXT NOT NULL,
+                    const_name TEXT NOT NULL,
+                    FOREIGN KEY (repo_key, relative_path, checksum)
+                        REFERENCES file_analysis_head(repo_key, relative_path, checksum)
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_ref_repo_def_class
+                    ON const_references(repo_key, def_fq_class_name, const_name);
+                CREATE INDEX IF NOT EXISTS idx_ref_file_version
+                    ON const_references(repo_key, relative_path, checksum);
+
+                CREATE TABLE IF NOT EXISTS maintenance_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+
+                PRAGMA schema_version = $DB_SCHEMA_VERSION;
+                """.trimIndent()
+            )
+        }
+    }
+
+    private fun readSchemaVersion(connection: Connection): Int {
+        connection.createStatement().use { statement ->
+            statement.executeQuery("PRAGMA schema_version").use { resultSet ->
+                if (!resultSet.next()) {
+                    return 0
+                }
+                return resultSet.getInt(1)
+            }
+        }
+    }
+
+    private fun tableExists(connection: Connection, tableName: String): Boolean {
+        connection.prepareStatement(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name = ?
+            LIMIT 1
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, tableName)
+            statement.executeQuery().use { resultSet ->
+                return resultSet.next()
+            }
+        }
+    }
+
+    private fun resolveRepoIdentity(filePath: String): RepoFileIdentity? {
+        val repoIdentity = ConstRefRepoPathResolver.resolve(filePath) ?: return null
+        repoRootByKey[repoIdentity.repoKey] = repoIdentity.worktreeRoot.toStdPath()
+        return repoIdentity
+    }
+
+    private fun queryLatestChecksum(connection: Connection, repoKey: String, relativePath: String): Long? {
+        connection.prepareStatement(
+            """
+            SELECT checksum
+            FROM file_analysis_head
+            WHERE repo_key = ?
+              AND relative_path = ?
+            ORDER BY analyzed_at DESC, last_access_at DESC
+            LIMIT 1
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, repoKey)
+            statement.setString(2, relativePath)
+            statement.executeQuery().use { resultSet ->
+                if (!resultSet.next()) {
+                    return null
+                }
+                return resultSet.getLong("checksum")
+            }
+        }
+    }
+
+    private fun loadLatestDefinitionsByIdentities(identities: List<RepoFileIdentity>): List<ConstDefinition> {
+        if (identities.isEmpty()) {
             return emptyList()
         }
         return withConnection { connection ->
+            val definitions = mutableListOf<ConstDefinition>()
+            identities.forEach { identity ->
+                val checksum = queryLatestChecksum(connection, identity.repoKey, identity.relativePath) ?: return@forEach
+                connection.prepareStatement(
+                    """
+                    SELECT package_name, fq_class_name, const_name, const_type, const_value
+                    FROM const_definitions
+                    WHERE repo_key = ?
+                      AND relative_path = ?
+                      AND checksum = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setString(1, identity.repoKey)
+                    statement.setString(2, identity.relativePath)
+                    statement.setLong(3, checksum)
+                    statement.executeQuery().use { resultSet ->
+                        val absolutePath = identity.absolutePathInWorktree()
+                        while (resultSet.next()) {
+                            definitions += ConstDefinition(
+                                filePath = absolutePath,
+                                packageName = resultSet.getString("package_name"),
+                                fqClassName = resultSet.getString("fq_class_name"),
+                                constName = resultSet.getString("const_name"),
+                                constType = resultSet.getString("const_type"),
+                                constValue = resultSet.getString("const_value"),
+                            )
+                        }
+                    }
+                }
+            }
+            definitions
+        }
+    }
+
+    private fun queryEffectedFilesByDefinitionKeys(
+        definitionKeys: Set<Pair<String, String>>,
+        scopeRepoKeys: Set<String>,
+    ): List<EffectedConstRef> {
+        if (definitionKeys.isEmpty()) {
+            return emptyList()
+        }
+        val repoRoots = repoRootByKey.toMap()
+        return withConnection { connection ->
             val effectedSet = linkedSetOf<EffectedConstRef>()
-            uniqueKeys.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+            definitionKeys.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
                 val whereClause = chunk.joinToString(" OR ") { "(def_fq_class_name = ? AND const_name = ?)" }
-                val sql = """
-                    SELECT ref_file_path, def_fq_class_name, const_name
-                    FROM const_references
-                    WHERE $whereClause
-                """.trimIndent()
+                val sql = buildString {
+                    append(
+                        """
+                        SELECT repo_key, relative_path, def_fq_class_name, const_name
+                        FROM const_references
+                        WHERE ($whereClause)
+                        """.trimIndent()
+                    )
+                    if (scopeRepoKeys.isNotEmpty()) {
+                        append(" AND repo_key IN (${scopeRepoKeys.joinToString(",") { "?" }})")
+                    }
+                }
                 connection.prepareStatement(sql).use { statement ->
                     var paramIndex = 1
                     chunk.forEach { (fqClassName, constName) ->
                         statement.setString(paramIndex++, fqClassName)
                         statement.setString(paramIndex++, constName)
                     }
+                    if (scopeRepoKeys.isNotEmpty()) {
+                        scopeRepoKeys.forEach { repoKey ->
+                            statement.setString(paramIndex++, repoKey)
+                        }
+                    }
+
                     statement.executeQuery().use { resultSet ->
                         while (resultSet.next()) {
+                            val repoKey = resultSet.getString("repo_key")
+                            val relativePath = resultSet.getString("relative_path")
+                            val absolutePath = resolveAbsolutePath(repoKey, relativePath, repoRoots) ?: continue
+                            if (!File(absolutePath).exists()) {
+                                continue
+                            }
                             effectedSet += EffectedConstRef(
-                                refFilePath = resultSet.getString("ref_file_path"),
+                                refFilePath = absolutePath,
                                 defFqClassName = resultSet.getString("def_fq_class_name"),
                                 constName = resultSet.getString("const_name"),
                             )
@@ -298,6 +1002,139 @@ class ConstRefCacheDatabase(
                 }
             }
             effectedSet.toList()
+        }
+    }
+
+    private fun buildDefinitions(
+        resultSet: ResultSet,
+        repoRoots: Map<String, String>,
+        excludedIdentityKeys: Set<Pair<String, String>>,
+    ): List<ConstDefinition> {
+        val definitions = mutableListOf<ConstDefinition>()
+        while (resultSet.next()) {
+            val repoKey = resultSet.getString("repo_key")
+            val relativePath = resultSet.getString("relative_path")
+            if ((repoKey to relativePath) in excludedIdentityKeys) {
+                continue
+            }
+            val absolutePath = resolveAbsolutePath(repoKey, relativePath, repoRoots) ?: continue
+            if (!File(absolutePath).exists()) {
+                continue
+            }
+            definitions += ConstDefinition(
+                filePath = absolutePath,
+                packageName = resultSet.getString("package_name"),
+                fqClassName = resultSet.getString("fq_class_name"),
+                constName = resultSet.getString("const_name"),
+                constType = resultSet.getString("const_type"),
+                constValue = resultSet.getString("const_value"),
+            )
+        }
+        return definitions
+    }
+
+    private fun resolveAbsolutePath(repoKey: String, relativePath: String, repoRoots: Map<String, String>): String? {
+        val repoRoot = repoRoots[repoKey] ?: return null
+        return if (relativePath.isBlank()) {
+            File(repoRoot).toStdPath()
+        } else {
+            File(repoRoot, relativePath).toStdPath()
+        }
+    }
+
+    private fun upsertMtimeMap(
+        connection: Connection,
+        repoKey: String,
+        relativePath: String,
+        lastModified: Long,
+        checksum: Long,
+        updatedAt: Long,
+    ) {
+        connection.prepareStatement(
+            """
+            INSERT INTO file_checksum_mtime_map(repo_key, relative_path, last_modified, checksum, updated_at)
+            VALUES(?, ?, ?, ?, ?)
+            ON CONFLICT(repo_key, relative_path, last_modified)
+            DO UPDATE SET checksum = excluded.checksum,
+                          updated_at = excluded.updated_at
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, repoKey)
+            statement.setString(2, relativePath)
+            statement.setLong(3, lastModified)
+            statement.setLong(4, checksum)
+            statement.setLong(5, updatedAt)
+            statement.executeUpdate()
+        }
+    }
+
+    private fun runCheckpointAndVacuumIfNeeded(nowMs: Long, force: Boolean): MaintenanceResult {
+        return withConnection { connection ->
+            val lastVacuumAt = readMetaLong(connection, META_LAST_VACUUM_AT) ?: 0L
+            if (!force && nowMs - lastVacuumAt < VACUUM_INTERVAL_MS) {
+                return@withConnection MaintenanceResult(
+                    checkpointExecuted = false,
+                    vacuumExecuted = false,
+                )
+            }
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            }
+            var didVacuum = false
+            if (dbFile.length() >= VACUUM_TRIGGER_BYTES) {
+                connection.createStatement().use { statement ->
+                    statement.execute("VACUUM")
+                }
+                didVacuum = true
+            }
+            writeMetaLong(connection, META_LAST_VACUUM_AT, nowMs)
+            MaintenanceResult(
+                checkpointExecuted = true,
+                vacuumExecuted = didVacuum,
+            )
+        }
+    }
+
+    private fun readMetaLong(connection: Connection, key: String): Long? {
+        connection.prepareStatement(
+            "SELECT value FROM maintenance_meta WHERE key = ?"
+        ).use { statement ->
+            statement.setString(1, key)
+            statement.executeQuery().use { resultSet ->
+                if (!resultSet.next()) {
+                    return null
+                }
+                return resultSet.getString("value")?.toLongOrNull()
+            }
+        }
+    }
+
+    private fun writeMetaLong(connection: Connection, key: String, value: Long) {
+        connection.prepareStatement(
+            """
+            INSERT INTO maintenance_meta(key, value)
+            VALUES(?, ?)
+            ON CONFLICT(key)
+            DO UPDATE SET value = excluded.value
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, key)
+            statement.setString(2, value.toString())
+            statement.executeUpdate()
+        }
+    }
+
+    private fun executeDelete(connection: Connection, sql: String, params: Array<Any>): Int {
+        connection.prepareStatement(sql).use { statement ->
+            params.forEachIndexed { index, param ->
+                when (param) {
+                    is Int -> statement.setInt(index + 1, param)
+                    is Long -> statement.setLong(index + 1, param)
+                    is String -> statement.setString(index + 1, param)
+                    else -> statement.setObject(index + 1, param)
+                }
+            }
+            return statement.executeUpdate()
         }
     }
 
@@ -319,25 +1156,52 @@ class ConstRefCacheDatabase(
         }
     }
 
-    private fun buildDefinitions(resultSet: java.sql.ResultSet): List<ConstDefinition> {
-        val definitions = mutableListOf<ConstDefinition>()
-        while (resultSet.next()) {
-            definitions += ConstDefinition(
-                filePath = resultSet.getString("file_path"),
-                packageName = resultSet.getString("package_name"),
-                fqClassName = resultSet.getString("fq_class_name"),
-                constName = resultSet.getString("const_name"),
-                constType = resultSet.getString("const_type"),
-                constValue = resultSet.getString("const_value"),
-            )
-        }
-        return definitions
-    }
-
     data class FileCacheEntry(
         val filePath: String,
         val lastModified: Long,
         val checksum: Long,
         val analyzedAt: Long,
     )
+
+    data class CleanupResult(
+        val executed: Boolean,
+        val removedExpiredMtimeRows: Int,
+        val removedOverflowMtimeRows: Int,
+        val removedExpiredAnalysisRows: Int,
+        val removedOverflowAnalysisRows: Int,
+        val removedOrphanMtimeRows: Int,
+        val checkpointExecuted: Boolean,
+        val vacuumExecuted: Boolean,
+    )
+
+    data class ImportResult(
+        val skipped: Boolean,
+        val importedFiles: Int,
+        val importedDefinitions: Int,
+        val importedReferences: Int,
+    )
+
+    private data class MaintenanceResult(
+        val checkpointExecuted: Boolean,
+        val vacuumExecuted: Boolean,
+    )
+
+    private data class LegacyFileRow(
+        val filePath: String,
+        val lastModified: Long,
+        val checksum: Long,
+    )
+
+    companion object {
+        private const val DB_SCHEMA_VERSION = 2
+        private const val CLEANUP_INTERVAL_MS = 24L * 60L * 60L * 1000L
+        private const val MTIME_MAP_TTL_MS = 30L * 24L * 60L * 60L * 1000L
+        private const val ANALYSIS_TTL_MS = 90L * 24L * 60L * 60L * 1000L
+        private const val MAX_MTIME_ENTRIES_PER_FILE = 20
+        private const val MAX_ANALYSIS_ENTRIES_PER_FILE = 5
+        private const val VACUUM_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L
+        private const val VACUUM_TRIGGER_BYTES = 256L * 1024L * 1024L
+        private const val META_LAST_CLEANUP_AT = "last_cleanup_at"
+        private const val META_LAST_VACUUM_AT = "last_vacuum_at"
+    }
 }

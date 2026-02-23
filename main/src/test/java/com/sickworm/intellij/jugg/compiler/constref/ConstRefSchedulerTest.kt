@@ -16,6 +16,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should not analyze current editing file until next file changes`() {
         val rootDir = createTempDirectory("const_ref_scheduler_editing_state")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -31,6 +32,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
             database = database,
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(constantsFile.absolutePath)
@@ -49,6 +51,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should analyze previous file on next save and flush current editing file on await`() {
         val rootDir = createTempDirectory("const_ref_scheduler_next_file_trigger")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -73,6 +76,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
             database = database,
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(constantsFile.absolutePath)
@@ -91,6 +95,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should analyze pending files and return effected files`() {
         val rootDir = createTempDirectory("const_ref_scheduler")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -124,6 +129,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(constantsFile.absolutePath)
@@ -146,6 +152,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should cleanup deleted file references`() {
         val rootDir = createTempDirectory("const_ref_scheduler_delete")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -170,6 +177,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(constantsFile.absolutePath)
@@ -189,6 +197,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should keep effected files when const is downgraded to val`() {
         val rootDir = createTempDirectory("const_ref_scheduler_downgrade")
+        File(rootDir, ".git").mkdirs()
         val constantsFile = File(rootDir, "Constants.kt").apply {
             writeText(
                 """
@@ -213,6 +222,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
             coroutineScope = scope,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
         )
         try {
             scheduler.onFileSaved(constantsFile.absolutePath)
@@ -234,6 +244,80 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
             scheduler.dispose()
             scope.cancel()
         }
+    }
+
+    @Test
+    fun `should reuse analysis across worktrees when only mtime changes`() {
+        val rootDir = createTempDirectory("const_ref_scheduler_worktree")
+        val commonGitDir = File(rootDir, "common.git").apply { mkdirs() }
+        val worktreeA = File(rootDir, "worktree_a").apply { mkdirs() }
+        val worktreeB = File(rootDir, "worktree_b").apply { mkdirs() }
+        prepareWorktreeGitRef(worktreeA, commonGitDir, "a")
+        prepareWorktreeGitRef(worktreeB, commonGitDir, "b")
+
+        val constantsInA = File(worktreeA, "src/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val constantsInB = File(worktreeB, "src/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText(constantsInA.readText())
+            setLastModified(constantsInA.lastModified() + 10_000L)
+        }
+
+        val sharedDbFile = File(rootDir, "const_ref_shared.db")
+        val sharedFingerprintDbFile = File(rootDir, "repo_fingerprint.db")
+        val scopeA = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val schedulerA = ConstRefScheduler(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(sharedDbFile, logger),
+            logger = logger,
+            coroutineScope = scopeA,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
+        )
+        try {
+            schedulerA.onFileSaved(constantsInA.absolutePath)
+            schedulerA.awaitAnalysis(listOf(constantsInA.absolutePath), timeoutMs = 10_000L)
+        } finally {
+            schedulerA.dispose()
+            scopeA.cancel()
+        }
+
+        val sharedDatabase = ConstRefCacheDatabase(sharedDbFile, logger)
+        val before = sharedDatabase.getFileCache(constantsInA.toStdPath())
+        assertNotNull(before)
+
+        val scopeB = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val schedulerB = ConstRefScheduler(
+            analyzer = ConstRefAnalyzer(logger),
+            database = sharedDatabase,
+            logger = logger,
+            coroutineScope = scopeB,
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, sharedFingerprintDbFile),
+        )
+        try {
+            schedulerB.onFileSaved(constantsInB.absolutePath)
+            schedulerB.awaitAnalysis(listOf(constantsInB.absolutePath), timeoutMs = 10_000L)
+        } finally {
+            schedulerB.dispose()
+            scopeB.cancel()
+        }
+
+        val after = sharedDatabase.getFileCache(constantsInB.toStdPath())
+        assertNotNull(after)
+        assertEquals(before?.checksum, after?.checksum)
+        assertEquals(before?.analyzedAt, after?.analyzedAt)
+    }
+
+    private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
+        val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
+        File(worktreeGitDir, "commondir").writeText("../../\n")
+        File(worktreeDir, ".git").writeText("gitdir: ${worktreeGitDir.absolutePath}\n")
     }
 
     private fun waitUntil(

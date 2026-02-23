@@ -1,7 +1,8 @@
 # Jugg 常量引用影响分析（ConstRefScheduler / ConstRefAnalyzer）
 
-> 文档版本: v1.0  
+> 文档版本: v1.1  
 > 创建时间: 2026-02-22  
+> 更新时间: 2026-02-22  
 > 涵盖模块: `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/*`  
 > 一致性提示: 如文档与代码不一致，以代码为准。
 
@@ -51,7 +52,9 @@
 - 串行调度分析任务（避免并发解析冲突）；
 - 管理“当前编辑文件/待分析队列/分析完成时间戳”；
 - 维护 `ConstDefinitionIndex`（内存索引）与 `ConstRefCacheDatabase`（持久化）；
+- 维护三层 checksum 命中链路：`mtime-map -> RepoSharedFingerprintStore -> CRC32`；
 - 在预编译点强制冲刷待分析队列，尽量保证结果新鲜；
+- 异步触发 `ConstRefCacheCleaner` 做 TTL/版本上限清理，不阻塞主流程；
 - 追踪“已删除常量 key”，避免 `const -> val` 时漏掉历史引用影响。
 
 ### 3.2 三个分析场景
@@ -78,6 +81,13 @@
 | `initializeFullScan(sourceDirs)` | 异步扫描目录下所有源码，构建 definitions/references 索引，并设置目录 ready。 |
 | `onFileDeleted(path)` | 清理内存状态、索引、数据库文件记录（含前缀删除）。 |
 | `getEffectedFiles(changedPaths)` | 合并“当前定义命中”+“已删除定义 key 命中”的引用文件，过滤不存在文件并去重。 |
+
+### 3.5 路径与注入
+
+- `ConstRefScheduler` 不直接拼接路径；
+- `DeployFileManager` 从 `JuggPathManager` 注入：
+  - `constRefSharedDbFile`：`<PathManager.system>/jugg/const_ref/const_ref_shared.db`
+  - `repoFingerprintDbFile`：`<PathManager.system>/jugg/const_ref/repo_fingerprint.db`
 
 ---
 
@@ -145,11 +155,17 @@ Kotlin 引用覆盖：
 
 核心表：
 
-- `file_cache`：`last_modified`、`checksum`、`analyzed_at`
-- `const_definitions`
-- `const_references`
+- `file_checksum_mtime_map`：`(repo_key, relative_path, last_modified) -> checksum`
+- `file_analysis_head`：`(repo_key, relative_path, checksum)` 的分析版本头（`analyzed_at/last_access_at`）
+- `const_definitions`：按 `repo_key + relative_path + checksum` 存定义
+- `const_references`：按 `repo_key + relative_path + checksum` 存引用
+- `maintenance_meta`：清理节流元数据（`last_cleanup_at/last_vacuum_at`）
 
-查询受影响文件时，先从变更文件提取 definition key，再反查引用表。
+关键行为：
+
+- 同仓库多 worktree 通过 `repo_key + relative_path` 共享分析结果；
+- 受影响文件查询先定位定义 key，再按当前 worktree 还原绝对路径，仅返回本地存在文件；
+- db schema 使用 `PRAGMA schema_version=2`，不兼容时重建。
 
 ### 5.3 Repo 共享指纹：RepoSharedFingerprintStore
 
@@ -160,6 +176,18 @@ Kotlin 引用覆盖：
 - key 由 `repo_key + relative_path + file_size + head/tail(+middle)签名` 组成；
 - 支持 Git worktree 共享命中（通过 `commondir` 归一 repo_key）；
 - 中段内容变化可避免“同头同尾误命中”。
+- 支持独立 cleanup（TTL + 每文件版本上限 + checkpoint/vacuum）。
+
+### 5.4 命中链路（编译前）
+
+对单文件 checksum 解析按顺序执行：
+
+1. `file_checksum_mtime_map` 命中：直接用 checksum；
+2. `RepoSharedFingerprintStore` 命中：复用 checksum；
+3. 都未命中：计算 CRC32，并回写指纹库；
+4. 拿到 checksum 后查 `file_analysis_head`：
+   - 命中版本则仅 touch（不重复 AST 解析）；
+   - 未命中才执行 parse definitions/references 并落库。
 
 ---
 
@@ -181,6 +209,7 @@ Kotlin 引用覆盖：
 - `ensureReadyForRecompile()` 异常：记录 warning，按“未就绪”处理；
 - 未就绪：warning 提示，仍继续用当前已完成缓存查询；
 - `getEffectedFiles()` 异常：warning 后返回空列表，避免阻断主部署流程。
+- cleanup 异常：仅 warning，不影响增量编译主链路。
 
 ---
 
@@ -192,8 +221,8 @@ Kotlin 引用覆盖：
 | `ConstRefIntegrationTest.kt` | 冷启动 full scan 后的命中、companion const 变更命中、无关类变更不误报。 |
 | `JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `KotlinConstParserTest.kt` | Kotlin 定义/引用解析、alias/星号导入、同包解析、忽略注释/字符串。 |
-| `ConstRefCacheDatabaseTest.kt` | DB upsert/query、同名常量跨文件共存、仅更新时间戳。 |
-| `RepoSharedFingerprintStoreTest.kt` | mtime 命中、内容中段变化 miss、worktree 共享。 |
+| `ConstRefCacheDatabaseTest.kt` | DB upsert/query、同名常量跨文件共存、mtime 映射复用、cleanup 保留上限。 |
+| `RepoSharedFingerprintStoreTest.kt` | mtime 命中、内容中段变化 miss、worktree 共享、cleanup 保留上限。 |
 
 ---
 
@@ -211,6 +240,9 @@ Kotlin 引用覆盖：
 4. 大仓库耗时偏高  
 检查 `RepoSharedFingerprintStore` 是否可写、是否位于 Git 工作树内（否则无法复用共享指纹）。
 
+5. 全局缓存不生效  
+检查 `JuggPathManager.constRefDir` 下两个 db 是否创建；若为升级场景，确认迁移日志是否出现。
+
 ---
 
 ## 附录：关键文件清单
@@ -221,7 +253,10 @@ Kotlin 引用覆盖：
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/KotlinConstParser.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheDatabase.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/RepoSharedFingerprintStore.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefCacheCleaner.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefRepoPathResolver.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/project/JuggPathManager.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGenerator.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/data/ConstRefEffectProvider.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployData.kt`

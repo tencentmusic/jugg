@@ -10,6 +10,7 @@ import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.deploy.*
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.BaseCompileContext
+import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.FileChangesHandler
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import com.sickworm.intellij.jugg.project.ProjectInfoSerializer
@@ -41,11 +42,9 @@ class CmdLineContextManager(
     )
 
     val deployFileManager = DeployFileManager(
-        pathManager.projectDir,
+        pathManager,
+        CoroutineBackgroundTaskRunner(coroutineScope),
         logger,
-        pathManager.tmpDir,
-        pathManager.databaseDir,
-        coroutineScope,
     )
 
     val deployStateManager = object : IDeployStateManager {

@@ -8,9 +8,14 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.util.zip.CRC32
 
+/**
+ * Shared fingerprint index used to restore file checksum without reading full file content.
+ *
+ * The storage key is based on `repoKey + relativePath`, so multiple projects/worktrees can reuse it.
+ */
 class RepoSharedFingerprintStore(
     private val logger: Logger,
-    private val dbFile: File = File(System.getProperty("user.home"), ".jugg/const_ref/repo_fingerprint.db"),
+    private val dbFile: File,
 ) {
     private val sampleSize = 4096
     private val url = "jdbc:sqlite:${dbFile.absolutePath}"
@@ -21,7 +26,7 @@ class RepoSharedFingerprintStore(
 
     @Synchronized
     fun findChecksum(file: File): Long? {
-        val repoFileKey = resolveRepoFileKey(file) ?: return null
+        val repoFileKey = ConstRefRepoPathResolver.resolve(file) ?: return null
         val signature = buildContentSignature(file) ?: return null
         return withConnection { connection ->
             connection.prepareStatement(
@@ -52,7 +57,7 @@ class RepoSharedFingerprintStore(
 
     @Synchronized
     fun saveChecksum(file: File, checksum: Long) {
-        val repoFileKey = resolveRepoFileKey(file) ?: return
+        val repoFileKey = ConstRefRepoPathResolver.resolve(file) ?: return
         val signature = buildContentSignature(file) ?: return
         withConnection { connection ->
             connection.prepareStatement(
@@ -78,6 +83,75 @@ class RepoSharedFingerprintStore(
         }
     }
 
+    /**
+     * Clean old fingerprint entries and compact db with throttle control.
+     */
+    @Synchronized
+    fun cleanupIfNeeded(nowMs: Long = System.currentTimeMillis(), force: Boolean = false): CleanupResult {
+        val cleanupStats = withConnection { connection ->
+            val lastCleanupAt = readMetaLong(connection, META_LAST_CLEANUP_AT) ?: 0L
+            if (!force && nowMs - lastCleanupAt < CLEANUP_INTERVAL_MS) {
+                return@withConnection CleanupResult(
+                    executed = false,
+                    removedExpiredRows = 0,
+                    removedOverflowRows = 0,
+                    checkpointExecuted = false,
+                    vacuumExecuted = false,
+                )
+            }
+
+            connection.autoCommit = false
+            try {
+                val removedExpiredRows = executeDelete(
+                    connection = connection,
+                    sql = "DELETE FROM repo_fingerprint WHERE updated_at < ?",
+                    params = arrayOf(nowMs - FINGERPRINT_TTL_MS),
+                )
+                val removedOverflowRows = executeDelete(
+                    connection = connection,
+                    sql = """
+                        DELETE FROM repo_fingerprint
+                        WHERE rowid IN (
+                            SELECT rowid FROM (
+                                SELECT rowid,
+                                       ROW_NUMBER() OVER (
+                                           PARTITION BY repo_key, relative_path
+                                           ORDER BY updated_at DESC, file_size DESC
+                                       ) AS rank_num
+                                FROM repo_fingerprint
+                            ) ranked
+                            WHERE ranked.rank_num > ?
+                        )
+                    """.trimIndent(),
+                    params = arrayOf(MAX_FINGERPRINT_ENTRIES_PER_FILE),
+                )
+                writeMetaLong(connection, META_LAST_CLEANUP_AT, nowMs)
+                connection.commit()
+                CleanupResult(
+                    executed = true,
+                    removedExpiredRows = removedExpiredRows,
+                    removedOverflowRows = removedOverflowRows,
+                    checkpointExecuted = false,
+                    vacuumExecuted = false,
+                )
+            } catch (t: Throwable) {
+                connection.rollback()
+                throw t
+            } finally {
+                connection.autoCommit = true
+            }
+        }
+        if (!cleanupStats.executed) {
+            return cleanupStats
+        }
+
+        val maintenanceStats = runCheckpointAndVacuumIfNeeded(nowMs, force)
+        return cleanupStats.copy(
+            checkpointExecuted = maintenanceStats.checkpointExecuted,
+            vacuumExecuted = maintenanceStats.vacuumExecuted,
+        )
+    }
+
     @Synchronized
     private fun init() {
         SqLiteDriverLoader.load(logger)
@@ -97,67 +171,16 @@ class RepoSharedFingerprintStore(
                         PRIMARY KEY (repo_key, relative_path, file_size, head_checksum, tail_checksum)
                     );
                     CREATE INDEX IF NOT EXISTS idx_repo_fingerprint_path ON repo_fingerprint(repo_key, relative_path);
+                    CREATE INDEX IF NOT EXISTS idx_repo_fingerprint_updated ON repo_fingerprint(updated_at);
+
+                    CREATE TABLE IF NOT EXISTS maintenance_meta (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    );
                     """.trimIndent()
                 )
             }
         }
-    }
-
-    private fun resolveRepoFileKey(file: File): RepoFileKey? {
-        if (!file.exists()) {
-            return null
-        }
-        val absoluteFile = file.absoluteFile
-        var currentDir = absoluteFile.parentFile
-        while (currentDir != null) {
-            val gitRef = File(currentDir, ".git")
-            if (gitRef.exists()) {
-                val gitDir = resolveGitDir(currentDir, gitRef) ?: return null
-                val repoKey = resolveRepoKey(gitDir)
-                val relativePath = absoluteFile.relativeTo(currentDir).invariantSeparatorsPath
-                return RepoFileKey(repoKey = repoKey, relativePath = relativePath)
-            }
-            currentDir = currentDir.parentFile
-        }
-        return null
-    }
-
-    private fun resolveGitDir(worktreeRoot: File, gitRef: File): File? {
-        return if (gitRef.isDirectory) {
-            gitRef.canonicalFile
-        } else if (gitRef.isFile) {
-            val gitPath = gitRef.readText()
-                .lineSequence()
-                .firstOrNull()
-                ?.substringAfter("gitdir:", "")
-                ?.trim()
-                .orEmpty()
-            if (gitPath.isEmpty()) {
-                null
-            } else {
-                val resolved = if (File(gitPath).isAbsolute) File(gitPath) else File(worktreeRoot, gitPath)
-                resolved.canonicalFile
-            }
-        } else {
-            null
-        }
-    }
-
-    private fun resolveRepoKey(gitDir: File): String {
-        val commonDirFile = File(gitDir, "commondir")
-        if (!commonDirFile.exists()) {
-            return gitDir.canonicalPath
-        }
-        val commonDir = commonDirFile.readText().trim()
-        if (commonDir.isEmpty()) {
-            return gitDir.canonicalPath
-        }
-        val commonGitDir = if (File(commonDir).isAbsolute) {
-            File(commonDir)
-        } else {
-            File(gitDir, commonDir)
-        }
-        return commonGitDir.canonicalPath
     }
 
     private fun buildContentSignature(file: File): ContentSignature? {
@@ -200,6 +223,77 @@ class RepoSharedFingerprintStore(
         }
     }
 
+    private fun runCheckpointAndVacuumIfNeeded(nowMs: Long, force: Boolean): MaintenanceResult {
+        return withConnection { connection ->
+            val lastVacuumAt = readMetaLong(connection, META_LAST_VACUUM_AT) ?: 0L
+            if (!force && nowMs - lastVacuumAt < VACUUM_INTERVAL_MS) {
+                return@withConnection MaintenanceResult(
+                    checkpointExecuted = false,
+                    vacuumExecuted = false,
+                )
+            }
+
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            }
+            var didVacuum = false
+            if (dbFile.length() >= VACUUM_TRIGGER_BYTES) {
+                connection.createStatement().use { statement ->
+                    statement.execute("VACUUM")
+                }
+                didVacuum = true
+            }
+            writeMetaLong(connection, META_LAST_VACUUM_AT, nowMs)
+            MaintenanceResult(
+                checkpointExecuted = true,
+                vacuumExecuted = didVacuum,
+            )
+        }
+    }
+
+    private fun readMetaLong(connection: Connection, key: String): Long? {
+        connection.prepareStatement(
+            "SELECT value FROM maintenance_meta WHERE key = ?"
+        ).use { statement ->
+            statement.setString(1, key)
+            statement.executeQuery().use { resultSet ->
+                if (!resultSet.next()) {
+                    return null
+                }
+                return resultSet.getString("value")?.toLongOrNull()
+            }
+        }
+    }
+
+    private fun writeMetaLong(connection: Connection, key: String, value: Long) {
+        connection.prepareStatement(
+            """
+            INSERT INTO maintenance_meta(key, value)
+            VALUES(?, ?)
+            ON CONFLICT(key)
+            DO UPDATE SET value = excluded.value
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, key)
+            statement.setString(2, value.toString())
+            statement.executeUpdate()
+        }
+    }
+
+    private fun executeDelete(connection: Connection, sql: String, params: Array<Any>): Int {
+        connection.prepareStatement(sql).use { statement ->
+            params.forEachIndexed { index, param ->
+                when (param) {
+                    is Int -> statement.setInt(index + 1, param)
+                    is Long -> statement.setLong(index + 1, param)
+                    is String -> statement.setString(index + 1, param)
+                    else -> statement.setObject(index + 1, param)
+                }
+            }
+            return statement.executeUpdate()
+        }
+    }
+
     private fun crc32(vararg bytes: ByteArray): Long {
         val crc32 = CRC32()
         bytes.forEach { chunk ->
@@ -227,9 +321,17 @@ class RepoSharedFingerprintStore(
         }
     }
 
-    private data class RepoFileKey(
-        val repoKey: String,
-        val relativePath: String,
+    data class CleanupResult(
+        val executed: Boolean,
+        val removedExpiredRows: Int,
+        val removedOverflowRows: Int,
+        val checkpointExecuted: Boolean,
+        val vacuumExecuted: Boolean,
+    )
+
+    private data class MaintenanceResult(
+        val checkpointExecuted: Boolean,
+        val vacuumExecuted: Boolean,
     )
 
     private data class ContentSignature(
@@ -237,4 +339,53 @@ class RepoSharedFingerprintStore(
         val headChecksum: Long,
         val tailChecksum: Long,
     )
+
+    companion object {
+        private const val CLEANUP_INTERVAL_MS = 24L * 60L * 60L * 1000L
+        private const val FINGERPRINT_TTL_MS = 60L * 24L * 60L * 60L * 1000L
+        private const val MAX_FINGERPRINT_ENTRIES_PER_FILE = 10
+        private const val VACUUM_INTERVAL_MS = 7L * 24L * 60L * 60L * 1000L
+        private const val VACUUM_TRIGGER_BYTES = 256L * 1024L * 1024L
+        private const val META_LAST_CLEANUP_AT = "last_cleanup_at"
+        private const val META_LAST_VACUUM_AT = "last_vacuum_at"
+
+        fun legacyDbFile(): File {
+            return File(System.getProperty("user.home"), ".jugg/const_ref/repo_fingerprint.db")
+        }
+
+        fun migrateLegacyDbIfNeeded(targetDbFile: File, logger: Logger) {
+            if (targetDbFile.exists()) {
+                return
+            }
+            val legacyDbFile = legacyDbFile()
+            if (!legacyDbFile.exists()) {
+                return
+            }
+            targetDbFile.parentFile?.mkdirs()
+            runCatching {
+                copyFileIfExists(legacyDbFile, targetDbFile)
+                copyFileIfExists(File("${legacyDbFile.absolutePath}-wal"), File("${targetDbFile.absolutePath}-wal"))
+                copyFileIfExists(File("${legacyDbFile.absolutePath}-shm"), File("${targetDbFile.absolutePath}-shm"))
+            }.onSuccess {
+                logger.info(
+                    "migrate legacy repo fingerprint db success, from=${legacyDbFile.absolutePath}, " +
+                        "to=${targetDbFile.absolutePath}"
+                )
+            }.onFailure { throwable ->
+                logger.warn(
+                    "migrate legacy repo fingerprint db failed, from=${legacyDbFile.absolutePath}, " +
+                        "to=${targetDbFile.absolutePath}",
+                    throwable,
+                )
+            }
+        }
+
+        private fun copyFileIfExists(source: File, target: File) {
+            if (!source.exists()) {
+                return
+            }
+            target.parentFile?.mkdirs()
+            source.copyTo(target, overwrite = false)
+        }
+    }
 }

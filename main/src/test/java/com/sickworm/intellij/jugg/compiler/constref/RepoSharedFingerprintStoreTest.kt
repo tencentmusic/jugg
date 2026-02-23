@@ -3,8 +3,10 @@ package com.sickworm.intellij.jugg.compiler.constref
 import com.sickworm.intellij.jugg.mock.logger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.sql.DriverManager
 
 class RepoSharedFingerprintStoreTest : ConstRefTempDirCleanupSupport() {
     @Test
@@ -69,6 +71,43 @@ class RepoSharedFingerprintStoreTest : ConstRefTempDirCleanupSupport() {
 
         store.saveChecksum(fileInA, 24680L)
         assertEquals(24680L, store.findChecksum(fileInB))
+    }
+
+    @Test
+    fun `should cleanup fingerprint overflow versions`() {
+        val rootDir = createTempDirectory("repo_shared_fp_cleanup")
+        File(rootDir, ".git").mkdirs()
+        val sourceFile = File(rootDir, "src/Config.kt").apply {
+            parentFile.mkdirs()
+        }
+        val dbFile = File(rootDir, "repo_fingerprint.db")
+        val store = RepoSharedFingerprintStore(
+            logger = logger,
+            dbFile = dbFile,
+        )
+
+        repeat(12) { index ->
+            val prefix = ('A'.code + index).toChar().toString().repeat(32)
+            sourceFile.writeText(
+                """
+                package com.example
+                // $prefix
+                const val VALUE = $index
+                """.trimIndent()
+            )
+            store.saveChecksum(sourceFile, index.toLong())
+        }
+
+        store.cleanupIfNeeded(force = true)
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT COUNT(*) FROM repo_fingerprint").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertTrue(resultSet.getInt(1) <= 10)
+                }
+            }
+        }
     }
 
     private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {

@@ -8,7 +8,11 @@ import java.io.File
 class JuggPathManager(
     val projectDir: File,
     val juggRootDir: File = File("$projectDir/build/jugg"),
+    globalJuggRootDir: File = File(System.getProperty("user.home"), ".jugg"),
 ) {
+    val constRefDir: File = File(globalJuggRootDir, "const_ref")
+    val constRefSharedDbFile: File = File(constRefDir, "const_ref_shared.db")
+    val repoFingerprintDbFile: File = File(constRefDir, "repo_fingerprint.db")
 
     val compileRootDir = File(juggRootDir, "build")
     val stagingDir = File(compileRootDir, "staging")

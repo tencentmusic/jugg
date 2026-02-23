@@ -5,15 +5,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.sql.DriverManager
 
 class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should query effected files by changed constant definition`() {
         val dbDir = createTempDirectory("const_ref_db")
+        File(dbDir, ".git").mkdirs()
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
-        val constantsPath = File(dbDir, "Constants.kt").toStdPath()
-        val userPath = File(dbDir, "User.kt").toStdPath()
+        val constantsPath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+        val userPath = File(dbDir, "User.kt").apply { writeText("val value = MAX") }.toStdPath()
 
         val constantDefinition = ConstDefinition(
             filePath = constantsPath,
@@ -54,10 +56,11 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should exclude file definitions when requested`() {
         val dbDir = createTempDirectory("const_ref_db_exclude")
+        File(dbDir, ".git").mkdirs()
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
-        val constantsPath = File(dbDir, "Constants.kt").toStdPath()
-        val anotherPath = File(dbDir, "Another.kt").toStdPath()
+        val constantsPath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+        val anotherPath = File(dbDir, "Another.kt").apply { writeText("const val MIN = 1") }.toStdPath()
         database.upsertFileAnalysis(
             filePath = constantsPath,
             lastModified = 1L,
@@ -102,10 +105,17 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should allow same class and const name from different files`() {
         val dbDir = createTempDirectory("const_ref_db_unique")
+        File(dbDir, ".git").mkdirs()
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
-        val debugPath = File(dbDir, "debug/Constants.kt").toStdPath()
-        val releasePath = File(dbDir, "release/Constants.kt").toStdPath()
+        val debugPath = File(dbDir, "debug/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText("const val MAX = 10")
+        }.toStdPath()
+        val releasePath = File(dbDir, "release/Constants.kt").apply {
+            parentFile.mkdirs()
+            writeText("const val MAX = 20")
+        }.toStdPath()
 
         val debugDefinition = ConstDefinition(
             filePath = debugPath,
@@ -141,9 +151,10 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should update file last modified without changing checksum`() {
         val dbDir = createTempDirectory("const_ref_db_update_last_modified")
+        File(dbDir, ".git").mkdirs()
         val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
 
-        val filePath = File(dbDir, "Constants.kt").toStdPath()
+        val filePath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
         database.upsertFileAnalysis(
             filePath = filePath,
             lastModified = 100L,
@@ -169,5 +180,76 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
         val after = database.getFileCache(filePath)
         assertEquals(300L, after?.lastModified)
         assertEquals(200L, after?.checksum)
+    }
+
+    @Test
+    fun `should reuse checksum by mtime map`() {
+        val dbDir = createTempDirectory("const_ref_db_mtime_map")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+
+        val filePath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+        database.upsertFileAnalysis(
+            filePath = filePath,
+            lastModified = 100L,
+            checksum = 200L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = filePath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "10",
+                )
+            ),
+            references = emptyList(),
+        )
+
+        assertTrue(database.touchFileAnalysis(filePath, 300L, 200L))
+        assertEquals(200L, database.getChecksumByLastModified(filePath, 300L))
+    }
+
+    @Test
+    fun `should cleanup overflow versions by retention policy`() {
+        val dbDir = createTempDirectory("const_ref_db_cleanup")
+        File(dbDir, ".git").mkdirs()
+        val dbFile = File(dbDir, "const_ref_test.db")
+        val database = ConstRefCacheDatabase(dbFile, logger)
+        val filePath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+
+        repeat(25) { index ->
+            database.upsertFileAnalysis(
+                filePath = filePath,
+                lastModified = index.toLong(),
+                checksum = (1000 + index).toLong(),
+                definitions = listOf(
+                    ConstDefinition(
+                        filePath = filePath,
+                        packageName = "com.example",
+                        fqClassName = "com.example.ConstantsKt",
+                        constName = "MAX_$index",
+                        constType = "Int",
+                        constValue = index.toString(),
+                    )
+                ),
+                references = emptyList(),
+            )
+        }
+
+        database.cleanupIfNeeded(force = true)
+
+        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT COUNT(*) FROM file_checksum_mtime_map").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertTrue(resultSet.getInt(1) <= 20)
+                }
+                statement.executeQuery("SELECT COUNT(*) FROM file_analysis_head").use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertTrue(resultSet.getInt(1) <= 5)
+                }
+            }
+        }
     }
 }

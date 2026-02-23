@@ -37,13 +37,13 @@
 | compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
 | compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
 | compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
-| compiler | ConstRefScheduler, ConstRefAnalyzer | compiler/constref | 编译期常量定义/引用分析与受影响源码查询 | 新增 | 2026-02-21 |
-| deploy | JuggDeployer, DeployFileManager | deploy/core | 部署调度、文件准备 | 稳定 | 2025-01-20 |
+| compiler | ConstRefScheduler, ConstRefAnalyzer | compiler/constref | 编译期常量定义/引用分析、全局共享缓存（repo/worktree 复用）与过期清理 | 稳定 | 2026-02-22 |
+| deploy | JuggDeployer, DeployFileManager | deploy/core | 部署调度、文件准备；注入 const-ref 全局 db 路径并处理旧库迁移 | 稳定 | 2026-02-22 |
 | deploy | DeployDataGenerator, ClassNodeComparator | deploy/data | 类结构比较、影响分析 | 稳定 | 2026-02-01 |
 | deploy | DeployDataDatabase, IncrementalDeployDataDatabase | deploy/data | 双层数据库、引用索引 | 稳定 | 2026-02-01 |
 | deploy | InlineMethodDetector | deploy/data | 内联方法影响检测 | 稳定 | 2026-02-01 |
 | deploy | IncrementalDeployHelper, DeployHistoryManager | deploy/core | 增量部署与历史管理 | 稳定 | 2025-01-20 |
-| project | JuggProjectInfo, GradleProjectInfoReader | project | 项目信息读取/序列化 | 稳定 | 2025-01-20 |
+| project | JuggProjectInfo, GradleProjectInfoReader, JuggPathManager | project | 项目信息读取/序列化；统一路径管理 | 稳定 | 2026-02-22 |
 | project | DependencyResolver, LocalGradleCompileClient | project | 依赖解析与 Gradle 调用 | 稳定 | 2025-01-20 |
 | apk | ApkFileModifier | apk | APK 修改/签名 | 稳定 | 2025-01-20 |
 | aapt2 | Aapt2DaemonInvoker | aapt2 | AAPT2 守护进程调用 | 稳定 | 2025-01-20 |

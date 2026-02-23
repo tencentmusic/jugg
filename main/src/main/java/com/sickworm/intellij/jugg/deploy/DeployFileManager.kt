@@ -8,6 +8,7 @@ import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
+import com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefScheduler
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
@@ -29,6 +30,7 @@ import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.CoroutineBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggInternalException
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.annotations.TestOnly
 import java.io.File
@@ -39,12 +41,9 @@ import java.util.zip.ZipFile
  * Manage runtime deploy file status and provides [JuggDeployData]
  */
 class DeployFileManager(
-    projectDir: File,
+    private val pathManager: JuggPathManager,
+    private var backgroundTaskRunner: IBackgroundTaskRunner,
     private val logger: Logger,
-    private val tmpDir: File,
-    databaseDir: File,
-    coroutineScope: CoroutineScope,
-    private var backgroundTaskRunner: IBackgroundTaskRunner = CoroutineBackgroundTaskRunner(coroutineScope),
 ) {
 
     /**
@@ -70,14 +69,28 @@ class DeployFileManager(
     /**
      * get source file by source file name in dex file
      */
-    private val sourceFileManager = SourceFileManager(projectDir, databaseDir, logger.getInstance("SourceFileManager"))
+    private val sourceFileManager = SourceFileManager(pathManager.projectDir, pathManager.databaseDir, logger.getInstance("SourceFileManager"))
+
+    private val constRefCacheDatabase = ConstRefCacheDatabase(
+        pathManager.constRefSharedDbFile,
+        logger.getInstance("ConstRefCacheDatabase"),
+    )
+
+    private val repoSharedFingerprintStore = run {
+        val fingerprintLogger = logger.getInstance("RepoSharedFingerprintStore")
+        RepoSharedFingerprintStore.migrateLegacyDbIfNeeded(pathManager.repoFingerprintDbFile, fingerprintLogger)
+        RepoSharedFingerprintStore(
+            logger = fingerprintLogger,
+            dbFile = pathManager.repoFingerprintDbFile,
+        )
+    }
 
     private val constRefScheduler = ConstRefScheduler(
         analyzer = ConstRefAnalyzer(logger.getInstance("ConstRefAnalyzer")),
-        database = ConstRefCacheDatabase(File(databaseDir, "const_ref.db"), logger.getInstance("ConstRefCacheDatabase")),
+        database = constRefCacheDatabase,
         logger = logger.getInstance("ConstRefScheduler"),
-        coroutineScope = coroutineScope,
         backgroundTaskRunner = backgroundTaskRunner,
+        repoSharedFingerprintStore = repoSharedFingerprintStore,
     )
 
     private val constRefEffectProvider = object : ConstRefEffectProvider {
@@ -98,13 +111,13 @@ class DeployFileManager(
      */
     private val deployDataGenerator = DeployDataGenerator(
         logger = logger.getInstance("DeployDataGenerator"),
-        databaseDir = databaseDir,
+        databaseDir = pathManager.databaseDir,
         constRefEffectProvider = constRefEffectProvider,
     )
 
     private val resourceApkGenerator = ResourceApkGenerator(
         deployDataGenerator.deployDataDatabase,
-        databaseDir.resolve("resource_apks"),
+        pathManager.databaseDir.resolve("resource_apks"),
         logger,
     )
 
@@ -665,14 +678,14 @@ class DeployFileManager(
                         val entry = zipFile.getEntry(relativePath)
                         if (entry != null) {
                             // logger.debug("found class in library ${libraryFile.absolutePath}/${relativePath}")
-                            val destFile = File(tmpDir, relativePath)
+                            val destFile = File(pathManager.tmpDir, relativePath)
                             destFile.parentFile?.mkdirs()
                             zipFile.getInputStream(entry).use { inputStream ->
                                 destFile.outputStream().use { outputStream ->
                                     inputStream.copyTo(outputStream)
                                 }
                                 iterator.remove()
-                                val changedFile = ChangedFile(CompileFile.Type.Class, destFile, tmpDir, ModuleInfo.virtualModule)
+                                val changedFile = ChangedFile(CompileFile.Type.Class, destFile, pathManager.tmpDir, ModuleInfo.virtualModule)
                                 foundClassesFiles.add(changedFile)
                             }
                         }
