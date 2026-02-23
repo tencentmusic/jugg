@@ -3,13 +3,13 @@ package com.sickworm.intellij.jugg.compiler.source
 import com.intellij.openapi.Disposable
 import com.sickworm.intellij.jugg.compiler.clearDir
 import com.sickworm.intellij.jugg.compiler.*
-import com.sickworm.intellij.jugg.compiler.databinding.DataBindingArgsManager
 import com.sickworm.intellij.jugg.compiler.databinding.DataBindingGenMapperCompiler
 import com.sickworm.intellij.jugg.compiler.obfuscation.DexMinifyCompiler
+import com.sickworm.intellij.jugg.compiler.source.apt.JuggAptCompiler
 import com.sickworm.intellij.jugg.compiler.source.kotlin.KotlinCompiler
-import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
+import java.util.LinkedHashMap
 
 /**
  * SourceCompiler coordinates Java/Kotlin/DataBinding source compilation per module and hands class outputs to downstream dex/minify stages.
@@ -31,6 +31,8 @@ class SourceCompiler(
 
     private val dataBindingGenMapperCompiler = DataBindingGenMapperCompiler(context.subContext("databinding"), this)
 
+    private val juggAptCompiler = JuggAptCompiler(context.subContext("jugg_apt"), this)
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
         context.tempCompileDir.clearDir()
         val compileTask = CompileTask(
@@ -40,8 +42,10 @@ class SourceCompiler(
         )
         var classCompileResult = CompileResult(compileTask, emptyList(), emptyList())
 
-        // === NEW: Process DataBinding Mapper after source compilation ===
-        // At this point, Java/Kotlin classes are compiled, so annotation processor can access .class files
+        val juggAptGeneratedFiles = collectJuggAptGeneratedFiles(compileTask, module)
+
+        // Process DataBinding Mapper generated sources before Java compile.
+        // Mapper generation depends on source trigger files and resource-phase outputs.
         val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, context, logger)
             .processDataBindingMapper(task, module)
         if (!dataBindingMapperResult.isAllSuccess) {
@@ -51,13 +55,14 @@ class SourceCompiler(
         val dataBindingJavaFiles = dataBindingMapperResult.outputs
             .filter { it.type == CompileOutput.Type.Java }
             .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
-        // === END: DataBinding Mapper processing ===
-
         // Kotlin must go first because in the cross-reference case, Java depends on Kotlin compile output
         // while Kotlin don't (kotlin can use -Xjava-source-roots argument)
         var kotlinAptJavaFiles = emptyList<CompileFile>()
         val kotlinCompileTask = CompileTask(
-            files = task.files.filter { it.type == CompileFile.Type.Kotlin },
+            files = mergeCompileFiles(
+                task.files.filter { it.type == CompileFile.Type.Kotlin },
+                juggAptGeneratedFiles.filter { it.type == CompileFile.Type.Kotlin },
+            ),
             outputDir = File(context.tempCompileDir, "kotlin"),
             parentTask = compileTask,
         )
@@ -82,7 +87,12 @@ class SourceCompiler(
         }
 
         val javaCompileTask = CompileTask(
-            files = task.files.filter { it.type == CompileFile.Type.Java } + kotlinAptJavaFiles + dataBindingJavaFiles,
+            files = mergeCompileFiles(
+                task.files.filter { it.type == CompileFile.Type.Java },
+                juggAptGeneratedFiles.filter { it.type == CompileFile.Type.Java },
+                kotlinAptJavaFiles,
+                dataBindingJavaFiles,
+            ),
             outputDir = File(context.tempCompileDir, "java"),
             parentTask = compileTask,
         )
@@ -134,4 +144,34 @@ class SourceCompiler(
         kotlinCompiler.warmUp()
     }
 
+    /**
+     * Runs custom generated-source processors before language compilation.
+     *
+     * Fail-open strategy: any exception only logs warning and keeps main compile flow available.
+     */
+    private fun collectJuggAptGeneratedFiles(compileTask: CompileTask, module: ModuleInfo): List<CompileFile> {
+        return try {
+            val aptCompileTask = CompileTask(
+                files = compileTask.files,
+                outputDir = File(context.tempCompileDir, "jugg_apt"),
+                parentTask = compileTask,
+            )
+            val aptCompileResult = juggAptCompiler.compile(aptCompileTask)
+            aptCompileResult.outputs
+                .mapNotNull { it.toCompileFile(module) }
+                .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
+                .distinctBy { "${it.type}:${it.file.absolutePath}" }
+        } catch (throwable: Throwable) {
+            logger.warn("JuggAptCompiler failed: ${throwable.message}")
+            emptyList()
+        }
+    }
+
+    private fun mergeCompileFiles(vararg fileGroups: List<CompileFile>): List<CompileFile> {
+        val mergedByPath = LinkedHashMap<String, CompileFile>()
+        fileGroups.asList().flatten().forEach { file ->
+            mergedByPath["${file.type}:${file.file.absolutePath}"] = file
+        }
+        return mergedByPath.values.toList()
+    }
 }

@@ -16,6 +16,7 @@
 | 类 | 文件 | 作用 |
 |----|------|------|
 | `SourceCompiler` | `main/.../compiler/source/SourceCompiler.kt` | 模块内协调 Kotlin/Java/DataBinding 生成类，并接续 dex |
+| `JuggAptCompiler` / `IJuggAptProcessor` | `main/.../compiler/source/apt/*.kt` | 在源码编译起始阶段对 APT/KSP 生成源码做增量改写并回流当前编译轮次 |
 | `KotlinCompiler` | `main/.../compiler/source/kotlin/KotlinCompiler.kt` | Kotlin 源码编译 |
 | `KotlinCompilerInvoker` | `main/.../compiler/source/kotlin/KotlinCompilerInvoker.kt` | Kotlin CLI 参数、插件、错误重试 |
 | `K2JVMCompilerIsolate` | `main/.../compiler/source/kotlin/K2JVMCompilerIsolate.kt` | Kotlin 编译器隔离加载 |
@@ -27,11 +28,12 @@
 
 ## 3. 核心执行顺序
 
-1. `SourceCompiler` 先处理 DataBinding mapper 生成（如启用）。  
-2. Kotlin 先编译（便于 Java 依赖 Kotlin 产物）。  
-3. Java 再编译（含 Kotlin/KAPT 产生的 Java 源）。  
-4. class 产物进入 `DexCompiler`。  
-5. 若处于 minified 场景，再走 `DexMinifyCompiler`。
+1. `SourceCompiler` 先运行 `JuggAptCompiler`，对 generated Java/Kotlin 做自定义增量改写并并入本轮源码输入。  
+2. 再处理 DataBinding mapper 生成（如启用）。  
+3. Kotlin 先编译（便于 Java 依赖 Kotlin 产物）。  
+4. Java 再编译（含 Kotlin/KAPT/JuggApt 产生的 Java 源）。  
+5. class 产物进入 `DexCompiler`。  
+6. 若处于 minified 场景，再走 `DexMinifyCompiler`。
 
 ---
 

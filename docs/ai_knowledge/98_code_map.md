@@ -11,7 +11,7 @@
 | 领域 | 关键类/接口 | 目录 | 说明 |
 |------|-------------|------|------|
 | 编译总控 | `JuggCompiler`, `IncrementalCompilerHelper`, `CompileOrder` | `compiler/` | 增量编译主流程、阶段顺序与循环重编译 |
-| 源码编译 | `SourceCompiler`, `JavaCompiler`, `KotlinCompiler`, `DexCompiler` | `compiler/source/`, `compiler/source/kotlin/` | Java/Kotlin 编译与 DEX 生成 |
+| 源码编译 | `SourceCompiler`, `JuggAptCompiler`, `IJuggAptProcessor`, `JavaCompiler`, `KotlinCompiler`, `DexCompiler` | `compiler/source/`, `compiler/source/apt/`, `compiler/source/kotlin/` | Java/Kotlin 编译与 DEX 生成（含生成源码增量改写） |
 | 资源编译 | `ResourceOverlayCompiler`, `ResourceCompiler`, `ArscCompiler` | `compiler/overlay/` | res/manifest 编译与 aapt2 link |
 | DataBinding | `DataBindingArgsManager`, `DataBindingGenBaseClassesCompiler`, `DataBindingGenMapperCompiler` | `compiler/databinding/` | DataBinding/ViewBinding 增量处理 |
 | Manifest | `AndroidManifestCompiler`, `AndroidManifestMerger`, `ManifestDiffer` | `compiler/manifest/` | 清单差异合并 |
@@ -32,7 +32,7 @@
 | 模块 | 关键类/接口 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
 |------|-------------|----------|-----------|------|-----------|
 | compiler | JuggCompiler, BaseCompiler, CompileTask | compiler/core | 编译调度与任务编排 | 稳定 | 2025-01-20 |
-| compiler | JavaCompiler, KotlinCompiler, DexCompiler | compiler/source | 源码/字节码/DEX 编译 | 稳定 | 2025-01-20 |
+| compiler | SourceCompiler, JuggAptCompiler, IJuggAptProcessor, JavaCompiler, KotlinCompiler, DexCompiler | compiler/source | 源码/生成源码改写/字节码/DEX 编译 | 稳定 | 2026-02-23 |
 | compiler | ResourceCompiler, Aapt2Invoker | compiler/resource | AAPT2 资源编译与调用 | 稳定 | 2025-01-20 |
 | compiler | DataBindingGenBaseClassesCompiler, DataBindingGenMapperCompiler | compiler/databinding | DB/VB 处理 | 稳定 | 2025-01-20 |
 | compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
