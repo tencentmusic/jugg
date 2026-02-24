@@ -336,7 +336,7 @@ class CompileContextManager(
                 return@forEach
             }
 
-            val relativePath = baseDir.relativeTo(pathManager.projectDir)
+            val relativePath = if (baseDir.isAbsolute) baseDir.relativeTo(pathManager.projectDir) else baseDir
             if (relativePath.startsWith(".idea")) {
                 ideaFolderModules.add(module.name)
                 return@forEach
@@ -351,7 +351,7 @@ class CompileContextManager(
             }
 
             val isBuildSrc = baseDir.name.moduleSimpleName == "buildSrc"
-                    && baseDir.relativeTo(pathManager.projectDir).path.startsWith("buildSrc")
+                    && relativePath.path.startsWith("buildSrc")
             if (isBuildSrc) {
                 return@forEach
             }

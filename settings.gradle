@@ -16,5 +16,6 @@ include ':deploy_compat:v_meerkat'
 include ':deploy_compat:v_narwhal'
 include ':deploy_compat:v_narwhal_feature'
 include ':deploy_compat:v_otter'
+include ':deploy_compat:v_panda'
 
 include ':platform_compat:base_api'

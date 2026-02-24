@@ -1,0 +1,101 @@
+package com.sickworm.intellij.jugg.deploy.run
+
+import com.android.tools.idea.gradle.dsl.api.GradleBuildModel
+import com.android.tools.idea.gradle.dsl.api.android.AndroidModel
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.rootManager
+import com.intellij.openapi.vfs.VfsUtil
+import org.jetbrains.android.facet.AndroidFacet
+import java.io.File
+
+/**
+ * Panda 版本兼容层。
+ *
+ * 当前实现复用 Otter 的行为，后续若 Panda API 差异扩大，可在这里覆写。
+ */
+open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
+
+    override fun getIdeModuleInfo(project: Project, module: Module, logger: Logger, isSafeMode: Boolean): IdeModuleInfo? {
+        val buildModel = GradleBuildModel.get(module) ?: return null
+        val gradleVariableHelper = GradleVariableHelper(isSafeMode)
+
+        val androidFacet = AndroidFacet.getInstance(module)
+        var buildVariant = androidFacet?.properties?.SELECTED_BUILD_VARIANT
+        if (buildVariant.isNullOrEmpty()) {
+            buildVariant = "debug"
+        }
+
+        return IdeModuleInfo(
+            baseDir = module.guessModuleDirAdvByBuildModel(buildModel),
+            buildToolsVersion = gradleVariableHelper.readVariable(
+                "buildToolsVersion",
+                buildModel,
+                { buildModel.android().buildToolsVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            compileVersion = gradleVariableHelper.readVariable(
+                "compileVersion",
+                buildModel,
+                { buildModel.android().compileSdkVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            minSdkVersion = gradleVariableHelper.readVariable(
+                "minSdkVersion",
+                buildModel,
+                { buildModel.android().defaultConfig().minSdkVersion() },
+                { this.all { it.isDigit() || it == '.' } }
+            ),
+            kotlinJvmTarget = gradleVariableHelper.readVariable("kotlinJvmTarget") {
+                buildModel.android().kotlinOptions().jvmTarget().toJavaVersion()
+            },
+            kotlinFreeCompilerArgs = gradleVariableHelper.readVariable("kotlinFreeCompilerArgs") {
+                buildModel.android().kotlinOptions().freeCompilerArgs()
+                    .toList()?.map { it.toString() } ?: emptyList()
+            },
+            javaSourceCompatibility = gradleVariableHelper.readVariable("javaSourceCompatibility") {
+                buildModel.android().compileOptions().sourceCompatibility().toJavaVersion()
+            },
+            javaTargetCompatibility = gradleVariableHelper.readVariable("javaTargetCompatibility") {
+                buildModel.android().compileOptions().targetCompatibility().toJavaVersion()
+            },
+            minifyEnabled = gradleVariableHelper.readVariable("minifyEnabled") {
+                buildModel.android().buildTypes()
+                    .find { it.name() == buildVariant }
+                    ?.minifyEnabled()?.toString()
+            },
+            buildVariant = buildVariant,
+            manifestRelativePath = gradleVariableHelper.readVariable("manifestRelativePath") {
+                androidFacet?.properties?.MANIFEST_FILE_RELATIVE_PATH
+            },
+            gradleVariableHelper.brokenFields,
+        )
+    }
+
+    private fun Module.guessModuleDirAdvByBuildModel(buildModel: GradleBuildModel): File? {
+        val gradleRootDir = buildModel.moduleRootDirectory
+        if (gradleRootDir != null) {
+            return gradleRootDir
+        }
+
+        val contentRoots = rootManager.contentRoots.filter { it.isDirectory }
+        val virtualFile = contentRoots.find { name.endsWith(it.name) }
+            ?: contentRoots.firstOrNull()
+            ?: moduleFile?.parent
+            ?: return null
+        val file = VfsUtil.virtualToIoFile(virtualFile)
+        // java.lang.IllegalArgumentException: this and base files have different roots:
+        // rootProject.projectDir/wesing_src/SubModule/Business/services/advertiseservice/advertiseservice-interface and
+        // /Users/wormchen/IdeaProjects/joox/JOOX_Android.
+        if (file.path.startsWith("rootProject.projectDir")) {
+            val relativePath = file.path.substring("rootProject.projectDir".length + 1)
+            return File(relativePath)
+        }
+        return file
+    }
+
+    private fun GradleBuildModel.android(): AndroidModel {
+        return getModel(AndroidModel::class.java)
+    }
+}

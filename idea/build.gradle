@@ -115,6 +115,7 @@ dependencies {
     implementation project(':deploy_compat:v_narwhal')
     implementation project(':deploy_compat:v_narwhal_feature')
     implementation project(':deploy_compat:v_otter')
+    implementation project(':deploy_compat:v_panda')
 
     // backend
     implementation "com.squareup.okhttp3:okhttp:4.9.1"
