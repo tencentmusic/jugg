@@ -55,9 +55,9 @@
 
 ### 环境操作约定
 
+- **确认初始状态**：用户提供了测试工程，且 jugg 可用；通过 `adb` 和 `emulator` 确认当前无连接的物理设备，且有虚拟机设备可以启动/关闭
 - **启动 AVD**：需要保证有设备时，自行通过 cli 完成 AVD 启动。e.g. `emulator -avd <avd_name> &`（或通过 Android Studio AVD Manager 启动）
 - **关闭 AVD**：需要保证无设备时，自行通过 cli 完成 AVD 启动。e.g. `adb emu kill` 或 `adb -s <serial> emu kill`
-- **确认设备状态**：`adb devices`，确保设备列表与预期一致（有设备 / 无设备）
 - 涉及"无设备"的用例，执行前必须先通过上述 CLI 关闭所有 AVD/拔掉真机，执行后再恢复
 
 
