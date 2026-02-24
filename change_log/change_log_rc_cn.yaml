@@ -13,6 +13,16 @@
     - 修复降级完成后初始化时容易出现 IDE 卡主一段时间的问题，现在改为独立进程完成 APK 字节码解析
     - 修复首次编译时，文件无法识别未被 git add 的文件的问题
 
+- version: 2.6.18
+  date: 2026.02.24
+  updates:
+    - 修复 Android Studio Panda 1 读取兼容问题
+
+- version: 2.6.17
+  date: 2026.02.12
+  updates:
+    - 支持 Android Studio Panda 1
+
 - version: 2.6.16
   date: 2026.01.22
   isNeedReinstall: true
