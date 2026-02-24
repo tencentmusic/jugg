@@ -1,6 +1,6 @@
 # AI 使用指引（任务路由版）
 
-> 最后核对：2026-02-23  
+> 最后核对：2026-02-24  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -35,6 +35,7 @@
 | Gradle 项目信息与依赖读取 | `98_code_map.md`, `04_engineering_project.md` | `gradle/script/GradleProjectInfoReader.kt` |
 | 兼容层（AS 版本适配） | `98_code_map.md`, `04_engineering_compat.md` | `deploy_compat/*/AsDeployerCompat.kt` |
 | MCP 工具设计与调用 | `98_code_map.md`, `08_mcp_usage.md`, `08_mcp_design.md` | `mcp/McpToolInvoker.kt`, `mcp/actions/*` |
+| MCP 工具测试与回归 | `98_code_map.md`, `08_mcp_test_case.md`, `08_mcp_usage.md` | `mcp/actions/McpToolActionRegistry.kt`, `mcp/actions/*` |
 | 工具类能力（apk/git/logger/server） | `98_code_map.md`, `05_utilities.md` | `main/.../apk|git|logger|server` |
 
 ---
