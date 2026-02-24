@@ -507,14 +507,27 @@ private class GradleCompileClientManager(private val project: Project): Disposab
 
     private var isCacheRemoteClient: Boolean? = null
     private var cacheClient: IGradleCompileClient? = null
+    private var localClientEnvSignature: String? = null
 
     fun getClient(isRemote: Boolean, localClasspathStorageDir: File): IGradleCompileClient {
         val cacheClient = cacheClient
         val isCacheRemoteClient = isCacheRemoteClient
+        val currentLocalEnv = if (isRemote) {
+            null
+        } else {
+            LocalGradleCompileClient.buildCompileEnv(project, logger)
+        }
+        val currentLocalEnvSignature = currentLocalEnv?.joinToString(separator = "\n")
+        val isNeedRecreateLocalClient =
+            !isRemote && cacheClient != null && isCacheRemoteClient == false &&
+                localClientEnvSignature != currentLocalEnvSignature
 
-        return if (cacheClient != null && isCacheRemoteClient == isRemote) {
+        return if (cacheClient != null && isCacheRemoteClient == isRemote && !isNeedRecreateLocalClient) {
             cacheClient
         } else {
+            if (isNeedRecreateLocalClient) {
+                logger.debug("Recreate LocalGradleCompileClient because compile env changed.")
+            }
             cacheClient?.dispose()
             val newClient = if (isRemote)
                 RemoteGradleCompileClient(project)
@@ -522,12 +535,13 @@ private class GradleCompileClientManager(private val project: Project): Disposab
                 LocalGradleCompileClient(
                     File(project.basePath!!),
                     localClasspathStorageDir,
-                    LocalGradleCompileClient.buildCompileEnv(project, logger),
+                    currentLocalEnv,
                     logger,
                 )
             Disposer.register(this, newClient)
             this.cacheClient = newClient
             this.isCacheRemoteClient = isRemote
+            this.localClientEnvSignature = currentLocalEnvSignature
             newClient
         }
     }
