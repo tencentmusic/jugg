@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.manager
 
 import com.sickworm.intellij.jugg.compiler.CompileFile
+import com.sickworm.intellij.jugg.mock.androidApkPackage
 import com.sickworm.intellij.jugg.mock.assetsAndroidDir
 import com.sickworm.intellij.jugg.project.ChangedFile
 import org.junit.Before
@@ -222,5 +223,68 @@ class JuggCompilerTest {
         println("deployData.overlays.size ${deployData.overlays.size}")
         assertFalse(deployData.isFullRes)
         assertTrue(deployData.overlays.size > 1)
+    }
+
+    @Test
+    fun testKotlinPageShouldRewriteKuiklyGeneratedEntry() {
+        val route = "jugg_integration_page"
+        val pageSourceFile = File(assetsAndroidDir, "app/src/main/java/com/example/myapplication/JuggAptPage.kt")
+        val generatedEntryFile = File(assetsAndroidDir, "app/build/generated/ksp/debug/kotlin/KuiklyCoreEntry.kt")
+
+        val pageSource = """
+            package com.example.myapplication
+
+            annotation class Page(val route: String)
+
+            @Page("$route")
+            class JuggAptPage
+        """.trimIndent()
+        val entrySource = """
+            package com.example.myapplication.generated
+
+            object BridgeManager {
+                fun registerPageRouter(route: String, creator: () -> Any?) {
+                }
+            }
+
+            object KuiklyCoreEntry {
+                fun triggerRegisterPages() {
+                }
+            }
+        """.trimIndent()
+
+        withPatchedFiles(
+            pageSourceFile to pageSource,
+            generatedEntryFile to entrySource,
+        ) {
+            jugg.notifyFileChanges(listOf(pageSourceFile))
+            jugg.compileChangedFiles()
+
+            assertEquals(0, jugg.deployFileManager.getUncompiledFiles().size)
+            val dexFile = File(jugg.pathManager.stagingDir, "classes/${androidApkPackage.replace('.', '/')}/JuggAptPage.dex")
+            assertTrue(dexFile.exists(), "Expected dex exists: ${dexFile.absolutePath}")
+
+            val entryContent = generatedEntryFile.readText()
+            assertTrue(entryContent.contains("""BridgeManager.registerPageRouter("$route")"""))
+            assertTrue(entryContent.contains("com.example.myapplication.JuggAptPage()"))
+        }
+    }
+
+    private fun withPatchedFiles(vararg patches: Pair<File, String>, block: () -> Unit) {
+        val backup = patches.associate { (file, _) -> file to if (file.exists()) file.readText() else null }
+        try {
+            patches.forEach { (file, newContent) ->
+                file.parentFile?.mkdirs()
+                file.writeText(newContent)
+            }
+            block()
+        } finally {
+            backup.forEach { (file, oldContent) ->
+                when (oldContent) {
+                    null -> if (file.exists()) file.delete()
+                    else -> file.writeText(oldContent)
+                }
+            }
+        }
     }
 }

@@ -249,19 +249,13 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         fileChangesDetector = MockFileChangesDetector()
 
         deployHistoryManager = DeployHistoryManager(pathManager, fileChangesHandler, logger)
-        deployFileManager = DeployFileManager(
-            projectDir,
-            logger,
-            pathManager.tmpDir,
-            pathManager.databaseDir,
-            coroutineScope,
-            juggPathManager = pathManager,
-        )
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
         val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO))
         customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
+        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
+        deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger)
 
         if (isMockCompileContextManager) {
             compileContextManager = mock(CompileContextManager::class.java)
@@ -273,7 +267,6 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
                 moduleManager = moduleManager, customCompilerManager = customCompilerManager)
         }
 
-        taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
         juggDeployerHelper = JuggDeployerHelper(project, deployTargetManager, deployFileManager, deployHistoryManager, deployStateManager, dependencyChangeManager, compileContextManager, juggServer, taskRunnerManager, logger) {
             val downloader = MockAndroidProfilerDownloader()
             val (costTime, isInPlace) = measureTimeMillisWithResult {
