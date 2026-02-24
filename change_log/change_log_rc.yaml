@@ -1,3 +1,8 @@
+- version: 2.6.18
+  date: 2026.02.24
+  updates:
+    - supports Android Studio Panda 1
+
 - version: 2.6.17
   date: 2026.02.12
   updates:
