@@ -38,6 +38,8 @@ class ConstRefScheduler(
     )
     private val ioThrottleSleepMs: Long = readNonNegativeLongProperty(IO_THROTTLE_MS_PROPERTY, 0L)
     private val ioThrottleEveryNFiles: Int = readPositiveIntProperty(IO_THROTTLE_EVERY_PROPERTY, 1)
+    private val fullScanLogIntervalMs: Long =
+        readNonNegativeLongProperty(FULL_SCAN_LOG_INTERVAL_MS_PROPERTY, DEFAULT_FULL_SCAN_LOG_INTERVAL_MS)
 
     init {
         if (ioThrottleSleepMs > 0L) {
@@ -176,6 +178,7 @@ class ConstRefScheduler(
                 return
             }
             launchSceneTaskLocked(AnalyzeScene.FULL_SCAN) {
+                val progressLogger = FullScanProgressLogger(logger, fullScanLogIntervalMs)
                 normalizedSourceDirs.forEach { sourceDirPath ->
                     val sourceDir = File(sourceDirPath)
                     val sourceFiles = sourceDir
@@ -195,10 +198,12 @@ class ConstRefScheduler(
                         val startTime = System.currentTimeMillis()
                         analyzeFiles(filesToAnalyze)
                         val costTime = System.currentTimeMillis() - startTime
-                        logger.debug(
-                            "ConstRefScheduler full scan sourceDir finished, sourceDir=$sourceDirPath, " +
-                                "files=${sourceFiles.size}, reused=${reusablePaths.size}, " +
-                                "analyzed=${filesToAnalyze.size}, cost=${costTime}ms"
+                        progressLogger.onSourceDirFinished(
+                            sourceDirPath = sourceDirPath,
+                            sourceFileCount = sourceFiles.size,
+                            reusedFileCount = reusablePaths.size,
+                            analyzedFileCount = filesToAnalyze.size,
+                            costMs = costTime,
                         )
                     }
                     synchronized(stateLock) {
@@ -206,6 +211,7 @@ class ConstRefScheduler(
                         notifyStateChangedLocked()
                     }
                 }
+                progressLogger.flush()
             }
         }
     }
@@ -639,6 +645,74 @@ class ConstRefScheduler(
         return path.endsWith(".java") || path.endsWith(".kt")
     }
 
+    private class FullScanProgressLogger(
+        private val logger: Logger,
+        private val intervalMs: Long,
+    ) {
+        private var batchDirCount = 0
+        private var batchSourceFileCount = 0
+        private var batchReusedFileCount = 0
+        private var batchAnalyzedFileCount = 0
+        private var batchCostMs = 0L
+        private var totalDirCount = 0
+        private var totalSourceFileCount = 0
+        private var totalReusedFileCount = 0
+        private var totalAnalyzedFileCount = 0
+        private var totalCostMs = 0L
+        private var lastSourceDirPath: String? = null
+        private var lastLogTimestampMs = System.currentTimeMillis()
+
+        fun onSourceDirFinished(
+            sourceDirPath: String,
+            sourceFileCount: Int,
+            reusedFileCount: Int,
+            analyzedFileCount: Int,
+            costMs: Long,
+        ) {
+            batchDirCount++
+            batchSourceFileCount += sourceFileCount
+            batchReusedFileCount += reusedFileCount
+            batchAnalyzedFileCount += analyzedFileCount
+            batchCostMs += costMs
+            totalDirCount++
+            totalSourceFileCount += sourceFileCount
+            totalReusedFileCount += reusedFileCount
+            totalAnalyzedFileCount += analyzedFileCount
+            totalCostMs += costMs
+            lastSourceDirPath = sourceDirPath
+
+            val now = System.currentTimeMillis()
+            if (now - lastLogTimestampMs >= intervalMs) {
+                emitProgressLog(isFinal = false)
+                lastLogTimestampMs = now
+            }
+        }
+
+        fun flush() {
+            emitProgressLog(isFinal = true)
+            lastLogTimestampMs = System.currentTimeMillis()
+        }
+
+        private fun emitProgressLog(isFinal: Boolean) {
+            if (batchDirCount <= 0) {
+                return
+            }
+            logger.debug(
+                "ConstRefScheduler full scan progress, final=$isFinal, " +
+                    "batchDirs=$batchDirCount, batchFiles=$batchSourceFileCount, " +
+                    "batchReused=$batchReusedFileCount, batchAnalyzed=$batchAnalyzedFileCount, " +
+                    "batchCost=${batchCostMs}ms, totalDirs=$totalDirCount, totalFiles=$totalSourceFileCount, " +
+                    "totalReused=$totalReusedFileCount, totalAnalyzed=$totalAnalyzedFileCount, " +
+                    "totalCost=${totalCostMs}ms, lastSourceDir=$lastSourceDirPath"
+            )
+            batchDirCount = 0
+            batchSourceFileCount = 0
+            batchReusedFileCount = 0
+            batchAnalyzedFileCount = 0
+            batchCostMs = 0L
+        }
+    }
+
     data class AnalysisReadiness(
         val isReady: Boolean,
         val unreadyPaths: List<String> = emptyList(),
@@ -663,6 +737,8 @@ class ConstRefScheduler(
     companion object {
         private const val IO_THROTTLE_MS_PROPERTY = "jugg.constref.io.throttle.ms"
         private const val IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.io.throttle.every"
+        private const val FULL_SCAN_LOG_INTERVAL_MS_PROPERTY = "jugg.constref.full.scan.log.interval.ms"
+        private const val DEFAULT_FULL_SCAN_LOG_INTERVAL_MS = 5000L
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue
