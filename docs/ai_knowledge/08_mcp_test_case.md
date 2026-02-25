@@ -342,7 +342,7 @@
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
 
 **TC-60: 返回结构一致性验证**
-对所有 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、`errorCode`（成功时为 `null`）五个字段，不多不少。
+对所有 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
 
 ---
 

@@ -88,22 +88,11 @@ object McpLocalServer {
     private class McpRequestHandler : HttpHandler {
         override fun handle(exchange: HttpExchange) {
             try {
-                if (!isOriginAllowed(exchange)) {
-                    val errorResponse = McpJsonRpcResponse(
-                        error = McpJsonRpcError(
-                            code = McpJsonRpc.ErrorCode.InvalidRequest,
-                            message = "Forbidden origin",
-                            data = mapOf("errorCode" to McpErrorCode.MCP_INVALID_JSON_RPC),
-                        )
-                    )
-                    sendJsonResponse(exchange, 403, errorResponse)
-                    return
-                }
 
                 when (exchange.requestMethod) {
                     "GET" -> handleGetRequest(exchange)
                     "POST" -> handlePostRequest(exchange)
-                    "DELETE" -> sendMethodNotAllowed(exchange)
+                    "OPTIONS" -> handleOptionsRequest(exchange)
                     else -> sendMethodNotAllowed(exchange)
                 }
             } catch (e: Exception) {
@@ -126,6 +115,25 @@ object McpLocalServer {
 
         private fun handleGetRequest(exchange: HttpExchange) {
             sendMethodNotAllowed(exchange)
+        }
+
+        /**
+         * Handles CORS preflight OPTIONS requests by returning allowed methods and headers.
+         */
+        private fun handleOptionsRequest(exchange: HttpExchange) {
+            logger.debug("[MCP][OPTIONS] ${exchange.requestURI}")
+            exchange.responseHeaders.add("Allow", "OPTIONS, POST")
+            sendNoBodyResponse(exchange, 204)
+        }
+
+        /**
+         * Adds CORS headers to the response to allow cross-origin requests.
+         */
+        private fun addCorsHeaders(exchange: HttpExchange, origin: String) {
+            exchange.responseHeaders.add("Access-Control-Allow-Origin", origin)
+            exchange.responseHeaders.add("Access-Control-Allow-Methods", "OPTIONS, POST")
+            exchange.responseHeaders.add("Access-Control-Allow-Headers", "$HEADER_CONTENT_TYPE, $HEADER_MCP_PROTOCOL_VERSION")
+            exchange.responseHeaders.add("Access-Control-Max-Age", "86400")
         }
 
         private fun handlePostRequest(exchange: HttpExchange) {
@@ -214,6 +222,7 @@ object McpLocalServer {
         }
 
         private fun sendMethodNotAllowed(exchange: HttpExchange) {
+            logger.warn("[MCP] Method Not Allowed: ${exchange.requestMethod} ${exchange.requestURI}, headers=${exchange.requestHeaders}")
             val errorResponse = McpJsonRpcResponse(
                 error = McpJsonRpcError(
                     code = McpJsonRpc.ErrorCode.MethodNotFound,
@@ -226,6 +235,8 @@ object McpLocalServer {
 
         private fun sendNoBodyResponse(exchange: HttpExchange, statusCode: Int) {
             logger.debug("[MCP][OUT][$statusCode] <empty>")
+            val origin = exchange.requestHeaders.getFirst(HEADER_ORIGIN) ?: "*"
+            addCorsHeaders(exchange, origin)
             exchange.sendResponseHeaders(statusCode, -1)
         }
 
@@ -234,22 +245,13 @@ object McpLocalServer {
             logger.debug("[MCP][OUT][${statusCode}] $responseJson")
             val responseBytes = responseJson.toByteArray(Charsets.UTF_8)
 
+            val origin = exchange.requestHeaders.getFirst(HEADER_ORIGIN) ?: "*"
+            addCorsHeaders(exchange, origin)
             exchange.responseHeaders.add(HEADER_CONTENT_TYPE, "application/json")
             exchange.sendResponseHeaders(statusCode, responseBytes.size.toLong())
             exchange.responseBody.use { os ->
                 os.write(responseBytes)
             }
-        }
-
-        private fun isOriginAllowed(exchange: HttpExchange): Boolean {
-            val origin = exchange.requestHeaders.getFirst(HEADER_ORIGIN) ?: return true
-            if (origin == "null") {
-                return true
-            }
-            return origin.startsWith("http://localhost") ||
-                origin.startsWith("http://127.0.0.1") ||
-                origin.startsWith("https://localhost") ||
-                origin.startsWith("https://127.0.0.1")
         }
     }
 }
