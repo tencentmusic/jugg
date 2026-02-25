@@ -23,7 +23,7 @@ class RecordMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Record device screen video, with optional app_start and tap actions during recording. Use when you need reproducible visual traces. Avoid for a single-frame check where screenshot is enough. Side effects: may launch app and inject taps if configured.",
+        description = "Record device screen video with optional app start and tap actions. Use when: you need reproducible screen traces or timed interaction capture. Avoid: single-frame checks where screenshot is sufficient. Side effects: may start app and inject tap events if configured.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

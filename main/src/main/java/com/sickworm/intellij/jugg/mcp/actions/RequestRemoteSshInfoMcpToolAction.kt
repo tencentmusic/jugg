@@ -13,7 +13,7 @@ class RequestRemoteSshInfoMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Request remote SSH login info for manual remote troubleshooting. Must only be called after explicit user consent. IDE will show a second confirmation dialog.",
+        description = "Request remote SSH login info for troubleshooting. Use when: remote troubleshooting is needed and user has explicitly consented. Avoid: any call without explicit user consent.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

@@ -20,7 +20,7 @@ class CompileAndDeployMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Compile modified source files then deploy changed artifacts to device with Jugg. This is the default path for normal iteration. Use when code changes must take effect on device. Avoid when incremental state is broken and full reinstall is needed. Side effects: builds and updates app artifacts on device.",
+        description = "Compile modified sources and deploy updated artifacts to device. Use when: code changes must take effect on device in normal iteration. Avoid: compile-only validation or known broken incremental state. Side effects: compiles and deploys updated app artifacts to device.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

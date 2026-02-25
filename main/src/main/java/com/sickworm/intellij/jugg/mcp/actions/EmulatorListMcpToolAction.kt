@@ -24,7 +24,7 @@ class EmulatorListMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "List available Android Virtual Devices (AVDs) from host Android SDK emulator. Use before start_emulator to choose a valid avdName. Side effects: none.",
+        description = "List available Android Virtual Devices (AVDs) from host SDK. Use when: you need to pick a valid AVD before start_emulator.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

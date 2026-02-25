@@ -20,7 +20,7 @@ class StartActivityMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Start specific activity on target device with optional intent fields. Use when explicit action/data/extras routing is required. Avoid when app default entry is enough; prefer start_app for simpler foregrounding. Side effects: launches activity and may alter task stack.",
+        description = "Start specific activity on target device with optional intent fields. Use when: explicit action/data/extras intent routing is required. Avoid: simple foregrounding where start_app is enough. Side effects: launches activity and may alter task stack.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

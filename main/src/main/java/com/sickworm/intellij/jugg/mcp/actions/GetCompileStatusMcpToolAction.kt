@@ -13,7 +13,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Query compile job status by jobId. Use this after compile-related tools return isFinal=false.",
+        description = "Query compile job status by jobId. Use when: async compile tools return isFinal=false with a jobId.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

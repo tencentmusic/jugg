@@ -24,7 +24,7 @@ class StartEmulatorMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Start an Android emulator (AVD) process from host environment. Use when no suitable emulator is online before deploy/verification. Avoid when a usable online device already exists. Side effects: launches emulator process on host and may change connected device list.",
+        description = "Start Android emulator (AVD) process from host. Use when: no suitable online device exists and emulator is needed. Avoid: when a usable online device is already available. Side effects: launches host emulator process and may change device list.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

@@ -22,7 +22,7 @@ class ActivityStackMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Return current Activity stack from target device. Use when AI needs runtime page context before taking UI actions. Side effects: read-only dumpsys call and local text artifact write.",
+        description = "Return current Activity stack from target device. Use when: you need runtime page context before UI actions.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

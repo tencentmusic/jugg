@@ -16,7 +16,7 @@ class DeviceListMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "List currently connected Android devices. Use when you need a valid serial for device-targeting tools. Avoid when operating only on the already selected IDE device. Side effects: none.",
+        description = "List currently connected Android devices and selected target. Use when: you need current connected/selected device info.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
