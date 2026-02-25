@@ -159,12 +159,14 @@ class JuggRunningTask(
 
         if (!compileTaskResult.isSuccess) {
             failedAndActiveRunWindowIfNotCanceled()
-            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = false, isDeploySuccess = false)
+            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile,
+                isCompileSuccess = false, isDeploySuccess = false, isCancel = processHandler.isCanceled)
         }
 
         if (compileUiHandler.isSkipDeploy) {
             logger.info("Skip deploy.")
-            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true, isDeploySuccess = false)
+            return RunResult(isGradleCompile = compileTaskResult.isGradleCompile,
+                isCompileSuccess = true, isDeploySuccess = false, isCancel = processHandler.isCanceled)
         }
 
         if (!deployTargetManager.hasDevice) {
@@ -180,7 +182,7 @@ class JuggRunningTask(
                 initIncrementalCompileTask.invoke()
             }
             return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
-                isDeploySuccess = false, isNeedResetHasRun = compileTaskResult.isGradleCompile)
+                isDeploySuccess = false, isNeedResetHasRun = compileTaskResult.isGradleCompile, isCancel = processHandler.isCanceled)
         }
 
         var totalDeployTime = 0L
@@ -227,7 +229,7 @@ class JuggRunningTask(
                 // install failed, set flag, next time installing directly
                 val isNeedResetHasRun = deployType == JuggDeployData.DeployType.INSTALL
                 return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true,
-                    isDeploySuccess = false, isNeedResetHasRun = isNeedResetHasRun)
+                    isDeploySuccess = false, isNeedResetHasRun = isNeedResetHasRun, isCancel = processHandler.isCanceled)
             } else {
                 // fallback to gradle compile
                 logger.warn("Deploy Failed. Going to restart with fallback gradle compile.")
@@ -258,7 +260,7 @@ class JuggRunningTask(
             initIncrementalCompileTask.invoke()
         }
 
-        return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true, isDeploySuccess = true)
+        return RunResult(isGradleCompile = compileTaskResult.isGradleCompile, isCompileSuccess = true, isDeploySuccess = true, isCancel = processHandler.isCanceled)
     }
 
     private fun deployDevice(

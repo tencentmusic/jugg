@@ -182,7 +182,7 @@ object CompileJobManager {
     }
 
     private fun resolveRunResultStatus(runResult: RunResult, isSkipDeploy: Boolean): String {
-        if (runResult.isNeedResetHasRun) {
+        if (runResult.isCancel) {
             return "canceled"
         }
         val deployOk = if (isSkipDeploy) true else runResult.isDeploySuccess

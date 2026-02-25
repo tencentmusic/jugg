@@ -233,7 +233,7 @@ class IdeaForceGradleCompileHelper(
                 message = "Gradle compile finished successfully.",
             )
         } else {
-            val status = if (runResult.isNeedResetHasRun) "canceled" else "failed"
+            val status = if (runResult.isCancel) "canceled" else "failed"
             GradleCompileExecutionResult(
                 status = status,
                 message = "Gradle compile finished with status=$status.",
