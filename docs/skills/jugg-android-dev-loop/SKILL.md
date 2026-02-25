@@ -19,12 +19,18 @@ Strongly prefer MCP tools and avoid direct external adb commands in normal flow.
 
 ```
 Step 1: Modify sources(not using jugg-mcp)
-Step 2: compile_and_deploy        → build and deploy (default)
-Step 3: start_app + tap           → launch app and interact (when runtime verification is required)
-Step 4: layout_dump/activity_stack/screenshot/start_record+stop_record    → collect verification evidence.
+Step 2: compile_and_deploy/compile_only        → build (and deploy when device is ready)
+Step 3: start_app + tap                         → launch app and interact (when runtime verification is required)
+Step 4: layout_dump/activity_stack/screenshot/start_record+stop_record      → collect verification evidence.
     -> back to Step 1 if something is wrong.
-Step 5: final_artifact_staging    → save final screenshot or recording for user
+Step 5: final_artifact_staging                  → save final screenshot or recording for user
 ```
+
+### projectDir Default Rule
+
+- Always use current working directory as `projectDir` by default.
+- Do not call `list_projects` as normal-flow preflight.
+- Only call `list_projects` when project-related errors appear (for example `MCP_PROJECT_NOT_INITIALIZED` or suspected IDE context drift).
 
 ### Step 1: Modify sources
 
@@ -67,6 +73,8 @@ After task verification is complete:
 3. Keep stable filenames (`final_screenshot.png`, `final_record.mp4`) to avoid ambiguity.
 4. Optionally keep original timestamped filenames in the same directory for traceability.
 
+Note: `build/mcp_fetch/final` is an **agent staging directory**. MCP tool default outputs are usually under `${projectDir}/build/jugg/mcp_fetch/<toolName>`.
+
 ## Hard Guardrails
 
 - Max autonomous retries: `3` (same failure category).
@@ -76,6 +84,7 @@ After task verification is complete:
 - `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures, unless user says "fallback compile".
 - For `compile_and_deploy`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
 - For `force_gradle_compile`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
+- For `get_compile_status`, `status=unknown` is not a normal terminal success/failure state; treat it as invalid job/context and stop to re-check `jobId` source.
 
 ## Decision Rules
 
@@ -85,6 +94,7 @@ After task verification is complete:
 - If `compile_and_deploy` fails, autonomous retry `compile_and_deploy` up to 3 times first.
 - Only after 3 consecutive failures and still crash / no effects are observed, agent may try `force_gradle_compile`.
 - Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): stop and ask user to prepare a device.
+- If all standard fallback paths fail and remote troubleshooting is required, call `request_remote_ssh_info` only after explicit user consent (`userConsent=true`).
 - Strongly prefer MCP-only execution and avoid raw adb in normal flow.
 
 ## MCP Response Format
@@ -128,7 +138,11 @@ Fields:
 When compile/deploy fails, follow this strict order:
 
 1. **Parse error first**: read `structuredContent.message`, `structuredContent.data`, and `structuredContent.errorCode` for root-cause clues.
+   - For `compile_and_deploy`/`force_gradle_compile`, read `data.detail` first when present.
+   - If `data.detailTruncated=true` or `artifacts` contains `type=log`, read the log artifact path for full diagnostics.
 2. **Try deterministic diagnosis**: match against known error patterns in `references/error_patterns.md`.
+   - Only if project/context looks wrong, call `list_projects` to verify current IDE initialized projects.
+   - Only if device state is suspicious, call `device_list` to check online/selected target.
 3. **Use auto downgrade when applicable**:
    - `compile_and_deploy` fails -> retry `compile_and_deploy` (up to 3 consecutive attempts)
    - still failing after 3 retries -> `force_gradle_compile` (poll `get_compile_status`) -> retry `compile_and_deploy`
@@ -136,6 +150,9 @@ When compile/deploy fails, follow this strict order:
    - `clean_reinstall_apk` fails -> stop and report
 4. **Stop and confirm with user** when root cause is still unclear.
 5. For `status=failed` from `get_compile_status`, inspect `${projectDir}/build/jugg/log/compile_latest.log`.
+6. For `status=unknown` from `get_compile_status` (typically with `MCP_INVALID_PARAMS`), stop polling and re-check `jobId` source; re-trigger compile flow if needed.
+7. For `start_record` with `MCP_INVALID_PARAMS` and existing `sessionId` in response `data`, call `stop_record(existingSessionId)` first, then retry `start_record`.
+8. If repeated failures still cannot be diagnosed locally, ask user whether to enable `request_remote_ssh_info` with explicit consent.
 
 Do not silently loop retries without diagnosis.
 

@@ -54,6 +54,10 @@
 
 > 说明：`emulator_list` / `start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 
+补充（录屏工具容错语义）：
+- `start_record` 启动后会做短暂进程存活探测；若 `screenrecord` 立即退出，将直接返回 `MCP_INTERNAL_ERROR` 并携带日志尾部信息。
+- `stop_record` 在 `pull` 前会等待远端 mp4 落盘（最长约 10 秒），失败时返回远端文件状态与日志尾部，便于定位设备能力或权限问题。
+
 ---
 
 ## 4. 异步编译调用约定

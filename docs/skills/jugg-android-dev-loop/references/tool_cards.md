@@ -2,12 +2,18 @@
 
 Use this file for per-tool decision guidance when calling Jugg MCP tools directly.
 
+Default context rule:
+
+- Use current working directory as `projectDir` by default.
+- Treat `list_projects`/`device_list` as troubleshooting tools, not mandatory preflight in normal flow.
+
 ## `list_projects`
 
 - Purpose: verify available projects before selecting `projectDir`.
+- When to use: troubleshooting only (project initialization/context mismatch), not mandatory at task start.
 - Required input: none (no arguments required).
 - Success output: project list with `projectDir` and `initialized` fields.
-- On failure: classify as `MCP_PROJECT_NOT_INITIALIZED`; ask user to open/init IDE project.
+- Important semantic: this tool normally returns `status="OK"`; treat `data.projects=[]` as "no initialized project available", then ask user to open/init IDE project.
 
 ## `restart_app`
 
@@ -41,6 +47,10 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
   - Immediate final: `data.isFinal=true` with `data.status=success|failed|canceled`（通常带 `runResult`）
   - Long task: `data.isFinal=false`, `data.status=running`, and `data.jobId`
 - On failure: classify (`SOURCE_ERROR`, `INSTALL_CONFLICT`, `SIGNATURE_MISMATCH`, `MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`).
+- Diagnostics priority:
+  1) parse `message` + `data.detail`,
+  2) if `data.detailTruncated=true`, read `artifacts` log file,
+  3) then read `${projectDir}/build/jugg/log/compile_latest.log` when needed.
 - Fallback order:
   1) retry `compile_and_deploy` up to 3 consecutive attempts,
   2) then `force_gradle_compile` (heavy fallback),
@@ -75,14 +85,15 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Required input: `projectDir`, `jobId`.
 - Success output: `data.status` in `running|success|failed|canceled|unknown`, plus `executionType`.
 - When to stop polling: `status` becomes `success|failed|canceled|unknown`.
+- Special rule: if `status=unknown` (usually paired with `MCP_INVALID_PARAMS`), treat as invalid `jobId`/context, stop polling, then re-check `jobId` source and re-trigger compile if needed.
 
 ## `start_activity`
 
 - Purpose: advanced explicit activity start for runtime verification.
 - Required input: `projectDir`.
-- Optional input: `packageName`, `activity`.
+- Optional input: `packageName`, `activity`, `action`, `categories`, `data`, `mimeType`, `flags`, `extras`, `user`.
 - Safety note: use this only when you clearly know the required launch intent context/params; otherwise prefer `start_app`.
-- Success output: `status="OK"` with `packageName`, `activity`, `component` in data.
+- Success output: `status="OK"` with `packageName`, `activity`, `component`, `command` in data.
 - On failure: classify as `START_ACTIVITY_FAIL`; verify package/activity mapping.
 
 ## `tap`
@@ -97,7 +108,9 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Purpose: start device screen recording asynchronously.
 - Required input: `projectDir`.
 - Success output: `data.sessionId`, `data.file`, `data.serial`.
-- On failure: one retry allowed; if still failing, degrade to `screenshot` + `layout_dump`.
+- On failure:
+  - if `errorCode=MCP_INVALID_PARAMS` and response `data` contains existing `sessionId`, call `stop_record(existingSessionId)` first, then retry `start_record`.
+  - otherwise one retry allowed; if still failing, degrade to `screenshot` + `layout_dump`.
 
 ## `stop_record`
 
@@ -132,10 +145,20 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 
 - Purpose: prevent user confusion from stale outputs.
 - Required action: clear `${projectDir}/build/mcp_fetch/final` before any copy.
+- Clarification: `${projectDir}/build/mcp_fetch/final` is agent staging only; tool default outputs usually live under `${projectDir}/build/jugg/mcp_fetch/<toolName>`.
 - Required files:
   - final screenshot -> `final_screenshot.png`
   - final recording -> `final_record.mp4`
 - Optional: also copy source timestamped files for traceability.
+
+## `request_remote_ssh_info`
+
+- Purpose: request remote SSH login info for deep troubleshooting after local fallback paths are exhausted.
+- Required input: `projectDir`, `reason`, `userConsent`.
+- Optional input: `requestedBy`.
+- Safety gate: must have explicit user consent (`userConsent=true`) before call.
+- Success output: `data.user`, `data.ip`, `data.port`, `data.password`, `data.sshLoginCommand`.
+- On failure: if consent missing/invalid params -> ask user to confirm consent and reason; otherwise report internal approval/runtime error.
 
 ## Output Contract (Per MCP Tool Response)
 
