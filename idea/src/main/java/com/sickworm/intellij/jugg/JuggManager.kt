@@ -34,7 +34,6 @@ import com.sickworm.intellij.jugg.server.JuggHotUpdateDownloader
 import com.sickworm.intellij.jugg.server.JuggServer
 import kotlinx.coroutines.*
 import org.jetbrains.annotations.TestOnly
-import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.File
 import java.lang.Runnable
 import kotlin.system.measureTimeMillis
@@ -401,21 +400,19 @@ class JuggManager @TestOnly constructor(
             projectInfo = backupProjectInfo
         }
 
-        val (costTime: Long, compileContextInfo: CompileContextInfo) = measureTimeMillisWithResult {
-            pathManager.compileRootDir.clearDir()
-            val apkInfos = deployTargetManager.getApks()
-            if (apkInfos.isEmpty()) {
-                logger.warn("Init compile failed for no apk found")
-                return
-            }
-            deployHistoryManager.reInitAfterFullCompiled(
-                apkInfos,
-                projectInfo.modules,
-                startCompileTime,
-            )
-
+        TimeLogger.start("reInitAfterFullCompiled")
+        pathManager.compileRootDir.clearDir()
+        val apkInfos = deployTargetManager.getApks()
+        if (apkInfos.isEmpty()) {
+            logger.warn("Init compile failed for no apk found")
+            return
         }
-        logger.debug("reInitAfterFullCompiled cost ${costTime}ms")
+        val compileContextInfo = deployHistoryManager.reInitAfterFullCompiled(
+            apkInfos,
+            projectInfo.modules,
+            startCompileTime,
+        )
+        TimeLogger.end("reInitAfterFullCompiled", logger)
 
         if (isRemoteCompile) {
             copyGeneratedSourceToLocal()

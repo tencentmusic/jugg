@@ -6,9 +6,9 @@ import com.sickworm.intellij.jugg.gradle.compile.GradleCompileResult
 import com.sickworm.intellij.jugg.gradle.compile.IGradleCompileClient
 import com.sickworm.intellij.jugg.ide.bean.JuggGradleCompileOptions
 import com.sickworm.intellij.jugg.logger.JuggLogger
+ import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.project.JuggException
 import kotlinx.coroutines.*
-import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -62,11 +62,11 @@ class JuggGradleCompileTask(
             }
         }
 
-        val (costTime, result) = measureTimeMillisWithResult {
-            juggGradleCompileOptions.checkConfig()
-            compileClient.login(juggGradleCompileOptions)
-            compileClient.compileAndFetchResult(isOnlyFetchResult)
-        }
+        TimeLogger.start("compile")
+        juggGradleCompileOptions.checkConfig()
+        compileClient.login(juggGradleCompileOptions)
+        val result = compileClient.compileAndFetchResult(isOnlyFetchResult)
+        val costTime = TimeLogger.getCostTime("compile")
         updateTimeJob.cancel()
 
         val isCanceled = uiHandler.isCanceled
