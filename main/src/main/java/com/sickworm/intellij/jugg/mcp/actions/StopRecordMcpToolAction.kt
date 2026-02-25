@@ -81,26 +81,34 @@ class StopRecordMcpToolAction : McpToolAction {
         val localFile = File(session.localFilePath)
 
         return try {
-            adb.execAdbShellCmd("sh -c 'kill -2 ${session.pid} >/dev/null 2>&1 || kill ${session.pid} >/dev/null 2>&1 || true'")
-            Thread.sleep(500)
+            if (session.hostProcess != null) {
+                stopHostRecordProcess(session.hostProcess)
+            } else {
+                adb.execAdbShellScript("kill -2 ${session.pid} >/dev/null 2>&1 || kill ${session.pid} >/dev/null 2>&1 || true")
+            }
+            waitForRemoteFileReady(adb, session.remoteFile)
 
             var pulled = false
-            for (attempt in 1..3) {
+            for (attempt in 1..5) {
                 if (adb.pull(session.remoteFile, localFile) && localFile.exists()) {
                     pulled = true
                     break
                 }
-                if (attempt < 3) {
-                    Thread.sleep(800)
+                if (attempt < 5) {
+                    Thread.sleep(1000)
                 }
             }
 
             if (!pulled) {
-                return McpToolResult.internalErrorResult(toolName, "failed to pull record file after retries")
+                localFile.delete()
+                val remoteStatus = adb.execAdbShellCmd("ls -l ${session.remoteFile} 2>/dev/null || echo __MISSING__")
+                return McpToolResult.internalErrorResult(
+                    toolName,
+                    "failed to pull record file after retries. remoteStatus=$remoteStatus, launchMode=${session.launchMode}",
+                )
             }
 
             adb.execAdbShellCmd("rm -f ${session.remoteFile}")
-            RecordSessionRegistry.remove(sessionId)
 
             McpToolResult(
                 status = McpToolStatus.OK,
@@ -115,6 +123,40 @@ class StopRecordMcpToolAction : McpToolAction {
             )
         } catch (e: Exception) {
             McpToolResult.internalErrorResult(toolName, e.message ?: "unknown error")
+        } finally {
+            if (session.hostProcess?.isAlive == true) {
+                session.hostProcess.destroyForcibly()
+            }
+            RecordSessionRegistry.remove(sessionId)
         }
+    }
+
+    private fun stopHostRecordProcess(process: Process) {
+        process.destroy()
+        if (!process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+        }
+    }
+
+    /**
+     * Wait for screenrecord output to be materialized and non-empty before pulling.
+     */
+    private fun waitForRemoteFileReady(adb: com.sickworm.intellij.jugg.deploy.IDeviceAdb, remoteFile: String) {
+        val deadline = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < deadline) {
+            val sizeOutput = adb.execAdbShellScript(
+                "if [ -f $remoteFile ]; then wc -c < $remoteFile; else echo -1; fi",
+            )
+            val size = NUMBER_REGEX.findAll(sizeOutput).lastOrNull()?.value?.toLongOrNull() ?: -1L
+            if (size > 0) {
+                return
+            }
+            Thread.sleep(500)
+        }
+    }
+
+    companion object {
+        private val NUMBER_REGEX = Regex("-?\\d+")
     }
 }

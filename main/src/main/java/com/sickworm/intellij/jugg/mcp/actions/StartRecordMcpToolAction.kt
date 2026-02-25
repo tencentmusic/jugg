@@ -7,6 +7,8 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
 /**
@@ -75,20 +77,43 @@ class StartRecordMcpToolAction : McpToolAction {
 
         return try {
             adb.execAdbShellCmd("mkdir -p $remoteDir")
-            val pidOutput = adb.execAdbShellCmd("sh -c 'screenrecord $remoteFile >/dev/null 2>&1 & echo \$!'")
-            val pid = extractPid(pidOutput)
-                ?: return McpToolResult.internalErrorResult(toolName, "failed to start screenrecord: $pidOutput")
+            val remoteResult = if (ENABLE_REMOTE_BG_SCREENRECORD) {
+                tryStartViaRemoteBackground(adb, remoteFile)
+            } else {
+                RemoteStartResult(
+                    alivePid = null,
+                    failureReason = "disabledByFlag",
+                )
+            }
+
+            val hostFallback = if (remoteResult.alivePid == null) {
+                tryStartViaHostAdb(serial, remoteFile)
+            } else {
+                null
+            }
+
+            val finalPid = remoteResult.alivePid ?: hostFallback?.hostPid
+            if (finalPid == null) {
+                val hostFallbackFailure = hostFallback?.failureReason ?: "hostFallbackSkipped"
+                return McpToolResult.internalErrorResult(
+                    toolName,
+                    "screenrecord start failed. remoteStart=${remoteResult.failureReason}, hostFallback=$hostFallbackFailure",
+                )
+            }
 
             val sessionId = buildSessionId(serial, startedAtMs)
             val session = RecordSessionRegistry.RecordSession(
                 sessionId = sessionId,
                 serial = serial,
-                pid = pid,
+                pid = finalPid,
                 remoteFile = remoteFile,
                 localFilePath = localFile.absolutePath,
                 startedAtMs = startedAtMs,
+                launchMode = if (remoteResult.alivePid != null) "REMOTE_BG" else "HOST_ADB",
+                hostProcess = hostFallback?.process,
             )
             if (!RecordSessionRegistry.registerIfAbsent(session)) {
+                hostFallback?.process?.destroyForcibly()
                 return McpToolResult(
                     status = McpToolStatus.ERROR,
                     message = "$toolName failed. Reason: active session already exists on serial=$serial.",
@@ -125,8 +150,142 @@ class StartRecordMcpToolAction : McpToolAction {
         return "rec_${startedAtMs}_$serialSafe"
     }
 
+    /**
+     * Try detached screenrecord on device side.
+     */
+    private fun tryStartViaRemoteBackground(
+        adb: com.sickworm.intellij.jugg.deploy.IDeviceAdb,
+        remoteFile: String,
+    ): RemoteStartResult {
+        val pidOutput = adb.execAdbShellScript("nohup screenrecord $remoteFile >/dev/null 2>&1 < /dev/null & echo \$!")
+        val pid = extractPid(pidOutput)
+            ?: return RemoteStartResult(
+                alivePid = null,
+                failureReason = "invalidPidOutput($pidOutput)",
+            )
+
+        val alivePid = resolveAliveRecordPid(adb, pid, remoteFile)
+        if (alivePid == null) {
+            adb.execAdbShellCmd("rm -f $remoteFile")
+            return RemoteStartResult(
+                alivePid = null,
+                failureReason = "exitedImmediately(pid=$pid)",
+            )
+        }
+        return RemoteStartResult(
+            alivePid = alivePid,
+            failureReason = null,
+        )
+    }
+
+    /**
+     * On some devices, detached screenrecord started inside device shell exits immediately.
+     * This fallback keeps `adb shell screenrecord` alive from host side and tracks that process in session registry.
+     */
+    private fun tryStartViaHostAdb(serial: String, remoteFile: String): HostFallbackStartResult {
+        return try {
+            val process = ProcessBuilder(
+                findAdbExecutablePath(),
+                "-s",
+                serial,
+                "shell",
+                "screenrecord",
+                remoteFile,
+            ).redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start()
+
+            Thread.sleep(500)
+            if (!process.isAlive) {
+                return HostFallbackStartResult(
+                    process = null,
+                    hostPid = null,
+                    failureReason = "adbProcessExited",
+                )
+            }
+
+            HostFallbackStartResult(
+                process = process,
+                hostPid = "host:${process.pid()}",
+                failureReason = null,
+            )
+        } catch (e: Exception) {
+            HostFallbackStartResult(
+                process = null,
+                hostPid = null,
+                failureReason = e.message ?: "unknown",
+            )
+        }
+    }
+
+    /**
+     * Resolve the real long-lived screenrecord pid.
+     * The first background pid returned by shell may be transient on some devices.
+     */
+    private fun resolveAliveRecordPid(
+        adb: com.sickworm.intellij.jugg.deploy.IDeviceAdb,
+        initialPid: String,
+        remoteFile: String,
+    ): String? {
+        if (isProcessAlive(adb, initialPid)) {
+            return initialPid
+        }
+
+        val discoveredOutput = adb.execAdbShellScript("pgrep -f $remoteFile | head -n 1")
+        val discoveredPid = extractPid(discoveredOutput) ?: return null
+        return if (isProcessAlive(adb, discoveredPid)) discoveredPid else null
+    }
+
+    private fun isProcessAlive(adb: com.sickworm.intellij.jugg.deploy.IDeviceAdb, pid: String): Boolean {
+        Thread.sleep(300)
+        val probe = adb.execAdbShellScript("if [ -d /proc/$pid ]; then echo __ALIVE__; else echo __DEAD__; fi")
+        return probe.contains("__ALIVE__")
+    }
+
+    private fun findAdbExecutablePath(): String {
+        val candidates = mutableListOf<File>()
+        val androidHomeCandidates = listOf(
+            getAndroidHomePathViaIdeaApi(),
+            System.getenv("ANDROID_HOME"),
+            System.getenv("ANDROID_SDK_ROOT"),
+        ).filterNotNull()
+
+        androidHomeCandidates.forEach { home ->
+            candidates += File(home, "platform-tools/adb")
+            candidates += File(home, "platform-tools/adb.exe")
+        }
+
+        return candidates.firstOrNull { it.exists() && it.canExecute() }?.absolutePath
+            ?: candidates.firstOrNull { it.exists() }?.absolutePath
+            ?: "adb"
+    }
+
+    private fun getAndroidHomePathViaIdeaApi(): String? {
+        return try {
+            PlatformApi.getAndroidHomePath(Logger.getInstance("McpActionRuntime"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     companion object {
         private val PID_REGEX = Regex("\\d+")
         private val SERIAL_SAFE_REGEX = Regex("[^A-Za-z0-9_]")
+        /**
+         * Device-side detached screenrecord has compatibility issues on some OEM ROMs.
+         * Keep this switch OFF by default and use host-managed adb screenrecord path.
+         */
+        private const val ENABLE_REMOTE_BG_SCREENRECORD = false
     }
+
+    private data class RemoteStartResult(
+        val alivePid: String?,
+        val failureReason: String?,
+    )
+
+    private data class HostFallbackStartResult(
+        val process: Process?,
+        val hostPid: String?,
+        val failureReason: String?,
+    )
 }

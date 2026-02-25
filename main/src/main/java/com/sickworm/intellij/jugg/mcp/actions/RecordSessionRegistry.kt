@@ -15,6 +15,8 @@ object RecordSessionRegistry {
         val remoteFile: String,
         val localFilePath: String,
         val startedAtMs: Long,
+        val launchMode: String,
+        val hostProcess: Process? = null,
     )
 
     private val lock = Any()
