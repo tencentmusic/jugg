@@ -6,14 +6,14 @@ import org.junit.Test
 class McpInvokerValidationTest : McpInvokerTestBase() {
 
     @Test
-    fun testRecordRejectWhenDurationOutOfRange() {
+    fun testStartRecordRejectUnknownArgument() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 1,
                 params = mapOf(
-                    "name" to "record",
+                    "name" to "start_record",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA", "durationSec" to 500)
                 )
             )
@@ -22,7 +22,7 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
         val result = response.result as McpToolCallResult
         Assert.assertTrue(result.isError)
         Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
-        Assert.assertTrue(result.content.first().text.contains("durationSec must be <= 180"))
+        Assert.assertTrue(result.content.first().text.contains("Unknown argument(s): durationSec"))
     }
 
     @Test
@@ -74,23 +74,23 @@ class McpInvokerValidationTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testRecordApplyDefaultDurationSec() {
+    fun testStopRecordRejectMissingSessionId() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 4,
                 params = mapOf(
-                    "name" to "record",
+                    "name" to "stop_record",
                     "arguments" to mapOf("projectDir" to "/tmp/projectA")
                 )
             )
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        val data = result.structuredContent["data"] as Map<*, *>
-        Assert.assertEquals(10, data["durationSec"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.structuredContent["errorCode"])
+        Assert.assertTrue(result.content.first().text.contains("sessionId is required"))
     }
 
     @Test

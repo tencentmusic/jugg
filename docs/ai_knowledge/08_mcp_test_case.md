@@ -1,6 +1,6 @@
 # Jugg MCP 测试用例
 
-> 说明：本文档覆盖 Jugg MCP 全部 16 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
+> 说明：本文档覆盖 Jugg MCP 全部 17 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
 > 工具清单来源：`McpToolActionRegistry.kt` + `08_mcp_usage.md`
 
 ---
@@ -114,17 +114,17 @@
 **TC-09: 截图 - 有设备连接**
 在有设备连接的情况下，调用 `screenshot`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`artifacts` 数组非空，包含一个类型为 `screenshot` 的产物，`path` 字段指向一个实际存在的图片文件。
 
-**TC-10: 录屏 - 默认参数**
-在有设备连接的情况下，调用 `record`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，`artifacts` 数组包含一个录屏产物，默认录制时长约 10 秒。
+**TC-10: 开始录屏 - 立即返回 session**
+在有设备连接的情况下，调用 `start_record`，仅传入 `projectDir`，验证返回 `status` 为 `OK`，`data` 中包含 `sessionId`，且调用应快速返回（不阻塞至录屏结束）。
 
-**TC-11: 录屏 - 自定义时长**
-调用 `record`，传入 `projectDir` 和 `durationSec=5`，验证录屏实际时长约 5 秒，返回成功且产物文件存在。
+**TC-11: 停止录屏 - 拉取产物**
+先调用 `start_record` 获取 `sessionId`，等待 2~3 秒后调用 `stop_record`（传入 `projectDir`、`sessionId`），验证返回 `status` 为 `OK`，`artifacts` 中包含可读取的 mp4 文件。
 
-**TC-12: 录屏 - 带启动和点击动作**
-调用 `record`，传入 `projectDir`、`durationSec=10`、`packageName`（当前项目包名）、`tapX=540`、`tapY=960`、`preTapDelaySec=2`、`tapRepeat=3`、`tapIntervalSec=1`，验证返回 `status` 为 `OK`，录屏过程中应用被启动并执行了点击动作。
+**TC-12: start_record - 不接受旧参数**
+调用 `start_record`，传入 `projectDir` 和旧参数 `durationSec=10`（或 `tapX`/`tapY`），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
-**TC-13: 录屏 - durationSec 超出范围**
-调用 `record`，传入 `durationSec=200`（超过 maximum 180），验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
+**TC-13: stop_record - 缺少 sessionId**
+调用 `stop_record`，仅传入 `projectDir`，不传 `sessionId`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
 **TC-14: 布局导出 - 有设备**
 在有设备连接的情况下，调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`artifacts` 数组中包含一个 `layout_dump` 类型的产物，`path` 指向一个 XML 文件。读取该文件，确认内容是有效的 UI 层级 XML。
@@ -296,8 +296,8 @@
 **TC-48: 无设备 - screenshot**
 调用 `screenshot`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
-**TC-49: 无设备 - record**
-调用 `record`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+**TC-49: 无设备 - start_record**
+调用 `start_record`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 **TC-50: 无设备 - layout_dump**
 调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
@@ -342,7 +342,7 @@
 通过 JSON-RPC 发送 `tools/call`，`name` 设为 `"nonexistent_tool"`，验证返回 `errorCode` 为 `MCP_TOOL_NOT_FOUND`。
 
 **TC-60: 返回结构一致性验证**
-对所有 16 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
+对所有 17 个工具分别调用一次（包括正常和异常场景），验证每次返回值都严格包含 `status`、`message`、`data`（对象）、`artifacts`（数组）、四个字段；失败时额外多一个 `errorCode` 字段。
 
 ---
 
@@ -376,10 +376,12 @@
 6. 调用 `screenshot` 验证点击后的界面变化
 7. 调用 `activity_stack` 验证当前页面是否跳转
 
-**TC-64: 录屏验证带操作的完整流程**
-1. 调用 `record`，传入 `packageName`、`activity=.MainActivity`、`tapX`/`tapY`（目标按钮坐标）、`preTapDelaySec=3`、`durationSec=15`
-2. 验证录屏返回成功，产物文件存在
-3. 播放录屏确认：应用启动 -> 等待 3 秒 -> 执行点击
+**TC-64: 两段式录屏验证完整流程**
+1. 调用 `start_record`（仅传 `projectDir`）并获取 `sessionId`
+2. 调用 `start_app` 启动应用
+3. 调用 `tap` 点击目标坐标
+4. 等待 2~3 秒后调用 `stop_record`（传 `projectDir`、`sessionId`）
+5. 验证返回成功且 mp4 产物存在，播放确认包含启动与点击过程
 
 ---
 
@@ -396,10 +398,11 @@
 | 7 | `restart_app` | 是 | 重启应用 |
 | 8 | `device_list` | 否 | 列出已连接设备 |
 | 9 | `screenshot` | 是 | 设备截图 |
-| 10 | `record` | 是 | 设备录屏（支持启动+点击） |
-| 11 | `layout_dump` | 是 | 导出 UI 层级 XML |
-| 12 | `activity_stack` | 是 | 获取当前 Activity 栈 |
-| 13 | `start_app` | 是 | 启动应用默认入口 |
-| 14 | `start_activity` | 是 | 按 intent 参数启动 Activity |
-| 15 | `tap` | 是 | 屏幕坐标点击 |
-| 16 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |
+| 10 | `start_record` | 是 | 开始设备录屏并返回 `sessionId` |
+| 11 | `stop_record` | 是 | 停止录屏并拉取 mp4 |
+| 12 | `layout_dump` | 是 | 导出 UI 层级 XML |
+| 13 | `activity_stack` | 是 | 获取当前 Activity 栈 |
+| 14 | `start_app` | 是 | 启动应用默认入口 |
+| 15 | `start_activity` | 是 | 按 intent 参数启动 Activity |
+| 16 | `tap` | 是 | 屏幕坐标点击 |
+| 17 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |

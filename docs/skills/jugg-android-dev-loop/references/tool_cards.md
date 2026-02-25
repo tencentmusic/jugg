@@ -92,13 +92,19 @@ Use this file for per-tool decision guidance when calling Jugg MCP tools directl
 - Success output: `status="OK"`.
 - On failure: retry within budget using delay/interval tuning.
 
-## `record`
+## `start_record`
 
-- Purpose: record device screen video, optionally with in-record start_app + tap actions.
+- Purpose: start device screen recording asynchronously.
 - Required input: `projectDir`.
-- Optional input: `durationSec` (default 10, range 1-180), `packageName`, `activity`, `tapX`+`tapY` (must be provided together), `preTapDelaySec`, `tapRepeat` (default 1), `tapIntervalSec`, `recordStartDelaySec`.
-- Success output: recording artifact path in `artifacts`.
-- On failure: one retry allowed, then degrade to `start_app` + `tap` + `screenshot`.
+- Success output: `data.sessionId`, `data.file`, `data.serial`.
+- On failure: one retry allowed; if still failing, degrade to `screenshot` + `layout_dump`.
+
+## `stop_record`
+
+- Purpose: stop a running recording session and fetch mp4 artifact.
+- Required input: `projectDir`, `sessionId`.
+- Success output: video artifact path in `artifacts`.
+- On failure: keep `sessionId` and retry once; if still failing, report and continue with screenshot evidence.
 
 ## `screenshot`
 
@@ -149,8 +155,8 @@ Each MCP tool returns `structuredContent` with these fields:
 
 ## `record` Compact Guidance
 
-- Default: skip `record`; use `screenshot + layout_dump` for static end-state checks.
-- Prefer `record` for time-based behavior: animation, navigation, async changes, transient UI, multi-step flows.
-- Must `record` when user explicitly asks for video evidence.
+- Default: skip recording; use `screenshot + layout_dump` for static end-state checks.
+- Prefer `start_record`/`stop_record` for time-based behavior: animation, navigation, async changes, transient UI, multi-step flows.
+- Must produce recording when user explicitly asks for video evidence.
 - Heuristic: prove **how** -> record; prove **what** -> optional.
-- Anti-static minimum: start page confirmed, one valid tap in-record, short capture (`5~8s`), post-record screenshot.
+- Minimal flow: `start_record` -> runtime operations (`start_app`/`tap`) -> `stop_record` -> post-record screenshot.

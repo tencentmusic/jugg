@@ -82,5 +82,5 @@ Config file: `~/.gemini/settings.json`
 
 ## MCP-only Recommendation
 
-- Strongly prefer MCP tools for runtime and verification: `start_app`, `tap`, `layout_dump`, `screenshot`, `record`.
+- Strongly prefer MCP tools for runtime and verification: `start_app`, `tap`, `layout_dump`, `screenshot`, `start_record`, `stop_record`.
 - Avoid direct external adb commands in normal closed-loop flow.

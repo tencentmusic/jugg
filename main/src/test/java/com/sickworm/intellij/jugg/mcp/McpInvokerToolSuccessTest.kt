@@ -189,15 +189,34 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testRecordToolCallSuccess() {
+    fun testStartRecordToolCallSuccess() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
                 method = McpJsonRpc.Method.ToolsCall,
                 id = 11,
                 params = mapOf(
-                    "name" to "record",
-                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "durationSec" to 12)
+                    "name" to "start_record",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+    }
+
+    @Test
+    fun testStopRecordToolCallSuccess() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 111,
+                params = mapOf(
+                    "name" to "stop_record",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA", "sessionId" to "rec_123")
                 )
             )
         )

@@ -137,12 +137,30 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("record", def("record")) { arguments ->
-                val duration = (arguments["durationSec"] as? Number)?.toInt() ?: 10
+            fakeAction("start_record", def("start_record")) { _ ->
                 McpToolResult(
                     McpToolStatus.OK,
-                    "record executed successfully.",
-                    mapOf("durationSec" to duration, "file" to "/tmp/a.mp4"),
+                    "start_record executed successfully.",
+                    mapOf(
+                        "sessionId" to "rec_123",
+                        "serial" to "emulator-5554",
+                        "file" to "/tmp/a.mp4",
+                        "startedAtMs" to 123456789L,
+                    ),
+                    emptyList(),
+                    null,
+                )
+            },
+            fakeAction("stop_record", def("stop_record")) { arguments ->
+                val sessionId = arguments["sessionId"] as? String ?: "rec_123"
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "stop_record executed successfully.",
+                    mapOf(
+                        "sessionId" to sessionId,
+                        "serial" to "emulator-5554",
+                        "file" to "/tmp/a.mp4",
+                    ),
                     listOf(McpArtifact(type = "video", path = "/tmp/a.mp4")),
                     null,
                 )

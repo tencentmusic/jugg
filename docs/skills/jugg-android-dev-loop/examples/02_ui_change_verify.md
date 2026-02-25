@@ -128,4 +128,4 @@ Artifacts:
 - Time-based behavior validation (animation/navigation/async/transient UI/multi-step flow): recording is recommended.
 - User explicitly asks for video: recording is required.
 - Quick rule: prove process (**how**) -> record; prove final state (**what**) -> recording optional.
-- Minimal recording template: return to start page -> locate target -> `record(5~8s, preTapDelaySec=1~2, tapRepeat=1)` -> post-record screenshot.
+- Minimal recording template: return to start page -> locate target -> `start_record` -> perform one valid interaction (`start_app`/`tap`) -> `stop_record` -> post-record screenshot.

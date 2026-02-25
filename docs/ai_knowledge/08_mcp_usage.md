@@ -44,7 +44,8 @@
 | `request_remote_ssh_info` | `projectDir`, `reason`, `userConsent` | 申请远端 SSH 排障信息 |
 | `device_list` | `projectDir` | 列设备并标记 selected |
 | `screenshot` | `projectDir` | 截图 |
-| `record` | `projectDir` | 录屏（支持可选自动点击参数） |
+| `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
+| `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir` | 导出 UI 层级 XML |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `start_app` | `projectDir` | 启动 App（可指定 package） |

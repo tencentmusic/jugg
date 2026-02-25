@@ -99,8 +99,6 @@ class McpLocalServerTest {
             }
             Assert.assertTrue(names.contains("list_projects"))
             Assert.assertTrue(names.contains("restart_app"))
-            Assert.assertTrue(names.contains("emulator_list"))
-            Assert.assertTrue(names.contains("start_emulator"))
             Assert.assertTrue(names.contains("compile_only"))
             Assert.assertTrue(names.contains("compile_and_deploy"))
             Assert.assertTrue(names.contains("clean_reinstall_apk"))
@@ -109,7 +107,8 @@ class McpLocalServerTest {
             Assert.assertTrue(names.contains("request_remote_ssh_info"))
             Assert.assertTrue(names.contains("device_list"))
             Assert.assertTrue(names.contains("screenshot"))
-            Assert.assertTrue(names.contains("record"))
+            Assert.assertTrue(names.contains("start_record"))
+            Assert.assertTrue(names.contains("stop_record"))
             Assert.assertTrue(names.contains("layout_dump"))
             Assert.assertTrue(names.contains("activity_stack"))
             Assert.assertTrue(names.contains("start_app"))

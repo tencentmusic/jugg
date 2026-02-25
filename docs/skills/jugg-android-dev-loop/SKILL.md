@@ -21,7 +21,7 @@ Strongly prefer MCP tools and avoid direct external adb commands in normal flow.
 Step 1: Modify sources(not using jugg-mcp)
 Step 2: compile_and_deploy        → build and deploy (default)
 Step 3: start_app + tap           → launch app and interact (when runtime verification is required)
-Step 4: layout_dump/activity_stack/screenshot/record    → collect verification evidence.
+Step 4: layout_dump/activity_stack/screenshot/start_record+stop_record    → collect verification evidence.
     -> back to Step 1 if something is wrong.
 Step 5: final_artifact_staging    → save final screenshot or recording for user
 ```
@@ -56,7 +56,7 @@ If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 - `activity_stack` for activity state verification (`data.activities` is a component string array ordered top -> bottom; full details stay in `dumpFile`).
 - `layout_dump` for structural verification.
 - `screenshot` for visual proof.
-- Optional: `record` for video trace with in-record start_app + tap.
+- Optional: `start_record` + `stop_record` for video trace (run `start_app`/`tap` between the two calls).
 
 ### Step 5: Final Artifact Staging
 
