@@ -543,6 +543,64 @@ class ConstRefCacheDatabase(
     }
 
     /**
+     * Batch query reusable files by `(repo_key, relative_path, last_modified)` to avoid unnecessary full-scan parse.
+     */
+    @Synchronized
+    fun findReusablePathsByLastModified(files: Collection<File>): Set<String> {
+        val identities = files.asSequence()
+            .mapNotNull { file ->
+                val filePath = file.toStdPath()
+                val repoIdentity = resolveRepoIdentity(filePath) ?: return@mapNotNull null
+                ReusableFileIdentity(
+                    repoKey = repoIdentity.repoKey,
+                    relativePath = repoIdentity.relativePath,
+                    lastModified = file.lastModified(),
+                )
+            }
+            .distinctBy { "${it.repoKey}|${it.relativePath}|${it.lastModified}" }
+            .toList()
+        if (identities.isEmpty()) {
+            return emptySet()
+        }
+        val repoRoots = repoRootByKey.toMap()
+        return withConnection { connection ->
+            val reusablePaths = linkedSetOf<String>()
+            identities.chunked(MAX_MTIME_QUERY_ROWS_PER_BATCH).forEach { chunk ->
+                val whereClause = chunk.joinToString(" OR ") {
+                    "(m.repo_key = ? AND m.relative_path = ? AND m.last_modified = ?)"
+                }
+                val sql = """
+                    SELECT m.repo_key, m.relative_path
+                    FROM file_checksum_mtime_map m
+                    INNER JOIN file_analysis_head h
+                        ON h.repo_key = m.repo_key
+                       AND h.relative_path = m.relative_path
+                       AND h.checksum = m.checksum
+                    WHERE $whereClause
+                    GROUP BY m.repo_key, m.relative_path
+                """.trimIndent()
+                connection.prepareStatement(sql).use { statement ->
+                    var paramIndex = 1
+                    chunk.forEach { identity ->
+                        statement.setString(paramIndex++, identity.repoKey)
+                        statement.setString(paramIndex++, identity.relativePath)
+                        statement.setLong(paramIndex++, identity.lastModified)
+                    }
+                    statement.executeQuery().use { resultSet ->
+                        while (resultSet.next()) {
+                            val repoKey = resultSet.getString("repo_key")
+                            val relativePath = resultSet.getString("relative_path")
+                            val absolutePath = resolveAbsolutePath(repoKey, relativePath, repoRoots) ?: continue
+                            reusablePaths += absolutePath
+                        }
+                    }
+                }
+            }
+            reusablePaths
+        }
+    }
+
+    /**
      * Execute ttl/retention cleanup with 24h throttle and optional force mode.
      */
     @Synchronized
@@ -1192,8 +1250,15 @@ class ConstRefCacheDatabase(
         val checksum: Long,
     )
 
+    private data class ReusableFileIdentity(
+        val repoKey: String,
+        val relativePath: String,
+        val lastModified: Long,
+    )
+
     companion object {
         private const val DB_SCHEMA_VERSION = 2
+        private const val MAX_MTIME_QUERY_ROWS_PER_BATCH = 250
         private const val CLEANUP_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val MTIME_MAP_TTL_MS = 30L * 24L * 60L * 60L * 1000L
         private const val ANALYSIS_TTL_MS = 90L * 24L * 60L * 60L * 1000L

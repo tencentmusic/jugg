@@ -63,6 +63,8 @@
 - `FILE_CHANGE`：日常保存触发的异步增量分析；
 - `PRE_COMPILE`：`awaitAnalysis()` 内同步抢占执行，确保编译前尽量完成待分析文件。
 
+> `FULL_SCAN` 会先按 `(repo_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新内存就绪状态，未命中项才进入解析流程。
+
 ### 3.3 状态模型（核心字段）
 
 - `pendingAnalyzeFiles`：待分析文件集合；
@@ -188,6 +190,10 @@ Kotlin 引用覆盖：
 4. 拿到 checksum 后查 `file_analysis_head`：
    - 命中版本则仅 touch（不重复 AST 解析）；
    - 未命中才执行 parse definitions/references 并落库。
+
+另外支持 IO 限频（系统属性）：
+- `jugg.constref.io.throttle.ms`：每次节流 sleep 的毫秒数（默认 `0`，即关闭）；
+- `jugg.constref.io.throttle.every`：每处理 N 个文件触发一次 sleep（默认 `1`）。
 
 ---
 

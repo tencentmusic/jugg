@@ -36,8 +36,14 @@ class ConstRefScheduler(
         AnalyzeScene.FILE_CHANGE to SceneTaskState(),
         AnalyzeScene.PRE_COMPILE to SceneTaskState(),
     )
+    private val ioThrottleSleepMs: Long = readNonNegativeLongProperty(IO_THROTTLE_MS_PROPERTY, 0L)
+    private val ioThrottleEveryNFiles: Int = readPositiveIntProperty(IO_THROTTLE_EVERY_PROPERTY, 1)
 
     init {
+        if (ioThrottleSleepMs > 0L) {
+            logger.info("ConstRefScheduler io throttle enabled, " +
+                    "sleepMs=$ioThrottleSleepMs, everyNFiles=$ioThrottleEveryNFiles")
+        }
         scheduleCacheCleanup()
     }
 
@@ -179,12 +185,20 @@ class ConstRefScheduler(
                         .distinctBy { it.toStdPath() }
                         .toList()
                     if (sourceFiles.isNotEmpty()) {
+                        val reusablePaths = database.findReusablePathsByLastModified(sourceFiles)
+                        reusablePaths.forEach(::markAnalyzed)
+                        val filesToAnalyze = if (reusablePaths.isEmpty()) {
+                            sourceFiles
+                        } else {
+                            sourceFiles.filter { it.toStdPath() !in reusablePaths }
+                        }
                         val startTime = System.currentTimeMillis()
-                        analyzeFiles(sourceFiles)
+                        analyzeFiles(filesToAnalyze)
                         val costTime = System.currentTimeMillis() - startTime
                         logger.debug(
                             "ConstRefScheduler full scan sourceDir finished, sourceDir=$sourceDirPath, " +
-                                "files=${sourceFiles.size}, cost=${costTime}ms"
+                                "files=${sourceFiles.size}, reused=${reusablePaths.size}, " +
+                                "analyzed=${filesToAnalyze.size}, cost=${costTime}ms"
                         )
                     }
                     synchronized(stateLock) {
@@ -292,7 +306,10 @@ class ConstRefScheduler(
             var fingerprintHitCount = 0
             var crcMissCount = 0
             var analysisReuseHitCount = 0
+            var ioProcessedCount = 0
             existingFiles.forEach { file ->
+                ioProcessedCount++
+                maybeThrottleIo(ioProcessedCount)
                 val path = file.toStdPath()
                 val fileLastModified = file.lastModified()
 
@@ -450,6 +467,17 @@ class ConstRefScheduler(
             }
         }
         return crc32.value
+    }
+
+    private fun maybeThrottleIo(processedCount: Int) {
+        if (ioThrottleSleepMs <= 0L || processedCount % ioThrottleEveryNFiles != 0) {
+            return
+        }
+        try {
+            Thread.sleep(ioThrottleSleepMs)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 
     private fun ensureDefinitionIndexInitializedLocked() {
@@ -631,4 +659,17 @@ class ConstRefScheduler(
         var scheduledJob: Job? = null,
         var runningJob: Job? = null,
     )
+
+    companion object {
+        private const val IO_THROTTLE_MS_PROPERTY = "jugg.constref.io.throttle.ms"
+        private const val IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.io.throttle.every"
+
+        private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
+            return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue
+        }
+
+        private fun readPositiveIntProperty(property: String, defaultValue: Int): Int {
+            return System.getProperty(property)?.toIntOrNull()?.coerceAtLeast(1) ?: defaultValue
+        }
+    }
 }

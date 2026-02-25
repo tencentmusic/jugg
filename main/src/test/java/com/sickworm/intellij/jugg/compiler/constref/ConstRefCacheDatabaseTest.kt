@@ -252,4 +252,54 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
             }
         }
     }
+
+    @Test
+    fun `should batch find reusable paths by last modified`() {
+        val dbDir = createTempDirectory("const_ref_db_reusable")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+        val constantsPath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+        val userPath = File(dbDir, "User.kt").apply { writeText("val value = MAX") }.toStdPath()
+
+        val constantsLastModified = File(constantsPath).lastModified()
+        val userLastModified = File(userPath).lastModified()
+        database.upsertFileAnalysis(
+            filePath = constantsPath,
+            lastModified = constantsLastModified,
+            checksum = 100L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = userPath,
+            lastModified = userLastModified,
+            checksum = 101L,
+            definitions = emptyList(),
+            references = listOf(
+                ConstReference(
+                    refFilePath = userPath,
+                    defFqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                )
+            ),
+        )
+
+        val reusable = database.findReusablePathsByLastModified(
+            listOf(
+                File(constantsPath),
+                File(userPath),
+            )
+        )
+
+        assertEquals(setOf(constantsPath, userPath), reusable)
+    }
 }
