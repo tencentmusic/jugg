@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.apk.ApkFileUnit
 import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
+import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.project.data.SigningConfig
@@ -271,5 +272,15 @@ data class SimpleCompileContext(
             }
         }
         return targetDir
+    }
+
+    private var customMinifyInfo: MinifyInfo = MinifyInfo.EMPTY
+
+    fun setMinifyInfo(minifyInfo: MinifyInfo) {
+        customMinifyInfo = minifyInfo
+    }
+
+    override fun getMinifyInfo(): MinifyInfo {
+        return customMinifyInfo
     }
 }

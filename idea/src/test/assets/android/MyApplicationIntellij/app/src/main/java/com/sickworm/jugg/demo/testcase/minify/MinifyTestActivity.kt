@@ -77,6 +77,9 @@ class MinifyTestActivity : Activity() {
         keepClassAndMembers.keptMethodOne()
         keepClassAndMembers.keptMethodTwo()
 
+        // R8 inline test cases
+        com.example.myapplication.r8test.R8InlineTestCases.runAllTests()
+
         // Note: UnreferencedClass is intentionally NOT referenced here
         // to test that R8 removes it completely
     }

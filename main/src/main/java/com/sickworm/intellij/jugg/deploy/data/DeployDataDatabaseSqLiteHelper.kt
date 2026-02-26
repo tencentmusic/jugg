@@ -1059,14 +1059,14 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                 }
                 logger.debug("checkMaybeMinifiedRemoveClass: checking ${suspectClassNames.size} suspect classes")
 
-                // Query database to find which classes exist and their methods/fields
+                // Query database to find which classes exist and their methods/fields/hierarchy
                 val existingClasses = mutableSetOf<String>()
                 val dbClassInfoMap = mutableMapOf<String, ClassNode>() // Map<className, uncompleted ClassNode>
 
                 // Split into chunks to avoid SQL query too long
                 suspectClassNames.chunked(2000).forEach { chunk ->
                     val classNamesString = chunk.joinToString(",") { "'$it'" }
-                    val sql = "SELECT name, methods, fields, source FROM class_info WHERE name IN ($classNamesString);"
+                    val sql = "SELECT name, methods, fields, source, super_name, interface_names FROM class_info WHERE name IN ($classNamesString);"
                     connection.createStatement().use { statement ->
                         val resultSet: ResultSet = statement.executeQueryAndLog(sql)
                         while (resultSet.next()) {
@@ -1074,12 +1074,14 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                             val methodsStr = resultSet.getString(2)
                             val fieldsStr = resultSet.getString(3)
                             val source = resultSet.getString(4)
+                            val superName = resultSet.getString(5)
+                            val interfaceNames = resultSet.getString(6).toInterfaceList()
                             existingClasses.add(className)
 
                             val methods = methodsStr.toMethodList(className)
                             val fields = fieldsStr.toFieldList(className)
                             dbClassInfoMap[className] = ClassNode(
-                                "", className, 0, methods, fields, emptyList(), "", source
+                                "", className, 0, methods, fields, interfaceNames, superName, source
                             )
                         }
                     }
@@ -1117,7 +1119,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                         className = className,
                         sourceFileName = EffectedClassNode.SOURCE_NOT_FOUND, // source file not found, need to found in .class classpath
                         effectedByClasses = referencedBy.toList(),
-                        effectedType = EffectedClassNode.EffectedType.CLASS
+                        effectedType = EffectedClassNode.EffectedType.SOURCE
                     ))
                 }
 
@@ -1137,14 +1139,22 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                     val dbMethods = classNode.methods
                     val deployMethods = deployMethodsMap[className] ?: emptyList()
                     val removedMethods = deployMethods.filter { methodNode ->
-                        dbMethods.none { it.equalsWithoutAccess(methodNode) } // refs doesn't have access
+                        dbMethods.none { it.equalsWithoutAccess(methodNode) } && !isMethodInHierarchy(
+                            className = className,
+                            target = methodNode,
+                            classInfoMap = dbClassInfoMap,
+                        )
                     }
 
                     // Check for removed fields
                     val deployFields = deployFieldsMap[className] ?: emptyList()
                     val dbFields = classNode.fields
                     val removedFields = deployFields.filter { fieldNode ->
-                        dbFields.none { it.equalsWithoutAccess(fieldNode) } // refs doesn't have access
+                        dbFields.none { it.equalsWithoutAccess(fieldNode) } && !isFieldInHierarchy(
+                            className = className,
+                            target = fieldNode,
+                            classInfoMap = dbClassInfoMap,
+                        )
                     }
 
                     if (removedMethods.isNotEmpty() || removedFields.isNotEmpty()) {
@@ -1166,7 +1176,7 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
                             className = className,
                             sourceFileName = classNode.source,
                             effectedByClasses = referencedBy.toList(),
-                            effectedType = EffectedClassNode.EffectedType.CLASS,
+                            effectedType = EffectedClassNode.EffectedType.SOURCE,
                         ))
 
                         logger.debug("checkMaybeMinifiedRemoveClass: class $className has removed members - methods: $removedMethods, fields: $removedFields, referenced by: $referencedBy")
@@ -1408,10 +1418,97 @@ class DeployDataDatabaseSqLiteHelper(val dbFile: File, private val logger: Logge
             "${it.access} ${it.name} ${it.type}"
         }
     }
+
+    /**
+     * Method refs in dex can use subclass owner while implementation is declared in super/interface.
+     * If hierarchy info is not available in current db snapshot, return true to avoid false-positive
+     * "removed member" expansion in minify recompile check.
+     */
+    private fun isMethodInHierarchy(
+        className: String,
+        target: MethodNode,
+        classInfoMap: Map<String, ClassNode>,
+    ): Boolean {
+        var hasUnknownParent = false
+        val queue = ArrayDeque<String>()
+        val visited = mutableSetOf<String>()
+        queue.add(className)
+        while (queue.isNotEmpty()) {
+            val currentClass = queue.removeFirst()
+            if (!visited.add(currentClass)) {
+                continue
+            }
+            val classNode = classInfoMap[currentClass]
+            if (classNode == null) {
+                if (!currentClass.isIgnorableUnknownHierarchyType()) {
+                    hasUnknownParent = true
+                }
+                continue
+            }
+            if (classNode.methods.any { it.name == target.name && it.desc == target.desc }) {
+                return true
+            }
+            if (classNode.superClass.isNotEmpty() && classNode.superClass != "Ljava/lang/Object;") {
+                queue.add(classNode.superClass)
+            }
+            classNode.interfaceNames.forEach {
+                queue.add(it)
+            }
+        }
+        return hasUnknownParent
+    }
+
+    /**
+     * Field refs can also point to subclass while field is declared in super class.
+     * Keep the same conservative fallback as [isMethodInHierarchy].
+     */
+    private fun isFieldInHierarchy(
+        className: String,
+        target: FieldNode,
+        classInfoMap: Map<String, ClassNode>,
+    ): Boolean {
+        var hasUnknownParent = false
+        val queue = ArrayDeque<String>()
+        val visited = mutableSetOf<String>()
+        queue.add(className)
+        while (queue.isNotEmpty()) {
+            val currentClass = queue.removeFirst()
+            if (!visited.add(currentClass)) {
+                continue
+            }
+            val classNode = classInfoMap[currentClass]
+            if (classNode == null) {
+                if (!currentClass.isIgnorableUnknownHierarchyType()) {
+                    hasUnknownParent = true
+                }
+                continue
+            }
+            if (classNode.fields.any { it.name == target.name && it.type == target.type }) {
+                return true
+            }
+            if (classNode.superClass.isNotEmpty() && classNode.superClass != "Ljava/lang/Object;") {
+                queue.add(classNode.superClass)
+            }
+            classNode.interfaceNames.forEach {
+                queue.add(it)
+            }
+        }
+        return hasUnknownParent
+    }
     
     private fun Statement.executeQueryAndLog(sql: String): ResultSet {
         logger.debug("executeQuery: $sql")
         return executeQuery(sql)
+    }
+
+    /**
+     * Some JDK marker interfaces do not define methods/fields.
+     * Missing them in apk DB should not suppress "removed member" detection.
+     */
+    private fun String.isIgnorableUnknownHierarchyType(): Boolean {
+        return this == "Ljava/io/Serializable;" ||
+            this == "Ljava/lang/Cloneable;" ||
+            this == "Ljava/lang/annotation/Annotation;"
     }
 }
 

@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.compiler.*
 import com.sickworm.intellij.jugg.compiler.custom.CustomCompilerManager
 import com.sickworm.intellij.jugg.compiler.manifest.XmlParser
 import com.sickworm.intellij.jugg.compiler.manifest.get
+import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.DeployFileManager
 import com.sickworm.intellij.jugg.deploy.IDeployHistoryManager
@@ -382,6 +383,10 @@ class BaseCompileContext(
         } else {
             incompleteInfo
         }
+    }
+
+    override fun getMinifyInfo(): MinifyInfo? {
+        return deployFileManager.getMinifyInfo()
     }
 
     private fun findDesugaredLibraryConfigurationWithCache(moduleInfo: ModuleInfo): String? {

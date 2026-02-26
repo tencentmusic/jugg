@@ -233,7 +233,9 @@ class DeployDataGenerator(
             val existing = effectedNodes.find { it.className == inlineNode.className }
             if (existing != null) {
                 val updated = existing.copy(
-                    effectedByClasses = (existing.effectedByClasses + inlineNode.effectedByClasses).distinct()
+                    effectedByClasses = (existing.effectedByClasses + inlineNode.effectedByClasses).distinct(),
+                    // Inline impact should be handled by DexMinifyCompiler, not source recompile.
+                    effectedType = EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE,
                 )
                 effectedNodes[effectedNodes.indexOf(existing)] = updated
             } else {

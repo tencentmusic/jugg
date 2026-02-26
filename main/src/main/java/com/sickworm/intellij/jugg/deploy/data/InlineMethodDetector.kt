@@ -70,7 +70,7 @@ class InlineMethodDetector(
                                 className = inlinedIntoClass.classSigName,
                                 sourceFileName = EffectedClassNode.SOURCE_NOT_FOUND,
                                 effectedByClasses = listOf(classNode.className),
-                                effectedType = EffectedClassNode.EffectedType.CLASS
+                                effectedType = EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE
                             ))
                         }
                     }

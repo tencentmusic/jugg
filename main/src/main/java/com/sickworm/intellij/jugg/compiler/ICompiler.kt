@@ -338,6 +338,8 @@ interface ICompileContext {
 
     fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File): DesugarInfo
 
+    fun getMinifyInfo(): com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo?
+
     fun getLastBuildAndroidManifest(file: CompileFile): File?
 
     fun getParentModules(moduleInfo: ModuleInfo, isAddSelfToResult: Boolean): List<ModuleInfo>

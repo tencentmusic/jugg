@@ -11,6 +11,7 @@ import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
 import com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefScheduler
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
+import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
 import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.ConstRefEffectProvider
@@ -19,7 +20,6 @@ import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
-import com.sickworm.intellij.jugg.deploy.data.classes
 import com.sickworm.intellij.jugg.deploy.data.sources
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
@@ -422,6 +422,14 @@ class DeployFileManager(
     @Synchronized
     fun getRecompileFiles(isMinified: Boolean, isCompilingEffectedSourceFiles: Boolean, classObfuscator: ClassObfuscator?): RecompileFiles {
         logger.debug("getRecompileFiles")
+//        // Minify-removed-class check on effected-source rounds causes cascading recompile growth.
+//        // Keep this check only for the first round to bound compile scope.
+//        val shouldCheckMinifyRemovedClass = isMinified && !isCompilingEffectedSourceFiles
+//        logger.debug(
+//            "getRecompileFiles: isMinified=$isMinified, " +
+//                    "isCompilingEffectedSourceFiles=$isCompilingEffectedSourceFiles, " +
+//                    "shouldCheckMinifyRemovedClass=$shouldCheckMinifyRemovedClass"
+//        )
         val deployItems = stagingFiles.values
             .filter { it.type == CompileOutput.Type.Dex }
             .map { it.toDeployItem() }
@@ -456,7 +464,7 @@ class DeployFileManager(
         val effectedSourceFiles = getEffectedSourceFiles(obfuscatedClasses.sources)
         val recompileFiles = RecompileFiles(
             (effectedSourceFiles + constRefEffectedSourceFiles).distinctBy { it.stdAbsPath },
-            getMissingMinifiedClassFiles(obfuscatedClasses.classes),
+            emptyList(), // INLINE_IMPL_CHANGE type is handled by DexMinifyCompiler, not here
             juggDeployData,
         )
         val costTime = System.currentTimeMillis() - startTime
@@ -725,6 +733,78 @@ class DeployFileManager(
 
     fun isEnableDesugared(): Boolean {
         return deployDataGenerator.isEnableDesugared()
+    }
+
+    @Synchronized
+    fun getMinifyInfo(): MinifyInfo? {
+        logger.debug("getMinifyInfo")
+        val deployItems = stagingFiles.values
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.toDeployItem() }
+
+        val juggDeployData = deployDataGenerator.buildDeployData(
+            deployItems,
+            isNeedCheckRecompile = true,
+            // Inline detection needs minified remove check context (parsed dex refs).
+            isNeedCheckRecompileMinifyRemovedClass = true,
+            isCompilingEffectedSourceFiles = false,
+        )
+
+        // Filter out inline-affected classes
+        val inlineEffectedNodes = juggDeployData.effectedClassNodes
+            .filter { it.effectedType == EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE }
+
+        if (inlineEffectedNodes.isEmpty()) {
+            logger.debug("getMinifyInfo: no inline effected classes")
+            return null
+        }
+
+        logger.debug("getMinifyInfo: found ${inlineEffectedNodes.size} inline effected classes: ${inlineEffectedNodes.map { it.className }}")
+
+        // Build list of inline-affected classes
+        val inlineEffectedClasses = inlineEffectedNodes.map { node ->
+            com.sickworm.intellij.jugg.compiler.obfuscation.InlineEffectedClass(
+                className = node.className,
+                effectedByClasses = node.effectedByClasses
+            )
+        }
+
+        // Phase 2: Collect .class files for generating _jugg_fix classes
+        val classFiles = mutableMapOf<String, File>()
+
+        // Convert EffectedClassNode className to original class name (remove L and ;)
+        val originalClassNames = inlineEffectedNodes.map { node ->
+            // className format: Lcom/example/MyClass; -> com.example.MyClass
+            val className = if (node.className.startsWith("L") && node.className.endsWith(";")) {
+                node.className.substring(1, node.className.length - 1).replace('/', '.')
+            } else {
+                node.className.replace('/', '.')
+            }
+            node to className
+        }
+
+        logger.debug("getMinifyInfo: searching for class files for: ${originalClassNames.map { it.second }}")
+
+        val missingClassFiles = getMissingMinifiedClassFiles(inlineEffectedNodes)
+        logger.debug("getMinifyInfo: getMissingMinifiedClassFiles returned ${missingClassFiles.size} files")
+
+        missingClassFiles.forEach { changedFile ->
+            // Infer class name from file path
+            originalClassNames.forEach { (node, originalClassName) ->
+                val expectedPath = originalClassName.replace('.', '/') + ".class"
+                if (changedFile.file.path.replace('\\', '/').endsWith(expectedPath)) {
+                    classFiles[originalClassName] = changedFile.file
+                    logger.debug("getMinifyInfo: found class file for $originalClassName: ${changedFile.file}")
+                }
+            }
+        }
+
+        logger.debug("getMinifyInfo: collected ${classFiles.size} class files")
+
+        return com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo(
+            inlineEffectedClasses = inlineEffectedClasses,
+            classFiles = classFiles
+        )
     }
 
     fun dispose() {

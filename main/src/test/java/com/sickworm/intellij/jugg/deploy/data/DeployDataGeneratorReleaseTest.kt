@@ -47,10 +47,10 @@ class DeployDataGeneratorReleaseTest {
             "Lcom/sickworm/jugg/demo/testcase/minify/InterfaceImplementor;",
             "Lcom/sickworm/jugg/demo/testcase/minify/MinifyTestEnum;",
             "Lcom/sickworm/jugg/demo/testcase/minify/InnerClassHolder\$StaticInnerClass;",
-            "Lb3/a;",
-            "Lb3/b;",
-            "Lb3/c;",
-            "Lb3/d;",
+            "Lc3/a;",
+            "Lc3/b;",
+            "Lc3/c;",
+            "Lc3/d;",
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepAnnotated;",
             "Lcom/sickworm/jugg/demo/testcase/minify/KeepClassName;",
             "Lcom/sickworm/jugg/demo/testcase/minify/NativeMethodClass;",
@@ -113,13 +113,13 @@ class DeployDataGeneratorReleaseTest {
         logger.debug("effected classes: ${deployData.effectedClassNodes.map { it.className }}")
 
         removedOrPartiallyRemovedOrEffectsClasses.forEach { className ->
-            val result = deployData.effectedClassNodes.classes.find {
+            val result = deployData.effectedClassNodes.find {
                 it.className == className
             }
             assertTrue(result != null, "$className should be detected")
 
-            val isEffectedByMinifyTestActivity = result.effectedByClasses.any { className ->
-                className.contains(testClassName)
+            val isEffectedByMinifyTestActivity = result.effectedByClasses.any { effectedByClassName ->
+                effectedByClassName.contains(testClassName)
             }
             assertTrue(isEffectedByMinifyTestActivity, "$className should be effected by MinifyTestActivity (which references it). ")
         }

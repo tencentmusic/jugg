@@ -123,6 +123,31 @@ class DexObfuscator(mappingReader: R8MappingReader) {
     }
 
     /**
+     * Obfuscate DEX with inline redirect support.
+     *
+     * @param dexBytes The input DEX bytes
+     * @param minifyInfo Optional inline redirect information
+     * @return The obfuscated DEX bytes, or null if no remapping was applied
+     */
+    fun obfuscateWithInlineRedirect(dexBytes: ByteArray, minifyInfo: MinifyInfo?): ByteArray? {
+        if (minifyInfo == null) {
+            return obfuscate(dexBytes)
+        }
+
+        val dexReader = DexFileReader(dexBytes)
+        val dexWriter = DexFileWriter()
+
+        val remapper = ObfuscationDexRemapper(dexWriter, minifyInfo)
+        dexReader.accept(remapper, 0)
+
+        return if (remapper.hasRemapped) {
+            dexWriter.toByteArray()
+        } else {
+            null
+        }
+    }
+
+    /**
      * Get the obfuscated class name for an original class name.
      *
      * @param originalName The original class name (e.g., "com.example.MyClass")
@@ -202,9 +227,23 @@ class DexObfuscator(mappingReader: R8MappingReader) {
     /**
      * Custom DEX remapper that uses the mapping information to rename classes, methods, and fields.
      */
-    private inner class ObfuscationDexRemapper(dexWriter: DexFileWriter) : DexFileVisitor(dexWriter) {
+    private inner class ObfuscationDexRemapper(
+        dexWriter: DexFileWriter,
+        private val minifyInfo: MinifyInfo? = null
+    ) : DexFileVisitor(dexWriter) {
         var hasRemapped = false
             private set
+
+        // Build redirect mapping: original class name -> redirect class name
+        // className format: "Lcom/example/MyClass;" (ASM signature format)
+        private val redirectClassMap: Map<String, String> = minifyInfo?.let { info ->
+            info.inlineEffectedClasses.associate { effectedClass ->
+                // className is already in ASM format (Lcom/example/MyClass;), convert to internal format (com/example/MyClass)
+                val originalInternal = effectedClass.className.asmSigFormat
+                val redirectInternal = originalInternal + SUFFIX
+                originalInternal to redirectInternal
+            }
+        } ?: emptyMap()
 
         override fun visit(
             accessFlags: Int,
@@ -323,12 +362,41 @@ class DexObfuscator(mappingReader: R8MappingReader) {
          * Map a type descriptor (e.g., "Lcom/example/MyClass;")
          */
         private fun mapType(typeDesc: String): String {
+            if (typeDesc.startsWith("[")) {
+                // Handle array descriptors like [I / [Ljava/lang/String; / [[Lcom/foo/Bar;
+                var arrayDepth = 0
+                while (arrayDepth < typeDesc.length && typeDesc[arrayDepth] == '[') {
+                    arrayDepth++
+                }
+                if (arrayDepth >= typeDesc.length) {
+                    return typeDesc
+                }
+                val elementDesc = typeDesc.substring(arrayDepth)
+                val mappedElementDesc = if (elementDesc.startsWith("L") && elementDesc.endsWith(";")) {
+                    mapType(elementDesc)
+                } else {
+                    elementDesc
+                }
+                return if (mappedElementDesc == elementDesc) {
+                    typeDesc
+                } else {
+                    "[".repeat(arrayDepth) + mappedElementDesc
+                }
+            }
             if (!typeDesc.startsWith("L") || !typeDesc.endsWith(";")) {
                 // Primitive type or array of primitives
                 return typeDesc
             }
 
             val internal = typeDesc.asmSigFormat
+
+            // First check if redirection is needed
+            val redirected = redirectClassMap[internal]
+            if (redirected != null) {
+                return redirected.classSigName
+            }
+
+            // Then apply obfuscation mapping
             val mapped = classNameMap[internal]
             return if (mapped != null) {
                 mapped.classSigName
@@ -454,6 +522,8 @@ class DexObfuscator(mappingReader: R8MappingReader) {
     }
 
     companion object {
+        const val SUFFIX = "_jugg_fix"  // Keep consistent with EffectedClassNode.SUFFIX
+
         private var dexObfuscatorCache: DexObfuscator? = null
         private var dexObfuscatorCacheKey: String? = null
 
