@@ -222,7 +222,7 @@ object McpLocalServer {
         }
 
         private fun sendMethodNotAllowed(exchange: HttpExchange) {
-            logger.warn("[MCP] Method Not Allowed: ${exchange.requestMethod} ${exchange.requestURI}, headers=${exchange.requestHeaders}")
+            logger.debug("[MCP] Method Not Allowed: ${exchange.requestMethod} ${exchange.requestURI}, headers=${exchange.requestHeaders}")
             val errorResponse = McpJsonRpcResponse(
                 error = McpJsonRpcError(
                     code = McpJsonRpc.ErrorCode.MethodNotFound,
