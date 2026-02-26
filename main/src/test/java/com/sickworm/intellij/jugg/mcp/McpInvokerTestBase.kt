@@ -188,43 +188,6 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
-            fakeAction("start_app", def("start_app")) { arguments ->
-                val packageName = arguments["packageName"] as? String ?: "com.example.app"
-                McpToolResult(
-                    McpToolStatus.OK,
-                    "start_app executed successfully.",
-                    mapOf(
-                        "packageName" to packageName,
-                        "activity" to ".MainActivity",
-                        "component" to "$packageName/.MainActivity",
-                    ),
-                    emptyList(),
-                    null,
-                )
-            },
-            fakeAction("start_activity", def("start_activity")) { arguments ->
-                val packageName = arguments["packageName"] as? String ?: "com.example.app"
-                val activity = arguments["activity"] as? String ?: ".MainActivity"
-                McpToolResult(
-                    McpToolStatus.OK,
-                    "start_activity executed successfully.",
-                    mapOf(
-                        "packageName" to packageName,
-                        "activity" to activity,
-                        "component" to "$packageName/$activity",
-                        "command" to "am start -n $packageName/$activity",
-                        "action" to arguments["action"],
-                        "categories" to arguments["categories"],
-                        "data" to arguments["data"],
-                        "mimeType" to arguments["mimeType"],
-                        "flags" to arguments["flags"],
-                        "extras" to arguments["extras"],
-                        "user" to arguments["user"],
-                    ),
-                    emptyList(),
-                    null,
-                )
-            },
             fakeAction("tap", def("tap")) { arguments ->
                 McpToolResult(
                     McpToolStatus.OK,
