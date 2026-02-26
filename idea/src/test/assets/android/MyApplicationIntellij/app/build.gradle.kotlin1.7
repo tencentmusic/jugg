@@ -7,6 +7,7 @@ plugins {
 }
 
 //apply plugin: 'kotlin-android-extensions'
+apply from: './aabResGuard.gradle'
 
 
 android {
@@ -27,10 +28,22 @@ android {
             }
         }
     }
+
+    signingConfigs {
+        release {
+            // use debug keystore
+            storeFile file("${System.properties['user.home']}/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
 //        debug {
 //            minifyEnabled true
@@ -64,11 +77,15 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = project.findProperty('composeCompilerVersion') ?: "1.4.0-alpha02"
     }
+
+    lint {
+        checkReleaseBuilds false
+    }
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
+//    implementation fileTree(dir: 'libs', include: ['*.aar'])
     implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.appcompat:appcompat:1.0.2'
     implementation 'androidx.core:core-ktx:1.0.2'
@@ -80,6 +97,7 @@ dependencies {
 
     implementation 'com.google.code.gson:gson:2.8.0'
     implementation 'com.alibaba:fastjson:2.0.2.android'
+    implementation 'io.reactivex.rxjava3:rxjava:3.1.8'
 
     implementation 'com.alibaba:arouter-api:1.5.2'
 //    annotationProcessor 'com.alibaba:arouter-compiler:1.5.2'
