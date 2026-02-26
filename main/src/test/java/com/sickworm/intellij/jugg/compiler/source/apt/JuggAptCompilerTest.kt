@@ -132,7 +132,7 @@ class JuggAptCompilerTest {
     }
 
     @Test
-    fun kuiklyPage_shouldSupportJavaEntryRewrite() {
+    fun kuiklyPage_shouldSkipJavaEntryRewrite() {
         val module = createModule("moduleA")
         val context = createContext(module)
         val compiler = JuggAptCompiler(context, TestGlobal.mockParentDisposable)
@@ -147,12 +147,11 @@ class JuggAptCompilerTest {
 
         val result = compiler.compile(createTask(pageFile))
         val shadowJavaEntryFile = toShadowGeneratedFile(context, module, javaEntryFile)
-        val content = shadowJavaEntryFile.readText()
-
-        assertTrue(content.contains("""BridgeManager.registerPageRouter("page_java""""))
-        assertTrue(content.contains("new com.test.moduleA.PageJava();"))
+        if (shadowJavaEntryFile.exists()) {
+            assertFalse(shadowJavaEntryFile.readText().contains("""BridgeManager.registerPageRouter("page_java""""))
+        }
         assertFalse(javaEntryFile.readText().contains("""BridgeManager.registerPageRouter("page_java""""))
-        assertTrue(result.outputs.any { it.file.absolutePath == shadowJavaEntryFile.absolutePath && it.type == CompileOutput.Type.Java })
+        assertTrue(result.outputs.isEmpty())
     }
 
     private fun createContext(vararg modules: ModuleInfo): SimpleCompileContext {
@@ -220,6 +219,7 @@ class JuggAptCompilerTest {
             writeText(
                 """
                 package com.test.${module.name}
+                import com.tencent.kuikly.core.annotations.Page
 
                 $annotation
                 class $className
@@ -249,10 +249,10 @@ class JuggAptCompilerTest {
             parentFile.mkdirs()
             writeText(
                 """
-                package com.test.${module.name}.generated
+                package com.tencent.kuikly.core.android
 
                 object KuiklyCoreEntry {
-                    fun triggerRegisterPages() {
+                    public override fun triggerRegisterPages(): Unit {
                     }
                 }
                 """.trimIndent()
@@ -265,12 +265,66 @@ class JuggAptCompilerTest {
             parentFile.mkdirs()
             writeText(
                 """
-                package com.test.${module.name}.generated;
-
-                public class KuiklyCoreEntry {
-                    public static void triggerRegisterPages() {
+                //
+                // this file is generating by ksp
+                // please do not modified it!!!
+                package com.tencent.kuikly.core.android
+                
+                import com.tencent.kuikly.core.IKuiklyCoreEntry
+                import com.tencent.kuikly.core.IKuiklyCoreEntry.Delegate
+                import com.tencent.kuikly.core.manager.BridgeManager
+                import com.tencent.kuikly.core.nvi.NativeBridge
+                import kotlin.Any
+                import kotlin.Boolean
+                import kotlin.Int
+                import kotlin.Unit
+                
+                public class KuiklyCoreEntry : IKuiklyCoreEntry {
+                  private var hadRegisterNativeBridge: Boolean = false
+                
+                  public override var `delegate`: Delegate? = null
+                
+                  public override fun callKotlinMethod(
+                    methodId: Int,
+                    arg0: Any?,
+                    arg1: Any?,
+                    arg2: Any?,
+                    arg3: Any?,
+                    arg4: Any?,
+                    arg5: Any?
+                  ): Unit {
+                    if (!hadRegisterNativeBridge) {
+                
+                    triggerRegisterPages()
+                
+                              hadRegisterNativeBridge = true
+                                  val nativeBridge = NativeBridge()
+                                  nativeBridge.delegate = object : NativeBridge.NativeBridgeDelegate {
+                                      override fun callNative(
+                                            methodId: Int,
+                                            arg0: Any?,
+                                            arg1: Any?,
+                                            arg2: Any?,
+                                            arg3: Any?,
+                                            arg4: Any?,
+                                            arg5: Any?
+                                      ): Any? {
+                                          return delegate?.callNative(methodId, arg0, arg1, arg2, arg3, arg4,
+                                                arg5)
+                                      }
+                                  }
+                                  BridgeManager.registerNativeBridge(arg0 as String, nativeBridge)
+                              }
+                    BridgeManager.callKotlinMethod(methodId, arg0, arg1, arg2, arg3, arg4, arg5)
+                  }
+                
+                  public override fun triggerRegisterPages(): Unit {
+                    BridgeManager.registerPageRouter("vi_router") {
+                        com.tencent.kuiklydemo.pages.RouterPage()
                     }
+                  }
                 }
+
                 """.trimIndent()
             )
         }

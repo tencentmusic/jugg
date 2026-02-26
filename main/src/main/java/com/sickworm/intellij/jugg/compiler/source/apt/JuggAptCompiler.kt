@@ -119,7 +119,7 @@ class JuggAptCompiler(
 
     private fun backupGeneratedSourceDir(sourceDir: File): File {
         return try {
-            context.backupGradleDir(sourceDir, overrideOnExists = true)
+            context.backupGradleDir(sourceDir, overrideOnExists = false)
         } catch (throwable: Throwable) {
             logger.warn(
                 "Backup generated source dir failed for $sourceDir, fallback to original dir: ${throwable.message}",
