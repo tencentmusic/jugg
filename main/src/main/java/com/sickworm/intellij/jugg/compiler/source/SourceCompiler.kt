@@ -33,30 +33,46 @@ class SourceCompiler(
 
     private val juggAptCompiler = JuggAptCompiler(context.subContext("jugg_apt"), this)
 
+    private data class SourceCompilePreparation(
+        val compileTask: CompileTask,
+        val juggAptGeneratedFiles: List<CompileFile>,
+        val dataBindingJavaFiles: List<CompileFile>,
+    )
+
+    private data class SourceCompilePreparationResult(
+        val preparation: SourceCompilePreparation? = null,
+        val errorResult: CompileResult? = null,
+    )
+
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        context.tempCompileDir.clearDir()
-        val compileTask = CompileTask(
-            files = task.files,
-            outputDir = context.tempCompileDir,
-            parentTask = task,
+        val prepareResult = prepareSourceCompile(task, module)
+        val prepared = prepareResult.preparation ?: return prepareResult.errorResult
+            ?: CompileResult(task, emptyList(), emptyList()).failedAll(task, "DataBinding Mapper generation failed")
+        val classCompileResult = compileLanguageStagesWithRetry(
+            task = task,
+            compileTask = prepared.compileTask,
+            module = module,
+            juggAptGeneratedFiles = prepared.juggAptGeneratedFiles,
+            dataBindingJavaFiles = prepared.dataBindingJavaFiles,
         )
+        if (!classCompileResult.isAllSuccess) return classCompileResult.quickFailedOthers(task, isClearOutput = true)
+
+        return compileDexOutputs(task, module, classCompileResult)
+    }
+
+    /**
+     * Compiles Kotlin then Java with optional JuggApt generated sources.
+     * Kotlin is kept first to satisfy Java -> Kotlin compile output dependency.
+     */
+    private fun compileLanguageStages(
+        task: CompileTask,
+        compileTask: CompileTask,
+        module: ModuleInfo,
+        juggAptGeneratedFiles: List<CompileFile>,
+        dataBindingJavaFiles: List<CompileFile>,
+    ): CompileResult {
         var classCompileResult = CompileResult(compileTask, emptyList(), emptyList())
 
-        val juggAptGeneratedFiles = collectJuggAptGeneratedFiles(compileTask, module)
-
-        // Process DataBinding Mapper generated sources before Java compile.
-        // Mapper generation depends on source trigger files and resource-phase outputs.
-        val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, context, logger)
-            .processDataBindingMapper(task, module)
-        if (!dataBindingMapperResult.isAllSuccess) {
-            return dataBindingMapperResult.failedAll(task, "DataBinding Mapper generation failed")
-        }
-        // Compile DataBinding generated Java files (XXXBindingImpl, BR, DataBinderMapper, etc.)
-        val dataBindingJavaFiles = dataBindingMapperResult.outputs
-            .filter { it.type == CompileOutput.Type.Java }
-            .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
-        // Kotlin must go first because in the cross-reference case, Java depends on Kotlin compile output
-        // while Kotlin don't (kotlin can use -Xjava-source-roots argument)
         var kotlinAptJavaFiles = emptyList<CompileFile>()
         val kotlinCompileTask = CompileTask(
             files = mergeCompileFiles(
@@ -99,45 +115,90 @@ class SourceCompiler(
         if (javaCompileTask.isNeedCompile) {
             classCompileResult += javaCompiler.compile(javaCompileTask)
         }
-        if (!classCompileResult.isAllSuccess) {
-            return classCompileResult.quickFailedOthers(task, isClearOutput = true)
-        }
+        return classCompileResult
+    }
 
-        // e.g. META-INF/service/xxx
-        val otherOutputs = classCompileResult.outputs.filter {
-            it.type != CompileOutput.Type.Class
+    /**
+     * Prepares source compile inputs by collecting JuggApt outputs and DataBinding generated Java files.
+     */
+    private fun prepareSourceCompile(task: CompileTask, module: ModuleInfo): SourceCompilePreparationResult {
+        context.tempCompileDir.clearDir()
+        val compileTask = CompileTask(
+            files = task.files,
+            outputDir = context.tempCompileDir,
+            parentTask = task,
+        )
+        val juggAptGeneratedFiles = collectJuggAptGeneratedFiles(compileTask, module)
+        val dataBindingMapperResult = SourceDataBindingProcessor(dataBindingGenMapperCompiler, context, logger)
+            .processDataBindingMapper(task, module)
+        if (!dataBindingMapperResult.isAllSuccess) {
+            return SourceCompilePreparationResult(
+                errorResult = dataBindingMapperResult.failedAll(task, "DataBinding Mapper generation failed"),
+            )
         }
+        val dataBindingJavaFiles = dataBindingMapperResult.outputs
+            .filter { it.type == CompileOutput.Type.Java }
+            .map { CompileFile(CompileFile.Type.Java, it.file, it.baseDir, module) }
+        return SourceCompilePreparationResult(
+            preparation = SourceCompilePreparation(compileTask, juggAptGeneratedFiles, dataBindingJavaFiles),
+        )
+    }
 
-        // minify by mapping for minified apk
-        val classFiles = classCompileResult.outputs.filter {
-            it.type == CompileOutput.Type.Class
+    /**
+     * Runs language compilation once and retries one more time without JuggApt outputs when retry condition matches.
+     */
+    private fun compileLanguageStagesWithRetry(
+        task: CompileTask,
+        compileTask: CompileTask,
+        module: ModuleInfo,
+        juggAptGeneratedFiles: List<CompileFile>,
+        dataBindingJavaFiles: List<CompileFile>,
+    ): CompileResult {
+        val firstCompileResult = compileLanguageStages(
+            task = task,
+            compileTask = compileTask,
+            module = module,
+            juggAptGeneratedFiles = juggAptGeneratedFiles,
+            dataBindingJavaFiles = dataBindingJavaFiles,
+        )
+        if (firstCompileResult.isAllSuccess || !shouldRetryWithoutJuggApt(firstCompileResult, juggAptGeneratedFiles)) {
+            return firstCompileResult
         }
-        val compileClassFiles = classFiles.map {
-            CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module)
-        } + task.files.filter {
-            it.type == CompileFile.Type.Class
-        }
+        logger.warn("JuggApt generated sources caused compile failure, retry once without JuggApt outputs.")
+        return compileLanguageStages(
+            task = task,
+            compileTask = compileTask,
+            module = module,
+            juggAptGeneratedFiles = emptyList(),
+            dataBindingJavaFiles = dataBindingJavaFiles,
+        )
+    }
+
+    /**
+     * Compiles class outputs to dex and applies optional minify stage for minified build variants.
+     */
+    private fun compileDexOutputs(task: CompileTask, module: ModuleInfo, classCompileResult: CompileResult): CompileResult {
+        val otherOutputs = classCompileResult.outputs.filter { it.type != CompileOutput.Type.Class }
+        val compileClassFiles = classCompileResult.outputs
+            .filter { it.type == CompileOutput.Type.Class }
+            .map { CompileFile(CompileFile.Type.Class, it.file, it.baseDir, module) } +
+            task.files.filter { it.type == CompileFile.Type.Class }
 
         val dexOutputDir = if (context.isMinified) File(context.tempCompileDir, "un_minify") else task.outputDir
         val dexTask = CompileTask(compileClassFiles, dexOutputDir, task)
         val dexCompileResult = dexCompiler.compile(dexTask)
-        if (!dexCompileResult.isAllSuccess) {
-            return dexCompileResult.failedAll(task,"Dex compile failed")
+        if (!dexCompileResult.isAllSuccess) return dexCompileResult.failedAll(task, "Dex compile failed")
+
+        if (!context.isMinified) {
+            return CompileResult(task, classCompileResult.details, dexCompileResult.outputs + otherOutputs)
         }
 
-        if (context.isMinified) {
-            val compileDexFiles = dexCompileResult.outputs.map {
-                CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, module)
-            }
-            val minifyTask = CompileTask(compileDexFiles, task.outputDir, task)
-            val minifyResult = dexMinify.compile(minifyTask)
-            if (!minifyResult.isAllSuccess) {
-                return minifyResult.failedAll(task, "Minify failed")
-            }
-            return CompileResult(task, classCompileResult.details, minifyResult.outputs + otherOutputs)
-        }
-
-        return CompileResult(task, classCompileResult.details, dexCompileResult.outputs + otherOutputs)
+        val compileDexFiles = dexCompileResult.outputs
+            .map { CompileFile(CompileFile.Type.Dex, it.file, it.baseDir, module) }
+        val minifyTask = CompileTask(compileDexFiles, task.outputDir, task)
+        val minifyResult = dexMinify.compile(minifyTask)
+        if (!minifyResult.isAllSuccess) return minifyResult.failedAll(task, "Minify failed")
+        return CompileResult(task, classCompileResult.details, minifyResult.outputs + otherOutputs)
     }
 
     override fun warmUp() {
@@ -164,6 +225,25 @@ class SourceCompiler(
         } catch (throwable: Throwable) {
             logger.warn("JuggAptCompiler failed: ${throwable.message}")
             emptyList()
+        }
+    }
+
+    /**
+     * Retries only when failed files include shadow outputs produced by JuggApt processors.
+     */
+    private fun shouldRetryWithoutJuggApt(
+        compileResult: CompileResult,
+        juggAptGeneratedFiles: List<CompileFile>,
+    ): Boolean {
+        if (compileResult.isAllSuccess || juggAptGeneratedFiles.isEmpty()) {
+            return false
+        }
+        val juggAptFileSet = juggAptGeneratedFiles
+            .map { "${it.type}:${it.file.absolutePath}" }
+            .toHashSet()
+        return compileResult.failedFiles.any { failed ->
+            val failedFile = failed.file
+            "${failedFile.type}:${failedFile.file.absolutePath}" in juggAptFileSet
         }
     }
 

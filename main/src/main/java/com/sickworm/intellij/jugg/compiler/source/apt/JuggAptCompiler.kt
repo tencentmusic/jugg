@@ -6,6 +6,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.toCompileOutput
 import com.sickworm.intellij.jugg.compiler.source.apt.processors.KuiklyPageJuggAptProcessor
@@ -22,7 +23,7 @@ import java.util.LinkedHashMap
 class JuggAptCompiler(
     context: ICompileContext,
     parent: Disposable,
-    processors: List<IJuggAptProcessor> = listOf(KuiklyPageJuggAptProcessor()),
+    private val processors: List<IJuggAptProcessor> = listOf(KuiklyPageJuggAptProcessor()),
 ) : BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
@@ -30,8 +31,6 @@ class JuggAptCompiler(
         CompileFile.Type.Kotlin,
         CompileFile.Type.Class,
     )
-
-    private val processors: List<IJuggAptProcessor> = processors
 
     /**
      * Executes all custom processors in deterministic order.
@@ -46,7 +45,7 @@ class JuggAptCompiler(
             return CompileResult(task, emptyList(), emptyList())
         }
 
-        val generatedAptFiles = discoverGeneratedAptFiles(module, task.files)
+        val generatedAptFiles = prepareShadowGeneratedAptFiles(discoverGeneratedAptFiles(module, task.files))
         if (generatedAptFiles.isEmpty()) {
             logger.debug("No generated apt files found for module ${module.name}, skip.")
             return CompileResult(task, emptyList(), emptyList())
@@ -83,6 +82,51 @@ class JuggAptCompiler(
 
         val outputs = rewrittenByPath.values.mapNotNull { it.toCompileOutput() }
         return CompileResult(task, emptyList(), outputs)
+    }
+
+    /**
+     * Mirrors generated sources into incremental backup shadow directories, then returns compile files
+     * that point to shadow files so processor rewrites never mutate Gradle outputs directly.
+     */
+    private fun prepareShadowGeneratedAptFiles(generatedAptFiles: List<CompileFile>): List<CompileFile> {
+        if (generatedAptFiles.isEmpty()) {
+            return emptyList()
+        }
+
+        val shadowRootByBaseDir = LinkedHashMap<String, File>()
+        return generatedAptFiles.map { generatedAptFile ->
+            val originalBaseDir = generatedAptFile.baseDir
+            val shadowBaseDir = shadowRootByBaseDir.getOrPut(originalBaseDir.absolutePath) {
+                backupGeneratedSourceDir(originalBaseDir)
+            }
+            val shadowFile = try {
+                generatedAptFile.file.changeBaseDir(originalBaseDir, shadowBaseDir)
+            } catch (throwable: Throwable) {
+                logger.warn(
+                    "Create shadow file path failed for ${generatedAptFile.file}, fallback to original file: ${throwable.message}",
+                    throwable,
+                )
+                generatedAptFile.file
+            }
+            if (!shadowFile.exists()) {
+                logger.warn("Shadow file missing: $shadowFile, fallback to original generated source: ${generatedAptFile.file}")
+                generatedAptFile
+            } else {
+                generatedAptFile.copy(file = shadowFile, baseDir = shadowBaseDir)
+            }
+        }.distinctBy { it.file.absolutePath }
+    }
+
+    private fun backupGeneratedSourceDir(sourceDir: File): File {
+        return try {
+            context.backupGradleDir(sourceDir, overrideOnExists = true)
+        } catch (throwable: Throwable) {
+            logger.warn(
+                "Backup generated source dir failed for $sourceDir, fallback to original dir: ${throwable.message}",
+                throwable,
+            )
+            sourceDir
+        }
     }
 
     private fun discoverGeneratedAptFiles(module: ModuleInfo, taskFiles: List<CompileFile>): List<CompileFile> {

@@ -4,6 +4,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask
+import com.sickworm.intellij.jugg.compiler.changeBaseDir
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
@@ -42,11 +43,15 @@ class JuggAptCompilerTest {
         val task = createTask(pageFile)
         val result = compiler.compile(task)
 
+        val shadowEntryFile = toShadowGeneratedFile(context, module, entryFile)
+        val shadowEntryContent = shadowEntryFile.readText()
         val entryContent = entryFile.readText()
         assertTrue(result.isAllSuccess)
-        assertTrue(entryContent.contains("""BridgeManager.registerPageRouter("page_a")"""))
-        assertTrue(entryContent.contains("com.test.moduleA.PageA()"))
-        assertTrue(result.outputs.any { it.file.absolutePath == entryFile.absolutePath && it.type == CompileOutput.Type.Kotlin })
+        assertTrue(shadowEntryFile.exists())
+        assertFalse(entryContent.contains("""BridgeManager.registerPageRouter("page_a")"""))
+        assertTrue(shadowEntryContent.contains("""BridgeManager.registerPageRouter("page_a")"""))
+        assertTrue(shadowEntryContent.contains("com.test.moduleA.PageA()"))
+        assertTrue(result.outputs.any { it.file.absolutePath == shadowEntryFile.absolutePath && it.type == CompileOutput.Type.Kotlin })
     }
 
     @Test
@@ -60,9 +65,10 @@ class JuggAptCompilerTest {
 
         compiler.compile(createTask(pageFile))
         val secondResult = compiler.compile(createTask(pageFile))
-        val entryContent = entryFile.readText()
+        val shadowEntryFile = toShadowGeneratedFile(context, module, entryFile)
+        val shadowEntryContent = shadowEntryFile.readText()
 
-        assertEquals(1, entryContent.countOccurrences("""BridgeManager.registerPageRouter("page_a")"""))
+        assertEquals(1, shadowEntryContent.countOccurrences("""BridgeManager.registerPageRouter("page_a")"""))
         assertTrue(secondResult.outputs.isEmpty(), "Second compile should not emit rewrite outputs for idempotent content.")
     }
 
@@ -98,9 +104,10 @@ class JuggAptCompilerTest {
         )
 
         val result = compiler.compile(createTask(compileFile))
+        val shadowEntryFile = toShadowGeneratedFile(context, module, entryFile)
 
         assertTrue(result.isAllSuccess)
-        assertTrue(result.outputs.any { it.file.absolutePath == entryFile.absolutePath })
+        assertTrue(result.outputs.any { it.file.absolutePath == shadowEntryFile.absolutePath })
     }
 
     @Test
@@ -116,8 +123,12 @@ class JuggAptCompilerTest {
 
         compiler.compile(createTask(pageFileA))
 
-        assertTrue(entryA.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
+        val shadowEntryA = toShadowGeneratedFile(context, moduleA, entryA)
+        val shadowEntryB = toShadowGeneratedFile(context, moduleB, entryB)
+        assertFalse(entryA.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
         assertFalse(entryB.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
+        assertTrue(shadowEntryA.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
+        assertFalse(shadowEntryB.exists())
     }
 
     @Test
@@ -135,11 +146,13 @@ class JuggAptCompilerTest {
         val javaEntryFile = createJavaEntry(module)
 
         val result = compiler.compile(createTask(pageFile))
-        val content = javaEntryFile.readText()
+        val shadowJavaEntryFile = toShadowGeneratedFile(context, module, javaEntryFile)
+        val content = shadowJavaEntryFile.readText()
 
         assertTrue(content.contains("""BridgeManager.registerPageRouter("page_java""""))
         assertTrue(content.contains("new com.test.moduleA.PageJava();"))
-        assertTrue(result.outputs.any { it.file.absolutePath == javaEntryFile.absolutePath && it.type == CompileOutput.Type.Java })
+        assertFalse(javaEntryFile.readText().contains("""BridgeManager.registerPageRouter("page_java""""))
+        assertTrue(result.outputs.any { it.file.absolutePath == shadowJavaEntryFile.absolutePath && it.type == CompileOutput.Type.Java })
     }
 
     private fun createContext(vararg modules: ModuleInfo): SimpleCompileContext {
@@ -185,6 +198,14 @@ class JuggAptCompilerTest {
 
     private fun createTask(vararg files: CompileFile): CompileTask {
         return CompileTask(files.toList(), File(testRoot, "staging"), CompileStatusHolder.DEFAULT)
+    }
+
+    private fun toShadowGeneratedFile(context: SimpleCompileContext, module: ModuleInfo, generatedFile: File): File {
+        val shadowGeneratedRoot = context.backupGradleDir(
+            module.buildPathInfo.generatedSourcePath,
+            dryRun = true,
+        )
+        return generatedFile.changeBaseDir(module.buildPathInfo.generatedSourcePath, shadowGeneratedRoot)
     }
 
     private fun createKotlinPageSource(
@@ -297,4 +318,3 @@ class JuggAptCompilerTest {
         }
     }
 }
-

@@ -1,6 +1,6 @@
 # 编译系统：源码编译链（Java/Kotlin/Dex）
 
-> 最后核对：2026-02-23  
+> 最后核对：2026-02-26  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -34,6 +34,8 @@
 4. Java 再编译（含 Kotlin/KAPT/JuggApt 产生的 Java 源）。  
 5. class 产物进入 `DexCompiler`。  
 6. 若处于 minified 场景，再走 `DexMinifyCompiler`。
+
+补充：若本轮 Kotlin/Java 编译失败且失败文件命中 `JuggAptCompiler` 产物，`SourceCompiler` 会自动重试一次“去掉 JuggApt 产物”的降级路径，避免错误改写阻断主源码编译链路。
 
 ---
 
