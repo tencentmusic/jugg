@@ -4,7 +4,8 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
 import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.CompileTask
-import com.sickworm.intellij.jugg.compiler.changeBaseDir
+import com.sickworm.intellij.jugg.compiler.ICompileContext
+import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.TestGlobal
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
@@ -43,15 +44,11 @@ class JuggAptCompilerTest {
         val task = createTask(pageFile)
         val result = compiler.compile(task)
 
-        val shadowEntryFile = toShadowGeneratedFile(context, module, entryFile)
-        val shadowEntryContent = shadowEntryFile.readText()
         val entryContent = entryFile.readText()
         assertTrue(result.isAllSuccess)
-        assertTrue(shadowEntryFile.exists())
-        assertFalse(entryContent.contains("""BridgeManager.registerPageRouter("page_a")"""))
-        assertTrue(shadowEntryContent.contains("""BridgeManager.registerPageRouter("page_a")"""))
-        assertTrue(shadowEntryContent.contains("com.test.moduleA.PageA()"))
-        assertTrue(result.outputs.any { it.file.absolutePath == shadowEntryFile.absolutePath && it.type == CompileOutput.Type.Kotlin })
+        assertTrue(entryContent.contains("""BridgeManager.registerPageRouter("page_a")"""))
+        assertTrue(entryContent.contains("com.test.moduleA.PageA()"))
+        assertTrue(result.outputs.any { it.file.absolutePath == entryFile.absolutePath && it.type == CompileOutput.Type.Kotlin })
     }
 
     @Test
@@ -65,10 +62,8 @@ class JuggAptCompilerTest {
 
         compiler.compile(createTask(pageFile))
         val secondResult = compiler.compile(createTask(pageFile))
-        val shadowEntryFile = toShadowGeneratedFile(context, module, entryFile)
-        val shadowEntryContent = shadowEntryFile.readText()
-
-        assertEquals(1, shadowEntryContent.countOccurrences("""BridgeManager.registerPageRouter("page_a")"""))
+        val entryFileContent = entryFile.readText()
+        assertEquals(1, entryFileContent.countOccurrences("""BridgeManager.registerPageRouter("page_a")"""))
         assertTrue(secondResult.outputs.isEmpty(), "Second compile should not emit rewrite outputs for idempotent content.")
     }
 
@@ -104,10 +99,9 @@ class JuggAptCompilerTest {
         )
 
         val result = compiler.compile(createTask(compileFile))
-        val shadowEntryFile = toShadowGeneratedFile(context, module, entryFile)
 
         assertTrue(result.isAllSuccess)
-        assertTrue(result.outputs.any { it.file.absolutePath == shadowEntryFile.absolutePath })
+        assertTrue(result.outputs.any { it.file.absolutePath == entryFile.absolutePath })
     }
 
     @Test
@@ -122,36 +116,8 @@ class JuggAptCompilerTest {
         val entryB = createKotlinEntry(moduleB)
 
         compiler.compile(createTask(pageFileA))
-
-        val shadowEntryA = toShadowGeneratedFile(context, moduleA, entryA)
-        val shadowEntryB = toShadowGeneratedFile(context, moduleB, entryB)
-        assertFalse(entryA.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
+        assertTrue(entryA.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
         assertFalse(entryB.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
-        assertTrue(shadowEntryA.readText().contains("""BridgeManager.registerPageRouter("page_a")"""))
-        assertFalse(shadowEntryB.exists())
-    }
-
-    @Test
-    fun kuiklyPage_shouldSkipJavaEntryRewrite() {
-        val module = createModule("moduleA")
-        val context = createContext(module)
-        val compiler = JuggAptCompiler(context, TestGlobal.mockParentDisposable)
-
-        val pageFile = createKotlinPageSource(
-            module = module,
-            className = "PageJava",
-            route = "page_java",
-            annotation = """@Page(route = "page_java")""",
-        )
-        val javaEntryFile = createJavaEntry(module)
-
-        val result = compiler.compile(createTask(pageFile))
-        val shadowJavaEntryFile = toShadowGeneratedFile(context, module, javaEntryFile)
-        if (shadowJavaEntryFile.exists()) {
-            assertFalse(shadowJavaEntryFile.readText().contains("""BridgeManager.registerPageRouter("page_java""""))
-        }
-        assertFalse(javaEntryFile.readText().contains("""BridgeManager.registerPageRouter("page_java""""))
-        assertTrue(result.outputs.isEmpty())
     }
 
     private fun createContext(vararg modules: ModuleInfo): SimpleCompileContext {
@@ -199,14 +165,6 @@ class JuggAptCompilerTest {
         return CompileTask(files.toList(), File(testRoot, "staging"), CompileStatusHolder.DEFAULT)
     }
 
-    private fun toShadowGeneratedFile(context: SimpleCompileContext, module: ModuleInfo, generatedFile: File): File {
-        val shadowGeneratedRoot = context.backupGradleDir(
-            module.buildPathInfo.generatedSourcePath,
-            dryRun = true,
-        )
-        return generatedFile.changeBaseDir(module.buildPathInfo.generatedSourcePath, shadowGeneratedRoot)
-    }
-
     private fun createKotlinPageSource(
         module: ModuleInfo,
         className: String,
@@ -246,22 +204,6 @@ class JuggAptCompilerTest {
 
     private fun createKotlinEntry(module: ModuleInfo): File {
         return File(module.buildPathInfo.generatedSourcePath, "ksp/debug/kotlin/KuiklyCoreEntry.kt").apply {
-            parentFile.mkdirs()
-            writeText(
-                """
-                package com.tencent.kuikly.core.android
-
-                object KuiklyCoreEntry {
-                    public override fun triggerRegisterPages(): Unit {
-                    }
-                }
-                """.trimIndent()
-            )
-        }
-    }
-
-    private fun createJavaEntry(module: ModuleInfo): File {
-        return File(module.buildPathInfo.generatedSourcePath, "ksp/debug/java/KuiklyCoreEntry.java").apply {
             parentFile.mkdirs()
             writeText(
                 """
@@ -350,10 +292,9 @@ class JuggAptCompilerTest {
         override val id: String = "throwing-processor"
 
         override fun process(
-            context: com.sickworm.intellij.jugg.compiler.ICompileContext,
+            context: ICompileContext,
             module: ModuleInfo,
             allCompileFiles: List<CompileFile>,
-            generatedAptFiles: List<CompileFile>,
         ): List<CompileFile> {
             error("intentional fail for fail-open test")
         }
@@ -363,12 +304,51 @@ class JuggAptCompilerTest {
         override val id: String = "return-first-processor"
 
         override fun process(
-            context: com.sickworm.intellij.jugg.compiler.ICompileContext,
+            context: ICompileContext,
             module: ModuleInfo,
             allCompileFiles: List<CompileFile>,
-            generatedAptFiles: List<CompileFile>,
         ): List<CompileFile> {
-            return generatedAptFiles.take(1)
+            return discoverGeneratedAptFiles(context, module, allCompileFiles).take(1)
+        }
+
+        private fun discoverGeneratedAptFiles(context: ICompileContext, module: ModuleInfo, taskFiles: List<CompileFile>): List<CompileFile> {
+            val generatedByPath = LinkedHashMap<String, CompileFile>()
+
+            // Existing generated files that already entered this compile round.
+            taskFiles.filter { file ->
+                (file.type == CompileFile.Type.Java || file.type == CompileFile.Type.Kotlin) &&
+                        file.file.path.replace("\\", "/").contains("/generated/")
+            }.forEach { generatedByPath[it.file.absolutePath] = it }
+
+            val scanRoots = linkedSetOf<File>()
+            scanRoots.add(module.buildPathInfo.generatedSourcePath)
+            scanRoots.add(context.tempCompileDir.resolve("generated"))
+            scanRoots.add(context.tempCompileDir.resolve("ksp"))
+            scanRoots.add(context.tempCompileDir.resolve("kapt"))
+
+            for (root in scanRoots) {
+                if (!root.exists()) {
+                    continue
+                }
+                for (file in root.listFilesRecursively()) {
+                    if (!file.isFile) {
+                        continue
+                    }
+                    val type = when (file.extension.lowercase()) {
+                        "kt" -> CompileFile.Type.Kotlin
+                        "java" -> CompileFile.Type.Java
+                        else -> null
+                    } ?: continue
+                    generatedByPath[file.absolutePath] = CompileFile(
+                        type = type,
+                        file = file,
+                        baseDir = root,
+                        module = module,
+                    )
+                }
+            }
+
+            return generatedByPath.values.toList()
         }
     }
 }

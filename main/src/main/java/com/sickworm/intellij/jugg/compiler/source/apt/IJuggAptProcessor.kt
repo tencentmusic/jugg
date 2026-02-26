@@ -23,14 +23,12 @@ interface IJuggAptProcessor {
      * @param context compile context for path/module/environment lookup
      * @param module current module being compiled
      * @param allCompileFiles all compile files in current module round
-     * @param generatedAptFiles generated Java/Kotlin sources discovered for this module
      * @return rewritten generated sources to be compiled in current round
      */
     fun process(
         context: ICompileContext,
         module: ModuleInfo,
         allCompileFiles: List<CompileFile>,
-        generatedAptFiles: List<CompileFile>,
     ): List<CompileFile>
 }
 

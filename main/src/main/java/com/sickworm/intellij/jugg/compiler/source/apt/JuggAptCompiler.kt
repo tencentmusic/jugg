@@ -6,10 +6,7 @@ import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileResult
 import com.sickworm.intellij.jugg.compiler.CompileTask
 import com.sickworm.intellij.jugg.compiler.ICompileContext
-import com.sickworm.intellij.jugg.compiler.changeBaseDir
-import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.compiler.toCompileOutput
-import com.sickworm.intellij.jugg.compiler.source.apt.processors.KuiklyPageJuggAptProcessor
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import java.io.File
 import java.util.LinkedHashMap
@@ -23,7 +20,7 @@ import java.util.LinkedHashMap
 class JuggAptCompiler(
     context: ICompileContext,
     parent: Disposable,
-    private val processors: List<IJuggAptProcessor> = listOf(KuiklyPageJuggAptProcessor()),
+    private val processors: List<IJuggAptProcessor> = ProcessorRegistration.get(),
 ) : BaseCompiler(context, parent) {
 
     override val supportedTypes: List<CompileFile.Type> = listOf(
@@ -45,14 +42,6 @@ class JuggAptCompiler(
             return CompileResult(task, emptyList(), emptyList())
         }
 
-        val generatedAptFiles = prepareShadowGeneratedAptFiles(discoverGeneratedAptFiles(module, task.files))
-        if (generatedAptFiles.isEmpty()) {
-            logger.debug("No generated apt files found for module ${module.name}, skip.")
-            return CompileResult(task, emptyList(), emptyList())
-        }
-
-        val generatedByPath = LinkedHashMap<String, CompileFile>()
-        generatedAptFiles.forEach { generatedByPath[it.file.absolutePath] = it }
         val rewrittenByPath = LinkedHashMap<String, CompileFile>()
 
         processors.forEach { processor ->
@@ -61,7 +50,6 @@ class JuggAptCompiler(
                     context = context,
                     module = module,
                     allCompileFiles = task.files,
-                    generatedAptFiles = generatedByPath.values.toList(),
                 )
                 for (rewritten in rewrittenFiles) {
                     if (rewritten.type != CompileFile.Type.Java && rewritten.type != CompileFile.Type.Kotlin) {
@@ -72,7 +60,6 @@ class JuggAptCompiler(
                         logger.warn("Processor ${processor.id} returned missing file: ${rewritten.file}")
                         continue
                     }
-                    generatedByPath[rewritten.file.absolutePath] = rewritten
                     rewrittenByPath[rewritten.file.absolutePath] = rewritten
                 }
             } catch (throwable: Throwable) {
@@ -82,39 +69,6 @@ class JuggAptCompiler(
 
         val outputs = rewrittenByPath.values.mapNotNull { it.toCompileOutput() }
         return CompileResult(task, emptyList(), outputs)
-    }
-
-    /**
-     * Mirrors generated sources into incremental backup shadow directories, then returns compile files
-     * that point to shadow files so processor rewrites never mutate Gradle outputs directly.
-     */
-    private fun prepareShadowGeneratedAptFiles(generatedAptFiles: List<CompileFile>): List<CompileFile> {
-        if (generatedAptFiles.isEmpty()) {
-            return emptyList()
-        }
-
-        val shadowRootByBaseDir = LinkedHashMap<String, File>()
-        return generatedAptFiles.map { generatedAptFile ->
-            val originalBaseDir = generatedAptFile.baseDir
-            val shadowBaseDir = shadowRootByBaseDir.getOrPut(originalBaseDir.absolutePath) {
-                backupGeneratedSourceDir(originalBaseDir)
-            }
-            val shadowFile = try {
-                generatedAptFile.file.changeBaseDir(originalBaseDir, shadowBaseDir)
-            } catch (throwable: Throwable) {
-                logger.warn(
-                    "Create shadow file path failed for ${generatedAptFile.file}, fallback to original file: ${throwable.message}",
-                    throwable,
-                )
-                generatedAptFile.file
-            }
-            if (!shadowFile.exists()) {
-                logger.warn("Shadow file missing: $shadowFile, fallback to original generated source: ${generatedAptFile.file}")
-                generatedAptFile
-            } else {
-                generatedAptFile.copy(file = shadowFile, baseDir = shadowBaseDir)
-            }
-        }.distinctBy { it.file.absolutePath }
     }
 
     private fun backupGeneratedSourceDir(sourceDir: File): File {
@@ -127,45 +81,5 @@ class JuggAptCompiler(
             )
             sourceDir
         }
-    }
-
-    private fun discoverGeneratedAptFiles(module: ModuleInfo, taskFiles: List<CompileFile>): List<CompileFile> {
-        val generatedByPath = LinkedHashMap<String, CompileFile>()
-
-        // Existing generated files that already entered this compile round.
-        taskFiles.filter { file ->
-            (file.type == CompileFile.Type.Java || file.type == CompileFile.Type.Kotlin) &&
-                    file.file.path.replace("\\", "/").contains("/generated/")
-        }.forEach { generatedByPath[it.file.absolutePath] = it }
-
-        val scanRoots = linkedSetOf<File>()
-        scanRoots.add(module.buildPathInfo.generatedSourcePath)
-        scanRoots.add(context.tempCompileDir.resolve("generated"))
-        scanRoots.add(context.tempCompileDir.resolve("ksp"))
-        scanRoots.add(context.tempCompileDir.resolve("kapt"))
-
-        for (root in scanRoots) {
-            if (!root.exists()) {
-                continue
-            }
-            for (file in root.listFilesRecursively()) {
-                if (!file.isFile) {
-                    continue
-                }
-                val type = when (file.extension.lowercase()) {
-                    "kt" -> CompileFile.Type.Kotlin
-                    "java" -> CompileFile.Type.Java
-                    else -> null
-                } ?: continue
-                generatedByPath[file.absolutePath] = CompileFile(
-                    type = type,
-                    file = file,
-                    baseDir = root,
-                    module = module,
-                )
-            }
-        }
-
-        return generatedByPath.values.toList()
     }
 }

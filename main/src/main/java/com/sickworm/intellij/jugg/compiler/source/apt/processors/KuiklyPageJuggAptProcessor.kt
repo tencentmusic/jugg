@@ -13,6 +13,7 @@ import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
+import java.io.File
 import java.util.LinkedHashMap
 
 /**
@@ -23,7 +24,7 @@ import java.util.LinkedHashMap
  */
 class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
 
-    override val id: String = "kuikly-page-jugg-apt-processor"
+    override val id: String = "kuikly-page-processor"
 
     private data class PageRegistration(
         val route: String,
@@ -34,35 +35,38 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
         context: ICompileContext,
         module: ModuleInfo,
         allCompileFiles: List<CompileFile>,
-        generatedAptFiles: List<CompileFile>,
     ): List<CompileFile> {
         val logger = context.logger.getInstance("KuiklyPageJuggAptProcessor")
-        val pageRegistrations = collectPageRegistrations(allCompileFiles, logger)
-        if (pageRegistrations.isEmpty()) {
-            return emptyList()
-        }
 
-        val entryFiles = generatedAptFiles
-            .filter { it.type == CompileFile.Type.Kotlin }
-            .filter { isKuiklyCoreEntryFile(it.file.name) }
-            .distinctBy { it.file.absolutePath }
-        if (entryFiles.isEmpty()) {
+        val entryFile = File(module.buildPathInfo.generatedKspSourcePath, "KuiklyCoreEntry.kt")
+        if (!entryFile.exists()) {
             logger.debug("No KuiklyCoreEntry generated file found, skip.")
             return emptyList()
         }
 
-        val rewrittenFiles = mutableListOf<CompileFile>()
-        entryFiles.forEach { entryFile ->
-            try {
-                val updatedCompileFile = rewriteEntryFile(entryFile, pageRegistrations, logger)
-                if (updatedCompileFile != null) {
-                    rewrittenFiles.add(updatedCompileFile)
-                }
-            } catch (throwable: Throwable) {
-                logger.warn("Rewrite Kuikly entry failed for ${entryFile.file}: ${throwable.message}")
-            }
+        val pageRegistrations = collectPageRegistrations(allCompileFiles, logger)
+        if (pageRegistrations.isEmpty()) {
+            logger.debug("No page registrations found in compile files, skip process.")
+            return emptyList()
+        } else {
+            logger.debug("Found page registrations in compile files: $pageRegistrations")
         }
-        return rewrittenFiles
+
+        try {
+            val updatedCompileFile = rewriteEntryFile(entryFile, pageRegistrations, logger)
+            if (updatedCompileFile != null) {
+                return listOf(CompileFile(
+                    type = CompileFile.Type.Kotlin,
+                    file = updatedCompileFile,
+                    baseDir = entryFile.parentFile,
+                    module = module,
+                ))
+            }
+        } catch (throwable: Throwable) {
+            logger.debug("Rewrite Kuikly entry failed: $entryFile ", throwable)
+            logger.warn("Rewrite Kuikly entry failed for ${entryFile}: ${throwable.message}")
+        }
+        return emptyList()
     }
 
     private fun collectPageRegistrations(allCompileFiles: List<CompileFile>, logger: Logger): List<PageRegistration> {
@@ -86,11 +90,11 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
      * Rewrites one Kuikly entry file by appending missing registrations to triggerRegisterPages.
      */
     private fun rewriteEntryFile(
-        entryFile: CompileFile,
+        entryFile: File,
         pageRegistrations: List<PageRegistration>,
         logger: Logger,
-    ): CompileFile? {
-        val originalContent = entryFile.file.readText()
+    ): File? {
+        val originalContent = entryFile.readText()
 
         val existingKotlinRegistrations = collectRegisterPageCalls(originalContent, TARGET_METHOD_NAME)
             .map { "${it.route}#${it.pageFqcn}" }
@@ -111,15 +115,15 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
             functionName = TARGET_METHOD_NAME,
             snippets = snippetsToAppend,
         ) ?: run {
-            logger.warn("Target method $TARGET_METHOD_NAME not found in ${entryFile.file}.")
+            logger.warn("Target method $TARGET_METHOD_NAME not found in $entryFile.")
             return null
         }
         if (updatedContent == originalContent) {
             return null
         }
 
-        entryFile.file.writeText(updatedContent)
-        logger.info("Rewrite Kuikly entry success: ${entryFile.file.name}, append count=${snippetsToAppend.size}")
+        entryFile.writeText(updatedContent)
+        logger.info("Rewrite Kuikly entry success: ${entryFile.name}, append count=${snippetsToAppend.size}")
         return entryFile
     }
 
