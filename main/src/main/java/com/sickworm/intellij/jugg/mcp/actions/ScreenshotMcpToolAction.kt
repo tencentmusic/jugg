@@ -22,7 +22,7 @@ class ScreenshotMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Capture screenshot from target device. Use when: you need current visual UI state for debugging or coordinate planning. Avoid: when structured hierarchy data is required (use layout_dump).",
+        description = "Capture screenshot from target device.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

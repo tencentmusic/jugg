@@ -13,7 +13,7 @@ class CompileOnlyMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Compile modified sources with Jugg incremental build without deployment. Use when: you only need compile validation or no device is connected. Avoid: when runtime/device behavior must be verified. Side effects: build only; no deploy and no app restart.",
+        description = "Compile modified sources with Jugg incremental build without deployment.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

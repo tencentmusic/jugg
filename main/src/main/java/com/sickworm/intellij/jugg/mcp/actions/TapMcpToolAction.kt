@@ -20,7 +20,7 @@ class TapMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Tap a screen coordinate on target device. Use when: deterministic interaction at known coordinates is required. Avoid: unknown coordinates; inspect with screenshot/layout_dump first.",
+        description = "Tap a screen coordinate on target device.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

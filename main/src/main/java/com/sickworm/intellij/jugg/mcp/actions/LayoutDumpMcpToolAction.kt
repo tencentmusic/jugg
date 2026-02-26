@@ -22,7 +22,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Dump current UI hierarchy XML from target device. Use when: structured UI node/attribute data is needed for automation. Avoid: when screenshot-level visual evidence is enough.",
+        description = "Dump current UI hierarchy XML from target device.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

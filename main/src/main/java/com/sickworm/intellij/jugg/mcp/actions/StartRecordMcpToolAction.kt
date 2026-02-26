@@ -19,7 +19,7 @@ class StartRecordMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Start device screen recording asynchronously. Use when: you need video trace capture and will stop manually. Avoid: static end-state checks where screenshot is enough. Side effects: starts long-running screenrecord process and writes a temporary video file on device.",
+        description = "Start device screen recording asynchronously. Returns sessionId for stop_record.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

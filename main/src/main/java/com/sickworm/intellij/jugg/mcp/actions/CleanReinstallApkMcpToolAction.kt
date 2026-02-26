@@ -14,7 +14,7 @@ class CleanReinstallApkMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Uninstall app, run full Gradle build, and reinstall APK. Use when: incremental deploy state is corrupted or signatures mismatch. Avoid: routine fast iteration. Side effects: app data cleared.",
+        description = "Clear App data, redeploy incremental changes, and reinstall APK.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

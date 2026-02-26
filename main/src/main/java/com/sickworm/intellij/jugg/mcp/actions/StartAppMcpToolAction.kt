@@ -21,7 +21,7 @@ class StartAppMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Start app on target device. Use when: app should be brought to foreground before interaction. Avoid: when full process refresh is required (use restart_app).",
+        description = "Start app on target device.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

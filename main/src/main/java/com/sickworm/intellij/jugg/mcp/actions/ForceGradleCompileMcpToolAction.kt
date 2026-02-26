@@ -16,7 +16,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Compile via Gradle fallback instead of Jugg incremental path. Use when: Jugg incremental compile repeatedly fails or is unstable. Avoid: default use in routine fast iterations. Side effects: slower Gradle-oriented compile path.",
+        description = "Compile via Gradle fallback instead of Jugg incremental path.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

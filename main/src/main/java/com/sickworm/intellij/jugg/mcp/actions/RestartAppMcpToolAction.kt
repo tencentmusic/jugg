@@ -18,7 +18,7 @@ class RestartAppMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Restart app process on target device. Use when: app process must be refreshed after deploy or runtime changes. Avoid: when binaries/install artifacts must be replaced. Side effects: restarts app process without reinstall.",
+        description = "Restart app process on target device without reinstall.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

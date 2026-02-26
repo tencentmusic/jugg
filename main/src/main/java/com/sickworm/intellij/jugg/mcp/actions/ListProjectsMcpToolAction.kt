@@ -17,7 +17,7 @@ class ListProjectsMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "List projects initialized in current IDE process. Use when: you need another valid projectDir before calling other tools.",
+        description = "List projects initialized in current IDE process.",
         inputSchema = McpJsonSchemaObject(
             description = "No arguments required.",
             properties = emptyMap(),

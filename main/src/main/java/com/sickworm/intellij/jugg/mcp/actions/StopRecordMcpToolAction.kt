@@ -18,7 +18,7 @@ class StopRecordMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Stop a running recording session and fetch mp4 artifact. Use when: start_record has returned a sessionId and you want to finalize video evidence. Avoid: calls with unknown/expired sessionId. Side effects: stops screenrecord process, pulls video to local project artifacts.",
+        description = "Stop a running recording session and fetch mp4 artifact.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
