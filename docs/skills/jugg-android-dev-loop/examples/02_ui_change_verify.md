@@ -22,21 +22,16 @@ Agent edits two files:
 
 **Call:** `compile_and_deploy` with `projectDir: "/Users/dev/MyApp"` → `status: "OK"`
 
-### 4. App start
+### 4. App restart
 
-**Call:** `start_app` with `projectDir: "/Users/dev/MyApp"`
+**Call:** `restart_app` with `projectDir: "/Users/dev/MyApp"`
 
 **Response:**
 ```json
 {
   "status": "OK",
-  "message": "start_app executed successfully. Using selected device: emulator-5554.",
-  "data": {
-    "device": {"serial": "emulator-5554", "name": "Pixel_6_API_34", "isOnline": true},
-    "packageName": "com.example.myapp",
-    "activity": ".MainActivity",
-    "component": "com.example.myapp/.MainActivity"
-  },
+  "message": "restart_app executed successfully.",
+  "data": {},
   "artifacts": [],
   "errorCode": null
 }
@@ -128,4 +123,4 @@ Artifacts:
 - Time-based behavior validation (animation/navigation/async/transient UI/multi-step flow): recording is recommended.
 - User explicitly asks for video: recording is required.
 - Quick rule: prove process (**how**) -> record; prove final state (**what**) -> recording optional.
-- Minimal recording template: return to start page -> locate target -> `start_record` -> perform one valid interaction (`start_app`/`tap`) -> `stop_record` -> post-record screenshot.
+- Minimal recording template: return to start page -> locate target -> `start_record` -> perform one valid interaction (`restart_app`/`tap`) -> `stop_record` -> post-record screenshot.

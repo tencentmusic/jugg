@@ -73,7 +73,12 @@ class CompileAndDeployMcpToolActionTest {
         val runtime = runtimeWithResult(
             JuggRunInvocationResult(
                 isSuccess = true,
-                runResult = RunResult(isGradleCompile = false, isCompileSuccess = true, isDeploySuccess = true),
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
                 detail = "compile logs that should not be returned on success",
             )
         )
@@ -101,7 +106,12 @@ class CompileAndDeployMcpToolActionTest {
             Thread.sleep(80L)
             JuggRunInvocationResult(
                 isSuccess = true,
-                runResult = RunResult(isGradleCompile = false, isCompileSuccess = true, isDeploySuccess = true),
+                runResult = RunResult(
+                    isGradleCompile = false,
+                    isCompileSuccess = true,
+                    isDeploySuccess = true,
+                    isCancel = false,
+                ),
                 detail = "",
             )
         }

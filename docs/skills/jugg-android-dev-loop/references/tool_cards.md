@@ -87,15 +87,6 @@ Default context rule:
 - When to stop polling: `status` becomes `success|failed|canceled|unknown`.
 - Special rule: if `status=unknown` (usually paired with `MCP_INVALID_PARAMS`), treat as invalid `jobId`/context, stop polling, then re-check `jobId` source and re-trigger compile if needed.
 
-## `start_activity`
-
-- Purpose: advanced explicit activity start for runtime verification.
-- Required input: `projectDir`.
-- Optional input: `packageName`, `activity`, `action`, `categories`, `data`, `mimeType`, `flags`, `extras`, `user`.
-- Safety note: use this only when you clearly know the required launch intent context/params; otherwise prefer `start_app`.
-- Success output: `status="OK"` with `packageName`, `activity`, `component`, `command` in data.
-- On failure: classify as `START_ACTIVITY_FAIL`; verify package/activity mapping.
-
 ## `tap`
 
 - Purpose: deterministic UI trigger for post-launch flow.
@@ -139,7 +130,7 @@ Default context rule:
 - Purpose: capture current runtime Activity stack and top activity for page-awareness decisions.
 - Required input: `projectDir`.
 - Success output: `data.topActivity`, `data.activities` (component string array from top to bottom), and a full raw dump text path in `artifacts`.
-- On failure: classify by `errorCode` (`MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`); fallback to `start_app` + `layout_dump` for coarse context.
+- On failure: classify by `errorCode` (`MCP_NO_DEVICE`, `MCP_INTERNAL_ERROR`); fallback to `restart_app` + `layout_dump` for coarse context.
 
 ## Final Artifacts
 
@@ -182,4 +173,4 @@ Each MCP tool returns `structuredContent` with these fields:
 - Prefer `start_record`/`stop_record` for time-based behavior: animation, navigation, async changes, transient UI, multi-step flows.
 - Must produce recording when user explicitly asks for video evidence.
 - Heuristic: prove **how** -> record; prove **what** -> optional.
-- Minimal flow: `start_record` -> runtime operations (`start_app`/`tap`) -> `stop_record` -> post-record screenshot.
+- Minimal flow: `start_record` -> runtime operations (`restart_app`/`tap`) -> `stop_record` -> post-record screenshot.

@@ -48,11 +48,9 @@
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir` | 导出 UI 层级 XML |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
-| `start_app` | `projectDir` | 启动 App（可指定 package） |
-| `start_activity` | `projectDir` | 启动指定 Activity（支持 intent 参数） |
 | `tap` | `projectDir`, `x`, `y` | 坐标点击 |
 
-> 说明：`emulator_list` / `start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
+> 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 
 补充（录屏工具容错语义）：
 - `start_record` IDeviceAdb 容易失败，走 ANDROID_HOME 的 `adb shell screenrecord` 进程托管，并由 `stop_record` 回收。

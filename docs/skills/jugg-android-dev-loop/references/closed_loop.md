@@ -7,18 +7,18 @@ Agent directly calls Jugg MCP tools to complete the Android compile/deploy/verif
 ## Required MCP Steps
 
 1. **Build + Deploy** — `compile_and_deploy` (default path: compiles then deploys) or `clean_reinstall_apk` (strong fallback: uninstalls app, clears Jugg code_cache patches, full reinstall). Use `compile_only` when only compilation check is needed.
-2. **Runtime actions** — `start_app` then `tap` for UI interaction.
+2. **Runtime actions** — `restart_app` then `tap` for UI interaction.
 3. **Verification artifacts** — `screenshot` and/or `layout_dump` (optional `start_record` + `stop_record`).
 
 ## Pass Criteria
 
 - Build/deploy path returns `status="OK"`.
-- Runtime actions (`start_app`, `tap`) return `status="OK"`.
+- Runtime actions (`restart_app`, `tap`) return `status="OK"`.
 - At least one verification artifact exists on disk.
 
 ## MCP-only Policy
 
-- Strongly prefer MCP toolchain end-to-end: `start_app`, `tap`, `layout_dump`, `screenshot`, `start_record`, `stop_record`.
+- Strongly prefer MCP toolchain end-to-end: `restart_app`, `tap`, `layout_dump`, `screenshot`, `start_record`, `stop_record`.
 - Avoid direct external adb commands in normal closed-loop flow.
 - If interaction is flaky, add short pre-tap delay and repeat tap (e.g., 2 taps with 1-2s interval).
 

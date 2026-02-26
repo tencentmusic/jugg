@@ -18,7 +18,7 @@ class RestartAppMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Restart app process on target device without reinstall.",
+        description = "Restart app process on IDE selected device(s).",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,

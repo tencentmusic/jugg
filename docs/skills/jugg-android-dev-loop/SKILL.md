@@ -17,14 +17,13 @@ Strongly prefer MCP tools and avoid direct external adb commands in normal flow.
 
 ## Core Workflow (5-Step Closed-Loop SOP)
 
-```
-Step 1: Modify sources(not using jugg-mcp)
-Step 2: compile_and_deploy/compile_only        → build (and deploy when device is ready)
-Step 3: start_app + tap                         → launch app and interact (when runtime verification is required)
-Step 4: layout_dump/activity_stack/screenshot/start_record+stop_record      → collect verification evidence.
-    -> back to Step 1 if something is wrong.
-Step 5: final_artifact_staging                  → save final screenshot or recording for user
-```
+
+1. Modify sources(not using jugg-mcp)
+2. compile_and_deploy/compile_only → build (and deploy when device is ready)
+3. restart_app/tap → launch app, go to target page and interact (when runtime verification is required)
+4. layout_dump/activity_stack/screenshot/start_record+stop_record → collect verification evidence.
+   > back to Step 1 if something is wrong.
+5. final_artifact_staging → save final screenshot or recording for user
 
 ### projectDir Default Rule
 
@@ -50,8 +49,7 @@ If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 
 ### Step 3: Runtime Actions
 
-- `start_app` with `projectDir` (and optional `packageName`) for default entry. This is the default runtime path.
-- `start_activity` is advanced-only and should not be the default in this skill flow.
+- `restart_app` with `projectDir` to launch (restart) the app. This is the default runtime path.
 - `tap` with `projectDir`, `x`, `y` for UI interaction.
 - Use `layout_dump` before `tap` to discover element coordinates.
 
@@ -62,7 +60,7 @@ If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 - `activity_stack` for activity state verification (`data.activities` is a component string array ordered top -> bottom; full details stay in `dumpFile`).
 - `layout_dump` for structural verification.
 - `screenshot` for visual proof.
-- Optional: `start_record` + `stop_record` for video trace (run `start_app`/`tap` between the two calls).
+- Optional: `start_record` + `stop_record` for video trace (run `restart_app`/`tap` between the two calls).
 
 ### Step 5: Final Artifact Staging
 
