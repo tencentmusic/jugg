@@ -59,7 +59,7 @@ class ForceGradleCompileMcpToolAction : McpToolAction {
             McpToolResult(
                 status = status,
                 message = trigger.message,
-                data = mapOf(
+                data = mutableMapOf<String, Any>(
                     "accepted" to trigger.accepted,
                     "jobId" to trigger.jobId,
                     "executionType" to trigger.executionType,

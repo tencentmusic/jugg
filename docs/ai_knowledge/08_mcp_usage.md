@@ -66,6 +66,9 @@
 - `jobId`：后续用 `get_compile_status` 查询
 - `logPath`：`build/jugg/log/compile_latest.log`
 
+`get_compile_status` 在 `status=running` 时会返回：
+- `pollIntervalSuggestedMs`：建议轮询间隔（毫秒），客户端按该字段轮询
+
 ---
 
 ## 5. 常见错误码

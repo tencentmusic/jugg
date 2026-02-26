@@ -37,9 +37,9 @@ The agent modifies the necessary source code files based on the tasks submitted 
 
 ### Step 2: Build and Deploy
 
-- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to default selected device. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` until terminal.
+- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to default selected device. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
 - **Compile-only path**: `compile_only` with `projectDir` — when no device is available or you only need to verify compilation.
-- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` until terminal.
+- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
 
 If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 
@@ -82,6 +82,7 @@ Note: `build/mcp_fetch/final` is an **agent staging directory**. MCP tool defaul
 - `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures, unless user says "fallback compile".
 - For `compile_and_deploy`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
 - For `force_gradle_compile`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
+- For compile polling, do not use high-frequency loops; always follow `pollIntervalSuggestedMs` when present.
 - For `get_compile_status`, `status=unknown` is not a normal terminal success/failure state; treat it as invalid job/context and stop to re-check `jobId` source.
 
 ## Decision Rules

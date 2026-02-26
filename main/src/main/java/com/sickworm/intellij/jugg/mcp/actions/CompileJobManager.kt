@@ -15,7 +15,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 object CompileJobManager {
     private const val DEFAULT_SOFT_TIMEOUT_MILLIS = 25_000L
-    private const val RUNNING_MESSAGE_TEMPLATE = "任务仍在运行，请通过 get_compile_status 关注进度，Job ID 为 %s"
+    const val POLL_INTERVAL_SUGGESTED_MILLIS = 15_000L
+    private const val RUNNING_MESSAGE_TEMPLATE =
+        "The task is still running. Please monitor progress via get_compile_status. Job ID is %s."
     const val COMPILE_LATEST_LOG_PATH: String = "build/jugg/log/compile_latest.log"
 
     @Volatile
@@ -202,6 +204,12 @@ object CompileJobManager {
             "running", "success", "failed", "canceled", "unknown" -> raw.lowercase()
             else -> "failed"
         }
+    }
+
+    fun buildPollSuggestionData(): Map<String, Any> {
+        return mapOf(
+            "pollIntervalSuggestedMs" to POLL_INTERVAL_SUGGESTED_MILLIS,
+        )
     }
 }
 

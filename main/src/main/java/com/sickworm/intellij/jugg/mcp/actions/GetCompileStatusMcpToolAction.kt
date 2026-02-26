@@ -32,6 +32,7 @@ class GetCompileStatusMcpToolAction : McpToolAction {
                         "executionType" to McpJsonSchemaProperty(type = "string", `enum` = listOf("local", "remote")),
                         "finishedAt" to McpJsonSchemaProperty(type = "string"),
                         "message" to McpJsonSchemaProperty(type = "string"),
+                        "pollIntervalSuggestedMs" to McpJsonSchemaProperty(type = "number"),
                     ),
                     required = listOf("jobId", "status", "executionType", "message"),
                     additionalProperties = false,
@@ -58,6 +59,9 @@ class GetCompileStatusMcpToolAction : McpToolAction {
             "executionType" to state.executionType,
             "message" to state.message,
         )
+        if (state.status == "running") {
+            data.putAll(CompileJobManager.buildPollSuggestionData())
+        }
         state.finishedAt?.let { data["finishedAt"] = it }
 
         // Return ERROR when jobId does not exist.

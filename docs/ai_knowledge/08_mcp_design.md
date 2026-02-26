@@ -47,6 +47,7 @@
 `CompileJobManager` 提供统一异步任务模型：
 - 触发接口可能先返回 `isFinal=false`。  
 - 客户端通过 `get_compile_status(jobId)` 查询终态。  
+- 运行中状态会返回轮询建议字段（`pollIntervalSuggestedMs`），用于避免高频查询。  
 - 使用 `compile_latest.log` 作为统一日志出口路径。
 
 ---

@@ -228,7 +228,7 @@
 1. 通过 CLI 修改一个会触发大范围重编译的文件（如在 `build.gradle` 中添加一行无害注释，或修改 `buildSrc` 中的版本号常量，使整个工程需要重新编译）
 2. 调用 `force_gradle_compile`，传入 `projectDir`
 3. 验证立即返回 `isFinal=false` 和 `jobId`（因为耗时超过同步阈值）
-4. 使用 `get_compile_status` 持续轮询（建议间隔 3-5 秒），验证中间状态返回合理（如 `isFinal=false`，可能包含进度信息）
+4. 使用 `get_compile_status` 持续轮询（按返回的 `pollIntervalSuggestedMs` 字段执行），验证中间状态返回合理（如 `isFinal=false`，可能包含进度信息）
 5. 等待编译完成（预期超过 25 秒），验证最终返回 `isFinal=true`、`status` 为 `OK`
 6. 还原修改
 

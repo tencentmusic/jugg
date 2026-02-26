@@ -41,10 +41,10 @@ When compile/deploy fails, use this sequence:
 
 Agent decision flow for automatic downgrade:
 
-1. `compile_and_deploy` returns `isFinal=false` -> poll `get_compile_status(jobId)` to terminal state first
+1. `compile_and_deploy` returns `isFinal=false` -> poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state first
 2. `compile_and_deploy` terminal failed -> retry `compile_and_deploy` (up to 3 consecutive attempts)
 3. If all 3 attempts fail -> try `force_gradle_compile` (heavy fallback)
-4. If `force_gradle_compile` returns `isFinal=false`, poll `get_compile_status(jobId)` to terminal state
+4. If `force_gradle_compile` returns `isFinal=false`, poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state
 5. `force_gradle_compile` final status = success -> retry `compile_and_deploy`
 6. Still fails -> try `clean_reinstall_apk`
 7. `clean_reinstall_apk` fails -> stop and report to user with full diagnosis
