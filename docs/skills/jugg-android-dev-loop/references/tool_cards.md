@@ -56,7 +56,7 @@ Default context rule:
   2) then `force_gradle_compile` (heavy fallback),
   3) retry `compile_and_deploy`,
   4) then `clean_reinstall_apk` when policy allows.
-- Follow-up rule: if `isFinal=false`, poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
+- Follow-up rule: if `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent; poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
 
 ## `clean_reinstall_apk`
 
@@ -76,7 +76,7 @@ Default context rule:
   - Long task: `data.isFinal=false`, `data.status=running`, and `data.jobId`
 - On failure: stop and report; do not retry `force_gradle_compile` itself.
 - Usage rule: only invoke after 3 consecutive `compile_and_deploy` failures.
-- Follow-up rule: if `isFinal=false`, poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until `success|failed|canceled`.
+- Follow-up rule: if `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent; poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until `success|failed|canceled`.
 - Troubleshooting: when final status is `failed`, read `${projectDir}/build/jugg/log/compile_latest.log`.
 
 ## `get_compile_status`
@@ -87,6 +87,8 @@ Default context rule:
 - Running state may include `pollIntervalSuggestedMs`; honor this value when polling.
 - When to stop polling: `status` becomes `success|failed|canceled|unknown`.
 - Special rule: if `status=unknown` (usually paired with `MCP_INVALID_PARAMS`), treat as invalid `jobId`/context, stop polling, then re-check `jobId` source and re-trigger compile if needed.
+- Delegation rule: `get_compile_status` polling should run in an `awaiter` sub-agent whenever entered from `isFinal=false`.
+- Reporting rule: polling sub-agent reports only state transitions and terminal status back to main agent.
 
 ## `tap`
 

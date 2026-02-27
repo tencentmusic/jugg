@@ -37,9 +37,9 @@ The agent modifies the necessary source code files based on the tasks submitted 
 
 ### Step 2: Build and Deploy
 
-- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to default selected device. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
+- **Default path**: `compile_and_deploy` with `projectDir` — compiles then deploys to default selected device. If it returns `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent. The sub-agent polls `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
 - **Compile-only path**: `compile_only` with `projectDir` — when no device is available or you only need to verify compilation.
-- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries. This tool may return `isFinal=false`; then poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
+- **Heavy fallback (use sparingly)**: `force_gradle_compile` with `projectDir` only after `compile_and_deploy` fails 3 consecutive retries. If it returns `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent. The sub-agent polls `get_compile_status(jobId)` using `pollIntervalSuggestedMs` until terminal.
 
 If `compile_and_deploy` returns `MCP_NO_DEVICE`:
 
@@ -80,9 +80,10 @@ Note: `build/mcp_fetch/final` is an **agent staging directory**. MCP tool defaul
 - Never claim success without artifact evidence.
 - Never reuse stale final artifacts: `build/mcp_fetch/final` must be emptied before copy.
 - `force_gradle_compile` is very heavy; do not use it before 3 consecutive `compile_and_deploy` failures, unless user says "fallback compile".
-- For `compile_and_deploy`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
-- For `force_gradle_compile`, success/failure must be determined by `get_compile_status(jobId)` when `isFinal=false`.
+- For `compile_and_deploy`/`force_gradle_compile`, if `isFinal=false`, always delegate polling to an `awaiter` sub-agent.
+- For delegated compile polling, success/failure must be determined by `get_compile_status(jobId)` terminal state.
 - For compile polling, do not use high-frequency loops; always follow `pollIntervalSuggestedMs` when present.
+- Polling sub-agent should report only state transitions and terminal result to the main agent (avoid per-poll noise).
 - For `get_compile_status`, `status=unknown` is not a normal terminal success/failure state; treat it as invalid job/context and stop to re-check `jobId` source.
 
 ## Decision Rules
@@ -90,6 +91,7 @@ Note: `build/mcp_fetch/final` is an **agent staging directory**. MCP tool defaul
 - Prefer `compile_and_deploy` for normal iteration (compiles then deploys).
 - Use `compile_only` when only compilation check is needed.
 - Use `clean_reinstall_apk` when you need to clear app data.
+- Any compile call returning `isFinal=false` must switch to delegated polling (`awaiter` sub-agent) immediately.
 - If `compile_and_deploy` fails, autonomous retry `compile_and_deploy` up to 3 times first.
 - Only after 3 consecutive failures and still crash / no effects are observed, agent may try `force_gradle_compile`.
 - Treat missing devices as conditional failure (errorCode `MCP_NO_DEVICE`): stop and ask user to prepare a device.
@@ -144,7 +146,7 @@ When compile/deploy fails, follow this strict order:
    - Only if device state is suspicious, call `device_list` to check online/selected target.
 3. **Use auto downgrade when applicable**:
    - `compile_and_deploy` fails -> retry `compile_and_deploy` (up to 3 consecutive attempts)
-   - still failing after 3 retries -> `force_gradle_compile` (poll `get_compile_status`) -> retry `compile_and_deploy`
+   - still failing after 3 retries -> `force_gradle_compile` (delegate async polling via `awaiter`) -> retry `compile_and_deploy`
    - Still fails -> `clean_reinstall_apk`
    - `clean_reinstall_apk` fails -> stop and report
 4. **Stop and confirm with user** when root cause is still unclear.

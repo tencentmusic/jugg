@@ -41,10 +41,10 @@ When compile/deploy fails, use this sequence:
 
 Agent decision flow for automatic downgrade:
 
-1. `compile_and_deploy` returns `isFinal=false` -> poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state first
+1. `compile_and_deploy` returns `isFinal=false` -> immediately delegate polling to an `awaiter` sub-agent, and poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state first
 2. `compile_and_deploy` terminal failed -> retry `compile_and_deploy` (up to 3 consecutive attempts)
 3. If all 3 attempts fail -> try `force_gradle_compile` (heavy fallback)
-4. If `force_gradle_compile` returns `isFinal=false`, poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state
+4. If `force_gradle_compile` returns `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent and poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state
 5. `force_gradle_compile` final status = success -> retry `compile_and_deploy`
 6. Still fails -> try `clean_reinstall_apk`
 7. `clean_reinstall_apk` fails -> stop and report to user with full diagnosis
@@ -55,7 +55,7 @@ Avoid unbounded retry loops. `force_gradle_compile` is allowed only after 3 cons
 
 - `MCP_PROJECT_NOT_INITIALIZED`: ensure IDE project is opened and Jugg initialized.
 - `MCP_NO_DEVICE`: stop and ask user to connect/start device; if runtime is not required, switch to `compile_only`.
-- `MCP_INTERNAL_ERROR` during incremental path: retry `compile_and_deploy` up to 3 times, then try `force_gradle_compile` (with `get_compile_status` polling), then `clean_reinstall_apk`.
+- `MCP_INTERNAL_ERROR` during incremental path: retry `compile_and_deploy` up to 3 times, then try `force_gradle_compile` (with delegated `get_compile_status` polling via `awaiter`), then `clean_reinstall_apk`.
 - `get_compile_status(...)=failed`: inspect `${projectDir}/build/jugg/log/compile_latest.log` for root cause.
 - `MCP_INVALID_PARAMS`: verify tool arguments against schema and retry.
 
