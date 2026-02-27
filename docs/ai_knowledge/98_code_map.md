@@ -18,7 +18,7 @@
 | 混淆映射 | `ClassMinifyCompiler`, `DexMinifyCompiler`, `ClassObfuscator`, `R8MappingReader` | `compiler/obfuscation/` | release 混淆映射一致性 |
 | 自定义编译器 | `CustomCompilerManager`, `ICompilerCreator` | `compiler/custom/` | SPI 扩展、远端下载 jar、动态装载 |
 | 编译 UI 协议 | `CompileUiHandler`, `RunResult`, `BuildChangesConfirmResult` | `compiler/`, `compiler/ui/` | 编译交互抽象（供 IDE/CLI） |
-| 部署文件管理 | `DeployFileManager`, `DeployHistoryManager` | `deploy/` | 变更文件、历史记录、staging 管理 |
+| 部署文件管理 | `DeployFileManager`, `DeployHistoryManager`, `ClassFileLookupHelper` | `deploy/` | 变更文件、历史记录、staging 管理与 class 文件检索复用 |
 | 影响分析 | `DeployDataGenerator`, `DeployDataDatabase`, `ClassNodeComparator`, `InlineMethodDetector` | `deploy/data/` | 类结构变更传播和部署数据生成 |
 | 部署数据模型 | `JuggDeployData`, `LaunchResult` | `deploy/run/` | 下发设备的部署数据结构 |
 | 项目模型 | `JuggProjectInfo`, `ModuleInfo`, `ModuleBuildPathInfo` | `project/data/` | 模块、路径、依赖等快照 |

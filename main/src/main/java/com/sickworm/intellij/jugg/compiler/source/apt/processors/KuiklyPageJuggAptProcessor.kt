@@ -9,8 +9,6 @@ import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.jetbrains.kotlin.psi.KtAnnotationEntry
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtExpression
-import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import java.io.File
@@ -44,7 +42,7 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
             return emptyList()
         }
 
-        val pageRegistrations = collectPageRegistrations(allCompileFiles, logger)
+        val pageRegistrations = collectPageRegistrations(context, module, allCompileFiles, logger)
         if (pageRegistrations.isEmpty()) {
             logger.debug("No page registrations found in compile files, skip process.")
             return emptyList()
@@ -69,17 +67,27 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
         return emptyList()
     }
 
-    private fun collectPageRegistrations(allCompileFiles: List<CompileFile>, logger: Logger): List<PageRegistration> {
+    private fun collectPageRegistrations(
+        context: ICompileContext,
+        module: ModuleInfo,
+        allCompileFiles: List<CompileFile>,
+        logger: Logger,
+    ): List<PageRegistration> {
         val pageRegistrations = LinkedHashMap<String, PageRegistration>()
+        val constResolver = createStringConstReferenceResolver(context, module, allCompileFiles, logger)
         val sourceFiles = allCompileFiles.filter { it.type == CompileFile.Type.Kotlin }
         for (compileFile in sourceFiles) {
-            val ktFile = try {
-                parseKotlinFile(compileFile.file)
+            val sourceContent = try {
+                compileFile.file.readText()
             } catch (throwable: Throwable) {
                 logger.warn("Read page source failed: ${compileFile.file}, message=${throwable.message}")
                 null
             } ?: continue
-            collectKotlinPageRegistrations(ktFile).forEach { registration ->
+            if (!containsImportText(sourceContent, PAGE_IMPORT_FQCN)) {
+                continue
+            }
+            val ktFile = parseKotlinContent(compileFile.file.name, sourceContent) ?: continue
+            collectKotlinPageRegistrations(ktFile, constResolver).forEach { registration ->
                 pageRegistrations["${registration.route}#${registration.fqcn}"] = registration
             }
         }
@@ -135,12 +143,19 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
         """.trimIndent()
     }
 
-    private fun collectKotlinPageRegistrations(ktFile: KtFile): List<PageRegistration> {
+    private fun collectKotlinPageRegistrations(
+        ktFile: KtFile,
+        constResolver: StringConstReferenceResolver,
+    ): List<PageRegistration> {
         val packageName = ktFile.packageFqName.asString()
         val pageRegistrations = mutableListOf<PageRegistration>()
         ktFile.accept(object : KtTreeVisitorVoid() {
             override fun visitClassOrObject(classOrObject: KtClassOrObject) {
-                val route = extractPageRoute(classOrObject.annotationEntries) ?: run {
+                val route = extractPageRoute(
+                    ktFile = ktFile,
+                    annotationEntries = classOrObject.annotationEntries,
+                    constResolver = constResolver,
+                ) ?: run {
                     super.visitClassOrObject(classOrObject)
                     return
                 }
@@ -162,7 +177,11 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
         return if (parentName.isNullOrBlank()) selfName else "$parentName.$selfName"
     }
 
-    private fun extractPageRoute(annotationEntries: List<KtAnnotationEntry>): String? {
+    private fun extractPageRoute(
+        ktFile: KtFile,
+        annotationEntries: List<KtAnnotationEntry>,
+        constResolver: StringConstReferenceResolver,
+    ): String? {
         val pageAnnotation = annotationEntries.firstOrNull { annotation ->
             val shortName = annotation.shortName?.asString()
             shortName == "Page"
@@ -174,26 +193,23 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
         valueArguments.forEach { valueArgument ->
             val argumentName = valueArgument.getArgumentName()?.asName?.asString()
             if (argumentName in PAGE_ROUTE_PARAM_NAMES) {
-                return parseStringLiteral(valueArgument.getArgumentExpression())
+                return resolveAnnotationStringValue(
+                    ktFile = ktFile,
+                    expression = valueArgument.getArgumentExpression(),
+                    constResolver = constResolver,
+                )
             }
         }
-        return parseStringLiteral(valueArguments.first().getArgumentExpression())
-    }
-
-    private fun isKuiklyCoreEntryFile(fileName: String): Boolean {
-        return fileName == "KuiklyCoreEntry.kt"
-    }
-
-    private fun parseStringLiteral(expression: KtExpression?): String? {
-        val templateExpression = expression as? KtStringTemplateExpression ?: return null
-        if (templateExpression.hasInterpolation()) {
-            return null
-        }
-        return templateExpression.entries.joinToString(separator = "") { it.text }.takeIf { it.isNotBlank() }
+        return resolveAnnotationStringValue(
+            ktFile = ktFile,
+            expression = valueArguments.first().getArgumentExpression(),
+            constResolver = constResolver,
+        )
     }
 
     private companion object {
         private const val TARGET_METHOD_NAME = "triggerRegisterPages"
+        private const val PAGE_IMPORT_FQCN = "com.tencent.kuikly.core.annotations.Page"
         private val PAGE_ROUTE_PARAM_NAMES = setOf("route", "path", "value", "name")
     }
 }

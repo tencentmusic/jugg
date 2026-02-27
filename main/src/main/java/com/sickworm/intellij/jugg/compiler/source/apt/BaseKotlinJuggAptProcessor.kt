@@ -9,10 +9,13 @@ import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.KtNameReferenceExpression
+import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
@@ -29,6 +32,13 @@ abstract class BaseKotlinJuggAptProcessor : BaseJuggAptProcessor() {
     protected data class RegisterPageCall(
         val route: String,
         val pageFqcn: String,
+    )
+
+    private data class KotlinImportContext(
+        val explicitClassImports: Map<String, String>,
+        val explicitConstImports: Map<String, Set<String>>,
+        val classAsteriskImports: Set<String>,
+        val packageAsteriskImports: Set<String>,
     )
 
     protected fun parseKotlinFile(sourceFile: File): KtFile? {
@@ -134,6 +144,68 @@ abstract class BaseKotlinJuggAptProcessor : BaseJuggAptProcessor() {
         return builder.toString()
     }
 
+    protected fun containsImportText(sourceContent: String, fqImport: String): Boolean {
+        return sourceContent.contains("import $fqImport")
+    }
+
+    protected fun resolveAnnotationStringValue(
+        ktFile: KtFile,
+        expression: KtExpression?,
+        constResolver: StringConstReferenceResolver?,
+    ): String? {
+        parseStringLiteral(expression)?.let { return it }
+        if (constResolver == null) {
+            return null
+        }
+        val referenceCandidates = resolveStringConstReferenceCandidates(ktFile, expression)
+        if (referenceCandidates.isEmpty()) {
+            return null
+        }
+        return constResolver.resolve(referenceCandidates)
+    }
+
+    protected fun resolveStringConstReferenceCandidates(
+        ktFile: KtFile,
+        expression: KtExpression?,
+    ): List<StringConstReference> {
+        val unwrappedExpression = unwrapExpression(expression) ?: return emptyList()
+        val importContext = buildImportContext(ktFile)
+        val packageName = ktFile.packageFqName.asString()
+        val references = linkedSetOf<StringConstReference>()
+
+        when (unwrappedExpression) {
+            is KtDotQualifiedExpression -> {
+                val constName = (unwrappedExpression.selectorExpression as? KtNameReferenceExpression)
+                    ?.getReferencedName()
+                    ?: return emptyList()
+                val ownerText = unwrappedExpression.receiverExpression.text.trim()
+                resolveOwnerCandidates(ownerText, packageName, importContext).forEach { ownerClassName ->
+                    references += StringConstReference(
+                        fqClassName = ownerClassName,
+                        constName = constName,
+                    )
+                }
+            }
+
+            is KtNameReferenceExpression -> {
+                val constName = unwrappedExpression.getReferencedName()
+                importContext.explicitConstImports[constName].orEmpty().forEach { ownerClassName ->
+                    references += StringConstReference(
+                        fqClassName = ownerClassName,
+                        constName = constName,
+                    )
+                }
+                importContext.classAsteriskImports.forEach { ownerClassName ->
+                    references += StringConstReference(
+                        fqClassName = ownerClassName,
+                        constName = constName,
+                    )
+                }
+            }
+        }
+        return references.toList()
+    }
+
     private fun findNamedFunction(ktFile: KtFile, functionName: String): KtNamedFunction? {
         var targetFunction: KtNamedFunction? = null
         ktFile.accept(object : KtTreeVisitorVoid() {
@@ -174,7 +246,7 @@ abstract class BaseKotlinJuggAptProcessor : BaseJuggAptProcessor() {
             ?.takeIf { it.isNotBlank() }
     }
 
-    private fun parseStringLiteral(expression: KtExpression?): String? {
+    protected fun parseStringLiteral(expression: KtExpression?): String? {
         val templateExpression = expression as? KtStringTemplateExpression ?: return null
         if (templateExpression.hasInterpolation()) {
             return null
@@ -182,7 +254,103 @@ abstract class BaseKotlinJuggAptProcessor : BaseJuggAptProcessor() {
         return templateExpression.entries.joinToString(separator = "") { it.text }.takeIf { it.isNotBlank() }
     }
 
+    private fun buildImportContext(ktFile: KtFile): KotlinImportContext {
+        val explicitClassImports = linkedMapOf<String, String>()
+        val explicitConstImports = linkedMapOf<String, MutableSet<String>>()
+        val classAsteriskImports = linkedSetOf<String>()
+        val packageAsteriskImports = linkedSetOf<String>()
+
+        ktFile.importDirectives.forEach { importDirective ->
+            val importPath = importDirective.importPath?.pathStr ?: return@forEach
+            val aliasName = importDirective.aliasName
+            if (importDirective.isAllUnder) {
+                registerAsteriskImport(
+                    importPath = importPath,
+                    classAsteriskImports = classAsteriskImports,
+                    packageAsteriskImports = packageAsteriskImports,
+                )
+                return@forEach
+            }
+
+            val importedSimpleName = importPath.substringAfterLast('.')
+            val importedName = aliasName ?: importedSimpleName
+            val ownerPath = importPath.substringBeforeLast('.', "")
+            val ownerSimpleName = ownerPath.substringAfterLast('.')
+
+            if (ownerPath.isNotBlank() && isLikelyTypeName(ownerSimpleName) && !isLikelyTypeName(importedSimpleName)) {
+                explicitConstImports.getOrPut(importedName) { linkedSetOf() } += ownerPath
+            } else {
+                explicitClassImports[importedName] = importPath
+            }
+        }
+
+        return KotlinImportContext(
+            explicitClassImports = explicitClassImports,
+            explicitConstImports = explicitConstImports,
+            classAsteriskImports = classAsteriskImports,
+            packageAsteriskImports = packageAsteriskImports,
+        )
+    }
+
+    private fun registerAsteriskImport(
+        importPath: String,
+        classAsteriskImports: MutableSet<String>,
+        packageAsteriskImports: MutableSet<String>,
+    ) {
+        val tailName = importPath.substringAfterLast('.')
+        if (isLikelyTypeName(tailName)) {
+            classAsteriskImports += importPath
+        } else {
+            packageAsteriskImports += importPath
+        }
+    }
+
+    private fun resolveOwnerCandidates(
+        ownerText: String,
+        packageName: String,
+        importContext: KotlinImportContext,
+    ): Set<String> {
+        if (!ownerTextRegex.matches(ownerText) || ownerText == "this" || ownerText == "super") {
+            return emptySet()
+        }
+
+        val candidates = linkedSetOf<String>()
+        val firstSegment = ownerText.substringBefore('.')
+        val explicitImport = importContext.explicitClassImports[firstSegment]
+        if (explicitImport != null) {
+            val suffix = ownerText.removePrefix(firstSegment)
+            candidates += explicitImport + suffix
+        }
+
+        if (ownerText.contains('.')) {
+            candidates += ownerText
+        } else {
+            importContext.explicitClassImports[ownerText]?.let { candidates += it }
+        }
+
+        if (packageName.isNotBlank()) {
+            candidates += "$packageName.$ownerText"
+        }
+        importContext.packageAsteriskImports.forEach { importPackage ->
+            candidates += "$importPackage.$ownerText"
+        }
+        return candidates
+    }
+
+    private fun unwrapExpression(expression: KtExpression?): KtExpression? {
+        var current = expression ?: return null
+        while (current is KtParenthesizedExpression) {
+            current = current.expression ?: return null
+        }
+        return current
+    }
+
+    private fun isLikelyTypeName(name: String): Boolean {
+        return name.firstOrNull()?.isUpperCase() == true
+    }
+
     private companion object {
+        private val ownerTextRegex = Regex("^[A-Za-z_][A-Za-z0-9_$.]*$")
         private val disposable: Disposable = Disposer.newDisposable()
         private val psiFactory: KtPsiFactory by lazy {
             val configuration = CompilerConfiguration().also {

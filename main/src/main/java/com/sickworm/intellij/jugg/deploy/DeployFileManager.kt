@@ -34,7 +34,6 @@ import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.util.zip.CRC32
-import java.util.zip.ZipFile
 
 /**
  * Manage runtime deploy file status and provides [JuggDeployData]
@@ -645,90 +644,20 @@ class DeployFileManager(
     private fun getClassFilesByName(classNames: List<String>,
                                                           dependModules: List<ModuleInfo>,
                                                           dependLibraries: List<File>): List<ChangedFile> {
-        if (classNames.isEmpty()) {
-            logger.debug("getClassFilesByName: no class files")
-            return emptyList()
+        return ClassFileLookupHelper.findClassFilesByName(
+            classNames = classNames,
+            dependModules = dependModules,
+            dependLibraries = dependLibraries,
+            tempDir = pathManager.tmpDir,
+            logger = logger,
+        ).map { lookupResult ->
+            ChangedFile(
+                type = CompileFile.Type.Class,
+                file = lookupResult.file,
+                baseDir = lookupResult.baseDir,
+                module = lookupResult.module,
+            )
         }
-
-        val startTime = System.currentTimeMillis()
-        val classRelativePaths = classNames.map {
-            it.classNameToPath
-        }.filter {
-            // ExternalSyntheticLambda is desugar inner class, just redex main class file is enough
-            !it.contains("\$ExternalSyntheticLambda")
-        }.toMutableList()
-        logger.debug("getClassFilesByName: classRelativePaths $classRelativePaths")
-
-        val foundClassesFiles = mutableListOf<ChangedFile>()
-        dependModules.forEach moduleLoop@{ moduleInfo ->
-            moduleInfo.buildPathInfo.allClassPath.forEach {  classPath ->
-                if (!classPath.isDirectory) {
-                    return@forEach
-                }
-                val iterator = classRelativePaths.iterator()
-                while (iterator.hasNext()) {
-                    val relativePath = iterator.next()
-                    val destFile = File(classPath, relativePath)
-                    if (destFile.exists()) {
-                        // logger.debug("found class file: $destFile")
-                        iterator.remove()
-                        val changedFile = ChangedFile(CompileFile.Type.Class, destFile, classPath, moduleInfo)
-                        foundClassesFiles.add(changedFile)
-                    }
-                }
-            }
-        }
-        if (classRelativePaths.isEmpty()) {
-            val costTime = System.currentTimeMillis() - startTime
-            logger.debug("find class files cost: $costTime ms")
-            return foundClassesFiles
-        }
-
-        logger.debug("getClassFilesByName: libraryPaths ${dependLibraries.size}")
-
-        dependLibraries.forEach libraryLoop@{ libraryFile ->
-            if (!libraryFile.isFile || libraryFile.extension != "jar") {
-                return@libraryLoop
-            }
-
-            val iterator = classRelativePaths.iterator()
-            while (iterator.hasNext()) {
-                val relativePath = iterator.next()
-                try {
-                    if (!libraryFile.exists()) {
-                        continue
-                    }
-
-                    ZipFile(libraryFile).use { zipFile ->
-                        val entry = zipFile.getEntry(relativePath)
-                        if (entry != null) {
-                            // logger.debug("found class in library ${libraryFile.absolutePath}/${relativePath}")
-                            val destFile = File(pathManager.tmpDir, relativePath)
-                            destFile.parentFile?.mkdirs()
-                            zipFile.getInputStream(entry).use { inputStream ->
-                                destFile.outputStream().use { outputStream ->
-                                    inputStream.copyTo(outputStream)
-                                }
-                                iterator.remove()
-                                val changedFile = ChangedFile(CompileFile.Type.Class, destFile, pathManager.tmpDir, ModuleInfo.virtualModule)
-                                foundClassesFiles.add(changedFile)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    logger.warn("getClassFilesByName: failed to find class file in " +
-                            "library ${libraryFile.absolutePath}/${relativePath}, error: ${e.message}")
-                }
-            }
-        }
-
-        if (classRelativePaths.isNotEmpty()) {
-            logger.debug("failed to find class files: $classRelativePaths")
-        }
-
-        val costTime = System.currentTimeMillis() - startTime
-        logger.debug("find class files cost: $costTime ms")
-        return foundClassesFiles
     }
 
     fun isEnableDesugared(): Boolean {

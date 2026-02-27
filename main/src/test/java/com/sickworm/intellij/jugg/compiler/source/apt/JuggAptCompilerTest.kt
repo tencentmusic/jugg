@@ -8,6 +8,8 @@ import com.sickworm.intellij.jugg.compiler.ICompileContext
 import com.sickworm.intellij.jugg.compiler.listFilesRecursively
 import com.sickworm.intellij.jugg.mock.SimpleCompileContext
 import com.sickworm.intellij.jugg.mock.TestGlobal
+import com.sickworm.intellij.jugg.org.objectweb.asm.ClassWriter
+import com.sickworm.intellij.jugg.org.objectweb.asm.Opcodes
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import org.junit.Before
@@ -79,6 +81,89 @@ class JuggAptCompilerTest {
 
         val result = compiler.compile(createTask(normalFile))
 
+        assertTrue(result.outputs.isEmpty())
+        assertEquals(before, entryFile.readText())
+    }
+
+    @Test
+    fun kuiklyPage_shouldResolveKotlinConstReferenceInAnnotation() {
+        val module = createModule("moduleA")
+        val context = createContext(module)
+        val compiler = JuggAptCompiler(context, TestGlobal.mockParentDisposable)
+
+        val constFile = createKotlinConstHolderSource(
+            module = module,
+            holderName = "RouteConst",
+            constName = "PAGE_A",
+            constValue = "kotlin_page_a",
+        )
+        val pageFile = createKotlinPageSource(
+            module = module,
+            className = "PageA",
+            route = "ignored",
+            annotation = """@Page(RouteConst.PAGE_A)""",
+            extraImports = listOf("com.test.${module.name}.RouteConst"),
+        )
+        val entryFile = createKotlinEntry(module)
+
+        val result = compiler.compile(createTask(pageFile, constFile))
+
+        assertTrue(result.isAllSuccess)
+        assertTrue(entryFile.readText().contains("""BridgeManager.registerPageRouter("kotlin_page_a")"""))
+    }
+
+    @Test
+    fun kuiklyPage_shouldResolveJavaConstReferenceFromCompiledClassFallback() {
+        val module = createModule("moduleA")
+        val context = createContext(module)
+        val compiler = JuggAptCompiler(context, TestGlobal.mockParentDisposable)
+
+        createStringConstClass(
+            module = module,
+            fqClassName = "com.test.${module.name}.RouteConst",
+            constName = "PAGE_A",
+            constValue = "java_page_a",
+        )
+        val pageFile = createKotlinPageSource(
+            module = module,
+            className = "PageA",
+            route = "ignored",
+            annotation = """@Page(RouteConst.PAGE_A)""",
+            extraImports = listOf("com.test.${module.name}.RouteConst"),
+        )
+        val entryFile = createKotlinEntry(module)
+
+        val result = compiler.compile(createTask(pageFile))
+
+        assertTrue(result.isAllSuccess)
+        assertTrue(entryFile.readText().contains("""BridgeManager.registerPageRouter("java_page_a")"""))
+    }
+
+    @Test
+    fun kuiklyPage_shouldSkipInvalidConstReference() {
+        val module = createModule("moduleA")
+        val context = createContext(module)
+        val compiler = JuggAptCompiler(context, TestGlobal.mockParentDisposable)
+
+        val constFile = createKotlinConstHolderSource(
+            module = module,
+            holderName = "RouteConst",
+            constName = "PAGE_A",
+            constValue = "kotlin_page_a",
+        )
+        val pageFile = createKotlinPageSource(
+            module = module,
+            className = "PageA",
+            route = "ignored",
+            annotation = """@Page(RouteConst.NOT_EXIST)""",
+            extraImports = listOf("com.test.${module.name}.RouteConst"),
+        )
+        val entryFile = createKotlinEntry(module)
+        val before = entryFile.readText()
+
+        val result = compiler.compile(createTask(pageFile, constFile))
+
+        assertTrue(result.isAllSuccess)
         assertTrue(result.outputs.isEmpty())
         assertEquals(before, entryFile.readText())
     }
@@ -170,14 +255,18 @@ class JuggAptCompilerTest {
         className: String,
         route: String,
         annotation: String = """@Page("$route")""",
+        extraImports: List<String> = emptyList(),
     ): CompileFile {
         val sourceBaseDir = module.sourceDirs.first()
+        val importLines = (listOf("com.tencent.kuikly.core.annotations.Page") + extraImports)
+            .distinct()
+            .joinToString(separator = "\n") { "import $it" }
         val pageFile = File(sourceBaseDir, "com/test/${module.name}/$className.kt").apply {
             parentFile.mkdirs()
             writeText(
                 """
                 package com.test.${module.name}
-                import com.tencent.kuikly.core.annotations.Page
+                $importLines
 
                 $annotation
                 class $className
@@ -185,6 +274,73 @@ class JuggAptCompilerTest {
             )
         }
         return CompileFile(CompileFile.Type.Kotlin, pageFile, sourceBaseDir, module)
+    }
+
+    private fun createKotlinConstHolderSource(
+        module: ModuleInfo,
+        holderName: String,
+        constName: String,
+        constValue: String,
+    ): CompileFile {
+        val sourceBaseDir = module.sourceDirs.first()
+        val constFile = File(sourceBaseDir, "com/test/${module.name}/$holderName.kt").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                package com.test.${module.name}
+
+                object $holderName {
+                    const val $constName = "$constValue"
+                }
+                """.trimIndent()
+            )
+        }
+        return CompileFile(CompileFile.Type.Kotlin, constFile, sourceBaseDir, module)
+    }
+
+    private fun createStringConstClass(
+        module: ModuleInfo,
+        fqClassName: String,
+        constName: String,
+        constValue: String,
+    ): File {
+        val internalName = fqClassName.replace('.', '/')
+        val classFile = File(module.buildPathInfo.javaClassPath, "$internalName.class")
+        classFile.parentFile.mkdirs()
+
+        val classWriter = ClassWriter(0)
+        classWriter.visit(
+            Opcodes.V1_8,
+            Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL,
+            internalName,
+            null,
+            "java/lang/Object",
+            null,
+        )
+        classWriter.visitField(
+            Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC or Opcodes.ACC_FINAL,
+            constName,
+            "Ljava/lang/String;",
+            null,
+            constValue,
+        ).visitEnd()
+        classWriter.visitMethod(
+            Opcodes.ACC_PRIVATE,
+            "<init>",
+            "()V",
+            null,
+            null,
+        ).apply {
+            visitCode()
+            visitVarInsn(Opcodes.ALOAD, 0)
+            visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+            visitInsn(Opcodes.RETURN)
+            visitMaxs(1, 1)
+            visitEnd()
+        }
+        classWriter.visitEnd()
+        classFile.writeBytes(classWriter.toByteArray())
+        return classFile
     }
 
     private fun createPlainKotlinSource(module: ModuleInfo, className: String): CompileFile {
