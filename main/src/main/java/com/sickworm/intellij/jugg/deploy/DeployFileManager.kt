@@ -5,7 +5,10 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
+import com.sickworm.intellij.jugg.compiler.CompileResult
+import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
+import com.sickworm.intellij.jugg.compiler.IncrementalCompilerHelper
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
 import com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore
@@ -43,6 +46,10 @@ class DeployFileManager(
     private var backgroundTaskRunner: IBackgroundTaskRunner,
     private val logger: Logger,
 ) {
+    companion object {
+        private const val MAX_DEPLOYED_DEX_COUNT = 500
+    }
+
     private val isConstRefTasksEnabled: Boolean
         get() = JuggSettings.isEnableConstRefTasks
 
@@ -66,6 +73,10 @@ class DeployFileManager(
      * Deployed files. All operation must be thread-safe
      */
     private val deployedFiles = mutableMapOf<String, CompileOutput>()
+    /**
+     * Dex files merged in previous rounds, these files should not be used when counting historical dex size.
+     */
+    private val mergedDexFilePathSet = mutableSetOf<String>()
 
     /**
      * get source file by source file name in dex file
@@ -134,6 +145,7 @@ class DeployFileManager(
     fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>, resetFilesBeforeTimeMill: Long?) {
         logger.debug("init deploy file manager, apks: ${apks.size}, deployedFiles: ${deployedFiles.size}, resetFilesBeforeTimeMill: $resetFilesBeforeTimeMill")
         reset(resetFilesBeforeTimeMill)
+        mergedDexFilePathSet.clear()
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
         resourceApkGenerator.deleteResourceApk()
@@ -297,12 +309,69 @@ class DeployFileManager(
 
     @Synchronized
     fun getDeployData(isWarmUp: Boolean = false, isEnableCompatDeploy: Boolean = false): JuggDeployData {
-        val deployItems = stagingFiles.values.map { it.toDeployItem() }
-        val deployData = deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
+        val stagingOutputs = stagingFiles.values.toList()
+        val deployItems = stagingOutputs.map { it.toDeployItem() }
+        val originDeployData = buildDeployData(deployItems, isWarmUp)
+        val deployData = tryConvertToMergedDexDeployData(originDeployData, stagingOutputs)
         if (isEnableCompatDeploy) {
             return appendCompatDeployFiles(deployData)
         }
         return deployData
+    }
+
+    private fun buildDeployData(deployItems: List<DeployItem>, isWarmUp: Boolean): JuggDeployData {
+        return deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
+    }
+
+    private fun tryConvertToMergedDexDeployData(
+        deployData: JuggDeployData,
+        stagingOutputs: List<CompileOutput>,
+    ): JuggDeployData {
+        val stagingDexOutputs = stagingOutputs.filter { it.type == CompileOutput.Type.Dex }
+        if (stagingDexOutputs.isEmpty()) {
+            return deployData
+        }
+        val historyDexCount = getHistoryDexCountWithoutMerged()
+        val totalDexCount = stagingDexOutputs.size + historyDexCount
+        if (totalDexCount <= MAX_DEPLOYED_DEX_COUNT) {
+            return deployData
+        }
+
+        logger.info("Current dex count($totalDexCount) exceeds threshold($MAX_DEPLOYED_DEX_COUNT), trigger dex merge.")
+        val mergeOutputDir = File(pathManager.tmpDir, "deploy_merged_dex")
+        val mergedOutputs = mergeDex(stagingOutputs, mergeOutputDir)
+        if (mergedOutputs == null) {
+            logger.warn("Dex merge failed, continue with original dex outputs.")
+            return deployData
+        }
+        val mergedDexDeployItems = mergedOutputs
+            .filter { it.type == CompileOutput.Type.Dex }
+            .map { it.toDeployItem() }
+        if (mergedDexDeployItems.isEmpty()) {
+            logger.warn("Dex merge finished but merged dex is empty, continue with original deploy data.")
+            return deployData
+        }
+
+        mergedDexFilePathSet += stagingDexOutputs.map { it.file.stdAbsPath }
+        val updateApkFiles = deployData.updateApkFiles + mergedDexDeployItems
+        logger.info("Dex merge success, staging dex: ${stagingDexOutputs.size}, merged dex: ${mergedDexDeployItems.size}")
+        return deployData.copy(
+            newClasses = emptyList(),
+            hotFixModifiedClasses = emptyList(),
+            hotReloadModifiedClasses = emptyList(),
+            updateApkFiles = updateApkFiles,
+        )
+    }
+
+    private fun mergeDex(outputs: List<CompileOutput>, outputDir: File): List<CompileOutput>? {
+        val compileResult = CompileResult.empty(CompileStatusHolder.DEFAULT).copy(outputs = outputs)
+        return IncrementalCompilerHelper.mergeDex(logger, compileResult, outputDir)?.outputs
+    }
+
+    private fun getHistoryDexCountWithoutMerged(): Int {
+        return deployedFiles.values.count {
+            it.type == CompileOutput.Type.Dex && it.file.stdAbsPath !in mergedDexFilePathSet
+        }
     }
 
     fun appendCompatDeployFiles(deployData: JuggDeployData): JuggDeployData {
@@ -384,6 +453,7 @@ class DeployFileManager(
         logger.debug("resetAfterReinstall start, staging file size: ${stagingFiles.size}, deployed file size: ${deployedFiles.size}")
         deployDataGenerator.clearDeployedData()
         resourceApkGenerator.deleteResourceApk()
+        mergedDexFilePathSet.clear()
         val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
         val deployedFiles = deployedFiles.values.filter {
             it.relativeFile.path !in stagingFileRelativeSet

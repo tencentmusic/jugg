@@ -51,6 +51,7 @@
 - 切片部署（`SliceDeployHelper`）降低单次推送风险。  
 - 部署失败时可回退 Gradle 路径。  
 - 兼容模式设备记录与清理（JVMTI 兼容性问题）。
+- `DeployFileManager#getDeployData` 在“本轮 dex + 历史 dex（排除已 merge 记录）> 500”时触发 dex merge，减少设备加载 dex 数量，缓解 dex 加载 OOM 风险。
 
 ---
 
