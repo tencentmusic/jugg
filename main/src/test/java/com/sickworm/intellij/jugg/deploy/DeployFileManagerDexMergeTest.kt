@@ -143,14 +143,7 @@ class DeployFileManagerDexMergeTest {
         return CompileOutput(CompileOutput.Type.Res, file, baseDir, apkPath = apkPath)
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun setDeployedFiles(deployFileManager: DeployFileManager, outputs: List<CompileOutput>) {
-        val field = DeployFileManager::class.java.getDeclaredField("deployedFiles")
-        field.isAccessible = true
-        val map = field.get(deployFileManager) as MutableMap<String, CompileOutput>
-        map.clear()
-        outputs.forEach { output ->
-            map[output.file.absolutePath] = output
-        }
+        deployFileManager.replaceDeployedFilesForTest(outputs)
     }
 }

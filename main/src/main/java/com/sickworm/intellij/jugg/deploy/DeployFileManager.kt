@@ -5,31 +5,22 @@ import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.project.ChangedFile
 import com.sickworm.intellij.jugg.compiler.CompileFile
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.compiler.CompileResult
-import com.sickworm.intellij.jugg.compiler.CompileStatusHolder
 import com.sickworm.intellij.jugg.compiler.DesugarInfo
-import com.sickworm.intellij.jugg.compiler.IncrementalCompilerHelper
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefAnalyzer
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefCacheDatabase
 import com.sickworm.intellij.jugg.compiler.constref.RepoSharedFingerprintStore
 import com.sickworm.intellij.jugg.compiler.constref.ConstRefScheduler
 import com.sickworm.intellij.jugg.compiler.obfuscation.ClassObfuscator
 import com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo
-import com.sickworm.intellij.jugg.deploy.data.ClassSourceReader
 import com.sickworm.intellij.jugg.project.data.ModuleInfo
 import com.sickworm.intellij.jugg.deploy.data.ConstRefEffectProvider
 import com.sickworm.intellij.jugg.deploy.data.ConstRefReadiness
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
-import com.sickworm.intellij.jugg.deploy.data.EffectedClassNode
 import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
-import com.sickworm.intellij.jugg.deploy.data.sources
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
-import com.sickworm.intellij.jugg.gradle.compile.isChild
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
-import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig
-import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
 import com.sickworm.intellij.jugg.project.JuggInternalException
@@ -46,37 +37,10 @@ class DeployFileManager(
     private var backgroundTaskRunner: IBackgroundTaskRunner,
     private val logger: Logger,
 ) {
-    companion object {
-        private const val MAX_DEPLOYED_DEX_COUNT = 500
-    }
-
     private val isConstRefTasksEnabled: Boolean
         get() = JuggSettings.isEnableConstRefTasks
 
-
-    /**
-     * uncompiled files. All operation must be thread-safe
-     */
-    private var uncompiledFiles = mutableMapOf<String, ChangedFile>()
-
-    /**
-     * compiled files. All operation must be thread-safe
-     */
-    private var compiledFiles = mutableMapOf<String, ChangedFile>()
-
-    /**
-     * Staging files for deployment. All operation must be thread-safe
-     */
-    private var stagingFiles = mutableMapOf<String, CompileOutput>()
-
-    /**
-     * Deployed files. All operation must be thread-safe
-     */
-    private val deployedFiles = mutableMapOf<String, CompileOutput>()
-    /**
-     * Dex files merged in previous rounds, these files should not be used when counting historical dex size.
-     */
-    private val mergedDexFilePathSet = mutableSetOf<String>()
+    private val stateTracker = DeployFileStateTracker()
 
     /**
      * get source file by source file name in dex file
@@ -138,6 +102,18 @@ class DeployFileManager(
         pathManager.databaseDir.resolve("resource_apks"),
         logger,
     )
+    private val deployDataPlanner = DeployDataPlanner(
+        pathManager = pathManager,
+        deployDataGenerator = deployDataGenerator,
+        resourceApkGenerator = resourceApkGenerator,
+        logger = logger,
+    )
+    private val compileEffectAnalyzer = CompileEffectAnalyzer(
+        pathManager = pathManager,
+        deployDataGenerator = deployDataGenerator,
+        sourceFileManager = sourceFileManager,
+        logger = logger,
+    )
 
     private var moduleInfos: Map<String, ModuleInfo> = emptyMap()
 
@@ -145,27 +121,17 @@ class DeployFileManager(
     fun init(apks: List<ApkInfo>, deployedFiles: List<CompileOutput>, resetFilesBeforeTimeMill: Long?) {
         logger.debug("init deploy file manager, apks: ${apks.size}, deployedFiles: ${deployedFiles.size}, resetFilesBeforeTimeMill: $resetFilesBeforeTimeMill")
         reset(resetFilesBeforeTimeMill)
-        mergedDexFilePathSet.clear()
+        stateTracker.clearMergedDexFilePaths()
         val deployItems = deployedFiles.map { it.toDeployItem() }
         deployDataGenerator.init(apks, deployItems)
         resourceApkGenerator.deleteResourceApk()
-
-        this.deployedFiles.clear()
-        deployedFiles.forEach {
-            this.deployedFiles[it.file.stdAbsPath] = it
-        }
+        stateTracker.replaceDeployedFiles(deployedFiles)
     }
 
     @Synchronized
     fun addChangedFile(files: List<ChangedFile>) {
         logger.debug("add changed files, size: ${files.size}, paths: $files")
-        val newFiles = files.filter {
-            uncompiledFiles.containsKey(it.file.stdPath).not()
-        }
-        files.forEach {
-            uncompiledFiles[it.file.stdPath] = it // update ChangedFile.compiledTimes
-            compiledFiles.remove(it.file.stdPath)
-        }
+        val newFiles = stateTracker.addChangedFiles(files)
 
         backgroundTaskRunner.runBackgroundSafe("DeployFileManager#updateSourceFiles") {
             sourceFileManager.updateFiles(newFiles, emptyList())
@@ -182,38 +148,12 @@ class DeployFileManager(
     @Synchronized
     fun rollbackChangedFile(files: List<ChangedFile>) {
         logger.debug("rollback changed files after cancel, size: ${files.size}, paths: $files")
-        files.forEach {
-            uncompiledFiles[it.file.stdPath] = it
-            compiledFiles.remove(it.file.stdPath)
-        }
+        stateTracker.rollbackChangedFiles(files)
     }
 
     @Synchronized
     fun removeChangedFile(files: List<File>) {
-        files.forEach { file ->
-            uncompiledFiles.iterator().let { iterator ->
-                iterator.forEach { (stdPath, changedFile) ->
-                    if (stdPath == file.stdPath) {
-                        logger.debug("remove changed file: $file")
-                        iterator.remove()
-                    } else if (changedFile.file.isChild(file)) {
-                        logger.debug("remove changed file for dir deleted: ${changedFile.file}")
-                        iterator.remove()
-                    }
-                }
-            }
-            compiledFiles.iterator().let { iterator ->
-                iterator.forEach { (stdPath, changedFile) ->
-                    if (stdPath == file.stdPath) {
-                        logger.debug("remove compiled file: $file")
-                        iterator.remove()
-                    } else if (changedFile.file.isChild(file)) {
-                        logger.debug("remove compiled file for dir deleted: ${changedFile.file}")
-                        iterator.remove()
-                    }
-                }
-            }
-        }
+        stateTracker.removeChangedFiles(files)
 
         backgroundTaskRunner.runBackgroundSafe("DeployFileManager#removeSourceFiles") {
             sourceFileManager.updateFiles(emptyList(), files.filter { !it.exists() })
@@ -242,43 +182,22 @@ class DeployFileManager(
     fun updateUncompiledFiles(successFiles: List<CompileFile>, failedFiles: List<CompileFile>) {
         logger.debug("updateUncompiledFiles, successFiles: ${successFiles.map { it.file.name } }" +
                 ", failedFiles: ${failedFiles.map { it.file.name } }")
-        successFiles.forEach {
-            val fileKey = it.file.stdAbsPath
-            val changedFile = uncompiledFiles[fileKey]
-            if (changedFile == null) {
-                // e.g. R.java
-                logger.debug("try to update file compile status, but it's not in uncompiled list. File: $it")
-                return@forEach
-            }
-            changedFile.compiledTimes++
-            uncompiledFiles.remove(fileKey)
-            compiledFiles[fileKey] = changedFile
-        }
-        failedFiles.forEach {
-            val fileKey = it.file.stdAbsPath
-            val changedFile = uncompiledFiles[fileKey]
-            if (changedFile == null) {
-                // e.g. R.java
-                logger.debug("try to update file compile status, but it's not in uncompiled list. File: $it")
-                return@forEach
-            }
-            changedFile.compiledTimes++
-        }
+        stateTracker.updateUncompiledFiles(successFiles, failedFiles)
     }
 
     @Synchronized
     fun getUncompiledFiles(): List<ChangedFile> {
-        return uncompiledFiles.values.toList()
+        return stateTracker.getUncompiledFiles()
     }
 
     @Synchronized
     fun getCompiledFiles(): List<ChangedFile> {
-        return compiledFiles.values.toList()
+        return stateTracker.getCompiledFiles()
     }
 
     @Synchronized
     fun getUndeployedFiles(): List<ChangedFile> {
-        return getUncompiledFiles() + getCompiledFiles()
+        return stateTracker.getUndeployedFiles()
     }
 
     /**
@@ -286,145 +205,54 @@ class DeployFileManager(
      */
     @Synchronized
     fun isNoFileChanges(): Boolean {
-        val undeployedFiles = getUndeployedFiles()
-        return undeployedFiles.all { it.hasCompiledOnce }
+        return stateTracker.isNoFileChanges()
     }
 
     @Synchronized
     fun getStagingFiles(): List<CompileOutput> {
-        return stagingFiles.values.toList()
+        return stateTracker.getStagingFiles()
     }
 
     @Synchronized
     fun addStagingFiles(compileOutputFiles: List<CompileOutput>) {
-        compileOutputFiles.forEach {
-            stagingFiles[it.file.stdAbsPath] = it
-        }
+        stateTracker.addStagingFiles(compileOutputFiles)
     }
 
     @Synchronized
     fun clearStagingFiles() {
-        stagingFiles.clear()
+        stateTracker.clearStagingFiles()
     }
 
     @Synchronized
     fun getDeployData(isWarmUp: Boolean = false, isEnableCompatDeploy: Boolean = false): JuggDeployData {
-        val stagingOutputs = stagingFiles.values.toList()
-        val deployItems = stagingOutputs.map { it.toDeployItem() }
-        val originDeployData = buildDeployData(deployItems, isWarmUp)
-        val deployData = tryConvertToMergedDexDeployData(originDeployData, stagingOutputs)
-        if (isEnableCompatDeploy) {
-            return appendCompatDeployFiles(deployData)
-        }
-        return deployData
-    }
-
-    private fun buildDeployData(deployItems: List<DeployItem>, isWarmUp: Boolean): JuggDeployData {
-        return deployDataGenerator.buildDeployData(deployItems, isWarmUp, isNeedCheckRecompile = false)
-    }
-
-    private fun tryConvertToMergedDexDeployData(
-        deployData: JuggDeployData,
-        stagingOutputs: List<CompileOutput>,
-    ): JuggDeployData {
-        val stagingDexOutputs = stagingOutputs.filter { it.type == CompileOutput.Type.Dex }
-        if (stagingDexOutputs.isEmpty()) {
-            return deployData
-        }
-        val historyDexCount = getHistoryDexCountWithoutMerged()
-        val totalDexCount = stagingDexOutputs.size + historyDexCount
-        if (totalDexCount <= MAX_DEPLOYED_DEX_COUNT) {
-            return deployData
-        }
-
-        logger.info("Current dex count($totalDexCount) exceeds threshold($MAX_DEPLOYED_DEX_COUNT), trigger dex merge.")
-        val mergeOutputDir = File(pathManager.tmpDir, "deploy_merged_dex")
-        val mergedOutputs = mergeDex(stagingOutputs, mergeOutputDir)
-        if (mergedOutputs == null) {
-            logger.warn("Dex merge failed, continue with original dex outputs.")
-            return deployData
-        }
-        val mergedDexDeployItems = mergedOutputs
-            .filter { it.type == CompileOutput.Type.Dex }
-            .map { it.toDeployItem() }
-        if (mergedDexDeployItems.isEmpty()) {
-            logger.warn("Dex merge finished but merged dex is empty, continue with original deploy data.")
-            return deployData
-        }
-
-        mergedDexFilePathSet += stagingDexOutputs.map { it.file.stdAbsPath }
-        val updateApkFiles = deployData.updateApkFiles + mergedDexDeployItems
-        logger.info("Dex merge success, staging dex: ${stagingDexOutputs.size}, merged dex: ${mergedDexDeployItems.size}")
-        return deployData.copy(
-            newClasses = emptyList(),
-            hotFixModifiedClasses = emptyList(),
-            hotReloadModifiedClasses = emptyList(),
-            updateApkFiles = updateApkFiles,
+        val result = deployDataPlanner.buildDeployData(
+            stagingOutputs = stateTracker.getStagingFiles(),
+            historyDexCountWithoutMerged = stateTracker.getHistoryDexCountWithoutMerged(),
+            deployedFiles = stateTracker.getDeployedFilesMap(),
+            isWarmUp = isWarmUp,
+            isEnableCompatDeploy = isEnableCompatDeploy,
         )
-    }
-
-    private fun mergeDex(outputs: List<CompileOutput>, outputDir: File): List<CompileOutput>? {
-        val compileResult = CompileResult.empty(CompileStatusHolder.DEFAULT).copy(outputs = outputs)
-        return IncrementalCompilerHelper.mergeDex(logger, compileResult, outputDir)?.outputs
-    }
-
-    private fun getHistoryDexCountWithoutMerged(): Int {
-        return deployedFiles.values.count {
-            it.type == CompileOutput.Type.Dex && it.file.stdAbsPath !in mergedDexFilePathSet
+        if (result.mergedDexSourcePaths.isNotEmpty()) {
+            stateTracker.addMergedDexFilePaths(result.mergedDexSourcePaths)
         }
+        return result.deployData
     }
 
     fun appendCompatDeployFiles(deployData: JuggDeployData): JuggDeployData {
-        var compatDeployData = deployData.copy(isCompatDeploy = true, isPushOverlayOnly = true)
-
-        // filter origin overlay files to avoid deployed by Apply Changes
-        compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays.filter {
-            it.type != CompileOutput.Type.Res && it.type != CompileOutput.Type.Asset
-        })
-
-        if (!deployData.isEmpty) {
-            // no need push flag file if empty (dry deploy)
-            val enableFlag = DeployItem(
-                name = BuildConfig.ENABLE_COMPAT_DEPLOY_FLAG_FILE,
-                type = CompileOutput.Type.Asset,
-                checksum = CRC32().let {
-                    it.update(ByteArray(0))
-                    it.value
-                },
-                content = ByteArray(0),
-                apkPath = DeployItem.FLAG_BASE_APK,
-            )
-            compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays + enableFlag)
-        }
-
-        if (deployData.overlays.isNotEmpty()) {
-            val resourceApks = resourceApkGenerator.getResourceApkDeployItem(deployData.overlays, deployedFiles)
-            compatDeployData = compatDeployData.copy(overlays = compatDeployData.overlays + resourceApks)
-        }
-
-        return compatDeployData
+        return deployDataPlanner.appendCompatDeployFiles(deployData, stateTracker.getDeployedFilesMap())
     }
 
     @Synchronized
     fun getDeployedFiles(): List<CompileOutput> {
-        return deployedFiles.values.toList()
+        return stateTracker.getDeployedFiles()
     }
 
     @Synchronized
     fun commit(juggDeployData: JuggDeployData) {
-        logger.debug("commit juggDeployData, staging file size: ${stagingFiles.size}, deployed file size: ${deployedFiles.size}")
+        logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, deployed file size: ${stateTracker.getDeployedFiles().size}")
         deployDataGenerator.commitDeployedData(juggDeployData)
-        deployedFiles.putAll(stagingFiles)
-        stagingFiles.clear()
-        compiledFiles.clear()
-
-        // remove gradle files for library incremental compile is finished
-        val removeBuildFileFiles = uncompiledFiles.filter {
-            it.value.type == CompileFile.Type.BuildFile
-        }
-        removeBuildFileFiles.keys.forEach {
-            logger.debug("remove gradle file: $it")
-            uncompiledFiles.remove(it)
+        stateTracker.commitAndClear { path ->
+            logger.debug("remove gradle file: $path")
         }
     }
 
@@ -432,52 +260,36 @@ class DeployFileManager(
     @Synchronized
     fun reset(resetFilesBeforeTimeMill: Long? = null) {
         logger.debug("reset deploy file manager, resetFilesBeforeTimeMill=$resetFilesBeforeTimeMill")
-        val remainUncompiledFiles = uncompiledFiles.filter {
-            resetFilesBeforeTimeMill != null &&
-                    it.value.file.exists() &&
-                    it.value.file.lastModified() > resetFilesBeforeTimeMill
-        }
+        stateTracker.resetKeepingRecentUncompiled(resetFilesBeforeTimeMill)
+    }
 
-        uncompiledFiles.clear()
-        compiledFiles.clear()
-        stagingFiles.clear()
-
-        if (remainUncompiledFiles.isNotEmpty()) {
-            logger.debug("reset deploy file manager, remain uncompiled files: $remainUncompiledFiles")
-            uncompiledFiles.putAll(remainUncompiledFiles)
-        }
+    @TestOnly
+    @Synchronized
+    fun replaceDeployedFilesForTest(outputs: List<CompileOutput>) {
+        stateTracker.replaceDeployedFiles(outputs)
     }
 
     @Synchronized
     fun resetAfterReinstall() {
-        logger.debug("resetAfterReinstall start, staging file size: ${stagingFiles.size}, deployed file size: ${deployedFiles.size}")
+        logger.debug("resetAfterReinstall start, staging file size: ${stateTracker.getStagingFiles().size}, deployed file size: ${stateTracker.getDeployedFiles().size}")
         deployDataGenerator.clearDeployedData()
         resourceApkGenerator.deleteResourceApk()
-        mergedDexFilePathSet.clear()
-        val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
-        val deployedFiles = deployedFiles.values.filter {
-            it.relativeFile.path !in stagingFileRelativeSet
-        }
-        deployedFiles.forEach {
-            stagingFiles[it.file.stdAbsPath] = it
-        }
-        logger.debug("resetAfterReinstall done, staging file size: ${stagingFiles.size}")
+        stateTracker.resetAfterReinstall()
+        logger.debug("resetAfterReinstall done, staging file size: ${stateTracker.getStagingFiles().size}")
     }
 
     @Synchronized
     fun updateModuleInfos(moduleInfos: Map<String, ModuleInfo>, mappingFile: File?) {
         this.moduleInfos = moduleInfos
-        uncompiledFiles = uncompiledFiles
-            .filter {
-                // filter out module not in moduleInfos
-                moduleInfos[it.value.module.name] != null
-                        // global build file belongs to virtual module, and virtual module is not in moduleInfos
-                        || it.value.module.name == ModuleInfo.virtualModule.name
-            }.mapValues {
-                val newModuleInfo = moduleInfos[it.value.module.name] ?: ModuleInfo.virtualModule
-                it.value.copy(module = newModuleInfo)
-            }.toMutableMap()
-
+        stateTracker.remapUncompiledFiles { changedFile ->
+            val isValidModule = moduleInfos[changedFile.module.name] != null ||
+                changedFile.module.name == ModuleInfo.virtualModule.name
+            if (!isValidModule) {
+                return@remapUncompiledFiles null
+            }
+            val newModuleInfo = moduleInfos[changedFile.module.name] ?: ModuleInfo.virtualModule
+            changedFile.copy(module = newModuleInfo)
+        }
         val sourceDirs = moduleInfos.values.flatMap {
             it.sourceDirs
         }
@@ -491,243 +303,25 @@ class DeployFileManager(
     @Synchronized
     fun getRecompileFiles(isMinified: Boolean, isCompilingEffectedSourceFiles: Boolean, classObfuscator: ClassObfuscator?): RecompileFiles {
         logger.debug("getRecompileFiles")
-//        // Minify-removed-class check on effected-source rounds causes cascading recompile growth.
-//        // Keep this check only for the first round to bound compile scope.
-//        val shouldCheckMinifyRemovedClass = isMinified && !isCompilingEffectedSourceFiles
-//        logger.debug(
-//            "getRecompileFiles: isMinified=$isMinified, " +
-//                    "isCompilingEffectedSourceFiles=$isCompilingEffectedSourceFiles, " +
-//                    "shouldCheckMinifyRemovedClass=$shouldCheckMinifyRemovedClass"
-//        )
-        val deployItems = stagingFiles.values
-            .filter { it.type == CompileOutput.Type.Dex }
-            .map { it.toDeployItem() }
-        val changedSourcePaths = compiledFiles.values
-            .filter { it.type == CompileFile.Type.Java || it.type == CompileFile.Type.Kotlin }
-            .map { it.file.stdAbsPath }
-            .distinct()
-        val juggDeployData = deployDataGenerator.buildDeployData(deployItems,
-            isNeedCheckRecompile = true,
-            isNeedCheckRecompileMinifyRemovedClass = isMinified,
+        return compileEffectAnalyzer.getRecompileFiles(
+            stagingFiles = stateTracker.getStagingFiles(),
+            compiledFiles = stateTracker.getCompiledFiles(),
+            moduleInfos = moduleInfos,
+            isMinified = isMinified,
             isCompilingEffectedSourceFiles = isCompilingEffectedSourceFiles,
-            constRefChangedSourcePaths = changedSourcePaths,
+            classObfuscator = classObfuscator,
         )
-
-        val obfuscatedClasses = juggDeployData.effectedClassNodes.map {
-            val originClassName = classObfuscator?.getOriginClassSigName(it.className) ?: it.className
-            it.copy(className = originClassName)
-        }
-        if (obfuscatedClasses.isNotEmpty()) {
-            logger.debug("getRecompileFiles: effectedClassesNodeForClass: ${obfuscatedClasses.map { it.className }}, " +
-                    "obfuscatedClasses: ${obfuscatedClasses.map { it.className }}")
-        }
-
-        if (juggDeployData.constRefEffectedSourcePaths.isNotEmpty()) {
-            logger.debug("getRecompileFiles: constRef effected files=${juggDeployData.constRefEffectedSourcePaths}")
-        }
-        val constRefEffectedSourceFiles = juggDeployData.constRefEffectedSourcePaths.mapNotNull {
-            File(it).takeIf(File::exists)
-        }.distinctBy { it.stdAbsPath }
-
-        val startTime = System.currentTimeMillis()
-        val effectedSourceFiles = getEffectedSourceFiles(obfuscatedClasses.sources)
-        val recompileFiles = RecompileFiles(
-            (effectedSourceFiles + constRefEffectedSourceFiles).distinctBy { it.stdAbsPath },
-            emptyList(), // INLINE_IMPL_CHANGE type is handled by DexMinifyCompiler, not here
-            juggDeployData,
-        )
-        val costTime = System.currentTimeMillis() - startTime
-        logger.debug("find recompile files cost: $costTime ms")
-        return recompileFiles
     }
 
     @Synchronized
     fun getDesugarInfo(compileFiles: List<CompileFile>, moduleInfo: ModuleInfo, toDir: File, apkFile: File): DesugarInfo {
-        TimeLogger.start("getDesugarInfo")
-        val filteredClassFiles = compileFiles.filter { it.type == CompileFile.Type.Class }
-        val desugarInfo = deployDataGenerator.getDesugarInfo(filteredClassFiles, apkFile)
-        val defaultInterfaces = desugarInfo.allInterfacesWithDefaultMethod
-        logger.debug("getAllDesugarClasspath all defaultInterfaces: $defaultInterfaces")
-        val files = getDesugarInterfaceWithDefaultMethodFiles(defaultInterfaces, moduleInfo)
-        logger.debug("getAllDesugarClasspath all files: ${files.map { it.file.path }}")
-        files.forEach {
-            val relativePath = it.file.relativeTo(it.baseDir).path
-            val destFile = File(toDir, relativePath)
-            it.file.copyTo(destFile, overwrite = true)
-        }
-        TimeLogger.end("getDesugarInfo", logger)
-
-        return desugarInfo
-    }
-
-    /**
-     * Get source files that effected by [compiledFiles].
-     * e.g. A.java invokes B.func(), B.func() is changed and compiled, then A.java is effected, and it will be returned.
-     */
-    private fun getEffectedSourceFiles(effectClassNodes: List<EffectedClassNode>): List<File> {
-        val effectedSourceFiles = effectClassNodes
-            .fillMissingSourceFile()
-            .map { it.sourceFileName }.distinct()
-
-        if (effectedSourceFiles.isEmpty()) {
-            logger.debug("getEffectedSourceFiles: no effected source files")
-            return emptyList()
-        }
-        logger.debug("getEffectedSourceFiles: $effectedSourceFiles")
-
-        val sourceFiles = sourceFileManager.getFiles(effectedSourceFiles)
-        if (sourceFiles.size < effectedSourceFiles.size) {
-            val missingFiles = effectedSourceFiles.filter { fileName ->
-                !sourceFiles.any { it.name == fileName }
-            }
-            logger.warn("getEffectedSourceFiles: missing source files: $missingFiles")
-        }
-
-        if (sourceFiles.isEmpty()) {
-            logger.debug("getEffectedSourceFiles: no uncompiled source files")
-            return emptyList()
-        }
-
-        logger.debug("getEffectedSourceFiles: effectedSourceFiles ${effectedSourceFiles}, source files $sourceFiles")
-        return sourceFiles
-    }
-
-    /**
-     * If .source is missing by minify, find it by .class which is not minified yet
-     */
-    private fun List<EffectedClassNode>.fillMissingSourceFile(): List<EffectedClassNode> {
-        val existsSourceNode = mutableListOf<EffectedClassNode>()
-        val missingSourceNode = mutableListOf<EffectedClassNode>()
-        forEach {
-            if (it.sourceFileName.endsWith(".kt") || it.sourceFileName.endsWith(".java")) {
-                existsSourceNode.add(it)
-            } else {
-                // desugar generate class don't need source files
-                val isDesugarClass = it.className.contains("$\$ExternalSyntheticLambda")
-                if (isDesugarClass) {
-                    return@forEach
-                }
-                missingSourceNode.add(it)
-            }
-        }
-        if (missingSourceNode.isEmpty()) {
-            return this
-        }
-
-        logger.debug("found missing source files ${this.size}: $missingSourceNode")
-        val missingClassNames = missingSourceNode.map { it.className }
-        val allDependModules = moduleInfos.values.toList()
-        val allDependLibraries = mutableSetOf<File>()
-        moduleInfos.values.forEach { moduleInfoIt ->
-            moduleInfoIt.libraryDependencies.forEach {
-                allDependLibraries.add(it.file)
-            }
-        }
-        val searchedClassFiles = getClassFilesByName(missingClassNames, allDependModules, allDependLibraries.toList())
-        searchedClassFiles.forEach { searchedClassFile ->
-            val (className, source) = ClassSourceReader(searchedClassFile.file).read()
-            val node = missingSourceNode.find { it.className == className?.classSigName }
-            if (node == null || className == null || source == null) {
-                logger.debug("fillMissingSourceFile found invalid EffectedClassNode: $node, source: $source, className: $className")
-                logger.warn("fillMissingSourceFile parse class name failed, source: $source, className: $className, which should not happened")
-                return@forEach
-            }
-            existsSourceNode.add(node.copy(sourceFileName = source))
-            missingSourceNode.remove(node)
-        }
-
-        if (missingSourceNode.isNotEmpty()) {
-            logger.debug("Found source files: $existsSourceNode")
-            logger.warn("Failed to find source files for: ${missingSourceNode.map { it.className }}")
-        }
-
-        return existsSourceNode + missingSourceNode
-    }
-
-
-    private fun getDesugarInterfaceWithDefaultMethodFiles(interfaceNames: List<String>, moduleInfo: ModuleInfo): List<ChangedFile> {
-        return getClassFilesByName(interfaceNames, moduleInfo)
-    }
-
-    private fun getMissingMinifiedClassFiles(classNodes: List<EffectedClassNode>): List<ChangedFile> {
-        val classNames = classNodes.map { it.className }.distinct()
-        val allDependModules = moduleInfos.values.toList()
-        val allDependLibraries = mutableSetOf<File>()
-        moduleInfos.values.forEach { moduleInfoIt ->
-            moduleInfoIt.libraryDependencies.forEach {
-                allDependLibraries.add(it.file)
-            }
-        }
-        return getClassFilesByName(classNames, allDependModules, allDependLibraries.toList())
-    }
-
-    private fun getClassFilesByName(interfaceNames: List<String>, moduleInfo: ModuleInfo): List<ChangedFile> {
-        val dependModules = moduleInfo.moduleDependencies.mapNotNull {
-            moduleInfos[it.moduleName]
-        }
-        val dependLibraries = moduleInfo.libraryDependencies.map {
-            it.file
-        }
-        // search in module dependency first
-        val foundInterfaces = getClassFilesByName(interfaceNames, dependModules, dependLibraries)
-        if (foundInterfaces.size >= interfaceNames.size) {
-            logger.debug("Found all class files in module(${moduleInfo.name}) dependencies")
-            return foundInterfaces
-        }
-
-        val remainInterfaces = interfaceNames.filter {
-            val expectFileName = File(it.classNameToPath).name
-            foundInterfaces.any { foundInterface ->
-                foundInterface.file.name == expectFileName
-            }.not()
-        }
-        logger.debug("Failed to find class files in module(${moduleInfo.name}) dependencies: $remainInterfaces")
-
-        val allDependModules = moduleInfos.values.toList()
-        val allDependLibraries = mutableSetOf<File>()
-        moduleInfos.values.forEach { moduleInfoIt ->
-            moduleInfoIt.libraryDependencies.forEach {
-                allDependLibraries.add(it.file)
-            }
-        }
-
-        // search in all module last
-        val foundInterfacesInAllModules = getClassFilesByName(
-            remainInterfaces, allDependModules, allDependLibraries.toList())
-
-        if (foundInterfacesInAllModules.size >= remainInterfaces.size) {
-            logger.debug("Found all class files files in all dependencies")
-            return foundInterfaces + foundInterfacesInAllModules
-        }
-
-        val lastRemainInterface = remainInterfaces.filter {
-            val expectFileName = File(it.classNameToPath).name
-            foundInterfacesInAllModules.any { foundInterface ->
-                foundInterface.file.name == expectFileName
-            }.not()
-        }
-        logger.warn("Failed to find class files in all dependencies: $lastRemainInterface, compilation result may be wrong.")
-
-        return foundInterfaces + foundInterfacesInAllModules
-    }
-
-    private fun getClassFilesByName(classNames: List<String>,
-                                                          dependModules: List<ModuleInfo>,
-                                                          dependLibraries: List<File>): List<ChangedFile> {
-        return ClassFileLookupHelper.findClassFilesByName(
-            classNames = classNames,
-            dependModules = dependModules,
-            dependLibraries = dependLibraries,
-            tempDir = pathManager.tmpDir,
-            logger = logger,
-        ).map { lookupResult ->
-            ChangedFile(
-                type = CompileFile.Type.Class,
-                file = lookupResult.file,
-                baseDir = lookupResult.baseDir,
-                module = lookupResult.module,
-            )
-        }
+        return compileEffectAnalyzer.getDesugarInfo(
+            compileFiles = compileFiles,
+            moduleInfo = moduleInfo,
+            moduleInfos = moduleInfos,
+            toDir = toDir,
+            apkFile = apkFile,
+        )
     }
 
     fun isEnableDesugared(): Boolean {
@@ -736,126 +330,13 @@ class DeployFileManager(
 
     @Synchronized
     fun getMinifyInfo(): MinifyInfo? {
-        logger.debug("getMinifyInfo")
-        val deployItems = stagingFiles.values
-            .filter { it.type == CompileOutput.Type.Dex }
-            .map { it.toDeployItem() }
-
-        val juggDeployData = deployDataGenerator.buildDeployData(
-            deployItems,
-            isNeedCheckRecompile = true,
-            // Inline detection needs minified remove check context (parsed dex refs).
-            isNeedCheckRecompileMinifyRemovedClass = true,
-            isCompilingEffectedSourceFiles = false,
-        )
-
-        // Filter out inline-affected classes
-        val inlineEffectedNodes = juggDeployData.effectedClassNodes
-            .filter { it.effectedType == EffectedClassNode.EffectedType.INLINE_IMPL_CHANGE }
-
-        if (inlineEffectedNodes.isEmpty()) {
-            logger.debug("getMinifyInfo: no inline effected classes")
-            return null
-        }
-
-        logger.debug("getMinifyInfo: found ${inlineEffectedNodes.size} inline effected classes: ${inlineEffectedNodes.map { it.className }}")
-
-        // Build list of inline-affected classes
-        val inlineEffectedClasses = inlineEffectedNodes.map { node ->
-            com.sickworm.intellij.jugg.compiler.obfuscation.InlineEffectedClass(
-                className = node.className,
-                effectedByClasses = node.effectedByClasses
-            )
-        }
-
-        // Phase 2: Collect .class files for generating _jugg_fix classes
-        val classFiles = mutableMapOf<String, File>()
-
-        // Convert EffectedClassNode className to original class name (remove L and ;)
-        val originalClassNames = inlineEffectedNodes.map { node ->
-            // className format: Lcom/example/MyClass; -> com.example.MyClass
-            val className = if (node.className.startsWith("L") && node.className.endsWith(";")) {
-                node.className.substring(1, node.className.length - 1).replace('/', '.')
-            } else {
-                node.className.replace('/', '.')
-            }
-            node to className
-        }
-
-        logger.debug("getMinifyInfo: searching for class files for: ${originalClassNames.map { it.second }}")
-
-        val missingClassFiles = getMissingMinifiedClassFiles(inlineEffectedNodes)
-        logger.debug("getMinifyInfo: getMissingMinifiedClassFiles returned ${missingClassFiles.size} files")
-
-        missingClassFiles.forEach { changedFile ->
-            // Infer class name from file path
-            originalClassNames.forEach { (node, originalClassName) ->
-                val expectedPath = originalClassName.replace('.', '/') + ".class"
-                if (changedFile.file.path.replace('\\', '/').endsWith(expectedPath)) {
-                    classFiles[originalClassName] = changedFile.file
-                    logger.debug("getMinifyInfo: found class file for $originalClassName: ${changedFile.file}")
-                }
-            }
-        }
-
-        logger.debug("getMinifyInfo: collected ${classFiles.size} class files")
-
-        return com.sickworm.intellij.jugg.compiler.obfuscation.MinifyInfo(
-            inlineEffectedClasses = inlineEffectedClasses,
-            classFiles = classFiles
+        return compileEffectAnalyzer.getMinifyInfo(
+            stagingFiles = stateTracker.getStagingFiles(),
+            moduleInfos = moduleInfos,
         )
     }
 
     fun dispose() {
         constRefScheduler.dispose()
-    }
-
-    // I have forgotten why I need both stdAbsPath and stdPath, but it seems to be ok to use stdAbsPath only.
-    private val File.stdAbsPath get() = absolutePath.replace(File.separatorChar, '/')
-}
-
-/**
- * RecompileFiles groups source files/classes/deploy payload that must be recompiled and redexed during compatibility retries.
- */
-class RecompileFiles(
-    val effectedSourceFiles: List<File>,
-    val redexClasses: List<ChangedFile>,
-    val juggDeployData: JuggDeployData,
-)
-
-private val crc32 = CRC32()
-
-private val File.stdPath get() = path.replace(File.separatorChar, '/')
-
-fun CompileOutput.toDeployItem(deployName: String = deployItemName): DeployItem {
-    val bytes = file.readBytes()
-    val crc = crc32.run {
-        reset()
-        update(bytes)
-        value
-    }
-    when (type) {
-        CompileOutput.Type.Dex -> {
-            return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_CLASS)
-        }
-        CompileOutput.Type.Res, CompileOutput.Type.Asset, CompileOutput.Type.NativeLib -> {
-            if (apkPath == null) {
-                throw JuggInternalException.outputDidNotSpecificApkPath(this.toString())
-            }
-            return DeployItem(deployName, type, crc, bytes, apkPath)
-        }
-        else -> {
-            return DeployItem(deployName, type, crc, bytes, DeployItem.FLAG_BASE_APK) // will not apply to device
-        }
-    }
-}
-
-val CompileOutput.deployItemName: String get() {
-    return if (type == CompileOutput.Type.Dex) {
-        relativeFile.stdPath
-            .replace('/', '.')
-            .replace(file.name, file.nameWithoutExtension)
-    } else {
-        relativeFile.stdPath
     }
 }

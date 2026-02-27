@@ -38,7 +38,7 @@
 | compiler | ManifestCompiler, ObfuscationCompiler | compiler/manifest | Manifest 处理/混淆 | 稳定 | 2025-01-20 |
 | compiler | CustomCompilerManager, CompileUiHandler | compiler/custom | 自定义编译器插件 | 稳定 | 2025-01-20 |
 | compiler | ConstRefScheduler, ConstRefAnalyzer | compiler/constref | 编译期常量定义/引用分析、全局共享缓存（repo/worktree 复用）与过期清理 | 稳定 | 2026-02-22 |
-| deploy | JuggDeployer, DeployFileManager | deploy/core | 部署调度、文件准备；注入 const-ref 全局 db 路径并处理旧库迁移 | 稳定 | 2026-02-22 |
+| deploy | JuggDeployer, DeployFileManager, DeployFileStateTracker, DeployDataPlanner, CompileEffectAnalyzer | deploy/core | 部署调度、文件准备；`DeployFileManager` 作为 facade，状态跟踪/部署数据计算/编译影响分析已解耦 | 稳定 | 2026-02-27 |
 | deploy | DeployDataGenerator, ClassNodeComparator | deploy/data | 类结构比较、影响分析 | 稳定 | 2026-02-01 |
 | deploy | DeployDataDatabase, IncrementalDeployDataDatabase | deploy/data | 双层数据库、引用索引 | 稳定 | 2026-02-01 |
 | deploy | InlineMethodDetector | deploy/data | 内联方法影响检测 | 稳定 | 2026-02-01 |

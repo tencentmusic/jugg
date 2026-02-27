@@ -20,7 +20,10 @@
 | `JuggDeployTask` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/JuggDeployTask.kt` | 单次部署任务封装 |
 | `AsDeployerCompat` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/run/AsDeployerCompat.kt` | 对接 deploy_compat 版本适配入口 |
 | `DeployStateManager` | `idea/src/main/java/com/sickworm/intellij/jugg/deploy/DeployStateManager.kt` | 设备部署状态判断 |
-| `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 管理待部署文件与部署数据 |
+| `DeployFileManager` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileManager.kt` | 部署文件管理 facade，编排状态跟踪与部署数据生成 |
+| `DeployFileStateTracker` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployFileStateTracker.kt` | 维护 uncompiled/compiled/staging/deployed 等文件状态 |
+| `DeployDataPlanner` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/DeployDataPlanner.kt` | 计算 `JuggDeployData`，处理 dex merge 与 compat deploy 组装 |
+| `CompileEffectAnalyzer` | `main/src/main/java/com/sickworm/intellij/jugg/deploy/CompileEffectAnalyzer.kt` | 计算 recompile/desugar/minify 的编译影响分析结果 |
 
 ---
 
