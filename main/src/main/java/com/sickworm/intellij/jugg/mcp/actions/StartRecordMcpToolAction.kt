@@ -9,6 +9,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import java.io.File
 
 /**
@@ -185,7 +186,7 @@ class StartRecordMcpToolAction : McpToolAction {
     private fun tryStartViaHostAdb(serial: String, remoteFile: String): HostFallbackStartResult {
         return try {
             val process = ProcessBuilder(
-                findAdbExecutablePath(),
+                AdbCmdHelper.findAdbExecutablePath(),
                 "-s",
                 serial,
                 "shell",
@@ -240,32 +241,6 @@ class StartRecordMcpToolAction : McpToolAction {
         Thread.sleep(300)
         val probe = adb.execAdbShellScript("if [ -d /proc/$pid ]; then echo __ALIVE__; else echo __DEAD__; fi")
         return probe.contains("__ALIVE__")
-    }
-
-    private fun findAdbExecutablePath(): String {
-        val candidates = mutableListOf<File>()
-        val androidHomeCandidates = listOf(
-            getAndroidHomePathViaIdeaApi(),
-            System.getenv("ANDROID_HOME"),
-            System.getenv("ANDROID_SDK_ROOT"),
-        ).filterNotNull()
-
-        androidHomeCandidates.forEach { home ->
-            candidates += File(home, "platform-tools/adb")
-            candidates += File(home, "platform-tools/adb.exe")
-        }
-
-        return candidates.firstOrNull { it.exists() && it.canExecute() }?.absolutePath
-            ?: candidates.firstOrNull { it.exists() }?.absolutePath
-            ?: "adb"
-    }
-
-    private fun getAndroidHomePathViaIdeaApi(): String? {
-        return try {
-            PlatformApi.getAndroidHomePath(Logger.getInstance("McpActionRuntime"))
-        } catch (_: Exception) {
-            null
-        }
     }
 
     companion object {

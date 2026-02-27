@@ -3,6 +3,8 @@ package com.sickworm.intellij.jugg.deploy
 import com.sickworm.intellij.jugg.apk.ApkInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.logger.getInstance
+import com.sickworm.intellij.jugg.platform.PlatformApi
+import java.io.File
 
 /**
  * Wraps frequently used adb shell commands for app lifecycle and runtime diagnostics.
@@ -76,5 +78,27 @@ class AdbCmdHelper(
 
     private fun execAdbShellCmd(cmd: String): String {
         return adb.execAdbShellCmd(cmd)
+    }
+
+    companion object {
+
+        fun findAdbExecutablePath(logger: Logger = Logger.getInstance("McpActionRuntime")): String {
+            val candidates = mutableListOf<File>()
+            val androidHomeCandidates = listOfNotNull(
+                PlatformApi.getAndroidHomePath(logger),
+                System.getenv("ANDROID_HOME"),
+                System.getenv("ANDROID_SDK_ROOT"),
+            )
+
+            androidHomeCandidates.forEach { home ->
+                candidates += File(home, "platform-tools/adb")
+                candidates += File(home, "platform-tools/adb.exe")
+            }
+
+            return candidates.firstOrNull { it.exists() && it.canExecute() }?.absolutePath
+                ?: candidates.firstOrNull { it.exists() }?.absolutePath
+                ?: "adb"
+        }
+
     }
 }

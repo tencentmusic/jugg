@@ -106,7 +106,7 @@ class IdeaDeviceAdb(
     }
 
     private fun execAdbShellCmdByCli(cmd: String): String {
-        val adbBin = findAdbExecutablePath()
+        val adbBin = AdbCmdHelper.findAdbExecutablePath()
         val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "shell", cmd))
         val normalOutput = String(process.inputStream.readAllBytes())
         val errorOutput = String(process.errorStream.readAllBytes())
@@ -156,7 +156,7 @@ class IdeaDeviceAdb(
         } catch (e: Exception) {
             logger.warn("adb pull by ddmlib failed, fallback to adb cli. from: $from, to: $to", e)
             try {
-                val adbBin = findAdbExecutablePath()
+                val adbBin = AdbCmdHelper.findAdbExecutablePath()
                 val process = Runtime.getRuntime().exec(arrayOf(adbBin, "-s", serial, "pull", from, to.path))
                 process.waitFor()
                 process.exitValue() == 0
@@ -165,21 +165,6 @@ class IdeaDeviceAdb(
                 false
             }
         }
-    }
-
-    private fun findAdbExecutablePath(): String {
-        val androidHomeCandidates = listOf(
-            System.getenv("ANDROID_HOME"),
-            System.getenv("ANDROID_SDK_ROOT"),
-        ).filterNotNull()
-
-        androidHomeCandidates.forEach { home ->
-            val path = File(home, "platform-tools/adb")
-            if (path.exists()) {
-                return path.absolutePath
-            }
-        }
-        return "adb"
     }
 
     override fun getDefaultLaunchActivity(apkFile: File): String? {

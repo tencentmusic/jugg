@@ -1,6 +1,7 @@
 package com.sickworm.intellij.jugg.mcp.actions
 
 import com.intellij.openapi.diagnostic.Logger
+import com.sickworm.intellij.jugg.deploy.AdbCmdHelper
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpJsonSchemaObject
@@ -81,7 +82,7 @@ class EmulatorListMcpToolAction : McpToolAction {
             .filter { it.isNotEmpty() }
             .toList()
 
-        val running = queryOnlineEmulatorSerials(findAdbExecutablePath())
+        val running = queryOnlineEmulatorSerials(AdbCmdHelper.findAdbExecutablePath())
         val items = avdNames.mapIndexed { index, name ->
             val serial = running.getOrNull(index)
             val row = mutableMapOf<String, Any>(
@@ -195,26 +196,4 @@ class EmulatorListMcpToolAction : McpToolAction {
             ?: "emulator"
     }
 
-    private fun findAdbExecutablePath(): String {
-        val candidates = mutableListOf<File>()
-        val androidHomeCandidates = listOf(
-            System.getenv("ANDROID_HOME"),
-            System.getenv("ANDROID_SDK_ROOT"),
-        ).filterNotNull()
-
-        androidHomeCandidates.forEach { home ->
-            candidates += File(home, "platform-tools/adb")
-            candidates += File(home, "platform-tools/adb.exe")
-        }
-
-        val compileSdkHome = getAndroidHomePathViaIdeaApi()
-        if (!compileSdkHome.isNullOrBlank()) {
-            candidates += File(compileSdkHome, "platform-tools/adb")
-            candidates += File(compileSdkHome, "platform-tools/adb.exe")
-        }
-
-        return candidates.firstOrNull { it.exists() && it.canExecute() }?.absolutePath
-            ?: candidates.firstOrNull { it.exists() }?.absolutePath
-            ?: "adb"
-    }
 }
