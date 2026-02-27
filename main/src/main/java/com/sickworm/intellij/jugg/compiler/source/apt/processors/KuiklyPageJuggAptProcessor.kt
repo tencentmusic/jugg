@@ -131,7 +131,7 @@ class KuiklyPageJuggAptProcessor : BaseKotlinJuggAptProcessor() {
         }
 
         entryFile.writeText(updatedContent)
-        logger.info("Rewrite Kuikly entry success: ${entryFile.name}, append count=${snippetsToAppend.size}")
+        logger.info("Process Kuikly @Page success, added ${snippetsToAppend.size} entry to ${entryFile.name}.")
         return entryFile
     }
 
