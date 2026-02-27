@@ -1,140 +1,33 @@
-# Example: Fix Compile Error
+# Recipe: Fix Compile Error
 
-## Scenario
+## When to use
 
-Agent modifies a Kotlin file to add a new feature, but introduces an unresolved reference. The agent diagnoses and fixes the error, then completes the full closed-loop.
+- `compile_and_deploy` or `compile_only` fails with source compile error.
+- Typical signature: `cannot find symbol` / `unresolved reference`.
 
-## Step-by-step Trace
+## Minimal flow
 
-### 1. Confirm project
+1. Run `compile_and_deploy(projectDir)`.
+2. Parse `message/errorCode/data.detail`.
+3. Match pattern in `references/error_patterns.md` (`gradle_unresolved_symbol`).
+4. Apply local low-risk fix (e.g., missing import/symbol correction).
+5. Re-run `compile_and_deploy(projectDir)`.
+6. If success and runtime verification is needed: `restart_app` -> `screenshot`.
 
-**Call:** `list_projects` (no arguments)
+## Stop/Fallback
 
-**Response:**
-```json
-{
-  "status": "OK",
-  "message": "list_projects executed successfully.",
-  "data": {
-    "projects": [
-      {"projectDir": "/Users/dev/MyApp", "initialized": true}
-    ]
-  },
-  "artifacts": [],
-  "errorCode": null
-}
-```
+- If unknown pattern or confidence `< 0.8`: stop and ask user.
+- If same failure repeats 3 times: follow fallback in `references/tool_cards_compile.md`.
 
-Agent picks `projectDir = "/Users/dev/MyApp"`.
+## Evidence
 
-### 2. Confirm device
+- Required: final compile/deploy success status.
+- Optional: screenshot artifact if runtime verification is part of the task.
 
-**Call:** `device_list` with `projectDir: "/Users/dev/MyApp"`
+## Summary template
 
-**Response:**
-```json
-{
-  "status": "OK",
-  "message": "device_list executed successfully.",
-  "data": {
-    "devices": [
-      {"serial": "emulator-5554", "name": "Pixel_6_API_34", "isOnline": true, "api": 34, "isSelected": true}
-    ]
-  },
-  "artifacts": [],
-  "errorCode": null
-}
-```
-
-### 3. Agent applies code change
-
-Agent edits `MainActivity.kt` to call a new utility function `formatUserName()`, but forgets to add the import.
-
-### 4. Compile and deploy (first attempt — fails at compile stage)
-
-**Call:** `compile_and_deploy` with `projectDir: "/Users/dev/MyApp"`
-
-**Response:**
-```json
-{
-  "status": "ERROR",
-  "message": "compile_and_deploy failed. Reason: Compilation error\ne: /Users/dev/MyApp/app/src/main/java/com/example/MainActivity.kt:42:15 Unresolved reference: formatUserName",
-  "data": {
-    "detail": "e: /Users/dev/MyApp/app/src/main/java/com/example/MainActivity.kt:42:15 Unresolved reference: formatUserName"
-  },
-  "artifacts": [],
-  "errorCode": "MCP_INTERNAL_ERROR"
-}
-```
-
-### 5. Agent diagnoses the error
-
-Agent matches the error against pattern `gradle_unresolved_symbol`:
-- **signature match**: message contains `"unresolved reference"`
-- **confidence**: 0.90
-- **auto_apply**: true (low-risk, local fix scope)
-
-Agent reads the source file, identifies the missing import, and adds:
-```kotlin
-import com.example.utils.formatUserName
-```
-
-### 6. Compile and deploy (second attempt — succeeds)
-
-**Call:** `compile_and_deploy` with `projectDir: "/Users/dev/MyApp"`
-
-**Response:**
-```json
-{
-  "status": "OK",
-  "message": "compile_and_deploy executed successfully.",
-  "data": {"runResult": {"success": true}},
-  "artifacts": [],
-  "errorCode": null
-}
-```
-
-### 7. App restart
-
-**Call:** `restart_app` with `projectDir: "/Users/dev/MyApp"`
-
-**Response:**
-```json
-{
-  "status": "OK",
-  "message": "restart_app executed successfully.",
-  "data": {},
-  "artifacts": [],
-  "errorCode": null
-}
-```
-
-### 8. Screenshot (verification)
-
-**Call:** `screenshot` with `projectDir: "/Users/dev/MyApp"`
-
-**Response:**
-```json
-{
-  "status": "OK",
-  "message": "screenshot executed successfully. Using selected device: emulator-5554.",
-  "data": {
-    "device": {"serial": "emulator-5554", "name": "Pixel_6_API_34", "isOnline": true},
-    "file": "/Users/dev/MyApp/build/jugg/mcp_fetch/screenshot/screenshot_emulator-5554_1707500000000.png"
-  },
-  "artifacts": [{"type": "image", "path": "/Users/dev/MyApp/build/jugg/mcp_fetch/screenshot/screenshot_emulator-5554_1707500000000.png"}],
-  "errorCode": null
-}
-```
-
-### 9. Agent summary
-
-```
-Verdict: PASS
-Project: /Users/dev/MyApp
-Build path: compile_and_deploy
-Error pattern matched: gradle_unresolved_symbol (confidence 0.90, auto_applied: true, retry: 1)
-Fix applied: added missing import for formatUserName
-Artifacts:
-  - screenshot: /Users/dev/MyApp/build/jugg/mcp_fetch/screenshot/screenshot_emulator-5554_1707500000000.png
-```
+- Verdict: `PASS|FAIL`
+- Pattern: `pattern_id`, `confidence`, `auto_applied`
+- Retries: count
+- Fix: concise description
+- Artifacts: absolute paths

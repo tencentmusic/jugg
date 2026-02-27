@@ -1,71 +1,85 @@
-# Closed-loop Policy (Jugg MCP)
+# Closed-loop Policy (Purpose-Driven)
 
-## Goal
+Purpose: define when to run full closed-loop and when to stop early.
 
-Agent directly calls Jugg MCP tools to complete the Android compile/deploy/verify closed-loop and provide objective evidence. No runner scripts needed.
+## Read Gate (Avoid Blind Loading)
 
-## Required MCP Steps
+Entry gate is defined in `SKILL.md` (`Read Gate (Single Source of Truth)`).
+This file is load-on-demand only after `LoadDecision` selects `references/closed_loop.md`.
 
-1. **Build + Deploy** — `compile_and_deploy` (default path: compiles then deploys) or `clean_reinstall_apk` (strong fallback: uninstalls app, clears Jugg code_cache patches, full reinstall). Use `compile_only` when only compilation check is needed.
-2. **Runtime actions** — `restart_app` then `tap` for UI interaction.
-3. **Verification artifacts** — `screenshot` and/or `layout_dump` (optional `start_record` + `stop_record`).
+## Execution Objective
+
+Complete tasks using deterministic MCP loop with objective evidence:
+
+`build/deploy -> runtime actions (optional) -> evidence -> verdict`
+
+No unbounded retries. No success claim without artifacts.
+
+## Minimal Closed-loop Path
+
+1. Build path:
+   - default: `compile_and_deploy`
+   - compile-only case: `compile_only`
+2. Runtime actions (if needed):
+   - `restart_app` then `tap`
+3. Evidence:
+   - at least one of `screenshot` / `layout_dump` / recording
 
 ## Pass Criteria
 
-- Build/deploy path returns `status="OK"`.
-- Runtime actions (`restart_app`, `tap`) return `status="OK"`.
-- At least one verification artifact exists on disk.
+All required steps for this task are successful, and evidence artifacts exist on disk.
 
-## MCP-only Policy
+## Stop Criteria
 
-- Strongly prefer MCP toolchain end-to-end: `restart_app`, `tap`, `layout_dump`, `screenshot`, `start_record`, `stop_record`.
-- Avoid direct external adb commands in normal closed-loop flow.
-- If interaction is flaky, add short pre-tap delay and repeat tap (e.g., 2 taps with 1-2s interval).
+Stop and ask user when any condition is met:
 
-## Compile Failure Triage Policy
+- Unknown failure category.
+- High-risk change required but confidence is low.
+- Retry budget exceeded.
+- Device/project context cannot be confirmed.
 
-When compile/deploy fails, use this sequence:
+## Retry Budget
 
-1. Parse `structuredContent.message` and `structuredContent.data` from MCP response.
-2. Check `structuredContent.errorCode` for quick classification.
-3. Try to classify the failure category:
-   - `MCP_PROJECT_NOT_INITIALIZED`
-   - `MCP_NO_DEVICE`
-   - source compile errors (unresolved reference/syntax/import)
-   - AndroidManifest/resource merge errors
-   - deploy stage errors
-4. If classification succeeds, provide concrete next action.
-5. If classification fails and no approved auto-fallback exists, stop and ask user for confirmation.
+- Same failure category max retries: `3`.
+- After 3 failed `compile_and_deploy`, only then allow `force_gradle_compile`.
+- No infinite loop between compile tools.
 
-## Auto Downgrade Policy
+## Async Compile Policy
 
-Agent decision flow for automatic downgrade:
+For `compile_and_deploy` / `force_gradle_compile`:
 
-1. `compile_and_deploy` returns `isFinal=false` -> immediately delegate polling to an `awaiter` sub-agent, and poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state first
-2. `compile_and_deploy` terminal failed -> retry `compile_and_deploy` (up to 3 consecutive attempts)
-3. If all 3 attempts fail -> try `force_gradle_compile` (heavy fallback)
-4. If `force_gradle_compile` returns `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent and poll `get_compile_status(jobId)` using `pollIntervalSuggestedMs` to terminal state
-5. `force_gradle_compile` final status = success -> retry `compile_and_deploy`
-6. Still fails -> try `clean_reinstall_apk`
-7. `clean_reinstall_apk` fails -> stop and report to user with full diagnosis
+- If `isFinal=false`, delegate polling to `awaiter` immediately.
+- Poll via `get_compile_status(jobId)` and honor `pollIntervalSuggestedMs`.
+- Use terminal status as final source of truth.
+- If status is `unknown`, treat as invalid job/context and stop polling.
 
-Avoid unbounded retry loops. `force_gradle_compile` is allowed only after 3 consecutive `compile_and_deploy` failures.
+## Fallback Sequence (Deterministic)
 
-## Failure Handling
+1. `compile_and_deploy`
+2. retry `compile_and_deploy` (up to 3)
+3. `force_gradle_compile`
+4. retry `compile_and_deploy`
+5. `clean_reinstall_apk`
+6. still failing -> stop and report diagnosis
 
-- `MCP_PROJECT_NOT_INITIALIZED`: ensure IDE project is opened and Jugg initialized.
-- `MCP_NO_DEVICE`: stop and ask user to connect/start device; if runtime is not required, switch to `compile_only`.
-- `MCP_INTERNAL_ERROR` during incremental path: retry `compile_and_deploy` up to 3 times, then try `force_gradle_compile` (with delegated `get_compile_status` polling via `awaiter`), then `clean_reinstall_apk`.
-- `get_compile_status(...)=failed`: inspect `${projectDir}/build/jugg/log/compile_latest.log` for root cause.
-- `MCP_INVALID_PARAMS`: verify tool arguments against schema and retry.
+Special handling:
 
-## Agent Response Template
+- `MCP_NO_DEVICE`: ask user to connect/start device, or switch to `compile_only`.
+- `MCP_PROJECT_NOT_INITIALIZED`: ask user to open/init IDE project.
 
-Always include:
+## Evidence Policy
+
+- Prefer lightweight evidence first: `activity_stack`, `layout_dump`, `screenshot`.
+- Use recording only for time-based behavior or explicit user request.
+- Final accepted artifacts should be staged at `${projectDir}/build/mcp_fetch/final` with stable names.
+
+## Response Checklist
+
+Each result summary should include:
 
 - `projectDir` used
-- build path used (`compile_and_deploy` / `compile_only` / `force_gradle_compile` / `clean_reinstall_apk`)
-- step-by-step status summary
+- build path used
+- key steps and statuses
 - artifact absolute paths
-- pass/fail verdict with evidence
-- next-step suggestion on failure
+- final pass/fail verdict
+- next action on failure
