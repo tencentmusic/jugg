@@ -106,6 +106,7 @@ class DeployFileManager(
         pathManager = pathManager,
         deployDataGenerator = deployDataGenerator,
         resourceApkGenerator = resourceApkGenerator,
+        stateTracker = stateTracker,
         logger = logger,
     )
     private val compileEffectAnalyzer = CompileEffectAnalyzer(
@@ -225,21 +226,11 @@ class DeployFileManager(
 
     @Synchronized
     fun getDeployData(isWarmUp: Boolean = false, isEnableCompatDeploy: Boolean = false): JuggDeployData {
-        val result = deployDataPlanner.buildDeployData(
-            stagingOutputs = stateTracker.getStagingFiles(),
-            historyDexCountWithoutMerged = stateTracker.getHistoryDexCountWithoutMerged(),
-            deployedFiles = stateTracker.getDeployedFilesMap(),
-            isWarmUp = isWarmUp,
-            isEnableCompatDeploy = isEnableCompatDeploy,
-        )
-        if (result.mergedDexSourcePaths.isNotEmpty()) {
-            stateTracker.addMergedDexFilePaths(result.mergedDexSourcePaths)
-        }
-        return result.deployData
+        return deployDataPlanner.buildDeployData(isWarmUp, isEnableCompatDeploy)
     }
 
     fun appendCompatDeployFiles(deployData: JuggDeployData): JuggDeployData {
-        return deployDataPlanner.appendCompatDeployFiles(deployData, stateTracker.getDeployedFilesMap())
+        return deployDataPlanner.appendCompatDeployFiles(deployData, stateTracker.getNotStagingDeployedFiles())
     }
 
     @Synchronized
@@ -249,7 +240,8 @@ class DeployFileManager(
 
     @Synchronized
     fun commit(juggDeployData: JuggDeployData) {
-        logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, deployed file size: ${stateTracker.getDeployedFiles().size}")
+        logger.debug("commit juggDeployData, staging file size: ${stateTracker.getStagingFiles().size}, " +
+                "deployed file size: ${stateTracker.getDeployedFiles()}")
         deployDataGenerator.commitDeployedData(juggDeployData)
         stateTracker.commitAndClear { path ->
             logger.debug("remove gradle file: $path")
@@ -271,7 +263,8 @@ class DeployFileManager(
 
     @Synchronized
     fun resetAfterReinstall() {
-        logger.debug("resetAfterReinstall start, staging file size: ${stateTracker.getStagingFiles().size}, deployed file size: ${stateTracker.getDeployedFiles().size}")
+        logger.debug("resetAfterReinstall start, staging file size: ${stateTracker.getStagingFiles().size}, " +
+                "deployed file size: ${stateTracker.getDeployedFiles().size}")
         deployDataGenerator.clearDeployedData()
         resourceApkGenerator.deleteResourceApk()
         stateTracker.resetAfterReinstall()

@@ -22,7 +22,7 @@ class ResourceApkGenerator(
 ) {
     private val logger = logger.getInstance("ResourceApkGenerator")
 
-    fun getResourceApkDeployItem(changedOverlays: List<DeployItem>, deployedFiles: Map<String, CompileOutput>): List<DeployItem> {
+    fun getResourceApkDeployItem(changedOverlays: List<DeployItem>, notStagingDeployedFiles: List<CompileOutput>): List<DeployItem> {
         resourceApkDir.mkdirs()
         val changedOverlaysMap = changedOverlays.groupBy { it.apkPath }
         return changedOverlaysMap.flatMap { (apkPath, deployItems) ->
@@ -30,7 +30,7 @@ class ResourceApkGenerator(
                 throw JuggInternalException.flagApkPathNotAllowed(deployItems.joinToString { it.name })
             }
             val resourceApkName = resourceApkDir.resolve(File(apkPath).name).resolve(BuildConfig.RESOURCE_APK_NAME)
-            getResourceApkDeployItem(apkPath, resourceApkName, deployItems, deployedFiles)
+            getResourceApkDeployItem(apkPath, resourceApkName, deployItems, notStagingDeployedFiles)
         }
     }
 
@@ -38,7 +38,7 @@ class ResourceApkGenerator(
         originApkPath: String,
         resourceApkFile: File,
         changedOverlays: List<DeployItem>,
-        deployedFiles: Map<String, CompileOutput>,
+        notStagingDeployedFiles: List<CompileOutput>,
     ): List<DeployItem> {
         val isApkExists = resourceApkFile.exists()
         logger.debug("getResourceApkDeployItem, resourceApkFile: ${resourceApkFile}, isApkExists: $isApkExists")
@@ -46,23 +46,13 @@ class ResourceApkGenerator(
 
         val resourceModifier = ResourceApkModifier(originApkPath, resourceApkFile, logger)
         if (!isApkExists) {
-            val nameSet = mutableSetOf<String>()
             val deployedItems = mutableListOf<DeployItem>()
-            changedOverlays.forEach {
-                deployedItems.add(it)
-                nameSet.add(it.name)
-            }
-            deployedFiles.forEach { (_, output) ->
+            notStagingDeployedFiles.forEach { output ->
                 if (output.type != CompileOutput.Type.Asset && output.type != CompileOutput.Type.Res) {
-                    return@forEach
-                }
-                val name = output.deployItemName
-                if (nameSet.contains(name)) {
                     return@forEach
                 }
                 val deployItem = output.toDeployItem()
                 deployedItems.add(deployItem)
-                nameSet.add(name)
             }
 
             val fullResAndAssets = deployDataDatabase.addFullRes(deployedItems, isNeedRes = true, isNeedAsset = true)

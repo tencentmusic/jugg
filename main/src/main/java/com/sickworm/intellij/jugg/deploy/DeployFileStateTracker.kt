@@ -22,8 +22,10 @@ class DeployFileStateTracker {
     }
 
     @Synchronized
-    fun addMergedDexFilePaths(filePaths: Collection<String>) {
-        mergedDexFilePathSet += filePaths
+    fun markMergedDexFilePaths(dexFiles: List<CompileOutput>) {
+        dexFiles.forEach {
+            mergedDexFilePathSet.add(it.relativeFile.path)
+        }
     }
 
     @Synchronized
@@ -133,14 +135,16 @@ class DeployFileStateTracker {
     }
 
     @Synchronized
-    fun getDeployedFilesMap(): Map<String, CompileOutput> {
-        return deployedFiles.toMap()
-    }
-
-    @Synchronized
-    fun getHistoryDexCountWithoutMerged(): Int {
-        return deployedFiles.values.count {
-            it.type == CompileOutput.Type.Dex && it.file.stdAbsPath !in mergedDexFilePathSet
+    fun getNotStagingDeployedFiles(): List<CompileOutput> {
+        val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
+        return deployedFiles.values.filter {
+            if (it.relativeFile.path in stagingFileRelativeSet) {
+                return@filter false // staging file
+            }
+            if (it.relativeFile.path in mergedDexFilePathSet) {
+                return@filter false // merged dex file
+            }
+            return@filter true
         }
     }
 
@@ -181,11 +185,8 @@ class DeployFileStateTracker {
 
     @Synchronized
     fun resetAfterReinstall() {
-        mergedDexFilePathSet.clear()
-        val stagingFileRelativeSet = stagingFiles.map { it.value.relativeFile.path }.toSet()
-        val remainDeployedFiles = deployedFiles.values.filter {
-            it.relativeFile.path !in stagingFileRelativeSet
-        }
+        val remainDeployedFiles = getNotStagingDeployedFiles()
+        // put remainDeployedFiles into stagingFiles for next deployment
         remainDeployedFiles.forEach {
             stagingFiles[it.file.stdAbsPath] = it
         }

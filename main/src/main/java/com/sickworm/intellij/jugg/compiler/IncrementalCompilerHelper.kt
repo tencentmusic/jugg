@@ -235,7 +235,7 @@ class IncrementalCompilerHelper(
                 val mergedIncrementalCompileResult = compileResult.copy(outputs = mergedOutput)
                 return mergedIncrementalCompileResult
             } catch (e: Exception) {
-                logger.warn("Merge dex failed", e)
+                logger.debug("Merge dex failed", e)
                 logger.warn("Merge dex failed, reason: ${e.message}")
                 return null
             }
