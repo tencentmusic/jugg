@@ -25,6 +25,7 @@ import com.sickworm.intellij.jugg.logger.JuggLogger
 import com.sickworm.intellij.jugg.logger.TimeLogger
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.mcp.*
+import com.sickworm.intellij.jugg.mcp.actions.McpFetchCleaner
 import com.sickworm.intellij.jugg.project.*
 import com.sickworm.intellij.jugg.project.data.ModuleBuildPathInfo
 import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetchManager
@@ -94,6 +95,9 @@ class JuggManager @TestOnly constructor(
             IAsDeployerCompat.updateMinApi(JuggSettings.finalIsEnableCompatibleDeploymentMode)
             ProjectInfoReader(project, logger.getInstance("ProjectInfoReader")).printInfo()
             deployHistoryManager.checkProjectDirChanged()
+            taskRunnerManager.runBackgroundSafe("Cleanup mcp fetch cache", delayMs = 120_000) {
+                McpFetchCleaner.cleanupExpiredFiles(pathManager.mcpFetchDir, logger.getInstance("McpFetchCleaner"))
+            }
             logger.info("Start jugg finished.")
 
             // init project info async

@@ -12,6 +12,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.platform.PlatformApi
+import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
 
 /**
@@ -213,7 +214,7 @@ class ActivityStackMcpToolAction : McpToolAction {
 
     private fun ensureToolDir(runtime: IMcpRuntime, toolName: String): File? {
         val projectDir = runtime.project.basePath ?: return null
-        val dir = File(projectDir, "build/jugg/mcp_fetch/$toolName")
+        val dir = File(JuggPathManager(File(projectDir)).mcpFetchDir, toolName)
         if (!dir.exists()) {
             dir.mkdirs()
         }

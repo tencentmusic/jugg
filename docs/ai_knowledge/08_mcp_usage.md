@@ -63,6 +63,10 @@
 - `crashLogs` 返回最近一段崩溃关键日志（通常 15~30 行）。
 - `allErrorLogPath` 为完整错误日志路径，客户端可按需读取全文。
 
+补充（`mcp_fetch` 清理机制）：
+- MCP 拉取类工具产物默认落在 `JuggPathManager.mcpFetchDir/<toolName>/`（当前展开为 `build/jugg/mcp_fetch/<toolName>/`）。
+- IDE 启动初始化后会在后台清理 `build/jugg/mcp_fetch` 下最近修改时间超过 30 天的文件，并回收空目录。
+
 ---
 
 ## 4. 异步编译调用约定

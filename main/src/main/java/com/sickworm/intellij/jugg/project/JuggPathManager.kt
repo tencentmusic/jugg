@@ -18,6 +18,7 @@ class JuggPathManager(
     val stagingDir = File(compileRootDir, "staging")
     val databaseDir = File(juggRootDir, "database")
     val logDir = File(juggRootDir, "log")
+    val mcpFetchDir = File(juggRootDir, "mcp_fetch")
 
     val tmpDir = File(juggRootDir, "tmp")
     val remoteDiffDir = File(tmpDir, "diff")

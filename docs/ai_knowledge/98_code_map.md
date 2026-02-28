@@ -26,7 +26,7 @@
 | Gradle 信息读取 | `GradleProjectInfoReader`, `GradleDependencyDiffer` | `gradle/script/` | 通过 Gradle 反射读取模块信息 |
 | Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile/` | 本地/远端 Gradle 构建执行 |
 | MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 |
-| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction` | `mcp/actions/` | 工具注册与异步编译状态管理 |
+| MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner` | `mcp/actions/` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理 |
 | 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 |
 
 | 模块 | 关键类/接口 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
