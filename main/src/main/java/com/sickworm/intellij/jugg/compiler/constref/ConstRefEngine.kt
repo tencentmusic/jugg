@@ -11,7 +11,10 @@ import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.CRC32
 import kotlin.concurrent.withLock
 
-class ConstRefScheduler(
+/**
+ * Coordinates const-ref analysis lifecycle and exposes readiness/impact APIs to deploy flow.
+ */
+class ConstRefEngine(
     private val analyzer: ConstRefAnalyzer,
     private val database: ConstRefCacheDatabase,
     private val logger: Logger,
@@ -21,11 +24,11 @@ class ConstRefScheduler(
     private val maxAnalyzedHistory = 4096
     private val analysisMutex = ReentrantLock()
     private val stateLock = Any()
+    private val changeTracker = ConstRefChangeTracker()
+    private val impactResolver = ConstRefImpactResolver(database)
     private val pendingAnalyzeFiles = linkedSetOf<String>()
     private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
-    private val changedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
-    private val removedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
     private val cachedDefinitionsByFile = mutableMapOf<String, List<ConstDefinition>>()
     private val definitionIndex = ConstDefinitionIndex()
     private var definitionIndexInitialized = false
@@ -44,7 +47,7 @@ class ConstRefScheduler(
 
     init {
         if (ioThrottleSleepMs > 0L) {
-            logger.info("ConstRefScheduler io throttle enabled, " +
+            logger.info("ConstRefEngine io throttle enabled, " +
                     "sleepMs=$ioThrottleSleepMs, everyNFiles=$ioThrottleEveryNFiles")
         }
         scheduleCacheCleanup()
@@ -69,10 +72,9 @@ class ConstRefScheduler(
                 currentEditingFile = null
             }
             analyzedAt.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
-            changedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
-            removedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             notifyStateChangedLocked()
         }
+        changeTracker.onFileDeleted(stdPath)
         analysisMutex.withLock {
             if (definitionIndexInitialized) {
                 removeDefinitionsFromIndexLocked(stdPath)
@@ -134,7 +136,7 @@ class ConstRefScheduler(
                         pendingSourceDirs = pendingSourceDirs,
                     )
                     logger.warn(
-                        "ConstRefScheduler.awaitAnalysis timeout(${timeoutMs}ms), " +
+                        "ConstRefEngine.awaitAnalysis timeout(${timeoutMs}ms), " +
                             "targetPaths=$targetPaths, unreadyPaths=$unreadyPaths, pendingSourceDirs=$pendingSourceDirs"
                     )
                     break
@@ -152,7 +154,7 @@ class ConstRefScheduler(
                         unreadyPaths = unreadyPaths,
                         pendingSourceDirs = pendingSourceDirs,
                     )
-                    logger.warn("ConstRefScheduler.awaitAnalysis interrupted, targetPaths=$targetPaths")
+                    logger.warn("ConstRefEngine.awaitAnalysis interrupted, targetPaths=$targetPaths")
                     break
                 }
             }
@@ -226,19 +228,13 @@ class ConstRefScheduler(
         if (changedPaths.isEmpty()) {
             return emptyList()
         }
-        database.registerPathHints(changedPaths)
-        val changedSet = changedPaths.toSet()
-        val changedKeys = synchronized(stateLock) {
-            changedPaths.flatMap { changedDefinitionKeys[it].orEmpty() }.toSet()
-        }
-        val removedKeys = synchronized(stateLock) {
-            changedPaths.flatMap { removedDefinitionKeys[it].orEmpty() }.toSet()
-        }
-        val byChangedDefinitions = database.getEffectedFilesByDefinitionKeys(changedKeys, changedPaths)
-        val byRemovedDefinitions = database.getEffectedFilesByDefinitionKeys(removedKeys, changedPaths)
-        return (byChangedDefinitions + byRemovedDefinitions)
-            .filter { it.refFilePath !in changedSet && File(it.refFilePath).exists() }
-            .distinctBy { "${it.refFilePath}|${it.defFqClassName}|${it.constName}" }
+        val changedKeys = changeTracker.collectChangedDefinitionKeys(changedPaths)
+        val removedKeys = changeTracker.collectRemovedDefinitionKeys(changedPaths)
+        return impactResolver.getEffectedFiles(
+            changedPaths = changedPaths,
+            changedDefinitionKeys = changedKeys,
+            removedDefinitionKeys = removedKeys,
+        )
     }
 
     fun setBackgroundTaskRunner(backgroundTaskRunner: IBackgroundTaskRunner) {
@@ -257,7 +253,7 @@ class ConstRefScheduler(
     }
 
     private fun scheduleCacheCleanup() {
-        backgroundTaskRunner.runBackgroundSafe("ConstRefScheduler#cacheCleanup") {
+        backgroundTaskRunner.runBackgroundSafe("ConstRefEngine#cacheCleanup") {
             cacheCleaner.cleanupIfNeeded(database, repoSharedFingerprintStore)
         }
     }
@@ -301,7 +297,7 @@ class ConstRefScheduler(
                 if (!file.exists()) {
                     database.removeFile(path)
                     removeDefinitionsFromIndexLocked(path)
-                    clearRemovedDefinitionKeys(path)
+                    changeTracker.onFileDeleted(path)
                     markAnalyzed(path)
                 } else if (isSourceFile(path)) {
                     existingFiles += file
@@ -341,7 +337,7 @@ class ConstRefScheduler(
             }
             if (mtimeHitCount > 0 || fingerprintHitCount > 0 || crcMissCount > 0 || analysisReuseHitCount > 0) {
                 logger.debug(
-                    "ConstRefScheduler checksum resolve stats, " +
+                    "ConstRefEngine checksum resolve stats, " +
                         "mtimeHit=$mtimeHitCount, fingerprintHit=$fingerprintHitCount, " +
                         "crcMiss=$crcMissCount, analysisReuseHit=$analysisReuseHitCount"
                 )
@@ -370,8 +366,6 @@ class ConstRefScheduler(
                 val path = file.toStdPath()
                 val definitions = parsedDefinitionsByPath[path].orEmpty()
                 val references = parsedReferencesByPath[path].orEmpty()
-                val changedKeys = buildChangedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), definitions)
-                val removedKeys = buildRemovedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), definitions)
                 database.upsertFileAnalysis(
                     filePath = path,
                     lastModified = file.lastModified(),
@@ -379,8 +373,11 @@ class ConstRefScheduler(
                     definitions = definitions,
                     references = references,
                 )
-                updateChangedDefinitionKeys(path, changedKeys)
-                updateRemovedDefinitionKeys(path, removedKeys)
+                changeTracker.updateDefinitionDiff(
+                    filePath = path,
+                    previousDefinitions = previousDefinitionsByPath[path].orEmpty(),
+                    currentDefinitions = definitions,
+                )
                 markAnalyzed(path)
             }
         }
@@ -404,7 +401,7 @@ class ConstRefScheduler(
         try {
             analyzeFiles(toAnalyze.map(::File))
         } catch (t: Throwable) {
-            logger.warn("ConstRefScheduler.forceAnalyzePendingNow failed", t)
+            logger.warn("ConstRefEngine.forceAnalyzePendingNow failed", t)
         } finally {
             endSyncScene(AnalyzeScene.PRE_COMPILE)
         }
@@ -540,67 +537,6 @@ class ConstRefScheduler(
             .forEach { analyzedAt.remove(it.key) }
     }
 
-    private fun updateChangedDefinitionKeys(path: String, keys: Set<Pair<String, String>>) {
-        synchronized(stateLock) {
-            if (keys.isEmpty()) {
-                changedDefinitionKeys.remove(path)
-            } else {
-                changedDefinitionKeys[path] = keys
-            }
-        }
-    }
-
-    private fun clearRemovedDefinitionKeys(path: String) {
-        synchronized(stateLock) {
-            removedDefinitionKeys.remove(path)
-        }
-    }
-
-    private fun updateRemovedDefinitionKeys(path: String, keys: Set<Pair<String, String>>) {
-        synchronized(stateLock) {
-            if (keys.isEmpty()) {
-                removedDefinitionKeys.remove(path)
-            } else {
-                removedDefinitionKeys[path] = keys
-            }
-        }
-    }
-
-    private fun buildRemovedDefinitionKeys(
-        previousDefinitions: List<ConstDefinition>,
-        currentDefinitions: List<ConstDefinition>,
-    ): Set<Pair<String, String>> {
-        if (previousDefinitions.isEmpty()) {
-            return emptySet()
-        }
-        val oldKeys = previousDefinitions.map { it.fqClassName to it.constName }.toSet()
-        val currentKeys = currentDefinitions.map { it.fqClassName to it.constName }.toSet()
-        return oldKeys - currentKeys
-    }
-
-    private fun buildChangedDefinitionKeys(
-        previousDefinitions: List<ConstDefinition>,
-        currentDefinitions: List<ConstDefinition>,
-    ): Set<Pair<String, String>> {
-        if (previousDefinitions.isEmpty() && currentDefinitions.isEmpty()) {
-            return emptySet()
-        }
-        val previousSignatureByKey = previousDefinitions
-            .groupBy { it.fqClassName to it.constName }
-            .mapValues { (_, defs) ->
-                defs.map { "${it.constType}:${it.constValue.orEmpty()}" }.toSet()
-            }
-        val currentSignatureByKey = currentDefinitions
-            .groupBy { it.fqClassName to it.constName }
-            .mapValues { (_, defs) ->
-                defs.map { "${it.constType}:${it.constValue.orEmpty()}" }.toSet()
-            }
-        return (previousSignatureByKey.keys + currentSignatureByKey.keys)
-            .filterTo(linkedSetOf()) { key ->
-                previousSignatureByKey[key] != currentSignatureByKey[key]
-            }
-    }
-
     private fun resolveRelatedSourceDirsLocked(targetPaths: List<String>): Set<String> {
         if (trackedSourceDirs.isEmpty()) {
             return emptySet()
@@ -626,7 +562,7 @@ class ConstRefScheduler(
         val sceneState = sceneTaskStates.getValue(scene)
         sceneState.scheduledJob?.cancel()
         lateinit var scheduledJob: Job
-        scheduledJob = backgroundTaskRunner.runBackgroundSafe("ConstRefScheduler#$scene") {
+        scheduledJob = backgroundTaskRunner.runBackgroundSafe("ConstRefEngine#$scene") {
             val shouldRun = synchronized(stateLock) {
                 val state = sceneTaskStates.getValue(scene)
                 if (state.scheduledJob == scheduledJob) {
@@ -737,7 +673,7 @@ class ConstRefScheduler(
                 return
             }
             logger.debug(
-                "ConstRefScheduler full scan progress, final=$isFinal, " +
+                "ConstRefEngine full scan progress, final=$isFinal, " +
                     "batchDirs=$batchDirCount, batchFiles=$batchSourceFileCount, " +
                     "batchReused=$batchReusedFileCount, batchAnalyzed=$batchAnalyzedFileCount, " +
                     "batchCost=${batchCostMs}ms, totalDirs=$totalDirCount, totalFiles=$totalSourceFileCount, " +

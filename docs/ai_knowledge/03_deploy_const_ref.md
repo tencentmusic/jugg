@@ -1,8 +1,8 @@
-# Jugg 常量引用影响分析（ConstRefScheduler / ConstRefAnalyzer）
+# Jugg 常量引用影响分析（ConstRefEngine / ConstRefAnalyzer）
 
-> 文档版本: v1.1  
+> 文档版本: v1.2  
 > 创建时间: 2026-02-22  
-> 更新时间: 2026-02-22  
+> 更新时间: 2026-02-28  
 > 涵盖模块: `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/*`  
 > 一致性提示: 如文档与代码不一致，以代码为准。
 
@@ -10,7 +10,7 @@
 
 ## 一、模块定位
 
-`ConstRefScheduler` + `ConstRefAnalyzer` 负责解决一个补充场景：
+`ConstRefEngine` + `ConstRefAnalyzer` 负责解决一个补充场景：
 
 - 传统 `ClassNode` 结构差异分析更偏向“字节码结构变化导致的受影响类”；
 - 但 `const` 变更可能在调用侧被编译器内联，结构变化不一定能完整覆盖；
@@ -26,9 +26,9 @@
 
 入口在 `DeployFileManager`：
 
-- `addChangedFile()` 对 Java/Kotlin 调 `constRefScheduler.onFileSaved(path)`；
-- `removeChangedFile()` 调 `constRefScheduler.onFileDeleted(path)`；
-- `updateModuleInfos()` 调 `constRefScheduler.initializeFullScan(sourceDirs)` 触发冷启动全量扫描。
+- `addChangedFile()` 对 Java/Kotlin 调 `constRefEngine.onFileSaved(path)`；
+- `removeChangedFile()` 调 `constRefEngine.onFileDeleted(path)`；
+- `updateModuleInfos()` 调 `constRefEngine.initializeFullScan(sourceDirs)` 触发冷启动全量扫描。
 
 ### 2.2 重编译决策阶段
 
@@ -45,7 +45,7 @@
 
 ---
 
-## 三、ConstRefScheduler 关键设计
+## 三、ConstRefEngine 关键设计
 
 ### 3.1 责任
 
@@ -55,7 +55,8 @@
 - 维护三层 checksum 命中链路：`mtime-map -> RepoSharedFingerprintStore -> CRC32`；
 - 在预编译点强制冲刷待分析队列，尽量保证结果新鲜；
 - 异步触发 `ConstRefCacheCleaner` 做 TTL/版本上限清理，不阻塞主流程；
-- 追踪“已删除常量 key”，避免 `const -> val` 时漏掉历史引用影响。
+- 通过 `ConstRefChangeTracker` 追踪“真实变更 key + 已删除 key”，避免空白改动触发全量常量引用重编译；
+- 通过 `ConstRefImpactResolver` 统一执行受影响文件查询与过滤。
 
 ### 3.2 三个分析场景
 
@@ -70,7 +71,8 @@
 - `pendingAnalyzeFiles`：待分析文件集合；
 - `currentEditingFile`：当前编辑中的最后一个文件（避免每次按键都解析）；
 - `analyzedAt`：文件最近分析完成时间；
-- `removedDefinitionKeys`：文件删掉的 `(fqClassName, constName)` 集；
+- `ConstRefChangeTracker.changedDefinitionKeys`：文件真实变化的 `(fqClassName, constName)` 集；
+- `ConstRefChangeTracker.removedDefinitionKeys`：文件删掉的 `(fqClassName, constName)` 集；
 - `trackedSourceDirs` + `fullScanReadySourceDirs`：全量扫描目录与就绪标记；
 - `definitionIndex` + `cachedDefinitionsByFile`：当前定义索引快照。
 
@@ -82,11 +84,11 @@
 | `awaitAnalysis(paths, timeout)` | 冲刷 `currentEditingFile` 到待分析；触发 `PRE_COMPILE` 同步分析；等待“目标文件 analyzedAt 达标 + 相关 sourceDir full scan ready”。 |
 | `initializeFullScan(sourceDirs)` | 异步扫描目录下所有源码，构建 definitions/references 索引，并设置目录 ready。 |
 | `onFileDeleted(path)` | 清理内存状态、索引、数据库文件记录（含前缀删除）。 |
-| `getEffectedFiles(changedPaths)` | 合并“当前定义命中”+“已删除定义 key 命中”的引用文件，过滤不存在文件并去重。 |
+| `getEffectedFiles(changedPaths)` | 基于 `changedDefinitionKeys` + `removedDefinitionKeys` 查询引用文件；仅返回本地存在且不在 `changedPaths` 的文件。 |
 
 ### 3.5 路径与注入
 
-- `ConstRefScheduler` 不直接拼接路径；
+- `ConstRefEngine` 不直接拼接路径；
 - `DeployFileManager` 从 `JuggPathManager` 注入：
   - `constRefSharedDbFile`：`<PathManager.system>/jugg/const_ref/const_ref_shared.db`
   - `repoFingerprintDbFile`：`<PathManager.system>/jugg/const_ref/repo_fingerprint.db`
@@ -223,7 +225,7 @@ Kotlin 引用覆盖：
 
 | 测试文件 | 重点验证 |
 |---|---|
-| `ConstRefSchedulerTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用。 |
+| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用。 |
 | `ConstRefIntegrationTest.kt` | 冷启动 full scan 后的命中、companion const 变更命中、无关类变更不误报。 |
 | `JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `KotlinConstParserTest.kt` | Kotlin 定义/引用解析、alias/星号导入、同包解析、忽略注释/字符串。 |
@@ -241,7 +243,10 @@ Kotlin 引用覆盖：
 确认是否执行过 `awaitAnalysis()`；若日志出现 readiness timeout，检查 `pendingSourceDirs`。
 
 3. 误以为删除 `const` 不会触发影响  
-`ConstRefScheduler` 通过 `removedDefinitionKeys` 回补此场景，需确保变更文件已被重新分析。
+`ConstRefEngine` 通过 `removedDefinitionKeys` 回补此场景，需确保变更文件已被重新分析。
+
+6. 常量文件只改空行却触发大量重编译  
+确认 `changedDefinitionKeys` 是否为空；空白改动不应产生 changed keys，`getEffectedFiles` 应返回空列表。
 
 4. 大仓库耗时偏高  
 检查 `RepoSharedFingerprintStore` 是否可写、是否位于 Git 工作树内（否则无法复用共享指纹）。
@@ -253,7 +258,9 @@ Kotlin 引用覆盖：
 
 ## 附录：关键文件清单
 
-- `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefScheduler.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefEngine.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefChangeTracker.kt`
+- `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefImpactResolver.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/ConstRefAnalyzer.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/JavaConstParser.kt`
 - `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/KotlinConstParser.kt`

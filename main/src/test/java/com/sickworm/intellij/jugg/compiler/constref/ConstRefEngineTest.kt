@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
+class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
     @Test
     fun `should not analyze current editing file until next file changes`() {
         val rootDir = createTempDirectory("const_ref_scheduler_editing_state")
@@ -28,7 +28,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         }
         val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
@@ -72,7 +72,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         }
         val database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger)
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = database,
             logger = logger,
@@ -125,7 +125,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
@@ -173,7 +173,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
@@ -218,7 +218,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
@@ -274,7 +274,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         val sharedDbFile = File(rootDir, "const_ref_shared.db")
         val sharedFingerprintDbFile = File(rootDir, "repo_fingerprint.db")
         val scopeA = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val schedulerA = ConstRefScheduler(
+        val schedulerA = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(sharedDbFile, logger),
             logger = logger,
@@ -294,7 +294,7 @@ class ConstRefSchedulerTest : ConstRefTempDirCleanupSupport() {
         assertNotNull(before)
 
         val scopeB = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val schedulerB = ConstRefScheduler(
+        val schedulerB = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = sharedDatabase,
             logger = logger,

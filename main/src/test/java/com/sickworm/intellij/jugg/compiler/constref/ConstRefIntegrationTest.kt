@@ -40,7 +40,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
         )
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
@@ -95,7 +95,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
@@ -162,7 +162,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
@@ -231,7 +231,7 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
         }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val scheduler = ConstRefScheduler(
+        val scheduler = ConstRefEngine(
             analyzer = ConstRefAnalyzer(logger),
             database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
             logger = logger,
