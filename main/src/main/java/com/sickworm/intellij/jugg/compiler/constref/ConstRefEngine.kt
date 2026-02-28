@@ -194,7 +194,6 @@ class ConstRefEngine(
                     if (sourceFiles.isNotEmpty()) {
                         val reusablePaths = database.findReusablePathsByLastModified(sourceFiles)
                         reusablePaths.forEach { path ->
-                            changeTracker.clearFile(path)
                             markAnalyzed(path)
                         }
                         val filesToAnalyze = if (reusablePaths.isEmpty()) {
@@ -231,8 +230,7 @@ class ConstRefEngine(
         if (changedPaths.isEmpty()) {
             return emptyList()
         }
-        val changedKeys = changeTracker.collectChangedDefinitionKeys(changedPaths)
-        val removedKeys = changeTracker.collectRemovedDefinitionKeys(changedPaths)
+        val (changedKeys, removedKeys) = changeTracker.consumeDefinitionDiff(changedPaths)
         return impactResolver.getEffectedFiles(
             changedPaths = changedPaths,
             changedDefinitionKeys = changedKeys,
@@ -331,7 +329,6 @@ class ConstRefEngine(
                     onCrcMiss = { crcMissCount++ },
                 )
                 if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
-                    changeTracker.clearFile(path)
                     analysisReuseHitCount++
                     markAnalyzed(path)
                     return@forEach

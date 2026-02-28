@@ -46,6 +46,7 @@
 - “改动很小却全量回退”：检查结构差异判定与引用扩散。  
 - “调用方没更新导致运行异常”：检查 `DeployDataDatabase` 索引更新和 inline 检测。  
 - “分析耗时异常”：关注 sqlite 数据量、索引重建频率与 class 解析规模。
+- “`Isolated process parsing failed` 且 `ClassNotFoundException: ApkParserProcess`”：优先检查 `ApkParserProcessLauncher` 的 `-cp` 构建是否包含 URL 编码路径（如 `%20`）。子进程 classpath 必须使用可访问的本地文件路径。
 
 ---
 

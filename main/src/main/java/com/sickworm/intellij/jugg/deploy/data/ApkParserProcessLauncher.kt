@@ -10,6 +10,7 @@ import io.github.classgraph.ClassGraph
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.net.URL
 import java.util.concurrent.TimeUnit
 
 /**
@@ -139,9 +140,15 @@ class ApkParserProcessLauncher(
         val javaHome = javaHomes.first()
         val javaExecutable = File(javaHome, "bin/java").absolutePath
 
-        // Get classpath
+        // Build classpath from plugin classloader URLs and decode URL-encoded paths (e.g. "%20")
+        // to make sure the spawned JVM can resolve plugin classes correctly.
         val classpathUrls = ClassGraph().classpathURLs
-        val classpath = classpathUrls.joinToString(File.pathSeparator) { it.path }
+        val classpath = classpathUrls.mapNotNull { it.toClasspathEntryOrNull() }
+            .distinct()
+            .joinToString(File.pathSeparator)
+        if (classpath.isEmpty()) {
+            throw JuggException("No valid classpath entry found for isolated APK parser process")
+        }
 
         return listOf(
             javaExecutable,
@@ -155,6 +162,15 @@ class ApkParserProcessLauncher(
             applicationId,
             outputFile.absolutePath
         )
+    }
+
+    private fun URL.toClasspathEntryOrNull(): String? {
+        val path = runCatching {
+            File(toURI()).absolutePath
+        }.getOrElse {
+            runCatching { File(path).absolutePath }.getOrNull()
+        } ?: return null
+        return path.takeIf { File(it).exists() }
     }
 
     private fun serializeApkFiles(apkFiles: List<ApkFileUnit>): String {
