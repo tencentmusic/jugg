@@ -3,7 +3,6 @@ package com.sickworm.intellij.jugg.deploy.data
 import com.intellij.openapi.diagnostic.Logger
 import com.sickworm.intellij.jugg.apk.ResourceApkModifier
 import com.sickworm.intellij.jugg.compiler.CompileOutput
-import com.sickworm.intellij.jugg.deploy.deployItemName
 import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.toDeployItem
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig

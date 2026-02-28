@@ -18,16 +18,13 @@ import com.sickworm.intellij.jugg.deploy.data.ConstRefReadiness
 import com.sickworm.intellij.jugg.deploy.data.DeployDataGenerator
 import com.sickworm.intellij.jugg.deploy.data.ResourceApkGenerator
 import com.sickworm.intellij.jugg.deploy.data.SourceFileManager
-import com.sickworm.intellij.jugg.deploy.run.DeployItem
 import com.sickworm.intellij.jugg.deploy.run.JuggDeployData
 import com.sickworm.intellij.jugg.ide.bean.JuggSettings
 import com.sickworm.intellij.jugg.logger.getInstance
 import com.sickworm.intellij.jugg.project.IBackgroundTaskRunner
-import com.sickworm.intellij.jugg.project.JuggInternalException
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import org.jetbrains.annotations.TestOnly
 import java.io.File
-import java.util.zip.CRC32
 
 /**
  * Manage runtime deploy file status and provides [JuggDeployData]
