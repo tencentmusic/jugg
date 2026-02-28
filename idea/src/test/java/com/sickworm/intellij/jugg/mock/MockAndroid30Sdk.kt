@@ -1,15 +1,32 @@
 package com.sickworm.intellij.jugg.mock
 
+import com.intellij.openapi.extensions.ExtensionPoint
+import com.intellij.openapi.extensions.Extensions
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkAdditionalData
 import com.intellij.openapi.projectRoots.SdkModificator
+import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.projectRoots.SdkTypeId
 import com.intellij.openapi.roots.RootProvider
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
+import org.jetbrains.android.sdk.AndroidSdkType
+
 
 @Suppress("NonExtendableApiUsage")
 class MockAndroid30Sdk: Sdk {
+
+    companion object {
+        init {
+            Extensions.getRootArea()
+                .registerExtensionPoint("com.intellij.sdkType",
+                    "com.intellij.openapi.projectRoots.SdkType",
+                    ExtensionPoint.Kind.INTERFACE);
+            val ep: ExtensionPoint<SdkType> =
+                Extensions.getRootArea().getExtensionPoint<SdkType>("com.intellij.sdkType")
+            ep.registerExtension(AndroidSdkType())
+        }
+    }
 
     override fun getName(): String {
         return "Android 30"
@@ -32,7 +49,7 @@ class MockAndroid30Sdk: Sdk {
     }
 
     override fun getSdkType(): SdkTypeId {
-        TODO("Not yet implemented")
+        return AndroidSdkType.getInstance()
     }
 
     override fun getHomeDirectory(): VirtualFile {

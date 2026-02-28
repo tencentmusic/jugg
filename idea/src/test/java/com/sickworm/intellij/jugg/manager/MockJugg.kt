@@ -26,7 +26,10 @@ import com.sickworm.intellij.jugg.project.dependency.GradleProjectInfoLocalFetch
 import com.sickworm.intellij.jugg.project.dependency.IDependencyChangeManager
 import com.sickworm.intellij.jugg.project.dependency.create
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.jetbrains.kotlin.utils.addToStdlib.measureTimeMillisWithResult
 import org.mockito.Mockito
 import org.mockito.Mockito.*
@@ -36,7 +39,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-
+@OptIn(ExperimentalCoroutinesApi::class)
 class MockJugg(val projectDir: File = projectInfo.projectRoot) {
 
     lateinit var project: JuggMockProject
@@ -54,7 +57,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
     lateinit var taskRunnerManager: TaskRunnerManager
     lateinit var gradleProjectInfoLocalFetchManager: GradleProjectInfoLocalFetchManager
     lateinit var customCompilerManager: CustomCompilerManager
-    val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private val coroutineScope = TestScope(UnconfinedTestDispatcher())
 
     private val adbDeviceHelper = AdbDeviceHelper()
 
@@ -114,6 +117,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         renewManager()
         juggManager.recoverDeployContext()
         deployFileManager.reset()
+        coroutineScope.advanceUntilIdle()
 
         if (!deployHistoryManager.hasBeenFullCompiled) {
             throw RuntimeException("loadFromHistory failed")
@@ -252,7 +256,7 @@ class MockJugg(val projectDir: File = projectInfo.projectRoot) {
         deployStateManager = DeployStateManager(project, deployTargetManager, deployHistoryManager, ideDeployStateHelper)
         dependencyChangeManager = IDependencyChangeManager.create(logger)
 
-        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), CoroutineScope(Dispatchers.IO))
+        val juggServer = JuggServer(project, JuggPathManager(File(project.basePath)), coroutineScope)
         customCompilerManager = CustomCompilerManager(pathManager.projectDir, pathManager.customCompilerDir, juggServer, logger)
         taskRunnerManager = TaskRunnerManager(project, logger, deployStateManager, juggServer, coroutineScope)
         deployFileManager = DeployFileManager(pathManager, taskRunnerManager, logger)

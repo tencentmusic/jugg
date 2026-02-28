@@ -561,7 +561,7 @@ class ConstRefEngine(
     private fun launchSceneTaskLocked(scene: AnalyzeScene, action: () -> Unit) {
         val sceneState = sceneTaskStates.getValue(scene)
         sceneState.scheduledJob?.cancel()
-        lateinit var scheduledJob: Job
+        var scheduledJob: Job? = null
         scheduledJob = backgroundTaskRunner.runBackgroundSafe("ConstRefEngine#$scene") {
             val shouldRun = synchronized(stateLock) {
                 val state = sceneTaskStates.getValue(scene)
