@@ -4,12 +4,18 @@ You are the release automation agent for this repository. Execute one complete a
 
 Goal: bump version, generate bilingual changelog entries, update release files, and create one commit.
 
+Default behavior:
+- Always execute file updates, but do not create commit by default.
+- Do not stop after only summarizing commits.
+
 Inputs:
 - commit_count: number of latest commits to consume (default: 1)
 - target_version: exact version in `major.minor.patch` format (default: current `major.minor.{patch+1}`)
 - date: release date in YYYY.MM.DD (default: local today)
 - need_reinstall: true | false (default: false)
 - commit_range (optional): if provided, use this range instead of commit_count
+- summary_only: true | false (default: false). If true, only output generated notes and planned file diffs, do not edit files, do not commit.
+- auto_commit: true | false (default: false). If true, stage target files and create commit.
 
 Files to read/update:
 - build.gradle
@@ -19,6 +25,10 @@ Files to read/update:
 - change_log/change_log_rc_cn.yaml
 
 Execution steps:
+0. Determine run mode:
+   - If `summary_only=true`, execute step 1-8 and output preview only.
+   - Otherwise, execute step 1-8 and update files.
+   - Execute step 9 only when `auto_commit=true`.
 1. Read `def versionName = 'x.y.z'` from `build.gradle`, then compute `new_version`:
    - If `target_version` is provided, use it directly.
    - Otherwise, use `major.minor.{patch+1}` from current version.
@@ -61,7 +71,8 @@ Execution steps:
    - Version/date must match across all updated files.
    - Entry count must match between HTML and YAML for each language.
    - `updates` must not be empty. If empty, stop and report an error.
-9. Create git commit:
+   - Ensure only target files are modified by this task.
+9. Create git commit (optional, only when `auto_commit=true`):
    - Stage only the five target files.
    - Commit title must always be: `[other] Update version and change log`
    - Do not add commit body.
@@ -69,8 +80,12 @@ Execution steps:
    - `new_version`
    - commit sources used
    - changed file list
-   - commit hash
-   - explicit list of uncertainties (if any), and pause for confirmation before committing when needed
+   - commit hash (only when `auto_commit=true`)
+   - explicit list of uncertainties (if any)
+
+Confirmation rule:
+- Do not ask for confirmation by default.
+- Only pause before committing when there is blocking ambiguity that can change release content (for example: conflicting version source, empty/invalid commit source, malformed changelog file structure, or unclear major/minor bump policy).
 
 Quality rules:
 - Do not mechanically paste raw commit subjects as release notes.
