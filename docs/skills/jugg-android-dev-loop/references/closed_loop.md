@@ -35,6 +35,7 @@ Stop and ask user when any condition is met:
 
 - Unknown failure category.
 - High-risk change required but confidence is low.
+- Crash triage confidence `< 0.8` for root cause.
 - Retry budget exceeded.
 - Device/project context cannot be confirmed.
 

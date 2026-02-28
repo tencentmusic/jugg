@@ -48,6 +48,7 @@
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
 | `layout_dump` | `projectDir` | 导出 UI 层级 XML |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
+| `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir`, `x`, `y` | 坐标点击 |
 
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
@@ -56,6 +57,11 @@
 - `start_record` IDeviceAdb 容易失败，走 ANDROID_HOME 的 `adb shell screenrecord` 进程托管，并由 `stop_record` 回收。
 - 主机侧 `adb` 路径解析优先走 `PlatformApi.getAndroidHomePath(logger)`，再回退 `ANDROID_HOME` / `ANDROID_SDK_ROOT`。
 - `stop_record` 在 `pull` 前会等待远端 mp4 落盘（最长约 10 秒），失败时返回远端文件状态与启动模式，便于定位问题。
+
+补充（crash_report 输出语义）：
+- `hasCrash=true` 表示在近期日志中检测到崩溃信号（如 `FATAL EXCEPTION`）。
+- `crashLogs` 返回最近一段崩溃关键日志（通常 15~30 行）。
+- `allErrorLogPath` 为完整错误日志路径，客户端可按需读取全文。
 
 ---
 

@@ -61,9 +61,10 @@ class LayoutDumpMcpToolAction : McpToolAction {
         val remoteFile = "$remoteDir/$fileName"
 
         return try {
-            adb.execAdbShellCmd("mkdir -p $remoteDir")
-            adb.execAdbShellCmd("uiautomator dump $remoteFile")
-            if (!adb.pull(remoteFile, localFile) || !localFile.exists()) {
+            if (!tryDumpAndPull(adb, remoteDir, remoteFile, localFile)) {
+                Thread.sleep((300L..800L).random())
+            }
+            if (!localFile.exists() && !tryDumpAndPull(adb, remoteDir, remoteFile, localFile)) {
                 return McpToolResult.internalErrorResult("layout_dump", "failed to pull layout dump file")
             }
 
@@ -79,6 +80,12 @@ class LayoutDumpMcpToolAction : McpToolAction {
         } catch (e: Exception) {
             McpToolResult.internalErrorResult("layout_dump", e.message ?: "unknown error")
         }
+    }
+
+    private fun tryDumpAndPull(adb: IDeviceAdb, remoteDir: String, remoteFile: String, localFile: File): Boolean {
+        adb.execAdbShellCmd("mkdir -p $remoteDir")
+        adb.execAdbShellCmd("uiautomator dump $remoteFile")
+        return adb.pull(remoteFile, localFile) && localFile.exists()
     }
 
     /**

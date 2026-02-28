@@ -188,6 +188,21 @@ abstract class McpInvokerTestBase {
                     null,
                 )
             },
+            fakeAction("crash_report", def("crash_report")) { _ ->
+                McpToolResult(
+                    McpToolStatus.OK,
+                    "crash_report executed successfully.",
+                    mapOf(
+                        "isProcessAlive" to false,
+                        "hasCrash" to true,
+                        "crashLogs" to listOf("FATAL EXCEPTION: main", "java.lang.IllegalStateException: mock"),
+                        "relatedActivity" to "com.example.app/.MainActivity",
+                        "allErrorLogPath" to "/tmp/crash_report.log",
+                    ),
+                    listOf(McpArtifact(type = "log", path = "/tmp/crash_report.log")),
+                    null,
+                )
+            },
             fakeAction("tap", def("tap")) { arguments ->
                 McpToolResult(
                     McpToolStatus.OK,

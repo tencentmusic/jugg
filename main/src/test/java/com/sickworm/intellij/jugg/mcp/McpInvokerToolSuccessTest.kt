@@ -269,7 +269,30 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
     }
 
     @Test
-    fun testStartAppToolCallSuccess() {
+    fun testCrashReportToolCallSuccess() {
+        val invoker = newToolInvoker()
+        val response = invoker.invokeMcp(
+            McpJsonRpcRequest(
+                method = McpJsonRpc.Method.ToolsCall,
+                id = 20,
+                params = mapOf(
+                    "name" to "crash_report",
+                    "arguments" to mapOf("projectDir" to "/tmp/projectA")
+                )
+            )
+        )
+
+        val result = response.result as McpToolCallResult
+        Assert.assertFalse(result.isError)
+        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        val data = result.structuredContent["data"] as Map<*, *>
+        Assert.assertEquals(true, data["hasCrash"])
+        val crashLogs = data["crashLogs"] as List<*>
+        Assert.assertFalse(crashLogs.isEmpty())
+    }
+
+    @Test
+    fun testStartAppToolCallNotRegistered() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -283,12 +306,13 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
-    fun testStartActivityToolCallSuccess() {
+    fun testStartActivityToolCallNotRegistered() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -302,12 +326,13 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test
-    fun testStartActivityWithIntentArgsSuccess() {
+    fun testStartActivityWithIntentArgsNotRegistered() {
         val invoker = newToolInvoker()
         val response = invoker.invokeMcp(
             McpJsonRpcRequest(
@@ -336,8 +361,9 @@ class McpInvokerToolSuccessTest : McpInvokerTestBase() {
         )
 
         val result = response.result as McpToolCallResult
-        Assert.assertFalse(result.isError)
-        Assert.assertEquals(McpToolStatus.OK, result.structuredContent["status"])
+        Assert.assertTrue(result.isError)
+        Assert.assertEquals(McpToolStatus.ERROR, result.structuredContent["status"])
+        Assert.assertEquals(McpErrorCode.MCP_TOOL_NOT_FOUND, result.structuredContent["errorCode"])
     }
 
     @Test

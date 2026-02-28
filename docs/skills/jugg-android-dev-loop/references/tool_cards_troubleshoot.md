@@ -18,3 +18,14 @@ Use this file only when normal execution cannot proceed due to context/device/ru
 - Requires explicit user consent (`userConsent=true`).
 - Required input: `projectDir`, `reason`, `userConsent`.
 - Optional input: `requestedBy`.
+
+## `crash_report`
+
+- Use when runtime behavior is abnormal (unexpected activity, dead process, missing target UI evidence).
+- Required input: `projectDir`.
+- Optional input: `packageName`.
+- Key output fields:
+  - `data.hasCrash`
+  - `data.crashLogs`
+  - `data.relatedActivity`
+  - `data.allErrorLogPath`

@@ -1,6 +1,6 @@
 ---
 name: jugg-android-dev-loop
-description: Teach Agent to use Jugg MCP tools directly for deterministic Android modify/verify closed-loop. No runner scripts needed.
+description: Use Jugg MCP tools for a deterministic Android modify/verify closed-loop (no runner scripts); trigger when user explicitly mentions jugg, or when Android code changes require verification.
 ---
 
 # Jugg MCP Android Dev Loop (Compact Router)
@@ -60,7 +60,6 @@ Intent -> first file mapping:
 ## Core Rules
 
 - `projectDir`: use current working directory by default.
-- Do not preflight with `list_projects`; call it only on project-context errors.
 - Max autonomous retries for same failure category: `3`.
 - Never tap with guessed coordinates. Always derive from `layout_dump` node bounds.
 - For moving/floating/edge UI, verify action controls are fully visible before claiming pass.
@@ -77,6 +76,14 @@ When task includes transient or multi-step interaction (pause menu, animation, d
 3. Execute action chain.
 4. Stop record and take final screenshot.
 5. Confirm target controls/texts are visible in viewport (not clipped by edge/overlap).
+
+## Crash Triage Loop
+
+When runtime result looks abnormal (unexpected activity, dead process, or missing UI evidence):
+
+1. Call `crash_report(projectDir)` to try to find out the reason.
+2. Fallback to `adb logcat` if step 1 is not working.
+3. Continue normal 5-Step loop after fix.
 
 ## Async Compile Rule (Mandatory)
 
