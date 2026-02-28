@@ -196,4 +196,86 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             scope.cancel()
         }
     }
+
+    @Test
+    fun `should only detect references for truly changed constants`() {
+        val rootDir = createTempDirectory("const_ref_integration_precise_change")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+
+                const val MAX = 1
+                const val MIN = 0
+                """.trimIndent()
+            )
+        }
+        val maxUserFile = File(rootDir, "MaxUser.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.MAX
+                val maxValue = MAX
+                """.trimIndent()
+            )
+        }
+        val minUserFile = File(rootDir, "MinUser.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.MIN
+                val minValue = MIN
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefScheduler(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(maxUserFile.absolutePath)
+            scheduler.onFileSaved(minUserFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, maxUserFile.absolutePath, minUserFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+
+            constantsFile.writeText(
+                """
+                package com.example
+
+                const val MAX = 1
+                const val MIN = 0
+
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+            val effectedByWhitespaceChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(emptySet<String>(), effectedByWhitespaceChange.map { it.refFilePath }.toSet())
+
+            constantsFile.writeText(
+                """
+                package com.example
+
+                const val MAX = 2
+                const val MIN = 0
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+            val effectedByMaxChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(setOf(maxUserFile.toStdPath()), effectedByMaxChange.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
 }

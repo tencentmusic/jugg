@@ -24,6 +24,7 @@ class ConstRefScheduler(
     private val pendingAnalyzeFiles = linkedSetOf<String>()
     private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
+    private val changedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
     private val removedDefinitionKeys = mutableMapOf<String, Set<Pair<String, String>>>()
     private val cachedDefinitionsByFile = mutableMapOf<String, List<ConstDefinition>>()
     private val definitionIndex = ConstDefinitionIndex()
@@ -68,6 +69,7 @@ class ConstRefScheduler(
                 currentEditingFile = null
             }
             analyzedAt.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
+            changedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             removedDefinitionKeys.keys.removeIf { it == stdPath || it.startsWith("$stdPath/") }
             notifyStateChangedLocked()
         }
@@ -226,12 +228,15 @@ class ConstRefScheduler(
         }
         database.registerPathHints(changedPaths)
         val changedSet = changedPaths.toSet()
+        val changedKeys = synchronized(stateLock) {
+            changedPaths.flatMap { changedDefinitionKeys[it].orEmpty() }.toSet()
+        }
         val removedKeys = synchronized(stateLock) {
             changedPaths.flatMap { removedDefinitionKeys[it].orEmpty() }.toSet()
         }
-        val byCurrentDefinitions = database.getEffectedFiles(changedPaths)
+        val byChangedDefinitions = database.getEffectedFilesByDefinitionKeys(changedKeys, changedPaths)
         val byRemovedDefinitions = database.getEffectedFilesByDefinitionKeys(removedKeys, changedPaths)
-        return (byCurrentDefinitions + byRemovedDefinitions)
+        return (byChangedDefinitions + byRemovedDefinitions)
             .filter { it.refFilePath !in changedSet && File(it.refFilePath).exists() }
             .distinctBy { "${it.refFilePath}|${it.defFqClassName}|${it.constName}" }
     }
@@ -328,7 +333,6 @@ class ConstRefScheduler(
                 )
                 if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
                     analysisReuseHitCount++
-                    clearRemovedDefinitionKeys(path)
                     markAnalyzed(path)
                     return@forEach
                 }
@@ -366,6 +370,7 @@ class ConstRefScheduler(
                 val path = file.toStdPath()
                 val definitions = parsedDefinitionsByPath[path].orEmpty()
                 val references = parsedReferencesByPath[path].orEmpty()
+                val changedKeys = buildChangedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), definitions)
                 val removedKeys = buildRemovedDefinitionKeys(previousDefinitionsByPath[path].orEmpty(), definitions)
                 database.upsertFileAnalysis(
                     filePath = path,
@@ -374,6 +379,7 @@ class ConstRefScheduler(
                     definitions = definitions,
                     references = references,
                 )
+                updateChangedDefinitionKeys(path, changedKeys)
                 updateRemovedDefinitionKeys(path, removedKeys)
                 markAnalyzed(path)
             }
@@ -534,6 +540,16 @@ class ConstRefScheduler(
             .forEach { analyzedAt.remove(it.key) }
     }
 
+    private fun updateChangedDefinitionKeys(path: String, keys: Set<Pair<String, String>>) {
+        synchronized(stateLock) {
+            if (keys.isEmpty()) {
+                changedDefinitionKeys.remove(path)
+            } else {
+                changedDefinitionKeys[path] = keys
+            }
+        }
+    }
+
     private fun clearRemovedDefinitionKeys(path: String) {
         synchronized(stateLock) {
             removedDefinitionKeys.remove(path)
@@ -560,6 +576,29 @@ class ConstRefScheduler(
         val oldKeys = previousDefinitions.map { it.fqClassName to it.constName }.toSet()
         val currentKeys = currentDefinitions.map { it.fqClassName to it.constName }.toSet()
         return oldKeys - currentKeys
+    }
+
+    private fun buildChangedDefinitionKeys(
+        previousDefinitions: List<ConstDefinition>,
+        currentDefinitions: List<ConstDefinition>,
+    ): Set<Pair<String, String>> {
+        if (previousDefinitions.isEmpty() && currentDefinitions.isEmpty()) {
+            return emptySet()
+        }
+        val previousSignatureByKey = previousDefinitions
+            .groupBy { it.fqClassName to it.constName }
+            .mapValues { (_, defs) ->
+                defs.map { "${it.constType}:${it.constValue.orEmpty()}" }.toSet()
+            }
+        val currentSignatureByKey = currentDefinitions
+            .groupBy { it.fqClassName to it.constName }
+            .mapValues { (_, defs) ->
+                defs.map { "${it.constType}:${it.constValue.orEmpty()}" }.toSet()
+            }
+        return (previousSignatureByKey.keys + currentSignatureByKey.keys)
+            .filterTo(linkedSetOf()) { key ->
+                previousSignatureByKey[key] != currentSignatureByKey[key]
+            }
     }
 
     private fun resolveRelatedSourceDirsLocked(targetPaths: List<String>): Set<String> {
