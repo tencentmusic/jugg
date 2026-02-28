@@ -70,8 +70,13 @@ Special handling:
 ## Evidence Policy
 
 - Prefer lightweight evidence first: `activity_stack`, `layout_dump`, `screenshot`.
-- Use recording only for time-based behavior or explicit user request.
+- For multi-step interaction flows (>=2 user actions), add recording by default.
 - Final accepted artifacts should be staged at `${projectDir}/build/mcp_fetch/final` with stable names.
+
+Additional guardrails:
+
+- Taps must be derived from `layout_dump` node bounds center (no guessed coordinates).
+- For floating/edge/transient controls, pass verdict requires controls fully visible and feedback observed after action.
 
 ## Response Checklist
 

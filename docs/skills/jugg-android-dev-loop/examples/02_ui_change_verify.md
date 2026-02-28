@@ -11,13 +11,21 @@
 3. Run `restart_app(projectDir)`.
 4. Run `layout_dump(projectDir)` and locate target node (`resource-id` first).
 5. Compute target center from bounds, then call `tap(projectDir, x, y)`.
-6. Run `screenshot(projectDir)` for end-state proof.
+6. If verification needs >=2 user actions or includes animation/transient state: `start_record` before first tap, `stop_record` after last tap.
+7. Run `screenshot(projectDir)` for end-state proof.
 
 ## Recording decision
 
-- Default: `layout_dump + screenshot`.
-- Use recording only for time-based behavior or explicit user request:
+- Single static result: `layout_dump + screenshot`.
+- Multi-step interaction/time-based behavior: default add recording.
   - `start_record` -> actions -> `stop_record` -> post-record screenshot.
+
+## Edge-safe interaction checklist
+
+- For moving/floating controls, refresh `layout_dump` before each critical tap.
+- Validate action controls are fully visible in viewport (no clipping).
+- Validate feedback after action (counter/text/state changed).
+- If any check fails, verdict must be `FAIL` and return fix direction.
 
 ## Stop/Fallback
 
@@ -33,5 +41,5 @@
 
 - Verdict: `PASS|FAIL`
 - Build path: `compile_and_deploy`
-- Verification steps: located node, tap result, screenshot result
-- Artifacts: absolute paths
+- Verification steps: node location method, bounds-center taps, feedback checks
+- Artifacts: absolute paths (`layout_dump`, `final_screenshot`, optional `final_record`)

@@ -13,6 +13,15 @@ Use this file when intent is runtime interaction or evidence collection.
 - Purpose: deterministic UI action.
 - Required input: `projectDir`, `x`, `y`.
 - If coordinates are unknown, run `layout_dump` first.
+- Never use guessed coordinates; derive from target node `bounds` center.
+
+### Coordinate Derivation Protocol (Mandatory)
+
+1. Run `layout_dump`.
+2. Locate node by priority: `resource-id` -> `text` -> `content-desc`.
+3. Parse `bounds` as `[x1,y1][x2,y2]`.
+4. Tap center: `x=(x1+x2)/2`, `y=(y1+y2)/2`.
+5. If target is moving/transient, refresh `layout_dump` right before tap.
 
 ## `layout_dump`
 
@@ -33,10 +42,20 @@ Use this file when intent is runtime interaction or evidence collection.
 
 ## `start_record` / `stop_record`
 
-- Use when: time-based evidence is required (animation/async/transient UI) or user explicitly asks for video.
+- Use when: time-based evidence is required (animation/async/transient UI), or action chain has >=2 user actions, or user explicitly asks for video.
 - `start_record` required input: `projectDir`.
 - `stop_record` required input: `projectDir`, `sessionId`.
 - Special recovery: if `start_record` returns `MCP_INVALID_PARAMS` with existing `sessionId`, call `stop_record` on old session, then retry.
+
+### Interaction Robustness Gate (Floating/Edge UI)
+
+Before pass verdict, verify:
+
+- action controls are fully visible in viewport (not clipped at edges);
+- controls are not obscured by overlap (`z` order issue);
+- action feedback appears after tap (text/state/count change).
+
+If any check fails, iterate code fix first; do not mark PASS.
 
 ## Final Artifact Staging
 

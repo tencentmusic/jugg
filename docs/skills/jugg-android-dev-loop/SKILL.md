@@ -49,10 +49,10 @@ Intent -> first file mapping:
    - no device or compile-only ask: `compile_only(projectDir)`
 3. Runtime actions (if needed):
    - `restart_app(projectDir)`
-   - `layout_dump` before `tap(projectDir, x, y)` when coordinates are unknown
+   - run `layout_dump` first, then derive `tap(projectDir, x, y)` from node `bounds` center (no guessed coordinates)
 4. Collect evidence (light -> heavy):
    - `activity_stack`, `layout_dump`, `screenshot`
-   - optional video: `start_record` -> actions -> `stop_record`
+   - multi-step interaction/time-based proof (>=2 user actions): default video `start_record` -> actions -> `stop_record`
 5. Final staging:
    - clear `${projectDir}/build/mcp_fetch/final`
    - copy final artifacts as `final_screenshot.png` / `final_record.mp4`
@@ -62,9 +62,21 @@ Intent -> first file mapping:
 - `projectDir`: use current working directory by default.
 - Do not preflight with `list_projects`; call it only on project-context errors.
 - Max autonomous retries for same failure category: `3`.
+- Never tap with guessed coordinates. Always derive from `layout_dump` node bounds.
+- For moving/floating/edge UI, verify action controls are fully visible before claiming pass.
 - Never claim success without artifact evidence.
 - Never reuse stale files in `build/mcp_fetch/final`.
 - Unknown/high-risk failure: stop and ask user.
+
+## Interaction Proof Profile (Mandatory)
+
+When task includes transient or multi-step interaction (pause menu, animation, drag, async state changes):
+
+1. Start record before first action.
+2. Resolve each tap target from latest `layout_dump` bounds.
+3. Execute action chain.
+4. Stop record and take final screenshot.
+5. Confirm target controls/texts are visible in viewport (not clipped by edge/overlap).
 
 ## Async Compile Rule (Mandatory)
 
