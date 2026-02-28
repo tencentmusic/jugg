@@ -58,6 +58,10 @@
 - 主机侧 `adb` 路径解析优先走 `PlatformApi.getAndroidHomePath(logger)`，再回退 `ANDROID_HOME` / `ANDROID_SDK_ROOT`。
 - `stop_record` 在 `pull` 前会等待远端 mp4 落盘（最长约 10 秒），失败时返回远端文件状态与启动模式，便于定位问题。
 
+补充（screenshot 体积优化语义）：
+- 截图拉取后会在本地做上传优化：超过边长/大小阈值时，自动压缩。
+- `data.file` 返回优化后的文件路径，扩展名可能为 `png/jpg/jpeg`。
+
 补充（crash_report 输出语义）：
 - `hasCrash=true` 表示在近期日志中检测到崩溃信号（如 `FATAL EXCEPTION`）。
 - `crashLogs` 返回最近一段崩溃关键日志（通常 15~30 行）。
