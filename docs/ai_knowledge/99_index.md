@@ -39,6 +39,7 @@
 | 文档 | 聚焦点 |
 |------|--------|
 | `03_deploy_core.md` | install/code swap/full swap 核心机制 |
+| `03_deploy_const_ref.md` | 常量引用影响分析与常量重编译排查手册 |
 | `03_deploy_data_generator.md` | 影响分析与部署数据生成 |
 | `03_deploy_complete.md` | 从 Run 到部署完成的端到端流程 |
 | `03_runtime_jvmti.md` | JVMTI agent 与部署协同 |
@@ -69,6 +70,7 @@
 | 找类路径/目录 | `98_code_map.md` |
 | 修改编译策略 | `02_compile_core.md`, `02_compile_source.md` |
 | 修改部署行为 | `03_deploy_core.md`, `03_deploy_complete.md` |
+| 排查常量变化触发重编译 | `03_deploy_const_ref.md`, `02_compile_core.md` |
 | 排查类变更传播 | `03_deploy_data_generator.md` |
 | 改 IDE 初始化/Run 配置 | `04_engineering_ide.md` |
 | 改 Gradle 项目信息读取 | `04_engineering_project.md` |

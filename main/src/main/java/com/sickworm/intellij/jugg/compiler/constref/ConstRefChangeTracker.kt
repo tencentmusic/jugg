@@ -15,6 +15,13 @@ internal class ConstRefChangeTracker {
         }
     }
 
+    fun clearFile(filePath: String) {
+        synchronized(lock) {
+            changedDefinitionKeys.remove(filePath)
+            removedDefinitionKeys.remove(filePath)
+        }
+    }
+
     fun updateDefinitionDiff(
         filePath: String,
         previousDefinitions: List<ConstDefinition>,

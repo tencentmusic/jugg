@@ -141,6 +141,15 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
                 timeoutMs = 10_000L,
             )
 
+            constantsFile.writeText(
+                """
+                package com.example
+                const val MAX = 2
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
             val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
             val effectedPaths = effected.map { it.refFilePath }.toSet()
             assertEquals(setOf(userFile.toStdPath(), adminFile.toStdPath()), effectedPaths)
@@ -184,6 +193,15 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             scheduler.onFileSaved(constantsFile.absolutePath)
             scheduler.onFileSaved(userFile.absolutePath)
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath, userFile.absolutePath), timeoutMs = 10_000L)
+
+            constantsFile.writeText(
+                """
+                package com.example
+                const val MAX = 2
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
             assertTrue(scheduler.getEffectedFiles(listOf(constantsFile.absolutePath)).isNotEmpty())
 
             userFile.delete()

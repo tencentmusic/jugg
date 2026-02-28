@@ -193,7 +193,10 @@ class ConstRefEngine(
                         .toList()
                     if (sourceFiles.isNotEmpty()) {
                         val reusablePaths = database.findReusablePathsByLastModified(sourceFiles)
-                        reusablePaths.forEach(::markAnalyzed)
+                        reusablePaths.forEach { path ->
+                            changeTracker.clearFile(path)
+                            markAnalyzed(path)
+                        }
                         val filesToAnalyze = if (reusablePaths.isEmpty()) {
                             sourceFiles
                         } else {
@@ -328,6 +331,7 @@ class ConstRefEngine(
                     onCrcMiss = { crcMissCount++ },
                 )
                 if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
+                    changeTracker.clearFile(path)
                     analysisReuseHitCount++
                     markAnalyzed(path)
                     return@forEach
@@ -430,8 +434,25 @@ class ConstRefEngine(
         onCrcMiss: () -> Unit,
     ): Long {
         val path = file.toStdPath()
-        database.getChecksumByLastModified(path, fileLastModified)?.let { checksum ->
-            onMtimeHit()
+        database.getChecksumByLastModified(path, fileLastModified)?.let { mtimeChecksum ->
+            val fingerprintChecksum = queryChecksumFromSharedFingerprint(file)
+            if (fingerprintChecksum != null) {
+                if (fingerprintChecksum == mtimeChecksum) {
+                    onMtimeHit()
+                    return mtimeChecksum
+                }
+                logger.debug(
+                    "ConstRefEngine detected mtime checksum mismatch, " +
+                        "path=$path, mtimeChecksum=$mtimeChecksum, fingerprintChecksum=$fingerprintChecksum"
+                )
+                onFingerprintHit()
+                return fingerprintChecksum
+            }
+
+            // Compatibility path for older fingerprint DB records: fallback to real checksum for safety.
+            onCrcMiss()
+            val checksum = calculateChecksum(file)
+            saveChecksumToSharedFingerprint(file, checksum)
             return checksum
         }
 

@@ -49,6 +49,10 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
         )
         try {
             scheduler.initializeFullScan(listOf(rootDir))
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
 
             constantsFile.writeText(
                 """
@@ -273,6 +277,120 @@ class ConstRefIntegrationTest : ConstRefTempDirCleanupSupport() {
             scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
             val effectedByMaxChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
             assertEquals(setOf(maxUserFile.toStdPath()), effectedByMaxChange.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should clear stale const change when file analysis is reused`() {
+        val rootDir = createTempDirectory("const_ref_integration_reuse")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.MAX
+                val value = MAX
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath, userFile.absolutePath), timeoutMs = 10_000L)
+
+            constantsFile.writeText(
+                """
+                package com.example
+                const val MAX = 2
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+            val effectedAfterRealChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(setOf(userFile.toStdPath()), effectedAfterRealChange.map { it.refFilePath }.toSet())
+
+            // Trigger analysis reuse path (same mtime/checksum mapping) without source changes.
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+            val effectedAfterReuse = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(emptySet<String>(), effectedAfterReuse.map { it.refFilePath }.toSet())
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `should clear stale const change after full scan reuse`() {
+        val rootDir = createTempDirectory("const_ref_integration_full_scan_reset")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val MAX = 1
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.MAX
+                val value = MAX
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath, userFile.absolutePath), timeoutMs = 10_000L)
+
+            constantsFile.writeText(
+                """
+                package com.example
+                const val MAX = 2
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+            val effectedAfterRealChange = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(setOf(userFile.toStdPath()), effectedAfterRealChange.map { it.refFilePath }.toSet())
+
+            // Simulate downgrade/full-build init path: full scan with mostly reusable cache.
+            scheduler.initializeFullScan(listOf(rootDir))
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+            val effectedAfterFullScan = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(emptySet<String>(), effectedAfterFullScan.map { it.refFilePath }.toSet())
         } finally {
             scheduler.dispose()
             scope.cancel()
