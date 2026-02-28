@@ -127,17 +127,44 @@ Use this library to constrain auto-fix behavior.
   next_action_on_success: rerun_list_projects_then_compile_and_deploy
   next_action_on_failure: ask_user_to_close_extra_ide_or_switch_target
 
+- id: incremental_annotation_not_effective
+  stage: runtime
+  signature:
+    includes: ["annotation", "not effective", "inject null", "ViewModel not found", "table missing"]
+    regex: "@Inject.*null|@HiltViewModel.*not found|@Entity.*table|@Dao.*not found|@GlideModule"
+  diagnosis: >
+    Unsupported annotation processor did not run during Jugg incremental compile.
+    Supported: DataBinding/ViewBinding (KAPT), Compose (compiler plugin), Parcelize (compiler plugin),
+    Kuikly @Page (Jugg custom APT), Moshi @JsonClass (KSP whitelist).
+    All others (Dagger/Hilt, Room, Glide, etc.) are skipped.
+    Note: if only regular source code is modified (no annotation add/change), the change takes effect normally.
+    But adding new annotations or changing annotation values for unsupported processors means the processor
+    will not re-run — generated code stays stale and the change silently does not take effect.
+  fix_strategy: use_force_gradle_compile_to_regenerate
+  fix_scope: low
+  confidence_hint: 0.92
+  auto_apply: true
+  next_action_on_success: retry_compile_and_deploy_after_gradle
+  next_action_on_failure: summarize_diff_and_ask_user
+
+- id: incremental_transform_not_effective
+  stage: runtime
+  signature:
+    includes: ["instrumentation", "transform", "bytecode", "hook not triggered", "init not called"]
+    regex: "ASM|Transform|bytecode.*inject|aspect.*not.*trigger"
+  diagnosis: >
+    Jugg incremental compile chain is source → class → dex, with no Gradle Transform stage.
+    Any file recompiled by Jugg will have its previously instrumented bytecode replaced by raw compiler output.
+    ASM-injected hooks, AOP aspects, routing injection, etc. disappear from recompiled classes.
+    Symptom: compile and deploy succeed, but instrumented behavior is absent in the changed files.
+  fix_strategy: use_force_gradle_compile_to_run_transforms
+  fix_scope: low
+  confidence_hint: 0.90
+  auto_apply: true
+  next_action_on_success: retry_compile_and_deploy_after_gradle
+  next_action_on_failure: summarize_diff_and_ask_user
+
 ```
-
-## Reporting Format
-
-When using a pattern, always include in response:
-
-- `pattern_id`
-- `confidence`
-- `auto_applied`
-- `retry_count`
-- `result`
 
 ## Session Notes
 

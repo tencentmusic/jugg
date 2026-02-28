@@ -1,6 +1,6 @@
 # Tool Cards: Runtime & Observe
 
-Use this file when intent is runtime interaction or evidence collection.
+Use this file when executing runtime interaction or evidence collection (typically inside observe sub-agent, or main agent when delegation is not applicable).
 
 ## `restart_app`
 
@@ -12,8 +12,7 @@ Use this file when intent is runtime interaction or evidence collection.
 
 - Purpose: deterministic UI action.
 - Required input: `projectDir`, `x`, `y`.
-- If coordinates are unknown, run `layout_dump` first.
-- Never use guessed coordinates; derive from target node `bounds` center.
+- Never use guessed coordinates; always derive via Coordinate Derivation Protocol below.
 
 ### Coordinate Derivation Protocol (Mandatory)
 
@@ -27,7 +26,7 @@ Use this file when intent is runtime interaction or evidence collection.
 
 - Purpose: UI hierarchy evidence and coordinate lookup.
 - Required input: `projectDir`.
-- Practical note: locate node by `resource-id` first, then `text`, then `bounds` center.
+- Locate node by `resource-id` first, then `text`, then `bounds` center.
 
 ## `activity_stack`
 
@@ -47,19 +46,31 @@ Use this file when intent is runtime interaction or evidence collection.
 - `stop_record` required input: `projectDir`, `sessionId`.
 - Special recovery: if `start_record` returns `MCP_INVALID_PARAMS` with existing `sessionId`, call `stop_record` on old session, then retry.
 
-### Interaction Robustness Gate (Floating/Edge UI)
+## Evidence Collection Order
+
+Prefer lightweight first: `activity_stack` -> `layout_dump` -> `screenshot`. Add recording when action chain has >=2 user actions or involves animation/async/transient UI.
+
+## Interaction Proof Profile
+
+When task includes transient or multi-step interaction (pause menu, animation, drag, async state changes):
+
+1. Start record before first action.
+2. Resolve each tap target from latest `layout_dump` bounds via Coordinate Derivation Protocol.
+3. Execute action chain.
+4. Stop record and take final screenshot.
+5. Run Interaction Robustness Gate checks below before claiming PASS.
+
+## Interaction Robustness Gate
 
 Before pass verdict, verify:
 
-- action controls are fully visible in viewport (not clipped at edges);
-- controls are not obscured by overlap (`z` order issue);
-- action feedback appears after tap (text/state/count change).
+- Action controls are fully visible in viewport (not clipped at edges).
+- Controls are not obscured by overlap (`z` order issue).
+- Action feedback appears after tap (text/state/count change).
 
 If any check fails, iterate code fix first; do not mark PASS.
 
 ## Final Artifact Staging
 
 - Clear `${projectDir}/build/mcp_fetch/final` before copy.
-- Keep stable names:
-  - `final_screenshot.png`
-  - `final_record.mp4`
+- Keep stable names: `final_screenshot.png` / `final_record.mp4`.
