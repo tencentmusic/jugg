@@ -151,8 +151,26 @@
 **TC-20: 坐标点击**
 调用 `tap`，传入 `projectDir`、`x=540`、`y=960`，验证返回 `status` 为 `OK`。可通过前后截图对比确认点击生效。
 
+**TC-20a: 百分比点击**
+调用 `tap`，传入 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data` 中 `mode` 为 `percent`，`screenWidth` 和 `screenHeight` 有值，`x` 和 `y` 为换算后的像素坐标。
+
+**TC-20b: 元素模式点击 - 按 text 精确匹配**
+通过 `layout_dump` 获取当前 UI 层级 XML，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息。注意：text 为精确匹配，子串不会命中。
+
+**TC-20c: 元素模式点击 - 按 resourceId 匹配**
+通过 `layout_dump` 获取当前 UI 层级 XML，找到一个有 `resource-id` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resource-id>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
+
+**TC-20d: 元素模式点击 - 无匹配返回候选**
+调用 `tap`，传入 `projectDir` 和 `text="ThisElementDoesNotExist_12345"`，验证返回 `status` 为 `ERROR`，`message` 中包含"No matching UI element found"以及可点击的候选元素列表。
+
+**TC-20e: 元素模式点击 - 多匹配返回候选列表**
+通过 `layout_dump` 找到一个在当前界面出现多次的 `text`（如列表项的重复文字），调用 `tap`，传入 `projectDir` 和 `text=<该重复 text>`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`data.matchCount` > 1，`data.matches` 为数组且每个元素包含 `bounds`、`centerX`、`centerY`，`message` 中包含引导使用坐标或百分比模式的提示。Agent 应根据返回的坐标信息用 `tap(x, y)` 进行二次精确点击。
+
 **TC-21: tap - 缺少必填参数**
-调用 `tap`，仅传入 `projectDir`，不传 `x` 和 `y`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
+调用 `tap`，仅传入 `projectDir`，不传 `x`、`y`、`xPercent`、`yPercent`、`text`、`resourceId`、`contentDesc`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
+
+**TC-21a: tap - 坐标模式优先于百分比模式**
+调用 `tap`，同时传入 `projectDir`、`x=100`、`y=200`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data.mode` 为 `coordinate`，`data.x` 为 100，`data.y` 为 200（优先使用坐标模式）。
 
 **TC-22: 重启应用**
 调用 `restart_app`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`message` 包含 "restart_app executed successfully"。`restart_app` 不返回额外 data 字段（`data` 为空对象）。
@@ -313,6 +331,12 @@
 
 **TC-54: 无设备 - tap**
 调用 `tap`，传入有效 `projectDir`、`x=100`、`y=100`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+
+**TC-54a: 无设备 - tap 百分比模式**
+调用 `tap`，传入有效 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
+
+**TC-54b: 无设备 - tap 元素模式**
+调用 `tap`，传入有效 `projectDir`、`text="Login"`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_NO_DEVICE`。
 
 ### 后置操作
 

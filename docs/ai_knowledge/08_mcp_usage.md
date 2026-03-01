@@ -49,7 +49,7 @@
 | `layout_dump` | `projectDir` | 导出 UI 层级 XML |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
-| `tap` | `projectDir`, `x`, `y` | 坐标点击 |
+| `tap` | `projectDir` + 模式参数 | 屏幕点击（三模式：坐标/百分比/元素） |
 
 > 说明：`start_app`、`start_activity`、`emulator_list`、`start_emulator` 在代码中有 action 实现，但当前未注册到默认工具列表。
 
@@ -66,6 +66,12 @@
 - `hasCrash=true` 表示在近期日志中检测到崩溃信号（如 `FATAL EXCEPTION`）。
 - `crashLogs` 返回最近一段崩溃关键日志（通常 15~30 行）。
 - `allErrorLogPath` 为完整错误日志路径，客户端可按需读取全文。
+
+补充（tap 三模式语义）：
+- **坐标模式**（`x` + `y`）：直接传入设备像素坐标，行为与原有逻辑一致。
+- **百分比模式**（`xPercent` + `yPercent`，范围 0-100）：自动通过 `adb shell wm size` 获取屏幕尺寸后换算为像素坐标，优先使用 Override size。返回 `data` 中包含 `screenWidth`、`screenHeight`。
+- **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match），自动 `uiautomator dump` 获取 UI 层级 → 按 AND 逻辑匹配元素。唯一匹配时 tap 元素中心点；**多匹配时不执行 tap**，返回 `ERROR` + 所有匹配元素的摘要列表（含 bounds 和 center 坐标），引导 Agent 使用坐标或百分比模式进行精确点击。
+- 优先级：coordinate > percent > element。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
 
 补充（`mcp_fetch` 清理机制）：
 - MCP 拉取类工具产物默认落在 `JuggPathManager.mcpFetchDir/<toolName>/`（当前展开为 `build/jugg/mcp_fetch/<toolName>/`）。

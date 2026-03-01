@@ -61,7 +61,7 @@ Intent -> first file mapping:
 
 - `projectDir`: use current working directory by default.
 - Max autonomous retries for same failure category: `3`.
-- Never tap with guessed coordinates; never claim success without artifact evidence.
+- Never tap with guessed coordinates; prefer element mode (`text`/`resourceId`/`contentDesc`) over manual coordinate derivation. Never claim success without artifact evidence.
 - For detailed runtime/observe procedures, load `references/tool_cards_runtime_observe.md`.
 - Unknown/high-risk failure: stop and ask user.
 
@@ -78,7 +78,7 @@ Direct call from main agent only when: single tool call **and** result is used a
 
 **Default**: when unsure, delegate.
 
-Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw XML/image. If sub-agent is not available, execute in main agent but summarize findings into the same structured format and discard raw tool output before continuing.
+Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw XML/image. If sub-agent does not have MCP tool access, skip delegation — execute in main agent and summarize findings into the same structured format before continuing.
 
 ## Crash Triage Loop
 

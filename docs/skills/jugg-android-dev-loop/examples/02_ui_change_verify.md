@@ -10,7 +10,9 @@
 2. Run `compile_and_deploy(projectDir)`.
 3. Run `restart_app(projectDir)`.
 4. Run `layout_dump(projectDir)` and locate target node (`resource-id` first).
-5. Compute target center from bounds, then call `tap(projectDir, x, y)`.
+5. Tap the target:
+   - **Preferred**: use element mode directly — `tap(projectDir, resourceId="com.example:id/btn_target")` or `tap(projectDir, text="Submit")`. The tool automatically resolves bounds center.
+   - **Fallback**: compute target center from bounds manually, then call `tap(projectDir, x, y)`.
 6. If verification needs >=2 user actions or includes animation/transient state: `start_record` before first tap, `stop_record` after last tap.
 7. Run `screenshot(projectDir)` for end-state proof.
 

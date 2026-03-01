@@ -10,17 +10,30 @@ Use this file when executing runtime interaction or evidence collection (typical
 
 ## `tap`
 
-- Purpose: deterministic UI action.
-- Required input: `projectDir`, `x`, `y`.
-- Never use guessed coordinates; always derive via Coordinate Derivation Protocol below.
+- Purpose: deterministic UI action. Supports three modes:
+  - **Coordinate mode** (`x` + `y`): tap exact pixel coordinates.
+  - **Percent mode** (`xPercent` + `yPercent`, 0-100): auto-resolves screen size and taps proportional position.
+  - **Element mode** (`text` / `resourceId` / `contentDesc`, optional `className`): finds UI element via uiautomator dump. All selectors use **exact match**. Taps center only when exactly one element matches; **multiple matches returns ERROR** with all candidates' bounds/center, guiding agent to use coordinate/percent mode.
+- Required input: `projectDir` + at least one mode's parameters.
+- Priority: coordinate > percent > element.
+- Never use guessed coordinates; always derive via Coordinate Derivation Protocol below or use element mode.
 
-### Coordinate Derivation Protocol (Mandatory)
+### Coordinate Derivation Protocol (Mandatory for coordinate mode)
 
 1. Run `layout_dump`.
 2. Locate node by priority: `resource-id` -> `text` -> `content-desc`.
 3. Parse `bounds` as `[x1,y1][x2,y2]`.
 4. Tap center: `x=(x1+x2)/2`, `y=(y1+y2)/2`.
 5. If target is moving/transient, refresh `layout_dump` right before tap.
+
+### Element Mode (Automated Coordinate Derivation)
+
+When using element mode, the tool automatically performs the Coordinate Derivation Protocol:
+1. Dumps UI hierarchy via `uiautomator dump`.
+2. Matches elements using **exact match** AND logic across provided selectors (`text`, `resourceId`, `contentDesc`, `className`).
+3. If exactly 1 match: parses `bounds` and taps center point. Returns `matchedElement` description.
+4. If multiple matches: returns `ERROR` with `data.matches` array containing each element's bounds, centerX, centerY. Agent should pick the correct element and retry with coordinate or percent mode.
+5. If no match: returns `ERROR` with clickable candidates for debugging.
 
 ## `layout_dump`
 
@@ -55,7 +68,7 @@ Prefer lightweight first: `activity_stack` -> `layout_dump` -> `screenshot`. Add
 When task includes transient or multi-step interaction (pause menu, animation, drag, async state changes):
 
 1. Start record before first action.
-2. Resolve each tap target from latest `layout_dump` bounds via Coordinate Derivation Protocol.
+2. Resolve each tap target: prefer element mode (`tap(projectDir, resourceId=...)` or `tap(projectDir, text=...)`) which auto-resolves bounds. Fallback to Coordinate Derivation Protocol with latest `layout_dump` if element mode is not suitable.
 3. Execute action chain.
 4. Stop record and take final screenshot.
 5. Run Interaction Robustness Gate checks below before claiming PASS.
