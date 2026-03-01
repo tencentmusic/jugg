@@ -55,6 +55,16 @@ class ConstRefAnalyzer(
         }
     }
 
+    fun collectReferenceLookupHints(files: Collection<File>): Map<String, ConstReferenceLookupHints> {
+        val sourceFiles = normalizeSourceFiles(files)
+        if (sourceFiles.isEmpty()) {
+            return emptyMap()
+        }
+        return sourceFiles.associate { sourceFile ->
+            sourceFile.toStdPath() to collectReferenceLookupHints(sourceFile)
+        }
+    }
+
     fun dispose() {
         kotlinConstParser.dispose()
     }
@@ -84,7 +94,83 @@ class ConstRefAnalyzer(
         }
     }
 
+    private fun collectReferenceLookupHints(sourceFile: File): ConstReferenceLookupHints {
+        val trackingLookup = TrackingDefinitionLookup()
+        when (sourceFile.extension) {
+            "java" -> javaConstParser.parseReferences(sourceFile, trackingLookup)
+            "kt" -> kotlinConstParser.parseReferences(sourceFile, trackingLookup)
+        }
+        return trackingLookup.buildHints()
+    }
+
     private fun isSupportedSourceFile(file: File): Boolean {
         return file.extension == "java" || file.extension == "kt"
+    }
+
+    /**
+     * Collects lookup hints by replaying parser traversal without requiring real definitions.
+     * The returned hints are used to query DB candidates for db-session lookup mode.
+     */
+    private class TrackingDefinitionLookup : ConstDefinitionLookup {
+        private val constNames = linkedSetOf<String>()
+        private val classConstKeys = linkedSetOf<Pair<String, String>>()
+        private val packageConstKeys = linkedSetOf<Pair<String, String>>()
+        private val simpleClassNames = linkedSetOf<String>()
+
+        override fun hasConstName(constName: String): Boolean {
+            val normalizedName = constName.trim()
+            if (normalizedName.isNotEmpty()) {
+                constNames += normalizedName
+            }
+            return true
+        }
+
+        override fun hasClass(fqClassName: String): Boolean {
+            return true
+        }
+
+        override fun hasDefinition(fqClassName: String, constName: String): Boolean {
+            recordClassConstKey(fqClassName, constName)
+            return true
+        }
+
+        override fun findByClassAndConst(fqClassName: String, constName: String): List<ConstDefinition> {
+            recordClassConstKey(fqClassName, constName)
+            return emptyList()
+        }
+
+        override fun findByPackageAndConst(packageName: String, constName: String): List<ConstDefinition> {
+            val normalizedPackage = packageName.trim()
+            val normalizedName = constName.trim()
+            if (normalizedPackage.isNotEmpty() && normalizedName.isNotEmpty()) {
+                packageConstKeys += normalizedPackage to normalizedName
+            }
+            return emptyList()
+        }
+
+        override fun findClassBySimpleName(simpleName: String): Set<String> {
+            val normalizedSimpleName = simpleName.trim()
+            if (normalizedSimpleName.isNotEmpty()) {
+                simpleClassNames += normalizedSimpleName
+            }
+            return emptySet()
+        }
+
+        fun buildHints(): ConstReferenceLookupHints {
+            return ConstReferenceLookupHints(
+                constNames = constNames,
+                classConstKeys = classConstKeys,
+                packageConstKeys = packageConstKeys,
+                simpleClassNames = simpleClassNames,
+            )
+        }
+
+        private fun recordClassConstKey(fqClassName: String, constName: String) {
+            val normalizedClass = fqClassName.trim()
+            val normalizedName = constName.trim()
+            if (normalizedClass.isNotEmpty() && normalizedName.isNotEmpty()) {
+                classConstKeys += normalizedClass to normalizedName
+            }
+        }
     }
 }

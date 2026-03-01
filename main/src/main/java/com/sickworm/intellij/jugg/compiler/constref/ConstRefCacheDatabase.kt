@@ -5,6 +5,7 @@ import com.sickworm.intellij.jugg.deploy.data.SqLiteDriverLoader
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.PreparedStatement
 import java.sql.ResultSet
 
 /**
@@ -497,6 +498,177 @@ class ConstRefCacheDatabase(
     }
 
     @Synchronized
+    fun getLatestDefinitionsByFile(filePath: String): List<ConstDefinition> {
+        return getDefinitionsByFiles(listOf(filePath))
+    }
+
+    @Synchronized
+    fun queryDefinitionsByConstNames(
+        constNames: Set<String>,
+        scopeFilePaths: Collection<String> = emptyList(),
+    ): List<ConstDefinition> {
+        val normalizedNames = constNames
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        if (normalizedNames.isEmpty()) {
+            return emptyList()
+        }
+        val scopeRepoKeys = resolveScopeRepoKeys(scopeFilePaths)
+        if (scopeRepoKeys.isEmpty()) {
+            return emptyList()
+        }
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        normalizedNames.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+            val whereClause = "d.const_name IN (${chunk.joinToString(",") { "?" }})"
+            queryLatestDefinitionsByWhere(
+                scopeRepoKeys = scopeRepoKeys,
+                whereClause = whereClause,
+            ) { statement, startIndex ->
+                var paramIndex = startIndex
+                chunk.forEach { constName ->
+                    statement.setString(paramIndex++, constName)
+                }
+                paramIndex
+            }.forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    @Synchronized
+    fun queryDefinitionsByClassConstKeys(
+        classConstKeys: Set<Pair<String, String>>,
+        scopeFilePaths: Collection<String> = emptyList(),
+    ): List<ConstDefinition> {
+        val normalizedKeys = classConstKeys
+            .mapNotNull { (fqClassName, constName) ->
+                val normalizedClass = fqClassName.trim()
+                val normalizedConst = constName.trim()
+                if (normalizedClass.isBlank() || normalizedConst.isBlank()) {
+                    null
+                } else {
+                    normalizedClass to normalizedConst
+                }
+            }
+            .toSet()
+        if (normalizedKeys.isEmpty()) {
+            return emptyList()
+        }
+        val scopeRepoKeys = resolveScopeRepoKeys(scopeFilePaths)
+        if (scopeRepoKeys.isEmpty()) {
+            return emptyList()
+        }
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        normalizedKeys.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+            val whereClause = chunk.joinToString(" OR ") {
+                "(d.fq_class_name = ? AND d.const_name = ?)"
+            }
+            queryLatestDefinitionsByWhere(
+                scopeRepoKeys = scopeRepoKeys,
+                whereClause = whereClause,
+            ) { statement, startIndex ->
+                var paramIndex = startIndex
+                chunk.forEach { (fqClassName, constName) ->
+                    statement.setString(paramIndex++, fqClassName)
+                    statement.setString(paramIndex++, constName)
+                }
+                paramIndex
+            }.forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    @Synchronized
+    fun queryDefinitionsByPackageConstKeys(
+        packageConstKeys: Set<Pair<String, String>>,
+        scopeFilePaths: Collection<String> = emptyList(),
+    ): List<ConstDefinition> {
+        val normalizedKeys = packageConstKeys
+            .mapNotNull { (packageName, constName) ->
+                val normalizedPackage = packageName.trim()
+                val normalizedConst = constName.trim()
+                if (normalizedPackage.isBlank() || normalizedConst.isBlank()) {
+                    null
+                } else {
+                    normalizedPackage to normalizedConst
+                }
+            }
+            .toSet()
+        if (normalizedKeys.isEmpty()) {
+            return emptyList()
+        }
+        val scopeRepoKeys = resolveScopeRepoKeys(scopeFilePaths)
+        if (scopeRepoKeys.isEmpty()) {
+            return emptyList()
+        }
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        normalizedKeys.chunked(maxDefinitionKeysPerQuery).forEach { chunk ->
+            val whereClause = chunk.joinToString(" OR ") {
+                "(d.package_name = ? AND d.const_name = ?)"
+            }
+            queryLatestDefinitionsByWhere(
+                scopeRepoKeys = scopeRepoKeys,
+                whereClause = whereClause,
+            ) { statement, startIndex ->
+                var paramIndex = startIndex
+                chunk.forEach { (packageName, constName) ->
+                    statement.setString(paramIndex++, packageName)
+                    statement.setString(paramIndex++, constName)
+                }
+                paramIndex
+            }.forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    @Synchronized
+    fun queryClassesBySimpleNames(
+        simpleNames: Set<String>,
+        scopeFilePaths: Collection<String> = emptyList(),
+    ): Map<String, Set<String>> {
+        val normalizedSimpleNames = simpleNames
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        if (normalizedSimpleNames.isEmpty()) {
+            return emptyMap()
+        }
+        val scopeRepoKeys = resolveScopeRepoKeys(scopeFilePaths)
+        if (scopeRepoKeys.isEmpty()) {
+            return emptyMap()
+        }
+        return withConnection { connection ->
+            val sql = buildLatestDefinitionsSql(scopeRepoKeys)
+            connection.prepareStatement(sql).use { statement ->
+                var paramIndex = 1
+                scopeRepoKeys.forEach { repoKey ->
+                    statement.setString(paramIndex++, repoKey)
+                }
+                statement.executeQuery().use { resultSet ->
+                    val classesBySimpleName = mutableMapOf<String, MutableSet<String>>()
+                    while (resultSet.next()) {
+                        val packageName = resultSet.getString("package_name")
+                        val fqClassName = resultSet.getString("fq_class_name")
+                        registerSimpleNameMappings(
+                            packageName = packageName,
+                            fqClassName = fqClassName,
+                            targetSimpleNames = normalizedSimpleNames,
+                            classesBySimpleName = classesBySimpleName,
+                        )
+                    }
+                    classesBySimpleName.mapValues { (_, value) -> value.toSet() }
+                }
+            }
+        }
+    }
+
+    @Synchronized
     fun getEffectedFiles(changedFilePaths: Collection<String>): List<EffectedConstRef> {
         val identities = changedFilePaths
             .mapNotNull { resolveRepoIdentity(it) }
@@ -945,6 +1117,18 @@ class ConstRefCacheDatabase(
         return repoIdentity
     }
 
+    private fun resolveScopeRepoKeys(scopeFilePaths: Collection<String>): Set<String> {
+        registerPathHints(scopeFilePaths)
+        val scopeRepoKeys = scopeFilePaths
+            .mapNotNull { resolveRepoIdentity(it)?.repoKey }
+            .toSet()
+        return if (scopeRepoKeys.isNotEmpty()) {
+            scopeRepoKeys
+        } else {
+            repoRootByKey.keys.toSet()
+        }
+    }
+
     private fun queryLatestChecksum(connection: Connection, repoKey: String, relativePath: String): Long? {
         connection.prepareStatement(
             """
@@ -965,6 +1149,59 @@ class ConstRefCacheDatabase(
                 return resultSet.getLong("checksum")
             }
         }
+    }
+
+    private fun queryLatestDefinitionsByWhere(
+        scopeRepoKeys: Set<String>,
+        whereClause: String,
+        bindExtraParams: (PreparedStatement, Int) -> Int,
+    ): List<ConstDefinition> {
+        if (scopeRepoKeys.isEmpty()) {
+            return emptyList()
+        }
+        val repoRoots = repoRootByKey.toMap()
+        return withConnection { connection ->
+            val sql = "${buildLatestDefinitionsSql(scopeRepoKeys)} WHERE $whereClause"
+            connection.prepareStatement(sql).use { statement ->
+                var paramIndex = 1
+                scopeRepoKeys.forEach { repoKey ->
+                    statement.setString(paramIndex++, repoKey)
+                }
+                bindExtraParams(statement, paramIndex)
+                statement.executeQuery().use { resultSet ->
+                    buildDefinitions(resultSet, repoRoots, excludedIdentityKeys = emptySet())
+                }
+            }
+        }
+    }
+
+    private fun buildLatestDefinitionsSql(scopeRepoKeys: Set<String>): String {
+        val repoPlaceholders = scopeRepoKeys.joinToString(",") { "?" }
+        return """
+            WITH latest AS (
+                SELECT repo_key,
+                       relative_path,
+                       checksum
+                FROM (
+                    SELECT repo_key,
+                           relative_path,
+                           checksum,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY repo_key, relative_path
+                               ORDER BY analyzed_at DESC, last_access_at DESC
+                           ) AS rank_num
+                    FROM file_analysis_head
+                    WHERE repo_key IN ($repoPlaceholders)
+                ) ranked
+                WHERE rank_num = 1
+            )
+            SELECT d.repo_key, d.relative_path, d.package_name, d.fq_class_name, d.const_name, d.const_type, d.const_value
+            FROM const_definitions d
+            INNER JOIN latest l
+                ON l.repo_key = d.repo_key
+               AND l.relative_path = d.relative_path
+               AND l.checksum = d.checksum
+        """.trimIndent()
     }
 
     private fun loadLatestDefinitionsByIdentities(identities: List<RepoFileIdentity>): List<ConstDefinition> {
@@ -1091,6 +1328,33 @@ class ConstRefCacheDatabase(
         return definitions
     }
 
+    private fun registerSimpleNameMappings(
+        packageName: String,
+        fqClassName: String,
+        targetSimpleNames: Set<String>,
+        classesBySimpleName: MutableMap<String, MutableSet<String>>,
+    ) {
+        if (fqClassName.isBlank()) {
+            return
+        }
+        val classPart = if (packageName.isBlank()) {
+            fqClassName
+        } else {
+            fqClassName.removePrefix("$packageName.")
+        }
+        if (classPart.isBlank()) {
+            return
+        }
+        val candidates = linkedSetOf<String>()
+        candidates += classPart
+        candidates += classPart.substringAfterLast('.')
+        candidates
+            .filter { it in targetSimpleNames }
+            .forEach { simpleName ->
+                classesBySimpleName.getOrPut(simpleName) { linkedSetOf() } += fqClassName
+            }
+    }
+
     private fun resolveAbsolutePath(repoKey: String, relativePath: String, repoRoots: Map<String, String>): String? {
         val repoRoot = repoRoots[repoKey] ?: return null
         return if (relativePath.isBlank()) {
@@ -1098,6 +1362,10 @@ class ConstRefCacheDatabase(
         } else {
             File(repoRoot, relativePath).toStdPath()
         }
+    }
+
+    private fun ConstDefinition.uniqueDefinitionKey(): String {
+        return "$filePath|$fqClassName|$constName|$constType|${constValue.orEmpty()}"
     }
 
     private fun upsertMtimeMap(
@@ -1201,7 +1469,7 @@ class ConstRefCacheDatabase(
             statement.execute("PRAGMA foreign_keys=ON")
             statement.execute("PRAGMA journal_mode=WAL")
             statement.execute("PRAGMA synchronous=NORMAL")
-            statement.execute("PRAGMA cache_size=-64000")
+            statement.execute("PRAGMA cache_size=-8000")
             statement.execute("PRAGMA temp_store=MEMORY")
             statement.execute("PRAGMA busy_timeout=5000")
         }

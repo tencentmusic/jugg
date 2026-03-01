@@ -32,6 +32,29 @@ data class FileConstParseResult(
     }
 }
 
+data class ConstReferenceLookupHints(
+    val constNames: Set<String>,
+    val classConstKeys: Set<Pair<String, String>>,
+    val packageConstKeys: Set<Pair<String, String>>,
+    val simpleClassNames: Set<String>,
+) {
+    fun isEmpty(): Boolean {
+        return constNames.isEmpty() &&
+            classConstKeys.isEmpty() &&
+            packageConstKeys.isEmpty() &&
+            simpleClassNames.isEmpty()
+    }
+
+    companion object {
+        val EMPTY = ConstReferenceLookupHints(
+            constNames = emptySet(),
+            classConstKeys = emptySet(),
+            packageConstKeys = emptySet(),
+            simpleClassNames = emptySet(),
+        )
+    }
+}
+
 internal data class OwnerImportContext(
     val explicitClassImports: Map<String, String>,
     val packageAsteriskImports: Set<String>,

@@ -308,7 +308,7 @@ class RepoSharedFingerprintStore(
         connection.createStatement().use { statement ->
             statement.execute("PRAGMA journal_mode=WAL")
             statement.execute("PRAGMA synchronous=NORMAL")
-            statement.execute("PRAGMA cache_size=-16000")
+            statement.execute("PRAGMA cache_size=-8000")
             statement.execute("PRAGMA temp_store=MEMORY")
             statement.execute("PRAGMA busy_timeout=5000")
         }

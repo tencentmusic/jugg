@@ -302,4 +302,111 @@ class ConstRefCacheDatabaseTest : ConstRefTempDirCleanupSupport() {
 
         assertEquals(setOf(constantsPath, userPath), reusable)
     }
+
+    @Test
+    fun `should support db first definition lookup apis`() {
+        val dbDir = createTempDirectory("const_ref_db_lookup_api")
+        File(dbDir, ".git").mkdirs()
+        val database = ConstRefCacheDatabase(File(dbDir, "const_ref_test.db"), logger)
+
+        val constantsPath = File(dbDir, "Constants.kt").apply { writeText("const val MAX = 1") }.toStdPath()
+        val flagsPath = File(dbDir, "BuildFlags.kt").apply { writeText("const val MAX = 2") }.toStdPath()
+        val helperPath = File(dbDir, "Helper.kt").apply { writeText("const val MIN = 0") }.toStdPath()
+
+        database.upsertFileAnalysis(
+            filePath = constantsPath,
+            lastModified = 100L,
+            checksum = 1000L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "1",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = constantsPath,
+            lastModified = 101L,
+            checksum = 1001L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = constantsPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.ConstantsKt",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "2",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = flagsPath,
+            lastModified = 102L,
+            checksum = 1002L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = flagsPath,
+                    packageName = "com.example.flags",
+                    fqClassName = "com.example.flags.BuildFlags",
+                    constName = "MAX",
+                    constType = "Int",
+                    constValue = "3",
+                )
+            ),
+            references = emptyList(),
+        )
+        database.upsertFileAnalysis(
+            filePath = helperPath,
+            lastModified = 103L,
+            checksum = 1003L,
+            definitions = listOf(
+                ConstDefinition(
+                    filePath = helperPath,
+                    packageName = "com.example",
+                    fqClassName = "com.example.HelperKt",
+                    constName = "MIN",
+                    constType = "Int",
+                    constValue = "0",
+                )
+            ),
+            references = emptyList(),
+        )
+
+        val latestByFile = database.getLatestDefinitionsByFile(constantsPath)
+        assertEquals(1, latestByFile.size)
+        assertEquals("2", latestByFile.first().constValue)
+
+        val byConstName = database.queryDefinitionsByConstNames(setOf("MAX"), listOf(constantsPath))
+        assertEquals(
+            setOf("com.example.ConstantsKt", "com.example.flags.BuildFlags"),
+            byConstName.map { it.fqClassName }.toSet(),
+        )
+
+        val byClassConst = database.queryDefinitionsByClassConstKeys(
+            classConstKeys = setOf("com.example.ConstantsKt" to "MAX"),
+            scopeFilePaths = listOf(constantsPath),
+        )
+        assertEquals(1, byClassConst.size)
+        assertEquals("2", byClassConst.first().constValue)
+
+        val byPackageConst = database.queryDefinitionsByPackageConstKeys(
+            packageConstKeys = setOf("com.example" to "MAX"),
+            scopeFilePaths = listOf(constantsPath),
+        )
+        assertEquals(1, byPackageConst.size)
+        assertEquals("com.example.ConstantsKt", byPackageConst.first().fqClassName)
+
+        val classesBySimpleName = database.queryClassesBySimpleNames(
+            simpleNames = setOf("ConstantsKt", "BuildFlags"),
+            scopeFilePaths = listOf(constantsPath),
+        )
+        assertEquals(setOf("com.example.ConstantsKt"), classesBySimpleName["ConstantsKt"])
+        assertEquals(setOf("com.example.flags.BuildFlags"), classesBySimpleName["BuildFlags"])
+    }
 }

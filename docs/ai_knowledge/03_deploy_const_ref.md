@@ -1,8 +1,8 @@
 # Jugg 常量引用影响分析（ConstRefEngine / ConstRefAnalyzer）
 
-> 文档版本: v1.2  
+> 文档版本: v1.3  
 > 创建时间: 2026-02-22  
-> 更新时间: 2026-02-28  
+> 更新时间: 2026-03-01  
 > 涵盖模块: `main/src/main/java/com/sickworm/intellij/jugg/compiler/constref/*`、`main/src/main/java/com/sickworm/intellij/jugg/deploy/data/*`  
 > 一致性提示: 如文档与代码不一致，以代码为准。
 
@@ -51,7 +51,9 @@
 
 - 串行调度分析任务（避免并发解析冲突）；
 - 管理“当前编辑文件/待分析队列/分析完成时间戳”；
-- 维护 `ConstDefinitionIndex`（内存索引）与 `ConstRefCacheDatabase`（持久化）；
+- 支持 `lookup.mode=legacy|db_session` 双路径：
+- `legacy`：维护 `ConstDefinitionIndex` 全量内存索引；
+- `db_session`：以 `ConstRefCacheDatabase` 为主数据源，结合 `ConstRefSessionCache`（LRU+TTL）做会话热点缓存；
 - 维护三层 checksum 命中链路：`mtime-map -> RepoSharedFingerprintStore -> CRC32`；
 - 在预编译点强制冲刷待分析队列，尽量保证结果新鲜；
 - 异步触发 `ConstRefCacheCleaner` 做 TTL/版本上限清理，不阻塞主流程；
@@ -60,11 +62,11 @@
 
 ### 3.2 三个分析场景
 
-- `FULL_SCAN`：模块 sourceDir 初始化后异步全量建索引；
+- `FULL_SCAN`：模块 sourceDir 初始化后异步全量扫描与落库（命中可复用缓存则跳过解析）；
 - `FILE_CHANGE`：日常保存触发的异步增量分析；
 - `PRE_COMPILE`：`awaitAnalysis()` 内同步抢占执行，确保编译前尽量完成待分析文件。
 
-> `FULL_SCAN` 会先按 `(repo_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新内存就绪状态，未命中项才进入解析流程。
+> `FULL_SCAN` 会先按 `(repo_key, relative_path, last_modified)` 批量查询 DB 缓存命中，命中项仅更新就绪状态，未命中项才进入解析流程。
 
 ### 3.3 状态模型（核心字段）
 
@@ -74,7 +76,8 @@
 - `ConstRefChangeTracker.changedDefinitionKeys`：文件真实变化的 `(fqClassName, constName)` 集；
 - `ConstRefChangeTracker.removedDefinitionKeys`：文件删掉的 `(fqClassName, constName)` 集；
 - `trackedSourceDirs` + `fullScanReadySourceDirs`：全量扫描目录与就绪标记；
-- `definitionIndex` + `cachedDefinitionsByFile`：当前定义索引快照。
+- `definitionIndex` + `cachedDefinitionsByFile`：`legacy` 模式下的当前定义索引快照；
+- `sessionCache(fileCache+lookupCache)`：`db_session` 模式下会话热点缓存。
 
 ### 3.4 核心 API 行为
 
@@ -102,6 +105,7 @@
 - Java 走 `JavaConstParser`；
 - Kotlin 走 `KotlinConstParser`；
 - 支持输入去重、只处理存在且扩展名合法的源码文件；
+- 提供 `collectReferenceLookupHints()`，用于收集 constName/class/package/simpleName 线索，支撑 DB 候选查询；
 - `dispose()` 负责释放 Kotlin PSI 环境资源。
 
 ### 4.1 定义解析（Definition）
@@ -144,16 +148,14 @@ Kotlin 引用覆盖：
 
 ## 五、索引与持久化
 
-### 5.1 内存索引：ConstDefinitionIndex
+### 5.1 查找模式与内存缓存
 
-提供按以下维度查询：
-
-- `class + const`；
-- `package + const`；
-- `constName`；
-- `simpleClassName -> fqClassName`。
-
-支持 `replaceFileDefinitions()` 按文件增量替换，避免全量重建。
+- `legacy`：使用 `ConstDefinitionIndex` 做全量内存查找，支持按 `class+const / package+const / constName / simpleClassName` 查询。
+- `db_session`：不做全量预加载；每个待解析文件先用线索回源 DB 查询候选 definitions，再构建临时 `ConstDefinitionIndex` 仅用于当前文件引用解析。
+- `ConstRefSessionCache`：
+- `fileCache`：缓存会话内已访问文件的 definitions/references（用于增量 diff 快速命中）；
+- `lookupCache`：缓存 `constName / class+const / package+const / simpleClassName` 查询结果；
+- 采用 LRU+TTL，缓存失效后统一回源 DB，语义不变。
 
 ### 5.2 SQLite 缓存：ConstRefCacheDatabase
 
@@ -169,6 +171,12 @@ Kotlin 引用覆盖：
 
 - 同仓库多 worktree 通过 `repo_key + relative_path` 共享分析结果；
 - 受影响文件查询先定位定义 key，再按当前 worktree 还原绝对路径，仅返回本地存在文件；
+- 新增 DB-first 查询 API（latest 口径）：
+- `getLatestDefinitionsByFile(filePath)`
+- `queryDefinitionsByConstNames(Set<String>)`
+- `queryDefinitionsByClassConstKeys(Set<Pair<class,const>>)`
+- `queryDefinitionsByPackageConstKeys(Set<Pair<pkg,const>>)`
+- `queryClassesBySimpleNames(Set<String>)`
 - db schema 使用 `PRAGMA schema_version=2`，不兼容时重建。
 
 ### 5.3 Repo 共享指纹：RepoSharedFingerprintStore
@@ -196,6 +204,10 @@ Kotlin 引用覆盖：
 另外支持 IO 限频（系统属性）：
 - `jugg.constref.io.throttle.ms`：每次节流 sleep 的毫秒数（默认 `0`，即关闭）；
 - `jugg.constref.io.throttle.every`：每处理 N 个文件触发一次 sleep（默认 `1`）。
+- `jugg.constref.lookup.mode`：`legacy|db_session`（默认 `legacy`）；
+- `jugg.constref.session.file.cache.max`：会话文件缓存上限（默认 `500`）；
+- `jugg.constref.session.lookup.cache.max`：会话查询缓存 key 上限（默认 `4000`）；
+- `jugg.constref.session.cache.ttl.ms`：会话缓存 TTL（默认 `900000`ms）。
 
 ---
 
@@ -225,11 +237,11 @@ Kotlin 引用覆盖：
 
 | 测试文件 | 重点验证 |
 |---|---|
-| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用。 |
+| `ConstRefEngineTest.kt` | 编辑态延迟分析、await 冲刷、删除清理、`const -> val` 场景下 removed keys 仍能命中引用、`db_session` 模式一致性与缓存淘汰一致性。 |
 | `ConstRefIntegrationTest.kt` | 冷启动 full scan 后的命中、companion const 变更命中、无关类变更不误报。 |
 | `JavaConstParserTest.kt` | Java 定义/引用解析、注解常量、忽略注释/字符串。 |
 | `KotlinConstParserTest.kt` | Kotlin 定义/引用解析、alias/星号导入、同包解析、忽略注释/字符串。 |
-| `ConstRefCacheDatabaseTest.kt` | DB upsert/query、同名常量跨文件共存、mtime 映射复用、cleanup 保留上限。 |
+| `ConstRefCacheDatabaseTest.kt` | DB upsert/query、同名常量跨文件共存、mtime 映射复用、cleanup 保留上限、DB-first 批量查询 API。 |
 | `RepoSharedFingerprintStoreTest.kt` | mtime 命中、内容中段变化 miss、worktree 共享、cleanup 保留上限。 |
 
 ---

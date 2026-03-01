@@ -26,6 +26,12 @@ class ConstRefEngine(
     private val stateLock = Any()
     private val changeTracker = ConstRefChangeTracker()
     private val impactResolver = ConstRefImpactResolver(database)
+    private val lookupMode = LookupMode.fromSystemProperty()
+    private val sessionCache = ConstRefSessionCache(
+        fileCacheMaxFiles = readPositiveIntProperty(SESSION_FILE_CACHE_MAX_PROPERTY, DEFAULT_SESSION_FILE_CACHE_MAX),
+        lookupCacheMaxKeys = readPositiveIntProperty(SESSION_LOOKUP_CACHE_MAX_PROPERTY, DEFAULT_SESSION_LOOKUP_CACHE_MAX),
+        ttlMs = readNonNegativeLongProperty(SESSION_CACHE_TTL_MS_PROPERTY, DEFAULT_SESSION_CACHE_TTL_MS),
+    )
     private val pendingAnalyzeFiles = linkedSetOf<String>()
     private var currentEditingFile: String? = null
     private val analyzedAt = mutableMapOf<String, Long>()
@@ -46,6 +52,7 @@ class ConstRefEngine(
         readNonNegativeLongProperty(FULL_SCAN_LOG_INTERVAL_MS_PROPERTY, DEFAULT_FULL_SCAN_LOG_INTERVAL_MS)
 
     init {
+        logger.info("ConstRefEngine lookup mode=$lookupMode")
         if (ioThrottleSleepMs > 0L) {
             logger.info("ConstRefEngine io throttle enabled, " +
                     "sleepMs=$ioThrottleSleepMs, everyNFiles=$ioThrottleEveryNFiles")
@@ -76,10 +83,12 @@ class ConstRefEngine(
         }
         changeTracker.onFileDeleted(stdPath)
         analysisMutex.withLock {
-            if (definitionIndexInitialized) {
+            if (lookupMode == LookupMode.LEGACY && definitionIndexInitialized) {
                 removeDefinitionsFromIndexLocked(stdPath)
                 removeDefinitionsByPrefixFromIndexLocked("$stdPath/")
             }
+            sessionCache.removeFile(stdPath)
+            sessionCache.removeFilesByPrefix("$stdPath/")
         }
         if (isSourceFile(stdPath)) {
             database.removeFile(stdPath)
@@ -291,13 +300,15 @@ class ConstRefEngine(
         }
         analysisMutex.withLock {
             database.registerPathHints(files.map { it.toStdPath() })
-            ensureDefinitionIndexInitializedLocked()
+            if (lookupMode == LookupMode.LEGACY) {
+                ensureDefinitionIndexInitializedLocked()
+            }
             val existingFiles = mutableListOf<File>()
             files.distinctBy { it.toStdPath() }.forEach { file ->
                 val path = file.toStdPath()
                 if (!file.exists()) {
                     database.removeFile(path)
-                    removeDefinitionsFromIndexLocked(path)
+                    removeDefinitionsFromLookupStateLocked(path)
                     changeTracker.onFileDeleted(path)
                     markAnalyzed(path)
                 } else if (isSourceFile(path)) {
@@ -349,20 +360,28 @@ class ConstRefEngine(
 
             val previousDefinitionsByPath = changedFiles.associate { file ->
                 val path = file.toStdPath()
-                path to cachedDefinitionsByFile[path].orEmpty()
+                path to loadPreviousDefinitionsLocked(path)
             }
             val parsedDefinitionsByPath = analyzer.parseDefinitions(changedFiles)
-            changedFiles.forEach { file ->
-                val path = file.toStdPath()
-                val definitions = parsedDefinitionsByPath[path].orEmpty()
-                if (definitions.isEmpty()) {
-                    cachedDefinitionsByFile.remove(path)
-                } else {
-                    cachedDefinitionsByFile[path] = definitions
+            if (lookupMode == LookupMode.LEGACY) {
+                changedFiles.forEach { file ->
+                    val path = file.toStdPath()
+                    val definitions = parsedDefinitionsByPath[path].orEmpty()
+                    if (definitions.isEmpty()) {
+                        cachedDefinitionsByFile.remove(path)
+                    } else {
+                        cachedDefinitionsByFile[path] = definitions
+                    }
+                    definitionIndex.replaceFileDefinitions(path, definitions)
                 }
-                definitionIndex.replaceFileDefinitions(path, definitions)
+            } else {
+                sessionCache.clearLookupCache()
             }
-            val parsedReferencesByPath = analyzer.parseReferences(changedFiles, definitionIndex)
+            val parsedReferencesByPath = if (lookupMode == LookupMode.LEGACY) {
+                analyzer.parseReferences(changedFiles, definitionIndex)
+            } else {
+                parseReferencesByDbSessionMode(changedFiles, parsedDefinitionsByPath)
+            }
             changedFiles.forEach { file ->
                 val path = file.toStdPath()
                 val definitions = parsedDefinitionsByPath[path].orEmpty()
@@ -379,7 +398,19 @@ class ConstRefEngine(
                     previousDefinitions = previousDefinitionsByPath[path].orEmpty(),
                     currentDefinitions = definitions,
                 )
+                if (lookupMode == LookupMode.DB_SESSION) {
+                    sessionCache.putFileAnalysis(
+                        filePath = path,
+                        lastModified = file.lastModified(),
+                        checksum = checksumMap[path] ?: 0L,
+                        definitions = definitions,
+                        references = references,
+                    )
+                }
                 markAnalyzed(path)
+            }
+            if (lookupMode == LookupMode.DB_SESSION) {
+                sessionCache.clearLookupCache()
             }
         }
     }
@@ -507,6 +538,325 @@ class ConstRefEngine(
         }
     }
 
+    private fun parseReferencesByDbSessionMode(
+        changedFiles: List<File>,
+        parsedDefinitionsByPath: Map<String, List<ConstDefinition>>,
+    ): Map<String, List<ConstReference>> {
+        if (changedFiles.isEmpty()) {
+            return emptyMap()
+        }
+        val hintsByPath = analyzer.collectReferenceLookupHints(changedFiles)
+        val overlayDefinitionsByConstName = mutableMapOf<String, MutableList<ConstDefinition>>()
+        val overlayDefinitionsByClassConst = mutableMapOf<Pair<String, String>, MutableList<ConstDefinition>>()
+        val overlayDefinitionsByPackageConst = mutableMapOf<Pair<String, String>, MutableList<ConstDefinition>>()
+        parsedDefinitionsByPath.values.flatten().forEach { definition ->
+            overlayDefinitionsByConstName.getOrPut(definition.constName) { mutableListOf() } += definition
+            overlayDefinitionsByClassConst.getOrPut(definition.fqClassName to definition.constName) { mutableListOf() } += definition
+            overlayDefinitionsByPackageConst.getOrPut(definition.packageName to definition.constName) { mutableListOf() } += definition
+        }
+
+        val referencesByPath = mutableMapOf<String, List<ConstReference>>()
+        changedFiles.forEach { file ->
+            val stdPath = file.toStdPath()
+            val hints = hintsByPath[stdPath] ?: ConstReferenceLookupHints.EMPTY
+            val candidateDefinitions = queryCandidateDefinitionsForFile(
+                filePath = stdPath,
+                hints = hints,
+            )
+            val allDefinitions = linkedMapOf<String, ConstDefinition>()
+            candidateDefinitions.forEach { definition ->
+                allDefinitions[definition.uniqueDefinitionKey()] = definition
+            }
+            collectOverlayDefinitions(
+                hints = hints,
+                overlayDefinitionsByConstName = overlayDefinitionsByConstName,
+                overlayDefinitionsByClassConst = overlayDefinitionsByClassConst,
+                overlayDefinitionsByPackageConst = overlayDefinitionsByPackageConst,
+            ).forEach { definition ->
+                allDefinitions[definition.uniqueDefinitionKey()] = definition
+            }
+            val definitionIndex = ConstDefinitionIndex(allDefinitions.values)
+            val references = analyzer.parseReferences(listOf(file), definitionIndex)[stdPath].orEmpty()
+            referencesByPath[stdPath] = references
+        }
+        return referencesByPath
+    }
+
+    private fun queryCandidateDefinitionsForFile(
+        filePath: String,
+        hints: ConstReferenceLookupHints,
+    ): List<ConstDefinition> {
+        if (hints.isEmpty()) {
+            return emptyList()
+        }
+        val candidates = linkedMapOf<String, ConstDefinition>()
+
+        resolveDefinitionsByConstNamesWithCache(
+            constNames = hints.constNames,
+            scopeFilePath = filePath,
+        ).forEach { definition ->
+            candidates[definition.uniqueDefinitionKey()] = definition
+        }
+        resolveDefinitionsByClassConstKeysWithCache(
+            classConstKeys = hints.classConstKeys,
+            scopeFilePath = filePath,
+        ).forEach { definition ->
+            candidates[definition.uniqueDefinitionKey()] = definition
+        }
+        resolveDefinitionsByPackageConstKeysWithCache(
+            packageConstKeys = hints.packageConstKeys,
+            scopeFilePath = filePath,
+        ).forEach { definition ->
+            candidates[definition.uniqueDefinitionKey()] = definition
+        }
+
+        if (hints.simpleClassNames.isNotEmpty() && hints.constNames.isNotEmpty()) {
+            val classNames = resolveClassesBySimpleNamesWithCache(
+                simpleClassNames = hints.simpleClassNames,
+                scopeFilePath = filePath,
+            ).values
+                .flatten()
+                .toSet()
+            if (classNames.isNotEmpty()) {
+                val classConstKeys = linkedSetOf<Pair<String, String>>()
+                classNames.forEach { fqClassName ->
+                    hints.constNames.forEach { constName ->
+                        classConstKeys += fqClassName to constName
+                    }
+                }
+                resolveDefinitionsByClassConstKeysWithCache(
+                    classConstKeys = classConstKeys,
+                    scopeFilePath = filePath,
+                ).forEach { definition ->
+                    candidates[definition.uniqueDefinitionKey()] = definition
+                }
+            }
+        }
+        return candidates.values.toList()
+    }
+
+    private fun resolveDefinitionsByConstNamesWithCache(
+        constNames: Set<String>,
+        scopeFilePath: String,
+    ): List<ConstDefinition> {
+        val normalizedNames = constNames
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        if (normalizedNames.isEmpty()) {
+            return emptyList()
+        }
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        val missingNames = linkedSetOf<String>()
+        normalizedNames.forEach { constName ->
+            val cached = sessionCache.getConstNameLookup(constName)
+            if (cached != null) {
+                cached.forEach { definition ->
+                    definitions[definition.uniqueDefinitionKey()] = definition
+                }
+            } else {
+                missingNames += constName
+            }
+        }
+        if (missingNames.isNotEmpty()) {
+            val queriedDefinitions = database.queryDefinitionsByConstNames(
+                constNames = missingNames,
+                scopeFilePaths = listOf(scopeFilePath),
+            )
+            val queriedByConst = queriedDefinitions.groupBy { it.constName }
+            missingNames.forEach { constName ->
+                sessionCache.putConstNameLookup(constName, queriedByConst[constName].orEmpty())
+            }
+            queriedDefinitions.forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    private fun resolveDefinitionsByClassConstKeysWithCache(
+        classConstKeys: Set<Pair<String, String>>,
+        scopeFilePath: String,
+    ): List<ConstDefinition> {
+        val normalizedKeys = classConstKeys
+            .mapNotNull { (fqClassName, constName) ->
+                val normalizedClass = fqClassName.trim()
+                val normalizedName = constName.trim()
+                if (normalizedClass.isBlank() || normalizedName.isBlank()) {
+                    null
+                } else {
+                    normalizedClass to normalizedName
+                }
+            }
+            .toSet()
+        if (normalizedKeys.isEmpty()) {
+            return emptyList()
+        }
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        val missingKeys = linkedSetOf<Pair<String, String>>()
+        normalizedKeys.forEach { (fqClassName, constName) ->
+            val cached = sessionCache.getClassConstLookup(fqClassName, constName)
+            if (cached != null) {
+                cached.forEach { definition ->
+                    definitions[definition.uniqueDefinitionKey()] = definition
+                }
+            } else {
+                missingKeys += fqClassName to constName
+            }
+        }
+        if (missingKeys.isNotEmpty()) {
+            val queriedDefinitions = database.queryDefinitionsByClassConstKeys(
+                classConstKeys = missingKeys,
+                scopeFilePaths = listOf(scopeFilePath),
+            )
+            val queriedByKey = queriedDefinitions.groupBy { it.fqClassName to it.constName }
+            missingKeys.forEach { (fqClassName, constName) ->
+                sessionCache.putClassConstLookup(
+                    fqClassName = fqClassName,
+                    constName = constName,
+                    definitions = queriedByKey[fqClassName to constName].orEmpty(),
+                )
+            }
+            queriedDefinitions.forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    private fun resolveDefinitionsByPackageConstKeysWithCache(
+        packageConstKeys: Set<Pair<String, String>>,
+        scopeFilePath: String,
+    ): List<ConstDefinition> {
+        val normalizedKeys = packageConstKeys
+            .mapNotNull { (packageName, constName) ->
+                val normalizedPackage = packageName.trim()
+                val normalizedName = constName.trim()
+                if (normalizedPackage.isBlank() || normalizedName.isBlank()) {
+                    null
+                } else {
+                    normalizedPackage to normalizedName
+                }
+            }
+            .toSet()
+        if (normalizedKeys.isEmpty()) {
+            return emptyList()
+        }
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        val missingKeys = linkedSetOf<Pair<String, String>>()
+        normalizedKeys.forEach { (packageName, constName) ->
+            val cached = sessionCache.getPackageConstLookup(packageName, constName)
+            if (cached != null) {
+                cached.forEach { definition ->
+                    definitions[definition.uniqueDefinitionKey()] = definition
+                }
+            } else {
+                missingKeys += packageName to constName
+            }
+        }
+        if (missingKeys.isNotEmpty()) {
+            val queriedDefinitions = database.queryDefinitionsByPackageConstKeys(
+                packageConstKeys = missingKeys,
+                scopeFilePaths = listOf(scopeFilePath),
+            )
+            val queriedByKey = queriedDefinitions.groupBy { it.packageName to it.constName }
+            missingKeys.forEach { (packageName, constName) ->
+                sessionCache.putPackageConstLookup(
+                    packageName = packageName,
+                    constName = constName,
+                    definitions = queriedByKey[packageName to constName].orEmpty(),
+                )
+            }
+            queriedDefinitions.forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    private fun resolveClassesBySimpleNamesWithCache(
+        simpleClassNames: Set<String>,
+        scopeFilePath: String,
+    ): Map<String, Set<String>> {
+        val normalizedNames = simpleClassNames
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        if (normalizedNames.isEmpty()) {
+            return emptyMap()
+        }
+        val classesBySimpleName = mutableMapOf<String, Set<String>>()
+        val missingNames = linkedSetOf<String>()
+        normalizedNames.forEach { simpleName ->
+            val cached = sessionCache.getSimpleClassLookup(simpleName)
+            if (cached != null) {
+                classesBySimpleName[simpleName] = cached
+            } else {
+                missingNames += simpleName
+            }
+        }
+        if (missingNames.isNotEmpty()) {
+            val queried = database.queryClassesBySimpleNames(
+                simpleNames = missingNames,
+                scopeFilePaths = listOf(scopeFilePath),
+            )
+            missingNames.forEach { simpleName ->
+                val classes = queried[simpleName].orEmpty()
+                sessionCache.putSimpleClassLookup(simpleName, classes)
+                classesBySimpleName[simpleName] = classes
+            }
+        }
+        return classesBySimpleName
+    }
+
+    private fun collectOverlayDefinitions(
+        hints: ConstReferenceLookupHints,
+        overlayDefinitionsByConstName: Map<String, List<ConstDefinition>>,
+        overlayDefinitionsByClassConst: Map<Pair<String, String>, List<ConstDefinition>>,
+        overlayDefinitionsByPackageConst: Map<Pair<String, String>, List<ConstDefinition>>,
+    ): List<ConstDefinition> {
+        val definitions = linkedMapOf<String, ConstDefinition>()
+        hints.constNames.forEach { constName ->
+            overlayDefinitionsByConstName[constName].orEmpty().forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        hints.classConstKeys.forEach { classConstKey ->
+            overlayDefinitionsByClassConst[classConstKey].orEmpty().forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        hints.packageConstKeys.forEach { packageConstKey ->
+            overlayDefinitionsByPackageConst[packageConstKey].orEmpty().forEach { definition ->
+                definitions[definition.uniqueDefinitionKey()] = definition
+            }
+        }
+        return definitions.values.toList()
+    }
+
+    private fun loadPreviousDefinitionsLocked(filePath: String): List<ConstDefinition> {
+        if (lookupMode == LookupMode.LEGACY) {
+            return cachedDefinitionsByFile[filePath].orEmpty()
+        }
+        val cachedDefinitions = sessionCache.getFileDefinitions(filePath)
+        if (cachedDefinitions != null) {
+            return cachedDefinitions
+        }
+        val definitions = database.getLatestDefinitionsByFile(filePath)
+        if (definitions.isNotEmpty()) {
+            sessionCache.putFileDefinitions(filePath, definitions)
+        }
+        return definitions
+    }
+
+    private fun removeDefinitionsFromLookupStateLocked(filePath: String) {
+        if (lookupMode == LookupMode.LEGACY && definitionIndexInitialized) {
+            removeDefinitionsFromIndexLocked(filePath)
+        }
+        sessionCache.removeFile(filePath)
+        sessionCache.clearLookupCache()
+    }
+
     private fun ensureDefinitionIndexInitializedLocked() {
         if (definitionIndexInitialized) {
             return
@@ -534,6 +884,10 @@ class ConstRefEngine(
         pathsToRemove.forEach { path ->
             removeDefinitionsFromIndexLocked(path)
         }
+    }
+
+    private fun ConstDefinition.uniqueDefinitionKey(): String {
+        return "$filePath|$fqClassName|$constName|$constType|${constValue.orEmpty()}"
     }
 
     private fun markAnalyzed(path: String) {
@@ -727,11 +1081,32 @@ class ConstRefEngine(
         var runningJob: Job? = null,
     )
 
+    private enum class LookupMode {
+        LEGACY,
+        DB_SESSION;
+
+        companion object {
+            fun fromSystemProperty(): LookupMode {
+                return when (System.getProperty(ConstRefEngine.LOOKUP_MODE_PROPERTY)?.trim()?.lowercase()) {
+                    "db_session" -> DB_SESSION
+                    else -> LEGACY
+                }
+            }
+        }
+    }
+
     companion object {
+        private const val LOOKUP_MODE_PROPERTY = "jugg.constref.lookup.mode"
         private const val IO_THROTTLE_MS_PROPERTY = "jugg.constref.io.throttle.ms"
         private const val IO_THROTTLE_EVERY_PROPERTY = "jugg.constref.io.throttle.every"
         private const val FULL_SCAN_LOG_INTERVAL_MS_PROPERTY = "jugg.constref.full.scan.log.interval.ms"
+        private const val SESSION_FILE_CACHE_MAX_PROPERTY = "jugg.constref.session.file.cache.max"
+        private const val SESSION_LOOKUP_CACHE_MAX_PROPERTY = "jugg.constref.session.lookup.cache.max"
+        private const val SESSION_CACHE_TTL_MS_PROPERTY = "jugg.constref.session.cache.ttl.ms"
         private const val DEFAULT_FULL_SCAN_LOG_INTERVAL_MS = 5000L
+        private const val DEFAULT_SESSION_FILE_CACHE_MAX = 500
+        private const val DEFAULT_SESSION_LOOKUP_CACHE_MAX = 4000
+        private const val DEFAULT_SESSION_CACHE_TTL_MS = 15L * 60L * 1000L
 
         private fun readNonNegativeLongProperty(property: String, defaultValue: Long): Long {
             return System.getProperty(property)?.toLongOrNull()?.coerceAtLeast(0L) ?: defaultValue

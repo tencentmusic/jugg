@@ -389,6 +389,150 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         assertEquals(before?.analyzedAt, after?.analyzedAt)
     }
 
+    @Test
+    fun `should resolve effected files in db session lookup mode`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.lookup.mode" to "db_session",
+                "jugg.constref.session.file.cache.max" to "500",
+                "jugg.constref.session.lookup.cache.max" to "4000",
+                "jugg.constref.session.cache.ttl.ms" to "600000",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_scheduler_db_session")
+            File(rootDir, ".git").mkdirs()
+            val constantsFile = File(rootDir, "Constants.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX = 1
+                    """.trimIndent()
+                )
+            }
+            val userFile = File(rootDir, "User.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    import com.example.MAX
+                    val value = MAX
+                    """.trimIndent()
+                )
+            }
+
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val scheduler = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                scheduler.onFileSaved(constantsFile.absolutePath)
+                scheduler.onFileSaved(userFile.absolutePath)
+                scheduler.awaitAnalysis(listOf(constantsFile.absolutePath, userFile.absolutePath), timeoutMs = 10_000L)
+
+                constantsFile.writeText(
+                    """
+                    package com.example
+                    const val MAX = 2
+                    """.trimIndent()
+                )
+                scheduler.onFileSaved(constantsFile.absolutePath)
+                scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+                val effected = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+                assertEquals(setOf(userFile.toStdPath()), effected.map { it.refFilePath }.toSet())
+            } finally {
+                scheduler.dispose()
+                scope.cancel()
+            }
+        }
+    }
+
+    @Test
+    fun `should keep result consistent after session cache eviction in db session mode`() {
+        withSystemProperties(
+            mapOf(
+                "jugg.constref.lookup.mode" to "db_session",
+                "jugg.constref.session.file.cache.max" to "1",
+                "jugg.constref.session.lookup.cache.max" to "1",
+                "jugg.constref.session.cache.ttl.ms" to "600000",
+            )
+        ) {
+            val rootDir = createTempDirectory("const_ref_scheduler_db_session_eviction")
+            File(rootDir, ".git").mkdirs()
+            val constantsA = File(rootDir, "ConstantsA.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX_A = 1
+                    """.trimIndent()
+                )
+            }
+            val userA = File(rootDir, "UserA.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    import com.example.MAX_A
+                    val valueA = MAX_A
+                    """.trimIndent()
+                )
+            }
+            val constantsB = File(rootDir, "ConstantsB.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    const val MAX_B = 1
+                    """.trimIndent()
+                )
+            }
+            val userB = File(rootDir, "UserB.kt").apply {
+                writeText(
+                    """
+                    package com.example
+                    import com.example.MAX_B
+                    val valueB = MAX_B
+                    """.trimIndent()
+                )
+            }
+
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val scheduler = ConstRefEngine(
+                analyzer = ConstRefAnalyzer(logger),
+                database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+                logger = logger,
+                backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+                repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+            )
+            try {
+                scheduler.onFileSaved(constantsA.absolutePath)
+                scheduler.onFileSaved(userA.absolutePath)
+                scheduler.onFileSaved(constantsB.absolutePath)
+                scheduler.onFileSaved(userB.absolutePath)
+                scheduler.awaitAnalysis(
+                    listOf(constantsA.absolutePath, userA.absolutePath, constantsB.absolutePath, userB.absolutePath),
+                    timeoutMs = 10_000L,
+                )
+
+                constantsA.writeText(
+                    """
+                    package com.example
+                    const val MAX_A = 2
+                    """.trimIndent()
+                )
+                scheduler.onFileSaved(constantsA.absolutePath)
+                scheduler.awaitAnalysis(listOf(constantsA.absolutePath), timeoutMs = 10_000L)
+
+                val effected = scheduler.getEffectedFiles(listOf(constantsA.absolutePath))
+                assertEquals(setOf(userA.toStdPath()), effected.map { it.refFilePath }.toSet())
+            } finally {
+                scheduler.dispose()
+                scope.cancel()
+            }
+        }
+    }
+
     private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
         val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
         File(worktreeGitDir, "commondir").writeText("../../\n")
@@ -408,5 +552,21 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
             Thread.sleep(intervalMs)
         }
         return condition()
+    }
+
+    private inline fun <T> withSystemProperties(properties: Map<String, String>, action: () -> T): T {
+        val previousValues = properties.mapValues { (key, _) -> System.getProperty(key) }
+        properties.forEach { (key, value) -> System.setProperty(key, value) }
+        return try {
+            action()
+        } finally {
+            previousValues.forEach { (key, value) ->
+                if (value == null) {
+                    System.clearProperty(key)
+                } else {
+                    System.setProperty(key, value)
+                }
+            }
+        }
     }
 }
