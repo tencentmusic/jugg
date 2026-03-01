@@ -502,6 +502,46 @@ class ConstRefCacheDatabase(
         return getDefinitionsByFiles(listOf(filePath))
     }
 
+    /**
+     * Loads definitions for [filePath] pinned to a specific [checksum] version.
+     * Used when analysis-reuse hits a previously cached checksum that may not be the "latest"
+     * version in the DB (e.g. A→B→A where B is newer by analyzed_at but A is the current content).
+     */
+    @Synchronized
+    fun getDefinitionsByFileAndChecksum(filePath: String, checksum: Long): List<ConstDefinition> {
+        val repoIdentity = resolveRepoIdentity(filePath) ?: return emptyList()
+        return withConnection { connection ->
+            val definitions = mutableListOf<ConstDefinition>()
+            connection.prepareStatement(
+                """
+                SELECT package_name, fq_class_name, const_name, const_type, const_value
+                FROM const_definitions
+                WHERE repo_key = ?
+                  AND relative_path = ?
+                  AND checksum = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, repoIdentity.repoKey)
+                statement.setString(2, repoIdentity.relativePath)
+                statement.setLong(3, checksum)
+                statement.executeQuery().use { resultSet ->
+                    val absolutePath = repoIdentity.absolutePathInWorktree()
+                    while (resultSet.next()) {
+                        definitions += ConstDefinition(
+                            filePath = absolutePath,
+                            packageName = resultSet.getString("package_name"),
+                            fqClassName = resultSet.getString("fq_class_name"),
+                            constName = resultSet.getString("const_name"),
+                            constType = resultSet.getString("const_type"),
+                            constValue = resultSet.getString("const_value"),
+                        )
+                    }
+                }
+            }
+            definitions
+        }
+    }
+
     @Synchronized
     fun queryDefinitionsByConstNames(
         constNames: Set<String>,

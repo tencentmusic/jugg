@@ -341,6 +341,22 @@ class ConstRefEngine(
                 )
                 if (database.touchFileAnalysis(path, fileLastModified, checksum)) {
                     analysisReuseHitCount++
+                    // Reuse hit means file content matches a previously analysed checksum.
+                    // We still need to update changeTracker when the reused definitions
+                    // differ from the in-memory "previous" snapshot (e.g. A→B→A where B
+                    // was the last analysed version but A's cached checksum is now restored).
+                    // When definitions are identical (same content re-saved), we must NOT
+                    // overwrite existing unconsumed changedKeys in changeTracker.
+                    val previousDefinitions = loadPreviousDefinitionsLocked(path)
+                    val reusedDefinitions = database.getDefinitionsByFileAndChecksum(path, checksum)
+                    if (!areSameDefinitions(previousDefinitions, reusedDefinitions)) {
+                        changeTracker.updateDefinitionDiff(
+                            filePath = path,
+                            previousDefinitions = previousDefinitions,
+                            currentDefinitions = reusedDefinitions,
+                        )
+                        updatePreviousDefinitionsLocked(path, reusedDefinitions)
+                    }
                     markAnalyzed(path)
                     return@forEach
                 }
@@ -847,6 +863,29 @@ class ConstRefEngine(
             sessionCache.putFileDefinitions(filePath, definitions)
         }
         return definitions
+    }
+
+    /**
+     * Updates the in-memory "previous definitions" snapshot used by [loadPreviousDefinitionsLocked]
+     * so that the next diff is based on the correct baseline.
+     */
+    private fun updatePreviousDefinitionsLocked(filePath: String, definitions: List<ConstDefinition>) {
+        if (lookupMode == LookupMode.LEGACY) {
+            if (definitions.isEmpty()) {
+                cachedDefinitionsByFile.remove(filePath)
+            } else {
+                cachedDefinitionsByFile[filePath] = definitions
+            }
+        } else {
+            sessionCache.putFileDefinitions(filePath, definitions)
+        }
+    }
+
+    private fun areSameDefinitions(a: List<ConstDefinition>, b: List<ConstDefinition>): Boolean {
+        if (a.size != b.size) return false
+        val signaturesA = a.map { "${it.fqClassName}|${it.constName}|${it.constType}:${it.constValue.orEmpty()}" }.toSet()
+        val signaturesB = b.map { "${it.fqClassName}|${it.constName}|${it.constType}:${it.constValue.orEmpty()}" }.toSet()
+        return signaturesA == signaturesB
     }
 
     private fun removeDefinitionsFromLookupStateLocked(filePath: String) {

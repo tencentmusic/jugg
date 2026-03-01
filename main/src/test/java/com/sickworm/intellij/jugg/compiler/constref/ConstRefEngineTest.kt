@@ -533,6 +533,86 @@ class ConstRefEngineTest : ConstRefTempDirCleanupSupport() {
         }
     }
 
+    @Test
+    fun `should detect const change when value reverts to a previously cached version (A-B-A)`() {
+        val rootDir = createTempDirectory("const_ref_scheduler_aba")
+        File(rootDir, ".git").mkdirs()
+        val constantsFile = File(rootDir, "Constants.kt").apply {
+            writeText(
+                """
+                package com.example
+                const val ROUTE = "page_a"
+                """.trimIndent()
+            )
+        }
+        val userFile = File(rootDir, "User.kt").apply {
+            writeText(
+                """
+                package com.example
+                import com.example.ROUTE
+                val r = ROUTE
+                """.trimIndent()
+            )
+        }
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        val scheduler = ConstRefEngine(
+            analyzer = ConstRefAnalyzer(logger),
+            database = ConstRefCacheDatabase(File(rootDir, "const_ref.db"), logger),
+            logger = logger,
+            backgroundTaskRunner = CoroutineBackgroundTaskRunner(scope),
+            repoSharedFingerprintStore = RepoSharedFingerprintStore(logger, File(rootDir, "repo_fingerprint.db")),
+        )
+        try {
+            // Initial analysis with value A ("page_a")
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.onFileSaved(userFile.absolutePath)
+            scheduler.awaitAnalysis(
+                listOf(constantsFile.absolutePath, userFile.absolutePath),
+                timeoutMs = 10_000L,
+            )
+            // Consume initial diff so changeTracker is clean
+            scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+
+            // Change to value B ("page_b")
+            constantsFile.writeText(
+                """
+                package com.example
+                const val ROUTE = "page_b"
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effectedAfterB = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(
+                "A->B should trigger recompile of referencing file",
+                setOf(userFile.toStdPath()),
+                effectedAfterB.map { it.refFilePath }.toSet(),
+            )
+
+            // Revert back to value A ("page_a") — this is the A→B→A scenario
+            constantsFile.writeText(
+                """
+                package com.example
+                const val ROUTE = "page_a"
+                """.trimIndent()
+            )
+            scheduler.onFileSaved(constantsFile.absolutePath)
+            scheduler.awaitAnalysis(listOf(constantsFile.absolutePath), timeoutMs = 10_000L)
+
+            val effectedAfterRevert = scheduler.getEffectedFiles(listOf(constantsFile.absolutePath))
+            assertEquals(
+                "B->A (revert) should still trigger recompile of referencing file",
+                setOf(userFile.toStdPath()),
+                effectedAfterRevert.map { it.refFilePath }.toSet(),
+            )
+        } finally {
+            scheduler.dispose()
+            scope.cancel()
+        }
+    }
+
     private fun prepareWorktreeGitRef(worktreeDir: File, commonGitDir: File, worktreeName: String) {
         val worktreeGitDir = File(commonGitDir, "worktrees/$worktreeName").apply { mkdirs() }
         File(worktreeGitDir, "commondir").writeText("../../\n")
