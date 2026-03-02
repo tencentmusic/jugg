@@ -11,9 +11,7 @@ import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
 
 /**
- * Panda 版本兼容层。
- *
- * 当前实现复用 Otter 的行为，后续若 Panda API 差异扩大，可在这里覆写。
+ * Panda version compatibility layer.
  */
 open class PandaAsDeployerFeatureCompat : OtterAsDeployerFeatureCompat() {
 

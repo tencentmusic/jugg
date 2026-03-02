@@ -117,7 +117,7 @@ class DeployDataDatabase(private val dbDir: File, private val logger: Logger) : 
         apkFiles: List<ApkFileUnit>,
         helper: DeployDataDatabaseSqLiteHelper
     ): List<ParsedApkUpdateResult> {
-        // 判断是否使用独立进程解析
+        // Determine whether to use an independent process for parsing.
         val launcher = ApkParserProcessLauncher(logger)
         val useIsolatedProcess = launcher.shouldUseIsolatedProcess(apkFiles)
 
