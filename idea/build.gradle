@@ -65,6 +65,13 @@ sourceSets {
 patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
 FileUtils.copyDirectory(file("${rootProject.rootDir}/change_log") , file("src/main/resources/change_log"))
 
+// copy mcp client_setup.md
+new File("src/main/resources/docs/skills/install").mkdirs()
+FileUtils.copyFile(
+        file("${rootProject.rootDir}/docs/skills/install/client_setup.md"),
+        file("src/main/resources/docs/skills/install/client_setup.md")
+)
+
 runIde {
     // default 11_0_11b1341.57 and will get Access Denied
 //    jbrVersion = '11_0_4b520.11'

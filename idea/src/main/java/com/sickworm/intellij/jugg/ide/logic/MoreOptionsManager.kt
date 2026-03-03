@@ -356,7 +356,7 @@ class MoreOptionsManager(
     }
 
     private fun installJuggMcpAndSkills() {
-        val selectedClients = InstallMcpAndSkillsDialog.showAndGetResult()
+        val selectedClients = InstallMcpAndSkillsDialog.showAndGetResult(pathManager.projectDir)
         if (selectedClients.isEmpty()) {
             return
         }
