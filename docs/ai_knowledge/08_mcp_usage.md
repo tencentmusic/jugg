@@ -80,7 +80,8 @@
 - **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match）。走 App 内 `find_and_tap` 原子执行（查找+点击），避免 IDE 侧 dump 与点击之间的竞态；若 Server 不可用则直接返回 `ERROR`。唯一匹配时点击元素中心点；**多匹配时不执行 tap**，返回 `ERROR` + 所有匹配元素摘要（含 bounds/center）。
 - 元素模式未命中时返回 `MCP_INTERNAL_ERROR`，`message` 会包含可点击候选元素摘要，便于快速改 selector。
 - 元素模式命中前会过滤不可操作节点（`VISIBLE + isShown + 非零尺寸 + 有效 bounds`），避免隐藏模板节点导致误报多匹配。
-- 优先级：coordinate > percent > element。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
+- 参数使用优先级（仅在同一次调用里同时传入多种模式参数时生效）：`coordinate > percent > element`。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
+- 推荐交互顺序（Agent/Skill 指引）：优先 `layout_dump + element tap`；元素模式不适用时使用 `layout_dump + coordinate tap`；仅当 ViewHierarchy 路径明确不可用时，才退回 `screenshot + percent/coordinate tap`。
 
 补充（`mcp_fetch` 清理机制）：
 - MCP 拉取类工具产物默认落在 `JuggPathManager.mcpFetchDir/<toolName>/`（当前展开为 `build/jugg/mcp_fetch/<toolName>/`）。

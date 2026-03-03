@@ -14,6 +14,7 @@ import com.sickworm.intellij.jugg.mcp.McpToolStatus
 import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
+import com.sickworm.intellij.jugg.logger.getInstance
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -52,16 +53,28 @@ class LayoutDumpMcpToolAction : McpToolAction {
     }
 
     private fun layoutDumpAction(runtime: IMcpRuntime): McpToolResult {
+        val logger = runtime.logger.getInstance("LayoutDumpMcpToolAction")
+        logger.debug("layout_dump start")
         val selected = resolveOnlineDevice(runtime)
-            ?: return noDeviceResult("layout_dump")
+            ?: run {
+                logger.warn("layout_dump failed: no online device")
+                return noDeviceResult("layout_dump")
+            }
         val adb = selected.adb
         val toolDir = ensureToolDir(runtime, "layout_dump")
-            ?: return McpToolResult.internalErrorResult("layout_dump", "failed to prepare artifact directory")
+            ?: run {
+                logger.warn("layout_dump failed: unable to prepare artifact directory")
+                return McpToolResult.internalErrorResult("layout_dump", "failed to prepare artifact directory")
+            }
         val packageName = resolvePackageName(runtime)
-            ?: return McpToolResult.internalErrorResult("layout_dump", "failed to resolve package name for ViewHierarchy server")
+            ?: run {
+                logger.warn("layout_dump failed: package name is empty")
+                return McpToolResult.internalErrorResult("layout_dump", "failed to resolve package name for ViewHierarchy server")
+            }
 
         val jsonFileName = "layout_${System.currentTimeMillis()}.json"
         val localJsonFile = File(toolDir, jsonFileName)
+        logger.debug("layout_dump device=${adb.serial}, package=$packageName, output=${localJsonFile.absolutePath}")
 
         return try {
             val client = ViewHierarchyClient(adb, packageName)
@@ -69,17 +82,23 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 ?: return McpToolResult.internalErrorResult(
                     "layout_dump",
                     "ViewHierarchy server is unavailable or returned invalid response"
-                )
+                ).also {
+                    logger.warn("layout_dump failed: ViewHierarchy server unavailable for package=$packageName")
+                }
             val payloadJson = dumpResult.payloadJson
             val remoteFilePath = dumpResult.remoteFilePath
             if (!payloadJson.isNullOrBlank()) {
                 localJsonFile.writeText(payloadJson, StandardCharsets.UTF_8)
+                logger.debug("layout_dump wrote inline payload to ${localJsonFile.absolutePath}")
             } else if (!remoteFilePath.isNullOrBlank()) {
                 adb.pull(remoteFilePath, localJsonFile)
+                logger.debug("layout_dump pulled remote file from $remoteFilePath")
             }
             if (!localJsonFile.exists() || localJsonFile.length() <= 0) {
                 return McpToolResult.internalErrorResult("layout_dump", "failed to fetch layout dump from ViewHierarchy server")
+                    .also { logger.warn("layout_dump failed: output file missing or empty, path=${localJsonFile.absolutePath}") }
             }
+            logger.info("layout_dump success: ${localJsonFile.absolutePath}, size=${localJsonFile.length()}")
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = "layout_dump executed successfully.",
@@ -90,6 +109,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 errorCode = null,
             )
         } catch (e: Exception) {
+            logger.warn("layout_dump failed with exception: ${e.message}", e)
             McpToolResult.internalErrorResult("layout_dump", e.message ?: "unknown error")
         }
     }
@@ -134,7 +154,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
     private fun resolvePackageName(runtime: IMcpRuntime): String? {
         return try {
-            runtime.deployTargetManager.getPackageName()?.takeIf { it.isNotBlank() }
+            runtime.deployTargetManager.getPackageName().takeIf { it.isNotBlank() }
         } catch (_: Exception) {
             null
         }

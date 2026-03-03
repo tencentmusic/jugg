@@ -15,7 +15,8 @@ Use this file when executing runtime interaction or evidence collection (typical
   - **Percent mode** (`xPercent` + `yPercent`, 0-100): auto-resolves screen size and taps proportional position.
   - **Element mode** (`text` / `resourceId` / `contentDesc`, optional `className`): uses app-side `find_and_tap` over ViewHierarchy server (no legacy `uiautomator dump` fallback). All selectors use **exact match**. Taps center only when exactly one element matches; **multiple matches returns ERROR** with all candidates' bounds/center, guiding agent to use coordinate/percent mode.
 - Required input: `projectDir` + at least one mode's parameters.
-- Priority: coordinate > percent > element.
+- Parameter parse priority (only when multiple mode params are provided in one call): `coordinate > percent > element`.
+- Recommended usage order: `layout_dump + element tap` -> `layout_dump + coordinate tap` -> fallback `screenshot + percent/coordinate tap` only when ViewHierarchy path is clearly unavailable.
 - Never use guessed coordinates; always derive via Coordinate Derivation Protocol below or use element mode.
 
 ### Coordinate Derivation Protocol (Mandatory for coordinate mode)

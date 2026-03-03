@@ -26,6 +26,7 @@ local.properties
 /cmd_line/src/test/java/local
 /idea/src/main/resources/META-INF/JUGG_PLUGIN_INFO.MF
 /idea/src/main/resources/change_log/
+/idea/src/main/resources/docs/skills/
 
 /custom_compilers/src/custom
 

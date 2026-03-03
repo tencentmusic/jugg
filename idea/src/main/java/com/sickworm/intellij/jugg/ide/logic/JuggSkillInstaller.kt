@@ -1,105 +1,178 @@
 package com.sickworm.intellij.jugg.ide.logic
 
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.util.zip.ZipInputStream
 
 /**
- * Executes local installer script and summarizes MCP/skill installation results for each client.
+ * Installs Jugg skill and MCP config for supported clients without relying on shell scripts.
  */
 object JuggSkillInstaller {
 
-    private val statusPattern = Regex("^(SKILL|MCP) agent=(\\S+) status=(\\S+) file=(\\S+)(?: reason=(\\S+))?$")
-
-    fun buildCommand(scriptPath: String, client: InstallClient): List<String> {
-        return listOf(
-            "bash",
-            scriptPath,
-            "--with-mcp",
-            "--mcp-client",
-            client.cliName,
-        )
-    }
+    private const val SKILL_NAME = "jugg-android-dev-loop"
+    private const val SKILL_ZIP_RESOURCE = "docs/skills/jugg-android-dev-loop.zip"
+    private const val MCP_SERVER_NAME = "jugg-mcp"
+    private const val MCP_ENDPOINT = "http://localhost:12320/jugg-mcp"
 
     /**
-     * Runs installation scripts for selected clients and merges all output into one summary.
+     * Installs selected clients by writing config files and extracting bundled skill files.
      */
     fun install(projectDir: File, selectedClients: Set<InstallClient>, logger: Logger): InstallSummary {
+        return install(projectDir, selectedClients, logger, File(System.getProperty("user.home")))
+    }
+
+    fun install(projectDir: File, selectedClients: Set<InstallClient>, logger: Logger, userHome: File): InstallSummary {
         if (selectedClients.isEmpty()) {
             return InstallSummary(emptyList())
         }
-        val scriptFile = File(projectDir, "docs/skills/install/install_mcp_and_skill.sh")
-        if (!scriptFile.exists()) {
-            val missing = selectedClients.map {
-                InstallAgentResult(
-                    agent = it.cliName,
-                    skillStatus = "fail",
-                    mcpStatus = "fail",
-                    reasons = listOf("install_script_not_found"),
-                )
-            }
-            return InstallSummary(missing)
-        }
 
-        val allLines = mutableListOf<String>()
-        selectedClients.forEach { client ->
-            val command = buildCommand(scriptFile.path, client)
-            logger.info("[Install Jugg MCP] run command for ${client.cliName}: ${command.joinToString(" ")}")
-            val result = runCommand(command, projectDir)
-            allLines.addAll(result.outputLines)
-            if (result.exitCode != 0) {
-                allLines.add("SKILL agent=${client.cliName} status=fail file=${scriptFile.path} reason=script_exit_${result.exitCode}")
-                allLines.add("MCP agent=${client.cliName} status=fail file=${scriptFile.path} reason=script_exit_${result.exitCode}")
-            }
-        }
-        return summarize(allLines, selectedClients)
-    }
-
-    fun summarize(lines: List<String>, selectedClients: Set<InstallClient>): InstallSummary {
-        val details = selectedClients.associate {
-            it.cliName to MutableInstallAgentResult(it.cliName)
-        }.toMutableMap()
-
-        lines.forEach { line ->
-            val match = statusPattern.matchEntire(line) ?: return@forEach
-            val scope = match.groupValues[1]
-            val agent = match.groupValues[2]
-            val status = match.groupValues[3]
-            val reason = match.groupValues.getOrNull(5).orEmpty()
-            val target = details.getOrPut(agent) { MutableInstallAgentResult(agent) }
-            if (scope == "SKILL") {
-                target.skillStatus = status
-            } else {
-                target.mcpStatus = status
-            }
-            if (reason.isNotEmpty()) {
-                target.reasons.add("$scope:$reason")
-            }
-        }
-
-        val resultList = details.values.map { detail ->
-            if (detail.skillStatus != "ok") {
-                detail.reasons.add("SKILL:${detail.skillStatus ?: "missing"}")
-            }
-            if (detail.mcpStatus != "ok") {
-                detail.reasons.add("MCP:${detail.mcpStatus ?: "missing"}")
-            }
-            detail.toImmutable()
+        val results = selectedClients.map { client ->
+            installForClient(projectDir, client, logger, userHome)
         }.sortedBy { it.agent }
-
-        return InstallSummary(resultList)
+        return InstallSummary(results)
     }
 
-    private fun runCommand(command: List<String>, workingDir: File): CommandResult {
-        val process = ProcessBuilder(command)
-            .directory(workingDir)
-            .redirectErrorStream(true)
-            .start()
-        val output = mutableListOf<String>()
-        process.inputStream.bufferedReader(Charsets.UTF_8).useLines { lines ->
-            lines.forEach { output.add(it) }
+    private fun installForClient(projectDir: File, client: InstallClient, logger: Logger, userHome: File): InstallAgentResult {
+        val reasons = mutableListOf<String>()
+        val skillStatus = runCatching {
+            installSkill(client, userHome)
+            "ok"
+        }.getOrElse { error ->
+            reasons.add("SKILL:${error.safeReason()}")
+            "fail"
         }
-        val code = process.waitFor()
-        return CommandResult(code, output)
+
+        val mcpStatus = runCatching {
+            installMcp(client, userHome)
+            "ok"
+        }.getOrElse { error ->
+            reasons.add("MCP:${error.safeReason()}")
+            "fail"
+        }
+        logger.info("[Install Jugg MCP] projectDir=${projectDir.path}, agent=${client.cliName}, skill=$skillStatus, mcp=$mcpStatus")
+        return InstallAgentResult(client.cliName, skillStatus, mcpStatus, reasons.distinct())
+    }
+
+    private fun installSkill(client: InstallClient, userHome: File) {
+        val skillRoot = skillRootForClient(client, userHome)
+        val skillDir = File(skillRoot, SKILL_NAME)
+        if (skillDir.exists()) {
+            skillDir.deleteRecursively()
+        }
+        skillDir.mkdirs()
+        unzipSkillResource(skillDir)
+    }
+
+    private fun installMcp(client: InstallClient, userHome: File) {
+        when (client) {
+            InstallClient.CODEX -> writeCodexMcpConfig(userHome, MCP_SERVER_NAME, MCP_ENDPOINT)
+            InstallClient.GEMINI -> writeGeminiMcpConfig(userHome, MCP_SERVER_NAME, MCP_ENDPOINT)
+            InstallClient.CLAUDE -> writeClaudeMcpConfig(userHome, MCP_SERVER_NAME, MCP_ENDPOINT)
+        }
+    }
+
+    private fun skillRootForClient(client: InstallClient, userHome: File): File {
+        return when (client) {
+            InstallClient.CODEX -> File(codexHomeDir(userHome), "skills")
+            InstallClient.CLAUDE -> File(claudeHomeDir(userHome), "skills")
+            InstallClient.GEMINI -> File(geminiHomeDir(userHome), "skills")
+        }.also { it.mkdirs() }
+    }
+
+    private fun unzipSkillResource(targetDir: File) {
+        val stream = JuggSkillInstaller::class.java.classLoader.getResourceAsStream(SKILL_ZIP_RESOURCE)
+            ?: throw FileNotFoundException("resource_not_found_$SKILL_ZIP_RESOURCE")
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                val outFile = File(targetDir, entry.name)
+                val canonicalParent = targetDir.canonicalPath + File.separator
+                if (!outFile.canonicalPath.startsWith(canonicalParent)) {
+                    throw IOException("invalid_zip_entry_path")
+                }
+                if (entry.isDirectory) {
+                    outFile.mkdirs()
+                } else {
+                    outFile.parentFile?.mkdirs()
+                    FileOutputStream(outFile).use { output ->
+                        zip.copyTo(output)
+                    }
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+    }
+
+    private fun writeCodexMcpConfig(userHome: File, serverName: String, endpoint: String) {
+        val configFile = File(codexHomeDir(userHome), "config.toml")
+        configFile.parentFile?.mkdirs()
+        val content = if (configFile.exists()) configFile.readText(StandardCharsets.UTF_8) else ""
+        val sectionRegex = Regex("""(?ms)^\[mcp_servers\."$serverName"]\n(?:.+\n)*?(?=^\[|\z)""")
+        val newSection = "[mcp_servers.\"$serverName\"]\nurl = \"$endpoint\"\n"
+        val normalized = if (sectionRegex.containsMatchIn(content)) {
+            content.replace(sectionRegex, newSection)
+        } else {
+            val suffix = if (content.isBlank() || content.endsWith("\n")) "" else "\n"
+            content + suffix + newSection
+        }
+        configFile.writeText(normalized, StandardCharsets.UTF_8)
+    }
+
+    private fun writeGeminiMcpConfig(userHome: File, serverName: String, endpoint: String) {
+        val settingsFile = File(geminiHomeDir(userHome), "settings.json")
+        upsertJsonMcpServer(settingsFile, serverName, JsonObject().apply { addProperty("httpUrl", endpoint) })
+    }
+
+    private fun writeClaudeMcpConfig(userHome: File, serverName: String, endpoint: String) {
+        val settingsFile = File(userHome, ".claude.json")
+        upsertJsonMcpServer(settingsFile, serverName, JsonObject().apply { addProperty("httpUrl", endpoint) })
+    }
+
+    private fun upsertJsonMcpServer(settingsFile: File, serverName: String, serverConfig: JsonObject) {
+        settingsFile.parentFile?.mkdirs()
+        val root = if (settingsFile.exists() && settingsFile.readText(StandardCharsets.UTF_8).isNotBlank()) {
+            JsonParser.parseString(settingsFile.readText(StandardCharsets.UTF_8)).asJsonObject
+        } else {
+            JsonObject()
+        }
+        val mcpServers = if (root.has("mcpServers") && root.get("mcpServers").isJsonObject) {
+            root.getAsJsonObject("mcpServers")
+        } else {
+            JsonObject().also { root.add("mcpServers", it) }
+        }
+        mcpServers.add(serverName, serverConfig)
+        settingsFile.writeText(root.toString() + "\n", StandardCharsets.UTF_8)
+    }
+
+    private fun codexHomeDir(userHome: File): File {
+        val envHome = System.getenv("CODEX_HOME")
+        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".codex")
+    }
+
+    private fun claudeHomeDir(userHome: File): File {
+        val dotClaude = File(userHome, ".claude")
+        val configClaude = File(userHome, ".config/claude")
+        return when {
+            dotClaude.exists() -> dotClaude
+            configClaude.exists() -> configClaude
+            else -> dotClaude
+        }
+    }
+
+    private fun geminiHomeDir(userHome: File): File {
+        val envHome = System.getenv("GEMINI_HOME")
+        return if (!envHome.isNullOrBlank()) File(envHome) else File(userHome, ".gemini")
+    }
+
+    private fun Throwable.safeReason(): String {
+        return (message ?: javaClass.simpleName).replace(Regex("\\s+"), "_")
     }
 }
 
@@ -136,24 +209,3 @@ data class InstallSummary(
         }
     }
 }
-
-private data class MutableInstallAgentResult(
-    val agent: String,
-    var skillStatus: String? = null,
-    var mcpStatus: String? = null,
-    val reasons: MutableList<String> = mutableListOf(),
-) {
-    fun toImmutable(): InstallAgentResult {
-        return InstallAgentResult(
-            agent = agent,
-            skillStatus = skillStatus,
-            mcpStatus = mcpStatus,
-            reasons = reasons.toList().distinct(),
-        )
-    }
-}
-
-private data class CommandResult(
-    val exitCode: Int,
-    val outputLines: List<String>,
-)

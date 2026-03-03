@@ -14,6 +14,8 @@ abstract class McpInvokerTestBase {
     @Before
     fun setUpRuntime() {
         McpRuntimeHolder.runtime = object : IMcpRuntime {
+            override val logger: com.intellij.openapi.diagnostic.Logger
+                get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
             override val project: Project
                 get() = TODO("Not yet implemented")
             override val deployTargetManager: IDeployTargetManager

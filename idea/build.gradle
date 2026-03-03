@@ -64,6 +64,11 @@ sourceSets {
 
 patchPluginXml.changeNotes = new File("${rootProject.rootDir}/change_log/change_log.html").getText('UTF-8')
 FileUtils.copyDirectory(file("${rootProject.rootDir}/change_log") , file("src/main/resources/change_log"))
+new File("src/main/resources/docs/skills").mkdirs()
+ant.zip(
+        destfile: "src/main/resources/docs/skills/jugg-android-dev-loop.zip",
+        basedir: "${rootProject.rootDir}/docs/skills/jugg-android-dev-loop"
+)
 
 // copy mcp client_setup.md
 new File("src/main/resources/docs/skills/install").mkdirs()

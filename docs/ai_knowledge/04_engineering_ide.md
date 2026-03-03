@@ -40,7 +40,7 @@
 
 - 运行配置与设置：`ide/logic/JuggRunSettingsComponent.kt`、`JuggRunConfigurationOptionsExt.kt`。  
 - More Options 下拉与工具入口：`ide/logic/MoreOptionsManager.kt`、`ide/ui/InstallMcpAndSkillsDialog.kt`。  
-  - `Tools` 分组首项支持 `Install Jugg MCP and skills`，可多选 `Codex / Claude Code / Gemini`，并触发 `ide/logic/JuggSkillInstaller.kt` 复用 `docs/skills/install/install_mcp_and_skill.sh` 完成安装与结果汇总。  
+  - `Tools` 分组首项支持 `Install Jugg MCP and skills`，可多选 `Codex / Claude Code / Gemini`，并触发 `ide/logic/JuggSkillInstaller.kt` 通过代码直接完成 skill 安装（内置 zip 资源）与 MCP 配置写入（不依赖外部脚本）。  
   - 安装弹窗提供 `View all`，运行时从插件资源 `docs/skills/install/client_setup.md` 读取模板并导出到 `build/jugg/config/client_setup.md`（`ide/logic/ClientSetupDocExporter.kt`）。  
 - 操作入口：`ide/ui/GradleCompileAction.kt`、`RestartAppAction.kt` 等。  
 - 通知与对话框：`JuggCommonNotification.kt`、`BuildChangesConfirmDialog.kt`、`Report*Dialog.kt`。

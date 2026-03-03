@@ -140,6 +140,8 @@ class CompileAndDeployMcpToolActionTest {
 
     private fun runtimeWithRunner(runFirstConfiguration: () -> JuggRunInvocationResult): IMcpRuntime {
         return object : IMcpRuntime {
+            override val logger: com.intellij.openapi.diagnostic.Logger
+                get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
             override val project: Project
                 get() = throw UnsupportedOperationException("not used in this test")
 

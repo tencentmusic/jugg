@@ -1,5 +1,6 @@
 package com.sickworm.intellij.jugg.mcp
 
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.ForceGradleCompileHelper
 import com.sickworm.intellij.jugg.deploy.IDeployTargetManager
@@ -9,6 +10,7 @@ import com.sickworm.intellij.jugg.ide.logic.IJuggConfigurationRunner
  * IMcpRuntime exposes project/runtime services required by MCP tool actions.
  */
 interface IMcpRuntime {
+    val logger: Logger
     val project: Project
     val deployTargetManager: IDeployTargetManager
     val forceGradleCompileHelper: ForceGradleCompileHelper

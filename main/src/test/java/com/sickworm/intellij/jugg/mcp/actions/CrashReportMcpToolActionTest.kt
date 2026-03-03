@@ -157,6 +157,8 @@ class CrashReportMcpToolActionTest {
         val project = Mockito.mock(Project::class.java)
         Mockito.`when`(project.basePath).thenReturn(projectDir.absolutePath)
         return object : IMcpRuntime {
+            override val logger: com.intellij.openapi.diagnostic.Logger
+                get() = com.intellij.openapi.diagnostic.Logger.getInstance("TestMcpRuntime")
             override val project: Project = project
             override val deployTargetManager: IDeployTargetManager = deployTargetManager
             override val forceGradleCompileHelper: ForceGradleCompileHelper = object : ForceGradleCompileHelper() {
