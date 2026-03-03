@@ -23,7 +23,7 @@ class ProjectInfo(
         val DEMO_JSON = """
 {
     "packageName": "com.example.myapplication",
-    "projectRootDir": "src/test/assets/android/MyApplicationIntellij",
+    "projectRootDir": "../android_demo_project",
     "modifiedSourceDir": "src/test/assets/android/modify_source",
     "apkPath": "app/build/outputs/apk/debug/app-debug.apk",
     "apkEntryInfo": {

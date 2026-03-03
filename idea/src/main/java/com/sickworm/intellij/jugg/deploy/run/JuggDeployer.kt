@@ -46,7 +46,7 @@ class JuggDeployer(
     ): Result {
 //        if (RuntimeMockUtils.isNeedRunTest()) {
 //            val apks = listOf(
-//                "/Users/wormchen/IdeaProjects/jugg/idea/src/test/assets/android/MyApplicationIntellij/app/build/outputs/apk/debug/app-debug.apk"
+//                "/Users/wormchen/IdeaProjects/jugg/android_demo_project/app/build/outputs/apk/debug/app-debug.apk"
 //            )
 //        }
         val result = Result()

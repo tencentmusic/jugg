@@ -16,7 +16,7 @@ import kotlin.test.assertNull
  * and that the keep rules defined in proguard-rules.pro are applied correctly.
  *
  * Test cases are based on the minify test classes in:
- * idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/testcase/minify/
+ * android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/minify/
  *
  * NOTE: Some tests may be skipped if the mapping file doesn't contain the test classes.
  * To run all tests, rebuild the release APK: ./gradlew :app:assembleRelease

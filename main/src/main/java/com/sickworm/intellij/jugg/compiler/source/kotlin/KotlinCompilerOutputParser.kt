@@ -139,7 +139,7 @@ class KotlinCompilerOutputParser(
 
 
         // e.g.
-        // src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/ #soft wrap
+        // android_demo_project/app/src/main/java/com/sickworm/jugg/demo/ #soft wrap
         // testcase/CaseKtSmartCast.kt:9:26: error: smart cast to 'MutableList<String>' is impossible, #soft wrap
         // because 'class2.dataList' is a public API property declared in different module
         // e.g.2.
@@ -184,10 +184,10 @@ class KotlinCompilerOutputParser(
     private fun parseOutputMessage(message: String) {
         // e.g.
         // output: output:
-        // /Users/wormchen/IdeaProjects/jugg/src/test/assets/android/MyApplicationIntellij/app/ #soft wrap
+        // /Users/wormchen/IdeaProjects/jugg/android_demo_project/app/ #soft wrap
         // build/tmp/kotlin-classes/debug/com/sickworm/jugg/demo/testcase/CaseKtSmartCast.class
         // Sources:
-        // /Users/wormchen/IdeaProjects/jugg/src/test/assets/android/MyApplicationIntellij/app/ #soft wrap
+        // /Users/wormchen/IdeaProjects/jugg/android_demo_project/app/ #soft wrap
         // src/main/java/com/sickworm/jugg/demo/testcase/CaseKtSmartCast.kt
 
         val contents = message.split("\n")

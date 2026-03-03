@@ -20,7 +20,7 @@ class ExampleAssembleCustomCompiler(context: ICompileContext, parent: Disposable
     }
 
     override fun doModuleCompile(task: CompileTask, module: ModuleInfo): CompileResult {
-        if (context.projectDir.name != "MyApplicationIntellij") {
+        if (context.projectDir.name != "android_demo_project") {
             return CompileResult(task, emptyList(), emptyList())
         }
 

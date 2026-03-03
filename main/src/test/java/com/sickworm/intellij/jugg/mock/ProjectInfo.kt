@@ -21,7 +21,7 @@ class ProjectInfo(
         val DEMO_JSON = """
 {
     "packageName": "com.example.myapplication",
-    "projectRootDir": "../idea/src/test/assets/android/MyApplicationIntellij",
+    "projectRootDir": "../android_demo_project",
     "apkPath": "app/build/outputs/apk/debug/app-debug.apk"
 }
 """.trimIndent()

@@ -10,11 +10,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 private val apkFilePath = """
-../idea/src/test/assets/android/MyApplicationIntellij/app/build/outputs/apk/debug/app-debug.apk
+../android_demo_project/app/build/outputs/apk/debug/app-debug.apk
 """.split("\n").filter { it.isNotBlank() }.joinToString("")
 
 private val gradleProjectInfoPath = """
-../idea/src/test/assets/android/MyApplicationIntellij/build/jugg/database/project_infos.db/gradle_project_infos.json
+../android_demo_project/build/jugg/database/project_infos.db/gradle_project_infos.json
 """.split("\n").filter { it.isNotBlank() }.joinToString("")
 
 class ResignApk {

@@ -85,8 +85,8 @@ Release 构建开启 R8 后，方法可能被内联到调用方类。
 
 1. `main/src/test/java/com/sickworm/intellij/jugg/compiler/obfuscation/DexMinifyCompilerPhase2Test.kt` 覆盖 `_jugg_fix` 生成链路。  
 2. `main/src/test/java/com/sickworm/intellij/jugg/deploy/data/DeployDataGeneratorReleaseTest.kt` 适配新影响类型。  
-3. `idea/src/test/assets/android/MyApplicationIntellij/app/proguard-rules.pro` 通过 `-applymapping mapping-fixed.txt` 固化混淆输出，降低 Release 测试波动。  
-4. `idea/src/test/assets/android/MyApplicationIntellij/app/mapping-fixed.txt.README.md` 说明了 mapping 固化与更新流程。
+3. `android_demo_project/app/proguard-rules.pro` 通过 `-applymapping mapping-fixed.txt` 固化混淆输出，降低 Release 测试波动。
+4. `android_demo_project/app/mapping-fixed.txt.README.md` 说明了 mapping 固化与更新流程。
 
 ## 6. 方案收益
 

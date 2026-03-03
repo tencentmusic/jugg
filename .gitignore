@@ -19,7 +19,7 @@ local.properties
 /verification
 
 **/build/
-/idea/src/test/assets/android/MyApplicationIntellij/.idea/
+/android_demo_project/.idea/
 /main/src/main/resources/gradle/
 /main/src/test/java/local
 /idea/src/test/java/local

@@ -18,7 +18,7 @@ tasks.withType(Jar).configureEach {
 
 // Customize the distribution:
 // - Include demo scripts and README under demo/
-// - Add demo_project.zip containing the MyApplicationIntellij project (excluding all build directories)
+// - Add demo_project.zip containing the android_demo_project (excluding all build directories)
 distributions {
     main {
         contents {
@@ -27,10 +27,10 @@ distributions {
             }
             from(tasks.register('demoProjectZip', Zip) {
                 it.group = 'distribution'
-                it.description = 'Zip MyApplicationIntellij demo project excluding build dirs'
+                it.description = 'Zip android_demo_project excluding build dirs'
                 it.archiveFileName.set('demo_project.zip')
                 it.destinationDirectory.set(layout.buildDirectory.dir('demo'))
-                def demoProjectDir = file("${rootProject.projectDir}/idea/src/test/assets/android/MyApplicationIntellij")
+                def demoProjectDir = file("${rootProject.projectDir}/android_demo_project")
                 it.from(demoProjectDir) {
                     exclude '**/build/**'
                     into 'demo_project'

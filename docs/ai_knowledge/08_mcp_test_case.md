@@ -8,7 +8,7 @@
 
 ## 执行须知
 
-### 测试页面入口（MyApplicationIntellij）
+### 测试页面入口（android_demo_project）
 
 为便于执行 `tap/layout_dump/screenshot` 相关用例，测试工程新增了 MCP 专用页面：
 

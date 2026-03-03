@@ -11,14 +11,14 @@ class CmdLineTest {
 
     @Test
     fun buildBase() {
-        val cmd = SimpleSshCommand("rm -rf ../idea/src/test/assets/android/MyApplicationIntellij/build/jugg")
+        val cmd = SimpleSshCommand("rm -rf ../android_demo_project/build/jugg")
         val resultInt = CmdExecutor(StdLogger("JuggTest")).invoke(cmd)
         assertEquals(0, resultInt)
 
         val outputDir = File("${Global.buildOutputDir}/outputs")
         val args = arrayOf(
             "cmd=${CmdLine.Command.BUILD_GRADLE_BASE.value}",
-            "baseBuildProjectDir=../idea/src/test/assets/android/MyApplicationIntellij",
+            "baseBuildProjectDir=../android_demo_project",
             "gradleCompileTask=assembleDebug",
             "gradleOutputApkPath=app/build/outputs/apk/debug/*.apk",
             "logLevel=debug",
@@ -36,8 +36,8 @@ class CmdLineTest {
         doBuildIncrementalApk(
             modify = {
                 return@doBuildIncrementalApk listOf(
-                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt",
-                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/res/layout/activity_main.xml",
+                    "../android_demo_project/app/src/main/java/com/example/myapplication/MainActivity.kt",
+                    "../android_demo_project/app/src/main/res/layout/activity_main.xml",
                 ).map(::File)
             },
             revert = {
@@ -79,7 +79,7 @@ class CmdLineTest {
 
     @Test
     fun buildIncrementalApkEffects() {
-        val classFile = File("../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
+        val classFile = File("../android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/subclass/RootClass.java")
         val originCode = classFile.readText()
 
         doBuildIncrementalApk(
@@ -102,8 +102,8 @@ class CmdLineTest {
         doBuildIncrementalApk(
             modify = {
                 return@doBuildIncrementalApk listOf(
-                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/example/myapplication/MainActivity.kt",
-                    "../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/res/layout/activity_main.xml",
+                    "../android_demo_project/app/src/main/java/com/example/myapplication/MainActivity.kt",
+                    "../android_demo_project/app/src/main/res/layout/activity_main.xml",
                 ).map(::File)
             },
             revert = {
@@ -118,7 +118,7 @@ class CmdLineTest {
 
     @Test
     fun buildIncrementalApkManifest() {
-        val manifestFile = File("../idea/src/test/assets/android/MyApplicationIntellij/app/src/main/AndroidManifest.xml")
+        val manifestFile = File("../android_demo_project/app/src/main/AndroidManifest.xml")
         val originCode = manifestFile.readText()
         doBuildIncrementalApk(
             modify = {

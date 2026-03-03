@@ -22,7 +22,7 @@ import kotlin.test.assertTrue
  * and produces valid dex output when minify is enabled.
  *
  * Test cases are based on the minify test classes in:
- * idea/src/test/assets/android/MyApplicationIntellij/app/src/main/java/com/sickworm/jugg/demo/testcase/minify/
+ * android_demo_project/app/src/main/java/com/sickworm/jugg/demo/testcase/minify/
  *
  * For mapping file verification tests, see R8MappingTest.kt
  */

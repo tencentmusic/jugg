@@ -19,7 +19,7 @@ class ExampleDelayCustomCompiler(private val context: ICompileContext) : ICompil
     override val supportedTypes: List<CompileFile.Type> = CompileFile.Type.entries
 
     override fun compile(task: CompileTask): CompileResult {
-        if (context.projectDir.name != "MyApplicationIntellij") {
+        if (context.projectDir.name != "android_demo_project") {
             return CompileResult(task, emptyList(), emptyList())
         }
         context.logger.info("[ExampleDelayCustomCompiler] I'm in!")

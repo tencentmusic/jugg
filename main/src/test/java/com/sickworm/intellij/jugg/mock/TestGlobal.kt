@@ -25,7 +25,7 @@ object TestGlobal {
     private val tempCompileDir = File(buildDir, "compiled")
     val stagingDir = File(buildDir, "staging")
 
-    val projectRootDir: File = File(ideaDir, "src/test/assets/android/MyApplicationIntellij").absoluteFile
+    val projectRootDir: File = File(rootDir, "android_demo_project").absoluteFile
     private val appModuleDir = File(projectRootDir, "app")
     val assetsAndroidDir = projectRootDir
     val modifySourceDir = File(ideaDir, "src/test/assets/android/modify_source")
