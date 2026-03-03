@@ -79,7 +79,9 @@ Direct call from main agent only when: single tool call **and** result is used a
 
 **Default**: when unsure, delegate.
 
-Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video. If sub-agent does not have MCP tool access, skip delegation — execute in main agent and summarize findings into the same structured format before continuing.
+Sub-agent **must** have MCP tool access (use the agent type with full/all tool access, e.g. `general-purpose` in Claude Code). If unavailable, execute in main agent instead.
+
+Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video.
 
 ## Crash Triage Loop
 
@@ -93,7 +95,7 @@ When runtime result looks abnormal (unexpected activity, dead process, or missin
 
 For `compile_and_deploy` or `force_gradle_compile`:
 
-- If `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent.
+- If `isFinal=false`, immediately delegate polling to an `awaiter` sub-agent (must have MCP access; if unavailable, poll in main agent).
 - Poll with `get_compile_status(jobId)` and follow `pollIntervalSuggestedMs` when present.
 - Determine result only by terminal compile status.
 - If `status=unknown`, treat as invalid job/context; stop and re-check `jobId` source.
