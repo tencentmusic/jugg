@@ -2,6 +2,7 @@
 
 > 说明：本文档覆盖 Jugg MCP 全部 17 个工具的功能验证，用自然语言描述，可直接输入给 AI coding agent 执行。
 > 工具清单来源：`McpToolActionRegistry.kt` + `08_mcp_usage.md`
+> 最后核对：2026-03-03（文档与代码冲突时，以代码为准）
 
 ---
 
@@ -127,7 +128,7 @@
 调用 `stop_record`，仅传入 `projectDir`，不传 `sessionId`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
 
 **TC-14: 布局导出 - 有设备**
-在有设备连接的情况下，调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`artifacts` 数组中包含一个 `layout_dump` 类型的产物，`path` 指向一个 XML 文件。读取该文件，确认内容是有效的 UI 层级 XML。
+在有设备连接的情况下，调用 `layout_dump`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data.file` 指向一个 JSON 文件绝对路径，`artifacts` 数组中包含一个 `type=json` 的产物，且 `path` 与 `data.file` 一致。读取该文件，确认内容是有效的 ViewHierarchy JSON 树。
 
 **TC-15: Activity 栈查询**
 在有设备连接的情况下，调用 `activity_stack`，传入有效 `projectDir`，验证返回 `status` 为 `OK`，`data` 或 `artifacts` 中包含当前 Activity 栈信息，能看到前台 Activity 名称。
@@ -155,16 +156,23 @@
 调用 `tap`，传入 `projectDir`、`xPercent=50`、`yPercent=50`，验证返回 `status` 为 `OK`，`data` 中 `mode` 为 `percent`，`screenWidth` 和 `screenHeight` 有值，`x` 和 `y` 为换算后的像素坐标。
 
 **TC-20b: 元素模式点击 - 按 text 精确匹配**
-通过 `layout_dump` 获取当前 UI 层级 XML，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息。注意：text 为精确匹配，子串不会命中。
+通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有**唯一** `text` 属性的可见元素（确认该 text 在当前界面只出现一次），然后调用 `tap`，传入 `projectDir` 和 `text=<该元素的完整 text>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`，`data.matchedElement` 包含对应元素信息。注意：text 为精确匹配，子串不会命中。
 
 **TC-20c: 元素模式点击 - 按 resourceId 匹配**
-通过 `layout_dump` 获取当前 UI 层级 XML，找到一个有 `resource-id` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resource-id>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
+通过 `layout_dump` 获取当前 UI 层级 JSON，找到一个有 `resourceId` 属性的元素，然后调用 `tap`，传入 `projectDir` 和 `resourceId=<该元素的 resourceId>`，验证返回 `status` 为 `OK`，`data.mode` 为 `element`。
 
 **TC-20d: 元素模式点击 - 无匹配返回候选**
-调用 `tap`，传入 `projectDir` 和 `text="ThisElementDoesNotExist_12345"`，验证返回 `status` 为 `ERROR`，`message` 中包含"No matching UI element found"以及可点击的候选元素列表。
+调用 `tap`，传入 `projectDir` 和 `text="ThisElementDoesNotExist_12345"`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INTERNAL_ERROR`，`data.mode` 为 `element`，`data.matchCount` 为 0，且 `message` 中包含 "No matching UI element found" 以及可点击的候选元素列表。
 
 **TC-20e: 元素模式点击 - 多匹配返回候选列表**
 通过 `layout_dump` 找到一个在当前界面出现多次的 `text`（如列表项的重复文字），调用 `tap`，传入 `projectDir` 和 `text=<该重复 text>`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`，`data.matchCount` > 1，`data.matches` 为数组且每个元素包含 `bounds`、`centerX`、`centerY`，`message` 中包含引导使用坐标或百分比模式的提示。Agent 应根据返回的坐标信息用 `tap(x, y)` 进行二次精确点击。
+补充：若 ViewHierarchy Server 不可用，`layout_dump` / `tap` 元素模式会直接返回 `ERROR`，不再回退到 `uiautomator dump`。
+
+**TC-20f: 元素模式点击 - 隐藏重复节点不应计入匹配**
+构造同 selector 的两个节点（一个可见、一个 `GONE/INVISIBLE` 或零尺寸），调用 `tap` 元素模式，验证不会返回“多匹配”，仅可见可操作节点会参与命中。
+
+**TC-20g: ViewHierarchy 多进程 socket 回退**
+多进程应用中模拟 `pidof` 返回多个 PID，首个 PID 对应 socket 不可连、次个 PID 可连，调用 `layout_dump` 或 `tap` 元素模式，验证请求最终成功；当全部 `jugg_vh_<pid>` 失败时，仍会尝试 `jugg_vh` 兼容名。
 
 **TC-21: tap - 缺少必填参数**
 调用 `tap`，仅传入 `projectDir`，不传 `x`、`y`、`xPercent`、`yPercent`、`text`、`resourceId`、`contentDesc`，验证返回 `status` 为 `ERROR`，`errorCode` 为 `MCP_INVALID_PARAMS`。
@@ -424,9 +432,9 @@
 | 9 | `screenshot` | 是 | 设备截图 |
 | 10 | `start_record` | 是 | 开始设备录屏并返回 `sessionId` |
 | 11 | `stop_record` | 是 | 停止录屏并拉取 mp4 |
-| 12 | `layout_dump` | 是 | 导出 UI 层级 XML |
+| 12 | `layout_dump` | 是 | 导出 UI 层级 JSON |
 | 13 | `activity_stack` | 是 | 获取当前 Activity 栈 |
 | 14 | `start_app` | 是 | 启动应用默认入口 |
 | 15 | `start_activity` | 是 | 按 intent 参数启动 Activity |
-| 16 | `tap` | 是 | 屏幕坐标点击 |
+| 16 | `tap` | 是 | 屏幕点击（三模式：坐标/百分比/元素） |
 | 17 | `request_remote_ssh_info` | 否 | 获取远端 SSH 信息 |

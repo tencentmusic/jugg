@@ -13,7 +13,7 @@ Use this file when executing runtime interaction or evidence collection (typical
 - Purpose: deterministic UI action. Supports three modes:
   - **Coordinate mode** (`x` + `y`): tap exact pixel coordinates.
   - **Percent mode** (`xPercent` + `yPercent`, 0-100): auto-resolves screen size and taps proportional position.
-  - **Element mode** (`text` / `resourceId` / `contentDesc`, optional `className`): finds UI element via uiautomator dump. All selectors use **exact match**. Taps center only when exactly one element matches; **multiple matches returns ERROR** with all candidates' bounds/center, guiding agent to use coordinate/percent mode.
+  - **Element mode** (`text` / `resourceId` / `contentDesc`, optional `className`): uses app-side `find_and_tap` over ViewHierarchy server (no legacy `uiautomator dump` fallback). All selectors use **exact match**. Taps center only when exactly one element matches; **multiple matches returns ERROR** with all candidates' bounds/center, guiding agent to use coordinate/percent mode.
 - Required input: `projectDir` + at least one mode's parameters.
 - Priority: coordinate > percent > element.
 - Never use guessed coordinates; always derive via Coordinate Derivation Protocol below or use element mode.
@@ -22,23 +22,27 @@ Use this file when executing runtime interaction or evidence collection (typical
 
 1. Run `layout_dump`.
 2. Locate node by priority: `resource-id` -> `text` -> `content-desc`.
-3. Parse `bounds` as `[x1,y1][x2,y2]`.
-4. Tap center: `x=(x1+x2)/2`, `y=(y1+y2)/2`.
+3. Parse bounds from JSON fields: `left`, `top`, `right`, `bottom`.
+4. Tap center: `x=(left+right)/2`, `y=(top+bottom)/2`.
 5. If target is moving/transient, refresh `layout_dump` right before tap.
 
 ### Element Mode (Automated Coordinate Derivation)
 
 When using element mode, the tool automatically performs the Coordinate Derivation Protocol:
-1. Dumps UI hierarchy via `uiautomator dump`.
+1. Sends atomic `find_and_tap` request to app-side ViewHierarchy server.
 2. Matches elements using **exact match** AND logic across provided selectors (`text`, `resourceId`, `contentDesc`, `className`).
-3. If exactly 1 match: parses `bounds` and taps center point. Returns `matchedElement` description.
-4. If multiple matches: returns `ERROR` with `data.matches` array containing each element's bounds, centerX, centerY. Agent should pick the correct element and retry with coordinate or percent mode.
-5. If no match: returns `ERROR` with clickable candidates for debugging.
+3. Filters to actionable elements before matching (`VISIBLE + isShown + non-zero size + valid bounds`).
+4. If exactly 1 match: taps center and returns `x`/`y` + `matchedElement`.
+5. If multiple matches: returns `MCP_INVALID_PARAMS` with `data.matches` array (bounds/center), then retry with coordinate or percent mode.
+6. If no match: returns `MCP_INTERNAL_ERROR` with clickable candidates in message for selector debugging.
+7. If server unavailable: returns error directly (no `uiautomator` fallback).
 
 ## `layout_dump`
 
 - Purpose: UI hierarchy evidence and coordinate lookup.
 - Required input: `projectDir`.
+- Output: `data.file` absolute `.json` path and `artifacts` entry with `type=json`.
+- Source: app-side ViewHierarchy server via `adb forward` + LocalSocket; no `uiautomator` fallback.
 - Locate node by `resource-id` first, then `text`, then `bounds` center.
 
 ## `activity_stack`

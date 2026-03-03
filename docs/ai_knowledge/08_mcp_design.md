@@ -1,6 +1,6 @@
 # MCP 设计说明（当前实现视角）
 
-> 最后核对：2026-02-23  
+> 最后核对：2026-03-03  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -20,6 +20,7 @@
 | 工具执行层 | `McpToolInvoker` | 参数校验、工具路由、结果映射 |
 | 校验层 | `McpRequestValidator` | schema 校验、默认值填充、projectDir 授权检查 |
 | 注册层 | `McpToolRegistry`, `McpToolActionRegistry` | 工具定义与 action 注册 |
+| 设备端桥接层 | `mcp/viewhierarchy/ViewHierarchyClient` + `jvmti_agent/.../viewhierarchy/*` | `layout_dump` / `tap` 元素模式的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
 | 运行时适配层 | `IMcpRuntime`, `IdeaMcpRuntime` | 将工具执行连接到 IDE 真实能力 |
 
 ---
@@ -52,7 +53,15 @@
 
 ---
 
-## 6. 扩展新工具建议
+## 6. ViewHierarchy 可靠性约束
+
+- `ElementFinder` 在 selector 命中前先过滤不可操作节点（可见、已显示、非零尺寸、有效 bounds）。
+- `ViewHierarchyServerLoader` 仅在 `ViewHierarchyServer.start(...)` 成功后设置初始化标志，失败可重试。
+- `ViewHierarchyClient` 在多进程场景按“主进程优先 -> 其余 PID -> `jugg_vh` 兼容名”尝试 socket，避免首个 PID 误选导致不可用。
+
+---
+
+## 7. 扩展新工具建议
 
 1. 新增 `McpToolAction` 实现。  
 2. 定义 `McpToolDefinition`（含 input/output schema）。  
@@ -62,7 +71,7 @@
 
 ---
 
-## 7. 关联文档
+## 8. 关联文档
 
 - 使用说明：`08_mcp_usage.md`
 - 代码定位：`98_code_map.md`

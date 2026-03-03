@@ -62,23 +62,24 @@ Intent -> first file mapping:
 - `projectDir`: use current working directory by default.
 - Max autonomous retries for same failure category: `3`.
 - Never tap with guessed coordinates; prefer element mode (`text`/`resourceId`/`contentDesc`) over manual coordinate derivation. Never claim success without artifact evidence.
+- Element mode is server-only exact match (`find_and_tap`); if ViewHierarchy server is unavailable, retry after `restart_app` once, then switch strategy or ask user.
 - For detailed runtime/observe procedures, load `references/tool_cards_runtime_observe.md`.
 - Unknown/high-risk failure: stop and ask user.
 
 ## Observe Delegation Policy
 
-`layout_dump` / `tap` / `screenshot` / recording produce large context (XML, images, video). Isolate observation from main agent context when possible.
+`layout_dump` / `tap` / `screenshot` / recording produce large context (layout JSON, images, video). Isolate observation from main agent context when possible.
 
 Delegate (prefer sub-agent, fallback to main-agent-with-summarize) when **any** condition is true:
 
 1. **>=2 runtime tool calls** — interaction chains, recording sessions, combined evidence.
-2. **Analysis required on heavy output** — even 1 tool call, if the result needs reasoning over large data (e.g., `layout_dump` XML to judge layout correctness, or video/screenshot to verify visual behavior).
+2. **Analysis required on heavy output** — even 1 tool call, if the result needs reasoning over large data (e.g., `layout_dump` JSON to judge layout correctness, or video/screenshot to verify visual behavior).
 
 Direct call from main agent only when: single tool call **and** result is used as-is without analysis (e.g., one `activity_stack` to confirm page, one `screenshot` as final proof with verdict already decided).
 
 **Default**: when unsure, delegate.
 
-Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw XML/image. If sub-agent does not have MCP tool access, skip delegation — execute in main agent and summarize findings into the same structured format before continuing.
+Sub-agent receives `projectDir` + intent + target hints, returns only `{verdict, summary, artifacts, issues}`, never raw layout JSON/image/video. If sub-agent does not have MCP tool access, skip delegation — execute in main agent and summarize findings into the same structured format before continuing.
 
 ## Crash Triage Loop
 

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.sickworm.intellij.jugg.jvmti_agent.BuildConfig;
+import com.sickworm.intellij.jugg.viewhierarchy.ViewHierarchyServerLoader;
 
 /**
  * Refer from Lightning :)
@@ -77,6 +78,9 @@ public class BootstrapApplication extends Application {
             moveActivityLifecycleCallbacks();
             rawApplication.onCreate();
         }
+
+        // Initialize ViewHierarchy server from BootstrapApplication lifecycle.
+        ViewHierarchyServerLoader.init(this);
 
         LogUtils.i(TAG, "onCreate done");
     }

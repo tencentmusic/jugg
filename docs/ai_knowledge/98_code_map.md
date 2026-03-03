@@ -27,6 +27,7 @@
 | Gradle 编译客户端 | `LocalGradleCompileClient`, `RemoteGradleCompileClient`, `CmdExecutor` | `gradle/compile/` | 本地/远端 Gradle 构建执行 |
 | MCP 协议 | `McpLocalServer`, `McpBaseInvoker`, `McpToolInvoker`, `McpRequestValidator` | `mcp/` | MCP HTTP + JSON-RPC 处理 |
 | MCP 工具 | `McpToolActionRegistry`, `CompileJobManager`, `GetCompileStatusMcpToolAction`, `McpFetchCleaner` | `mcp/actions/` | 工具注册、异步编译状态管理与 `JuggPathManager.mcpFetchDir` 过期文件清理 |
+| MCP ViewHierarchy 通信 | `ViewHierarchyClient`, `ViewHierarchyRequest`, `ViewHierarchyResponse` | `mcp/viewhierarchy/` | `layout_dump` / `tap` 元素模式的 App 内 LocalSocket 通道（Server-only，无 uiautomator 回退） |
 | 工具模块 | `Aapt2DaemonInvoker`, `ApkFileModifier`, `GitManager`, `JuggLogger`, `JuggServer`, `PlatformApi` | `aapt2/`, `apk/`, `git/`, `logger/`, `server/`, `platform/` | 通用基础能力 |
 
 | 模块 | 关键类/接口 | 文件路径 | 职责/说明 | 状态 | 最近同步 |
@@ -80,7 +81,7 @@
 | platform_compat | `platform_compat/base_api/src/main/java/` | IntelliJ/Android API mock，供 `main` 编译与测试 |
 | cmd_line | `cmd_line/src/main/java/com/sickworm/intellij/jugg/cmdline/` | `CmdLine`, `BuildGradleBaseCommand`, `BuildIncrementalApkCommand` |
 | custom_compilers | `custom_compilers/src/main/java/com/sickworm/intellij/jugg/compiler/demo/` | SPI 自定义编译器示例 |
-| jvmti_agent | `jvmti_agent/src/main/cpp/` | `native-lib.cpp`, `instrumenter.cc`, `native_callbacks.cc` |
+| jvmti_agent | `jvmti_agent/src/main/cpp/` + `jvmti_agent/src/main/java/com/sickworm/intellij/jugg/viewhierarchy/` | JVMTI native 能力（`native-lib.cpp`）+ App 内 ViewHierarchy LocalSocket Server（`ViewHierarchyServer*`, `ViewTreeDumper`, `ElementFinder`, `ViewTapper`，由 `BootstrapApplication` 初始化） |
 
 ---
 
@@ -90,6 +91,7 @@
 - schema 复用：`main/src/main/java/com/sickworm/intellij/jugg/mcp/actions/McpToolSchemas.kt`  
 - 协议入口：`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpLocalServer.kt`  
 - 校验与分发：`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpRequestValidator.kt`、`main/src/main/java/com/sickworm/intellij/jugg/mcp/McpToolInvoker.kt`
+- ViewHierarchy 客户端：`main/src/main/java/com/sickworm/intellij/jugg/mcp/viewhierarchy/ViewHierarchyClient.kt`
 
 ---
 

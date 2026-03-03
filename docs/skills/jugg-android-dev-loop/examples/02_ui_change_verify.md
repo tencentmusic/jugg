@@ -9,9 +9,9 @@
 1. Apply UI/code change.
 2. Run `compile_and_deploy(projectDir)`.
 3. Run `restart_app(projectDir)`.
-4. Run `layout_dump(projectDir)` and locate target node (`resource-id` first).
+4. Run `layout_dump(projectDir)`, read `data.file` JSON artifact, and locate target node (`resource-id` first).
 5. Tap the target:
-   - **Preferred**: use element mode directly — `tap(projectDir, resourceId="com.example:id/btn_target")` or `tap(projectDir, text="Submit")`. The tool automatically resolves bounds center.
+   - **Preferred**: use element mode directly — `tap(projectDir, resourceId="com.example:id/btn_target")` or `tap(projectDir, text="Submit")`. The tool uses app-side atomic `find_and_tap` (exact match, no legacy `uiautomator` fallback) and automatically resolves bounds center.
    - **Fallback**: compute target center from bounds manually, then call `tap(projectDir, x, y)`.
 6. If verification needs >=2 user actions or includes animation/transient state: `start_record` before first tap, `stop_record` after last tap.
 7. Run `screenshot(projectDir)` for end-state proof.
@@ -32,6 +32,7 @@
 ## Stop/Fallback
 
 - If target node not found in `layout_dump`: stop and ask for expected page/state.
+- If `layout_dump`/element-mode `tap` reports ViewHierarchy server unavailable: `restart_app` once and retry; if still failing, stop and ask user for runtime state.
 - If tap/screenshot both fail: verification fails.
 
 ## Evidence

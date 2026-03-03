@@ -11,9 +11,11 @@ import com.sickworm.intellij.jugg.mcp.McpJsonSchemaProperty
 import com.sickworm.intellij.jugg.mcp.McpToolDefinition
 import com.sickworm.intellij.jugg.mcp.McpToolResult
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.JuggPathManager
 import java.io.File
+import java.nio.charset.StandardCharsets
 
 /**
  * LayoutDumpMcpToolAction implements MCP tool `layout_dump` and converts request arguments into tool execution and MCP result payloads.
@@ -23,7 +25,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
 
     override val definition: McpToolDefinition = McpToolDefinition(
         name = toolName,
-        description = "Dump current UI hierarchy XML from target device.",
+        description = "Dump current UI hierarchy from app-side ViewHierarchy server and export JSON artifact.",
         inputSchema = McpJsonSchemaObject(
             properties = mapOf(
                 "projectDir" to McpToolSchemas.projectDirProperty,
@@ -36,7 +38,7 @@ class LayoutDumpMcpToolAction : McpToolAction {
                 "data" to McpJsonSchemaProperty(
                     type = "object",
                     properties = mapOf(
-                        "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.xml$"),
+                        "file" to McpJsonSchemaProperty(type = "string", pattern = "^/.+\\.json$"),
                     ),
                     required = listOf("file"),
                     additionalProperties = false,
@@ -55,38 +57,41 @@ class LayoutDumpMcpToolAction : McpToolAction {
         val adb = selected.adb
         val toolDir = ensureToolDir(runtime, "layout_dump")
             ?: return McpToolResult.internalErrorResult("layout_dump", "failed to prepare artifact directory")
+        val packageName = resolvePackageName(runtime)
+            ?: return McpToolResult.internalErrorResult("layout_dump", "failed to resolve package name for ViewHierarchy server")
 
-        val fileName = "layout_${System.currentTimeMillis()}.xml"
-        val localFile = File(toolDir, fileName)
-        val remoteDir = "/sdcard/Download/jugg_mcp"
-        val remoteFile = "$remoteDir/$fileName"
+        val jsonFileName = "layout_${System.currentTimeMillis()}.json"
+        val localJsonFile = File(toolDir, jsonFileName)
 
         return try {
-            if (!tryDumpAndPull(adb, remoteDir, remoteFile, localFile)) {
-                Thread.sleep((300L..800L).random())
+            val client = ViewHierarchyClient(adb, packageName)
+            val dumpResult = client.dumpLayout()
+                ?: return McpToolResult.internalErrorResult(
+                    "layout_dump",
+                    "ViewHierarchy server is unavailable or returned invalid response"
+                )
+            val payloadJson = dumpResult.payloadJson
+            val remoteFilePath = dumpResult.remoteFilePath
+            if (!payloadJson.isNullOrBlank()) {
+                localJsonFile.writeText(payloadJson, StandardCharsets.UTF_8)
+            } else if (!remoteFilePath.isNullOrBlank()) {
+                adb.pull(remoteFilePath, localJsonFile)
             }
-            if (!localFile.exists() && !tryDumpAndPull(adb, remoteDir, remoteFile, localFile)) {
-                return McpToolResult.internalErrorResult("layout_dump", "failed to pull layout dump file")
+            if (!localJsonFile.exists() || localJsonFile.length() <= 0) {
+                return McpToolResult.internalErrorResult("layout_dump", "failed to fetch layout dump from ViewHierarchy server")
             }
-
             McpToolResult(
                 status = McpToolStatus.OK,
                 message = "layout_dump executed successfully.",
                 data = mapOf(
-                    "file" to localFile.absolutePath,
+                    "file" to localJsonFile.absolutePath,
                 ),
-                artifacts = listOf(McpArtifact(type = "xml", path = localFile.absolutePath)),
+                artifacts = listOf(McpArtifact(type = "json", path = localJsonFile.absolutePath)),
                 errorCode = null,
             )
         } catch (e: Exception) {
             McpToolResult.internalErrorResult("layout_dump", e.message ?: "unknown error")
         }
-    }
-
-    private fun tryDumpAndPull(adb: IDeviceAdb, remoteDir: String, remoteFile: String, localFile: File): Boolean {
-        adb.execAdbShellCmd("mkdir -p $remoteDir")
-        adb.execAdbShellCmd("uiautomator dump $remoteFile")
-        return adb.pull(remoteFile, localFile) && localFile.exists()
     }
 
     /**
@@ -125,5 +130,13 @@ class LayoutDumpMcpToolAction : McpToolAction {
             artifacts = emptyList(),
             errorCode = McpErrorCode.MCP_NO_DEVICE,
         )
+    }
+
+    private fun resolvePackageName(runtime: IMcpRuntime): String? {
+        return try {
+            runtime.deployTargetManager.getPackageName()?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
     }
 }

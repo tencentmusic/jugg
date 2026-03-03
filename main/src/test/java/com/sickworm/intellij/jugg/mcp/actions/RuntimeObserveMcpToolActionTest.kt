@@ -79,23 +79,10 @@ class RuntimeObserveMcpToolActionTest {
     }
 
     @Test
-    fun testLayoutDumpRetriesOnceAfterPullFailure() {
+    fun testLayoutDumpReturnsErrorWhenPackageMissing() {
         val projectDir = createTempDir(prefix = "jugg_mcp_layout_dump_")
         val device = Mockito.mock(IDevice::class.java)
-        val adb = FakeDeviceAdb(
-            shellOutputs = mapOf(
-                "uiautomator dump /sdcard/Download/jugg_mcp/layout_1.xml" to "",
-            ),
-            pullHandler = { _, to, attempt ->
-                if (attempt == 1) {
-                    false
-                } else {
-                    to.parentFile?.mkdirs()
-                    to.writeText("<hierarchy/>")
-                    true
-                }
-            }
-        )
+        val adb = FakeDeviceAdb()
         PlatformApi.impl = FakePlatformApi(mapOf(device to adb))
 
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
@@ -105,12 +92,8 @@ class RuntimeObserveMcpToolActionTest {
         val action = LayoutDumpMcpToolAction()
         val result = action.execute(mapOf("projectDir" to projectDir.absolutePath), runtime(projectDir, deployTargetManager))
 
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        Assert.assertEquals(2, adb.pullCount)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        val file = data["file"] as String
-        Assert.assertTrue(File(file).exists())
+        Assert.assertEquals(McpToolStatus.ERROR, result.status)
+        Assert.assertTrue(result.message.contains("failed to resolve package name"))
     }
 
     private fun runtime(projectDir: File, deployTargetManager: IDeployTargetManager): IMcpRuntime {

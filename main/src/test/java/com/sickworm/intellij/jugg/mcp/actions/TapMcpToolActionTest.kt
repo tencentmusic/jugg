@@ -1,6 +1,8 @@
 package com.sickworm.intellij.jugg.mcp.actions
 
 import com.android.ddmlib.IDevice
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.sickworm.intellij.jugg.compiler.CompileUiHandler
@@ -16,6 +18,9 @@ import com.sickworm.intellij.jugg.ide.logic.JuggRunInvocationResult
 import com.sickworm.intellij.jugg.mcp.IMcpRuntime
 import com.sickworm.intellij.jugg.mcp.McpErrorCode
 import com.sickworm.intellij.jugg.mcp.McpToolStatus
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.FindAndTapResult
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.MatchCandidate
+import com.sickworm.intellij.jugg.mcp.viewhierarchy.ViewHierarchyClient
 import com.sickworm.intellij.jugg.platform.IPlatformApi
 import com.sickworm.intellij.jugg.platform.PlatformApi
 import com.sickworm.intellij.jugg.project.dependency.DependencyDiffResult
@@ -25,7 +30,7 @@ import org.mockito.Mockito
 import java.io.File
 
 /**
- * TapMcpToolActionTest covers all three tap modes (coordinate, percent, element) and edge cases.
+ * TapMcpToolActionTest covers coordinate/percent modes and server-only element mode.
  */
 class TapMcpToolActionTest {
 
@@ -101,177 +106,151 @@ class TapMcpToolActionTest {
     }
 
     @Test
-    fun testTapElementModeByText() {
-        val xml = buildUiXml(
-            node(text = "Login", bounds = "[100,200][300,400]", clickable = true)
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
+    fun testTapElementModeUsesServerSuccess() {
+        val (action, adb) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Login", null, null, null)).thenReturn(
+                FindAndTapResult.Success(
+                    x = 321,
+                    y = 654,
+                    matchedElement = "text=\"Login\"",
+                    matchCount = 1,
+                )
             )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "Login"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(200, data["x"])
-        Assert.assertEquals(300, data["y"])
-        Assert.assertEquals("element", data["mode"])
-        Assert.assertEquals(1, data["matchCount"])
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Login"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.OK, result.status)
+            Assert.assertTrue(adb.tappedCommands.isEmpty())
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("element", data["mode"])
+            Assert.assertEquals(321, data["x"])
+            Assert.assertEquals(654, data["y"])
+            Assert.assertEquals(1, data["matchCount"])
+            Assert.assertEquals("text=\"Login\"", data["matchedElement"])
+        }
     }
 
     @Test
-    fun testTapElementModeByResourceId() {
-        val xml = buildUiXml(
-            node(resourceId = "com.example:id/btn_ok", bounds = "[0,0][200,100]")
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
+    fun testTapElementModeUsesServerMultipleMatches() {
+        val (action, adb) = setup(packageName = "com.example.app")
+        val boundsA = jsonObject("""{"left":1,"top":2,"right":101,"bottom":102}""")
+        val boundsB = jsonObject("""{"left":201,"top":202,"right":301,"bottom":302}""")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Item", null, null, null)).thenReturn(
+                FindAndTapResult.Multiple(
+                    matchCount = 2,
+                    matches = listOf(
+                        MatchCandidate("Item", "id/a", "", "android.widget.TextView", boundsA, 51, 52),
+                        MatchCandidate("Item", "id/b", "", "android.widget.TextView", boundsB, 251, 252),
+                    ),
+                    message = "multiple",
+                )
             )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "resourceId" to "com.example:id/btn_ok"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(100, data["x"])
-        Assert.assertEquals(50, data["y"])
-        Assert.assertEquals("element", data["mode"])
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Item"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
+            Assert.assertTrue(adb.tappedCommands.isEmpty())
+            @Suppress("UNCHECKED_CAST")
+            val data = result.data as Map<String, Any>
+            Assert.assertEquals("element", data["mode"])
+            Assert.assertEquals(2, data["matchCount"])
+            @Suppress("UNCHECKED_CAST")
+            val matches = data["matches"] as List<Map<String, Any>>
+            Assert.assertEquals(2, matches.size)
+            Assert.assertEquals("{\"left\":1,\"top\":2,\"right\":101,\"bottom\":102}", matches[0]["bounds"])
+            Assert.assertEquals(51, matches[0]["centerX"])
+            Assert.assertEquals(251, matches[1]["centerX"])
+        }
     }
 
     @Test
-    fun testTapElementModeByContentDesc() {
-        val xml = buildUiXml(
-            node(contentDesc = "Play button", bounds = "[400,500][600,700]")
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
+    fun testTapElementModeUsesServerNotFound() {
+        val (action, adb) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Missing", null, null, null)).thenReturn(
+                FindAndTapResult.NotFound(
+                    candidates = listOf(
+                        MatchCandidate(
+                            text = "Login",
+                            resourceId = "com.example:id/login",
+                            contentDesc = "",
+                            className = "android.widget.Button",
+                            bounds = null,
+                            centerX = 10,
+                            centerY = 20,
+                        )
+                    ),
+                    message = "not found",
+                )
             )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "contentDesc" to "Play button"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(500, data["x"])
-        Assert.assertEquals(600, data["y"])
-        Assert.assertEquals("element", data["mode"])
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Missing"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertTrue(result.message.contains("No matching UI element found"))
+            Assert.assertTrue(result.message.contains("Login"))
+            Assert.assertTrue(result.message.contains("com.example:id/login"))
+            Assert.assertTrue(result.message.contains("android.widget.Button"))
+            Assert.assertTrue(adb.tappedCommands.isEmpty())
+        }
     }
 
     @Test
-    fun testTapElementModeWithClassNameFilter() {
-        val xml = buildUiXml(
-            node(text = "Submit", className = "android.widget.Button", bounds = "[10,20][110,120]"),
-            node(text = "Submit", className = "android.widget.TextView", bounds = "[200,300][400,500]"),
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
+    fun testTapElementModeServerFailureReturnsError() {
+        val (action, adb) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Any", null, null, null)).thenReturn(
+                FindAndTapResult.Failure("socket failed")
             )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "Submit", "className" to "android.widget.Button"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.OK, result.status)
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(60, data["x"])
-        Assert.assertEquals(70, data["y"])
-        Assert.assertEquals(1, data["matchCount"])
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Any"),
+                runtime()
+            )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertTrue(result.message.contains("ViewHierarchy server error"))
+            Assert.assertTrue(adb.tappedCommands.isEmpty())
+        }
     }
 
     @Test
-    fun testTapElementModeMultipleMatchesReturnsError() {
-        val xml = buildUiXml(
-            node(text = "Item", bounds = "[0,0][100,100]"),
-            node(text = "Item", bounds = "[0,200][100,300]"),
-            node(text = "Item", bounds = "[0,400][100,500]"),
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
+    fun testTapElementModeServerUnavailableReturnsError() {
+        val (action, _) = setup(packageName = "com.example.app")
+        Mockito.mockConstruction(ViewHierarchyClient::class.java) { mock, _ ->
+            Mockito.`when`(mock.findAndTap("Any", null, null, null)).thenReturn(null)
+        }.use {
+            val result = action.execute(
+                mapOf("projectDir" to "/tmp/test", "text" to "Any"),
+                runtime()
             )
-        )
+            Assert.assertEquals(McpToolStatus.ERROR, result.status)
+            Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+            Assert.assertTrue(result.message.contains("server is unavailable"))
+        }
+    }
+
+    @Test
+    fun testTapElementModeWithoutPackageNameReturnsError() {
+        val (action, _) = setup(packageName = null)
         val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "Item"),
+            mapOf("projectDir" to "/tmp/test", "text" to "Any"),
             runtime()
         )
         Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertEquals(McpErrorCode.MCP_INVALID_PARAMS, result.errorCode)
-        Assert.assertTrue(result.message.contains("3 elements matched"))
-        Assert.assertTrue(result.message.contains("coordinate mode"))
-        @Suppress("UNCHECKED_CAST")
-        val data = result.data as Map<String, Any>
-        Assert.assertEquals(3, data["matchCount"])
-        @Suppress("UNCHECKED_CAST")
-        val matches = data["matches"] as List<Map<String, Any>>
-        Assert.assertEquals(3, matches.size)
-        Assert.assertEquals(50, matches[0]["centerX"])
-        Assert.assertEquals(50, matches[0]["centerY"])
-        Assert.assertEquals(50, matches[1]["centerX"])
-        Assert.assertEquals(250, matches[1]["centerY"])
-    }
-
-    @Test
-    fun testTapElementModeExactMatchRejectsSubstring() {
-        val xml = buildUiXml(
-            node(text = "Login to account", bounds = "[100,200][300,400]", clickable = true),
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
-            )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "Login"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains("No matching UI element found"))
-    }
-
-    @Test
-    fun testTapElementModeNoMatch() {
-        val xml = buildUiXml(
-            node(text = "OK", bounds = "[0,0][100,100]", clickable = true),
-        )
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
-            )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "NonExistent"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains("No matching UI element found"))
-        Assert.assertTrue(result.message.contains("OK"))
-    }
-
-    @Test
-    fun testTapElementModeDumpFail() {
-        val (action, _) = setup(
-            shellOutputs = mapOf(
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to "",
-            )
-        )
-        val result = action.execute(
-            mapOf("projectDir" to "/tmp/test", "text" to "Something"),
-            runtime()
-        )
-        Assert.assertEquals(McpToolStatus.ERROR, result.status)
-        Assert.assertTrue(result.message.contains("UI hierarchy dump returned empty"))
+        Assert.assertEquals(McpErrorCode.MCP_INTERNAL_ERROR, result.errorCode)
+        Assert.assertTrue(result.message.contains("Unable to resolve package name"))
     }
 
     @Test
@@ -295,14 +274,11 @@ class TapMcpToolActionTest {
 
     @Test
     fun testTapPriorityPercentOverElement() {
-        val xml = buildUiXml(
-            node(text = "Login", bounds = "[100,200][300,400]"),
-        )
         val (action, _) = setup(
             shellOutputs = mapOf(
                 "wm size" to "Physical size: 1080x2400",
-                "cat /sdcard/Download/jugg_mcp/tap_layout.xml" to xml,
-            )
+            ),
+            packageName = "com.example.app",
         )
         val result = action.execute(
             mapOf("projectDir" to "/tmp/test", "xPercent" to 10.0, "yPercent" to 20.0, "text" to "Login"),
@@ -346,6 +322,7 @@ class TapMcpToolActionTest {
 
     private fun setup(
         shellOutputs: Map<String, String> = emptyMap(),
+        packageName: String? = null,
     ): Pair<TapMcpToolAction, FakeDeviceAdb> {
         val device = Mockito.mock(IDevice::class.java)
         val adb = FakeDeviceAdb(shellOutputs)
@@ -354,6 +331,9 @@ class TapMcpToolActionTest {
         val deployTargetManager = Mockito.mock(IDeployTargetManager::class.java)
         Mockito.`when`(deployTargetManager.getSelectedDevices()).thenReturn(listOf(device))
         Mockito.`when`(deployTargetManager.getConnectedDevices()).thenReturn(listOf(device))
+        if (packageName != null) {
+            Mockito.`when`(deployTargetManager.getPackageName()).thenReturn(packageName)
+        }
         currentDeployTargetManager = deployTargetManager
         return TapMcpToolAction() to adb
     }
@@ -371,13 +351,16 @@ class TapMcpToolActionTest {
                 override fun executeGradleCompile(autoConfirm: Boolean, useCleanAndReinstall: Boolean) {
                     throw UnsupportedOperationException("not used")
                 }
+
                 override fun executeGradleCompileBlocking(
                     autoConfirm: Boolean,
                     useCleanAndReinstall: Boolean,
                 ): GradleCompileExecutionResult {
                     throw UnsupportedOperationException("not used")
                 }
+
                 override fun resolveExecutionType(): String = "local"
+
                 override fun requestRemoteSshInfo(requestedBy: String, reason: String): RemoteSshInfoResult {
                     throw UnsupportedOperationException("not used")
                 }
@@ -386,9 +369,11 @@ class TapMcpToolActionTest {
                 override val isCompiling: Boolean = false
                 override fun runTask(options: JuggGradleCompileOptions, compileUiHandler: CompileUiHandler) =
                     throw UnsupportedOperationException("not used")
+
                 override fun forceReInstallNextTime() {
                     throw UnsupportedOperationException("not used")
                 }
+
                 override fun runFirstConfiguration(isRpcMode: Boolean, isSkipDeploy: Boolean): JuggRunInvocationResult {
                     throw UnsupportedOperationException("not used")
                 }
@@ -396,22 +381,8 @@ class TapMcpToolActionTest {
         }
     }
 
-    private fun node(
-        text: String = "",
-        resourceId: String = "",
-        contentDesc: String = "",
-        className: String = "android.widget.View",
-        bounds: String = "[0,0][0,0]",
-        clickable: Boolean = false,
-    ): String {
-        return """<node text="$text" resource-id="$resourceId" content-desc="$contentDesc" """ +
-            """class="$className" bounds="$bounds" clickable="$clickable" />"""
-    }
-
-    private fun buildUiXml(vararg nodes: String): String {
-        return """<?xml version="1.0" encoding="UTF-8"?><hierarchy rotation="0">""" +
-            nodes.joinToString("") +
-            """</hierarchy>"""
+    private fun jsonObject(raw: String): JsonObject {
+        return JsonParser.parseString(raw).asJsonObject
     }
 
     private class FakeDeviceAdb(
@@ -422,15 +393,14 @@ class TapMcpToolActionTest {
         override val serial: String = "emulator-5554"
         override val isOnline: Boolean = true
 
+        val executedCommands = mutableListOf<String>()
         val tappedCommands = mutableListOf<String>()
 
         override fun execAdbShellCmd(cmd: String): String {
+            executedCommands.add(cmd)
             if (cmd.startsWith("input tap ")) {
                 tappedCommands.add(cmd)
                 return ""
-            }
-            if (cmd.startsWith("uiautomator dump ")) {
-                return "UI hierchary dumped"
             }
             return shellOutputs[cmd].orEmpty()
         }

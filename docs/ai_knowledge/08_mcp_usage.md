@@ -1,6 +1,6 @@
 # MCP 使用说明（当前注册工具）
 
-> 最后核对：2026-02-24  
+> 最后核对：2026-03-03  
 > 一致性规则：文档与代码冲突时，以代码为准。
 
 ---
@@ -46,7 +46,7 @@
 | `screenshot` | `projectDir` | 截图 |
 | `start_record` | `projectDir` | 开始录屏（立即返回 `sessionId`） |
 | `stop_record` | `projectDir`, `sessionId` | 停止录屏并拉取 mp4 产物 |
-| `layout_dump` | `projectDir` | 导出 UI 层级 XML |
+| `layout_dump` | `projectDir` | 导出 UI 层级（仅 App 内 ViewHierarchy JSON） |
 | `activity_stack` | `projectDir` | 读取 Activity 栈 |
 | `crash_report` | `projectDir` | 收集最近崩溃摘要与完整错误日志 artifact |
 | `tap` | `projectDir` + 模式参数 | 屏幕点击（三模式：坐标/百分比/元素） |
@@ -67,10 +67,19 @@
 - `crashLogs` 返回最近一段崩溃关键日志（通常 15~30 行）。
 - `allErrorLogPath` 为完整错误日志路径，客户端可按需读取全文。
 
+补充（layout_dump 语义）：
+- 走 App 进程内 `ViewHierarchyServer`（`adb forward` + LocalSocket）获取 JSON 树并落盘为 `.json`。
+- 成功时 `data.file` 返回本地绝对路径，`artifacts` 里会包含 `type=json` 的产物。
+- Server 可能返回内联 JSON 或远端文件路径，`layout_dump` 会统一拉齐为本地 `.json` 文件输出。
+- 多进程应用下，客户端会优先尝试主进程 socket（`processName == packageName`），再按其余 PID 依次尝试，最后兜底兼容 socket 名 `jugg_vh`。
+- 当 Server 不可用、包名不可解析或请求失败时，直接返回 `ERROR`（不再回退 `uiautomator dump`）。
+
 补充（tap 三模式语义）：
 - **坐标模式**（`x` + `y`）：直接传入设备像素坐标，行为与原有逻辑一致。
 - **百分比模式**（`xPercent` + `yPercent`，范围 0-100）：自动通过 `adb shell wm size` 获取屏幕尺寸后换算为像素坐标，优先使用 Override size。返回 `data` 中包含 `screenWidth`、`screenHeight`。
-- **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match），自动 `uiautomator dump` 获取 UI 层级 → 按 AND 逻辑匹配元素。唯一匹配时 tap 元素中心点；**多匹配时不执行 tap**，返回 `ERROR` + 所有匹配元素的摘要列表（含 bounds 和 center 坐标），引导 Agent 使用坐标或百分比模式进行精确点击。
+- **元素模式**（`text` / `resourceId` / `contentDesc`，可选 `className`）：所有选择器均为**精确匹配**（exact match）。走 App 内 `find_and_tap` 原子执行（查找+点击），避免 IDE 侧 dump 与点击之间的竞态；若 Server 不可用则直接返回 `ERROR`。唯一匹配时点击元素中心点；**多匹配时不执行 tap**，返回 `ERROR` + 所有匹配元素摘要（含 bounds/center）。
+- 元素模式未命中时返回 `MCP_INTERNAL_ERROR`，`message` 会包含可点击候选元素摘要，便于快速改 selector。
+- 元素模式命中前会过滤不可操作节点（`VISIBLE + isShown + 非零尺寸 + 有效 bounds`），避免隐藏模板节点导致误报多匹配。
 - 优先级：coordinate > percent > element。若无匹配任何模式，返回 `MCP_INVALID_PARAMS`。
 
 补充（`mcp_fetch` 清理机制）：

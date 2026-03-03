@@ -173,7 +173,7 @@ Use this library to constrain auto-fix behavior.
   stage: compile
   signature:
     includes: ["patch success", "expected view id not found", "layout_dump missing node"]
-  diagnosis: regex/text-replace patch reported success but did not land intended XML node
+  diagnosis: regex/text-replace patch reported success but did not land intended UI node change
   fix_strategy: rewrite_target_xml_and_verify_node
   fix_scope: low
   confidence_hint: 0.89
@@ -181,12 +181,24 @@ Use this library to constrain auto-fix behavior.
   next_action_on_success: compile_and_deploy_then_layout_dump_verify
   next_action_on_failure: ask_user_for_layout_structure_decision
 
-- id: layout_dump_single_line
+- id: viewhierarchy_server_unavailable
   stage: observe
   signature:
-    includes: ["layout_dump executed successfully", "xml one line", "bounds="]
-  diagnosis: layout dump may be emitted as a single-line XML, hard to read manually
-  fix_strategy: grep_by_text_or_resource_id_then_extract_bounds
+    includes: ["ViewHierarchy server is unavailable", "find_and_tap failed", "layout_dump failed"]
+  diagnosis: app-side ViewHierarchy server is unreachable and no legacy fallback path is available
+  fix_strategy: restart_app_then_retry_layout_dump_or_switch_to_non_element_tap
+  fix_scope: low
+  confidence_hint: 0.91
+  auto_apply: true
+  next_action_on_success: retry_element_mode_or_layout_verification
+  next_action_on_failure: ask_user_for_expected_runtime_state
+
+- id: layout_dump_json_single_line
+  stage: observe
+  signature:
+    includes: ["layout_dump executed successfully", "json one line", "\"bounds\""]
+  diagnosis: layout dump may be emitted as single-line JSON, hard to inspect manually
+  fix_strategy: use_jq_or_grep_by_text_or_resource_id_then_extract_bounds
   fix_scope: low
   confidence_hint: 0.95
   auto_apply: true
